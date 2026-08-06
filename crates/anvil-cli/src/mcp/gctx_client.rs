@@ -566,6 +566,74 @@ mod windows_tests {
     }
 
     #[test]
+    fn windows_gctx_round_trip_deserialises_typed_result() {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+        #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
+        struct TypedResult {
+            symbol_count: usize,
+        }
+
+        let _test_guard = WINDOWS_TRANSPORT_TEST_LOCK
+            .lock()
+            .expect("transport test lock");
+        let runtime = runtime();
+        let pipe_name = format!(r"\\.\pipe\anvil-gctx-success-test-{}", std::process::id(),);
+        let server = {
+            let _guard = runtime.enter();
+            anvil_intercept_win32::create_owner_only_pipe_server(
+                &pipe_name,
+                anvil_intercept_win32::PipeInstance::First,
+            )
+            .expect("bind owner-only test pipe")
+        };
+
+        let server_task = runtime.spawn(async move {
+            let server = server;
+            server.connect().await.expect("accept test client");
+            let mut reader = BufReader::new(server);
+            let mut request_line = String::new();
+            reader
+                .read_line(&mut request_line)
+                .await
+                .expect("read newline-framed request");
+            assert!(
+                request_line.ends_with('\n'),
+                "request must be newline framed"
+            );
+            let request: serde_json::Value =
+                serde_json::from_str(&request_line).expect("parse JSON-RPC request");
+            assert_eq!(
+                request["method"],
+                anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS
+            );
+            assert_eq!(request["id"], "windows-gctx-success");
+
+            let response = json!({
+                "jsonrpc": "2.0",
+                "id": "windows-gctx-success",
+                "result": {"symbol_count": 7},
+            });
+            reader
+                .get_mut()
+                .write_all(format!("{response}\n").as_bytes())
+                .await
+                .expect("write newline-framed response");
+            reader.get_mut().shutdown().await.expect("server shutdown");
+        });
+
+        let result: Result<TypedResult, DaemonRpcError> = daemon_rpc_call_windows_at(
+            pipe_name,
+            anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS,
+            json!({"workspace_root": r"C:\gctx-test"}),
+            "windows-gctx-success",
+            None,
+        );
+        runtime.block_on(server_task).expect("server task joins");
+        assert_eq!(result, Ok(TypedResult { symbol_count: 7 }));
+    }
+
+    #[test]
     fn repeated_windows_cancellation_drains_beyond_the_legacy_worker_limit() {
         let _test_guard = WINDOWS_TRANSPORT_TEST_LOCK
             .lock()
