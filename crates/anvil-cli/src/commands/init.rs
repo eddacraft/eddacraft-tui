@@ -169,8 +169,13 @@ fn run_tui(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Resu
         checks: checks.clone(),
     };
 
-    generate_config_with_force(&config, &init_root, force)?;
-    print_success(&config.planning_dir, &checks, invocation);
+    let generated = generate_config_with_force(&config, &init_root, force)?;
+    print_success(
+        &config.planning_dir,
+        &checks,
+        invocation,
+        generated.gitignore_updated,
+    );
     print_capacity_recommendation(&init_root);
     print_post_init_analysis(&init_root);
     Ok(())
@@ -178,8 +183,13 @@ fn run_tui(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Resu
 
 fn run_plain(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Result<()> {
     let config = AnvilConfig::default();
-    generate_config_with_force(&config, root, force)?;
-    print_success(&config.planning_dir, &config.checks, invocation);
+    let generated = generate_config_with_force(&config, root, force)?;
+    print_success(
+        &config.planning_dir,
+        &config.checks,
+        invocation,
+        generated.gitignore_updated,
+    );
     print_capacity_recommendation(root);
     print_post_init_analysis(root);
     Ok(())
@@ -475,8 +485,16 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
     Ok(true)
 }
 
-fn print_success(planning_dir: &str, checks: &[String], invocation: InitInvocation) {
-    print!("{}", success_message(planning_dir, checks, invocation));
+fn print_success(
+    planning_dir: &str,
+    checks: &[String],
+    invocation: InitInvocation,
+    gitignore_updated: bool,
+) {
+    print!(
+        "{}",
+        success_message(planning_dir, checks, invocation, gitignore_updated)
+    );
 }
 
 /// The init closing block. Standalone `anvil init` ends with a single next-step
@@ -484,7 +502,15 @@ fn print_success(planning_dir: &str, checks: &[String], invocation: InitInvocati
 /// `anvil start` drops that line, because the activation ending owns the one
 /// next step and telling the user to run `anvil start` — the command they just
 /// ran — is misdirection (CIB-163).
-fn success_message(planning_dir: &str, checks: &[String], invocation: InitInvocation) -> String {
+///
+/// CIB-263: when init mutated `.gitignore`, name that path in the summary so
+/// the blast radius is honest (Config/Plans/Checks alone under-reported it).
+fn success_message(
+    planning_dir: &str,
+    checks: &[String],
+    invocation: InitInvocation,
+    gitignore_updated: bool,
+) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out);
@@ -492,6 +518,9 @@ fn success_message(planning_dir: &str, checks: &[String], invocation: InitInvoca
     let _ = writeln!(out, "  Config:    {CONFIG_FILE_NAME}");
     let _ = writeln!(out, "  Plans:     {planning_dir}/");
     let _ = writeln!(out, "  Checks:    {}", checks.join(", "));
+    if gitignore_updated {
+        let _ = writeln!(out, "  Gitignore: .gitignore");
+    }
     if invocation == InitInvocation::Standalone {
         let _ = writeln!(out);
         let _ = writeln!(out, "  Next: run `anvil start` to activate protection.");
@@ -553,6 +582,7 @@ mod tests {
             "plans",
             &["secret-detection".to_string()],
             InitInvocation::Standalone,
+            true,
         );
         let next = msg
             .lines()
@@ -574,6 +604,7 @@ mod tests {
             "plans",
             &["secret-detection".to_string()],
             InitInvocation::FromStart,
+            true,
         );
         assert!(
             !msg.contains("Next:"),
@@ -596,14 +627,74 @@ mod tests {
     #[test]
     fn standalone_and_from_start_differ_only_by_next_step_line() {
         let checks = ["secret-detection".to_string()];
-        let standalone = success_message("plans", &checks, InitInvocation::Standalone);
-        let from_start = success_message("plans", &checks, InitInvocation::FromStart);
+        let standalone = success_message("plans", &checks, InitInvocation::Standalone, true);
+        let from_start = success_message("plans", &checks, InitInvocation::FromStart, true);
         assert!(
             standalone.starts_with(&from_start),
             "standalone output is the FromStart output plus a trailing next-step block:\n\
              standalone:\n{standalone}\nfrom_start:\n{from_start}"
         );
         assert!(standalone.len() > from_start.len());
+    }
+
+    // CIB-263: when init appends ignore entries, the summary must name `.gitignore`
+    // so the blast radius matches the files actually touched.
+    #[test]
+    fn success_message_lists_gitignore_when_updated() {
+        let msg = success_message(
+            "plans",
+            &["secret-detection".to_string()],
+            InitInvocation::Standalone,
+            true,
+        );
+        assert!(
+            msg.lines().any(|l| l.contains(".gitignore")),
+            "success summary must name .gitignore when it was updated:\n{msg}"
+        );
+        assert!(
+            msg.contains("Gitignore:"),
+            "gitignore line should use the same label layout as Config/Plans/Checks:\n{msg}"
+        );
+    }
+
+    // CIB-263: when every managed entry was already present, do not claim we
+    // touched `.gitignore`.
+    #[test]
+    fn success_message_omits_gitignore_when_unchanged() {
+        let msg = success_message(
+            "plans",
+            &["secret-detection".to_string()],
+            InitInvocation::Standalone,
+            false,
+        );
+        assert!(
+            !msg.contains(".gitignore") && !msg.contains("Gitignore:"),
+            "success summary must not claim a gitignore update when none happened:\n{msg}"
+        );
+    }
+
+    // CIB-263: fresh plain init mutates `.gitignore` and the success summary
+    // must surface that path (integration of generate + summary flag).
+    #[test]
+    fn generate_config_reports_gitignore_updated_on_fresh_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        // Pre-existing tracked-style gitignore without anvil entries.
+        fs::write(dir.path().join(".gitignore"), "node_modules/\n").unwrap();
+        let generated = generate_config(&AnvilConfig::default(), dir.path()).expect("generate");
+        assert!(
+            generated.gitignore_updated,
+            "fresh repo with partial .gitignore must report an update"
+        );
+        let msg = success_message(
+            "plans",
+            &AnvilConfig::default().checks,
+            InitInvocation::Standalone,
+            generated.gitignore_updated,
+        );
+        assert!(
+            msg.contains(".gitignore"),
+            "summary for a gitignore-mutating init must name the file:\n{msg}"
+        );
     }
 
     #[test]

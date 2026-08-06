@@ -115,23 +115,23 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
     // Determine the longest path so the descriptions align. We use terminal
     // cell width (via unicode-width) rather than char count so CJK glyphs
     // and emoji-wide paths line up with the description column instead of
-    // bleeding into it.
-    let widest = [
+    // bleeding into it. Include `.gitignore` only when it was actually
+    // mutated so an unchanged ignore file never claims space in the blast
+    // radius list (CIB-263).
+    let mut path_widths = vec![
         s.config_path.as_str(),
         s.plans_dir.as_str(),
         s.cache_dir.as_str(),
-    ]
-    .iter()
-    .map(|p| UnicodeWidthStr::width(*p))
-    .max()
-    .unwrap_or(0);
+    ];
+    if s.gitignore_updated {
+        path_widths.push(".gitignore");
+    }
+    let widest = path_widths
+        .iter()
+        .map(|p| UnicodeWidthStr::width(*p))
+        .max()
+        .unwrap_or(0);
     let gap = widest + 2;
-
-    let cache_suffix = if s.gitignore_updated {
-        "local cache (added to .gitignore)"
-    } else {
-        "local cache"
-    };
 
     let mut lines: Vec<Line> = vec![
         Line::from(Span::styled(
@@ -153,8 +153,19 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
             gap,
             theme,
         ),
-        path_line(&s.cache_dir, cache_suffix, gap, theme),
+        path_line(&s.cache_dir, "local cache", gap, theme),
     ];
+    // CIB-263: list `.gitignore` as its own path row when ignore rules were
+    // appended. The cache description stays plain "local cache" so we do not
+    // double-announce the gitignore change on the cache line.
+    if s.gitignore_updated {
+        lines.push(path_line(
+            ".gitignore",
+            "appended ignore entries",
+            gap,
+            theme,
+        ));
+    }
 
     if !s.checks_enabled.is_empty() {
         lines.push(Line::default());
@@ -309,6 +320,59 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            !rendered.contains(".gitignore"),
+            "unchanged gitignore must not appear as a path row (CIB-263): {rendered}"
+        );
+        assert!(
+            rendered.contains("local cache") && !rendered.contains("added to .gitignore"),
+            "cache line stays plain when gitignore was not updated: {rendered}"
+        );
+    }
+
+    // CIB-263: when ignore entries were appended, the landing list names
+    // `.gitignore` as its own path — matching the tutorial blast-radius honesty
+    // tags and the CLI plain summary.
+    #[test]
+    fn renders_gitignore_as_own_path_row_when_updated() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = InitCompleteState::new(InitCompleteSummary {
+            gitignore_updated: true,
+            ..Default::default()
+        });
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        assert!(
+            rendered.contains(".gitignore"),
+            "updated gitignore must appear as its own path row (CIB-263): {rendered}"
+        );
+        assert!(
+            rendered.contains("appended ignore entries"),
+            "gitignore row should describe the ignore-rule update: {rendered}"
+        );
+        assert!(
+            rendered.contains("local cache") && !rendered.contains("added to .gitignore"),
+            "cache description must not double-announce gitignore: {rendered}"
+        );
     }
 
     #[test]
