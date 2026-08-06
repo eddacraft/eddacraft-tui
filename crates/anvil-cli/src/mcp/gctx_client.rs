@@ -569,11 +569,6 @@ mod windows_tests {
     fn windows_gctx_round_trip_deserialises_typed_result() {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-        #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
-        struct TypedResult {
-            symbol_count: usize,
-        }
-
         let _test_guard = WINDOWS_TRANSPORT_TEST_LOCK
             .lock()
             .expect("transport test lock");
@@ -612,7 +607,19 @@ mod windows_tests {
             let response = json!({
                 "jsonrpc": "2.0",
                 "id": "windows-gctx-success",
-                "result": {"symbol_count": 7},
+                "result": {
+                    "workspace_assurance": {
+                        "state": "clean",
+                        "generation": 0,
+                    },
+                    "outcome": {
+                        "status": "ready",
+                        "symbol_count": 7,
+                        "symbol_edge_count": 0,
+                        "file_count": 0,
+                        "dependency_edge_count": 0,
+                    },
+                },
             });
             reader
                 .get_mut()
@@ -622,15 +629,34 @@ mod windows_tests {
             reader.get_mut().shutdown().await.expect("server shutdown");
         });
 
-        let result: Result<TypedResult, DaemonRpcError> = daemon_rpc_call_windows_at(
+        let result: Result<
+            anvil_intercept_proto::protocol::GctxGraphStatsResponse,
+            DaemonRpcError,
+        > = daemon_rpc_call_windows_at(
             pipe_name,
             anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS,
             json!({"workspace_root": r"C:\gctx-test"}),
             "windows-gctx-success",
             None,
         );
-        runtime.block_on(server_task).expect("server task joins");
-        assert_eq!(result, Ok(TypedResult { symbol_count: 7 }));
+        runtime
+            .block_on(tokio::time::timeout(Duration::from_secs(1), server_task))
+            .expect("server task joins within deadline")
+            .expect("server task joins");
+        let response = result.expect("typed graph-stats response");
+        assert_eq!(
+            response.workspace_assurance.state,
+            anvil_intercept_proto::protocol::AssuranceState::Clean
+        );
+        assert_eq!(
+            response.outcome,
+            anvil_gctx_types::GraphStatsOutcome::Ready(anvil_gctx_types::GraphStatsProjection {
+                symbol_count: 7,
+                symbol_edge_count: 0,
+                file_count: 0,
+                dependency_edge_count: 0,
+            })
+        );
     }
 
     #[test]
