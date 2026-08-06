@@ -7529,7 +7529,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-269: Panic-hook thread-name suppression is latent coupling if the name is reused
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3617 (`703af5514`)
 - **Priority:** P3 robustness (CIB-248 verification advisory 2026-08-04)
 - **Intent:** The panic hook suppresses output purely by matching the thread
   **name** `AUTOPLAY_WORKER_THREAD`. Suppression is only safe because that
@@ -7552,7 +7552,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-270: Recorded environmental test baseline is understated and hides real failures
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3628 (`b1f7d496b`)
 - **Priority:** P2 validation honesty (observed across PR #3521/#3523 2026-08-04)
 - **Intent:** The baseline agents are handed ("the `mcp::tools::*` daemon
   family") omits members that do fail routinely, so a genuine regression can
