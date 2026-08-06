@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 217/283  |
+| CIB | —     | In Progress | 218/283  |
 
 ## Purpose
 
@@ -8210,13 +8210,14 @@ CIB-251/255 only.
 
 ### CIB-286: the CIB index row's prose duplicates per-item status and goes stale
 
-- **Status:** In Progress — the operator chose **shape 1 (stop duplicating)**
-  on 2026-08-06, settling the design call this item was filed to put to them.
-  Implemented on the branch carrying this note: the standing
-  `Ready examples include …` inventory and its `… Merged; … Proposed; … Draft`
-  parentheticals are removed from the CIB index row, and the dated entries
-  stay. **On merge, flip to `Merged … via PR #N`.** Not written as Merged here
-  because the PR is still open.
+- **Status:** Merged 2026-08-06 via PR #3603 (`71904f2e4`) — the operator chose
+  **shape 1 (stop duplicating)**, settling the design call this item was filed
+  to put to them. The standing `Ready examples include …` inventory and its
+  `… Merged; … Proposed; … Draft` parentheticals are gone from the CIB index
+  row; the dated entries stay, because a record of what happened when stays
+  true while a standing assertion does not. Verified on `origin/main`: zero
+  occurrences of the inventory clause remain, and the row now closes with the
+  contract instead — per-item status lives here, in the module file.
 - **Priority:** P3 planning-hygiene defect (no runtime surface; it makes
   `plans/index.aps.md` assert item statuses that contradict the module file,
   which is the one place agents and humans look first)
