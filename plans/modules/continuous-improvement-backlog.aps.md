@@ -8991,8 +8991,8 @@ CIB-251/255 only.
 
 - **Status:** Merged 2026-08-07 via PR #3662 — operator-authorised intake +
   implement 2026-08-06 from Dave pack-04; fix landed on main.
-- **Priority:** P2 medium (Dave CFG-1) — false doctor warnings that can leave Protection:warming on
-  legitimate yaml-only projects; init names a phantom `.anvilrc`.
+- **Priority:** P2 medium (Dave CFG-1) — false doctor warnings that can leave
+  Protection:warming on legitimate yaml-only projects; init names a phantom `.anvilrc`.
 - **Intent:** Project config formats `.anvilrc` / `.anvil.<ext>` are supported
   product-wide (`anvil config show`, `anvil_config::discover`, init help), but
   `doctor` only probed `.anvilrc`, and `init`'s already-exists refusal always
