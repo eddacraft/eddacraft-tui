@@ -9,7 +9,7 @@ build/cache, worktree lifecycle, and toolchain determinism. Implements ADR-057.
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DEVENV | —     | In Progress | 6/8      |
+| DEVENV | —     | In Progress | 6/9      |
 
 ## Purpose
 
@@ -236,3 +236,103 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
   `plans/specs/` or `plans/audits/`.
 - **Confidence:** medium — the substrate trade-offs are real and the win depends on
   measured rebuild/disk numbers from the wave-1 changes.
+
+### DEVENV-009: relocation silently off without direnv, and eviction cannot see the result
+
+- **Status:** Draft — filed from a dev-loop run that hit the failure, not
+  self-authorised. Promotion to Ready is an operator call.
+- **Wave:** 1 (hardening — the same wave as the relocation and eviction it repairs)
+- **Intent:** DEVENV-002 relocates cargo output off the `Projects` mount by
+  exporting `CARGO_TARGET_DIR` from `.envrc`, and DEVENV-004 reclaims the
+  relocated dirs under `~/.cache/anvil-targets`. On this machine the chain is
+  broken at both ends, and the combination filled a 1.8 TB disk to 100% while
+  every guard reported success:
+  - **`direnv` is not installed** (`command -v direnv` → absent). `.envrc:16`
+    exports `CARGO_TARGET_DIR` correctly, but nothing loads it, so the variable
+    is unset in every shell — interactive, agent and local-CI alike. Every
+    `cargo build` / `cargo test` therefore writes to the **in-tree** `target/`
+    on the full mount.
+  - **The `wt` `rust` post-start hook** (`.config/wt.toml:26`) exports its own
+    `CARGO_TARGET_DIR` and builds there. That copy is real, so a worktree ends
+    up with **both** a relocated target and an in-tree one. Measured: 22
+    `anvil-001` worktrees at ~84 GB each (~80 GB of it in-tree `target/`),
+    ≈1.7 TB total, alongside 312 GB already under `~/.cache/anvil-targets`.
+  - **`anvil-target-evict.sh` cannot help.** It is correctly hard-scoped to
+    `$ANVIL_TARGET_BASE`, which resolves under `~/.cache` on the **`/home`**
+    filesystem. The disk that filled is `/home/aneki/Projects` — a different
+    mount. A dry run listed 18 evictable dirs, none of which would free a byte
+    on the full disk. The runbook's remedy therefore runs, reports evictions,
+    and changes nothing.
+  - **The DEVENV-002 guard names a remedy that cannot work here.**
+    `.config/wt.toml:36` warns when `CARGO_TARGET_DIR` is unset and says
+    `Run: direnv allow` — inert advice when direnv is absent rather than merely
+    un-allowed. It is also non-blocking by design, so it scrolls past in hook
+    output.
+- **What this does NOT re-litigate:** DEVENV-002 recorded that the committed
+  `.cargo/config.toml` floor was dropped for good reasons (cargo does not
+  expand `$HOME` in config `target-dir`; a hardcoded path is not committable; a
+  parent-dir operator config would capture sibling projects), and that the
+  operator **knowingly accepted** the residual porousness of "an agent using
+  neither direnv nor `wt`". That trade-off stands and this item does not
+  reopen it.
+
+  The observed failure is larger than the accepted residual in three specific
+  ways, which is the reason to file rather than shrug: (a) direnv is not
+  installed at all, so the *primary* mechanism fails for every shell rather
+  than for an unusual agent; (b) `wt`-created worktrees get a relocated target
+  **and** an in-tree one, so the fallback path actively doubles consumption
+  instead of substituting for it; and (c) the documented remedy reports
+  success against the wrong filesystem, so the operator gets a false all-clear.
+  None of those three was part of the accepted trade-off.
+- **Non-scope / do not:** Do not widen `anvil-target-evict.sh` to delete
+  in-tree `target/` directories. Its hard `$ANVIL_TARGET_BASE` prefix and
+  fail-closed check are why it is safe to run unattended (ADR-057), and
+  DEVENV-004 deliberately kept in-tree reclaim as a manual per-worktree
+  `cargo clean` documented in the runbook rather than a blind sweep — that
+  decision stands. Strand 3 is about *telling the operator which mount is
+  full*, not about deleting more. Do not make the guard blocking without first
+  deciding what a contributor without direnv should do instead.
+- **Expected Outcome:** relocation is either in effect or **loudly** absent,
+  and the disk-pressure remedy addresses the mount that actually fills. Three
+  separable strands:
+  1. **Make relocation not depend on an uninstalled tool.** Either add direnv
+     to documented prerequisites and have the guard distinguish its *absence*
+     from its *un-allowed* state, or set `CARGO_TARGET_DIR` by a mechanism that
+     does not need direnv — a checked-in `.cargo/config.toml`
+     `build.target-dir`, or the `wt` hook persisting it into the worktree's
+     environment rather than one shell.
+  2. **Stop the double copy.** A worktree should not hold both an in-tree and a
+     relocated target. Whichever mechanism wins, the other must not silently
+     create a second one.
+  3. **Make the remedy reach the right mount.** Either eviction reports that
+     the pressure is on a filesystem it does not manage, or `doctor` surfaces
+     in-tree targets on the `Projects` mount as reclaimable — so the operator
+     is not told "evicted N dirs" while the full disk is untouched.
+- **Trap to avoid:** the failure is silent in both directions — the guard says
+  nothing actionable and the eviction script reports success. Any fix needs a
+  check that warns against the mount that is **full**, not against the one the
+  script happens to manage. A green eviction run is currently compatible with a
+  100%-full disk.
+- **Files:** `.envrc`, `.config/wt.toml` (the `rust` post-start and the
+  `target-reloc` pre-commit guard), `scripts/cache/anvil-target-evict.sh`,
+  `docs/runbooks/cargo-target-eviction.md`, possibly
+  `crates/anvil-cli/src/commands/doctor.rs` for strand 3
+- **Validation:** on a machine without direnv, a fresh worktree plus one
+  `cargo build` must not create an in-tree `target/` — or must warn in a way
+  that names the missing tool. With the `Projects` mount near full and
+  `~/.cache` roomy, the documented remedy must either free space or say plainly
+  that it cannot. Record `df` before and after: a run reporting evictions while
+  `Avail` is unchanged is the bug.
+- **Identified From:** a dev-loop run on 2026-08-06 that hit `ENOSPC` mid-write
+  while editing `plans/`, aborting an in-flight edit. Diagnosed live: `df`
+  showed `/home/aneki/Projects` at 100% (0 avail) while `/home` had 120 GB
+  free; `du` attributed ≈1.7 TB to 22 worktree `target/` directories;
+  duplication was confirmed on `anvil-001.fix-cib-276-prove-fixture-wording`,
+  which held both copies.
+- **Dependencies:** DEVENV-002 (relocation), DEVENV-004 (eviction), ADR-057.
+  A spike input for DEVENV-008, which is already weighing substrates that would
+  subsume strand 1.
+- **Confidence:** high on the mechanism — direnv's absence, the duplicate
+  copies and the cross-filesystem scoping were each observed directly rather
+  than inferred. Medium on which strand-1 shape is right; that is a dev-env
+  policy call, and DEVENV-008 may answer it first.
