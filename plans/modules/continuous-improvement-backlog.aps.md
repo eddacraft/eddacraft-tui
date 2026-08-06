@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 244/294  |
+| CIB | —     | In Progress | 245/294  |
 
 ## Purpose
 
@@ -8829,11 +8829,11 @@ CIB-251/255 only.
 
 ### CIB-298: Retired-claims tombstone lint closes honesty classes, not instances
 
-- **Status:** In Progress — implementation in flight on PR #3647
-  (`feat/retired-claims-lint`); flip to Merged with the PR number once it
-  lands on `main`. Authorised by the operator 2026-08-06 ("build the
-  tombstone lint"), requested after the CIB-260/288 class analysis; filed
-  from that session, not self-authorised.
+- **Status:** Merged 2026-08-06 via PR #3647 — merge commit `01950144e`,
+  ancestor-verified on `main`; the surface runs live (10/10 docs:check).
+  Authorised by the operator 2026-08-06 ("build the tombstone lint"),
+  requested after the CIB-260/288 class analysis; filed from that
+  session, not self-authorised.
 - **Priority:** P2 process leverage — this is the class-closure mechanism
   for the honesty-drift defect family, not another instance fix.
 - **Intent:** honesty fixes land per-surface, so a retired claim survives
