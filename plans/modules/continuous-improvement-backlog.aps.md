@@ -2752,8 +2752,7 @@ archive.
 
 ### CIB-100: Windows named-pipe GCTX client transport
 
-- **Status:** Merged 2026-08-06 via PR #3614 — native
-  `x86_64-pc-windows-msvc` execution passed
+- **Status:** Merged 2026-08-06 via PR #3614 — native `x86_64-pc-windows-msvc` execution passed
   `windows_gctx_round_trip_deserialises_typed_result`, proving the owner-only
   named-pipe `graph_stats` round trip and typed response deserialisation;
   release evidence remains outstanding.
