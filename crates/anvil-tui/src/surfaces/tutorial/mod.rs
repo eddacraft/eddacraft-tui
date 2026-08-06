@@ -2,9 +2,11 @@ pub mod discovery;
 mod discovery_render;
 pub(crate) mod executor;
 
-/// The in-process autoplay check runner supplied by `anvil-cli` (CIB-248),
-/// and the name of the worker thread it runs on (CIB-249 teardown).
-pub use executor::{AUTOPLAY_WORKER_THREAD, AutoplayRunner};
+/// The in-process autoplay check runner supplied by `anvil-cli` (CIB-248), its
+/// diagnostic thread name, and the explicit caught-panic containment signal.
+pub use executor::{
+    AUTOPLAY_WORKER_THREAD, AutoplayRunner, catch_autoplay_panic, is_autoplay_panic_contained,
+};
 pub mod first_win;
 mod first_win_render;
 pub mod fix;

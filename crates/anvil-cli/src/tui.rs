@@ -32,12 +32,12 @@ fn restore_terminal() {
 /// inside a `run_*` loop leaves the user at a shell prompt with raw mode and
 /// the alternate screen still active.
 ///
-/// CIB-248/CIB-249: the welcome autoplay check runs on a named worker thread
-/// that catches its own panics and reports them as a failed demo step. The TUI
-/// is still live at that point, so restoring the terminal (or printing a
-/// backtrace over the frame) would corrupt the session rather than rescue it.
-/// The hook therefore skips `restore_terminal` and the previous hook for that
-/// thread — the containment the old child-process implementation got for free
+/// CIB-248/CIB-249/CIB-269: the welcome autoplay check catches its own panics
+/// and reports them as a failed demo step. The TUI is still live at that point,
+/// so restoring the terminal (or printing a backtrace over the frame) would
+/// corrupt the session rather than rescue it. The hook therefore leaves a
+/// panic alone only while the autoplay runner's explicit catch boundary is
+/// active — the containment the old child-process implementation got for free
 /// from piped stderr.
 ///
 /// CIB-268: suppression must not swallow the diagnostic. The autoplay path
@@ -51,9 +51,7 @@ fn install_panic_hook() {
     INSTALLED.get_or_init(|| {
         let prev = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
-            if std::thread::current().name()
-                == Some(anvil_tui::surfaces::tutorial::AUTOPLAY_WORKER_THREAD)
-            {
+            if anvil_tui::surfaces::tutorial::is_autoplay_panic_contained() {
                 // Frame stays intact: no restore, no prev (would print).
                 record_autoplay_worker_panic(info);
                 return;
@@ -996,6 +994,20 @@ mod tests {
 
         PREV_HOOK_CALLS.store(0, Ordering::SeqCst);
 
+        let named_panic = std::thread::Builder::new()
+            .name(anvil_tui::surfaces::tutorial::AUTOPLAY_WORKER_THREAD.to_string())
+            .spawn(|| panic!("name-only panic-hook probe"))
+            .expect("spawn named probe")
+            .join();
+        assert!(named_panic.is_err(), "named probe should panic");
+        assert_eq!(
+            PREV_HOOK_CALLS.load(Ordering::SeqCst),
+            1,
+            "the autoplay worker name alone must not suppress an uncontained panic"
+        );
+
+        PREV_HOOK_CALLS.store(0, Ordering::SeqCst);
+
         let result = std::panic::catch_unwind(|| panic!("panic-hook idempotence probe"));
         assert!(result.is_err(), "catch_unwind should report the panic");
 
@@ -1007,10 +1019,11 @@ mod tests {
         );
     }
 
-    /// CIB-268: a panic on the autoplay worker thread must not invoke the
-    /// previous hook (which restores the terminal and prints a backtrace —
-    /// either would corrupt a live frame). The detail must still be
-    /// retrievable via the last-panic slot recorded by the suppressed path.
+    /// CIB-268/CIB-269: a panic inside the explicit autoplay catch boundary
+    /// must not invoke the previous hook (which restores the terminal and
+    /// prints a backtrace — either would corrupt a live frame). The detail
+    /// must still be retrievable via the last-panic slot recorded by the
+    /// suppressed path.
     #[test]
     fn autoplay_worker_panic_is_recorded_without_calling_prev_hook() {
         let _guard = lock_panic_hook_tests();
@@ -1021,9 +1034,9 @@ mod tests {
         let worker = std::thread::Builder::new()
             .name(anvil_tui::surfaces::tutorial::AUTOPLAY_WORKER_THREAD.to_string())
             .spawn(|| {
-                // Mirror production: the executor catches the unwind after the
-                // process-wide hook has already run.
-                let _ = std::panic::catch_unwind(|| panic!("cib-268 autoplay probe"));
+                let _ = anvil_tui::surfaces::tutorial::catch_autoplay_panic(|| {
+                    panic!("cib-268 autoplay probe");
+                });
             })
             .expect("spawn autoplay-named worker");
         worker.join().expect("autoplay worker join");

@@ -157,12 +157,48 @@ pub type AutoplayRunner =
 
 /// Name of the worker thread the autoplay check runs on.
 ///
-/// Exported because the host's process-wide panic hook must recognise it: a
-/// panic here is caught and reported as a failed demo step (see
-/// [`AutoplayCommand::spawn`]), so the hook must not tear the terminal down
-/// while the TUI is still drawing. Previously autoplay ran in a child process
-/// with piped stderr, which gave that containment for free.
+/// The stable name keeps the worker identifiable in diagnostics. Panic-hook
+/// suppression is deliberately keyed to [`is_autoplay_panic_contained`], not
+/// this reusable name.
 pub const AUTOPLAY_WORKER_THREAD: &str = "anvil-autoplay-check";
+
+std::thread_local! {
+    static AUTOPLAY_PANIC_CONTAINED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the current thread is inside the autoplay runner's panic-catching
+/// boundary.
+///
+/// The process-wide host panic hook uses this signal to avoid restoring or
+/// printing over the live TUI only when the panic is guaranteed to be caught
+/// and converted into a failed demo step. A worker thread name alone does not
+/// establish that invariant.
+pub fn is_autoplay_panic_contained() -> bool {
+    AUTOPLAY_PANIC_CONTAINED.get()
+}
+
+struct AutoplayPanicContainment {
+    previous: bool,
+}
+
+impl AutoplayPanicContainment {
+    fn enter() -> Self {
+        let previous = AUTOPLAY_PANIC_CONTAINED.replace(true);
+        Self { previous }
+    }
+}
+
+impl Drop for AutoplayPanicContainment {
+    fn drop(&mut self) {
+        AUTOPLAY_PANIC_CONTAINED.set(self.previous);
+    }
+}
+
+/// Run an autoplay check inside the panic boundary recognised by the host hook.
+pub fn catch_autoplay_panic<T>(runner: impl FnOnce() -> T) -> std::thread::Result<T> {
+    let _containment = AutoplayPanicContainment::enter();
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(runner))
+}
 
 /// Validate an autoplay command and resolve its target inside the sandbox.
 ///
@@ -226,17 +262,14 @@ impl AutoplayCommand {
                 // piped stderr); catching here restores that, reporting the
                 // panic as an ordinary failed step through the existing
                 // recovery path.
-                let output =
-                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runner(&target)))
-                        .unwrap_or_else(|payload| CommandOutput {
-                            stdout: String::new(),
-                            stderr: format!(
-                                "autoplay check panicked: {}",
-                                panic_message(&*payload)
-                            ),
-                            success: false,
-                            exit_code: None,
-                        });
+                let output = catch_autoplay_panic(|| runner(&target)).unwrap_or_else(|payload| {
+                    CommandOutput {
+                        stdout: String::new(),
+                        stderr: format!("autoplay check panicked: {}", panic_message(&*payload)),
+                        success: false,
+                        exit_code: None,
+                    }
+                });
                 // A disconnected receiver just means the tutorial moved on.
                 let _ = sender.send(output);
             })?;
@@ -627,16 +660,21 @@ mod tests {
     /// handles inside the TUI.
     ///
     /// The default panic hook still prints "thread ... panicked" to the test
-    /// harness's stderr; that is expected noise here, and is exactly what the
-    /// host hook's thread-name check suppresses in the real binary.
+    /// harness's stderr; that is expected noise here. In the real binary, the
+    /// host hook suppresses it only while the explicit catch boundary is active.
     #[test]
     fn panicking_runner_becomes_a_failed_step_instead_of_unwinding() {
         let root = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir(root.path().join("src")).expect("src");
         std::fs::write(root.path().join("src/app.ts"), "fixture").expect("fixture");
 
-        let runner: AutoplayRunner =
-            std::sync::Arc::new(|_: &std::path::Path| panic!("demo runner exploded"));
+        let runner: AutoplayRunner = std::sync::Arc::new(|_: &std::path::Path| {
+            assert!(
+                is_autoplay_panic_contained(),
+                "the catch boundary must be active before the runner can panic"
+            );
+            panic!("demo runner exploded");
+        });
 
         let mut command =
             AutoplayCommand::spawn("anvil check src/app.ts", root.path(), Some(&runner))
@@ -655,10 +693,10 @@ mod tests {
         );
     }
 
-    /// The worker thread carries the name the host panic hook keys off. If this
-    /// drifts, panics start tearing the terminal down again.
+    /// The worker keeps its stable diagnostic name, but CIB-269 ensures the
+    /// host panic hook no longer treats the name itself as containment.
     #[test]
-    fn autoplay_worker_thread_is_named_for_the_panic_hook() {
+    fn autoplay_worker_keeps_its_diagnostic_thread_name() {
         let root = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir(root.path().join("src")).expect("src");
         std::fs::write(root.path().join("src/app.ts"), "fixture").expect("fixture");
@@ -688,6 +726,25 @@ mod tests {
         assert_eq!(
             seen.lock().expect("read name").as_deref(),
             Some(AUTOPLAY_WORKER_THREAD)
+        );
+    }
+
+    #[test]
+    fn autoplay_panic_containment_is_thread_local_and_scoped() {
+        assert!(!is_autoplay_panic_contained());
+
+        let result = catch_autoplay_panic(|| {
+            assert!(is_autoplay_panic_contained());
+            std::thread::spawn(|| assert!(!is_autoplay_panic_contained()))
+                .join()
+                .expect("other thread probe");
+            panic!("containment scope probe");
+        });
+
+        assert!(result.is_err(), "the scope probe should be caught");
+        assert!(
+            !is_autoplay_panic_contained(),
+            "containment must clear after catch_unwind returns"
         );
     }
 
