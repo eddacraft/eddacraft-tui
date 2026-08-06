@@ -117,20 +117,14 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
     // and emoji-wide paths line up with the description column instead of
     // bleeding into it. Include `.gitignore` only when it was actually
     // mutated so an unchanged ignore file never claims space in the blast
-    // radius list (CIB-263).
-    let mut path_widths = vec![
-        s.config_path.as_str(),
-        s.plans_dir.as_str(),
-        s.cache_dir.as_str(),
-    ];
+    // radius list (CIB-263). Computed without a temporary Vec — render runs
+    // every frame.
+    let mut widest = UnicodeWidthStr::width(s.config_path.as_str())
+        .max(UnicodeWidthStr::width(s.plans_dir.as_str()))
+        .max(UnicodeWidthStr::width(s.cache_dir.as_str()));
     if s.gitignore_updated {
-        path_widths.push(".gitignore");
+        widest = widest.max(UnicodeWidthStr::width(".gitignore"));
     }
-    let widest = path_widths
-        .iter()
-        .map(|p| UnicodeWidthStr::width(*p))
-        .max()
-        .unwrap_or(0);
     let gap = widest + 2;
 
     let mut lines: Vec<Line> = vec![
@@ -235,6 +229,20 @@ mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
+    /// Plain-text (style-stripped) buffer dump with row separators for
+    /// substring assertions that must not span line boundaries.
+    fn plain(buf: &ratatui::buffer::Buffer) -> String {
+        let area = buf.area;
+        let mut s = String::new();
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                s.push_str(buf[(x, y)].symbol());
+            }
+            s.push('\n');
+        }
+        s
+    }
+
     fn summary_with_checks() -> InitCompleteSummary {
         InitCompleteSummary {
             checks_enabled: vec!["secret-scan".to_string(), "anti-pattern".to_string()],
@@ -321,13 +329,7 @@ mod tests {
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
 
-        let rendered: String = terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .map(ratatui::buffer::Cell::symbol)
-            .collect();
+        let rendered = plain(terminal.backend().buffer());
         assert!(
             !rendered.contains(".gitignore"),
             "unchanged gitignore must not appear as a path row (CIB-263): {rendered}"
@@ -354,13 +356,7 @@ mod tests {
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
 
-        let rendered: String = terminal
-            .backend()
-            .buffer()
-            .content()
-            .iter()
-            .map(ratatui::buffer::Cell::symbol)
-            .collect();
+        let rendered = plain(terminal.backend().buffer());
         assert!(
             rendered.contains(".gitignore"),
             "updated gitignore must appear as its own path row (CIB-263): {rendered}"
