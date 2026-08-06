@@ -259,8 +259,8 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
     ≈1.7 TB total, alongside 312 GB already under `~/.cache/anvil-targets`.
   - **`anvil-target-evict.sh` cannot help.** It is correctly hard-scoped to
     `$ANVIL_TARGET_BASE`, which resolves under `~/.cache` on the **`/home`**
-    filesystem. The disk that filled is `/home/aneki/Projects` — a different
-    mount. A dry run listed 18 evictable dirs, none of which would free a byte
+    filesystem. The disk that filled is the separate `$HOME/Projects` mount —
+    a different device. A dry run listed 18 evictable dirs, none freeing a byte
     on the full disk. The runbook's remedy therefore runs, reports evictions,
     and changes nothing.
   - **The DEVENV-002 guard names a remedy that cannot work here.**
@@ -325,7 +325,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
   `Avail` is unchanged is the bug.
 - **Identified From:** a dev-loop run on 2026-08-06 that hit `ENOSPC` mid-write
   while editing `plans/`, aborting an in-flight edit. Diagnosed live: `df`
-  showed `/home/aneki/Projects` at 100% (0 avail) while `/home` had 120 GB
+  showed the `$HOME/Projects` mount at 100% (0 avail) while `/home` had 120 GB
   free; `du` attributed ≈1.7 TB to 22 worktree `target/` directories;
   duplication was confirmed on `anvil-001.fix-cib-276-prove-fixture-wording`,
   which held both copies.
