@@ -69,7 +69,9 @@ fn parse_utc_iso8601(s: &str) -> Option<SystemTime> {
         || !(1..=31).contains(&day)
         || hour > 23
         || minute > 59
-        || second > 60
+        // Reject leap-second `:60`: Unix/`SystemTime` cannot represent it
+        // without shifting into the next minute, so leave the raw stamp alone.
+        || second > 59
     {
         return None;
     }
@@ -289,5 +291,14 @@ mod tests {
         assert_eq!(t, UNIX_EPOCH);
         let t = parse_utc_iso8601("2026-08-06T12:00:00Z").unwrap();
         assert_eq!(t, fixed_now());
+    }
+
+    #[test]
+    fn leap_second_sixty_is_rejected_and_passes_through() {
+        // Unix time cannot represent leap seconds; reject rather than shift
+        // into the next minute (Copilot review on #3612).
+        let raw = "2016-12-31T23:59:60Z";
+        assert!(parse_utc_iso8601(raw).is_none());
+        assert_eq!(format_live_timestamp(raw, fixed_now()), raw);
     }
 }
