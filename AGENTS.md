@@ -23,6 +23,15 @@ not re-describe them in adapters.
 - Do not add secrets to code, docs, plans, config, examples, or logs.
 - Never revert or overwrite another person's uncommitted work unless explicitly
   asked.
+- Treat administrator and policy-bypass operations as a separate authority
+  boundary. A request to merge, rebase merge, auto-merge, or "merge on green"
+  never authorises `gh pr merge --admin`, a branch-protection bypass, review
+  dismissal, or any equivalent override.
+- Use an administrator or policy override only when the operator explicitly
+  authorises that exact override for that exact pull request in the current
+  request. If a normal merge is blocked, diagnose the specific policy gate and
+  address it or leave auto-merge waiting; never bypass pending or failing checks
+  or unresolved review conversations.
 
 ## Workflow
 
