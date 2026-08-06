@@ -8987,6 +8987,87 @@ CIB-251/255 only.
   comparing dated entries across all three rows before deleting two). Medium
   on the right home for the gate, which is a tooling-placement call.
 
+### CIB-301: init and doctor must recognise `.anvil.yaml` like config show
+
+- **Status:** Merged 2026-08-07 via PR #3662 — operator-authorised intake +
+  implement 2026-08-06 from Dave pack-04; fix landed on main.
+- **Priority:** P2 medium (Dave CFG-1) — false doctor warnings that can leave Protection:warming on
+  legitimate yaml-only projects; init names a phantom `.anvilrc`.
+- **Intent:** Project config formats `.anvilrc` / `.anvil.<ext>` are supported
+  product-wide (`anvil config show`, `anvil_config::discover`, init help), but
+  `doctor` only probed `.anvilrc`, and `init`'s already-exists refusal always
+  said `.anvilrc` even when the trigger was `.anvil.yaml`. Subsystems must
+  agree a project is configured.
+- **Expected Outcome:**
+  - With only a non-empty `.anvil.yaml` present: `config show` continues to
+    report it; `doctor` config-exists/config-valid pass (or validate that
+    file); `init` without `--force` exits 1 naming **`.anvil.yaml already
+    exists`** (not a phantom `.anvilrc`).
+  - Empty-dir isolation still holds: only `.anvil/` or only `anvil/` does not
+    count as configured.
+- **Non-scope / do not:** do not change `init`'s write target away from
+  `.anvilrc` in this item; do not re-file TRUST-3 / CIB-235 (already tracked —
+  CFG-1 is a partial root cause for yaml-only doctor blindness).
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/commands/init.rs`,
+  `crates/anvil-tui/src/surfaces/onboarding/mod.rs` (and tests).
+- **Validation:** unit tests
+  `config_exists_recognises_anvil_yaml_only`,
+  `config_valid_accepts_anvil_yaml_only`,
+  `existing_anvil_yaml_blocks_and_names_yaml`,
+  `config_exists_detects_anvil_yaml`; Dave clean-room repro:
+  ```
+  mkdir cr && cd cr && git init -q .
+  printf 'schemaVersion: 1.0.0\nplanningDir: plans\nformat: yaml\n' > .anvil.yaml
+  anvil init --no-tui        # exit 1, message names .anvil.yaml
+  anvil doctor --no-tui      # config-exists: .anvil.yaml found
+  anvil config show --no-tui # config: .anvil.yaml
+  ```
+- **Identified From:** Dave Meloncelli beta pack-04 2026-08-06 (CFG-1);
+  Windows 11, anvil 0.9.2-beta; clean-room second-agent re-verify. New
+  surface — no overlap with CIB-228..243.
+- **Coordinates with:** CIB-235 (TRUST-3 warming; partial root cause on
+  yaml-only machines), `anvil_config::discover` / config show.
+- **Confidence:** high — reproduced in-tree; `doctor` hard-coded
+  `Path::new(".anvilrc")` while discover already found `.anvil.yaml`.
+
+### CIB-302: validate module-path extractor must not over-capture across a line
+
+- **Status:** Merged 2026-08-07 via PR #3662 — operator-authorised intake +
+  implement 2026-08-06 from Dave pack-04; fix landed on main.
+- **Priority:** P2 medium (Dave VAL-1) — false path-safety on ordinary APS
+  index "design → module" lines; engorged paths display the bug (`](` inside
+  the reported path).
+- **Intent:** On **index-type** plan docs (`## Modules`), the module path
+  regex used non-greedy `.*?\.aps\.md` from the first `](` on the line, so a
+  non-`.aps.md` link earlier on the same line engorged through a later
+  `.aps.md` target. Discriminator is **link order + `.aps.md` suffix**, not
+  "two links" or `../` alone (first-stated cause was refuted by Dave's
+  second-agent pass).
+- **Expected Outcome:**
+  - Design link then module link on one line → clean per-link extraction; no
+    path-safety false positive on a safe relative `.aps.md` target; reported
+    paths never contain `](`.
+  - Two `.aps.md` links on one line still report separately.
+  - Standalone `../../outside/x.aps.md` still flags path-safety cleanly.
+  - Leaf docs without index classification still do not run these checks.
+- **Non-scope / do not:** do not expand path-safety to non-`.aps.md`
+  destinations in this item (module-link rule by design); do not change
+  index-vs-leaf gating.
+- **Files:** `crates/anvil-cli/src/commands/validate.rs` (and tests).
+- **Validation:** unit tests
+  `design_link_before_module_does_not_overcapture`,
+  `two_aps_links_report_separately`,
+  `standalone_escape_still_flagged`,
+  `rejects_parent_directory_escapes`.
+- **Identified From:** Dave Meloncelli beta pack-04 2026-08-06 (VAL-1);
+  Windows 11, anvil 0.9.2-beta; 16-fixture clean-room matrix; cause corrected
+  after second-agent refute. New surface — no overlap with CIB-228..243.
+- **Coordinates with:** APS index markdown style (design + module on one
+  line).
+- **Confidence:** high — regex `\]\((.*?\.aps\.md)\)` matches the
+  engorged path Dave reported; fix bounds capture to one destination.
+
 ### CIB-303: Shared target dir bakes dead worktree paths into cached artifacts
 
 - **Status:** Draft — filed from the CIB-256 dev-loop run 2026-08-06, not
