@@ -1570,6 +1570,19 @@ impl crate::surface::Surface for TutorialState {
     }
 
     fn reset(&mut self) {
+        // CIB-274: fold any pre-autoplay stash back into the live fields
+        // before clearing, rather than dropping it. Five of the six fields
+        // `AutoplaySavedContext` owns are cleared below anyway
+        // (`working_root`, `scan_results`, `domain_findings`,
+        // `completion_baseline`, `completion_delta`), but `completion_rescan`
+        // is injected session capability that `reset` deliberately preserves
+        // (same class as `autoplay_runner`, `static_mode`, `completed_paths`).
+        // Discarding the stash would silently lose that hook for the rest of
+        // the session, because during autoplay the live field is empty.
+        // Invariant: every stash-owned field must be either cleared here or
+        // preserved on purpose — see
+        // `reset_leaves_no_stash_owned_field_orphaned`.
+        self.restore_autoplay_context();
         self.should_quit = false;
         self.wants_back = false;
         self.reveal = None;
@@ -1586,7 +1599,6 @@ impl crate::surface::Surface for TutorialState {
         self.autoplay_command_advance = false;
         self.autoplay_failure = None;
         self.autoplay_teardown_requested = false;
-        self.autoplay_saved_context = None;
         self.pending_fix = None;
         self.editor = None;
         self.edit_path = None;
@@ -2206,6 +2218,91 @@ mod tests {
             })
         );
         state.completion_rescan.as_ref().expect("rescan")();
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// CIB-274: `reset` must not silently drop the pre-autoplay stash. Every
+    /// field `AutoplaySavedContext` owns has to end up either cleared by
+    /// `reset` or deliberately preserved by it — never orphaned inside a
+    /// discarded stash. The exhaustive destructure below is the drift alarm:
+    /// adding a field to the stash stops this test compiling until the new
+    /// field is given a reset disposition in the assertions further down.
+    #[test]
+    fn reset_leaves_no_stash_owned_field_orphaned() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = std::sync::Arc::clone(&calls);
+        let mut state = TutorialState::new();
+        state.bind_working_root(root.path()).expect("working root");
+        state.set_scan_results(make_scan_results());
+        state.load_steps(TutorialPath::Policy);
+        state.completion_delta = Some(FindingsDelta {
+            before: 2,
+            after: 1,
+            after_in_test_paths: 0,
+        });
+        state.set_completion_rescan(move || {
+            observed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Some(ScanResults::default())
+        });
+
+        state.stash_autoplay_context();
+        let AutoplaySavedContext {
+            working_root,
+            scan_results,
+            domain_findings,
+            completion_rescan,
+            completion_baseline,
+            completion_delta,
+        } = state.autoplay_saved_context.take().expect("stash");
+        assert!(working_root.is_some(), "stash owns working_root");
+        assert!(scan_results.is_some(), "stash owns scan_results");
+        assert!(domain_findings.is_some(), "stash owns domain_findings");
+        assert!(completion_rescan.is_some(), "stash owns completion_rescan");
+        assert!(
+            completion_baseline.is_some(),
+            "stash owns completion_baseline"
+        );
+        assert!(completion_delta.is_some(), "stash owns completion_delta");
+
+        // Hand the captured context back and re-stash, so `reset` sees a fully
+        // populated stash exactly as it would mid-autoplay.
+        state.working_root = working_root;
+        state.scan_results = scan_results;
+        state.domain_findings = domain_findings;
+        state.completion_rescan = completion_rescan;
+        state.completion_baseline = completion_baseline;
+        state.completion_delta = completion_delta;
+        state.stash_autoplay_context();
+
+        <TutorialState as crate::surface::Surface>::reset(&mut state);
+
+        assert!(
+            state.autoplay_saved_context.is_none(),
+            "reset must consume the stash"
+        );
+        assert!(state.working_root.is_none(), "reset clears working_root");
+        assert!(state.scan_results.is_none(), "reset clears scan_results");
+        assert!(
+            state.domain_findings.is_none(),
+            "reset clears domain_findings"
+        );
+        assert!(
+            state.completion_baseline.is_none(),
+            "reset clears completion_baseline"
+        );
+        assert!(
+            state.completion_delta.is_none(),
+            "reset clears completion_delta"
+        );
+        // The re-scan hook is injected session capability, not transient state
+        // (same class as `autoplay_runner`, `static_mode`, `completed_paths`),
+        // so `reset` preserves it. The stash therefore has to restore it —
+        // dropping the stash would lose it for the rest of the session.
+        state
+            .completion_rescan
+            .as_ref()
+            .expect("reset preserves the injected rescan hook")();
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
