@@ -53,6 +53,30 @@ export const RETIRED_CLAIMS = [
     // tree — any reappearance is new spread, not a known one.
     baseline: [],
   },
+  {
+    // CIB-292: `ReadyRestartRequired` + daemon-unreachable is reached from
+    // the MCP tier alone — the probe verified an entry is *present*, never
+    // that any editor or agent has read it (the tier can still be
+    // "pending restart", rendered directly below the claim). The
+    // `meaning:` line now states observed presence only.
+    phrase: "has seen anvil's MCP config",
+    retiredBy: 'CIB-292',
+    // No survivors: the fix and regenerated goldens eliminate every
+    // occurrence, so any reappearance is new spread.
+    baseline: [],
+  },
+  {
+    // CIB-293: presence is all the activation probe observes — a
+    // hand-written or machine-wide entry yields the same MCP tier — so the
+    // `NeedsAction` meanings may not claim anvil authored the entry.
+    // (CIB-167 forbids the opposite over-correction: denying an entry that
+    // exists. The copy asserts presence only — the honest middle.)
+    phrase: 'anvil has written the MCP entry',
+    retiredBy: 'CIB-293',
+    // No survivors: the fix eliminates every occurrence; guard-test lines
+    // that must still quote the phrase carry the per-line marker.
+    baseline: [],
+  },
 ];
 
 // Historical corpora: these quote retired claims as a record of what was

@@ -18,7 +18,7 @@ First scan
 ACTIVATION
   state: ready_restart_required
   Daemon not reachable — protection cannot graduate until the intercept daemon answers this worktree.
-  meaning: The editor or agent has seen anvil's MCP config, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again.
+  meaning: An anvil MCP entry is present, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again.
   config: valid
   mcp:
     Cursor: restart_handshake_verified (pending restart)

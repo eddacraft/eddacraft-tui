@@ -597,8 +597,14 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
     match state {
         ProtectionState::ReadyRestartRequired => Some(match d.daemon_attestation {
             DaemonAttestation::NotProbed => ready_restart_not_probed_meaning(d),
+            // CIB-292: this state is reached from the MCP tier alone —
+            // the probe verified an entry is *present*, never that any
+            // client has read it (the tier can still be "pending
+            // restart"). State observed presence only, mirroring the
+            // CIB-256 `NotProbed` sibling arm; the recovery guidance is
+            // settled by DLIFE-006 and stays verbatim.
             DaemonAttestation::Unreachable => {
-                "The editor or agent has seen anvil's MCP config, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again."
+                "An anvil MCP entry is present, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again."
             }
             DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
                 "The intercept daemon is running, but this worktree is not attached to an enforcing session yet. Check `anvil intercept status`, then run `anvil start --verify` again after the editor issues an MCP request."
@@ -662,7 +668,11 @@ fn ready_restart_not_probed_meaning(d: &ActivationDiagnostic) -> &'static str {
 /// never denies work that was actually done. Mirrors the truth table in
 /// [`why_summary_for_needs_action`] so the `meaning:` and `next:` lines
 /// stay in lockstep. `ConfigStatus::Invalid` maps to `Error` upstream,
-/// so it cannot reach this function.
+/// so it cannot reach this function. CIB-293 tightened the entry-present
+/// arms the other way: the probe observes only that an entry is
+/// *present* (a hand-written or machine-wide entry yields the same
+/// tier), so the copy asserts presence without naming an author — the
+/// honest middle between denying the entry and claiming authorship.
 fn needs_action_meaning(d: &ActivationDiagnostic) -> &'static str {
     use super::diagnostic::ConfigStatus;
 
@@ -675,18 +685,21 @@ fn needs_action_meaning(d: &ActivationDiagnostic) -> &'static str {
         None | Some(McpTier::NotDetected | McpTier::ConfigAbsent) => {
             "anvil has a config here but has not written an MCP entry into an editor or agent yet. Run `anvil start` to install it, then run `anvil start --verify` to confirm it attached."
         }
+        // CIB-293: presence is all the probe observes — a hand-written or
+        // machine-wide entry yields the same tier — so these arms state
+        // the entry is present without naming an author.
         Some(McpTier::ConfigPresent) => {
-            "anvil has written the MCP entry, but no editor or agent has attached to it yet. Restart your editor or agent, then run `anvil start --verify`."
+            "An MCP entry for anvil is present, but no editor or agent has attached to it yet. Restart your editor or agent, then run `anvil start --verify`."
         }
         Some(McpTier::ServerStartable) => {
-            "anvil has written the MCP entry and its server starts, but the editor or agent wiring is not confirmed yet. Restart your editor or agent, then run `anvil start --verify`."
+            "An MCP entry for anvil is present and its server starts, but the editor or agent wiring is not confirmed yet. Restart your editor or agent, then run `anvil start --verify`."
         }
         // `RestartRequired` / `RestartHandshakeVerified` / `LiveValidation`
         // promote out of `NeedsAction` upstream (into `ReadyRestartRequired`
         // / `Protecting`), so they are unreachable here — keep a safe,
-        // non-panicking fallback rather than deny written work.
+        // non-panicking fallback rather than deny the entry.
         Some(_) => {
-            "anvil has written the MCP entry but activation is in an intermediate state. Run `anvil start --verify` to refresh the diagnostic."
+            "An MCP entry for anvil is present but activation is in an intermediate state. Run `anvil start --verify` to refresh the diagnostic."
         }
     }
 }
@@ -1709,6 +1722,75 @@ mod tests {
         );
     }
 
+    /// CIB-292: `ReadyRestartRequired` + `Unreachable` is reached from the
+    /// MCP tier alone — the probe verified an MCP entry is *present*, never
+    /// that any editor or agent has seen, read, or attached to it
+    /// (`McpTier::RestartRequired` means "must be restarted before it picks
+    /// up the entry"). The `meaning:` line must state observed presence
+    /// only, mirroring the CIB-256 `NotProbed` sibling arm, so it cannot
+    /// contradict the `(pending restart)` tier gloss rendered directly
+    /// below it. Per-clause invariants, not one literal string.
+    #[test]
+    fn ready_restart_daemon_unreachable_meaning_claims_presence_not_seen() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable);
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("Unreachable render must have a meaning line: {h}"));
+        let lower = meaning.to_lowercase();
+        assert!(
+            !lower.contains("has seen")
+                && !lower.contains("has read")
+                && !lower.contains("has attached")
+                && !lower.contains("has picked up"),
+            "Unreachable meaning must not claim any client observed the entry: {meaning}"
+        );
+        assert!(
+            lower.contains("mcp entry") && lower.contains("present"),
+            "Unreachable meaning must state the observed fact — an MCP entry is present: {meaning}"
+        );
+        // DLIFE-006: the recovery guidance is settled and must survive
+        // word for word.
+        assert!(
+            meaning.contains(
+                "Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again."
+            ),
+            "Unreachable meaning must keep the DLIFE-006 recovery guidance verbatim: {meaning}"
+        );
+    }
+
+    /// CIB-293: presence is all the probe observes — a hand-written or
+    /// machine-wide entry yields the same MCP tier — so no `NeedsAction`
+    /// meaning may claim anvil *authored* the entry. Calls
+    /// [`needs_action_meaning`] directly so the defensive intermediate
+    /// arm (unreachable through `protection_state`) is covered too.
+    #[test]
+    fn needs_action_meanings_never_claim_anvil_authored_the_entry() {
+        for tier in [
+            McpTier::ConfigPresent,
+            McpTier::ServerStartable,
+            // Promotes out of `NeedsAction` upstream; exercises the
+            // defensive fallback arm.
+            McpTier::RestartRequired,
+        ] {
+            let mut d = empty();
+            d.config = ConfigStatus::Valid;
+            d.mcp.insert(McpClientId::Cursor, tier.into());
+            let meaning = needs_action_meaning(&d);
+            let lower = meaning.to_lowercase();
+            assert!(
+                !lower.contains("anvil has written") && !lower.contains("anvil wrote"), // retired-claim-ok: CIB-293
+                "NeedsAction meaning for {tier:?} must not claim anvil authored the entry: {meaning}"
+            );
+            assert!(
+                lower.contains("mcp entry") && lower.contains("present"),
+                "NeedsAction meaning for {tier:?} must state the entry is present: {meaning}"
+            );
+        }
+    }
+
     /// CIB-167: terminal-first users need a plain-language `meaning:`
     /// line for the non-restart states too, not only
     /// `ready_restart_required`. With no config on disk `NeedsAction`
@@ -1733,12 +1815,14 @@ mod tests {
         );
     }
 
-    /// CIB-167 Council (major): `NeedsAction` is reachable *after* the
-    /// MCP entry is written — a `ConfigPresent` client that no editor
-    /// has attached to yet still resolves to `NeedsAction`. The
-    /// `meaning:` line must NOT falsely claim no MCP config was written;
-    /// it must acknowledge the entry exists and point at the real next
-    /// step (restart / re-verify), matching the honest `next:` hint.
+    /// CIB-167 Council (major), re-expressed by CIB-293: `NeedsAction`
+    /// is reachable with an MCP entry on disk — a `ConfigPresent` client
+    /// that no editor has attached to yet still resolves to
+    /// `NeedsAction`. CIB-167 forbids *denying* the entry ("anvil has
+    /// not written an MCP config" when one exists); CIB-293 forbids
+    /// *claiming anvil authored* it (presence is all the probe observes
+    /// — a hand-written or machine-wide entry yields the same tier).
+    /// The honest middle asserts presence only, plus the real next step.
     #[test]
     fn needs_action_with_written_mcp_entry_does_not_claim_nothing_written() {
         let mut d = empty();
@@ -1763,8 +1847,12 @@ mod tests {
             "meaning must not falsely claim nothing was written once the entry exists: {meaning}"
         );
         assert!(
-            lower.contains("written the mcp entry"),
-            "meaning must acknowledge the MCP entry was written: {meaning}"
+            lower.contains("mcp entry") && lower.contains("present"),
+            "meaning must acknowledge the MCP entry is present: {meaning}"
+        );
+        assert!(
+            !lower.contains("anvil has written"), // retired-claim-ok: CIB-293
+            "meaning must not claim anvil authored the entry: {meaning}"
         );
         assert!(
             meaning.contains("anvil start --verify"),
