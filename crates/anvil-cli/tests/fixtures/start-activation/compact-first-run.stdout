@@ -7,7 +7,7 @@ anvil initialised successfully.
 
 First scan
 ────────────────────────────────────────
-  No source files yet — nothing to scan.
+  No files matched this first scan's language coverage — nothing was scanned.
 
   Try one of:
     • `anvil tutorial` for a guided walkthrough

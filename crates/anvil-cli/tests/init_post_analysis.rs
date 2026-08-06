@@ -54,12 +54,79 @@ fn init_force_prints_post_init_analysis_section() {
 }
 
 #[test]
-fn init_force_post_analysis_shows_empty_tree_hint() {
-    // No source files in the temp dir — analysis should land on a
-    // discoverable next-step hint ("anvil tutorial" / "anvil watch") so
-    // a brand-new project does not look like the tool failed. The init
-    // command itself must still succeed.
+fn init_force_post_analysis_scopes_clean_result_to_antipattern_sample() {
     let dir = tempfile::tempdir().unwrap();
+    let credential = ["AKIA", "QRSTUVWXYZ", "123456"].concat();
+    fs::write(
+        dir.path().join("credentials.ts"),
+        format!("export const credential = \"{credential}\";\n"),
+    )
+    .unwrap();
+
+    let output = Command::new(ANVIL_BIN)
+        .arg("--no-tui")
+        .arg("init")
+        .arg("--force")
+        .current_dir(dir.path())
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_DEV", "1")
+        .output()
+        .expect("failed to invoke anvil binary");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Scanned 1 file(s) (sampled from project tree)"),
+        "expected credential-bearing source file to be sampled, got:\n{stdout}",
+    );
+    assert!(
+        stdout.contains("No anti-pattern warnings found in this sample."),
+        "expected clean result to name the analysis scope, got:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("✓ No anti-pattern warnings found in this sample."),
+        "scoped clean result must be neutral rather than a green receipt, got:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("No warnings found in this sample."),
+        "generic clean result could imply secret detection ran, got:\n{stdout}",
+    );
+    assert!(
+        stdout.contains("anvil check --all"),
+        "expected full-scan next step, got:\n{stdout}",
+    );
+    assert!(
+        stdout.contains("anvil auth login"),
+        "expected authentication next step, got:\n{stdout}",
+    );
+}
+
+#[test]
+fn init_force_post_analysis_names_language_coverage_for_non_source_tree() {
+    // The project is not empty: it contains 17 files outside this first
+    // scan's language coverage (8 Markdown, 5 YAML, 3 PowerShell, 1 shell).
+    // The analysis should land on a discoverable next-step hint without
+    // misreporting the project as having no source files.
+    let dir = tempfile::tempdir().unwrap();
+    for index in 0..8 {
+        fs::write(dir.path().join(format!("notes-{index}.md")), "# Notes\n").unwrap();
+    }
+    for index in 0..5 {
+        fs::write(
+            dir.path().join(format!("workflow-{index}.yml")),
+            "name: workflow\n",
+        )
+        .unwrap();
+    }
+    for index in 0..3 {
+        fs::write(
+            dir.path().join(format!("script-{index}.ps1")),
+            "Write-Output 'ready'\n",
+        )
+        .unwrap();
+    }
+    fs::write(dir.path().join("bootstrap.sh"), "echo ready\n").unwrap();
 
     let output = Command::new(ANVIL_BIN)
         .arg("--no-tui")
@@ -76,18 +143,24 @@ fn init_force_post_analysis_shows_empty_tree_hint() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("First scan"),
-        "expected 'First scan' header in empty-tree hint, got:\n{stdout}",
+        "expected 'First scan' header in language-coverage hint, got:\n{stdout}",
     );
     assert!(
-        stdout.contains("No source files yet"),
-        "expected empty-tree hint copy in stdout, got:\n{stdout}",
+        stdout.contains(
+            "No files matched this first scan's language coverage — nothing was scanned."
+        ),
+        "expected scoped language-coverage copy in stdout, got:\n{stdout}",
+    );
+    assert!(
+        !stdout.contains("No source files yet"),
+        "non-source tree must not be reported as an empty project, got:\n{stdout}",
     );
     assert!(
         stdout.contains("anvil tutorial"),
         "expected next-step hint pointing at `anvil tutorial`, got:\n{stdout}",
     );
-    // Issue #1107: the empty-tree hint surfaces `anvil auth login` as a
-    // next step so a brand-new user sees how to authenticate before
+    // Issue #1107: the language-coverage hint surfaces `anvil auth login`
+    // as a next step so a new user sees how to authenticate before
     // they hit "Session expired" / "Authentication required" on a
     // gate-evaluated check.
     assert!(
@@ -99,7 +172,7 @@ fn init_force_post_analysis_shows_empty_tree_hint() {
     // to it.
     assert!(
         !stdout.contains("Scanned 0 file"),
-        "empty-tree hint must not show '0 files' counter, got:\n{stdout}",
+        "language-coverage hint must not show '0 files' counter, got:\n{stdout}",
     );
 }
 

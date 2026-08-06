@@ -197,24 +197,24 @@ fn run_plain(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Re
 
 /// Run the post-init sample analysis (LAUNCH-004) and render an inline
 /// summary so the user lands on a real first signal of value instead of
-/// a "now run `anvil doctor`" stub. Empty repo gets a discoverable next-step
-/// hint rather than silence — a brand-new project should not look like the
-/// tool failed.
+/// a "now run `anvil doctor`" stub. A project with no files matching the
+/// first scan's language coverage gets a discoverable next-step hint rather
+/// than silence.
 fn print_post_init_analysis(root: &Path) {
     let Some(outcome) = run_post_init_analysis(root) else {
-        render_empty_repo_hint();
+        render_no_matching_files_hint();
         return;
     };
     render_analysis(&outcome);
 }
 
-/// First-touch hint when there are no source files to scan yet. The user
-/// has just successfully initialised anvil but the empty-tree case would
-/// otherwise print nothing under "First scan", which reads as a failure.
-fn render_empty_repo_hint() {
+/// First-touch hint when no files match the first scan's language coverage.
+/// Without it, the analysis would print nothing under "First scan", which
+/// reads as a failure.
+fn render_no_matching_files_hint() {
     plain::blank();
     plain::section("First scan");
-    plain::dim("No source files yet — nothing to scan.");
+    plain::dim("No files matched this first scan's language coverage — nothing was scanned.");
     plain::blank();
     plain::dim("Try one of:");
     plain::dim("  • `anvil tutorial` for a guided walkthrough");
@@ -282,7 +282,7 @@ fn render_analysis(outcome: &AnalysisOutcome) {
 
     let s = &outcome.summary;
     if s.total == 0 {
-        plain::success("No warnings found in this sample.");
+        plain::dim("No anti-pattern warnings found in this sample.");
         plain::dim("Run `anvil check --all` to scan the whole project.");
         plain::dim("Run `anvil auth login` to enable additional checks.");
         plain::blank();
