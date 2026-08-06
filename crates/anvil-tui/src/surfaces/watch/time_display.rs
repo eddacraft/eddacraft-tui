@@ -113,10 +113,9 @@ fn parse_tz_offset(rest: &str) -> Option<i64> {
     }
     let (sign, body) = if let Some(b) = rest.strip_prefix('+') {
         (1i64, b)
-    } else if let Some(b) = rest.strip_prefix('-') {
-        (-1i64, b)
     } else {
-        return None;
+        let b = rest.strip_prefix('-')?;
+        (-1i64, b)
     };
 
     let (oh, om) = if body.len() == 5 && body.as_bytes().get(2) == Some(&b':') {
@@ -254,10 +253,7 @@ mod tests {
 
     #[test]
     fn short_local_time_passes_through() {
-        assert_eq!(
-            format_live_timestamp("10:30:01", fixed_now()),
-            "10:30:01"
-        );
+        assert_eq!(format_live_timestamp("10:30:01", fixed_now()), "10:30:01");
     }
 
     #[test]
