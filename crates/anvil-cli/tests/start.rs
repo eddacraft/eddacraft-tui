@@ -39,6 +39,11 @@ fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Comma
         // bench cannot reuse a developer daemon on any platform.
         .env("USERPROFILE", home)
         .env("LOCALAPPDATA", home)
+        // ANVIL_HOME also gives Windows a per-test named-pipe namespace. Keep
+        // project writes enabled so this isolation does not change the start
+        // behaviour the integration tests exercise.
+        .env("ANVIL_HOME", home.join("anvil-home"))
+        .env("ANVIL_TOUCH_PROJECT_STATE", "1")
         // Strip XDG so dirs::home_dir() doesn't resolve to a user
         // directory through XDG_CONFIG_HOME.
         .env_remove("XDG_CONFIG_HOME")
