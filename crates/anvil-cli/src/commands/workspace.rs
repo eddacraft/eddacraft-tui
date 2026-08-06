@@ -403,6 +403,63 @@ enum RegisterOnStartState {
     Unknown,
 }
 
+fn print_json_list(
+    file: &confinement::ConfinementConfigFile,
+    registered: &RegisteredSet,
+) -> Result<()> {
+    let allow_entries = file
+        .allow
+        .iter()
+        .map(|entry| WorkspaceAllowEntry {
+            path: entry.path.to_string_lossy().into_owned(),
+            kind: kind_label(entry.kind),
+            live_registered: match registered {
+                RegisteredSet::Known(set) => Some(is_registered(&entry.path, set)),
+                RegisteredSet::Unavailable => None,
+            },
+        })
+        .collect();
+    let registered_worktrees = match registered {
+        RegisteredSet::Known(set) => RegisteredWorktreesOutput {
+            availability: RegisteredWorktreeAvailability::Available,
+            entries: set
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
+        },
+        RegisteredSet::Unavailable => RegisteredWorktreesOutput {
+            availability: RegisteredWorktreeAvailability::Unavailable,
+            entries: Vec::new(),
+        },
+    };
+    let register_on_start = file
+        .register_on_start
+        .iter()
+        .map(|path| RegisterOnStartEntry {
+            path: path.to_string_lossy().into_owned(),
+            state: match registered {
+                RegisteredSet::Known(set) if is_registered(path, set) => {
+                    RegisterOnStartState::Registered
+                }
+                RegisteredSet::Known(_) => RegisterOnStartState::NotRegistered,
+                RegisteredSet::Unavailable => RegisterOnStartState::Unknown,
+            },
+        })
+        .collect();
+    let output = WorkspaceListOutput {
+        schema_version: WORKSPACE_LIST_SCHEMA_VERSION,
+        admission_mode: mode_label(file.admission),
+        allow_entries,
+        registered_worktrees,
+        register_on_start,
+    };
+    println!(
+        "{}",
+        serde_json::to_string(&output).context("serialise workspace list")?
+    );
+    Ok(())
+}
+
 fn run_list(json: bool) -> Result<()> {
     let file = confinement::read_config_file().context("read workspace confinement config")?;
 
@@ -412,57 +469,7 @@ fn run_list(json: bool) -> Result<()> {
     let registered = registered_worktrees();
 
     if json {
-        let allow_entries = file
-            .allow
-            .iter()
-            .map(|entry| WorkspaceAllowEntry {
-                path: entry.path.to_string_lossy().into_owned(),
-                kind: kind_label(entry.kind),
-                live_registered: match &registered {
-                    RegisteredSet::Known(set) => Some(is_registered(&entry.path, set)),
-                    RegisteredSet::Unavailable => None,
-                },
-            })
-            .collect();
-        let registered_worktrees = match &registered {
-            RegisteredSet::Known(set) => RegisteredWorktreesOutput {
-                availability: RegisteredWorktreeAvailability::Available,
-                entries: set
-                    .iter()
-                    .map(|path| path.to_string_lossy().into_owned())
-                    .collect(),
-            },
-            RegisteredSet::Unavailable => RegisteredWorktreesOutput {
-                availability: RegisteredWorktreeAvailability::Unavailable,
-                entries: Vec::new(),
-            },
-        };
-        let register_on_start = file
-            .register_on_start
-            .iter()
-            .map(|path| RegisterOnStartEntry {
-                path: path.to_string_lossy().into_owned(),
-                state: match &registered {
-                    RegisteredSet::Known(set) if is_registered(path, set) => {
-                        RegisterOnStartState::Registered
-                    }
-                    RegisteredSet::Known(_) => RegisterOnStartState::NotRegistered,
-                    RegisteredSet::Unavailable => RegisterOnStartState::Unknown,
-                },
-            })
-            .collect();
-        let output = WorkspaceListOutput {
-            schema_version: WORKSPACE_LIST_SCHEMA_VERSION,
-            admission_mode: mode_label(file.admission),
-            allow_entries,
-            registered_worktrees,
-            register_on_start,
-        };
-        println!(
-            "{}",
-            serde_json::to_string(&output).context("serialise workspace list")?
-        );
-        return Ok(());
+        return print_json_list(&file, &registered);
     }
 
     println!("Admission mode: {}", mode_label(file.admission));
