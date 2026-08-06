@@ -60,7 +60,7 @@ export const RETIRED_CLAIMS = [
     // "pending restart", rendered directly below the claim). The
     // `meaning:` line now states observed presence only.
     phrase: "has seen anvil's MCP config",
-    retiredBy: 'CIB-292',
+    retiredBy: 'CIB-292 (#3653)',
     // No survivors: the fix and regenerated goldens eliminate every
     // occurrence, so any reappearance is new spread.
     baseline: [],
@@ -72,7 +72,7 @@ export const RETIRED_CLAIMS = [
     // (CIB-167 forbids the opposite over-correction: denying an entry that
     // exists. The copy asserts presence only — the honest middle.)
     phrase: 'anvil has written the MCP entry',
-    retiredBy: 'CIB-293',
+    retiredBy: 'CIB-293 (#3653)',
     // No survivors: the fix eliminates every occurrence; guard-test lines
     // that must still quote the phrase carry the per-line marker.
     baseline: [],
