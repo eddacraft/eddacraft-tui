@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 244/293  |
+| CIB | —     | In Progress | 244/294  |
 
 ## Purpose
 
@@ -8826,3 +8826,52 @@ CIB-251/255 only.
   recorded instances in one day. Medium on the fix shape: (a) is cheap and
   uncontroversial, (b) is a process addition that needs an operator call on
   cadence and PR noise.
+
+### CIB-298: Retired-claims tombstone lint closes honesty classes, not instances
+
+- **Status:** In Progress — implementation in flight on PR #3647
+  (`feat/retired-claims-lint`); flip to Merged with the PR number once it
+  lands on `main`. Authorised by the operator 2026-08-06 ("build the
+  tombstone lint"), requested after the CIB-260/288 class analysis; filed
+  from that session, not self-authorised.
+- **Priority:** P2 process leverage — this is the class-closure mechanism
+  for the honesty-drift defect family, not another instance fix.
+- **Intent:** honesty fixes land per-surface, so a retired claim survives
+  elsewhere and can be reintroduced verbatim later. Two independent
+  multi-item chains prove the shape: "daily save-time protection" (removed
+  from welcome by CIB-260/#3618, survived in `install.sh` → CIB-288) and
+  the Windows verbatim path prefix (CIB-237 → 279 → 282 → 285 → 287 — five
+  items, one defect, one surface at a time). Per-file guard tests cannot
+  see either failure mode: they pin one surface, and twice in the CIB-260
+  run alone a guard needed adversarial repair before it could fail at all.
+- **Expected Outcome:** a `docs:check` surface (`retired-claims`, plus
+  standalone `pnpm retired-claims:check`) that scans the tracked tree
+  (`git ls-files`; fixtures and goldens in scope; `plans/` and changelogs
+  excluded as historical record) for phrases listed in
+  `scripts/docs/retired-claims.mjs`. Unbaselined occurrence → fail;
+  baselined survivor count exceeded → fail (spread); baselined survivor
+  gone → fail (stale entry, forcing deletion at the moment the owning item
+  lands, which is when the phrase becomes fully banned). Per-line
+  quotation escape `retired-claim-ok: CIB-NNN` for guard tests. Exit codes
+  per the CIB-278 taxonomy.
+- **Seed policy:** only operator-retired claims enter the list. Seeded with
+  "daily save-time protection" (CIB-260), baselining `install.sh`'s single
+  survivor to CIB-288. Draft findings (CIB-292/293) are deliberately not
+  seeded — a Draft is not a retirement; their phrases join the list when
+  their items land.
+- **Files:** `scripts/docs/retired-claims.mjs`,
+  `scripts/docs/check-retired-claims.mjs`, `scripts/docs/docs-check.mjs`
+  (surface wiring), `scripts/docs/docs-check.test.sh` (case 3 count 9/9 →
+  10/10), `package.json` (`retired-claims:check`)
+- **Validation:** clean tree passes 10/10 docs:check surfaces; injected
+  spread, reintroduction, and stale-baseline each fail with exit 1
+  (verified unpiped); marker line exempts; non-git `--root` exits 2;
+  `--update-baseline` unaffected (surface is non-baselineable and is
+  skipped by `regenerateBaseline`, so its strict `parseArgs` never sees
+  `--json`).
+- **Coordinates with:** CIB-260/CIB-288 (seed claim and its baselined
+  survivor), CIB-292/CIB-293 (next candidate entries once landed), the
+  CIB-237..287 prefix chain (second motivating class), CIB-278 (exit-code
+  taxonomy).
+- **Confidence:** high — behaviour demonstrated against the live tree in
+  all six modes before the PR opened.
