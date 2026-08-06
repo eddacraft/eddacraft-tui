@@ -12,10 +12,17 @@
 //   tags              — scripts/docs/check-tags.mjs (real)
 //   links             — scripts/docs/check-links.mjs (real)
 //   public-docs       — scripts/docs/check-public-docs.mjs (real)
-//   aps               — scripts/docs/check-aps.mjs (delegates to pnpm aps:drift)
-//   adr               — scripts/docs/check-adr.mjs (delegates to pnpm adr:check)
+//   aps               — scripts/docs/check-aps.mjs (delegates to scripts/aps/drift-check.mjs)
+//   adr               — scripts/docs/check-adr.mjs (delegates to scripts/docs/adr-integrity.sh)
 //   index-freshness   — scripts/docs/check-index-freshness.mjs (real)
 //   asbuilt-paths     — scripts/docs/check-asbuilt-paths.mjs (stub, DOCGOV-006)
+//
+// Verdicts (CIB-278): a surface that could not RUN is reported as
+// `ERROR (tooling)`, never as `FAIL`. Collapsing both into `FAIL` told
+// contributors their docs change had broken a surface when the real cause was
+// a broken toolchain and the corpus was clean. See lib/surface-delegate.mjs for
+// the shared taxonomy. The process still exits non-zero either way — a tooling
+// failure is misattributed, not silenced.
 //
 // Baseline: each real-surface script reads the same
 // docs/governance/docs-check.baseline.json file. `--update-baseline` regenerates
@@ -28,6 +35,12 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync, renameSync } from '
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import {
+  EXIT_CONTENT_FAILURE,
+  EXIT_PASS,
+  EXIT_TOOLING_FAILURE,
+  classify,
+} from './lib/surface-delegate.mjs';
 
 const DEFAULT_SURFACES = [
   { name: 'metadata', script: 'scripts/docs/check-metadata.mjs', baselineable: true },
@@ -48,6 +61,15 @@ const DEFAULT_SURFACES = [
   { name: 'asbuilt-paths', script: 'scripts/docs/check-asbuilt-paths.mjs', baselineable: true },
   { name: 'release-plan', script: 'scripts/docs/check-release-plan.mjs', baselineable: false },
 ];
+
+// Declared above the top-level runAll()/regenerateBaseline() call below, which
+// would otherwise hit these in the temporal dead zone.
+const VERDICT_LABEL = {
+  [EXIT_PASS]: 'pass',
+  [EXIT_CONTENT_FAILURE]: 'FAIL',
+  [EXIT_TOOLING_FAILURE]: 'ERROR (tooling)',
+};
+const LABEL_WIDTH = Math.max(...Object.values(VERDICT_LABEL).map((l) => l.length));
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -87,8 +109,11 @@ async function runAll() {
     results.push({ surface: surface.name, ...result });
   }
   printSummary(results);
-  const anyError = results.some((r) => r.status !== 0);
-  process.exit(anyError ? 1 : 0);
+  // A real content defect outranks a broken tool: if any surface actually ran
+  // and failed, exit 1 so a tooling problem elsewhere can never mask it.
+  if (results.some((r) => r.verdict === EXIT_CONTENT_FAILURE)) process.exit(EXIT_CONTENT_FAILURE);
+  if (results.some((r) => r.verdict === EXIT_TOOLING_FAILURE)) process.exit(EXIT_TOOLING_FAILURE);
+  process.exit(EXIT_PASS);
 }
 
 function runSurface(surface, { json, forceNoBaseline }) {
@@ -126,6 +151,7 @@ function runSurface(surface, { json, forceNoBaseline }) {
   }
   return {
     status: result.status ?? 1,
+    verdict: classify(result),
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? '',
     error: result.error?.message,
@@ -137,15 +163,26 @@ function printSummary(results) {
   process.stdout.write('[docs-check] summary:\n');
   let passed = 0;
   let failed = 0;
+  const unrunnable = [];
   for (const r of results) {
-    const verdict = r.status === 0 ? 'pass' : 'FAIL';
-    if (r.status === 0) passed += 1;
+    if (r.verdict === EXIT_PASS) passed += 1;
+    else if (r.verdict === EXIT_TOOLING_FAILURE) unrunnable.push(r.surface);
     else failed += 1;
-    process.stdout.write(`  ${verdict.padEnd(4)} ${r.surface}\n`);
+    process.stdout.write(`  ${VERDICT_LABEL[r.verdict].padEnd(LABEL_WIDTH)} ${r.surface}\n`);
   }
   process.stdout.write(
     `[docs-check] ${passed}/${results.length} surfaces passed; ${failed} failed.\n`
   );
+  if (unrunnable.length > 0) {
+    // Say plainly that these carry no content signal. The failure mode this
+    // guards against is a contributor reading `FAIL aps` and going looking for
+    // a defect in their own docs change that was never there (CIB-278).
+    process.stdout.write(
+      `[docs-check] ${unrunnable.length} surface(s) could not run: ${unrunnable.join(', ')} — ` +
+        `this is a tooling failure, not a docs content defect. ` +
+        `See the labelled output above for the underlying error and remedy.\n`
+    );
+  }
 }
 
 async function regenerateBaseline() {

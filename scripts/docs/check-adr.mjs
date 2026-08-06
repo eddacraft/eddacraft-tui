@@ -1,26 +1,19 @@
 #!/usr/bin/env node
 // Surface delegate: ADR integrity.
 //
-// Wraps the existing `pnpm adr:check` (which runs `scripts/docs/adr-integrity.sh`)
-// so the `pnpm docs:check` orchestrator can include ADR integrity in its
-// labelled summary without duplicating logic. Forwards the underlying exit
-// code.
+// Invokes scripts/docs/adr-integrity.sh directly so the `pnpm docs:check`
+// orchestrator can include ADR integrity in its labelled summary without
+// duplicating logic. It deliberately does NOT re-enter the package manager
+// (`pnpm adr:check`): that round-trip made this surface report a docs content
+// `FAIL` whenever the package manager itself was broken, on a corpus that was
+// clean (CIB-278). Exit codes follow lib/surface-delegate.mjs.
 
-import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { REPO_ROOT, runSurfaceDelegate } from './lib/surface-delegate.mjs';
 
-const SURFACE = 'adr';
-const result = spawnSync('pnpm', ['-s', 'adr:check'], {
-  stdio: ['inherit', 'pipe', 'pipe'],
-  encoding: 'utf8',
+runSurfaceDelegate({
+  surface: 'adr',
+  command: 'bash',
+  args: [resolve(REPO_ROOT, 'scripts/docs/adr-integrity.sh')],
+  remedy: 'run `bash scripts/docs/adr-integrity.sh` directly to see the underlying error.',
 });
-
-const stdout = (result.stdout ?? '').trimEnd();
-const stderr = (result.stderr ?? '').trimEnd();
-for (const line of stdout.split('\n')) if (line) console.log(`[${SURFACE}] ${line}`);
-for (const line of stderr.split('\n')) if (line) console.error(`[${SURFACE}] ${line}`);
-
-if (result.error) {
-  console.error(`[${SURFACE}] failed to invoke pnpm adr:check: ${result.error.message}`);
-  process.exit(2);
-}
-process.exit(result.status ?? 1);

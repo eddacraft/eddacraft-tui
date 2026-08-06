@@ -1,25 +1,20 @@
 #!/usr/bin/env node
 // Surface delegate: APS/index consistency.
 //
-// Wraps the existing `pnpm aps:drift` checker so the `pnpm docs:check`
+// Invokes scripts/aps/drift-check.mjs directly so the `pnpm docs:check`
 // orchestrator can include APS/index drift in its labelled summary without
-// duplicating logic. Forwards the underlying exit code.
+// duplicating logic. It deliberately does NOT re-enter the package manager
+// (`pnpm aps:drift`): that round-trip made this surface report a docs content
+// `FAIL` whenever the package manager itself was broken, on a corpus that was
+// clean (CIB-278). Exit codes follow lib/surface-delegate.mjs.
 
-import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { REPO_ROOT, runSurfaceDelegate } from './lib/surface-delegate.mjs';
+import process from 'node:process';
 
-const SURFACE = 'aps';
-const result = spawnSync('pnpm', ['-s', 'aps:drift'], {
-  stdio: ['inherit', 'pipe', 'pipe'],
-  encoding: 'utf8',
+runSurfaceDelegate({
+  surface: 'aps',
+  command: process.execPath,
+  args: [resolve(REPO_ROOT, 'scripts/aps/drift-check.mjs')],
+  remedy: 'run `node scripts/aps/drift-check.mjs` directly to see the underlying error.',
 });
-
-const stdout = (result.stdout ?? '').trimEnd();
-const stderr = (result.stderr ?? '').trimEnd();
-for (const line of stdout.split('\n')) if (line) console.log(`[${SURFACE}] ${line}`);
-for (const line of stderr.split('\n')) if (line) console.error(`[${SURFACE}] ${line}`);
-
-if (result.error) {
-  console.error(`[${SURFACE}] failed to invoke pnpm aps:drift: ${result.error.message}`);
-  process.exit(2);
-}
-process.exit(result.status ?? 1);

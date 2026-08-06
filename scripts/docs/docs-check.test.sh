@@ -43,12 +43,12 @@ fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
 echo "case 1: orchestrator emits all nine surface labels"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
 for surface in metadata tags links public-docs aps adr index-freshness asbuilt-paths release-plan; do
-  if ! grep -qE "^  (pass|FAIL) ${surface}$" <<<"${out}"; then
+  if ! grep -qE "^  (pass|FAIL|ERROR \(tooling\))\s+${surface}$" <<<"${out}"; then
     fail "summary missing surface: ${surface}"
     break
   fi
 done
-if grep -qE "^  (pass|FAIL) release-plan$" <<<"${out}"; then
+if grep -qE "^  (pass|FAIL|ERROR \(tooling\))\s+release-plan$" <<<"${out}"; then
   pass "all nine surfaces present in summary"
 fi
 
@@ -91,7 +91,7 @@ fi
 # asbuilt-paths — fails without the baseline.
 echo "case 4: --no-baseline surfaces underlying errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
-if echo "${out}" | grep -qE "FAIL (metadata|tags|links|asbuilt-paths)"; then
+if echo "${out}" | grep -qE "^  FAIL\s+(metadata|tags|links|asbuilt-paths)$"; then
   pass "without baseline, a baselineable surface with corpus debt fails as expected"
 else
   fail "expected a baselineable surface to FAIL without baseline; tail: $(echo "${out}" | tail -5)"
@@ -283,7 +283,7 @@ echo "case 10: --no-baseline does not crash the index-freshness surface"
 out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
 if echo "${out}" | grep -qE "Unknown option '--no-baseline'|ERR_PARSE_ARGS_UNKNOWN_OPTION"; then
   fail "--no-baseline misrouted to index-freshness; got: $(echo "${out}" | grep -iE 'unknown|ERR_PARSE' | head -1)"
-elif echo "${out}" | grep -qE "^  (pass|FAIL) index-freshness$"; then
+elif echo "${out}" | grep -qE "^  (pass|FAIL|ERROR \(tooling\))\s+index-freshness$"; then
   pass "--no-baseline run reaches index-freshness without an unknown-option crash"
 else
   fail "index-freshness surface missing from --no-baseline summary; tail: $(echo "${out}" | tail -5)"
@@ -755,6 +755,138 @@ if [[ "${status}" -ne 0 ]] \
   pass "removed APS commands and flags fail together"
 else
   fail "APS command boundary missed removed syntax (status ${status}); got: ${out}"
+fi
+
+# Case 17 (CIB-278): a surface that could not RUN must not be rendered as a
+# content defect. Exit code 2 is already this repo's "cannot run" convention —
+# scripts/aps/drift-check.mjs and scripts/docs/adr-integrity.sh both reserve it
+# for usage/environment errors — so the orchestrator must map it to a distinct
+# tooling verdict rather than collapsing every non-zero status into FAIL.
+echo "case 17: orchestrator separates tooling failure from content failure"
+taxonomy_root="${tmp_root}/taxonomy-fixture"
+mkdir -p "${taxonomy_root}/stubs"
+cat >"${taxonomy_root}/stubs/ok.mjs" <<'EOF'
+console.log('[ok-surface] summary: 0 errors, 0 warnings, 0 files checked');
+process.exit(0);
+EOF
+cat >"${taxonomy_root}/stubs/content.mjs" <<'EOF'
+console.error('[content-surface] ERROR: docs/thing.md:1 — a real content defect');
+process.exit(1);
+EOF
+cat >"${taxonomy_root}/stubs/tooling.mjs" <<'EOF'
+console.error('[tooling-surface] tooling failure: could not run the checker');
+process.exit(2);
+EOF
+
+# 17a: exit 2 renders as a distinct tooling verdict, never as FAIL.
+cat >"${taxonomy_root}/surfaces-tooling.json" <<'EOF'
+[
+  { "name": "ok-surface", "script": "stubs/ok.mjs", "baselineable": false },
+  { "name": "tooling-surface", "script": "stubs/tooling.mjs", "baselineable": false }
+]
+EOF
+set +e
+out="$(node "${orchestrator}" --root "${taxonomy_root}" --surfaces "${taxonomy_root}/surfaces-tooling.json" 2>&1)"
+status=$?
+set -e
+if echo "${out}" | grep -qE "^  FAIL\s+tooling-surface$"; then
+  fail "exit-2 surface rendered as a content FAIL; got: $(echo "${out}" | grep tooling-surface | head -2)"
+elif echo "${out}" | grep -qE "^  ERROR \(tooling\)\s+tooling-surface$"; then
+  pass "exit-2 surface renders as ERROR (tooling), not FAIL"
+else
+  fail "exit-2 surface missing a tooling verdict; got: $(echo "${out}" | tail -8)"
+fi
+
+# 17b: the tooling failure names itself and states it is not a content defect,
+# so a contributor is not sent hunting through their docs change.
+if echo "${out}" | grep -qE "^\[docs-check\] .*tooling.*" \
+  && echo "${out}" | grep -q "tooling-surface" \
+  && echo "${out}" | grep -qiE "not a (docs )?content (defect|failure)"; then
+  pass "tooling failure is called out with an actionable, non-content-defect line"
+else
+  fail "tooling failure lacks an actionable summary line; got: $(echo "${out}" | tail -6)"
+fi
+
+# 17c: a tooling failure still exits non-zero (it must stay loud), and uses the
+# reserved code 2 rather than the content-failure code 1.
+if [[ "${status}" -eq 2 ]]; then
+  pass "tooling-only run exits 2 (loud, and distinct from content failure)"
+else
+  fail "tooling-only run should exit 2; got ${status}"
+fi
+
+# 17d: a genuine content failure is still FAIL and still exits 1 — the fix must
+# not blunt real docs signal.
+cat >"${taxonomy_root}/surfaces-content.json" <<'EOF'
+[
+  { "name": "ok-surface", "script": "stubs/ok.mjs", "baselineable": false },
+  { "name": "content-surface", "script": "stubs/content.mjs", "baselineable": false }
+]
+EOF
+set +e
+out="$(node "${orchestrator}" --root "${taxonomy_root}" --surfaces "${taxonomy_root}/surfaces-content.json" 2>&1)"
+status=$?
+set -e
+if echo "${out}" | grep -qE "^  FAIL\s+content-surface$" && [[ "${status}" -eq 1 ]]; then
+  pass "content failure still renders FAIL and exits 1"
+else
+  fail "content failure regressed (status ${status}); got: $(echo "${out}" | tail -8)"
+fi
+
+# 17e: a content failure outranks a tooling failure in the process exit code, so
+# a broken tool can never mask a real docs defect.
+cat >"${taxonomy_root}/surfaces-both.json" <<'EOF'
+[
+  { "name": "content-surface", "script": "stubs/content.mjs", "baselineable": false },
+  { "name": "tooling-surface", "script": "stubs/tooling.mjs", "baselineable": false }
+]
+EOF
+set +e
+(node "${orchestrator}" --root "${taxonomy_root}" --surfaces "${taxonomy_root}/surfaces-both.json" >/dev/null 2>&1)
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]]; then
+  pass "content failure outranks tooling failure in the exit code"
+else
+  fail "mixed run should exit 1 (content wins); got ${status}"
+fi
+
+# Case 18 (CIB-278): the aps and adr delegates must invoke their underlying
+# checks directly instead of re-entering the package manager. A broken `pnpm`
+# on PATH is the exact field condition that made both surfaces report a content
+# FAIL when the corpus was clean; after the fix pnpm is not on the path at all.
+echo "case 18: aps and adr surfaces do not re-enter the package manager"
+shim_dir="${tmp_root}/broken-pm"
+mkdir -p "${shim_dir}"
+cat >"${shim_dir}/pnpm" <<'EOF'
+#!/bin/sh
+echo "ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING" >&2
+exit 1
+EOF
+chmod +x "${shim_dir}/pnpm"
+for surface in aps adr; do
+  set +e
+  out="$(cd "${repo_root}" && PATH="${shim_dir}:${PATH}" node "${script_dir}/check-${surface}.mjs" 2>&1)"
+  status=$?
+  set -e
+  if echo "${out}" | grep -q "ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING"; then
+    fail "${surface} surface still re-enters pnpm; got: ${out}"
+  elif [[ "${status}" -eq 0 ]]; then
+    pass "${surface} surface passes against the live corpus with pnpm unusable"
+  else
+    fail "${surface} surface should pass on a clean corpus (status ${status}); got: ${out}"
+  fi
+done
+set +e
+out="$(cd "${repo_root}" && PATH="${shim_dir}:${PATH}" node "${orchestrator}" 2>&1)"
+status=$?
+set -e
+if echo "${out}" | grep -qE "^  FAIL\s+(aps|adr)$"; then
+  fail "broken pnpm still misreported as a content FAIL; got: $(echo "${out}" | tail -14)"
+elif [[ "${status}" -eq 0 ]] && echo "${out}" | grep -qE "surfaces passed; 0 failed"; then
+  pass "orchestrator is fully green with pnpm unusable"
+else
+  fail "orchestrator not green with pnpm unusable (status ${status}); got: $(echo "${out}" | tail -14)"
 fi
 
 if [[ "${failures}" -gt 0 ]]; then
