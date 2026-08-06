@@ -7298,7 +7298,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-256: `start --verify` meaning must not claim writes that did not run (START-1)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3615 (`6b64164fe`)
 - **Priority:** P2 honesty (same pattern as CIB-220..222)
 - **Intent:** On a virgin repo, `anvil start --verify` reports
   `state: ready_restart_required` and `meaning: anvil has written the MCP
@@ -7310,6 +7310,20 @@ scanned — with expansion deferred to `v0.9.4`.
   distinct labels. Align with start honesty pass tone.
 - **Validation:** virgin repo `start --verify`; no false write claims; labels
   unique.
+- **Files:** `crates/anvil-cli/src/activation/render.rs`
+  (`ready_restart_not_probed_meaning`), `crates/anvil-cli/src/config_summary.rs`
+  (`rule source:` key), `crates/anvil-cli/src/commands/start.rs` (composed-output
+  guard), `crates/anvil-cli/tests/fixtures/start-activation/` goldens
+- **Evidence (dev-loop):** virgin-repo `start --verify` shows no write claim and
+  discloses the repo-scope gap; `config:` / `rule source:` are distinct. The
+  committed goldens carried the duplicate-key collision, confirming it shipped.
+  CI green on #3615 (Test 43m pass, Clippy Linux + windows-msvc, Format, Doc,
+  Check, Hakari). Blind verifier: pass-with-advisories.
+- **Observed, not yet filed:** the sibling `Unreachable` arm (`render.rs`) still
+  says the editor "has seen" the MCP config — contradicted by the tier docs in
+  `activation/diagnostic.rs` — and `needs_action_meaning` still says "anvil has
+  written the MCP entry". Same authorship-claim class, different state arms,
+  outside this item's scope; both want their own CIB item.
 - **Identified From:** Dave pack-02 START-1.
 - **Coordinates with:** CIB-220..222, CIB-223..225
 - **Confidence:** high.
