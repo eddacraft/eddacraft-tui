@@ -245,12 +245,13 @@ describe('debug structured payload redaction (CIB-214)', () => {
   it('renders prototype-shadowing key names as ordinary own properties', () => {
     // `'constructor' in {}` is true through the prototype chain, and assigning
     // `__proto__` on a literal sets the prototype instead of a property — both
-    // would misrender a field the caller actually passed.
-    const payload = capturePayload('proto probe', {
-      ['__proto__']: 'protovalue',
-      constructor: 'ctorvalue',
-      toString: 'tsvalue',
-    }) as Record<string, unknown>;
+    // would misrender a field the caller actually passed. Built via JSON.parse
+    // because that is the realistic source of such a key (a parsed upstream
+    // body) and it yields own properties rather than a prototype write.
+    const payload = capturePayload(
+      'proto probe',
+      JSON.parse('{"__proto__":"protovalue","constructor":"ctorvalue","toString":"tsvalue"}')
+    ) as Record<string, unknown>;
 
     expect(Object.getOwnPropertyNames(payload).sort()).toEqual([
       '__proto__',
