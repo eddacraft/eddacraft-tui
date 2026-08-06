@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 232/293  |
+| CIB | —     | In Progress | 244/293  |
 
 ## Purpose
 
@@ -4343,9 +4343,7 @@ archive.
 
 ### CIB-160: Portable peer-exe check for durable-membership authorisation off Linux
 
-- **Status:** Ready 2026-08-05 — owner decision taken: **build the per-OS
-  readers.** The alternative (keep the fail-closed non-Linux posture as the
-  permanent answer) is rejected.
+- **Status:** Merged 2026-08-05 via PR #3582 (`24b160ae5`) — portable peer-exe readers on macOS/Windows; residual council nits closed on same PR series
 - **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05)
 - **Why now (2026-08-05):** this item changed character when **CIB-252** merged
   ([#3552](https://github.com/eddacraft/anvil-001/pull/3552)). CIB-252 correctly
@@ -6963,7 +6961,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-251: Config-mode hooks honesty on doctor/status (HOOK-1)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3608 (`501de508b`) — config-mode hooks honesty on doctor/status
 - **Priority:** P3 honesty (opt-in `--config` only; **out of the normal-path
   cutline** for v0.9.3 — default file-mode remains the supported path)
 - **Cutline:** Not a first-timer / default-hooks ship gate. Track for operators
@@ -7365,7 +7363,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-259: Learning-path copy must not claim configuration the walk did not perform (TUI-8)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3609 (`ca5520ecb`) — honest architecture and CI path completion copy
 - **Priority:** P2 honesty
 - **Intent:** Binary strings claim "You now have architecture enforcement
   configured." and "Your CI pipeline now runs anvil checks on every push."
@@ -7384,7 +7382,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-260: Welcome must not promise save-time that `start` does not attach (WELCOME-1)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3618 (`36775b64f`) — welcome no longer promises unattached save-time
 - **Priority:** P3 polish
 - **Intent:** Welcome closes "Next: run `anvil start` for daily save-time
   protection" while `start --verify` reports `watch: not_requested`,
@@ -7398,7 +7396,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-261: Policy-checks tutorial step idempotent on Windows (TUI-4)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-05 via PR #3584 (`21552b807`) — policy-dir re-run idempotency pin
 - **Priority:** P2 Windows tutorial reliability
 - **Intent:** Policy-checks path uses `mkdir .anvil\policies` on Windows.
   Re-run fails with raw "already exists" exit 1; `r` retries identically. Copy
@@ -7433,7 +7431,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-263: Init summary must list `.gitignore` edits (INIT-1)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3610 (`26f8f9e85`) — init summary lists .gitignore edits
 - **Priority:** P3 polish
 - **Intent:** Init appends `.anvil/`, exception lock, witness chain paths to
   `.gitignore` without listing that file in the summary (Config/Plans/Checks
@@ -7447,7 +7445,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-264: `status` should not create project cache as a side effect (STATUS-3)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3611 (`abf7df41d`) — status no longer creates project cache as a side effect
 - **Priority:** P3 polish
 - **Intent:** In a never-activated repo, `anvil status` alone creates
   `.anvil/cache/last-seen-version`. Read-only look leaves a trace. Dave first
@@ -7470,7 +7468,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-266: Watch dashboard live timestamps should not read as stale UTC (TUI-7)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3612 (`7cfbcfde5`) — watch dashboard relative/local times
 - **Priority:** P3 polish
 - **Intent:** Watch dashboard shows bare UTC (`…Z`) on a live view; operator
   in +0800 read a 75s-old entry as eight hours stale.
@@ -7525,7 +7523,7 @@ scanned — with expansion deferred to `v0.9.4`.
   Linux, other gits
 ### CIB-268: Autoplay worker panics are silent in the terminal, hurting debuggability
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3624 (`1af061811`) — re-land of autoplay panic logging after #3623 revert
 - **Priority:** P3 developer experience (CIB-248 verification advisory 2026-08-04)
 - **Intent:** `install_panic_hook` in `crates/anvil-cli/src/tui.rs` returns
   early — printing nothing and skipping `restore_terminal` — when the
@@ -7617,7 +7615,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-271: `anvil tutorial --autoplay` still exits the TUI on autoplay failure
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-05 via PR #3570 (`4ae5c4d85`) — tutorial --autoplay failures stay in the TUI
 - **Priority:** P2 welcome reliability (CIB-248 coverage gap 2026-08-04)
 - **Intent:** CIB-248 made autoplay failure non-fatal for the **`anvil
   welcome`** entry point: `welcome.rs:1137-1139` calls
@@ -7771,7 +7769,7 @@ CIB-251/255 only.
 
 ### CIB-275: Start result screen — one help bar and a full `next:` line
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-05 via PR #3585 (`85627b46a`) — start result: one help bar and full next: line
 - **Priority:** P2 first-run UX (every `anvil start` result screen)
 - **Intent:** On the activation result screen two keyboard help bars render at
   once and disagree (arrows vs `j/k`). The `next:` guidance line truncates
@@ -8357,12 +8355,7 @@ CIB-251/255 only.
 
 ### CIB-287: `anvil doctor` skill rows still carry the Windows verbatim prefix
 
-- **Status:** Ready — promoted by the operator 2026-08-06 (membrane
-  checkpoint). Filed from the CIB-285 dev-loop run, not self-authorised.
-  Implementation was already in flight when this promotion was made: PR #3602
-  (`fix/cib-287-doctor-skill-path-prefix`) touches `doctor.rs` and
-  `skill_state.rs`, the two files named below. The promotion authorises work
-  that had started while the item was still Draft.
+- **Status:** Merged 2026-08-06 via PR #3602 (`fcc80c709`) — doctor managed-skill rows via display_path::shown
 - **Priority:** P4 presentation defect (no wrong verdict; the path is correct,
   just carrying a prefix no reader wants). Scoped above CIB-285's failure-only
   reach because these rows appear on a **normal** `anvil doctor` run, not only

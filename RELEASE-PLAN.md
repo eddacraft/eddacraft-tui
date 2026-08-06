@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                              |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-05: **`v0.9.3-beta`** = honesty pass (Morgan CIB-220..227 / #3510) + Windows install/update path (Dave pack-01 CIB-228..243 / #3514; auth wall excluded) + pack-02 commissioning/TUI intake **CIB-251..267** (RETRACT-1 + trust candidates) + pack-03 **CIB-250/275/276** + pre-250 promotions **CIB-205, 100, 214, 160**. Prior cut `v0.9.2-beta` MCP reconnect is published. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                                       |
+| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-06: **`v0.9.3-beta`** claim implementation is on main (honesty 220–227, Windows 228–230, Dave field 232–245, pack-02/03 trust + polish, pre-250 205/214/100/160). Phase plan is **cut validation**. Optional same-cut honesty: CIB-288 (install banner), CIB-281 (audit TUI/SARIF). Prior cut `v0.9.2-beta` MCP reconnect is published. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -214,20 +214,21 @@ Why each, briefly:
 
 ### Phase plan
 
-| Phase                   | Scope                                                     | State                       |
-| ----------------------- | --------------------------------------------------------- | --------------------------- |
-| **0.9.2 publish**       | MCP reconnect + openapi retag                             | Done 2026-08-03             |
-| **Intake honesty**      | File CIB-220..227 + #3510; scope this window              | Done 2026-08-04             |
-| **Intake Windows path** | File CIB-228..230 + #3514 (Dave; still live on 0.9.2)     | Done 2026-08-04             |
-| **Intake Dave field**   | File CIB-231..243; **exclude auth wall**                  | Done 2026-08-04             |
-| **Re-triage Dave**      | Merge UPD-3→229; demote CONF/trust/UX per operator review | Done 2026-08-04             |
-| **Intake Dave pack-02** | File CIB-251..267; RETRACT-1; preserve pack-01 map        | Done 2026-08-04             |
-| **P0 implement**        | CIB-228, 229; then CIB-252, 254 (pack-02 trust); CIB-220  | Next                        |
-| **P1 implement**        | CIB-221, 222                                              | Same cut                    |
-| **P2 implement**        | CIB-230 (with 228), 223, 224, 227                         | Same cut if unblocked       |
-| **P3**                  | CIB-225, 226                                              | Same cut or follow-up patch |
-| **Pre-250 promotions**  | CIB-205 (PR #3566); then CIB-214, CIB-100, CIB-160        | Same cut                    |
-| **Cut**                 | Preflight → prepare → readiness → tag                     | After claim green           |
+| Phase                   | Scope                                                              | State                                     |
+| ----------------------- | ------------------------------------------------------------------ | ----------------------------------------- |
+| **0.9.2 publish**       | MCP reconnect + openapi retag                                      | Done 2026-08-03                           |
+| **Intake honesty**      | File CIB-220..227 + #3510; scope this window                       | Done 2026-08-04                           |
+| **Intake Windows path** | File CIB-228..230 + #3514 (Dave; still live on 0.9.2)              | Done 2026-08-04                           |
+| **Intake Dave field**   | File CIB-231..243; **exclude auth wall**                           | Done 2026-08-04                           |
+| **Re-triage Dave**      | Merge UPD-3→229; demote CONF/trust/UX per operator review          | Done 2026-08-04                           |
+| **Intake Dave pack-02** | File CIB-251..267; RETRACT-1; preserve pack-01 map                 | Done 2026-08-04                           |
+| **P0 implement**        | CIB-228, 229; then CIB-252, 254 (pack-02 trust); CIB-220           | Done on main (2026-08-04..05)             |
+| **P1 implement**        | CIB-221, 222                                                       | Done on main                              |
+| **P2 implement**        | CIB-230 (with 228), 223, 224, 227                                  | Done on main                              |
+| **P3**                  | CIB-225, 226                                                       | Done on main                              |
+| **Pre-250 promotions**  | CIB-205 (#3566), CIB-214 (#3616), CIB-100 (#3614), CIB-160 (#3582) | Done on main; APS reconciled 2026-08-06   |
+| **Pack-02/03 polish**   | CIB-251, 256–266, 268, 271, 275, 287 (and peers)                   | Done on main; APS reconciled 2026-08-06   |
+| **Cut**                 | Preflight → prepare → readiness → tag                              | **Next** — claim green pending validation |
 
 ### Cut criteria
 
@@ -249,9 +250,10 @@ Why each, briefly:
   attribution file that does not satisfy the terms it asserts.
 - **CIB-100** native Windows evidence is satisfied by the x64 round-trip
   regression from PR #3614.
-- **CIB-214** and **CIB-160** validated or explicitly waived with reason —
-  CIB-160 still needs native Windows evidence. If CIB-160 is waived, the CIB-252
-  refusal copy must name the working `--persist` path (see promotions section).
+- **CIB-214** merged (#3616). **CIB-160** code is on main (#3582); treat as
+  validated when Windows durable-register path is exercised, or explicitly waive
+  with reason. If waived, the CIB-252 refusal copy must name the working
+  `--persist` path (see promotions section).
 - Changelog leads with install/update + honesty fixes, not new features.
 - Strategy: **direct** unless readiness forces stabilisation.
 - Prepare regenerates dashboard openapi when version bumps (avoid 0.9.2 retag
