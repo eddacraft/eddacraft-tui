@@ -267,6 +267,11 @@ fn spawn_mcp_server(workspace_root: &Path, xdg_runtime_dir: &Path) -> Child {
         .arg("--stdio")
         .current_dir(workspace_root)
         .env("ANVIL_DEV", "1")
+        // This harness warms the graph explicitly through the daemon socket.
+        // Disable the MCP process's independent fire-and-forget full scan so
+        // it cannot reset the graph to `not_ready` after the explicit warm-up
+        // has already observed a readable snapshot.
+        .env("ANVIL_WATCH_DAEMON", "0")
         .env("XDG_RUNTIME_DIR", xdg_runtime_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
