@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 218/283  |
+| CIB | —     | In Progress | 220/283  |
 
 ## Purpose
 
@@ -699,7 +699,7 @@ archive.
 
 ### CIB-032: Fresh worktrees fall back to a stale global oxfmt, producing false format failures
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2269
 - **Intent:** A freshly created `git worktree` has no `node_modules`, so
   `pnpm run format:check` / `pnpm run lint` resolve `oxfmt` from a stale
   **global** install instead of the workspace-pinned `oxfmt@^0.51.0`. The older
@@ -5831,7 +5831,7 @@ archive.
 
 ### CIB-216: Route managed pre-push installs through the L4 runtime
 
-- **Status:** In Progress 2026-07-31
+- **Status:** Merged 2026-07-31 via PR #3470
 - **Intent:** Managed file, Husky, and Git config pre-push installs currently
   invoke bare `anvil gate`, which scans the full worktree and blocks pushes on
   pre-existing findings instead of evaluating the pushed commit range. Route
