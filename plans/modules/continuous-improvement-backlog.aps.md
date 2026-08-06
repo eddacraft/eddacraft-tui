@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 221/283  |
+| CIB | —     | In Progress | 224/286  |
 
 ## Purpose
 
@@ -7623,7 +7623,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-272: Full-mode welcome can squeeze the logo at exactly `height == content_height`
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3622 (`70d1d844b`)
 - **Priority:** P3 welcome layout (CIB-246 verification advisory 2026-08-04)
 - **Intent:** In full mode at exactly `height == content_height` (18 without a
   status line, 20 with) and any width ≥ 72, the layout constraints total one
@@ -7648,7 +7648,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-273: Onboarding still offers a third name for the tutorial ("Explore the tutorial")
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3619 (`ec4be32fe`)
 - **Priority:** P2 welcome naming honesty (CIB-246 verification advisory 2026-08-04)
 - **Intent:** CIB-246 aligned the return-visit hub with the path picker, but
   the first-run onboarding surface was not covered.
@@ -7675,26 +7675,42 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-274: `TutorialState::reset` drops the stashed autoplay context without restoring
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3621 (`6e658892d`)
 - **Priority:** P4 latent correctness (CIB-248 review 2026-08-04)
 - **Intent:** `reset` sets `autoplay_saved_context = None`
-  (`crates/anvil-tui/src/surfaces/tutorial/mod.rs:1536`) rather than calling
-  `restore_autoplay_context()`. That is correct **today** only because `reset`
-  also clears `scan_results` and the completion fields, so there is nothing to
-  restore into. It is a silent-drop shape: if `reset` ever stops clearing
-  those fields, a reset mid-autoplay would permanently discard the user's
-  pre-demo scan results with no error and no test failure.
+  (`crates/anvil-tui/src/surfaces/tutorial/mod.rs`) rather than calling
+  `restore_autoplay_context()`. **Premise corrected on closeout
+  (2026-08-06):** this item was filed on the basis that the drop is safe
+  "today" because `reset` also clears every field the stash owns. That was
+  **false**. Of the six fields in `AutoplaySavedContext`, `reset` cleared
+  five — `completion_rescan` was never cleared. Mid-autoplay the live field is
+  empty (the stash holds it), so dropping the stash permanently lost the
+  CLI-injected rescan hook (`crates/anvil-cli/src/commands/welcome.rs:58`);
+  `compute_completion_delta` then early-returned for the rest of the session
+  and the completion delta silently stopped working. A real defect, latent
+  only because `Surface::reset` has no production caller for `TutorialState`
+  today.
 - **Expected Outcome:** Make the intent explicit — either call
   `restore_autoplay_context()` before clearing, or comment the invariant that
   `reset` must clear every field the stash owns, ideally with a test that
   fails if the two field sets drift apart.
 - **Files:** `crates/anvil-tui/src/surfaces/tutorial/mod.rs` (`reset`,
   `stash_autoplay_context`, `restore_autoplay_context`)
-- **Validation:** a test pins that the fields cleared by `reset` are a
-  superset of the fields captured by `AutoplaySavedContext`.
+- **Validation:** **restated on closeout (2026-08-06).** The original
+  criterion — "the fields cleared by `reset` are a superset of the fields
+  captured by `AutoplaySavedContext`" — is unsatisfiable: that superset
+  property is false in the code and must stay false, because
+  `completion_rescan` is injected session capability deliberately preserved
+  like `autoplay_runner`. A test asserting it literally could only go green by
+  clearing that field, reintroducing the defect. The shipped invariant is the
+  correct weaker one: every stash-owned field is either cleared by `reset`
+  **or** deliberately preserved, with an exhaustive destructure of
+  `AutoplaySavedContext` forcing a disposition for any new field at compile
+  time (`reset_leaves_no_stash_owned_field_orphaned`).
 - **Identified From:** owner review of the CIB-248 restore delta (PR #3521).
 - **Coordinates with:** CIB-248
-- **Confidence:** medium — not a live defect; a trap for the next change.
+- **Confidence:** **corrected on closeout:** high — and it was a live latent
+  defect, not merely a trap for the next change (see Intent).
 
 
 ## Pack-03 intake (Dave start + walkthrough first-timer, 2026-08-05)
@@ -8356,3 +8372,86 @@ CIB-251/255 only.
   source on `origin/main` and the print path traced end to end. Not reproduced
   on a Windows host; on Unix the prefix is a literal substring rather than a
   parsed prefix, which does not change the conclusion.
+
+### CIB-289: Onboarding welcome squeezes the logo the same way CIB-272 fixed
+
+- **Status:** Draft — filed from the CIB-272 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P3 welcome layout (sibling of CIB-272)
+- **Intent:** `crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs`
+  carries the identical `top_pad` `.max(1)` floor that CIB-272 removed from
+  `crates/anvil-tui/src/surfaces/welcome/render.rs`. Its own full mode
+  (`LOGO_HEIGHT + 1 + 1 + 1 + 1 + menu_height`, with a `Min(menu_h)` menu)
+  over-constrains by one row at its own `height == content_height`, so the logo
+  renders a row short. It survived for the same reason CIB-272 did: its
+  `compact_hint_never_squeezes_logo` guard asserts only
+  `!(hint_shown && squeezed)`, and at the affected sizes the hint is not shown.
+- **Expected Outcome:** apply the CIB-272 shape **wholesale** — the slack-aware
+  `top_pad` (`if slack == 0 { 0 } else { (slack / 2).max(1) }`) **and** the
+  strengthened guard (unconditional `rows == LOGO_LINES.len()` above a
+  `min_intact` threshold, sweeping both status variants), not just the one-line
+  fix. Fixing without the guard would ship an unprotected improvement, which is
+  the gap CIB-272 had to be repaired to close.
+- **Files:** `crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs`
+- **Validation:** a width × height sweep asserts the logo keeps `LOGO_HEIGHT`
+  rows across the boundary, and the guard is proven to fail when the `top_pad`
+  fix is reverted.
+- **Identified From:** CIB-272 execution (sibling-file discovery) and its
+  independent verification (PR #3622).
+- **Coordinates with:** CIB-272, CIB-179
+- **Confidence:** high — same code shape confirmed in source, and demonstrated
+  empirically: during CIB-272 re-verification, with the `top_pad` defect
+  deliberately reverted, this file's `compact_hint_never_squeezes_logo`
+  **passed** while both `surfaces/welcome/render.rs` guards went red.
+
+### CIB-290: As-built line ranges are structurally unenforced by CI
+
+- **Status:** Draft — filed from the CIB-273 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P4 gate honesty (documentation drift, no runtime effect)
+- **Intent:** `scripts/docs/check-asbuilt-paths.mjs` (`resolveSourcePath`)
+  strips `#...` and `:\d+(?:-\d+)?$` from a citation before calling
+  `existsSync`. The gate therefore validates that a cited **path** exists but
+  never that the **line range** is correct. Any edit that shifts line numbers in
+  a cited file silently rots every range in `docs/architecture/**` while
+  `asbuilt-paths` keeps reporting `0 errors`.
+- **Expected Outcome:** decide whether ranges should be gated. If yes, validate
+  that the range bounds exist in the target file (and optionally that the range
+  is non-empty). If no, record in the docs-authoring guide that ranges are
+  advisory so readers and agents do not over-trust a green gate.
+- **Files:** `scripts/docs/check-asbuilt-paths.mjs`, plus the docs-authoring
+  guidance if the decision is "advisory".
+- **Validation:** a fixture with a deliberately wrong line range fails the gate
+  (if gated), or the advisory status is documented and linked from the gate's
+  own output.
+- **Identified From:** CIB-273 execution and independent verification (PR
+  #3619). That change re-anchored `onboarding/welcome.rs:5-32` → `5-40`; the
+  range was correct only because it was hand-checked, and CI would have passed
+  a wrong one.
+- **Coordinates with:** CIB-273
+- **Confidence:** high — read directly from the script source.
+
+### CIB-291: Onboarding and hub now share the picker's name but not its promise
+
+- **Status:** Draft — filed from the CIB-273 dev-loop run 2026-08-06, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P4 naming honesty (weaker form of the CIB-246/273 class)
+- **Intent:** CIB-273 aligned the **names**: both
+  `OnboardingChoice::SkipToTutorial` and `QuickStartOption::RunTutorial` now
+  read "Choose a learning path". Their **descriptions** still diverge —
+  onboarding says "Learn what anvil can do with a guided walkthrough", the hub
+  says "Start with scan → checks → findings → gate". One object, one name, two
+  promises. Deliberately left out of CIB-273, which was scoped to the name.
+- **Expected Outcome:** either converge the two descriptions on one promise, or
+  record why the divergence is deliberate (e.g. first-run framing vs
+  return-visit framing) so it reads as a choice rather than drift.
+- **Non-scope:** re-litigating the shared name; CIB-273 settled that and pinned
+  it case-insensitively.
+- **Files:** `crates/anvil-tui/src/surfaces/onboarding/welcome.rs`,
+  `crates/anvil-tui/src/surfaces/welcome/mod.rs`
+- **Validation:** whichever way it is settled, the outcome is pinned by a test
+  or recorded in the surface's doc comment alongside the existing name pins.
+- **Identified From:** CIB-273 execution (PR #3619).
+- **Coordinates with:** CIB-246, CIB-273
+- **Confidence:** medium — cosmetic, but it is the exact class CIB-246 and
+  CIB-273 exist to close.
