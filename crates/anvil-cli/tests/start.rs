@@ -34,9 +34,11 @@ fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Comma
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.current_dir(workdir)
         .env("HOME", home)
-        // Windows uses USERPROFILE; macOS / Linux use HOME. Set both
-        // so the same test bench works across platforms.
+        // Windows daemon state prefers LOCALAPPDATA and home discovery uses
+        // USERPROFILE; macOS / Linux use HOME. Pin all three so the same test
+        // bench cannot reuse a developer daemon on any platform.
         .env("USERPROFILE", home)
+        .env("LOCALAPPDATA", home)
         // Strip XDG so dirs::home_dir() doesn't resolve to a user
         // directory through XDG_CONFIG_HOME.
         .env_remove("XDG_CONFIG_HOME")
