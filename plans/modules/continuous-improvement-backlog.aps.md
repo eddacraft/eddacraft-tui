@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 230/292  |
+| CIB | —     | In Progress | 231/292  |
 
 ## Purpose
 
@@ -6891,7 +6891,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | STATUS-2 | absorbed into CIB-235 | CIB-235 pack-02 extension |
 | START-1 | net-new honesty | **CIB-256** Merged via #3615 |
 | WATCH-1 | net-new trust (ND caveat) | **CIB-254** Merged via #3577 |
-| INIT-2 | net-new honesty | **CIB-257** Ready P2 |
+| INIT-2 | net-new honesty | **CIB-257** Merged via #3638 |
 | TUI-8 | net-new copy honesty | **CIB-259** Ready P2 |
 | GATE-1 | net-new domain disclosure | **CIB-255** Merged via #3572 · coords CIB-234 |
 | CHECK-1 | net-new domain/scoping | **CIB-255** Merged (same item) |
@@ -7337,7 +7337,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-257: Init sample-scan and language-coverage honesty (INIT-2, INIT-3)
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3638 (`996c2dfba`)
 - **Priority:** P2 honesty
 - **Intent:**
   - **INIT-2:** Init over a sole secret-bearing file prints
