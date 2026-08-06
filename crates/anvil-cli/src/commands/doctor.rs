@@ -465,18 +465,13 @@ fn check_plans_dir() -> DiagnosticCheck {
     }
 }
 
-
 /// CIB-251: config-mode-only install honesty. Presence of
 /// `hook.<event>.command` is not proof the hook fires — some hosts
 /// (including observed Git 2.55 Windows) install cleanly yet never run
 /// the command. Prefer Warn + fire-not-verified over silent Pass.
 /// File-mode remains the supported default path.
 fn config_mode_only_hooks_check(anvil_managed: bool) -> DiagnosticCheck {
-    let managed = if anvil_managed {
-        ", anvil-managed"
-    } else {
-        ""
-    };
+    let managed = if anvil_managed { ", anvil-managed" } else { "" };
     let min_git = min_config_hook_git_label();
     let (message, summary) = match config_hook_runtime() {
         ConfigHookRuntime::Unsupported => (

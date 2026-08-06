@@ -14,7 +14,9 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::activation;
-use crate::commands::hooks::{config_hooks_enabled, is_config_mode_hook_path, list_config_hook_commands};
+use crate::commands::hooks::{
+    config_hooks_enabled, is_config_mode_hook_path, list_config_hook_commands,
+};
 use crate::commands::protection_claim_section;
 use crate::commands::watch_save_time;
 use crate::config_summary::render_rule_mode_summary;
