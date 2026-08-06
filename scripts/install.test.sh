@@ -118,19 +118,20 @@ test_non_homebrew_install_still_runs_downloaded_installer() {
 # not promise save-time coverage a bare `anvil start` does not attach, which is
 # the claim CIB-260 removed from `welcome.rs` and this banner outlived.
 test_success_banner_leads_with_ungated_welcome() {
-  local tmp fake_bin fake_installer output status marker up_to_welcome up_to_start
+  local tmp fake_bin fake_installer output status up_to_welcome up_to_start
   tmp=$(mktemp -d)
   fake_bin="$tmp/bin"
   fake_installer="$tmp/fake-installer.sh"
-  marker="$tmp/installer-ran"
   mkdir -p "$fake_bin"
 
   printf '#!/usr/bin/env sh\nwhile [ "$#" -gt 0 ]; do\n  if [ "$1" = "-o" ]; then\n    shift\n    cp "$FAKE_INSTALLER" "$1"\n    exit 0\n  fi\n  shift\ndone\nexit 2\n' > "$fake_bin/curl"
   chmod +x "$fake_bin/curl"
-  printf '#!/usr/bin/env sh\ntouch "$INSTALL_MARKER"\n' > "$fake_installer"
+  # A no-op: this case asserts on the banner, not on the download path — that
+  # is `test_non_homebrew_install_still_runs_downloaded_installer`'s job.
+  printf '#!/usr/bin/env sh\nexit 0\n' > "$fake_installer"
 
   set +e
-  output=$(PATH="$fake_bin:/usr/bin:/bin" FAKE_INSTALLER="$fake_installer" INSTALL_MARKER="$marker" sh "$ROOT/install.sh" 2>&1)
+  output=$(PATH="$fake_bin:/usr/bin:/bin" FAKE_INSTALLER="$fake_installer" sh "$ROOT/install.sh" 2>&1)
   status=$?
   set -e
   rm -rf "$tmp"
