@@ -1,5 +1,6 @@
 pub mod event_adapter;
 pub mod render;
+mod time_display;
 
 use std::collections::VecDeque;
 

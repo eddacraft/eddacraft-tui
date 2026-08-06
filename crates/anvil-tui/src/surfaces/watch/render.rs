@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -5,6 +7,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
+use super::time_display::format_live_timestamp;
 use super::{ActionResultLine, WatchPanel, WatchState, WatchStatus};
 
 fn advisory_warning_count(state: &WatchState) -> usize {
@@ -328,6 +331,9 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         return;
     }
 
+    // Format timestamps at render time so stored kernel ISO8601 stays raw
+    // while the live dashboard shows relative ages (CIB-266).
+    let now = SystemTime::now();
     let lines: Vec<Line> = state
         .data
         .queue
@@ -336,6 +342,7 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         .map(|(i, change)| {
             let selected = focused && i == state.selected_item;
             let indicator = if selected { ">> " } else { "  " };
+            let ts = format_live_timestamp(&change.timestamp, now);
 
             Line::from(vec![
                 Span::styled(indicator, Style::default().fg(theme.fg())),
@@ -348,7 +355,7 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
                     },
                 ),
                 Span::styled(
-                    format!("  {} {}", change.notification.message, change.timestamp),
+                    format!("  {} {ts}", change.notification.message),
                     Style::default().fg(theme.muted()),
                 ),
             ])
@@ -382,6 +389,7 @@ fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme
         return;
     }
 
+    let now = SystemTime::now();
     let lines: Vec<Line> = state
         .data
         .history
@@ -396,6 +404,7 @@ fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme
             } else {
                 theme.error()
             };
+            let ts = format_live_timestamp(&run.timestamp, now);
 
             Line::from(vec![
                 Span::styled(indicator, Style::default().fg(theme.fg())),
@@ -415,7 +424,7 @@ fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme
                     format!("{}ms  ", run.duration_ms),
                     Style::default().fg(theme.muted()),
                 ),
-                Span::styled(&run.timestamp, Style::default().fg(theme.muted())),
+                Span::styled(ts, Style::default().fg(theme.muted())),
             ])
         })
         .collect();
