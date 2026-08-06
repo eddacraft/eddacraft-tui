@@ -11,9 +11,10 @@
 > The active window is **`v0.9.3-beta`** — honesty pass (Morgan Deus 0.9.1;
 > **CIB-220..227** / [#3510](https://github.com/eddacraft/anvil-001/issues/3510))
 > plus Dave field report (Windows install/update **CIB-228..230** P0; further
-> confinement/trust/UX **CIB-231..243**; [#3514](https://github.com/eddacraft/anvil-001/issues/3514))
-> and Dave pack-02/03 + pre-250 promotions (**CIB-205**, **214**, **100**,
-> **160**, **250..276**). Claim implementation is on main; next step is **cut
+> confinement/trust/UX **CIB-231..243**; start TUI **CIB-244..245**;
+> [#3514](https://github.com/eddacraft/anvil-001/issues/3514)) and Dave
+> pack-02/03 + pre-250 promotions (**CIB-205**, **214**, **100**, **160**,
+> **250..276**). Claim implementation is on main; next step is **cut
 > validation** (see NBI). Optional same-cut honesty: **CIB-288**, **CIB-281**.
 > Auth wall intentionally not tracked. See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md).
