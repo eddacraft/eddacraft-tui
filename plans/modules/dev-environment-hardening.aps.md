@@ -9,7 +9,7 @@ build/cache, worktree lifecycle, and toolchain determinism. Implements ADR-057.
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DEVENV | —     | In Progress | 6/9      |
+| DEVENV | —     | In Progress | 6/10      |
 
 ## Purpose
 
@@ -336,3 +336,87 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
   copies and the cross-filesystem scoping were each observed directly rather
   than inferred. Medium on which strand-1 shape is right; that is a dev-env
   policy call, and DEVENV-008 may answer it first.
+
+### DEVENV-010: a fresh clone cannot reach a working toolchain from the repo alone
+
+- **Status:** Draft — filed after fixing the same problem by hand on one
+  machine, not self-authorised. Promotion to Ready is an operator call.
+- **Wave:** 1 (hardening — the repo-side counterpart to DEVENV-009)
+- **Intent:** DEVENV-009 records that relocation and eviction fail when direnv
+  is absent. That was repaired **on one machine**, in files the repo does not
+  own (`~/.zshenv`, `~/.config/husky/init.sh`, and a `~/.local/bin/pnpm`
+  fallback). A fresh clone on a new machine reproduces the whole failure, and
+  nothing in the repository prevents it. Three concrete gaps, each checked
+  against the tree rather than inferred:
+  - **The documented prerequisites contradict `engines`.** `CONTRIBUTING.md`
+    ("Prerequisites") states Node `>=22.13.0` and pnpm `>=10.20.0`.
+    `package.json` `engines` requires node `>=24.0.0`, pnpm `>=11.0.0` and git
+    `>=2.54.0`. A contributor who follows CONTRIBUTING installs Node 22 — on
+    which pnpm 11 cannot run at all (`ERR_UNKNOWN_BUILTIN_MODULE`). git is not
+    mentioned, though `docs/guides/git-hook-compatibility.md` sets a 2.54
+    floor. The onboarding path leads directly into the failure.
+  - **No tracked hook sets `CARGO_TARGET_DIR`.** `grep -rn CARGO_TARGET_DIR
+    .husky/` returns nothing. Git runs hooks with the worktree root as cwd, so
+    a hook can compute the relocation itself with no user configuration and no
+    direnv — the one place the repo can fix this unaided. That seam is unused.
+  - **No bootstrap for the machine-level pieces.** `scripts/dev/` holds
+    worktree tooling (`wt-new.sh`, anchor healing, cleanup) but nothing that
+    provisions a toolchain, and `prepare: husky` is the only install-time hook.
+- **Non-scope / do not:** Do not re-litigate DEVENV-002's finding that a
+  committed `.cargo/config.toml` cannot carry `target-dir` (cargo does not
+  expand `$HOME` there) — settled, and still true. Do not make `pnpm install`
+  write into `$HOME` (`~/.config`, `~/.zshenv`) as a side effect: silently
+  editing a contributor's shell configuration from a dependency install is its
+  own hazard and needs an explicit decision, not a convenience. Do not require
+  direnv without deciding what contributors who decline it should do instead.
+- **Expected Outcome:** a fresh clone on a machine with none of this
+  operator's hand-configuration reaches a working state by following the
+  repo's own documentation, and cannot silently build onto the full mount.
+  Three separable strands, in rough order of value per effort:
+  1. **Make the hooks self-sufficient.** Have the tracked hooks export
+     `CARGO_TARGET_DIR` themselves — directly, or via a tracked
+     `.husky/common.sh` each hook sources. This needs no user configuration,
+     works on the first commit after clone, and is the only strand the repo
+     can complete alone.
+  2. **Make the prerequisites true.** Reconcile `CONTRIBUTING.md` with
+     `engines` and the git floor, and state plainly what happens without
+     direnv — the honest answer today is "builds land in-tree on the full
+     mount", which `docs/guides/worktree-policy.md` already says and
+     CONTRIBUTING does not. Prefer a check that fails when the two disagree
+     over a one-time edit; this drifted once and will again.
+  3. **Offer an opt-in bootstrap.** An idempotent
+     `scripts/dev/bootstrap-env.sh` installing the user-level pieces for a
+     machine without direnv — run deliberately and documented, not wired into
+     `prepare` (see non-scope).
+- **Trap to avoid:** whatever sets the value must produce **exactly**
+  `$HOME/.cache/anvil-targets/<worktree-basename>`, matching `.envrc` and the
+  `wt` post-start. A second, differently-computed path creates a parallel
+  target dir beside the intended one — the duplication DEVENV-009 was filed
+  about, arrived at from the other direction.
+- **Files:** `CONTRIBUTING.md` (Prerequisites), `.husky/pre-commit` and
+  `.husky/pre-push` (or a new tracked `.husky/common.sh`),
+  `docs/guides/worktree-policy.md`, possibly `scripts/dev/` and a fixture
+  under `scripts/ci/` for the prerequisites check
+- **Validation:** on a machine with no direnv and no shell customisation,
+  clone, `pnpm install`, and commit: the hook must relocate cargo output and
+  must not create an in-tree `target/`. Separately, assert that every version
+  floor in `CONTRIBUTING.md` matches `package.json` `engines` — a test that
+  fails today, before any doc edit, and passes after.
+- **Identified From:** repairing this by hand on 2026-08-06 after the `ENOSPC`
+  incident behind DEVENV-009. The mechanisms are proven in practice, which is
+  why strand 1 is high-confidence: git hooks reach a per-repo value with no
+  user config; husky sources
+  `${XDG_CONFIG_HOME:-$HOME/.config}/husky/init.sh`; and a zsh `chpwd` hook
+  tracks the directory where a startup-time value cannot — `.zshenv` is
+  evaluated before the `cd` in `zsh -c 'cd <worktree> && cargo …'`, so a
+  startup value pins the wrong worktree. One non-obvious detail from that work
+  is worth carrying: an ownership marker beside `CARGO_TARGET_DIR` must be
+  **exported**, or a child shell inherits the value without the marker, treats
+  it as externally owned, declines to update it, and builds one worktree into
+  another's target dir.
+- **Dependencies:** DEVENV-002 (relocation), DEVENV-009 (the machine-side
+  diagnosis). Strand 3 overlaps DEVENV-008's substrate spike, which may
+  replace it wholesale.
+- **Confidence:** high on the three gaps — each was checked against the tree,
+  and the prerequisites mismatch is mechanically verifiable. Medium on strand
+  3's shape, which is the same dev-env policy question DEVENV-009 leaves open.
