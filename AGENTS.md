@@ -102,6 +102,11 @@ Common checks:
 - `pnpm aps:active-lint`
 - `pnpm aps:index:check`
 
+For full primary-CLI crate validation, run
+`cargo test -p eddacraft-anvil --no-fail-fast`. The `--no-fail-fast` flag is
+required so an earlier test-binary failure cannot hide integration-test
+failures.
+
 For full confidence, run `pnpm validate:full`.
 
 For test selection and stack-specific commands, read `docs/guides/testing.md`.

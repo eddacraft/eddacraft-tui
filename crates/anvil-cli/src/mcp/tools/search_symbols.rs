@@ -282,33 +282,23 @@ mod tests {
     }
 
     #[test]
-    fn degrades_to_unavailable_without_a_daemon() {
-        // No daemon is running in the test environment, so the tool must return
-        // a structured `unavailable` outcome — never a file read, never an error.
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let result = call(&json!({ "workspaceRoot": workspace.path() }));
-
-        assert_eq!(result["isError"], false);
-        let payload = payload_of(&result);
+    fn unavailable_response_is_sealed() {
+        let payload = render_response(&unavailable_response(), ".");
         assert_eq!(payload["outcome"]["status"], "unavailable");
         assert_eq!(payload["workspace_assurance"]["state"], "unavailable");
-        // The redacted relative workspace root is echoed.
-        assert!(payload.get("workspaceRoot").is_some());
+        assert_eq!(payload["workspaceRoot"], ".");
     }
 
     #[test]
     fn accepts_an_opaque_cursor_argument() {
-        // A `cursor` string must parse through to the query (not be dropped or
-        // rejected). Without a daemon it still degrades to `unavailable`, but the
-        // key assertion is that it is NOT a parse error.
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let result = call(&json!({
-            "workspaceRoot": workspace.path(),
-            "cursor": "deadbeef"
-        }));
-        assert_eq!(result["isError"], false);
-        assert_eq!(payload_of(&result)["outcome"]["status"], "unavailable");
+        let query = parse_query(&json!({ "cursor": "deadbeef" })).expect("query parses");
+
+        assert_eq!(
+            query
+                .cursor
+                .as_ref()
+                .map(anvil_gctx_types::OpaqueCursor::as_str),
+            Some("deadbeef")
+        );
     }
 }

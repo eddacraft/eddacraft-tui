@@ -267,34 +267,30 @@ mod tests {
     }
 
     #[test]
-    fn degrades_to_unavailable_without_a_daemon() {
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let result = call(&json!({
-            "workspaceRoot": workspace.path(),
-            "file": "src/a.ts"
-        }));
-
-        assert_eq!(result["isError"], false);
-        let payload = payload_of(&result);
+    fn unavailable_response_is_sealed() {
+        let payload = render_response(&unavailable_response(), ".");
         assert_eq!(payload["outcome"]["status"], "unavailable");
         assert_eq!(payload["workspace_assurance"]["state"], "unavailable");
-        assert!(payload.get("workspaceRoot").is_some());
+        assert_eq!(payload["workspaceRoot"], ".");
     }
 
     #[test]
     fn accepts_max_depth_and_cursor_arguments() {
-        // `maxDepth` and `cursor` must parse through to the query (not be dropped
-        // or rejected). Without a daemon it still degrades to `unavailable`.
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let result = call(&json!({
-            "workspaceRoot": workspace.path(),
+        let query = parse_query(&json!({
             "file": "src/a.ts",
             "maxDepth": 2,
             "cursor": "deadbeef"
-        }));
-        assert_eq!(result["isError"], false);
-        assert_eq!(payload_of(&result)["outcome"]["status"], "unavailable");
+        }))
+        .expect("query parses");
+
+        assert_eq!(query.file.as_deref(), Some("src/a.ts"));
+        assert_eq!(query.max_depth, Some(2));
+        assert_eq!(
+            query
+                .cursor
+                .as_ref()
+                .map(anvil_gctx_types::OpaqueCursor::as_str),
+            Some("deadbeef")
+        );
     }
 }

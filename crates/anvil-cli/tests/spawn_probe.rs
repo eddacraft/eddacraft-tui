@@ -65,10 +65,11 @@ fn run_status_verify_with_path(workdir: &Path, home: &Path, path: Option<&Path>)
 #[cfg(not(target_os = "windows"))]
 fn install_cursor_entry_pointing_at_test_bin(home: &Path) {
     fs::create_dir_all(home.join(".cursor")).unwrap();
+    let anvil_bin = fs::canonicalize(ANVIL_BIN).expect("canonical test binary path");
     let cfg = serde_json::json!({
         "mcpServers": {
             "anvil": {
-                "command": ANVIL_BIN,
+                "command": anvil_bin,
                 "args": ["mcp", "serve", "--stdio"],
                 "env": {},
             }

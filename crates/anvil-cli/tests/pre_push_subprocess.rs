@@ -47,10 +47,14 @@ fn fixture_repo() -> (TempDir, std::path::PathBuf) {
 /// (`PRE_PUSH_BUDGET = 2s`) keeps wait time bounded even in the
 /// failure cases.
 fn run_pre_push(repo_root: &Path, stdin: &str) -> std::process::Output {
+    let home = TempDir::new().expect("isolated home");
     let mut child = Command::new(ANVIL_BIN)
         .arg("hook")
         .arg("pre-push")
         .current_dir(repo_root)
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("XDG_CONFIG_HOME", home.path().join(".config"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

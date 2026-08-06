@@ -567,7 +567,9 @@ fn mcp_serve_stdio_resources_list_advertises_graph_resources() {
 
 #[test]
 fn mcp_serve_stdio_resources_read_stats_returns_contents() {
-    let mut child = spawn_mcp_server();
+    let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
+    let home_dir = tempfile::tempdir().expect("isolated home dir exists");
+    let mut child = spawn_mcp_server_without_daemon(runtime_dir.path(), home_dir.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
     send_legacy_initialize(&mut child, &stdout_rx, 0);
@@ -602,7 +604,7 @@ fn mcp_serve_stdio_resources_read_stats_returns_contents() {
     // still a well-formed contents reply, never a fallback or an error.
     let contents = parsed["result"]["contents"]
         .as_array()
-        .expect("contents is an array");
+        .unwrap_or_else(|| panic!("contents is an array: {parsed}"));
     assert_eq!(contents.len(), 1);
     assert_eq!(contents[0]["uri"], "graph://stats");
     assert_eq!(contents[0]["mimeType"], "application/json");
@@ -622,7 +624,9 @@ fn mcp_serve_stdio_resources_read_stats_returns_contents() {
 #[test]
 fn mcp_serve_stdio_resources_read_symbols_and_edges_return_contents() {
     for (id, uri) in [(13, "graph://symbols?file=src/a.ts"), (14, "graph://edges")] {
-        let mut child = spawn_mcp_server();
+        let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
+        let home_dir = tempfile::tempdir().expect("isolated home dir exists");
+        let mut child = spawn_mcp_server_without_daemon(runtime_dir.path(), home_dir.path());
         let stdout = child.stdout.take().expect("child stdout is piped");
         let stdout_rx = spawn_stdout_reader(stdout);
         send_legacy_initialize(&mut child, &stdout_rx, 0);
@@ -651,7 +655,6 @@ fn mcp_serve_stdio_resources_read_symbols_and_edges_return_contents() {
 
         let parsed: Value = serde_json::from_str(&line).expect("resources/read response is JSON");
         assert_eq!(parsed["id"], id);
-        let base_uri = uri.split('?').next().unwrap();
         let contents = parsed["result"]["contents"]
             .as_array()
             .unwrap_or_else(|| panic!("contents array for {uri}: {parsed}"));
@@ -660,11 +663,131 @@ fn mcp_serve_stdio_resources_read_symbols_and_edges_return_contents() {
             .as_str()
             .expect("contents text is a string");
         let outcome: Value = serde_json::from_str(text).expect("contents text is JSON");
-        assert!(
-            outcome["outcome"]["status"].is_string(),
-            "{base_uri} carries a status-tagged sealed outcome: {outcome}"
+        assert_eq!(outcome["outcome"]["status"], "unavailable", "{uri}");
+        assert_eq!(
+            outcome["workspace_assurance"]["state"], "unavailable",
+            "{uri}"
         );
     }
+}
+
+/// CIB-270: every GCTX tool must traverse the public stdio envelope and return
+/// the same sealed, non-error degradation when its daemon namespace is empty.
+/// Parser/render unit tests pin the individual DTOs; this test pins the shared
+/// MCP dispatch boundary without inheriting a developer daemon.
+fn gctx_tool_cases(workspace: &Path) -> [(&'static str, Value); 6] {
+    [
+        (
+            "anvil_search_symbols",
+            json!({ "workspaceRoot": workspace, "cursor": "deadbeef" }),
+        ),
+        (
+            "anvil_find_dependents",
+            json!({
+                "workspaceRoot": workspace,
+                "file": "src/a.ts",
+                "maxDepth": 2,
+                "cursor": "deadbeef"
+            }),
+        ),
+        (
+            "anvil_find_callers",
+            json!({
+                "workspaceRoot": workspace,
+                "target": {
+                    "file": "src/a.ts",
+                    "kind": "Function",
+                    "name": "greet",
+                    "ordinal": 0
+                },
+                "maxDepth": 2
+            }),
+        ),
+        (
+            "anvil_impact_of_change",
+            json!({
+                "workspaceRoot": workspace,
+                "changedFiles": ["src/a.ts"]
+            }),
+        ),
+        (
+            "anvil_affected_tests",
+            json!({
+                "workspaceRoot": workspace,
+                "changedFiles": ["src/a.ts"]
+            }),
+        ),
+        (
+            "anvil_symbol_context",
+            json!({
+                "workspaceRoot": workspace,
+                "target": {
+                    "file": "src/a.ts",
+                    "kind": "Function",
+                    "name": "greet",
+                    "ordinal": 0
+                },
+                "includeSource": true,
+                "tokenBudget": 500
+            }),
+        ),
+    ]
+}
+
+#[test]
+fn mcp_serve_stdio_gctx_tools_degrade_to_unavailable_without_daemon() {
+    let cwd = std::env::current_dir().expect("cwd");
+    let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+    let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
+    let home_dir = tempfile::tempdir().expect("isolated home dir exists");
+    let mut child = spawn_mcp_server_without_daemon(runtime_dir.path(), home_dir.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    let cases = gctx_tool_cases(workspace.path());
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        for (offset, (name, arguments)) in cases.iter().enumerate() {
+            writeln!(
+                stdin,
+                "{}",
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 20 + offset,
+                    "method": "tools/call",
+                    "params": { "name": name, "arguments": arguments }
+                })
+            )
+            .unwrap_or_else(|err| panic!("failed to send {name} tools/call: {err}"));
+        }
+    }
+    drop(child.stdin.take());
+
+    for (offset, (name, _)) in cases.iter().enumerate() {
+        let line = recv_stdout_line(&mut child, &stdout_rx);
+        let parsed: Value = serde_json::from_str(&line)
+            .unwrap_or_else(|err| panic!("{name} response must be JSON: {err}\n{line}"));
+        assert_eq!(parsed["id"], 20 + offset, "{name}: {parsed}");
+        assert_eq!(parsed["result"]["isError"], false, "{name}: {parsed}");
+        let payload = parse_tool_payload(&parsed);
+        assert_eq!(
+            payload["outcome"]["status"], "unavailable",
+            "{name}: {payload}"
+        );
+        assert_eq!(
+            payload["workspace_assurance"]["state"], "unavailable",
+            "{name}: {payload}"
+        );
+        assert!(payload["workspaceRoot"].is_string(), "{name}: {payload}");
+    }
+
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after GCTX calls; status: {status:?}"
+    );
 }
 
 #[test]
@@ -1951,6 +2074,32 @@ fn spawn_mcp_server() -> Child {
         .stderr(Stdio::null())
         .spawn()
         .expect("failed to spawn anvil mcp serve --stdio")
+}
+
+/// Spawn in an isolated daemon namespace so graph resources cannot observe a
+/// developer daemon (or another test's daemon) through the inherited runtime
+/// environment.
+fn spawn_mcp_server_without_daemon(runtime_dir: &Path, home_dir: &Path) -> Child {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
+        .arg("mcp")
+        .arg("serve")
+        .arg("--stdio")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    cmd.env_remove("ANVIL_HOME")
+        .env("XDG_RUNTIME_DIR", runtime_dir)
+        .env("XDG_CONFIG_HOME", home_dir.join(".config"))
+        .env("HOME", home_dir)
+        .env("USERPROFILE", home_dir);
+    #[cfg(windows)]
+    cmd.env("ANVIL_HOME", home_dir)
+        .env("HOME", home_dir)
+        .env("USERPROFILE", home_dir);
+    cmd.spawn()
+        .expect("failed to spawn isolated anvil mcp serve --stdio")
 }
 
 fn spawn_mcp_server_in(cwd: &Path) -> Child {

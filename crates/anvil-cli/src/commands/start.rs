@@ -3497,25 +3497,6 @@ mod tests {
     }
 
     #[test]
-    fn no_tui_empty_value_semantics_match_sibling_env_hatches() {
-        let args = start_args_default();
-        temp_env::with_vars(
-            [("ANVIL_NO_DAEMON", Some("")), ("ANVIL_NO_MCP", Some(""))],
-            || {
-                assert!(!start_daemon_opt_out(&args));
-                assert!(!start_mcp_opt_out(&args));
-            },
-        );
-        temp_env::with_vars(
-            [("ANVIL_NO_DAEMON", Some("1")), ("ANVIL_NO_MCP", Some("1"))],
-            || {
-                assert!(start_daemon_opt_out(&args));
-                assert!(start_mcp_opt_out(&args));
-            },
-        );
-    }
-
-    #[test]
     fn activation_progress_steps_mark_deferred_tui_consent_as_pending() {
         use activation::orchestrator::{
             ActivationStep, ActivationStepEvent, ActivationStepLifecycle,
@@ -5511,26 +5492,6 @@ mod tests {
         );
     }
 
-    /// CIB-224: env forms of the conflict also reject.
-    #[test]
-    fn no_mcp_env_with_all_mcp_clients_env_is_rejected() {
-        let args = start_args_default();
-        temp_env::with_vars(
-            [
-                ("ANVIL_NO_MCP", Some("1")),
-                ("ANVIL_ALL_MCP_CLIENTS", Some("1")),
-            ],
-            || {
-                let err = reject_no_mcp_with_client_selection(&args).unwrap_err();
-                let msg = format!("{err:#}");
-                assert!(
-                    msg.contains("mutually exclusive"),
-                    "env forms must also conflict: {msg}"
-                );
-            },
-        );
-    }
-
     /// CIB-224: `--no-mcp` alone remains valid.
     #[test]
     fn no_mcp_alone_is_allowed() {
@@ -5843,27 +5804,20 @@ mod tests {
         assert!(start_daemon_opt_out(&opted_out));
     }
 
+    /// The `--no-mcp` flag drives the install policy. The `ANVIL_NO_MCP` env
+    /// arm is exercised end-to-end in the integration suite so unit tests do
+    /// not race through process-global environment mutation.
     #[test]
     fn no_mcp_flag_sets_mcp_install_policy_to_skip() {
-        // `start_mcp_opt_out` also reads the process-global `ANVIL_NO_MCP`,
-        // which `no_tui_empty_value_semantics_match_sibling_env_hatches` sets
-        // while this test runs on another thread. Pin the variable so the
-        // no-flag assertion below tests the flag, not the ambient environment.
-        temp_env::with_var("ANVIL_NO_MCP", None::<&str>, || {
-            assert_eq!(
-                mcp_install_policy(&start_args_default()),
-                activation::orchestrator::McpInstallPolicy::Install,
-            );
-            let opted_out = StartArgs {
-                no_mcp: true,
-                ..start_args_default()
-            };
-            assert!(start_mcp_opt_out(&opted_out));
-            assert_eq!(
-                mcp_install_policy(&opted_out),
-                activation::orchestrator::McpInstallPolicy::Skip,
-            );
-        });
+        let opted_out = StartArgs {
+            no_mcp: true,
+            ..start_args_default()
+        };
+        assert!(start_mcp_opt_out(&opted_out));
+        assert_eq!(
+            mcp_install_policy(&opted_out),
+            activation::orchestrator::McpInstallPolicy::Skip,
+        );
     }
 
     #[test]

@@ -48,6 +48,11 @@ fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Comma
         // skip-warning regression test non-hermetic.
         .env_remove("ANVIL_LOG")
         .env_remove("RUST_LOG")
+        // CIB-270: baseline start tests own their daemon and MCP policies
+        // explicitly. Do not inherit developer opt-outs; env semantics are
+        // covered by child-process tests below.
+        .env_remove("ANVIL_NO_DAEMON")
+        .env_remove("ANVIL_NO_MCP")
         // DLIFE-003: pin the daemon socket/PID resolution to the per-test
         // tempdir so the daemon-ensure probe is deterministically isolated
         // from any real daemon on a developer box. The captured (non-TTY)
@@ -672,6 +677,130 @@ fn start_no_daemon_flag_reports_opt_out_end_to_end() {
     assert!(
         stdout.contains("daemon: not started (--no-daemon)"),
         "expected the --no-daemon opt-out line, got:\n{stdout}"
+    );
+}
+
+#[test]
+fn start_no_daemon_env_reports_opt_out_end_to_end() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = start_command_env(dir.path(), home.path());
+    let out = cmd
+        .arg("--no-tui")
+        .arg("start")
+        .env("ANVIL_NO_DAEMON", "1")
+        .output()
+        .expect("failed to invoke anvil start with ANVIL_NO_DAEMON");
+
+    assert!(
+        out.status.success(),
+        "ANVIL_NO_DAEMON start failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("daemon: not started (--no-daemon)"),
+        "env opt-out must suppress daemon start: {stdout}"
+    );
+}
+
+#[test]
+fn start_empty_no_daemon_env_uses_non_interactive_fallback() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = start_command_env(dir.path(), home.path());
+    let out = cmd
+        .arg("--no-tui")
+        .arg("start")
+        .env("ANVIL_NO_DAEMON", "")
+        .output()
+        .expect("failed to invoke anvil start with empty ANVIL_NO_DAEMON");
+
+    assert!(
+        out.status.success(),
+        "empty ANVIL_NO_DAEMON start failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("daemon: not auto-started (non-interactive"),
+        "empty env value must behave as unset: {stdout}"
+    );
+    assert!(
+        !stdout.contains("daemon: not started (--no-daemon)"),
+        "empty env value must not report an explicit opt-out: {stdout}"
+    );
+}
+
+#[test]
+fn start_no_mcp_env_reports_install_skipped_end_to_end() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = start_command_env(dir.path(), home.path());
+    let out = cmd
+        .arg("--no-tui")
+        .arg("start")
+        .arg("--no-daemon")
+        .env_remove("ANVIL_ALL_MCP_CLIENTS")
+        .env("ANVIL_NO_MCP", "1")
+        .output()
+        .expect("failed to invoke anvil start with ANVIL_NO_MCP");
+
+    assert!(
+        out.status.success(),
+        "ANVIL_NO_MCP start failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("MCP config installation disabled"),
+        "env opt-out must report the skipped install: {stdout}"
+    );
+}
+
+#[test]
+fn start_empty_no_mcp_env_does_not_skip_install() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = start_command_env(dir.path(), home.path());
+    let out = cmd
+        .arg("--no-tui")
+        .arg("start")
+        .arg("--no-daemon")
+        .env("ANVIL_NO_MCP", "")
+        .output()
+        .expect("failed to invoke anvil start with empty ANVIL_NO_MCP");
+
+    assert!(
+        out.status.success(),
+        "empty ANVIL_NO_MCP start failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !stdout.contains("MCP config installation disabled"),
+        "empty env value must behave as unset: {stdout}"
+    );
+}
+
+#[test]
+fn start_no_mcp_env_with_all_clients_env_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = start_command_env(dir.path(), home.path());
+    let out = cmd
+        .arg("--no-tui")
+        .arg("start")
+        .arg("--no-daemon")
+        .env("ANVIL_NO_MCP", "1")
+        .output()
+        .expect("failed to invoke conflicting MCP env forms");
+
+    assert!(!out.status.success(), "conflicting env forms must fail");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("mutually exclusive"),
+        "env forms must report their conflict: {stderr}"
     );
 }
 

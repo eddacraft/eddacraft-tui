@@ -288,19 +288,10 @@ mod tests {
     }
 
     #[test]
-    fn degrades_to_unavailable_without_a_daemon() {
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let result = call(&json!({
-            "workspaceRoot": workspace.path(),
-            "target": target(),
-            "maxDepth": 2
-        }));
-
-        assert_eq!(result["isError"], false);
-        let payload = payload_of(&result);
+    fn unavailable_response_is_sealed() {
+        let payload = render_response(&unavailable_response(), ".");
         assert_eq!(payload["outcome"]["status"], "unavailable");
         assert_eq!(payload["workspace_assurance"]["state"], "unavailable");
-        assert!(payload.get("workspaceRoot").is_some());
+        assert_eq!(payload["workspaceRoot"], ".");
     }
 }
