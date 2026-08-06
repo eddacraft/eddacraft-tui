@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 228/289  |
+| CIB | —     | In Progress | 228/290  |
 
 ## Purpose
 
@@ -8591,3 +8591,61 @@ CIB-251/255 only.
 - **Coordinates with:** CIB-256, CIB-167, CIB-292
 - **Confidence:** medium — the fix is small; the care is in not undoing
   CIB-167.
+### CIB-294: anvil does not run against its own repository in CI
+
+- **Status:** Draft — filed from a 2026-08-06 worktree sweep, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P3 dogfooding gap (no runtime surface; it means the shipped
+  adopter templates have never been exercised against a real repository by
+  the project that ships them)
+- **Intent:** None of the 31 workflows on `main` invokes `anvil` against this
+  repository — no `anvil gate`, `anvil check`, `anvil hook pre-push`, or
+  `anvil audit-chain`. The two adopter-facing templates
+  (`crates/anvil-cli/src/templates/anvil-workflow.yml` from MLP-010 and
+  `anvil-audit-workflow.yml` from MLP-015) are therefore shipped untested
+  end-to-end: a template that no longer matches the CLI surface would reach
+  adopters before anyone here noticed.
+
+  The obvious shortcut does not work. Copying those templates verbatim into
+  `.github/workflows/` — which the abandoned `chore/anvil-dogfood-ci` branch
+  did — produces a workflow that fails on every PR, because their install step
+  is `curl -fsSL https://raw.githubusercontent.com/eddacraft/anvil/main/install.sh | sh`
+  and that URL returns 404, as does `github.com/eddacraft/anvil-action` (the
+  `uses: eddacraft/anvil-action@v1` swap the templates promise). The templates
+  say so themselves: the step is labelled a "deliberate **placeholder**" and
+  tells adopters to pin a release asset by SHA-256 instead.
+- **Expected Outcome:** this repository validates its own pull requests with an
+  anvil binary **built from the working tree**, not downloaded. Building from
+  source is what makes it dogfooding: a released binary would test the release
+  rather than `HEAD`, so a regression on `main` would pass and a bad release
+  would block unrelated PRs. The run should exercise the same `anvil hook
+  pre-push` pushed-range path that CIB-216 routed managed hooks through, so CI
+  and the developer-side hook agree. Also retire
+  `.github/workflows/anvil.yml.example`, a pre-MLP-010 leftover from PR #173
+  that points at `.github/actions/anvil-check/` and now competes with the
+  MLP-010 template as a second, staler example.
+- **Non-scope / do not:** Do not land the shipped templates verbatim — their
+  `curl … | sh` install step is a placeholder for adopters without a source
+  checkout, and this repo has one. Do not change the templates themselves to
+  suit this repo; they are the adopter surface, and their placeholder is
+  documented and deliberate.
+- **Design questions:** whether the check blocks or warns while it beds in
+  (ADR-002 favours warnings); whether the nightly `audit-chain` half is worth
+  running here at all given `main` is already protected; whether a source build
+  is affordable per-PR or should reuse an existing job's artefact.
+- **Files:** a new workflow under `.github/workflows/`,
+  `.github/workflows/anvil.yml.example` (removal).
+- **Validation:** a PR with a deliberately failing anvil verdict surfaces the
+  expected check state, and a clean PR passes; the workflow uses a
+  source-built binary (no network install); `anvil.yml.example` is gone with no
+  dangling references to it.
+- **Identified From:** 2026-08-06 worktree sweep. The 12-day-old
+  `chore/anvil-dogfood-ci` branch attempted exactly this; its two workflow
+  files were byte-identical copies of the on-`main` templates, and its install
+  step 404s, so the branch was dropped and the intent recorded here instead.
+- **Coordinates with:** MLP-010 and MLP-015 (both Done, own the templates),
+  CIB-216 (pre-push range routing), ADR-037 §D-5/§D-9 (the templates cite these
+  as their default-on rationale).
+- **Confidence:** medium — the gap and the failure mode are both verified, but
+  the shape (per-PR source build vs reusing an existing job's artefact) is a
+  real design call, and blocking behaviour needs an operator decision.
