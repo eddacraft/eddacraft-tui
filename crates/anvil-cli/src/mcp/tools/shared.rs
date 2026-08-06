@@ -74,6 +74,12 @@ pub enum WorkspacePathKind {
     HostFilesystem,
 }
 
+fn has_portable_anchor(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    path.starts_with('/')
+        || (bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
+}
+
 /// Lexically validate an untrusted workspace-relative path in a
 /// host-OS-independent way, then return the representation selected by `kind`.
 /// Windows separators and anchors are recognised even when the server is
@@ -98,10 +104,19 @@ pub fn normalise_workspace_relative_path(
         return Err(format!("{field} must not contain NUL characters"));
     }
     let unified = raw.replace('\\', "/");
-    let bytes = unified.as_bytes();
-    if unified.starts_with('/')
-        || (bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
-    {
+    if has_portable_anchor(&unified) {
+        return Err(format!("{field} must be a workspace-relative path"));
+    }
+
+    // Dropping leading current-directory segments can expose an anchor that
+    // was not at byte zero in the caller's spelling (`./C:/x`, `./\\server`,
+    // `./\root`). Preserve the separators while removing only complete `.`
+    // segments, then apply the full portable anchor predicate again.
+    let mut anchor_normalised = unified.as_str();
+    while let Some(without_current_dir) = anchor_normalised.strip_prefix("./") {
+        anchor_normalised = without_current_dir;
+    }
+    if has_portable_anchor(anchor_normalised) {
         return Err(format!("{field} must be a workspace-relative path"));
     }
     let mut segments = Vec::new();
@@ -117,11 +132,7 @@ pub fn normalise_workspace_relative_path(
     if normalised.is_empty() {
         return Err(format!("{field} must not be empty"));
     }
-    let normalised_bytes = normalised.as_bytes();
-    if normalised_bytes.len() >= 2
-        && normalised_bytes[0].is_ascii_alphabetic()
-        && normalised_bytes[1] == b':'
-    {
+    if has_portable_anchor(&normalised) {
         return Err(format!("{field} must be a workspace-relative path"));
     }
     Ok(match kind {
@@ -456,6 +467,10 @@ mod tests {
             r"C:\outside.ts",
             "./C:/outside.ts",
             "./C:relative",
+            r"./\\server\share\outside.ts",
+            r"./\outside.ts",
+            r"./\\?\C:\outside.ts",
+            r"./\\.\pipe\name",
             r"\\server\share\outside.ts",
             "../outside.ts",
             r"src\..\outside.ts",

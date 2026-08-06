@@ -1057,7 +1057,7 @@ fn resolve_workspace_path(workspace_root: &Path, raw_path: &str) -> Result<Strin
             .map_err(|_| workspace_escape_problem())?
             .to_path_buf()
     } else {
-        if raw_path.is_empty() {
+        if raw_path.is_empty() || is_empty_after_relative_normalisation(raw_path) {
             return Err(ToolProblem::new(
                 "missing-path",
                 "Validate-write requires a path.",
@@ -1081,6 +1081,14 @@ fn resolve_workspace_path(workspace_root: &Path, raw_path: &str) -> Result<Strin
     }
 
     Ok(path_to_slash_string(&relative))
+}
+
+fn is_empty_after_relative_normalisation(raw_path: &str) -> bool {
+    let portable = raw_path.replace('\\', "/");
+    !portable.starts_with('/')
+        && portable
+            .split('/')
+            .all(|segment| segment.is_empty() || segment == ".")
 }
 
 fn normalise_absolute_path(path: &Path) -> Result<PathBuf, ToolProblem> {
@@ -3165,6 +3173,27 @@ mod tests {
     }
 
     #[test]
+    fn dot_only_relative_paths_stay_missing_path() {
+        let workspace = tempdir().expect("workspace exists");
+
+        for path in [".", "./", "././", ".//./"] {
+            let payload = call_payload(
+                workspace.path(),
+                &json!({
+                    "path": path,
+                    "operation": "create",
+                    "proposedContent": "export const value = 1;\n"
+                }),
+            );
+
+            assert_eq!(
+                payload["error"]["code"], "missing-path",
+                "path {path:?} should stay missing-path"
+            );
+        }
+    }
+
+    #[test]
     fn host_normalised_relative_path_reaches_correlation_and_daemon() {
         let workspace = tempdir().expect("workspace exists");
         let daemon = RecordingDaemon {
@@ -3280,6 +3309,12 @@ mod tests {
 
         for path in [
             r"C:\outside.ts",
+            "./C:/outside.ts",
+            "./C:relative",
+            r"./\\server\share\outside.ts",
+            r"./\outside.ts",
+            r"./\\?\C:\outside.ts",
+            r"./\\.\pipe\name",
             r"\\server\share\outside.ts",
             r"src\..\outside.ts",
             "src/evil\0name.ts",
