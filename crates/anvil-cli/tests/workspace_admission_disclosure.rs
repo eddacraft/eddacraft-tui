@@ -43,7 +43,8 @@ fn run_workspace(home: &Path, args: &[&str]) -> (bool, String) {
         .env("HOME", home)
         .env("USERPROFILE", home)
         .env("ANVIL_DEV", "1")
-        .env("ANVIL_SKIP_WELCOME", "1");
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env_remove("ANVIL_NO_DAEMON");
     let out = cmd.output().expect("spawn anvil workspace");
     (
         out.status.success(),
@@ -61,6 +62,7 @@ fn run_workspace_json(home: &Path) -> Output {
         .env("USERPROFILE", home)
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
+        .env_remove("ANVIL_NO_DAEMON")
         .output()
         .expect("spawn anvil --json workspace list")
 }
