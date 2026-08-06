@@ -6073,8 +6073,8 @@ Used by:
 - `anstyle-query` 1.1.5
 - `anstyle-wincon` 3.0.11
 - `anstyle` 1.0.14
-- `clap` 4.6.5
-- `clap_builder` 4.6.5
+- `clap` 4.6.6
+- `clap_builder` 4.6.6
 - `clap_derive` 4.6.4
 - `clap_lex` 1.1.0
 - `colorchoice` 1.0.5
@@ -6352,8 +6352,8 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `zerocopy-derive` 0.8.55
-- `zerocopy` 0.8.55
+- `zerocopy-derive` 0.8.56
+- `zerocopy` 0.8.56
 
 <details>
 <summary>Licence text</summary>
@@ -9597,8 +9597,8 @@ the following restrictions:
 | `anstyle-query` | 1.1.5 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `anstyle-wincon` | 3.0.11 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `anstyle` | 1.0.14 | MIT License | https://github.com/rust-cli/anstyle.git |
-| `clap` | 4.6.5 | MIT License | https://github.com/clap-rs/clap |
-| `clap_builder` | 4.6.5 | MIT License | https://github.com/clap-rs/clap |
+| `clap` | 4.6.6 | MIT License | https://github.com/clap-rs/clap |
+| `clap_builder` | 4.6.6 | MIT License | https://github.com/clap-rs/clap |
 | `clap_derive` | 4.6.4 | MIT License | https://github.com/clap-rs/clap |
 | `clap_lex` | 1.1.0 | MIT License | https://github.com/clap-rs/clap |
 | `colorchoice` | 1.0.5 | MIT License | https://github.com/rust-cli/anstyle.git |
@@ -9617,8 +9617,8 @@ the following restrictions:
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |
 | `ipnet` | 2.12.1 | MIT License | https://github.com/krisprice/ipnet |
 | `rand` | 0.10.2 | MIT License | https://github.com/rust-random/rand |
-| `zerocopy-derive` | 0.8.55 | MIT License | https://github.com/google/zerocopy |
-| `zerocopy` | 0.8.55 | MIT License | https://github.com/google/zerocopy |
+| `zerocopy-derive` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
+| `zerocopy` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
 | `lru` | 0.18.2 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
