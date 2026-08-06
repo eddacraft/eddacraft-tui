@@ -5799,8 +5799,8 @@ archive.
   credential-shaped fields never reach console output.
 - **Files:** `apps/anvil-api/src/lib/debug.ts`,
   `apps/anvil-api/src/lib/__tests__/debug.test.ts`,
-  `apps/anvil-api/src/routes/{auth-device,auth-github,auth-otp,admin}.ts`,
-  `apps/anvil-api/src/middleware/{rate-limit,admin-rate-limit}.ts`,
+  `apps/anvil-api/src/routes/{auth-device.ts,auth-github.ts,auth-otp.ts,admin.ts}`,
+  `apps/anvil-api/src/middleware/{rate-limit.ts,admin-rate-limit.ts}`,
   `apps/anvil-api/src/__tests__/auth-device.test.ts`.
 - **Validation:** Captured console output proves nested device codes, emails, and
   token-shaped fields are redacted with `ANVIL_DEBUG` enabled; ordinary debug
