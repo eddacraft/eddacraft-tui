@@ -488,6 +488,8 @@ mod tests {
 
         for path in [
             r"C:\outside.ts",
+            "./C:/outside.ts",
+            "./C:relative",
             r"\\server\share\outside.ts",
             r"src\..\outside.ts",
             "src/evil\0name.ts",

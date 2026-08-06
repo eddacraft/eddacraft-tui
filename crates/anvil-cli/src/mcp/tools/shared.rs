@@ -117,6 +117,13 @@ pub fn normalise_workspace_relative_path(
     if normalised.is_empty() {
         return Err(format!("{field} must not be empty"));
     }
+    let normalised_bytes = normalised.as_bytes();
+    if normalised_bytes.len() >= 2
+        && normalised_bytes[0].is_ascii_alphabetic()
+        && normalised_bytes[1] == b':'
+    {
+        return Err(format!("{field} must be a workspace-relative path"));
+    }
     Ok(match kind {
         WorkspacePathKind::Policy => normalised,
         WorkspacePathKind::Filesystem => raw.to_string(),
@@ -447,6 +454,8 @@ mod tests {
     fn host_normalised_filesystem_paths_reject_portable_hazards() {
         for path in [
             r"C:\outside.ts",
+            "./C:/outside.ts",
+            "./C:relative",
             r"\\server\share\outside.ts",
             "../outside.ts",
             r"src\..\outside.ts",
