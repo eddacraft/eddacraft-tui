@@ -246,6 +246,16 @@ jobs:
           needs.detect-changes.outputs.script-fixtures-required == 'true'
         run: pnpm run test:aps-active-lint
 
+      # CIB-288: `scripts/install.test.sh` predates this step and was never
+      # wired anywhere, so the post-install banner — the first Anvil copy a new
+      # user reads — had no gate at all. It runs the real `install.sh` against
+      # a fake curl, so it is fast and needs no network.
+      - name: Run install.sh tests
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.script-fixtures-required == 'true'
+        run: pnpm run test:install-sh
+
       # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
       # the canonical CLI (anvil-plan-spec) pinned to an IMMUTABLE commit and
       # point APS_CANONICAL_BIN at it, rather than piping a curl|bash installer
