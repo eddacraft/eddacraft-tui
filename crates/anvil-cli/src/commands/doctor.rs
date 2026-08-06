@@ -3287,13 +3287,20 @@ mod tests {
     /// Display formatting of a path in `doctor.rs` (other surfaces were not
     /// audited here). Production code only — the test module may mention the
     /// forbidden spelling in assertion text without being a leak.
+    ///
+    /// Cuts at the unique module header rather than the first `#[cfg(test)]`
+    /// token, so a comment or string that happens to contain that token cannot
+    /// silently shrink the scanned region (Copilot review on PR #3602).
     #[test]
     fn managed_skill_detail_rows_render_paths_through_the_shared_helper() {
         let source = include_str!("doctor.rs");
-        let production = source
-            .split("#[cfg(test)]")
-            .next()
-            .expect("doctor.rs has a test module");
+        const PRODUCTION_END: &str = "#[cfg(test)]\nmod tests {";
+        let Some((production, _)) = source.split_once(PRODUCTION_END) else {
+            panic!(
+                "expected doctor.rs production code to end with {PRODUCTION_END:?}; \
+                 the tripwire must fail loudly if the module layout moves"
+            );
+        };
         assert!(
             !production.contains("report.path.display()"),
             "tally_skill_outcomes still formats report.path via Path::display, \

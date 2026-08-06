@@ -555,13 +555,20 @@ mod tests {
     /// CIB-287 tripwire for the five `Broken { reason }` sites. Production
     /// code only — the test module below may mention the forbidden spelling
     /// in assertion messages without being a leak.
+    ///
+    /// Cuts at the unique module header rather than the first `#[cfg(test)]`
+    /// token, so a comment or string that happens to contain that token cannot
+    /// silently shrink the scanned region (Copilot review on PR #3602).
     #[test]
     fn skill_state_renders_every_path_through_the_shared_helper() {
         let source = include_str!("skill_state.rs");
-        let production = source
-            .split("#[cfg(test)]")
-            .next()
-            .expect("skill_state.rs has a test module");
+        const PRODUCTION_END: &str = "#[cfg(test)]\nmod tests {";
+        let Some((production, _)) = source.split_once(PRODUCTION_END) else {
+            panic!(
+                "expected skill_state.rs production code to end with {PRODUCTION_END:?}; \
+                 the tripwire must fail loudly if the module layout moves"
+            );
+        };
         assert!(
             !production.contains(".display()"),
             "skill_state production code still formats a Path via Display, \
