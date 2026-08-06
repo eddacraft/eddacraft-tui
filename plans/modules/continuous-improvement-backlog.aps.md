@@ -8210,9 +8210,13 @@ CIB-251/255 only.
 
 ### CIB-286: the CIB index row's prose duplicates per-item status and goes stale
 
-- **Status:** Draft — filed from the CIB-282/285 bookkeeping runs, not
-  self-authorised. Promotion to Ready is an operator call (membrane
-  checkpoint).
+- **Status:** In Progress — the operator chose **shape 1 (stop duplicating)**
+  on 2026-08-06, settling the design call this item was filed to put to them.
+  Implemented on the branch carrying this note: the standing
+  `Ready examples include …` inventory and its `… Merged; … Proposed; … Draft`
+  parentheticals are removed from the CIB index row, and the dated entries
+  stay. **On merge, flip to `Merged … via PR #N`.** Not written as Merged here
+  because the PR is still open.
 - **Priority:** P3 planning-hygiene defect (no runtime surface; it makes
   `plans/index.aps.md` assert item statuses that contradict the module file,
   which is the one place agents and humans look first)
@@ -8275,8 +8279,12 @@ CIB-251/255 only.
 
 ### CIB-287: `anvil doctor` skill rows still carry the Windows verbatim prefix
 
-- **Status:** Draft — filed from the CIB-285 dev-loop run, not self-authorised.
-  Promotion to Ready is an operator call (membrane checkpoint).
+- **Status:** Ready — promoted by the operator 2026-08-06 (membrane
+  checkpoint). Filed from the CIB-285 dev-loop run, not self-authorised.
+  Implementation was already in flight when this promotion was made: PR #3602
+  (`fix/cib-287-doctor-skill-path-prefix`) touches `doctor.rs` and
+  `skill_state.rs`, the two files named below. The promotion authorises work
+  that had started while the item was still Draft.
 - **Priority:** P4 presentation defect (no wrong verdict; the path is correct,
   just carrying a prefix no reader wants). Scoped above CIB-285's failure-only
   reach because these rows appear on a **normal** `anvil doctor` run, not only
