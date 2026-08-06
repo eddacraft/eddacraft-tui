@@ -13,6 +13,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
+use crate::mcp::tools::shared::{WorkspacePathKind, normalise_workspace_relative_path};
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient,
     PRE_WRITE_MODE, PreWriteValidationRequest, ValidationBackend, ValidationBackendFailure,
@@ -1047,8 +1048,8 @@ fn optional_string(value: Option<&Value>) -> Result<Option<&str>, ToolProblem> {
     }
 }
 
-fn resolve_workspace_path(workspace_root: &Path, path: &str) -> Result<String, ToolProblem> {
-    let path = Path::new(path);
+fn resolve_workspace_path(workspace_root: &Path, raw_path: &str) -> Result<String, ToolProblem> {
+    let path = Path::new(raw_path);
     let relative = if path.is_absolute() {
         let normalised = normalise_absolute_path(path)?;
         normalised
@@ -1056,7 +1057,20 @@ fn resolve_workspace_path(workspace_root: &Path, path: &str) -> Result<String, T
             .map_err(|_| workspace_escape_problem())?
             .to_path_buf()
     } else {
-        normalise_relative_path(path)?
+        if raw_path.is_empty() {
+            return Err(ToolProblem::new(
+                "missing-path",
+                "Validate-write requires a path.",
+            ));
+        }
+        PathBuf::from(
+            normalise_workspace_relative_path(
+                "Validate-write path",
+                raw_path,
+                WorkspacePathKind::HostFilesystem,
+            )
+            .map_err(|_| workspace_escape_problem())?,
+        )
     };
 
     if relative.as_os_str().is_empty() {
@@ -1067,28 +1081,6 @@ fn resolve_workspace_path(workspace_root: &Path, path: &str) -> Result<String, T
     }
 
     Ok(path_to_slash_string(&relative))
-}
-
-fn normalise_relative_path(path: &Path) -> Result<PathBuf, ToolProblem> {
-    let mut normalised = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::CurDir => {}
-            Component::Normal(part) => normalised.push(part),
-            // Reject `..` outright. Lexically collapsing parent-dir
-            // segments before symlink resolution is unsound: a path like
-            // `link/../target`, where `link` is a symlink to a location
-            // outside the workspace, would normalise to `target` (in
-            // workspace) but resolve at write time to the symlink target's
-            // parent, escaping `workspaceRoot`. Root and prefix segments are
-            // rejected for the same reason — relative paths must stay
-            // unambiguously inside the workspace.
-            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(workspace_escape_problem());
-            }
-        }
-    }
-    Ok(normalised)
 }
 
 fn normalise_absolute_path(path: &Path) -> Result<PathBuf, ToolProblem> {
@@ -1767,6 +1759,7 @@ fn path_to_slash_string(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::fs;
 
     use super::descriptor;
@@ -1796,12 +1789,27 @@ mod tests {
         outcome: DaemonValidationOutcome,
     }
 
+    struct RecordingDaemon {
+        seen_path: RefCell<Option<String>>,
+    }
+
     impl DaemonValidationClient for FixtureDaemon {
         fn validate_pre_write(
             &self,
             _request: &PreWriteValidationRequest<'_>,
         ) -> DaemonValidationOutcome {
             self.outcome.clone()
+        }
+    }
+
+    impl DaemonValidationClient for RecordingDaemon {
+        fn validate_pre_write(
+            &self,
+            request: &PreWriteValidationRequest<'_>,
+        ) -> DaemonValidationOutcome {
+            self.seen_path
+                .replace(Some(request.relative_path.to_string()));
+            DaemonValidationOutcome::Diagnostics(Vec::new())
         }
     }
 
@@ -3141,6 +3149,67 @@ mod tests {
     }
 
     #[test]
+    fn empty_path_stays_missing_path() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "missing-path");
+    }
+
+    #[test]
+    fn host_normalised_relative_path_reaches_correlation_and_daemon() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = RecordingDaemon {
+            seen_path: RefCell::new(None),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "./src//x.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &super::WorkspaceEnforcementResolver,
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["correlation"]["path"], "src/x.ts");
+        assert_eq!(daemon.seen_path.borrow().as_deref(), Some("src/x.ts"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn literal_unix_backslash_reaches_correlation_and_daemon_unchanged() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = RecordingDaemon {
+            seen_path: RefCell::new(None),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": r"src/a\b.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+            &super::WorkspaceEnforcementResolver,
+        );
+        let payload = parse_payload(&result);
+
+        assert_eq!(payload["correlation"]["path"], r"src/a\b.ts");
+        assert_eq!(daemon.seen_path.borrow().as_deref(), Some(r"src/a\b.ts"));
+    }
+
+    #[test]
     fn binary_content_blocks_write() {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
@@ -3203,6 +3272,49 @@ mod tests {
 
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["error"]["code"], "workspace-escape");
+    }
+
+    #[test]
+    fn portable_relative_path_hazards_are_workspace_escape() {
+        let workspace = tempdir().expect("workspace exists");
+
+        for path in [
+            r"C:\outside.ts",
+            r"\\server\share\outside.ts",
+            r"src\..\outside.ts",
+            "src/evil\0name.ts",
+        ] {
+            let payload = call_payload(
+                workspace.path(),
+                &json!({
+                    "path": path,
+                    "operation": "create",
+                    "proposedContent": "export const value = 1;\n"
+                }),
+            );
+
+            assert_eq!(
+                payload["error"]["code"], "workspace-escape",
+                "path {path:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn absolute_path_inside_workspace_stays_accepted_and_relative() {
+        let workspace = tempdir().expect("workspace exists");
+        let absolute = workspace.path().join("src/absolute.ts");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": absolute.to_string_lossy(),
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["correlation"]["path"], "src/absolute.ts");
     }
 
     #[test]
