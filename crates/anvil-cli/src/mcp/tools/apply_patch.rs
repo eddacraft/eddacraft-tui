@@ -1,10 +1,12 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use anvil_kernel_types::diagnostics::ControlDecision;
 use serde_json::{Value, json};
 
 use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
-use crate::mcp::tools::shared::validate_workspace_root;
+use crate::mcp::tools::shared::{
+    WorkspacePathKind, normalise_workspace_relative_path, validate_workspace_root,
+};
 use crate::mcp::tools::validate_write::{
     correlation_id, diagnostic_summary, normalise_response_diagnostics,
 };
@@ -266,7 +268,8 @@ impl ApplyPatchRequest {
             .and_then(Value::as_str)
             .ok_or_else(|| "Apply-patch requires unifiedDiff.".to_string())?;
 
-        let relative_path = normalise_relative_path(path)?;
+        let relative_path =
+            normalise_workspace_relative_path("Path", path, WorkspacePathKind::HostFilesystem)?;
 
         Ok(Self {
             workspace_root,
@@ -289,36 +292,10 @@ fn resolve_workspace_root(
     }
 }
 
-fn normalise_relative_path(path: &str) -> Result<String, String> {
-    let path = Path::new(path);
-    let mut normalised = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Normal(part) => normalised.push(part),
-            Component::CurDir => {}
-            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(
-                    "Path must be workspace-relative and must not contain .. or root segments."
-                        .to_string(),
-                );
-            }
-        }
-    }
-    if normalised.as_os_str().is_empty() {
-        return Err("Apply-patch requires a non-empty path.".to_string());
-    }
-    Ok(normalised
-        .components()
-        .filter_map(|c| match c {
-            Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("/"))
-}
-
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
     use super::*;
     use crate::mcp::validation::{
         DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
@@ -330,12 +307,27 @@ mod tests {
         outcome: DaemonValidationOutcome,
     }
 
+    struct RecordingDaemon {
+        seen_path: RefCell<Option<String>>,
+    }
+
     impl DaemonValidationClient for FixtureDaemon {
         fn validate_pre_write(
             &self,
             _request: &PreWriteValidationRequest<'_>,
         ) -> DaemonValidationOutcome {
             self.outcome.clone()
+        }
+    }
+
+    impl DaemonValidationClient for RecordingDaemon {
+        fn validate_pre_write(
+            &self,
+            request: &PreWriteValidationRequest<'_>,
+        ) -> DaemonValidationOutcome {
+            self.seen_path
+                .replace(Some(request.relative_path.to_string()));
+            DaemonValidationOutcome::Diagnostics(Vec::new())
         }
     }
 
@@ -368,6 +360,49 @@ mod tests {
         assert_eq!(payload["decision"], "allow");
         assert_eq!(payload["schema"], "anvil.mcp.validate-write.v1");
         assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    #[test]
+    fn host_normalised_path_reaches_correlation_and_daemon() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = RecordingDaemon {
+            seen_path: RefCell::new(None),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": "./src//x.ts",
+                "unifiedDiff": "+const x = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+        );
+        let text = result["content"][0]["text"].as_str().expect("text");
+        let payload: Value = serde_json::from_str(text).expect("JSON");
+
+        assert_eq!(payload["correlation"]["path"], "src/x.ts");
+        assert_eq!(daemon.seen_path.borrow().as_deref(), Some("src/x.ts"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn literal_unix_backslash_reaches_correlation_and_daemon_unchanged() {
+        let workspace = tempdir().expect("workspace exists");
+        let daemon = RecordingDaemon {
+            seen_path: RefCell::new(None),
+        };
+        let result = call_with_validation_client(
+            &json!({
+                "path": r"src/a\b.ts",
+                "unifiedDiff": "+const x = 1;\n"
+            }),
+            workspace.path(),
+            &daemon,
+        );
+        let text = result["content"][0]["text"].as_str().expect("text");
+        let payload: Value = serde_json::from_str(text).expect("JSON");
+
+        assert_eq!(payload["correlation"]["path"], r"src/a\b.ts");
+        assert_eq!(daemon.seen_path.borrow().as_deref(), Some(r"src/a\b.ts"));
     }
 
     #[test]
@@ -425,6 +460,10 @@ mod tests {
         let payload: Value = serde_json::from_str(text).expect("JSON");
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["error"]["code"], "invalid-tool-arguments");
+        assert_eq!(
+            payload["error"]["message"],
+            "Apply-patch requires a non-empty path."
+        );
     }
 
     #[test]
@@ -441,6 +480,33 @@ mod tests {
         let payload: Value = serde_json::from_str(text).expect("JSON");
         assert_eq!(payload["decision"], "block");
         assert_eq!(payload["error"]["code"], "invalid-tool-arguments");
+    }
+
+    #[test]
+    fn portable_path_hazards_are_invalid_tool_arguments() {
+        let workspace = tempdir().expect("workspace exists");
+
+        for path in [
+            r"C:\outside.ts",
+            r"\\server\share\outside.ts",
+            r"src\..\outside.ts",
+            "src/evil\0name.ts",
+        ] {
+            let result = call_with_validation_client(
+                &json!({"path": path, "unifiedDiff": "+const x = 1;\n"}),
+                workspace.path(),
+                &FixtureDaemon {
+                    outcome: DaemonValidationOutcome::Unavailable,
+                },
+            );
+            let text = result["content"][0]["text"].as_str().expect("text");
+            let payload: Value = serde_json::from_str(text).expect("JSON");
+
+            assert_eq!(
+                payload["error"]["code"], "invalid-tool-arguments",
+                "path {path:?} should be rejected"
+            );
+        }
     }
 
     #[test]

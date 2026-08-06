@@ -68,6 +68,10 @@ pub enum WorkspacePathKind {
     /// Preserve the caller's spelling so valid POSIX backslashes keep their
     /// filename identity; portable validation still recognises Windows syntax.
     Filesystem,
+    /// Normalise native host separators and dot segments for filesystem APIs.
+    /// On Unix, backslashes remain literal filename characters; on Windows,
+    /// the returned spelling uses `/` separators.
+    HostFilesystem,
 }
 
 /// Lexically validate an untrusted workspace-relative path in a
@@ -80,9 +84,11 @@ pub enum WorkspacePathKind {
 /// rooted/UNC/drive-prefixed paths, `..`, and values that become empty.
 /// [`WorkspacePathKind::Policy`] returns that normalised representation;
 /// [`WorkspacePathKind::Filesystem`] returns the original spelling so valid
-/// POSIX backslashes retain their filename identity. Filesystem containment is
-/// still enforced by the caller after joining the result to its validated
-/// workspace root.
+/// POSIX backslashes retain their filename identity.
+/// [`WorkspacePathKind::HostFilesystem`] normalises native host separators and
+/// dot segments, returning `/`-separated output on Windows while preserving
+/// literal backslashes on Unix. Filesystem containment is still enforced by
+/// the caller after joining the result to its validated workspace root.
 pub fn normalise_workspace_relative_path(
     field: &str,
     raw: &str,
@@ -114,6 +120,24 @@ pub fn normalise_workspace_relative_path(
     Ok(match kind {
         WorkspacePathKind::Policy => normalised,
         WorkspacePathKind::Filesystem => raw.to_string(),
+        WorkspacePathKind::HostFilesystem => {
+            let mut host_segments = Vec::new();
+            for component in Path::new(raw).components() {
+                match component {
+                    std::path::Component::Normal(segment) => {
+                        host_segments.push(segment.to_string_lossy().into_owned());
+                    }
+                    std::path::Component::CurDir => {}
+                    std::path::Component::ParentDir => {
+                        return Err(format!("{field} must not escape the workspace via \"..\""));
+                    }
+                    std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                        return Err(format!("{field} must be a workspace-relative path"));
+                    }
+                }
+            }
+            host_segments.join("/")
+        }
     })
 }
 
@@ -395,6 +419,49 @@ mod tests {
             ),
             Ok("src/domain/file.ts".to_string())
         );
+    }
+
+    #[test]
+    fn host_normalised_filesystem_paths_normalise_native_spelling() {
+        assert_eq!(
+            normalise_workspace_relative_path(
+                "filePath",
+                "./src//x.ts",
+                WorkspacePathKind::HostFilesystem,
+            ),
+            Ok("src/x.ts".to_string())
+        );
+
+        #[cfg(unix)]
+        assert_eq!(
+            normalise_workspace_relative_path(
+                "filePath",
+                r"src/a\b.ts",
+                WorkspacePathKind::HostFilesystem,
+            ),
+            Ok(r"src/a\b.ts".to_string())
+        );
+    }
+
+    #[test]
+    fn host_normalised_filesystem_paths_reject_portable_hazards() {
+        for path in [
+            r"C:\outside.ts",
+            r"\\server\share\outside.ts",
+            "../outside.ts",
+            r"src\..\outside.ts",
+            "src/evil\0name.ts",
+        ] {
+            assert!(
+                normalise_workspace_relative_path(
+                    "filePath",
+                    path,
+                    WorkspacePathKind::HostFilesystem,
+                )
+                .is_err(),
+                "path {path:?} should be rejected"
+            );
+        }
     }
 
     #[test]
