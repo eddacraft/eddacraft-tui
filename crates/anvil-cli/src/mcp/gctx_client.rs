@@ -578,7 +578,7 @@ mod windows_tests {
             .lock()
             .expect("transport test lock");
         let runtime = runtime();
-        let pipe_name = format!(r"\\.\pipe\anvil-gctx-success-test-{}", std::process::id(),);
+        let pipe_name = format!(r"\\.\pipe\anvil-gctx-success-test-{}", std::process::id());
         let server = {
             let _guard = runtime.enter();
             anvil_intercept_win32::create_owner_only_pipe_server(
