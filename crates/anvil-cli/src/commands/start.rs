@@ -5598,6 +5598,68 @@ mod tests {
         );
     }
 
+    /// CIB-256 (START-1): `render_start_human_output` splices the activation
+    /// block (which reports anvil's own config presence as
+    /// `config: absent|valid|invalid`) with `render_rule_mode_summary`
+    /// (which reports where the rule modes were loaded from). Both used the
+    /// same top-level `config:` key, so one `anvil start --verify` block
+    /// rendered two different meanings under one label. Assert on the
+    /// composed production output, not on either renderer alone — the
+    /// collision only exists once they are joined.
+    #[test]
+    fn start_human_output_never_renders_two_top_level_keys_with_one_label() {
+        use activation::diagnostic::{McpClientId, McpTier};
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        // `synth_diagnostic` seeds a *label*, not a state: for
+        // `ReadyRestartRequired` it inserts no MCP tier, so
+        // `protection_state()` would resolve to `NeedsAction`. Insert the
+        // restart-pending tier so the block under assertion really is the
+        // `--verify` state this test names, then prove it.
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::ReadyRestartRequired);
+        diag.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        assert_eq!(
+            diag.protection_state(),
+            activation::state::ProtectionState::ReadyRestartRequired,
+            "this test must render the ReadyRestartRequired block it claims to cover"
+        );
+
+        let out = render_start_human_output(
+            tmp.path(),
+            true,
+            &diag,
+            &activation::orchestrator::InstallReport::default(),
+            None,
+            activation::orchestrator::McpInstallPolicy::Install,
+            &activation::detect_agents::AgentInventory::default(),
+            false,
+        );
+
+        assert_eq!(
+            out.lines().filter(|l| l.starts_with("  config:")).count(),
+            1,
+            "exactly one top-level `config:` key may appear in a start block:\n{out}"
+        );
+        assert!(
+            out.lines().any(|l| l.starts_with("  rule source:")),
+            "the rule-mode source line must carry its own distinct key:\n{out}"
+        );
+        // Guard against a vacuous pass: the activation `config:` key must
+        // actually be present, or the count above is satisfied by absence.
+        assert!(
+            out.lines().any(|l| l.starts_with("  config:")),
+            "the activation `config:` key must be rendered, else this passes vacuously:\n{out}"
+        );
+
+        // Deliberately NOT a blanket "no top-level key repeats" sweep.
+        // `state:` legitimately recurs across sections — the activation block
+        // and the first-run recipe both render it — so a global uniqueness
+        // rule is false for this output and would fire on unrelated changes.
+        // CIB-256 is about two keys with the *same name and different
+        // meanings* inside one block, which the assertions above pin exactly.
+    }
+
     /// CIB-223: bare / inside-git-dir reasons stay coherent (config ok; protect later).
     #[test]
     fn non_registerable_bare_and_git_dir_messages_stay_soft() {

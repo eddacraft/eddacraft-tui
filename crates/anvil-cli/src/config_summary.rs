@@ -2,18 +2,26 @@ use std::path::Path;
 
 use anvil_config::{ConfigFormat, RuleModes, discover, parse_file, parse_str};
 
+/// CIB-256 (START-1): the source line is keyed `rule source:`, not
+/// `config:`. `anvil start` splices this summary onto the activation block,
+/// which already spends a top-level `config:` key on a different question —
+/// "has anvil set this repository up?" (`ConfigStatus`) versus "where did
+/// these rule modes come from?" (this line). Two meanings under one label
+/// read as a contradiction (`config: absent` then `config: defaults` in the
+/// same block). The standalone `anvil config` command renders no activation
+/// block, so it keeps the plain `config:` key.
 pub fn render_rule_mode_summary(root: &Path) -> String {
     let (path, value) = match load_config_value(root) {
         ConfigLoad::Loaded { path, value } => (path, value),
         ConfigLoad::Missing => (String::from("defaults"), serde_json::json!({})),
         ConfigLoad::Invalid { path, error } => {
-            return format!("  rule modes: invalid ({error})\n  config: {path}\n");
+            return format!("  rule modes: invalid ({error})\n  rule source: {path}\n");
         }
     };
 
     match RuleModes::from_value(&value) {
-        Ok(modes) => format!("  rule modes: {}\n  config: {path}\n", modes.summary()),
-        Err(error) => format!("  rule modes: invalid ({error})\n  config: {path}\n"),
+        Ok(modes) => format!("  rule modes: {}\n  rule source: {path}\n", modes.summary()),
+        Err(error) => format!("  rule modes: invalid ({error})\n  rule source: {path}\n"),
     }
 }
 
@@ -95,7 +103,13 @@ mod tests {
         assert!(summary.contains("new-dependency-introduction=warn"));
         assert!(summary.contains("cross-layer-violation=warn"));
         assert!(summary.contains("privilege-expansion=warn"));
-        assert!(summary.contains("config: defaults"));
+        // CIB-256: keyed `rule source:` so it cannot collide with the
+        // activation block's `config:` key when `anvil start` splices them.
+        assert!(summary.contains("rule source: defaults"), "{summary}");
+        assert!(
+            !summary.lines().any(|l| l.starts_with("  config:")),
+            "the rule-mode summary must not claim the top-level `config:` key: {summary}"
+        );
     }
 
     #[test]
@@ -124,7 +138,7 @@ enforcement:
         assert!(summary.contains("new-dependency-introduction=warn"));
         assert!(summary.contains("cross-layer-violation=enforce"));
         assert!(summary.contains("privilege-expansion=enforce"));
-        assert!(summary.contains("config: .anvil.yaml"));
+        assert!(summary.contains("rule source: .anvil.yaml"), "{summary}");
     }
 
     #[test]
@@ -135,7 +149,7 @@ enforcement:
         let summary = render_rule_mode_summary(tmp.path());
 
         assert!(summary.contains("rule modes: invalid"));
-        assert!(summary.contains("config: .anvil.yaml"));
+        assert!(summary.contains("rule source: .anvil.yaml"), "{summary}");
     }
 
     #[test]
@@ -156,7 +170,7 @@ enforcement:
 
         assert!(summary.contains("rule modes: invalid"));
         assert!(summary.contains("enfroce"));
-        assert!(summary.contains("config: .anvil.yaml"));
+        assert!(summary.contains("rule source: .anvil.yaml"), "{summary}");
     }
 
     #[test]
@@ -167,6 +181,6 @@ enforcement:
         let summary = render_rule_mode_summary(tmp.path());
 
         assert!(summary.contains("rule modes: invalid"));
-        assert!(summary.contains("config: .anvil.yaml"));
+        assert!(summary.contains("rule source: .anvil.yaml"), "{summary}");
     }
 }

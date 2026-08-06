@@ -596,9 +596,7 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
 
     match state {
         ProtectionState::ReadyRestartRequired => Some(match d.daemon_attestation {
-            DaemonAttestation::NotProbed => {
-                "anvil has written the MCP config, but the editor or agent has not attached to it yet. Restart that editor or agent, then run `anvil start --verify` again; restarting the whole machine is not required."
-            }
+            DaemonAttestation::NotProbed => ready_restart_not_probed_meaning(d),
             DaemonAttestation::Unreachable => {
                 "The editor or agent has seen anvil's MCP config, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again."
             }
@@ -630,6 +628,30 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
         ProtectionState::Watching => Some(watching_meaning(d)),
         ProtectionState::Protecting | ProtectionState::Error => None,
     }
+}
+
+/// `ReadyRestartRequired` + [`DaemonAttestation::NotProbed`] branch of
+/// [`state_explanation`]. CIB-256 (START-1): the previous copy opened with
+/// "anvil has written the MCP config", but `anvil start --verify` is a
+/// non-mutating probe — it reports what it found, and may have written
+/// nothing at all this run. Worse,
+/// [`ActivationDiagnostic::protection_state`] promotes to this state on MCP
+/// tier alone, so the claim also fired for a machine-wide editor entry in a
+/// repository anvil had never touched (`config: absent`). State what the
+/// probe observed — an entry is *present* — and never who authored it.
+///
+/// The config branch follows the CIB-222 scope-disclosure pattern: when the
+/// repository has no anvil config of its own, say so, so a machine-wide
+/// entry cannot be skimmed as local setup. Both arms keep the same primary
+/// action (restart) as the `next:` line, so `meaning:` and `next:` stay in
+/// lockstep.
+fn ready_restart_not_probed_meaning(d: &ActivationDiagnostic) -> &'static str {
+    use super::diagnostic::ConfigStatus;
+
+    if matches!(d.config, ConfigStatus::Absent) {
+        return "An anvil MCP entry is present in an editor or agent, but this repository has no anvil config of its own yet. Restart that editor or agent, then run `anvil start --verify` again; run `anvil start` to give this repository its own config. Restarting the whole machine is not required.";
+    }
+    "An anvil MCP entry is present, but the editor or agent has not attached to it yet. Restart that editor or agent, then run `anvil start --verify` again; restarting the whole machine is not required."
 }
 
 /// `NeedsAction` branch of [`state_explanation`]. CIB-167 Council
@@ -1566,6 +1588,108 @@ mod tests {
                 && h.contains("restarting the whole machine is not required")
                 && h.contains("anvil start --verify"),
             "NotProbed render must explain the label and give the exact verification command: {h}"
+        );
+    }
+
+    /// CIB-256 (START-1): `anvil start --verify` is a non-mutating probe,
+    /// so the `ReadyRestartRequired` `meaning:` line must never assert that
+    /// *anvil* performed a write. `protection_state` promotes on MCP tier
+    /// alone (diagnostic.rs), so this state is reachable with
+    /// `ConfigStatus::Absent` — a machine-wide editor entry anvil never
+    /// wrote for this repository. Describe the observed entry, do not claim
+    /// authorship.
+    #[test]
+    fn ready_restart_required_meaning_does_not_claim_anvil_wrote_the_config() {
+        let mut d = empty();
+        assert_eq!(
+            d.config,
+            ConfigStatus::Absent,
+            "empty() must have an absent config so this test covers the never-set-up arm"
+        );
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::NotProbed;
+        assert_eq!(
+            d.protection_state(),
+            ProtectionState::ReadyRestartRequired,
+            "MCP tier alone must promote to ReadyRestartRequired for this test to exercise that arm"
+        );
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("ReadyRestartRequired render must have a meaning line: {h}"));
+        let lower = meaning.to_lowercase();
+        assert!(
+            !lower.contains("anvil has written") && !lower.contains("anvil wrote"),
+            "a non-mutating --verify probe must not claim anvil performed a write: {meaning}"
+        );
+        assert!(
+            lower.contains("present"),
+            "meaning must describe the MCP entry as observed/present: {meaning}"
+        );
+    }
+
+    /// CIB-256 (START-1), CIB-222 scope-disclosure pattern: when the MCP
+    /// entry is present but this repository has no anvil config of its own,
+    /// the `meaning:` line must disclose that repo-scope gap rather than
+    /// letting a machine-wide entry read as local setup.
+    #[test]
+    fn ready_restart_required_with_absent_config_discloses_repo_scope_gap() {
+        let mut d = empty();
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::NotProbed;
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("ReadyRestartRequired render must have a meaning line: {h}"));
+        let lower = meaning.to_lowercase();
+        assert!(
+            lower.contains("this repository"),
+            "absent-config meaning must name the repository scope: {meaning}"
+        );
+        assert!(
+            lower.contains("no anvil config"),
+            "absent-config meaning must state this repository has no anvil config yet: {meaning}"
+        );
+        assert!(
+            meaning.contains("anvil start"),
+            "absent-config meaning must name the command that sets the repository up: {meaning}"
+        );
+    }
+
+    /// CIB-256 (START-1): the config-present arm keeps the original
+    /// restart guidance but must also drop the authorship claim — the
+    /// probe verified that an entry exists, not who wrote it.
+    #[test]
+    fn ready_restart_required_with_valid_config_still_avoids_authorship_claim() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::NotProbed;
+        assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+        let h = render_human(&d);
+        let meaning = h
+            .lines()
+            .find(|l| l.trim_start().starts_with("meaning:"))
+            .unwrap_or_else(|| panic!("ReadyRestartRequired render must have a meaning line: {h}"));
+        let lower = meaning.to_lowercase();
+        assert!(
+            !lower.contains("anvil has written") && !lower.contains("anvil wrote"),
+            "config-present meaning must not claim anvil authored the entry either: {meaning}"
+        );
+        assert!(
+            !lower.contains("no anvil config"),
+            "config-present meaning must not claim the repository lacks a config: {meaning}"
+        );
+        assert!(
+            meaning.contains("anvil start --verify")
+                && lower.contains("restarting the whole machine is not required"),
+            "config-present meaning must keep the restart guidance and verify command: {meaning}"
         );
     }
 
