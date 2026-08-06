@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 220/283  |
+| CIB | —     | In Progress | 221/283  |
 
 ## Purpose
 
@@ -5787,7 +5787,7 @@ archive.
 
 ### CIB-214: Redact structured debug payloads in the live API
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-06 via PR #3616 (`024898ac0`)
 - **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05; deployed-service
   information disclosure). Promoted ahead of its CIB-115/116 siblings
   CIB-212/213/215 because `apps/anvil-api` is deployed product, whereas those
@@ -5798,10 +5798,28 @@ archive.
   boundary as scalar logs, so device codes, emails, tokens, and nested
   credential-shaped fields never reach console output.
 - **Files:** `apps/anvil-api/src/lib/debug.ts`,
-  `apps/anvil-api/src/routes/auth-device.ts`, focused logging tests.
+  `apps/anvil-api/src/lib/__tests__/debug.test.ts`,
+  `apps/anvil-api/src/routes/{auth-device,auth-github,auth-otp,admin}.ts`,
+  `apps/anvil-api/src/middleware/{rate-limit,admin-rate-limit}.ts`,
+  `apps/anvil-api/src/__tests__/auth-device.test.ts`.
 - **Validation:** Captured console output proves nested device codes, emails, and
   token-shaped fields are redacted with `ANVIL_DEBUG` enabled; ordinary debug
-  context remains useful.
+  context remains useful. As shipped: 598 tests green in `apps/anvil-api` (was
+  579); the route guard fails against the pre-fix boundary; the usefulness
+  guards replay the real `cron.ts` and `admin.ts` payload literals verbatim.
+- **As Built:** the boundary is key-aware as well as value-aware, because a
+  device code and an email are not recognisable from their value alone. Key
+  matching is type-aware — `refreshTokens: 87` is a row count and `tokenOnly` /
+  `hasToken` are presence flags — and narrower than value matching, since
+  `githubDeviceSessions` is 20 characters and trips the base64 heuristic. The
+  walk is cycle-safe, depth-capped, and reads property descriptors rather than
+  invoking accessors, so a debug call cannot throw into its own request. Scope
+  was widened past the `Files:` list above by operator decision to sweep every
+  leaky call site, not just `auth-device.ts`.
+- **Residual Risk:** the guarantee is a deny-list, not a proof. A novel secret
+  shape under an unlisted key name still prints; call sites remain expected to
+  log operational metadata rather than payloads. `assignUnique` is O(N²) under
+  mass key collision (debug-gated, no call site dumps a bucket map today).
 - **Identified From:** supported-surface split from CIB-116 during PR #3464
   Council review (`council-891d78ba`).
 - **Coordinates with:** CIB-121.
