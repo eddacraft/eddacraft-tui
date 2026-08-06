@@ -89,15 +89,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: github/codeql-action/init@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           languages: javascript-typescript
           queries: +security-and-quality
           config-file: ./.github/codeql/codeql-config.yml
 
-      - uses: github/codeql-action/autobuild@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
+      - uses: github/codeql-action/autobuild@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
 
-      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           category: '/language:javascript-typescript'
 
@@ -135,7 +135,7 @@ jobs:
           key: codeql-rust-${{ hashFiles('Cargo.lock') }}
           restore-keys: codeql-rust-
 
-      - uses: github/codeql-action/init@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           languages: rust
           queries: +security-and-quality
@@ -145,7 +145,7 @@ jobs:
       - name: Build Rust workspace
         run: cargo build --workspace
 
-      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           category: '/language:rust'
 
@@ -159,11 +159,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: github/codeql-action/init@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
+      - uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           languages: actions
           queries: +security-and-quality
 
-      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
+      - uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           category: '/language:actions'
