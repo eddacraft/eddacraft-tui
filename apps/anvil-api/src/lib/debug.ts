@@ -291,15 +291,26 @@ function redactNode(value: unknown, seen: Set<object>, depth: number): unknown {
  * whichever value happened to come last.
  */
 function assignUnique(target: Record<string, unknown>, key: string, value: unknown): void {
-  if (!(key in target)) {
-    target[key] = value;
-    return;
+  // Own-property checks and defineProperty throughout: `'constructor' in {}` is
+  // true through the prototype chain, and a plain assignment to `__proto__`
+  // would set the prototype rather than record the field the caller passed.
+  const owns = (name: string): boolean => Object.hasOwn(target, name);
+
+  let name = key;
+  if (owns(name)) {
+    let suffix = 2;
+    while (owns(`${key}:${suffix}`)) {
+      suffix += 1;
+    }
+    name = `${key}:${suffix}`;
   }
-  let suffix = 2;
-  while (`${key}:${suffix}` in target) {
-    suffix += 1;
-  }
-  target[`${key}:${suffix}`] = value;
+
+  Object.defineProperty(target, name, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
 }
 
 function debugLog(namespace: DebugNamespace, message: string, data?: unknown): void {

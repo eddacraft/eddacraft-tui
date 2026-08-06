@@ -242,6 +242,26 @@ describe('debug structured payload redaction (CIB-214)', () => {
     expect(Object.values(payload).sort()).toEqual([1, 2, 3]);
   });
 
+  it('renders prototype-shadowing key names as ordinary own properties', () => {
+    // `'constructor' in {}` is true through the prototype chain, and assigning
+    // `__proto__` on a literal sets the prototype instead of a property — both
+    // would misrender a field the caller actually passed.
+    const payload = capturePayload('proto probe', {
+      ['__proto__']: 'protovalue',
+      constructor: 'ctorvalue',
+      toString: 'tsvalue',
+    }) as Record<string, unknown>;
+
+    expect(Object.getOwnPropertyNames(payload).sort()).toEqual([
+      '__proto__',
+      'constructor',
+      'toString',
+    ]);
+    expect(Object.getOwnPropertyDescriptor(payload, '__proto__')?.value).toBe('protovalue');
+    expect(payload.constructor).toBe('ctorvalue');
+    expect(Object.getPrototypeOf(payload)).toBe(Object.prototype);
+  });
+
   it('contains a hostile node without discarding its siblings', () => {
     const hostile = new Proxy(
       {},
