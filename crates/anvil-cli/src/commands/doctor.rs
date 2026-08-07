@@ -3477,7 +3477,7 @@ mod tests {
     fn managed_skill_detail_rows_render_paths_through_the_shared_helper() {
         // Item before any statement — clippy::items_after_statements.
         const PRODUCTION_END: &str = "#[cfg(test)]\nmod tests {";
-        let source = include_str!("doctor.rs");
+        let source = include_str!("doctor.rs").replace("\r\n", "\n");
         let Some((production, _)) = source.split_once(PRODUCTION_END) else {
             panic!(
                 "expected doctor.rs production code to end with {PRODUCTION_END:?}; \

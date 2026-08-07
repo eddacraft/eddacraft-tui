@@ -5193,11 +5193,10 @@ mod tests {
             skip_deep_path("planless_and_plan_scoped_walks_agree_on_deep_files", DEPTH);
             return;
         };
-        let rel = deep
-            .strip_prefix(tmp.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let rel = crate::display_path::render(
+            &deep.strip_prefix(tmp.path()).unwrap().to_string_lossy(),
+            None,
+        );
 
         let planless = secret_scan_files(tmp.path(), &std::collections::HashSet::new(), &[]);
         let plan_scoped = secret_scan_files(

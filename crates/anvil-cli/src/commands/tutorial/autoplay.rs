@@ -392,7 +392,7 @@ mod tests {
         // Match product path form: resolve_working_path uses dunce, not raw
         // canonicalize (which surfaces \\?\ on Windows).
         let root = crate::display_path::canonicalise(sandbox.root()).unwrap();
-        assert_eq!(target, root.join("src/app.ts"));
+        assert_eq!(target, root.join("src").join("app.ts"));
         assert!(target.starts_with(&root));
     }
 
@@ -407,7 +407,8 @@ mod tests {
             target,
             crate::display_path::canonicalise(sandbox.root())
                 .unwrap()
-                .join("src/generated.ts")
+                .join("src")
+                .join("generated.ts")
         );
         assert!(!target.exists());
     }

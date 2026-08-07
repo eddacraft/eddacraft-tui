@@ -2604,6 +2604,7 @@ verdict: completed"
     fn tui_consent_plan_honours_explicit_project_scope() {
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
+        let zed_settings = dir.path().join(".zed").join("settings.json");
         let mut plan = build_tui_consent_plan_with_home(
             dir.path(),
             Some(home.path()),
@@ -2621,13 +2622,17 @@ verdict: completed"
             .find(|offer| offer.id == "mcp:zed")
             .expect("explicit project-scoped Zed offer");
         assert!(offer.repo_scoped);
-        assert!(offer.description.contains(".zed/settings.json"));
+        assert!(
+            offer
+                .description
+                .contains(zed_settings.to_string_lossy().as_ref())
+        );
 
         let applied = plan.apply(&["mcp:zed".to_string()]);
 
         assert!(applied.first_wave_mcp_errors.is_empty());
-        assert!(dir.path().join(".zed/settings.json").exists());
-        assert!(!home.path().join(".zed/settings.json").exists());
+        assert!(zed_settings.exists());
+        assert!(!home.path().join(".zed").join("settings.json").exists());
     }
 
     #[test]

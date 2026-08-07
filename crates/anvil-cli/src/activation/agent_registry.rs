@@ -450,7 +450,8 @@ mod tests {
     /// them verbatim. Every registry path must come back natively separated.
     #[test]
     fn registry_paths_use_native_separators_for_every_client() {
-        let root = Path::new("/home/dev");
+        let home = tempfile::tempdir().expect("native home fixture");
+        let root = home.path();
         for entry in AgentClientId::all() {
             for scope in [InstallScope::Global, InstallScope::Project] {
                 if let Some(path) = entry.skill_root(scope, root) {

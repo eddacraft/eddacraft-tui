@@ -2002,13 +2002,15 @@ mod tests {
     #[test]
     fn ordinary_watcher_target_uses_bound_root_not_process_cwd() {
         let root = tempfile::tempdir().expect("workspace");
-        let watched = root.path().join("watched");
+        let canonical_root =
+            canonicalize_working_path(root.path()).expect("canonical workspace fixture");
+        let watched = canonical_root.join("watched");
         std::fs::create_dir_all(&watched).expect("watched directory");
         let marker = watched.join("marker.txt");
         std::fs::write(&marker, "ready").expect("marker");
         let mut state = TutorialState::new();
         state
-            .bind_working_root(root.path())
+            .bind_working_root(&canonical_root)
             .expect("bind workspace");
         state.phase = TutorialPhase::Running;
         state.steps = vec![TutorialStep {

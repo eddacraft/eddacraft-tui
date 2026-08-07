@@ -177,6 +177,8 @@ fn configured_json_list_preserves_paths_kinds_and_registration_state() {
     let prefix = home.path().join("projects");
     std::fs::create_dir(&worktree).expect("create worktree");
     std::fs::create_dir(&prefix).expect("create prefix");
+    let worktree = dunce::canonicalize(&worktree).expect("canonical worktree fixture");
+    let prefix = dunce::canonicalize(&prefix).expect("canonical prefix fixture");
     let git = Command::new("git")
         .args(["init", "--quiet"])
         .current_dir(&worktree)
