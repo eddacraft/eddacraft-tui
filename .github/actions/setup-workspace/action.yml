@@ -1,5 +1,5 @@
 name: Setup Workspace
-description: Checkout, install pnpm + Node.js + deps, optionally Nx SHAs
+description: Install pnpm + Node.js + deps; optionally set Nx SHAs (checkout is done by the caller)
 
 inputs:
   node-version:

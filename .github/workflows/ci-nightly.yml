@@ -138,7 +138,6 @@ jobs:
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-        with:
 
       - name: Install OPA
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0

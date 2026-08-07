@@ -927,7 +927,6 @@ jobs:
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-        with:
 
       - name: Install OPA
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
@@ -984,7 +983,6 @@ jobs:
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-        with:
 
       - name: Build all packages
         run: pnpm run build
@@ -1026,7 +1024,6 @@ jobs:
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
-        with:
 
       - name: Run E2E harness
         run: pnpm --filter @eddacraft/anvil-e2e test
