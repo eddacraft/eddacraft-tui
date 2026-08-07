@@ -225,9 +225,10 @@ fn resolve_project_config_path(root: &Path) -> std::io::Result<Option<PathBuf>> 
 }
 
 fn config_file_label(path: &Path) -> String {
-    path.file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string())
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    )
 }
 
 fn check_config_exists() -> DiagnosticCheck {
