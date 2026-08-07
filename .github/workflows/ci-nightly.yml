@@ -227,7 +227,10 @@ jobs:
   # in rust.yml on push/PR; this job is observability only.
   coverage-rust:
     name: Rust Coverage (Linux)
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    # llvm-cov instrumented workspace builds exhaust stock ubuntu-latest disk
+    # even after free-disk-space (~14 GB free). Prefer the 8-core pool already
+    # used by rust-tests (#3684); fall back to LINUX_RUNNER / ubuntu-latest.
+    runs-on: ${{ vars.RUST_TEST_RUNNER || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 180
     continue-on-error: true
     steps:
@@ -235,7 +238,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Larger runners already have headroom; reclaim only on stock images.
       - name: Free disk space
+        if: vars.RUST_TEST_RUNNER == ''
         uses: ./.github/actions/free-disk-space
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
@@ -249,6 +254,11 @@ jobs:
           shared-key: rust-coverage
           save-if:
             ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+
+      # Cache restore can re-fill /; reclaim again before instrumented builds.
+      - name: Free disk space after cache restore
+        if: vars.RUST_TEST_RUNNER == ''
+        uses: ./.github/actions/free-disk-space
 
       - name: Install OPA
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
