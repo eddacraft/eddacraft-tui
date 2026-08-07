@@ -129,8 +129,8 @@ overrides:
   '@opentelemetry/sdk-metrics@<2.8.0': '2.8.0'
   '@opentelemetry/sdk-trace-base@<2.8.0': '2.8.0'
   '@opentelemetry/sdk-trace-node@<2.8.0': '2.8.0'
-  'js-yaml@>=3.0.0 <4.0.0': '4.3.0'
-  'js-yaml@>=4.0.0 <4.3.0': '4.3.0'
+  'js-yaml@>=3.0.0 <4.0.0': '4.3.1'
+  'js-yaml@>=4.0.0 <4.3.1': '4.3.1'
   # Collapse React type packages to a single version. pnpm 11's resolution
   # leaves multiple @types/react copies (19.2.16 + 19.2.17) in the tree, and
   # tsc cannot portably name a type that crosses copies (TS2883) — e.g. a Next
