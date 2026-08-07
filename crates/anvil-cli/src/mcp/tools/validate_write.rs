@@ -1005,7 +1005,10 @@ fn workspace_root(
 }
 
 fn canonical_workspace_root(root: &Path) -> Result<PathBuf, ToolProblem> {
-    let root = fs::canonicalize(root).map_err(|_| {
+    // Prefer `dunce` so Windows NT-extended (`\\?\`) prefixes do not
+    // disagree with caller-supplied absolute paths from tempfile or
+    // agent tooling. On Unix this is identical to `std::fs::canonicalize`.
+    let root = dunce::canonicalize(root).map_err(|_| {
         ToolProblem::new(
             "invalid-workspace-root",
             "workspaceRoot must resolve to an existing directory.",
@@ -1052,7 +1055,14 @@ fn resolve_workspace_path(workspace_root: &Path, raw_path: &str) -> Result<Strin
     let path = Path::new(raw_path);
     let relative = if path.is_absolute() {
         let normalised = normalise_absolute_path(path)?;
-        normalised
+        // Align the absolute spelling onto the same form as
+        // `workspace_root` (already `dunce::canonicalize`d) before
+        // prefix-stripping. Without this, macOS tempfile paths under
+        // `/var` (symlink to `/private/var`) and Windows paths that
+        // disagree about the `\\?\` prefix falsely fail as workspace
+        // escapes even when they resolve inside the root.
+        let aligned = align_absolute_path_to_canonical_root(&normalised)?;
+        aligned
             .strip_prefix(workspace_root)
             .map_err(|_| workspace_escape_problem())?
             .to_path_buf()
@@ -1081,6 +1091,33 @@ fn resolve_workspace_path(workspace_root: &Path, raw_path: &str) -> Result<Strin
     }
 
     Ok(path_to_slash_string(&relative))
+}
+
+/// Resolve an absolute path onto the same canonical spelling used for
+/// `workspace_root`, without inventing missing parents.
+///
+/// Walks up to the longest existing ancestor, canonicalises that
+/// ancestor (via `dunce`), and re-appends any non-existent suffix. This
+/// keeps create-of-new-file paths working while still letting a
+/// symlink in an existing segment pull the reconstructed path outside
+/// the workspace (so the subsequent `strip_prefix` rejects it).
+fn align_absolute_path_to_canonical_root(absolute: &Path) -> Result<PathBuf, ToolProblem> {
+    let mut anchor = absolute;
+    while !anchor.exists() {
+        let Some(parent) = anchor.parent() else {
+            return Err(workspace_escape_problem());
+        };
+        if parent == anchor {
+            return Err(workspace_escape_problem());
+        }
+        anchor = parent;
+    }
+
+    let canonical_anchor = dunce::canonicalize(anchor).map_err(|_| workspace_escape_problem())?;
+    let suffix = absolute
+        .strip_prefix(anchor)
+        .map_err(|_| workspace_escape_problem())?;
+    Ok(canonical_anchor.join(suffix))
 }
 
 fn is_empty_after_relative_normalisation(raw_path: &str) -> bool {
@@ -1118,7 +1155,8 @@ fn reject_symlink_escape(workspace_root: &Path, relative_path: &str) -> Result<(
         anchor = parent;
     }
 
-    let canonical_anchor = fs::canonicalize(anchor).map_err(|_| workspace_escape_problem())?;
+    // Match `canonical_workspace_root` spelling (no Windows `\\?\`).
+    let canonical_anchor = dunce::canonicalize(anchor).map_err(|_| workspace_escape_problem())?;
     if canonical_anchor.starts_with(workspace_root) {
         Ok(())
     } else {
@@ -3390,6 +3428,67 @@ mod tests {
         assert_eq!(payload["correlation"]["path"], "src/absolute.ts");
     }
 
+    /// Regression for Cross macOS/Windows: an absolute path whose
+    /// spelling differs from the canonical workspace root (macOS
+    /// `/var` → `/private/var`, or a plain alias symlink) must still
+    /// allow when it resolves inside the workspace. Before the fix,
+    /// only a lexical `strip_prefix` against the canonical root ran,
+    /// so the non-canonical absolute form was reported as a
+    /// workspace escape.
+    #[cfg(unix)]
+    #[test]
+    fn absolute_path_via_symlink_workspace_alias_stays_accepted() {
+        let base = tempdir().expect("base exists");
+        let real = base.path().join("real");
+        fs::create_dir(&real).expect("real workspace created");
+        let alias = base.path().join("alias");
+        std::os::unix::fs::symlink(&real, &alias).expect("alias symlink created");
+
+        // Drive the tool with the non-canonical alias as cwd/root, and
+        // pass an absolute path also spelled through the alias — the
+        // same shape tempfile + `Path::join` produce on macOS when
+        // `/var` is a symlink to `/private/var`.
+        let absolute = alias.join("src/absolute.ts");
+        let payload = call_payload(
+            &alias,
+            &json!({
+                "path": absolute.to_string_lossy(),
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["decision"], "allow",
+            "absolute path through workspace alias should allow; payload={payload}"
+        );
+        assert_eq!(payload["correlation"]["path"], "src/absolute.ts");
+    }
+
+    /// Companion to the alias-allow case: an absolute path that walks
+    /// through a symlink *out* of the workspace must still block.
+    #[cfg(unix)]
+    #[test]
+    fn absolute_path_through_out_of_workspace_symlink_blocks() {
+        let workspace = tempdir().expect("workspace exists");
+        let outside = tempdir().expect("outside exists");
+        let link = workspace.path().join("escape");
+        std::os::unix::fs::symlink(outside.path(), &link).expect("escape symlink created");
+
+        let absolute = link.join("secret.ts");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": absolute.to_string_lossy(),
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "workspace-escape");
+    }
+
     #[test]
     fn parent_dir_traversal_blocks_write_even_when_lexically_in_workspace() {
         // A path like `link/../target` would lexically normalise to `target`
@@ -3450,8 +3549,8 @@ mod tests {
         // CIB-007: the error payload must include the expected
         // `workspaceRoot` so callers can self-correct on the next call
         // without operator intervention. The value is the shim's
-        // canonicalised cwd.
-        let expected = fs::canonicalize(workspace.path()).expect("workspace canonicalises");
+        // canonicalised cwd (via `dunce`, so no Windows `\\?\` prefix).
+        let expected = dunce::canonicalize(workspace.path()).expect("workspace canonicalises");
         assert_eq!(
             payload["error"]["expectedWorkspaceRoot"],
             json!(expected.to_string_lossy()),
