@@ -106,6 +106,28 @@ impl Drop for DaemonGuard {
     }
 }
 
+/// Best-effort `SO_RCVTIMEO` / `SO_SNDTIMEO` on a Unix-domain stream.
+///
+/// On macOS aarch64, `setsockopt` can return `EINVAL` (`InvalidInput`) for these
+/// options on some UDS edge states (notably a peer that has already written and
+/// closed). That is a harness platform edge, not a product contract failure.
+/// Continue without a socket timeout so the spy can still forward frames or
+/// observe the shutdown sentinel; outer `WAIT_BUDGET` deadlines still bound the
+/// test.
+fn try_set_socket_timeouts(stream: &UnixStream, label: &str) {
+    for (side, result) in [
+        ("read", stream.set_read_timeout(Some(WAIT_BUDGET))),
+        ("write", stream.set_write_timeout(Some(WAIT_BUDGET))),
+    ] {
+        if let Err(err) = result {
+            if err.kind() == std::io::ErrorKind::InvalidInput {
+                continue;
+            }
+            panic!("bound daemon RPC spy {label} {side}: {err}");
+        }
+    }
+}
+
 fn forward_rpc_connection(
     client: &UnixStream,
     mut client_reader: BufReader<UnixStream>,
@@ -113,12 +135,11 @@ fn forward_rpc_connection(
     upstream_socket: &Path,
     request_frames: &AtomicUsize,
 ) -> std::io::Result<()> {
-    client.set_write_timeout(Some(WAIT_BUDGET))?;
+    try_set_socket_timeouts(client, "client");
     let mut client_writer = client.try_clone()?;
 
     let upstream = UnixStream::connect(upstream_socket)?;
-    upstream.set_read_timeout(Some(WAIT_BUDGET))?;
-    upstream.set_write_timeout(Some(WAIT_BUDGET))?;
+    try_set_socket_timeouts(&upstream, "upstream");
     let mut upstream_writer = upstream.try_clone()?;
     let mut upstream_reader = BufReader::new(upstream);
 
@@ -173,9 +194,7 @@ impl DaemonRpcSpy {
         let worker = thread::spawn(move || {
             loop {
                 let (client, _) = listener.accept().expect("accept daemon RPC spy client");
-                client
-                    .set_read_timeout(Some(WAIT_BUDGET))
-                    .expect("bound daemon RPC spy client read");
+                try_set_socket_timeouts(&client, "accepted client");
                 let mut client_reader =
                     BufReader::new(client.try_clone().expect("clone daemon RPC spy client"));
                 let mut first_request = String::new();
@@ -237,9 +256,15 @@ impl DaemonRpcSpy {
             return;
         };
         self.request_shutdown();
-        self.stopped_rx
-            .recv_timeout(WAIT_BUDGET)
-            .expect("daemon RPC spy stopped within budget");
+        match self.stopped_rx.recv_timeout(WAIT_BUDGET) {
+            Ok(()) => {}
+            // Worker already exited (or panicked before sending). Join to
+            // surface a panic payload instead of masking it as Disconnected.
+            Err(mpsc::RecvTimeoutError::Disconnected) => {}
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                panic!("daemon RPC spy stopped within budget: Timeout");
+            }
+        }
         worker.join().expect("join daemon RPC spy");
     }
 }
@@ -248,8 +273,11 @@ impl Drop for DaemonRpcSpy {
     fn drop(&mut self) {
         if let Some(worker) = self.worker.take() {
             self.request_shutdown();
-            if self.stopped_rx.recv_timeout(WAIT_BUDGET).is_ok() {
-                let _ = worker.join();
+            match self.stopped_rx.recv_timeout(WAIT_BUDGET) {
+                Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    let _ = worker.join();
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
             }
         }
     }
@@ -257,12 +285,7 @@ impl Drop for DaemonRpcSpy {
 
 fn workspace_status_through_spy(socket: &Path, workspace: &Path) -> Value {
     let mut stream = UnixStream::connect(socket).expect("connect daemon RPC spy");
-    stream
-        .set_read_timeout(Some(WAIT_BUDGET))
-        .expect("bound spy preflight read");
-    stream
-        .set_write_timeout(Some(WAIT_BUDGET))
-        .expect("bound spy preflight write");
+    try_set_socket_timeouts(&stream, "preflight client");
     let frame = json!({
         "jsonrpc": "2.0",
         "method": "anvil/workspace_status",
