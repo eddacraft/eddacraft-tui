@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "anvil local dashboard API",
-    "version": "0.9.2-beta",
+    "version": "0.9.3-beta",
     "description": "Loopback-only, read-only dashboard data for one local workspace."
   },
   "servers": [
