@@ -240,29 +240,15 @@ jobs:
       - name: Run clippy for x86_64-pc-windows-msvc
         run: cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings
 
-  doc:
-    name: Doc
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          shared-key: rust-ci
-          save-if: 'false'
-      # CIB-030: PR-side rustdoc gate mirroring the publish-eddacraft-tui.yml
-      # doc gate (`-p eddacraft-tui --all-features`, RUSTDOCFLAGS=-D warnings),
-      # so feature-gated rustdoc regressions (broken_intra_doc_links and the
-      # like) fail at PR review instead of at the publish run — the recurrence
-      # surface from incident run 26549955604.
-      - name: cargo doc --no-deps -p eddacraft-tui --all-features
-        env:
-          RUSTDOCFLAGS: '-D warnings'
-        run: cargo doc --no-deps -p eddacraft-tui --all-features
+  # The CIB-030 PR-side rustdoc gate (`cargo doc --no-deps -p eddacraft-tui
+  # --all-features`, RUSTDOCFLAGS=-D warnings) used to live here as a dedicated
+  # `Doc` job. It now runs only in `rust-tests.yml`'s `Test` job, which is the
+  # required check and already builds the workspace with a warm `rust-ci` cache.
+  # The standalone job re-ran the identical 2s command behind ~138s of its own
+  # checkout / free-disk-space / toolchain / cache-restore setup, so every
+  # Rust-touching PR paid for the gate twice. Coverage is unchanged: both this
+  # workflow and `rust-tests.yml` are path-filtered on `crates/**`, so any diff
+  # that can move eddacraft-tui's rustdoc still trips the gate in `Test`.
 
   format:
     name: Format
