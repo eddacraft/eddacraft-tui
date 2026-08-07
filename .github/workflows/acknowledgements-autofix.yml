@@ -12,10 +12,13 @@ name: Acknowledgements Autofix
 # GITHUB_TOKEN with no secrets, so acknowledgements-diff cannot push a
 # fix itself. `workflow_run` always executes the workflow file from
 # the default branch with normal `permissions:`, regardless of what
-# triggered the upstream run — so it can push — while never executing
-# anything the PR proposes beyond the identical read-only `npm ci
-# --ignore-scripts` + regen commands acknowledgements-diff already ran.
-# It only pushes if that regen actually produces a diff.
+# triggered the upstream run — so it can push. To avoid running
+# untrusted PR code in that privileged context, this workflow keeps the
+# trusted default-branch checkout and overlays only the Dependabot
+# branch's `Cargo.lock` + `ACKNOWLEDGEMENTS.md` as inert data before
+# running the same read-only `npm ci --ignore-scripts` + regen commands
+# acknowledgements-diff already ran. It only writes back if that regen
+# actually produces a diff.
 #
 # The push itself must use a PAT, not GITHUB_TOKEN: GitHub does not
 # start new workflow runs from events caused by GITHUB_TOKEN (to
@@ -60,16 +63,25 @@ jobs:
             echo "::error::secrets.DEPENDABOT_AUTOFIX_TOKEN is required to push fixes back to Dependabot branches (a GITHUB_TOKEN push would not retrigger Rust's required checks)." >&2
             exit 1
           fi
-      # The PAT is deliberately NOT passed to `checkout`: `token:` implies
-      # `persist-credentials: true`, which writes a `Contents: write`
-      # credential into `.git/config` for the rest of the job — i.e. while
-      # the steps below run `npm ci` and the regen script out of the
-      # checked-out tree. The default `GITHUB_TOKEN` is enough to read the
-      # ref; the PAT is scoped to the single push step that needs it.
+      # Keep the checkout on the trusted default-branch workflow revision.
+      # We later copy only `Cargo.lock` and `ACKNOWLEDGEMENTS.md` from the
+      # triggering Dependabot commit as data; we never run scripts from that
+      # commit in this privileged workflow.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
+      - name: Overlay Dependabot branch inputs onto trusted checkout
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          for path in Cargo.lock ACKNOWLEDGEMENTS.md; do
+            gh api "repos/${GITHUB_REPOSITORY}/contents/${path}?ref=${HEAD_SHA}" --jq '.content' \
+              | tr -d '\n' \
+              | base64 -d > "${path}"
+          done
+          cp ACKNOWLEDGEMENTS.md "$RUNNER_TEMP/ACKNOWLEDGEMENTS.before.md"
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
@@ -96,26 +108,20 @@ jobs:
       # through `${{ }}` interpolation into the script body: git ref names
       # permit `(`, `)` and backticks, so a branch name spliced into `run:`
       # is a command-injection sink even behind the `startsWith` job gate.
-      - name: Push fix if the regen changed anything
+      - name: Update Dependabot branch if the regen changed anything
         env:
-          AUTOFIX_TOKEN: ${{ secrets.DEPENDABOT_AUTOFIX_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOFIX_TOKEN }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- ACKNOWLEDGEMENTS.md; then
+          if cmp -s "$RUNNER_TEMP/ACKNOWLEDGEMENTS.before.md" ACKNOWLEDGEMENTS.md; then
             echo "No drift after regen; the upstream failure wasn't ACKNOWLEDGEMENTS.md staleness."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ACKNOWLEDGEMENTS.md
-          git commit -m "chore(attribution): regen ACKNOWLEDGEMENTS.md"
-          # Auth via http.extraheader Basic auth — the URL-embedded
-          # `x-access-token:${TOKEN}@github.com` form is fragile to stray
-          # bytes in the credential (CURLE_URL_MALFORMAT). Matches the
-          # pattern already used by publish-eddacraft-tui.yml.
-          basic=$(printf '%s' "x-access-token:${AUTOFIX_TOKEN}" | base64 -w0)
-          git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
-              push \
-              "https://github.com/${GITHUB_REPOSITORY}.git" \
-              "HEAD:refs/heads/${HEAD_BRANCH}"
+          CONTENT=$(base64 -w 0 ACKNOWLEDGEMENTS.md)
+          EXISTING_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/ACKNOWLEDGEMENTS.md?ref=${HEAD_BRANCH}" --jq '.sha')
+          gh api "repos/${GITHUB_REPOSITORY}/contents/ACKNOWLEDGEMENTS.md" -X PUT \
+            -f message="chore(attribution): regen ACKNOWLEDGEMENTS.md" \
+            -f content="$CONTENT" \
+            -f branch="$HEAD_BRANCH" \
+            -f sha="$EXISTING_SHA"
