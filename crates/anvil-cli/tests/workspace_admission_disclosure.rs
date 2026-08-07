@@ -298,8 +298,8 @@ fn live_json_list_preserves_registered_membership() {
         "register command should exit 0 (persist is independent of live outcome): {registration_stdout}"
     );
 
-    let live_wire_ok = registration_stdout.contains("Registered")
-        || registration_stdout.contains("Refreshed");
+    let live_wire_ok =
+        registration_stdout.contains("Registered") || registration_stdout.contains("Refreshed");
     if !live_wire_ok {
         // CIB-150 / CIB-160: the daemon fails closed on wire durable claims when
         // it cannot prove peer-exe identity (gVisor-style `/proc/<pid>/exe`
