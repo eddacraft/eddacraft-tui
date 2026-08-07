@@ -278,7 +278,7 @@ fn live_json_list_preserves_registered_membership() {
         .expect("initialise test worktree");
     assert!(git.status.success(), "git init failed");
 
-    let _daemon = spawn_daemon(home.path(), &worktree);
+    let mut daemon = spawn_daemon(home.path(), &worktree);
     let empty = wait_for_available_registry(home.path());
     assert_eq!(
         empty["registered_worktrees"]["entries"],
@@ -291,12 +291,34 @@ fn live_json_list_preserves_registered_membership() {
     assert!(run_workspace(home.path(), &["allow", worktree_text]).0);
     let (registered, registration_stdout) =
         run_workspace(home.path(), &["register", worktree_text, "--persist"]);
+    // `workspace register` exits 0 even when the live daemon outcome is a
+    // refusal: `--persist` records intent independently (ACTMO-019).
     assert!(
-        registered
-            && (registration_stdout.contains("Registered")
-                || registration_stdout.contains("Refreshed")),
-        "live registration succeeds: {registration_stdout}"
+        registered,
+        "register command should exit 0 (persist is independent of live outcome): {registration_stdout}"
     );
+
+    let live_wire_ok = registration_stdout.contains("Registered")
+        || registration_stdout.contains("Refreshed");
+    if !live_wire_ok {
+        // CIB-150 / CIB-160: the daemon fails closed on wire durable claims when
+        // it cannot prove peer-exe identity (gVisor-style `/proc/<pid>/exe`
+        // aliasing; issue #3130). Register is then downgraded to a live lease
+        // and the CLI honestly refuses "Registered". Durable membership is
+        // still available via in-process `register_on_start` on daemon restart
+        // — never via the wire dispatcher. Assert that path instead of
+        // requiring a faithful peer-exe sandbox on every CI runner.
+        assert!(
+            registration_stdout.contains("durable membership")
+                && (registration_stdout.contains("Recorded")
+                    || registration_stdout.contains("register_on_start")),
+            "when live wire register is refused, expect durable-gate honesty plus \
+             --persist intent: {registration_stdout}"
+        );
+        drop(daemon);
+        daemon = spawn_daemon(home.path(), &worktree);
+        wait_for_available_registry(home.path());
+    }
 
     let value = wait_for_registered_worktree(home.path(), &worktree);
     assert!(
@@ -336,6 +358,10 @@ fn live_json_list_preserves_registered_membership() {
         "allow entry reports that live membership was removed: {value}"
     );
     assert_single_path_state(&value["register_on_start"], &worktree, "not_registered");
+
+    // Keep the daemon alive until the last assertion so list/unregister stay
+    // against a live registry (Drop kills it).
+    drop(daemon);
 }
 
 #[test]
