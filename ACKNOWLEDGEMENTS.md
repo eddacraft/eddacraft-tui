@@ -9843,8 +9843,7 @@ section above; this block focuses on the build-time runtime surface.
 | @jest/diff-sequences | 30.0.1 | MIT | https://github.com/jestjs/jest |
 | @jridgewell/sourcemap-codec | 1.5.5 | MIT | https://github.com/jridgewell/sourcemaps |
 | @napi-rs/wasm-runtime | 0.2.4 | MIT | https://github.com/napi-rs/napi-rs |
-| @nx/nx-linux-x64-gnu | 22.7.5 | MIT | https://github.com/nrwl/nx |
-| @nx/nx-linux-x64-musl | 22.7.5 | MIT | https://github.com/nrwl/nx |
+| @nx/nx-linux-x64-gnu | 22.7.8 | MIT | https://github.com/nrwl/nx |
 | @oxc-project/types | 0.133.0 | MIT | https://github.com/oxc-project/oxc |
 | @oxfmt/binding-linux-x64-gnu | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
 | @oxfmt/binding-linux-x64-musl | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
@@ -10040,7 +10039,7 @@ section above; this block focuses on the build-time runtime surface.
 | normalize-package-data | 2.5.0 | BSD-2-Clause | https://github.com/npm/normalize-package-data |
 | npm-normalize-package-bin | 1.0.1 | ISC | https://github.com/npm/npm-normalize-package-bin |
 | npm-run-path | 4.0.1 | MIT | https://github.com/sindresorhus/npm-run-path |
-| nx | 22.7.5 | MIT | https://github.com/nrwl/nx |
+| nx | 22.7.8 | MIT | https://github.com/nrwl/nx |
 | obug | 2.1.1 | MIT | https://github.com/sxzz/obug |
 | once | 1.4.0 | ISC | https://github.com/isaacs/once |
 | onetime | 5.1.2 | MIT | https://github.com/sindresorhus/onetime |
