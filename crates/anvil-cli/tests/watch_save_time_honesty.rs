@@ -110,17 +110,20 @@ impl Drop for DaemonGuard {
 ///
 /// On macOS aarch64, `setsockopt` can return `EINVAL` (`InvalidInput`) for these
 /// options on some UDS edge states (notably a peer that has already written and
-/// closed). That is a harness platform edge, not a product contract failure.
-/// Continue without a socket timeout so the spy can still forward frames or
-/// observe the shutdown sentinel; outer `WAIT_BUDGET` deadlines still bound the
-/// test.
+/// closed). That is a harness platform edge, not a product contract failure —
+/// tolerate only that platform+arch combo so other hosts still fail fast on
+/// genuine timeout-setup errors. Without a socket timeout the spy can still
+/// forward frames or observe the shutdown sentinel; outer `WAIT_BUDGET`
+/// deadlines still bound the test.
 fn try_set_socket_timeouts(stream: &UnixStream, label: &str) {
     for (side, result) in [
         ("read", stream.set_read_timeout(Some(WAIT_BUDGET))),
         ("write", stream.set_write_timeout(Some(WAIT_BUDGET))),
     ] {
         if let Err(err) = result {
-            if err.kind() == std::io::ErrorKind::InvalidInput {
+            if err.kind() == std::io::ErrorKind::InvalidInput
+                && cfg!(all(target_os = "macos", target_arch = "aarch64"))
+            {
                 continue;
             }
             panic!("bound daemon RPC spy {label} {side}: {err}");
@@ -264,7 +267,12 @@ impl DaemonRpcSpy {
                 panic!("daemon RPC spy stopped within budget: Timeout");
             }
         }
-        worker.join().expect("join daemon RPC spy");
+        // Resume the worker's panic payload so the original cause (e.g. a
+        // timeout setup failure) appears in the test failure instead of a
+        // generic "join daemon RPC spy" message from `expect`.
+        if let Err(payload) = worker.join() {
+            std::panic::resume_unwind(payload);
+        }
     }
 }
 
