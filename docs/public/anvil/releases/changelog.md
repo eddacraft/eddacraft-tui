@@ -113,7 +113,9 @@ install / self-update path.
 - File paths print consistently (project-relative inside the tree; ordinary
   absolute outside; no Windows `\\?\` / mixed-slash noise).
 - Whole-file audit findings drop the misleading line `0`; out-of-workspace
-  secret paths keep their real location (Windows SARIF fingerprint churn once).
+  secret paths keep their real location. On Windows, expect existing
+  code-scanning alerts for those findings to close and reappear once after
+  upgrading.
 - Init and doctor recognise `.anvil.yaml` and the other supported config names.
 
 ### Changed
