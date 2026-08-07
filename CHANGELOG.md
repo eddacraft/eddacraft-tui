@@ -14,12 +14,6 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
-- **`anvil start` result screen shows one help bar and a full next step.** The
-  activation verdict no longer draws a second key legend that disagreed with the
-  shell bar (arrows vs `j/k`). The `next:` guidance line is promoted out of the
-  tree and wraps at typical console widths so the whole next step stays
-  readable.
-
 - **Windows PowerShell install runs again on clean machines.** The dual-install
   guard (WinGet/Scoop vs cargo-dist) was injected in a way that exited before
   the installer body ran, so `irm … | iex` could do nothing on a machine with no
@@ -38,10 +32,22 @@ engineering maintenance are recorded in the
   honestly, and can check GitHub for updates instead of misclassifying the
   install as a plain `cargo install`.
 
+- **Install and welcome no longer promise save-time from bare `anvil start`.**
+  The post-install banner and welcome next-step copy described start as daily
+  save-time protection. A bare start activates and reports state; it does not
+  attach save-time to the worktree on its own. Banner and welcome now describe
+  activation honestly, lead newcomers at `anvil welcome` where appropriate, and
+  name save-time only where a path actually requests it (for example `--watch`).
+
 - **Project-scoped `anvil start` can install MCP.** Interactive start with
   `--mcp-scope project` no longer claims "MCP installation disabled" solely
   because the scope is project. Consent can offer and install project-scoped
   clients like the headless path already could.
+
+- **Start MCP copy states what was observed, not who wrote it.** Meanings that
+  used to say the editor "has seen" anvil or that "anvil has written" the entry
+  now say an MCP entry is present (and whether restart is still needed). The
+  same honesty applies to `start --verify`, which is a non-mutating probe.
 
 - **No false "log in again" nag for people who already have a session.**
   Ordinary beta or pro credentials are not treated as edicts. Only an explicit
@@ -51,6 +57,20 @@ engineering maintenance are recorded in the
 - **Workspace register no longer claims success when nothing stuck.** If
   registration does not leave a durable entry that `workspace list` can see,
   anvil says so instead of printing `Registered …` with exit 0.
+
+- **`workspace list --json` returns JSON.** Machine-readable list output is
+  honoured instead of falling back to plain text, so scripts can parse workspace
+  membership reliably.
+
+- **`anvil status` no longer creates project cache as a side effect.** Pure
+  status leaves never-activated trees clean; what's-new markers write only when
+  `.anvil/cache` already exists.
+
+- **`anvil start` result screen shows one help bar and a full next step.** The
+  activation verdict no longer draws a second key legend that disagreed with the
+  shell bar (arrows vs `j/k`). The `next:` guidance line is promoted out of the
+  tree and wraps at typical console widths so the whole next step stays
+  readable.
 
 - **Welcome autoplay failures stay in the TUI.** Auth or demo failures during
   autoplay surface recovery inside the interface instead of dumping you to a
@@ -77,6 +97,11 @@ engineering maintenance are recorded in the
   alerts for secret findings are fingerprinted afresh: expect existing alerts to
   close and reappear once after upgrading.
 
+- **Init and doctor recognise `.anvil.yaml` (and the other supported names).**
+  Discovery already accepted alternate config basenames; init's already-exists
+  error and doctor's probe now match, so a YAML-named config is not treated as
+  missing.
+
 ### Changed
 
 - **Activation Install shows the assistants you chose.** The verdict Install
@@ -94,9 +119,21 @@ engineering maintenance are recorded in the
   or for this repository, so two machines or two clones are not mistaken for one
   picture.
 
-- **`audit` says what it actually covers.** Chain and secret summaries disclose
-  coverage and that the secret domain is not the same as a full `check` of every
-  file type — without redefining chain integrity.
+- **`audit`, `gate`, and `check` say what they actually cover.** Chain and
+  secret summaries disclose coverage and that the secret domain is not the same
+  as a full `check` of every file type. Green `gate` / `check` results name the
+  secret and antipattern file-type domains so a pass is not read as full-tree
+  coverage. The same scope statement is carried through TUI, SARIF, and
+  plain/JSON audit output.
+
+- **Init first-scan copy matches the sample.** A clean first scan names the
+  anti-pattern sample rather than sounding like a whole-project all-clear. When
+  nothing matches the scan's language coverage, the hint says so instead of
+  implying an empty repository failed.
+
+- **Init summary names `.gitignore` when it changes ignore entries.** The plain
+  and TUI success summaries list every path touched; the gitignore line is
+  omitted when entries were already present.
 
 - **`status` and `insights` name next steps and domains.** Protection:warming
   points at a next step (or refuses that label when it cannot). Zero counts in
@@ -125,6 +162,22 @@ engineering maintenance are recorded in the
   current commit is not blamed for the whole yard. Full-tree scanning is
   unchanged.
 
+- **Config-mode hooks report honestly in doctor and status.** Config-mode-only
+  hooks no longer silent-Pass doctor or claim L3/L4 on. Fire is labeled
+  unverified (or impossible on older Git), and file-mode remains the green
+  default path.
+
+- **Watch save-time verdicts are scoped and timed clearly.** Daemon-backed
+  save-time checks state their family scope; partial or stale evidence dominates
+  a clean snapshot. `--no-daemon` is a hard no-contact path. The TUI watch
+  dashboard shows relative ages for queue and history so operators outside UTC
+  do not misread recent work as hours stale (JSON timestamps stay absolute).
+
+- **Architecture and CI completion copy in the TUI stays within verified
+  writes.** Architecture summary names the verified config write and on-demand
+  check/gate commands without claiming editor or commit-review wiring. CI
+  summary no longer claims the pipeline is live after guidance-only steps.
+
 ### Docs
 
 - **Public CLI docs match current flags and auth exit code 3.** Reference copy
@@ -132,7 +185,8 @@ engineering maintenance are recorded in the
   multi-client `--client` and moving files outside a skills directory.
 - **Tutorial and antipattern-scan scope.** Non-interactive tutorial refusal
   exits non-zero with accurate copy. Antipattern-scan naming is clarified
-  against the built-in rule catalogue.
+  against the built-in rule catalogue. Tutorial autoplay keeps Escape and
+  command effects inside the path picker's workspace safety chain.
 
 ## [0.9.2-beta] — 2026-08-03 — MCP 2.0 reconnect
 

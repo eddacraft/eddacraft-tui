@@ -85,29 +85,63 @@ flag-gated and is not a claim of this release.
 - Remaining title-case product-name strings in user-facing copy are lowercase
   `anvil`.
 
-## Unreleased — next beta after 0.9.1-beta
+## Unreleased — next beta after 0.9.2-beta
 
 Draft of customer-visible work already on the maintained branch. Version and
-date land when the next tag ships. Focus: keep assistants connected, and let you
-prove protection from the start screen.
-
-### Added
-
-- On `anvil start`, press `t` for **Prove** — a real secret check on a sample,
-  with an honest “can't prove here” when it cannot run. Never claims the
-  editor's live save guard from that alone.
-
-### Changed
-
-- `anvil status` explains in one line when “warming” and a live assistant path
-  would otherwise disagree with `anvil start`.
-- Activation keyboard help is a single bar on consent and the result screen.
+date land when the next tag ships. Focus: daily-path honesty and the Windows
+install / self-update path.
 
 ### Fixed
 
-- Codex and similar assistants connect and call tools again after the last MCP
-  update rejected normal progress metadata. Broken modern requests still fail
-  clearly.
+- Windows PowerShell install completes on clean machines; dual-install guard
+  only refuses a true WinGet/Scoop + cargo-dist clash.
+- Public installers no longer embed private GitHub issue numbers.
+- `anvil update --check` and install-method reporting work for cargo-dist
+  installs under the `eddacraft-anvil` receipt layout.
+- Install banner and welcome no longer promise daily save-time from bare
+  `anvil start`.
+- Project-scoped interactive start can install MCP clients.
+- Start MCP copy states observed entry presence (and restart need), not
+  authorship or "editor has seen".
+- No false "log in again" nag for ordinary sessions on a transient network
+  check.
+- Workspace register refuses to claim success when nothing durable stuck;
+  `workspace list --json` returns JSON.
+- Pure `anvil status` no longer creates `.anvil/cache` as a side effect.
+- Start result screen: one help bar and a full wrapping `next:` step.
+- Welcome autoplay failures recover inside the TUI.
+- File paths print consistently (project-relative inside the tree; ordinary
+  absolute outside; no Windows `\\?\` / mixed-slash noise).
+- Whole-file audit findings drop the misleading line `0`; out-of-workspace
+  secret paths keep their real location. On Windows, expect existing
+  code-scanning alerts for those findings to close and reappear once after
+  upgrading.
+- Init and doctor recognise `.anvil.yaml` and the other supported config names.
+
+### Changed
+
+- Activation Install lists the assistants you chose this run; consent steps use
+  plain-language "what is this".
+- Start value receipt names machine-wide vs repository evidence scope.
+- `audit`, `gate`, and `check` disclose what they actually cover (including
+  secret/antipattern file-type domains); audit scope is consistent across TUI,
+  SARIF, and plain/JSON.
+- Init first-scan and success summaries scope clean results and name
+  `.gitignore` when ignore entries change.
+- Status/insights name next steps and counted domains; open admission is
+  disclosed.
+- Start flag conflicts and non-git init/register messages are consistent;
+  post-upgrade recovery copy points at the right install-method steps.
+- Gate "blocking" means threshold; pre-commit labels pre-existing tree debt.
+- Config-mode hooks report honestly in doctor/status.
+- Watch save-time verdicts are scoped; TUI queue/history show relative ages.
+- Architecture and CI TUI completion copy stay within verified writes.
+
+### Docs
+
+- Public CLI docs match multi-client MCP flags and auth exit code 3.
+- Tutorial refusal and antipattern-scan naming stay accurate; tutorial autoplay
+  keeps effects inside the path-picker workspace safety chain.
 
 ## 0.9.0-beta — 12 July 2026
 
