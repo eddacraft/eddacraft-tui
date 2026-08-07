@@ -49,12 +49,15 @@ framework never ships.
   already live here (daemon, governance, evidence, plan read model). Building
   it elsewhere would manufacture the "second convergence effort" its own
   requirements doc warns against.
-- **Ultimate UI lives in its own repository.** The repo boundary *is* the
-  guardrail: its core rule (reference app imports no anvil code; anvil must
-  not become the design template) is enforced structurally. It also escapes
-  monorepo ceremony (APS gates, docs surfaces, release discipline) that an
-  incubation spike should not pay. Its endgame never requires moving in — on
-  success anvil consumes it as a dependency, the way we consume Ratatui.
+- **Ultimate UI lives in its own repository:**
+  [`eddacraft/ubiquity`](https://github.com/eddacraft/ubiquity) (private;
+  "Project Ubiquity" is a placeholder name pending the Phase 0 naming brief).
+  The repo boundary *is* the guardrail: its core rule (reference app imports
+  no anvil code; anvil must not become the design template) is enforced
+  structurally. It also escapes monorepo ceremony (APS gates, docs surfaces,
+  release discipline) that an incubation spike should not pay. Its endgame
+  never requires moving in — on success anvil consumes it as a dependency,
+  the way we consume Ratatui.
 - **Framework spikes (Dioxus vs Tauri/React) are disposable** — run them in a
   scratch repo. Only the decision and the eventual product shell enter the
   monorepo. Do not let spike debris seed the real app by inertia.
