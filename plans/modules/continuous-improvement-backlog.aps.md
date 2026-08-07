@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 248/298  |
+| CIB | —     | In Progress | 248/308  |
 
 ## Purpose
 
@@ -9144,3 +9144,279 @@ CIB-251/255 only.
 - **Coordinates with:** CIB-270, CIB-303
 - **Confidence:** high — reproduced, and `rmdir /tmp/.git` made it pass with
   nothing else changed.
+
+### CIB-305: Concurrent CI-log tracked writers can lose or duplicate entries
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage of the
+  2026-08-06 review batch, not self-authorised. Needs an operator promotion
+  before implementation.
+- **Priority:** P0 internal data-loss correctness (bookkeeping path, not
+  customer product)
+- **Intent:** `scripts/ci-log/lib.mjs` performs unlocked read-modify-write on
+  the tracked continuous-improvement log for `appendTrackedEntry`,
+  `setWatermark`, and `harvestPending`. Harvest also uses a fixed
+  `${logPath}.harvest-tmp`, so concurrent harvests can clobber each other and a
+  late harvest rename can overwrite a concurrent append. Git `merge=union` only
+  helps multi-branch merges, not same-checkout writers.
+- **Expected Outcome:** all tracked-log mutations take an exclusive lock under
+  the git common directory (shared across worktrees), hold it from read through
+  write/rename and pending-file deletion, and harvest uses a unique temporary
+  path per process. Concurrent append+harvest cannot drop or duplicate entries.
+- **Non-scope / do not:** do not replace the pending-queue design; do not make
+  the tracked log a required feature-PR file; do not "fix" by documenting the
+  race alone.
+- **Files:** `scripts/ci-log/lib.mjs`, `scripts/ci-log/_test/ci-log.test.sh`
+  (or equivalent), optional call-site only if lock helpers need export.
+- **Validation:** `pnpm test:ci-log` covers serial paths; add a concurrent
+  append-vs-harvest (or dual-harvest) fixture that fails before the lock and
+  passes after; manual two-process smoke remains acceptable as secondary
+  evidence.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-library-6e67a08850-1a15_694419522e` (high/confirmed-bug);
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** CIB-191 (CI-log durability),
+  `docs/guides/continuous-improvement-log.md`
+- **Confidence:** high — read-modify-write and fixed temp path verified on
+  current `main` source.
+
+### CIB-306: GitHub OAuth callback can return before revoking the upstream token
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P1 security (serverless freeze can leave a live GitHub bearer
+  token after Anvil session mint)
+- **Intent:** `apps/anvil-api/src/routes/auth-github.ts` exchanges the OAuth
+  code, fetches the profile, then fires `revokeGitHubToken(accessToken).catch`
+  without awaiting. On Vercel/serverless the response may complete and the
+  invocation freeze before DELETE finishes, leaving the short-lived GitHub
+  token valid longer than intended. The revoke helper also has no timeout.
+- **Expected Outcome:** revocation is a bounded awaited cleanup step before
+  returning the Anvil session (AbortSignal/timeout, best-effort error
+  handling, no token logged on failure). Tests assert revoke is attempted
+  before the success response is finalised (or equivalent order guarantee).
+- **Non-scope / do not:** do not log the access token; do not block session
+  mint on a slow GitHub DELETE forever; do not re-open the device-flow design
+  (ADR-066).
+- **Files:** `apps/anvil-api/src/routes/auth-github.ts`,
+  `apps/anvil-api/src/__tests__/auth-github.test.ts`
+- **Validation:** unit/route tests for callback success path prove revoke is
+  awaited (mock fetch) with a timeout path; suite green under the package's
+  usual test command.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-library-29f5ad5751-a39f_f78ae60e6f` (medium/security);
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** ADR-066 (GitHub device/OAuth broker), prior
+  2026-07-18 auth-session race fixes on the same surface family.
+- **Confidence:** high — fire-and-forget call site verified in source.
+
+### CIB-307: Baseline regeneration accepts tooling-failed surface output
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P1 data-loss guard (docs baseline integrity)
+- **Intent:** `scripts/docs/docs-check.mjs` `regenerateBaseline` only treats
+  empty or unparsable stdout as surface failure. A surface that emits valid
+  JSON then exits with tooling failure (`EXIT_TOOLING_FAILURE` / classify) is
+  accepted and can overwrite that surface's known-good baseline entries —
+  contradicting the DOCGOV-012 partial-run guarantee stated in the same
+  function.
+- **Expected Outcome:** after parsing each report, reject and preserve the
+  existing baseline when `classify(result)` is tooling failure. Content
+  failures remain acceptable input for baseline regeneration. Partial runs
+  never write the tracked baseline.
+- **Non-scope / do not:** do not re-open CIB-278's content-vs-tooling exit
+  taxonomy; do not accept "empty findings" from a tooling-failed process as
+  success.
+- **Files:** `scripts/docs/docs-check.mjs`, fixture/contract tests under
+  `scripts/docs/` (or existing docs-check test surface)
+- **Validation:** a fixture surface that writes valid JSON then exits tooling
+  failure leaves the baseline unchanged and fails loud; normal content-only
+  regeneration still updates.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-library-eb4f39f539-6c08_3028b92c7b` (medium/data-loss);
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** CIB-278 (tooling vs content exit codes), DOCGOV-012
+- **Confidence:** high — regenerate loop verified not to check verdict.
+
+### CIB-308: Protection history aggregation uses response order, not timestamp
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 dashboard correctness
+- **Intent:** `aggregateProtectionHistory` overwrites `score` and
+  `warningCount` for every point in a bucket, so the last array element wins
+  rather than the chronologically latest `recorded_at`. A reverse-ordered or
+  unsorted API response reports stale score/warning levels.
+- **Expected Outcome:** buckets retain the latest-by-`recorded_at` point's
+  score and warning count (sort ascending before fold, or compare timestamps
+  on update). Unit coverage proves reverse order does not invert the result.
+- **Non-scope / do not:** do not change chart styling or interval bucketing
+  keys unless required by the timestamp fix.
+- **Files:** `apps/dashboard/src/modules/core/overview/history-aggregation.ts`
+  and its unit test
+- **Validation:** unit test with two same-day points ordered newest-first
+  asserts the newer score/warningCount; dashboard package tests green for the
+  touched target.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-library-541f4a982e-7ac8_d4fc3823f6`;
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** CIB-309, CIB-310 (same dashboard overview/warnings
+  surface family)
+- **Confidence:** high — overwrite-without-timestamp-check verified.
+
+### CIB-309: Warning selection can show evidence for a different warning
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 dashboard UX correctness
+- **Intent:** Two related selection bugs:
+  1. `protection-overview.tsx` resolves the inspector only against
+     `filteredWarnings`, falling back to the first filtered row when the
+     clicked affected-file warning is excluded by severity filter.
+  2. `routes/warnings.tsx` keeps a retained `selected` warning when the URL
+     evidence id is missing or stale, so the panel can claim a URL selection
+     while showing unrelated data.
+- **Expected Outcome:** selecting an affected file never silently shows a
+  different warning's evidence; URL evidence with no match shows empty/not-
+  found (or closes the panel) rather than a stale selection. Clear selection
+  when the selected warning leaves the overview.
+- **Non-scope / do not:** do not redesign the warnings layout; do not fold
+  critical-severity filter work into this item (CIB-310).
+- **Files:** `apps/dashboard/src/modules/protection/protection-overview.tsx`,
+  `apps/dashboard/src/routes/warnings.tsx`, focused component/route tests
+- **Validation:** tests for (a) severity filter + affected-file click and
+  (b) missing/stale evidence query; no silent wrong-warning panel.
+- **Identified From:** clawpatch findings
+  `fnd_sig-feat-library-94c8d5ed25-eff0_763636acad`,
+  `fnd_sig-feat-library-3cb93f01c3-0c33_f3977e8e40`;
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** CIB-308, CIB-310
+- **Confidence:** high — fallback paths verified in source.
+
+### CIB-310: Critical severity missing from dashboard search and warning filter
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 dashboard contract completeness
+- **Intent:** Theme and rendering recognise `critical` severity, but
+  `dashboardSearchSchema` omits it (URL `severity=critical` silently becomes
+  `all`) and the warning table selector only offers high/medium/low.
+- **Expected Outcome:** operators can filter and deep-link critical warnings.
+  Search schema, table selector, and theme stay aligned on the same severity
+  set.
+- **Non-scope / do not:** do not invent new severities beyond the theme set;
+  do not change server-side warning taxonomy unless already present.
+- **Files:** `apps/dashboard/src/lib/search-params.ts`,
+  `apps/dashboard/src/modules/core/warnings/warning-table.tsx`, tests
+- **Validation:** schema parse preserves `critical`; selector can isolate a
+  critical row; package tests green.
+- **Identified From:** clawpatch findings
+  `fnd_sig-feat-library-bdc1ea4fc8-6035_f6d885024a`,
+  `fnd_sig-feat-library-541f4a982e-8349_414283bb1e`;
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** CIB-309
+- **Confidence:** high — enum/selector mismatch verified.
+
+### CIB-311: CI-log date options accept impossible calendar dates
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 internal tooling correctness
+- **Intent:** CI-log watermark and entry date handling accept impossible
+  calendar values (e.g. non-normalising YYYY-MM-DD strings), which can skew
+  `entriesSince` filtering and watermark comparisons.
+- **Expected Outcome:** supplied dates parse as real UTC calendar dates;
+  values whose normalised Y/M/D differ from the input are rejected
+  consistently for append field dates, watermark dates, and since filters.
+- **Non-scope / do not:** do not change the pending-queue layout; do not
+  expand into the concurrent-writer lock (CIB-305) unless shared helpers make
+  that trivial.
+- **Files:** `scripts/ci-log/lib.mjs`, `scripts/ci-log/set-watermark.mjs`,
+  `scripts/ci-log/_test/ci-log.test.sh`
+- **Validation:** `pnpm test:ci-log` rejects `2026-02-31` / similar and
+  accepts valid ISO dates.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-library-6e67a08850-b0b1_bd7ec898d8`;
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** CIB-305 (same `scripts/ci-log` surface)
+- **Confidence:** high — validation gap verified in helpers.
+
+### CIB-312: publish-public-contents treats non-404 lookup failures as create
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 release tooling correctness
+- **Intent:** `scripts/release/publish-public-contents.sh` clears
+  `existing_sha` on any failed `gh api` contents lookup. Auth, rate-limit, or
+  network failures are treated like "path does not exist", so the script may
+  attempt a create PUT with a misleading error or wrong outcome instead of
+  failing closed on a real lookup error.
+- **Expected Outcome:** only a genuine 404 (or equivalent not-found) permits
+  create-without-sha; other failures abort with the upstream status/message.
+- **Non-scope / do not:** do not redesign public-contents publishing; do not
+  weaken oversize guards.
+- **Files:** `scripts/release/publish-public-contents.sh`,
+  `scripts/release/_test/publish-public-contents.test.sh`
+- **Validation:** fixture or mocked `gh` paths for 404 vs 403/5xx; 404 still
+  creates, non-404 fails before PUT.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-config-a8e510e779-3d9d4_9217185311`;
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** release public-contents path used by ACKNOWLEDGEMENTS
+  / public publish
+- **Confidence:** high — `else existing_sha=""` on any failure verified.
+
+### CIB-313: Non-token admin invites acknowledge scopes that are never persisted
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 API contract honesty
+- **Intent:** Default (`tokenOnly=false`) admin invite validates and returns
+  requested `scopes` in the 201 body, but the transaction only stamps
+  waitlist/beta_user/audit — unlike `tokenOnly=true`, which inserts
+  `access_tokens` with scopes. Callers can believe non-default scopes were
+  granted when no durable entitlement exists for later session minting.
+- **Expected Outcome:** response scopes match persisted grants. Either
+  persist requested scopes via the non-bearer grant mechanism, or reject /
+  ignore non-default scopes for the default invite path and stop echoing
+  unpersisted values.
+- **Non-scope / do not:** do not change token-only invite behaviour unless
+  required for shared helpers; do not invent a second scope system.
+- **Files:** `apps/anvil-api/src/routes/admin.ts`,
+  `apps/anvil-api/src/__tests__/admin.test.ts`
+- **Validation:** default invite with explicit scopes either persists a grant
+  (queryable) or returns only scopes that were actually stored; tests cover
+  both tokenOnly modes.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-library-29f5ad5751-38ea_d1239890ce`;
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** ADR-066 invite/login model, admin invite path
+- **Confidence:** high — default tx path verified without scope insert.
+
+### CIB-314: Existing release tags can silently mix workspace and tag sources
+
+- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
+  self-authorised. Needs an operator promotion before implementation.
+- **Priority:** P2 release-docs correctness
+- **Intent:** `scripts/docs/generate-anvil-public-reference.mjs` can fall back
+  to workspace inputs when a release tag exists but lacks a particular input,
+  producing a mixed-version public reference (some content from the tag, some
+  from the live tree).
+- **Expected Outcome:** if `sourceRef`/tag resolves, missing inputs fail
+  closed (or require an explicit historical-source strategy). Workspace
+  fallback is only for the pre-tag case when the release ref does not exist.
+- **Non-scope / do not:** do not silently invent historical content; do not
+  couple this to changelog promote (the promote-changelog prerelease high was
+  a false positive).
+- **Files:** `scripts/docs/generate-anvil-public-reference.mjs` and its tests
+  if present
+- **Validation:** fixture with existing tag missing one input fails; pre-tag
+  workspace fallback still works.
+- **Identified From:** clawpatch finding
+  `fnd_sig-feat-library-34bc4660c0-8fd1_880725ade1`;
+  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+- **Coordinates with:** release public-reference generation, docs:public
+  surfaces
+- **Confidence:** medium-high — logic described in finding; confirm on
+  implementation against `readProductSource` paths.
+

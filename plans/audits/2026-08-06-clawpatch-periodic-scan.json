@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "kind": "clawpatch-periodic-scan",
+  "generatedAt": "2026-08-07T00:00:00Z",
+  "runIds": [
+    "20260806T194543-cde571",
+    "20260806T194809-eb5f63",
+    "20260806T195005-a1a059"
+  ],
+  "primaryRunId": "20260806T195005-a1a059",
+  "branch": "main",
+  "headSha": "824779d65c5c087bf906d72256d4eb68a856cb9a",
+  "corpusNote": "Three completed review waves on 2026-08-06; primary wave was clawpatch review --limit 200 --jobs 5. Triage recorded 2026-08-07 in plans/reviews/2026-08-07-clawpatch-triage.md",
+  "summary": {
+    "totalFindings": 954,
+    "byStatus": {
+      "wont-fix": 568,
+      "open": 298,
+      "fixed": 72,
+      "false-positive": 13,
+      "uncertain": 3
+    },
+    "open": 298,
+    "openBySeverity": {
+      "high": 1,
+      "medium": 154,
+      "low": 143
+    },
+    "openByTriage": {
+      "test-gap": 103,
+      "confirmed-bug": 67,
+      "contract-mismatch": 37,
+      "risk": 89,
+      "docs-gap": 2
+    }
+  },
+  "batch": {
+    "findingCount": 60,
+    "afterTriage": {
+      "open": 57,
+      "falsePositive": 2,
+      "wontFix": 1
+    },
+    "openHighRemaining": [
+      {
+        "id": "fnd_sig-feat-library-6e67a08850-1a15_694419522e",
+        "title": "Concurrent tracked-log writers can lose or duplicate CI-log entries",
+        "severity": "high",
+        "path": "scripts/ci-log/lib.mjs",
+        "disposition": "confirmed-bug; fix queue P0 (internal tooling)"
+      }
+    ]
+  },
+  "sessionVerdicts": [
+    {
+      "id": "fnd_sig-feat-library-388ff639be-81fc_11f4da2246",
+      "title": "Prerelease headings are mistaken for the requested final release",
+      "severity": "high",
+      "status": "false-positive",
+      "category": "bug",
+      "triage": "confirmed-bug",
+      "note": "startsWith includes closing bracket; 0.9.2-beta does not match 0.9.2"
+    },
+    {
+      "id": "fnd_sig-feat-library-c95089512f-7b78_ba905b0d04",
+      "title": "Unknown APS tags do not fail the validator",
+      "severity": "medium",
+      "status": "false-positive",
+      "category": "bug",
+      "triage": "confirmed-bug",
+      "note": "Unknown tags intentionally WARN; malformed tags ERROR"
+    },
+    {
+      "id": "fnd_sig-feat-library-5d338c4f1f-e771_ba48996b63",
+      "title": "Composition drops surviving re-export edges when their target is overlaid",
+      "severity": "medium",
+      "status": "wont-fix",
+      "category": "bug",
+      "triage": "confirmed-bug",
+      "note": "Known ADR-105 \u00a73 recorded gap; golden pins divergence"
+    }
+  ],
+  "fixQueue": [
+    {
+      "priority": "P0",
+      "cib": "CIB-305",
+      "id": "fnd_sig-feat-library-6e67a08850-1a15_694419522e",
+      "title": "Concurrent tracked-log writers can lose or duplicate CI-log entries"
+    },
+    {
+      "priority": "P1",
+      "cib": "CIB-306",
+      "id": "fnd_sig-feat-library-29f5ad5751-a39f_f78ae60e6f",
+      "title": "GitHub OAuth callback can return before revoking the upstream bearer token"
+    },
+    {
+      "priority": "P1",
+      "cib": "CIB-307",
+      "id": "fnd_sig-feat-library-eb4f39f539-6c08_3028b92c7b",
+      "title": "Baseline regeneration accepts tooling-failed surface output and can overwrite a known-good baseline"
+    },
+    {
+      "priority": "P2",
+      "cib": "CIB-308",
+      "title": "Protection history aggregation uses response order, not timestamp"
+    },
+    {
+      "priority": "P2",
+      "cib": "CIB-309",
+      "title": "Warning selection can show evidence for a different warning"
+    },
+    {
+      "priority": "P2",
+      "cib": "CIB-310",
+      "title": "Critical severity missing from dashboard search and warning filter"
+    },
+    {
+      "priority": "P2",
+      "cib": "CIB-311",
+      "title": "CI-log date options accept impossible calendar dates"
+    },
+    {
+      "priority": "P2",
+      "cib": "CIB-312",
+      "title": "publish-public-contents treats non-404 lookup failures as create"
+    },
+    {
+      "priority": "P2",
+      "cib": "CIB-313",
+      "title": "Non-token admin invites acknowledge scopes that are never persisted"
+    },
+    {
+      "priority": "P2",
+      "cib": "CIB-314",
+      "title": "Existing release tags can silently mix workspace and tag sources"
+    }
+  ],
+  "cibIntake": {
+    "filedAt": "2026-08-07",
+    "branch": "docs/cib-305-clawpatch-intake",
+    "ids": [
+      "CIB-305",
+      "CIB-306",
+      "CIB-307",
+      "CIB-308",
+      "CIB-309",
+      "CIB-310",
+      "CIB-311",
+      "CIB-312",
+      "CIB-313",
+      "CIB-314"
+    ],
+    "note": "Draft; skip 301/302 reserved by docs/cib-301-302-dave-pack-04; operator promotion required"
+  }
+}
