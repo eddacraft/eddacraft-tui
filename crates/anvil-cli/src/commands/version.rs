@@ -503,6 +503,19 @@ pub fn detect_install_method_cached() -> InstallMethod {
 /// 4. `cargo install` location (`$CARGO_HOME/bin` or `~/.cargo/bin`) without receipt.
 /// 5. Fall through to `Unknown`.
 pub(crate) fn classify_exe_path(exe: &Path) -> InstallMethod {
+    classify_exe_path_with_receipt_root(exe, dirs::config_dir().as_deref())
+}
+
+/// Same as [`classify_exe_path`], but the cargo-dist receipt root is injected.
+///
+/// Production always passes [`dirs::config_dir`]. Tests pass an isolated
+/// temp dir: on macOS/Windows, `dirs::config_dir` ignores `XDG_CONFIG_HOME` /
+/// `HOME` / `APPDATA` (Windows uses the known-folder API), so planting a
+/// receipt under env-redirected paths does not exercise the receipt branch.
+pub(crate) fn classify_exe_path_with_receipt_root(
+    exe: &Path,
+    receipt_config_dir: Option<&Path>,
+) -> InstallMethod {
     let s = exe.to_string_lossy();
 
     if HOMEBREW_PREFIXES.iter().any(|p| s.starts_with(p)) {
@@ -515,7 +528,7 @@ pub(crate) fn classify_exe_path(exe: &Path) -> InstallMethod {
         return InstallMethod::Winget;
     }
     // Receipt before CARGO_HOME/bin: shell/PowerShell installers use that path.
-    if has_cargo_dist_receipt(exe) {
+    if receipt_config_dir.is_some_and(cargo_dist_receipt_present) {
         return InstallMethod::CargoDist;
     }
     if is_dev_build(exe) {
@@ -566,16 +579,14 @@ fn is_dev_build(exe: &Path) -> bool {
     grandparent.as_os_str() == "target"
 }
 
-fn has_cargo_dist_receipt(exe: &Path) -> bool {
-    // cargo-dist / axoupdater write `{config_dir}/{app_name}/{app_name}-receipt.json`.
-    // Our package/app name is `eddacraft-anvil` (not `anvil`). Also probe the
-    // legacy `anvil/anvil-receipt.json` path in case older tools wrote it.
-    // See CIB-229.
-    let _ = exe; // path may be useful in future heuristics
-    let Some(config_dir) = dirs::config_dir() else {
-        return false;
-    };
-    cargo_dist_receipt_candidates(&config_dir)
+/// Whether a cargo-dist install receipt exists under `config_dir`.
+///
+/// cargo-dist / axoupdater write `{config_dir}/{app_name}/{app_name}-receipt.json`.
+/// Our package/app name is `eddacraft-anvil` (not `anvil`). Also probe the
+/// legacy `anvil/anvil-receipt.json` path in case older tools wrote it.
+/// See CIB-229.
+fn cargo_dist_receipt_present(config_dir: &Path) -> bool {
+    cargo_dist_receipt_candidates(config_dir)
         .into_iter()
         .any(|p| p.exists())
 }
@@ -1243,17 +1254,17 @@ mod tests {
         // the env var is restored after the test.
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("bin").join("anvil");
-        // Isolate config so no cargo-dist receipt is visible (CIB-229 order).
+        // Empty receipt root: do not consult the host `dirs::config_dir`
+        // (Windows known-folder / macOS Application Support can still hold
+        // a real cargo-dist receipt even when XDG_CONFIG_HOME is redirected).
+        let empty_config = dir.path().join("config");
+        std::fs::create_dir_all(&empty_config).unwrap();
         let result = temp_env::with_vars(
             [
                 ("CARGO_HOME", Some(dir.path().as_os_str())),
-                (
-                    "XDG_CONFIG_HOME",
-                    Some(dir.path().join("config").as_os_str()),
-                ),
                 ("HOME", Some(dir.path().as_os_str())),
             ],
-            || classify_exe_path(&bin),
+            || classify_exe_path_with_receipt_root(&bin, Some(empty_config.as_path())),
         );
         assert_eq!(result, InstallMethod::CargoInstall);
     }
@@ -1262,6 +1273,11 @@ mod tests {
     fn classify_exe_path_cargo_home_with_eddacraft_receipt_is_cargo_dist() {
         // CIB-229: cargo-dist default layout is CARGO_HOME/bin + receipt
         // under eddacraft-anvil/. Receipt must win over CargoInstall.
+        //
+        // Inject the receipt root explicitly: planting under XDG_CONFIG_HOME
+        // only works on Linux. macOS (`~/Library/Application Support`) and
+        // Windows (known-folder RoamingAppData) ignore that env, so Cross
+        // previously saw CargoInstall and failed this claim test.
         let dir = tempfile::tempdir().unwrap();
         let config = dir.path().join("config");
         let receipt_dir = config.join("eddacraft-anvil");
@@ -1275,12 +1291,26 @@ mod tests {
         let result = temp_env::with_vars(
             [
                 ("CARGO_HOME", Some(dir.path().join("cargo").as_os_str())),
-                ("XDG_CONFIG_HOME", Some(config.as_os_str())),
                 ("HOME", Some(dir.path().as_os_str())),
             ],
-            || classify_exe_path(&bin),
+            || classify_exe_path_with_receipt_root(&bin, Some(config.as_path())),
         );
         assert_eq!(result, InstallMethod::CargoDist);
+    }
+
+    #[test]
+    fn cargo_dist_receipt_present_finds_eddacraft_anvil_layout() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path();
+        let receipt_dir = config.join("eddacraft-anvil");
+        std::fs::create_dir_all(&receipt_dir).unwrap();
+        std::fs::write(
+            receipt_dir.join("eddacraft-anvil-receipt.json"),
+            r#"{"provider":{"source":"cargo-dist"}}"#,
+        )
+        .unwrap();
+        assert!(cargo_dist_receipt_present(config));
+        assert!(!cargo_dist_receipt_present(&config.join("missing")));
     }
 
     #[test]
@@ -1297,22 +1327,25 @@ mod tests {
     #[test]
     fn classify_exe_path_falls_through_to_unknown_for_arbitrary_path() {
         // No package-manager marker, not under target/, not in
-        // CARGO_HOME — falls through to Unknown. Set both `HOME` and
-        // `XDG_CONFIG_HOME` to a temp dir so the cargo-dist receipt
-        // probe sees no file. `temp_env::with_vars` handles cleanup.
+        // CARGO_HOME — falls through to Unknown. Inject an empty
+        // receipt root so a host cargo-dist install cannot tip this
+        // into CargoDist (dirs known-folder / Application Support).
         let dir = tempfile::tempdir().unwrap();
+        let empty_config = dir.path().join("config");
+        std::fs::create_dir_all(&empty_config).unwrap();
         let result = temp_env::with_vars(
             [
                 ("HOME", Some(dir.path().as_os_str())),
-                (
-                    "XDG_CONFIG_HOME",
-                    Some(dir.path().join("config").as_os_str()),
-                ),
                 // Defensively unset CARGO_HOME so the test isolates
                 // the unknown path even when run on a developer machine.
                 ("CARGO_HOME", None),
             ],
-            || classify_exe_path(&PathBuf::from("/opt/some/random/anvil")),
+            || {
+                classify_exe_path_with_receipt_root(
+                    &PathBuf::from("/opt/some/random/anvil"),
+                    Some(empty_config.as_path()),
+                )
+            },
         );
         assert_eq!(result, InstallMethod::Unknown);
     }
