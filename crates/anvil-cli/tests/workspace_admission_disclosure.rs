@@ -52,6 +52,42 @@ fn run_workspace(home: &Path, args: &[&str]) -> (bool, String) {
     )
 }
 
+/// Compare paths after resolving both spellings to the same filesystem identity.
+///
+/// Windows may expose one temp path in long form and another in 8.3 form; macOS
+/// has the equivalent `/var` → `/private/var` alias.
+fn listed_path_matches(listed: &serde_json::Value, expected: &Path) -> bool {
+    let Some(listed) = listed.as_str() else {
+        return false;
+    };
+    let Ok(listed) = dunce::canonicalize(listed) else {
+        return false;
+    };
+    let Ok(expected) = dunce::canonicalize(expected) else {
+        return false;
+    };
+    listed == expected
+}
+
+fn assert_single_path_state(
+    entries: &serde_json::Value,
+    expected_path: &Path,
+    expected_state: &str,
+) {
+    let entries = entries.as_array().expect("path-state entries array");
+    assert_eq!(
+        entries.len(),
+        1,
+        "expected exactly one path-state entry: {entries:?}"
+    );
+    assert!(
+        listed_path_matches(&entries[0]["path"], expected_path),
+        "listed path does not resolve to {}: {entries:?}",
+        expected_path.display()
+    );
+    assert_eq!(entries[0]["state"], expected_state);
+}
+
 fn run_workspace_json(home: &Path) -> Output {
     Command::new(ANVIL_BIN)
         .arg("--json")
@@ -100,7 +136,7 @@ fn wait_for_available_registry(home: &Path) -> serde_json::Value {
     panic!("daemon registry did not become available");
 }
 
-fn wait_for_registered_worktree(home: &Path, worktree: &str) -> serde_json::Value {
+fn wait_for_registered_worktree(home: &Path, worktree: &Path) -> serde_json::Value {
     let mut last = serde_json::Value::Null;
     for _ in 0..100 {
         let output = run_workspace_json(home);
@@ -109,7 +145,11 @@ fn wait_for_registered_worktree(home: &Path, worktree: &str) -> serde_json::Valu
         {
             let found = value["registered_worktrees"]["entries"]
                 .as_array()
-                .is_some_and(|entries| entries.iter().any(|entry| entry == worktree));
+                .is_some_and(|entries| {
+                    entries
+                        .iter()
+                        .any(|entry| listed_path_matches(entry, worktree))
+                });
             if found {
                 return value;
             }
@@ -120,7 +160,7 @@ fn wait_for_registered_worktree(home: &Path, worktree: &str) -> serde_json::Valu
     panic!("registered worktree did not appear; last workspace list: {last}");
 }
 
-fn wait_for_unregistered_worktree(home: &Path, worktree: &str) -> serde_json::Value {
+fn wait_for_unregistered_worktree(home: &Path, worktree: &Path) -> serde_json::Value {
     let mut last = serde_json::Value::Null;
     for _ in 0..100 {
         let output = run_workspace_json(home);
@@ -129,7 +169,11 @@ fn wait_for_unregistered_worktree(home: &Path, worktree: &str) -> serde_json::Va
         {
             let found = value["registered_worktrees"]["entries"]
                 .as_array()
-                .is_some_and(|entries| entries.iter().any(|entry| entry == worktree));
+                .is_some_and(|entries| {
+                    entries
+                        .iter()
+                        .any(|entry| listed_path_matches(entry, worktree))
+                });
             if value["registered_worktrees"]["availability"] == "available" && !found {
                 return value;
             }
@@ -204,7 +248,7 @@ fn configured_json_list_preserves_paths_kinds_and_registration_state() {
         .expect("allow entries array");
     assert!(
         allow_entries.iter().any(|entry| {
-            entry["path"] == worktree_text
+            listed_path_matches(&entry["path"], &worktree)
                 && entry["kind"] == "exact"
                 && entry["live_registered"].is_null()
         }),
@@ -212,20 +256,14 @@ fn configured_json_list_preserves_paths_kinds_and_registration_state() {
     );
     assert!(
         allow_entries.iter().any(|entry| {
-            entry["path"] == prefix_text
+            listed_path_matches(&entry["path"], &prefix)
                 && entry["kind"] == "prefix"
                 && entry["live_registered"].is_null()
         }),
         "prefix allow entry preserves kind and unknown membership: {value}"
     );
     assert_eq!(value["registered_worktrees"]["availability"], "unavailable");
-    assert_eq!(
-        value["register_on_start"],
-        serde_json::json!([{
-            "path": worktree_text,
-            "state": "unknown",
-        }])
-    );
+    assert_single_path_state(&value["register_on_start"], &worktree, "unknown");
 }
 
 #[test]
@@ -260,28 +298,26 @@ fn live_json_list_preserves_registered_membership() {
         "live registration succeeds: {registration_stdout}"
     );
 
-    let value = wait_for_registered_worktree(home.path(), worktree_text);
+    let value = wait_for_registered_worktree(home.path(), &worktree);
     assert!(
         value["registered_worktrees"]["entries"]
             .as_array()
-            .is_some_and(|entries| entries.iter().any(|entry| entry == worktree_text)),
+            .is_some_and(|entries| {
+                entries
+                    .iter()
+                    .any(|entry| listed_path_matches(entry, &worktree))
+            }),
         "registered worktree membership is preserved: {value}"
     );
     assert!(
         value["allow_entries"].as_array().is_some_and(|entries| {
-            entries
-                .iter()
-                .any(|entry| entry["path"] == worktree_text && entry["live_registered"] == true)
+            entries.iter().any(|entry| {
+                listed_path_matches(&entry["path"], &worktree) && entry["live_registered"] == true
+            })
         }),
         "allow entry carries its live-registration annotation: {value}"
     );
-    assert_eq!(
-        value["register_on_start"],
-        serde_json::json!([{
-            "path": worktree_text,
-            "state": "registered",
-        }])
-    );
+    assert_single_path_state(&value["register_on_start"], &worktree, "registered");
 
     let (unregistered, unregistration_stdout) =
         run_workspace(home.path(), &["unregister", worktree_text]);
@@ -290,23 +326,16 @@ fn live_json_list_preserves_registered_membership() {
         "live unregister succeeds without dropping persisted intent: {unregistration_stdout}"
     );
 
-    let value = wait_for_unregistered_worktree(home.path(), worktree_text);
+    let value = wait_for_unregistered_worktree(home.path(), &worktree);
     assert!(
         value["allow_entries"].as_array().is_some_and(|entries| {
-            entries
-                .iter()
-                .any(|entry| entry["path"] == worktree_text && entry["live_registered"] == false)
+            entries.iter().any(|entry| {
+                listed_path_matches(&entry["path"], &worktree) && entry["live_registered"] == false
+            })
         }),
         "allow entry reports that live membership was removed: {value}"
     );
-    assert_eq!(
-        value["register_on_start"],
-        serde_json::json!([{
-            "path": worktree_text,
-            "state": "not_registered",
-        }]),
-        "non-persistent unregister must retain persisted start-up intent"
-    );
+    assert_single_path_state(&value["register_on_start"], &worktree, "not_registered");
 }
 
 #[test]
