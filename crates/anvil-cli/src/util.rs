@@ -880,7 +880,10 @@ mod tests {
     #[test]
     fn workspace_root_is_canonical() {
         let root = workspace_root().unwrap();
-        if let Ok(canonical) = root.canonicalize() {
+        // Product uses display_path::canonicalise (dunce), not raw
+        // std::fs::canonicalize — the latter yields \\?\C:\... on Windows while
+        // the product returns the ordinary form (CIB-237 path honesty).
+        if let Ok(canonical) = crate::display_path::canonicalise(&root) {
             assert_eq!(root, canonical);
         }
     }

@@ -389,11 +389,11 @@ mod tests {
             .resolve_target("src/app.ts")
             .expect("in-sandbox target resolves");
 
-        assert_eq!(
-            target,
-            sandbox.root().canonicalize().unwrap().join("src/app.ts")
-        );
-        assert!(target.starts_with(sandbox.root().canonicalize().unwrap()));
+        // Match product path form: resolve_working_path uses dunce, not raw
+        // canonicalize (which surfaces \\?\ on Windows).
+        let root = crate::display_path::canonicalise(sandbox.root()).unwrap();
+        assert_eq!(target, root.join("src/app.ts"));
+        assert!(target.starts_with(&root));
     }
 
     #[test]
@@ -405,9 +405,7 @@ mod tests {
 
         assert_eq!(
             target,
-            sandbox
-                .root()
-                .canonicalize()
+            crate::display_path::canonicalise(sandbox.root())
                 .unwrap()
                 .join("src/generated.ts")
         );
