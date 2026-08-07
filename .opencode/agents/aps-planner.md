@@ -2,17 +2,22 @@
 description: Shape and maintain Anvil Plan Spec indexes, modules, work items, action plans, and plan status without implementing the work
 mode: subagent
 steps: 50
-tools:
-  read: true
-  write: true
-  edit: true
-  glob: true
-  grep: true
-  bash: true
-permission:
-  edit: "ask"
-  write: "ask"
-  bash: "ask"
+permissions:
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: ask
+  - action: shell
+    resource: "*"
+    effect: ask
 ---
 
 # APS Planner

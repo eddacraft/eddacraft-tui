@@ -2,17 +2,22 @@
 description: Coordinate authorised APS work items through selection, start, dispatch, validation, completion, and learning capture
 mode: subagent
 steps: 50
-tools:
-  read: true
-  write: true
-  edit: true
-  glob: true
-  grep: true
-  bash: true
-permission:
-  edit: "ask"
-  write: "ask"
-  bash: "ask"
+permissions:
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: ask
+  - action: shell
+    resource: "*"
+    effect: ask
 ---
 
 # APS Conductor

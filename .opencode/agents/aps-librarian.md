@@ -2,17 +2,22 @@
 description: Audit and maintain APS plan organisation, references, completed-work roll-ups, and repository planning hygiene
 mode: subagent
 steps: 30
-tools:
-  read: true
-  write: true
-  edit: true
-  glob: true
-  grep: true
-  bash: true
-permission:
-  edit: "ask"
-  write: "ask"
-  bash: "ask"
+permissions:
+  - action: read
+    resource: "*"
+    effect: allow
+  - action: glob
+    resource: "*"
+    effect: allow
+  - action: grep
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: ask
+  - action: shell
+    resource: "*"
+    effect: ask
 ---
 
 # APS Librarian

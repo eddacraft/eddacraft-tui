@@ -5,14 +5,25 @@ description:
   tracking, and wave-based planning handoff
 mode: all
 hidden: false
-permission:
-  bash: allow
-  edit: allow
-  webfetch: deny
-  task: allow
-  todowrite: allow
-  websearch: deny
-  lsp: deny
+permissions:
+  - action: shell
+    resource: "*"
+    effect: allow
+  - action: edit
+    resource: "*"
+    effect: allow
+  - action: subagent
+    resource: "*"
+    effect: allow
+  - action: todowrite
+    resource: "*"
+    effect: allow
+  - action: webfetch
+    resource: "*"
+    effect: deny
+  - action: websearch
+    resource: "*"
+    effect: deny
 ---
 
 # Anvil Plan Spec Administrator
