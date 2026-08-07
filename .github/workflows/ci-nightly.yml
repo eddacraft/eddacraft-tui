@@ -4,6 +4,9 @@ name: CI Nightly
 # These were moved out of the main CI to save included minutes.
 # macOS runners cost 10x, Windows 2x — running on every push was
 # burning ~40k included minutes/month.
+#
+# Linux jobs reclaim stock-image disk via free-disk-space (see rust.yml):
+# without it, Build / coverage legs intermittently die mid-setup with ENOSPC.
 
 on:
   schedule:
@@ -79,6 +82,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Reclaim preinstalled toolchains on stock ubuntu runners (~25-30 GB).
+      # Nightly Build / coverage jobs have been dying mid-setup with ENOSPC
+      # ("No space left on device") — the same class of failure free-disk-space
+      # already prevents on rust.yml. No-op on macOS/Windows.
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
+
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 
@@ -108,6 +118,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
+
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 
@@ -135,6 +148,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
@@ -218,6 +234,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
@@ -323,6 +342,9 @@ jobs:
             can_test: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
 
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
