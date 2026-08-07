@@ -503,15 +503,33 @@ pub fn detect_install_method_cached() -> InstallMethod {
 /// 4. `cargo install` location (`$CARGO_HOME/bin` or `~/.cargo/bin`) without receipt.
 /// 5. Fall through to `Unknown`.
 pub(crate) fn classify_exe_path(exe: &Path) -> InstallMethod {
+    // Package-manager markers first so production never pays for
+    // `dirs::config_dir()` (Windows known-folder / macOS Application Support)
+    // on Homebrew, Scoop, or WinGet paths. Receipt lookup is deferred until
+    // the remaining classify path needs it.
+    let s = exe.to_string_lossy();
+    if HOMEBREW_PREFIXES.iter().any(|p| s.starts_with(p)) {
+        return InstallMethod::Homebrew;
+    }
+    if SCOOP_MARKERS.iter().any(|m| s.contains(m)) {
+        return InstallMethod::Scoop;
+    }
+    if WINGET_MARKERS.iter().any(|m| s.contains(m)) {
+        return InstallMethod::Winget;
+    }
     classify_exe_path_with_receipt_root(exe, dirs::config_dir().as_deref())
 }
 
 /// Same as [`classify_exe_path`], but the cargo-dist receipt root is injected.
 ///
-/// Production always passes [`dirs::config_dir`]. Tests pass an isolated
-/// temp dir: on macOS/Windows, `dirs::config_dir` ignores `XDG_CONFIG_HOME` /
-/// `HOME` / `APPDATA` (Windows uses the known-folder API), so planting a
-/// receipt under env-redirected paths does not exercise the receipt branch.
+/// Production reaches this after package-manager early returns, then passes
+/// [`dirs::config_dir`]. Tests pass an isolated temp dir: on macOS/Windows,
+/// `dirs::config_dir` ignores `XDG_CONFIG_HOME` / `HOME` / `APPDATA` (Windows
+/// uses the known-folder API), so planting a receipt under env-redirected
+/// paths does not exercise the receipt branch.
+///
+/// Package-manager checks are repeated here so injected-root unit tests keep a
+/// single full-order classifier (they call this helper directly).
 pub(crate) fn classify_exe_path_with_receipt_root(
     exe: &Path,
     receipt_config_dir: Option<&Path>,
