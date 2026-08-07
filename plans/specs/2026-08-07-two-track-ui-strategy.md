@@ -50,8 +50,10 @@ framework never ships.
   it elsewhere would manufacture the "second convergence effort" its own
   requirements doc warns against.
 - **Ultimate UI lives in its own repository:**
-  [`eddacraft/ubiquity`](https://github.com/eddacraft/ubiquity) (private;
-  "Project Ubiquity" is a placeholder name pending the Phase 0 naming brief).
+  [`eddacraft/allomorph`](https://github.com/eddacraft/allomorph) (private).
+  "allomorph" is the working runtime name, part of the internal umbrella
+  programme "Project Ubiquity"; the Phase 0 naming brief confirms or revises
+  it.
   The repo boundary *is* the guardrail: its core rule (reference app imports
   no anvil code; anvil must not become the design template) is enforced
   structurally. It also escapes monorepo ceremony (APS gates, docs surfaces,
