@@ -238,7 +238,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Larger runners already have headroom; reclaim only on stock images.
+      # Skip when the dedicated 8-core pool is selected (`RUST_TEST_RUNNER`);
+      # that pool already has headroom. When the job falls back to
+      # LINUX_RUNNER / ubuntu-latest, reclaim preinstalled toolchains first.
+      # (LINUX_RUNNER may itself be non-stock — the condition keys only on
+      # RUST_TEST_RUNNER, matching rust-tests.yml.)
       - name: Free disk space
         if: vars.RUST_TEST_RUNNER == ''
         uses: ./.github/actions/free-disk-space
@@ -255,10 +259,13 @@ jobs:
           save-if:
             ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
 
-      # Cache restore can re-fill /; reclaim again before instrumented builds.
-      - name: Free disk space after cache restore
+      # free-disk-space only removes preinstalled toolchains, not cargo target
+      # from a cache restore — re-running it here would not undo the restore.
+      # Record post-restore headroom for ENOSPC forensics instead.
+      - name: Report disk after cache restore
         if: vars.RUST_TEST_RUNNER == ''
-        uses: ./.github/actions/free-disk-space
+        shell: bash
+        run: df -h / || true
 
       - name: Install OPA
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
