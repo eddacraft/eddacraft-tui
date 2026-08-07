@@ -46,9 +46,12 @@ env:
 jobs:
   test:
     name: Test
+    # The organisation-hosted pool is independently capped at one machine.
+    # Keep workflow concurrency per-ref so a new push cancels only its own stale run;
+    # concurrent branches queue at the runner pool instead of cancelling each other.
     runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.RUST_TEST_RUNNER ||
+      vars.LINUX_RUNNER || 'ubuntu-latest' }}
     # `pull-requests: read` lets `dorny/paths-filter` query the PR diff via the
     # GitHub API on PR events (the workflow-level `permissions` only grants
     # `contents: read`).
@@ -99,7 +102,9 @@ jobs:
       # path-filter + gate, minimising the surface that could fail the required
       # `Test` check on a non-Rust PR.
       - name: Free disk space
-        if: steps.gate.outputs.run == 'true'
+        if: >-
+          steps.gate.outputs.run == 'true' && (github.event.pull_request.head.repo.fork ||
+          vars.RUST_TEST_RUNNER == '')
         uses: ./.github/actions/free-disk-space
 
       - name: Setup workspace for Nx affected
