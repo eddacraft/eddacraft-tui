@@ -79,7 +79,7 @@ model; precedent: `dashboard.web`).
 - **Umbrella flag:** register `app.converged` in `flags/manifest.json` when
   the first shell code lands. Class `rollout`, boolean, `defaultVariant:
   disabled`, with an expiry/review date.
-- **Environment opt-in:** `ANVIL_CONVERGED_APP=1` (and `ANVIL_DEV=1`) enables
+- **Environment opt-in:** `ANVIL_APP_CONVERGED=1` (and `ANVIL_DEV=1`) enables
   the surface locally for development and dogfooding. Default-off in every
   release build until the readiness criteria below are met.
 - **Staged sub-flags** (`app_shell_v1`, `operational_inbox_v1`, `aps_board_v1`
