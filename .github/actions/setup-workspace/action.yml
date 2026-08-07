@@ -1,19 +1,11 @@
 name: Setup Workspace
-description: Checkout, install pnpm + Node.js + deps, optionally Azure login + Nx SHAs
+description: Checkout, install pnpm + Node.js + deps, optionally Nx SHAs
 
 inputs:
   node-version:
     description: 'Node.js version'
     required: false
     default: '24'
-  azure-login:
-    description: 'Enable Azure login for Nx remote cache'
-    required: false
-    default: 'false'
-  azure-credentials:
-    description: 'Azure credentials JSON for Nx remote cache (only used when azure-login is true)'
-    required: false
-    default: ''
   nx-shas:
     description: 'Run nrwl/nx-set-shas for affected commands'
     required: false
@@ -34,16 +26,6 @@ runs:
     - name: Install dependencies
       shell: bash
       run: pnpm install --frozen-lockfile
-
-    # Azure login enables Nx remote cache (Azure Blob Storage).
-    # continue-on-error: fork PRs don't have secrets, so login fails
-    # silently and Nx falls back to local cache. This is intentional.
-    - name: Azure Login
-      if: inputs.azure-login == 'true' && inputs.azure-credentials != ''
-      uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-      continue-on-error: true
-      with:
-        creds: ${{ inputs.azure-credentials }}
 
     - name: Set Nx SHAs
       if: inputs.nx-shas == 'true'

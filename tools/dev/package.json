@@ -9,7 +9,7 @@
     "husky": "^9.1.7",
     "license-checker": "25.0.1",
     "markdownlint-cli": "^0.48.0",
-    "nx": "^22.7.5",
+    "nx": "^22.7.7",
     "oxfmt": "^0.53.0",
     "oxlint": "^1.68.0",
     "typescript": "~6.0.3",

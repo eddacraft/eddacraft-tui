@@ -139,11 +139,6 @@ jobs:
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
         with:
-          azure-login: true
-          azure-credentials:
-            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
-            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
-            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Install OPA
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0

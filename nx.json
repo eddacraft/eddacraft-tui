@@ -3,10 +3,6 @@
   "sync": {
     "applyChanges": true
   },
-  "azure": {
-    "container": "nx-cache",
-    "accountName": "stiacstateprod"
-  },
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "production": [
