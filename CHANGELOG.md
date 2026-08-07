@@ -12,6 +12,8 @@ engineering maintenance are recorded in the
 > Version and date land at the next cut. Theme for the next cut: daily-path
 > honesty and the Windows install / self-update path.
 
+## [0.9.3-beta] — 2026-08-07
+
 ### Fixed
 
 - **Windows PowerShell install runs again on clean machines.** The dual-install
