@@ -9981,7 +9981,7 @@ section above; this block focuses on the build-time runtime surface.
 | is-interactive | 1.0.0 | MIT | https://github.com/sindresorhus/is-interactive |
 | is-unicode-supported | 0.1.0 | MIT | https://github.com/sindresorhus/is-unicode-supported |
 | is-wsl | 2.2.0 | MIT | https://github.com/sindresorhus/is-wsl |
-| js-yaml | 4.3.0 | MIT | https://github.com/nodeca/js-yaml |
+| js-yaml | 4.3.1 | MIT | https://github.com/nodeca/js-yaml |
 | json-parse-even-better-errors | 2.3.1 | MIT | https://github.com/npm/json-parse-even-better-errors |
 | json5 | 2.2.3 | MIT | https://github.com/json5/json5 |
 | jsonc-parser | 3.2.0 | MIT | https://github.com/microsoft/node-jsonc-parser |
