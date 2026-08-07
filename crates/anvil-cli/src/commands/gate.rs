@@ -7159,15 +7159,18 @@ mod tests {
             return;
         }
         std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
-        let in_domain_skipped = tmp
+        // Both fixtures sit outside the secret-scan domain: `node_modules/` is
+        // an ignored directory, and `*.min.js` is a skipped extension. Neither
+        // path is "in-domain".
+        let ignored_dir_non_utf8 = tmp
             .path()
             .join("node_modules")
             .join(std::ffi::OsStr::from_bytes(b"source-\xff.js"));
-        let out_of_domain = tmp
+        let skipped_ext_non_utf8 = tmp
             .path()
             .join(std::ffi::OsStr::from_bytes(b"bundle-\xff.min.js"));
-        if !try_write_exotic_fixture(&in_domain_skipped, "export const safe = true;\n")
-            || !try_write_exotic_fixture(&out_of_domain, "export const safe = true;\n")
+        if !try_write_exotic_fixture(&ignored_dir_non_utf8, "export const safe = true;\n")
+            || !try_write_exotic_fixture(&skipped_ext_non_utf8, "export const safe = true;\n")
         {
             skip_exotic_filename("hook_secret_check_ignores_unsafe_blob_paths_outside_scan_domain");
             return;
