@@ -7149,24 +7149,29 @@ mod tests {
 
         let tmp = tempfile::TempDir::new().unwrap();
         git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        // Every path this test needs is exotic: newline in the name, and
+        // non-UTF-8 (`\xff`) bytes. macOS APFS rejects the latter with
+        // "Illegal byte sequence"; Windows rejects control characters.
+        // Skip rather than unwrap when the host FS cannot plant them —
+        // same posture as `hook_secret_check_fails_closed_for_non_utf8_name_staged_blob`.
         if !try_write_exotic_fixture(&tmp.path().join("notes\n.txt"), "safe\n") {
             skip_exotic_filename("hook_secret_check_ignores_unsafe_blob_paths_outside_scan_domain");
             return;
         }
         std::fs::create_dir_all(tmp.path().join("node_modules")).unwrap();
-        std::fs::write(
-            tmp.path()
-                .join("node_modules")
-                .join(std::ffi::OsStr::from_bytes(b"source-\xff.js")),
-            "export const safe = true;\n",
-        )
-        .unwrap();
-        std::fs::write(
-            tmp.path()
-                .join(std::ffi::OsStr::from_bytes(b"bundle-\xff.min.js")),
-            "export const safe = true;\n",
-        )
-        .unwrap();
+        let in_domain_skipped = tmp
+            .path()
+            .join("node_modules")
+            .join(std::ffi::OsStr::from_bytes(b"source-\xff.js"));
+        let out_of_domain = tmp
+            .path()
+            .join(std::ffi::OsStr::from_bytes(b"bundle-\xff.min.js"));
+        if !try_write_exotic_fixture(&in_domain_skipped, "export const safe = true;\n")
+            || !try_write_exotic_fixture(&out_of_domain, "export const safe = true;\n")
+        {
+            skip_exotic_filename("hook_secret_check_ignores_unsafe_blob_paths_outside_scan_domain");
+            return;
+        }
         git_for_hook_fixture(tmp.path(), &["add", "-f", "-A"]);
 
         let result = run_check_secret_with_hook_mode(
