@@ -12,7 +12,7 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.3-beta — 7 August 2026
+## 0.9.3-beta — 7 August 2026 — Honesty and Windows path
 
 ### Fixed
 

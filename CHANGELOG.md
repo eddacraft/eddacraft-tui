@@ -9,10 +9,9 @@ engineering maintenance are recorded in the
 ## [Unreleased]
 
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
-> Version and date land at the next cut. Theme for the next cut: daily-path
-> honesty and the Windows install / self-update path.
+> Version and date land at the next cut.
 
-## [0.9.3-beta] — 2026-08-07
+## [0.9.3-beta] — 2026-08-07 — Honesty and Windows path
 
 ### Fixed
 
