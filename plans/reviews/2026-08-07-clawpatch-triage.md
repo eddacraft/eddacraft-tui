@@ -9,7 +9,7 @@
 | `20260806T195005-a1a059` | 19:50–19:55Z | `--limit 200 --jobs 5` |
 
 **Status command:** `clawpatch status`  
-**Findings input:** `plans/audits/2026-08-06-clawpatch-periodic-scan.json`  
+**Findings input:** `plans/audits/2026-08-07-clawpatch-periodic-scan.json`  
 **Corpus SHA:** `824779d65` (`main` head at last run)  
 **Predecessor:** `plans/reviews/2026-07-18-clawpatch-triage.md`
 

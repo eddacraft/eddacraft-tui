@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "clawpatch-periodic-scan",
-  "generatedAt": "2026-08-07T00:00:00Z",
+  "generatedAt": "2026-08-07T01:30:00Z",
   "runIds": [
     "20260806T194543-cde571",
     "20260806T194809-eb5f63",
@@ -10,7 +10,7 @@
   "primaryRunId": "20260806T195005-a1a059",
   "branch": "main",
   "headSha": "824779d65c5c087bf906d72256d4eb68a856cb9a",
-  "corpusNote": "Three completed review waves on 2026-08-06; primary wave was clawpatch review --limit 200 --jobs 5. Triage recorded 2026-08-07 in plans/reviews/2026-08-07-clawpatch-triage.md",
+  "corpusNote": "Three completed review waves on 2026-08-06; primary wave was clawpatch review --limit 200 --jobs 5. Filename and generatedAt use the triage/export day (2026-08-07), matching the plans/reviews/2026-08-07-clawpatch-triage.md convention used by prior audits (e.g. 2026-07-02).",
   "summary": {
     "totalFindings": 954,
     "byStatus": {
