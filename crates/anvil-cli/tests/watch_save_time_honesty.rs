@@ -257,10 +257,9 @@ impl DaemonRpcSpy {
         };
         self.request_shutdown();
         match self.stopped_rx.recv_timeout(WAIT_BUDGET) {
-            Ok(()) => {}
-            // Worker already exited (or panicked before sending). Join to
-            // surface a panic payload instead of masking it as Disconnected.
-            Err(mpsc::RecvTimeoutError::Disconnected) => {}
+            // Ok: clean shutdown signal. Disconnected: worker already exited
+            // (or panicked before sending) — join to surface any panic.
+            Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => {}
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 panic!("daemon RPC spy stopped within budget: Timeout");
             }
