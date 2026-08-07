@@ -146,10 +146,13 @@ eliminated, gated, or justified:
   check and already has a warm `rust-ci` cache, so the gate costs ~2s there,
   whereas the standalone `Doc` job spent ~138s on its own checkout /
   free-disk-space / toolchain / cache-restore setup to run the same command.
-  `Doc` was removed; `Test` is now the sole PR-side owner. Coverage is unchanged
-  — both workflows filter on the same Rust path set (`crates/**`, `Cargo.toml`,
-  `Cargo.lock`, `rust-toolchain.toml`, …), so any diff that can move the crate's
-  rustdoc still trips the gate.
+  `Doc` was removed; `Test` is now the sole PR-side owner. Coverage is
+  unchanged, and does not rely on `rust.yml`'s path filter: `rust-tests.yml`
+  triggers on every PR and gates its heavy steps on an internal
+  `dorny/paths-filter` whose `rust` filter lists the same Rust path set
+  `rust.yml` filters on (`crates/**`, `Cargo.toml`, `Cargo.lock`,
+  `rust-toolchain.toml`, …). Any diff that can move the crate's rustdoc
+  therefore still reaches the gate in `Test`.
 
 ## Matrix Targeting
 

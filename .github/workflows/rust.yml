@@ -246,9 +246,13 @@ jobs:
   # required check and already builds the workspace with a warm `rust-ci` cache.
   # The standalone job re-ran the identical 2s command behind ~138s of its own
   # checkout / free-disk-space / toolchain / cache-restore setup, so every
-  # Rust-touching PR paid for the gate twice. Coverage is unchanged: both this
-  # workflow and `rust-tests.yml` are path-filtered on `crates/**`, so any diff
-  # that can move eddacraft-tui's rustdoc still trips the gate in `Test`.
+  # Rust-touching PR paid for the gate twice. Coverage is unchanged, and does
+  # not depend on this workflow's path filter: `rust-tests.yml` triggers on
+  # every PR (`pull_request: {}`) and gates its heavy steps on an internal
+  # `dorny/paths-filter` whose `rust` filter lists the same paths this workflow
+  # filters on (`crates/**`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`,
+  # ...). So any diff that can move eddacraft-tui's rustdoc still reaches the
+  # gate in `Test`, with no trigger-level way to skip the workflow entirely.
 
   format:
     name: Format
