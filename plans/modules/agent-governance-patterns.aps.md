@@ -244,6 +244,14 @@ comprehensive governance layer for teams using AI coding tools.
   GITGOV). Before any work, re-evaluate this item against it: the residual
   is at most extending witness coverage to the governance events AGOV cares
   about, not building a hash chain.
+  **Candidate residual (2026-08-08, non-binding):** one such event class —
+  intra-session agent write events (path + rev + content hash + tombstone) — is
+  shaped in
+  [`plans/specs/2026-08-08-agent-write-ledger-thesis.md`](../specs/2026-08-08-agent-write-ledger-thesis.md).
+  That thesis creates no work items and is gated on two unresolved decisions
+  (durable-vs-local placement per ADR-073, and whether daemon-side capture
+  survives the ADR-052 rejection of daemon/hook/witness-chain capture). Do not
+  intake it here until both are settled by council.
 - **Scope:** `crates/anvil-witness/src/` (extension),
   `crates/anvil-cli/src/commands/` (verify surface)
 - **Non-scope:** External blockchain anchoring; distributed consensus
