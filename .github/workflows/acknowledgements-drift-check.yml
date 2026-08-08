@@ -127,7 +127,13 @@ jobs:
       - name: Check attribution freshness
         id: check
         run: |
-          set -uo pipefail
+          # `-e` is safe despite the expected-failure call below: the generator
+          # is guarded with `|| rc=$?`, so a non-zero exit is captured rather
+          # than tripping the shell. It matters for the steps AFTER that — a
+          # failing `head` when capping the diff must fail the step, not
+          # silently leave `drift-capped.txt` missing and hand the issue step
+          # an empty diff to report.
+          set -euo pipefail
           export PATH="${GITHUB_WORKSPACE}/tools/dev/node_modules/.bin:${PATH}"
           rc=0
           tools/starters/acknowledgements/generate-acknowledgements.sh \
