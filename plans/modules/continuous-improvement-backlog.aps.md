@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 248/308  |
+| CIB | —     | In Progress | 250/310  |
 
 ## Purpose
 
@@ -2752,7 +2752,7 @@ archive.
 
 ### CIB-100: Windows named-pipe GCTX client transport
 
-- **Status:** Merged 2026-08-06 via PR #3614 — native `x86_64-pc-windows-msvc` execution passed
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
   `windows_gctx_round_trip_deserialises_typed_result`, proving the owner-only
   named-pipe `graph_stats` round trip and typed response deserialisation;
   release evidence remains outstanding.
@@ -4343,7 +4343,7 @@ archive.
 
 ### CIB-160: Portable peer-exe check for durable-membership authorisation off Linux
 
-- **Status:** Merged 2026-08-05 via PR #3582 (`24b160ae5`) — portable peer-exe readers on macOS/Windows; residual council nits closed on same PR series
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05)
 - **Why now (2026-08-05):** this item changed character when **CIB-252** merged
   ([#3552](https://github.com/eddacraft/anvil-001/pull/3552)). CIB-252 correctly
@@ -5424,7 +5424,7 @@ archive.
 
 ### CIB-205: ACKNOWLEDGEMENTS prints one licence text per family, dropping the others' copyright notices
 
-- **Status:** Merged 2026-08-05 via PR #3566 (`dfa4e5552`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Summary:** ACKNOWLEDGEMENTS generation retains every distinct copyright
   notice per licence-family member rather than one representative text; the
   acknowledgements gate and generator tests pin multi-member families. Review
@@ -5791,7 +5791,7 @@ archive.
 
 ### CIB-214: Redact structured debug payloads in the live API
 
-- **Status:** Merged 2026-08-06 via PR #3616 (`024898ac0`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 for `v0.9.3-beta` (promoted 2026-08-05; deployed-service
   information disclosure). Promoted ahead of its CIB-115/116 siblings
   CIB-212/213/215 because `apps/anvil-api` is deployed product, whereas those
@@ -6006,7 +6006,7 @@ archive.
 
 ### CIB-220: Project-scope interactive start must install MCP (not claim disabled)
 
-- **Status:** Merged via [#3520](https://github.com/eddacraft/anvil-001/pull/3520) (`202b9c743`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P0 for `v0.9.3-beta` honesty pass
 - **Intent:** `anvil start --mcp-scope project` in the interactive TUI currently
   routes through `legacy_mcp_install_policy`, which returns
@@ -6030,7 +6030,7 @@ archive.
 
 ### CIB-221: Stop false auth-login prompts for already-authenticated pro users
 
-- **Status:** Merged via [#3520](https://github.com/eddacraft/anvil-001/pull/3520) (`202b9c743`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P1 for `v0.9.3-beta` honesty pass
 - **Intent:** Authenticated / pro users still see copy directing them to
   `anvil auth login` during start or related surfaces, which undermines trust
@@ -6050,7 +6050,7 @@ archive.
 
 ### CIB-222: Value receipt must disclose machine-wide vs repo-scoped evidence
 
-- **Status:** Merged via [#3520](https://github.com/eddacraft/anvil-001/pull/3520) (`202b9c743`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P1 for `v0.9.3-beta` honesty pass
 - **Intent:** Healthy repeat-start can show e.g. `value: N saves checked
   (dates)` drawn from machine-wide save-time aggregates (CIB-190). On a brand-new
@@ -6071,7 +6071,7 @@ archive.
 
 ### CIB-223: Coherent non-git init vs worktree registration messaging
 
-- **Status:** Merged 2026-08-04 via [#3522](https://github.com/eddacraft/anvil-001/pull/3522) (`ce362650a`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** A non-Git directory can init successfully, then immediately hear
   there is no worktree and registration cannot proceed — jarring sequential
@@ -6093,7 +6093,7 @@ archive.
 
 ### CIB-224: Reject --no-mcp with explicit MCP client selection
 
-- **Status:** Merged 2026-08-04 via [#3522](https://github.com/eddacraft/anvil-001/pull/3522) (`ce362650a`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** `anvil start --no-mcp --mcp-client codex` (and similar) silently
   ignores the client instead of erroring. Operators cannot tell whether install
@@ -6112,7 +6112,7 @@ archive.
 
 ### CIB-225: Warn when --format is ignored because config already exists
 
-- **Status:** Merged 2026-08-04 via [#3522](https://github.com/eddacraft/anvil-001/pull/3522) (`ce362650a`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 for `v0.9.3-beta` honesty pass
 - **Intent:** `--format toml` (etc.) on a tree that already has `.anvilrc` /
   `.anvil.*` is a silent no-op; users think format changed.
@@ -6131,7 +6131,7 @@ archive.
 
 ### CIB-226: Public CLI docs — current flags and auth exit code 3
 
-- **Status:** Merged 2026-08-04 via [#3525](https://github.com/eddacraft/anvil-001/pull/3525) (`36c01a243`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 for `v0.9.3-beta` honesty pass
 - **Intent:** Public CLI reference / support docs omit current `anvil start`
   flags and the auth-required exit code **3** on action commands (status stays
@@ -6156,7 +6156,7 @@ archive.
 
 ### CIB-227: User-facing copy must not imply only Claude Code and Cursor
 
-- **Status:** Merged 2026-08-04 via [#3525](https://github.com/eddacraft/anvil-001/pull/3525) (`36c01a243`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 for `v0.9.3-beta` honesty pass
 - **Intent:** Product still has twelve-client install (MCPX) but several live
   surfaces still describe MCP wiring as Claude Code + Cursor only (or those two
@@ -6186,7 +6186,7 @@ archive.
 
 ### CIB-228: Fix PowerShell dual-install guard inject (silent no-op)
 
-- **Status:** Merged 2026-08-04 via PR #3526
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P0 for `v0.9.3-beta` (Windows install path)
 - **Intent:** The official Windows `irm … | iex` installer is a silent no-op on
   clean machines because the package-manager dual-install guard was written as a
@@ -6215,7 +6215,7 @@ archive.
 
 ### CIB-229: Align cargo-dist receipt layout with update + install-method detection
 
-- **Status:** Merged 2026-08-04 via PR #3526
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P0 for `v0.9.3-beta` (self-update + version honesty)
 - **Intent:** Three symptoms share one root cause family: (1) `anvil update
   --check` fails with axoupdater "The updater isn't properly configured";
@@ -6264,7 +6264,7 @@ archive.
 
 ### CIB-230: No internal GH issue numbers in public ship artefacts
 
-- **Status:** Merged 2026-08-04 via PR #3526
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 for `v0.9.3-beta` (release hygiene; land with CIB-228)
 - **Intent:** Private tracker ids (e.g. `GH #2885`) were baked into the public
   PowerShell installer banner and help text. Anyone who downloads the asset sees
@@ -6300,7 +6300,7 @@ archive.
 
 ### CIB-232: Disclose open admission mode honestly (do not flip factory default)
 
-- **Status:** Merged 2026-08-04 via PR #3529
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 presentation (Dave CONF-1; re-triaged 2026-08-04)
 - **Scope narrowing (recorded 2026-08-04):** delivered on `anvil workspace list`
   and `anvil workspace mode open` only. `anvil status` is deliberately left
@@ -6332,7 +6332,7 @@ archive.
 
 ### CIB-233: audit-chain summary must disclose coverage (do not redefine chain_intact)
 
-- **Status:** Merged 2026-08-04 via PR #3534
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 presentation (Dave TRUST-1; re-triaged 2026-08-04)
 - **Intent:** With all commits unwitnessed under default `--threshold 5`,
   `chain_intact: true` and `degraded_audit_drift: false` are **correct** under
@@ -6371,7 +6371,7 @@ archive.
 
 ### CIB-234: `audit` must disclose its secret domain vs `check` (not force count parity)
 
-- **Status:** Merged 2026-08-04 via PR #3534
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 presentation (Dave TRUST-2; re-triaged 2026-08-04)
 - **Intent:** Same planted-secret tree: `check --all` showed 4 secret findings;
   `audit` showed 2 (file-level `.env` + summary). `audit` and `check` are
@@ -6422,7 +6422,7 @@ archive.
 
 ### CIB-235: `status` Protection:warming must name next step or refuse that label
 
-- **Status:** Merged 2026-08-04 via PR #3544
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 (Dave TRUST-3)
 - **Intent:** `status` can show `Protection: warming` in a state that will never
   warm, with no named next step, while leaking internals
@@ -6447,7 +6447,7 @@ archive.
 
 ### CIB-236: `insights` zeros must disclose the counted domain
 
-- **Status:** Merged 2026-08-04 via PR #3544
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 (Dave TRUST-4)
 - **Intent:** All-zero insights counters do not say what domain was counted
   (zeros may be true for unattested contexts; rendering gap).
@@ -6463,7 +6463,7 @@ archive.
 
 ### CIB-237: Consistent path and line rendering across CLI surfaces
 
-- **Status:** Merged 2026-08-05 via PR #3538
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 (Dave UX-1)
 - **Intent:** Three path styles across surfaces — relative (`src/app.py`),
   NT-extended (`\\?\C:\...`), unix-ish (`/.env:1`) — plus `.env:0` zero-based
@@ -6483,7 +6483,7 @@ archive.
 
 ### CIB-238: Clarify "Blocking warnings" means threshold-block, not severity=warning
 
-- **Status:** Merged 2026-08-05 via PR #3556
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 polish (Dave UX-2; re-triaged 2026-08-04)
 - **Intent:** Banner text is already "Blocking warnings found **(severity meets
   threshold)**" — "warnings" means findings that trip the block threshold, not
@@ -6503,7 +6503,7 @@ archive.
 
 ### CIB-239: Label pre-existing tree debt in pre-commit gate (keep full-tree scan)
 
-- **Status:** Merged 2026-08-05 via PR #3556
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 UX (Dave UX-3; re-triaged 2026-08-04)
 - **Intent:** Gate blocks a staged-clean commit citing already-committed `.env`
   without a "pre-existing" qualifier — first-block experience blames the
@@ -6524,7 +6524,7 @@ archive.
 
 ### CIB-240: `tutorial` non-interactive refusal must exit non-zero with accurate copy
 
-- **Status:** Merged 2026-08-04 via PR #3542
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 (Dave UX-4)
 - **Intent:** `anvil tutorial` with no TTY (no `--no-tui` flag) refuses honestly
   but exits 0 (so `&&` chains proceed) and says "Run without `--no-tui`" even
@@ -6541,7 +6541,7 @@ archive.
 
 ### CIB-241: Clarify antipattern-scan name vs built-in rule catalogue scope
 
-- **Status:** Merged 2026-08-04 via PR #3542
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 docs (Dave UX-5; re-triaged — by design, not scope creep)
 - **Intent:** "antipattern-scan" is the registry-backed built-in rule catalogue,
   spanning architectural/code-quality smells, reliability rules, and the
@@ -6561,7 +6561,7 @@ archive.
 
 ### CIB-242: Optional status hint for daemon/MCP binary version skew after upgrade
 
-- **Status:** Merged 2026-08-04 via [#3541](https://github.com/eddacraft/anvil-001/pull/3541) (`39e4dc2e4`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 enhancement (Dave stack note; re-triaged 2026-08-04)
 - **Intent:** After a rename-swap binary upgrade, open editor/agent MCP sessions
   keep the old anvil image — normal OS process behaviour, not an anvil
@@ -6582,7 +6582,7 @@ archive.
 
 ### CIB-243: Skill install docs — multi-client `--client` + move outside skills dir
 
-- **Status:** Merged 2026-08-04 via [#3541](https://github.com/eddacraft/anvil-001/pull/3541) (`39e4dc2e4`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 docs (Dave stack notes; re-triaged 2026-08-04)
 - **Intent:** (a) Requiring explicit `--client` when several clients are
   detected is **correct** non-interactive behaviour (no silent multi-write) —
@@ -6603,7 +6603,7 @@ archive.
 
 ### CIB-244: Verdict Install section must reflect this-run selection (not only Cursor/Claude noise)
 
-- **Status:** Merged 2026-08-04 via PR #3543
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P1 honesty / activation TUI (operator repro 2026-08-04)
 - **Intent:** On the activation verdict **Install** block, the user sees
   Cursor/Claude Code skip rows (`skipped — not selected`, `skipped — already
@@ -6645,7 +6645,7 @@ archive.
 
 ### CIB-245: Grouped multi-step consent with "what is this" on project/workflow bits
 
-- **Status:** Merged 2026-08-04 via PR #3543
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 activation TUI UX (operator repro 2026-08-04; clarified same day)
 - **Intent:** Consent is a **flat multi-select** of mixed write offers (project
   config, identity, witness attributes, git hooks, baseline, workflows, MCP).
@@ -6915,7 +6915,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-250: Tutorial safety chain — esc-as-back → forced resume → wrong-repo activate (pack-03)
 
-- **Status:** Merged 2026-08-05 via PR #3578 (`60a3471ce`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Summary:** Tutorial safety chain closed as one fix: Escape navigates back
   until the path picker (then exits); progress/resume and tutorial filesystem or
   command actions stay scoped to the canonical repository root; activation keeps
@@ -6961,7 +6961,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-251: Config-mode hooks honesty on doctor/status (HOOK-1)
 
-- **Status:** Merged 2026-08-06 via PR #3608 (`501de508b`) — config-mode hooks honesty on doctor/status
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 honesty (opt-in `--config` only; **out of the normal-path
   cutline** for v0.9.3 — default file-mode remains the supported path)
 - **Cutline:** Not a first-timer / default-hooks ship gate. Track for operators
@@ -7000,7 +7000,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-252: Workspace register must not report success when list is empty (WS-1)
 
-- **Status:** Merged 2026-08-05 via [#3552](https://github.com/eddacraft/anvil-001/pull/3552) (`2c5428395`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P0 for `v0.9.3-beta` (trust / durable worktree protection)
 - **Intent:** With daemon running, `anvil workspace register "$PWD"` prints
   `Registered <path>.` exit 0, then `workspace list` shows none. Same via
@@ -7025,7 +7025,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-253: `status` must not contradict live daemon (STATUS-1)
 
-- **Status:** Merged 2026-08-05 via PR #3573 (`04d9dcc51`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Summary:** `anvil status` Daemon line now follows intercept process
   liveness (or states a scoped not-attesting difference) instead of reporting
   not-running when the activation IPC probe already reached a live daemon.
@@ -7047,7 +7047,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 
 ### CIB-254: Daemon-path save-time must not read as clean over live secrets (WATCH-1)
 
-- **Status:** Merged 2026-08-05 via PR #3577 (`41b5723bc`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Summary:** Save-time daemon verdicts are now explicitly scoped to the
   antipattern family, with partial or stale assurance dominating any clean
   result. `--no-daemon` is a hard no-contact route, daemon-supplied checks
@@ -7182,7 +7182,7 @@ needs no engine work.
 
 ### CIB-255: Disclose `gate` / `check --all` secret file domains (GATE-1, CHECK-1, GATE-2)
 
-- **Status:** Merged 2026-08-05 via PR #3572 (`3bdb82368`); review follow-up
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
   PR #3576 (`8516a7309`) shared the secret-scan extension allow-list helpers.
 - **Summary:** Gate and `check --all` disclose their secret-file extension
   domains on human and JSON output (disclosure-only; no forced parity with
@@ -7302,7 +7302,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-256: `start --verify` meaning must not claim writes that did not run (START-1)
 
-- **Status:** Merged 2026-08-06 via PR #3615 (`6b64164fe`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 honesty (same pattern as CIB-220..222)
 - **Intent:** On a virgin repo, `anvil start --verify` reports
   `state: ready_restart_required` and `meaning: anvil has written the MCP
@@ -7335,7 +7335,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-257: Init sample-scan and language-coverage honesty (INIT-2, INIT-3)
 
-- **Status:** Merged 2026-08-06 via PR #3638 (`996c2dfba`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 honesty
 - **Intent:**
   - **INIT-2:** Init over a sole secret-bearing file prints
@@ -7363,7 +7363,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-259: Learning-path copy must not claim configuration the walk did not perform (TUI-8)
 
-- **Status:** Merged 2026-08-06 via PR #3609 (`ca5520ecb`) — honest architecture and CI path completion copy
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 honesty
 - **Intent:** Binary strings claim "You now have architecture enforcement
   configured." and "Your CI pipeline now runs anvil checks on every push."
@@ -7382,7 +7382,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-260: Welcome must not promise save-time that `start` does not attach (WELCOME-1)
 
-- **Status:** Merged 2026-08-06 via PR #3618 (`36775b64f`) — welcome no longer promises unattached save-time
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 polish
 - **Intent:** Welcome closes "Next: run `anvil start` for daily save-time
   protection" while `start --verify` reports `watch: not_requested`,
@@ -7396,7 +7396,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-261: Policy-checks tutorial step idempotent on Windows (TUI-4)
 
-- **Status:** Merged 2026-08-05 via PR #3584 (`21552b807`) — policy-dir re-run idempotency pin
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 Windows tutorial reliability
 - **Intent:** Policy-checks path uses `mkdir .anvil\policies` on Windows.
   Re-run fails with raw "already exists" exit 1; `r` retries identically. Copy
@@ -7415,7 +7415,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-262: Honour `--json` for `workspace list` and `tutorial` (JSON-1)
 
-- **Status:** Merged 2026-08-06 via PR #3626 (`e8ef0ba29`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 contract polish
 - **Intent:** `workspace list --json` returns prose byte-identical to text;
   `tutorial --json` returns prose and suggests dropping `--no-tui` when that
@@ -7431,7 +7431,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-263: Init summary must list `.gitignore` edits (INIT-1)
 
-- **Status:** Merged 2026-08-06 via PR #3610 (`26f8f9e85`) — init summary lists .gitignore edits
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 polish
 - **Intent:** Init appends `.anvil/`, exception lock, witness chain paths to
   `.gitignore` without listing that file in the summary (Config/Plans/Checks
@@ -7445,7 +7445,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-264: `status` should not create project cache as a side effect (STATUS-3)
 
-- **Status:** Merged 2026-08-06 via PR #3611 (`abf7df41d`) — status no longer creates project cache as a side effect
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 polish
 - **Intent:** In a never-activated repo, `anvil status` alone creates
   `.anvil/cache/last-seen-version`. Read-only look leaves a trace. Dave first
@@ -7468,7 +7468,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-266: Watch dashboard live timestamps should not read as stale UTC (TUI-7)
 
-- **Status:** Merged 2026-08-06 via PR #3612 (`7cfbcfde5`) — watch dashboard relative/local times
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 polish
 - **Intent:** Watch dashboard shows bare UTC (`…Z`) on a live view; operator
   in +0800 read a 75s-old entry as eight hours stale.
@@ -7523,7 +7523,7 @@ scanned — with expansion deferred to `v0.9.4`.
   Linux, other gits
 ### CIB-268: Autoplay worker panics are silent in the terminal, hurting debuggability
 
-- **Status:** Merged 2026-08-06 via PR #3624 (`1af061811`) — re-land of autoplay panic logging after #3623 revert
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P3 developer experience (CIB-248 verification advisory 2026-08-04)
 - **Intent:** `install_panic_hook` in `crates/anvil-cli/src/tui.rs` returns
   early — printing nothing and skipping `restore_terminal` — when the
@@ -7615,7 +7615,7 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-271: `anvil tutorial --autoplay` still exits the TUI on autoplay failure
 
-- **Status:** Merged 2026-08-05 via PR #3570 (`4ae5c4d85`) — tutorial --autoplay failures stay in the TUI
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 welcome reliability (CIB-248 coverage gap 2026-08-04)
 - **Intent:** CIB-248 made autoplay failure non-fatal for the **`anvil
   welcome`** entry point: `welcome.rs:1137-1139` calls
@@ -7769,7 +7769,7 @@ CIB-251/255 only.
 
 ### CIB-275: Start result screen — one help bar and a full `next:` line
 
-- **Status:** Merged 2026-08-05 via PR #3585 (`85627b46a`) — start result: one help bar and full next: line
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P2 first-run UX (every `anvil start` result screen)
 - **Intent:** On the activation result screen two keyboard help bars render at
   once and disagree (arrows vs `j/k`). The `next:` guidance line truncates
@@ -7788,7 +7788,7 @@ CIB-251/255 only.
 
 ### CIB-276: Prove toast must not read as scanning the user's project
 
-- **Status:** Merged 2026-08-05 via PR #3571 (`19f56e7ee` / `a8e6e13f7`)
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Summary:** Prove toast names the **built-in sample fixture** on empty and
   non-empty finding paths so first-timers cannot skim it as a live-repo scan;
   regression tests reject the ambiguous "on the fixture" wording.
@@ -8355,7 +8355,7 @@ CIB-251/255 only.
 
 ### CIB-287: `anvil doctor` skill rows still carry the Windows verbatim prefix
 
-- **Status:** Merged 2026-08-06 via PR #3602 (`fcc80c709`) — doctor managed-skill rows via display_path::shown
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
 - **Priority:** P4 presentation defect (no wrong verdict; the path is correct,
   just carrying a prefix no reader wants). Scoped above CIB-285's failure-only
   reach because these rows appear on a **normal** `anvil doctor` run, not only
@@ -8411,7 +8411,7 @@ CIB-251/255 only.
 
 ### CIB-288: install banner promises save-time and leads with a gated command
 
-- **Status:** Merged 2026-08-06 via PR #3650. Both halves shipped: the
+- **Status:** Released/Shipped via v0.9.3-beta (cfe0857c · 2026-08-07)
   `daily save-time protection` gloss is gone and the ungated `anvil welcome`
   now leads the block. The retired-claims baseline entry for `install.sh` was
   deleted in the same change, so the phrase is banned outright tree-wide.

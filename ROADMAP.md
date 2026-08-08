@@ -1,11 +1,9 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-04 (`v0.9.2-beta` published; active cut is
-`v0.9.3-beta` — Morgan honesty CIB-220..227 / #3510 **and** Dave Windows
-install/path CIB-228..245 / #3514 **plus** pack-02 commissioning/TUI
-CIB-251..267 + pack-03 CIB-250 safety chain / 275..276 (preserve pack-01
-disposition). See `RELEASE-PLAN.md`. Module status lives in the SOT files below;
-this roadmap stays thematic.)
+**Last updated:** 2026-08-09 (`v0.9.3-beta` honesty + Windows path published;
+provisional next release window `v0.9.4-beta`; highest-value programme track is
+Graph Trust Surfaces Wave 0 / CGBDG. See `RELEASE-PLAN.md`. Module status lives
+in the SOT files below; this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -105,25 +103,27 @@ browser surface. Immutable records live under
 | `v0.8.1-beta` | Headless GitHub Login                  | Headless auth/login path patch on the v0.8 line.                                                                                                                          |
 | `v0.9.0-beta` | First-Run Wins and the Assistant Graph | Assistant-facing graph over MCP (GCTX), warm-start persistence, MCP-optional useful daemon, USAGE analytics, JOURNEY-conducted first-run cut. Shipped 2026-07-12.         |
 | `v0.9.1-beta` | Daily Path Polish and MCP 2.0 support  | Bare daily ensure, default activation TUI, twelve-client MCP install, dual-era protocol support, managed skills, and warning-over-block gate honesty. Shipped 2026-08-02. |
+| `v0.9.2-beta` | MCP 2.0 reconnect                      | Patch: MCP reconnect (MCP26-013) + dashboard openapi version fix. Shipped 2026-08-03.                                                                                     |
+| `v0.9.3-beta` | Honesty and Windows path               | Daily-path honesty + Windows install/self-update path (Morgan + Dave field packs). Shipped 2026-08-07.                                                                    |
 
-**Latest shipped headline:** `v0.9.1-beta` (2026-08-02). Release record:
-[`plans/releases/v0.9.1-beta.md`](./plans/releases/v0.9.1-beta.md).
+**Latest shipped headline:** `v0.9.3-beta` (2026-08-07). Release record:
+[`plans/releases/v0.9.3-beta.md`](./plans/releases/v0.9.3-beta.md).
 
-### Horizon 2 — Daily path + MCP reach — shipped `v0.9.1-beta`
+### Horizon 2 — Daily path + MCP reach — shipped through `v0.9.3-beta`
 
-**Delivered theme:** Daily path polish and MCP 2.0 support — bare `anvil`
-ensure, default activation TUI, multi-client MCP install + dual-era protocol,
-and managed skills on the v0.9 line.
+**Delivered theme:** Daily path polish, MCP 2.0 support, reconnect, and honesty
+
+- Windows path patches on the v0.9 line.
 
 **Longer-term Horizon 2 (not this claim):** Team-lead browser glance remains the
-next credible surface after this cut. DASH/DASHCORE foundation is already on
-`main` behind `dashboard.web` (default-off) for testing only — not a customer
-claim until default-on or a later named window owns it.
+next credible **product surface**. DASH/DASHCORE foundation is already on `main`
+behind `dashboard.web` (default-off) for testing only — not a customer claim
+until default-on or a later named window owns it. Graph Trust Surfaces Wave 0
+(CGBDG discovery, CONF-001, …) is a **side programme**, not the active cut.
 
-**Active cut:** `v0.9.3-beta` — honesty pass (Morgan Deus; CIB-220..227 / #3510)
-**plus** Windows install/self-update path (Dave; CIB-228..229 P0 and related;
-pack-02 P0 trust CIB-252/254 #3514). Prior: `v0.9.2-beta` MCP reconnect. Current
-state: [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
+**Active window:** provisional `v0.9.4-beta` (field follow-up / remaining
+honesty; claim not frozen). Prior shipped: `v0.9.3-beta`. Current state:
+[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 
 ### Horizon 3 — Enterprise Readiness
