@@ -13,16 +13,19 @@
 > change `plans/index.aps.md` and creates no work items. Promote to APS intake
 > (as an AGOV-006 residual, not a new module) only after the
 > [open decisions](#open-decisions) are settled — the durable-vs-local placement
-> and the ADR-052 capture-mechanism objection both need an ADR-level answer.
+> and the capture-mechanism objection recorded by ADR-052's council both need an
+> ADR-level answer.
 
 ## Summary
 
 anvil's durable evidence is **anchored at commits and merges**. The witness line
 carries `seq`, `prev_line_hash`, `scope`, `kind`, `commit_sha`, `rules_sha`
 (`crates/anvil-witness/src/line.rs:19-70`) — it proves *which protection layers
-ran, under which rule set, at which commit*. The drift ledger appends
-edge-deltas on merge-to-`main` (ADR-052). Both are correct and both are
-commit-shaped.
+ran, under which rule set, at which commit*. Drift ships as snapshot/compare/
+report (`anvil drift`, `crates/anvil-cli/src/commands/drift.rs`), and ADR-052
+(**Proposed**, not shipped — no `anvil/drift/edges.ndjson` in tree) would replace
+those snapshots with an edge-delta ledger appended on merge-to-`main`. Every one
+of these is correct, and every one is commit- or merge-shaped.
 
 The agent, meanwhile, works **between** commits. The intercept daemon already
 observes every save in that window — the kernel-event watcher and the save-time
@@ -112,9 +115,11 @@ than to enforcement.
   boundary and already fold it per-worktree. The witness-append verb is already
   one of the daemon's 19 methods
   (`docs/architecture/intercept-as-built.md:218`).
-- **ADR-052's ledger shape** — append-only NDJSON event-delta ledger carrying
-  `anvil_version` + `rules_sha`. Adopt the format wholesale rather than
-  inventing a second one.
+- **ADR-052's proposed ledger shape** — append-only NDJSON event-delta ledger
+  carrying `anvil_version` + `rules_sha`. Not shipped (ADR-052 is `Proposed`), so
+  this is format *alignment*, not reuse: if both land, they should share one
+  shape rather than inventing a second. If ADR-052 changes shape before
+  acceptance, this follows it.
 - **ADR-069's privacy line** — a written, tested precedent for "structural
   identity only: relative paths, hashes, span positions; never source, comments,
   docstrings, or literal values". This thesis needs no new privacy posture; it
@@ -143,12 +148,21 @@ These are settled and the design must fit inside them. None require revisiting.
 
 ## The ADR-052 objection
 
-ADR-052 chose an append-only edge-delta ledger appended **on merge-to-`main` via
-the PR that introduces the edges**, and explicitly **rejected the
-daemon/hook/witness-chain/orphan-branch** alternatives (planning council
-`plan-0e9c300c`). This thesis proposes daemon-side capture into the witness
-chain. That is the rejected mechanism, and pretending otherwise would waste a
-council.
+ADR-052 (**Proposed**, 2026-05-27 — not accepted, not implemented) proposes an
+append-only edge-delta ledger appended **on merge-to-`main` via the PR that
+introduces the edges**, and its planning council (`plan-0e9c300c`) rejected the
+**daemon/hook/witness-chain/orphan-branch** alternatives. This thesis proposes
+daemon-side capture into the witness chain — the mechanism that council rejected.
+Pretending otherwise would waste a review.
+
+Note what that status does and does not mean. A `Proposed` ADR is **recorded
+council reasoning, not ratified policy**: it does not block this thesis the way an
+Accepted ADR would, and it cannot be cited as settled precedent in either
+direction. But the reasoning is on the record and was reached by a council
+looking at a closely adjacent problem, so it is a strong prior that has to be
+answered rather than routed around. The same cuts the other way: this thesis must
+not lean on ADR-052 as authority for its own ledger format either — hence
+"alignment, not reuse" above.
 
 The distinction to argue — and it may not survive scrutiny:
 
@@ -159,9 +173,10 @@ The distinction to argue — and it may not survive scrutiny:
   window. Deferring to merge-to-`main` does not make the capture more robust —
   it makes it impossible, because the evidence is gone by then.
 
-If the council disagrees, the honest outcome is that this capability is not
-available to anvil at all, because there is no non-daemon place to stand. That
-is an acceptable answer and should be recorded as one rather than worked around.
+If a council upholds that reasoning here, the honest outcome is that this
+capability is not available to anvil at all, because there is no non-daemon place
+to stand. That is an acceptable answer and should be recorded as one rather than
+worked around.
 
 A second, softer objection follows: a daemon-written durable artefact is
 bypassable (a developer who does not run the daemon produces no ledger) and
@@ -173,12 +188,14 @@ must read as `degraded`, never `pass` (ADR-072).
 
 1. **Durable or local?** (ADR-073) Tracked `anvil/writes/` makes the ledger
    PR-reviewable and shareable, but puts per-developer keystroke-adjacent
-   activity into the repo — a privacy and noise problem the drift ledger does not
+   activity into the repo — a privacy and noise problem drift evidence does not
    have, and a likely merge-conflict generator. Gitignored `.anvil/` keeps it
    local but forfeits the audit-export value that motivates the whole thesis.
    **This is the gating decision and it needs an ADR.**
-2. **Does daemon capture survive the ADR-052 objection?** See above. Needs a
-   planning council, not a unilateral call.
+2. **Does daemon capture survive the objection ADR-052's council recorded?** See
+   above. Needs a planning council, not a unilateral call — and ideally one that
+   also resolves ADR-052's own `Proposed` status, since the two share a mechanism
+   question.
 3. **Retention.** A ledger of every save grows without bound. ADR-116 amended
    Kindling to append-only with one authenticated, receipted governance-prune
    exception — does that mechanism apply, or does this need its own rollover
@@ -238,8 +255,9 @@ told.
 - **Council-rejected mechanism.** See [above](#the-adr-052-objection). Real
   chance the answer is no.
 - **Evidence-system sprawl.** anvil already has witness (ADR-037), baseline
-  (ADR-039), drift (ADR-052), capsules (ADR-074), and Edda. A sixth artefact
-  needs to justify not being a `kind` on an existing one.
+  (ADR-039), drift snapshots (`anvil drift`), capsules (ADR-074), and Edda — with
+  ADR-052's edge-delta ledger proposed on top. A further artefact needs to justify
+  not being a `kind` on an existing one.
 - **Unvalidated demand.** This originated from a repository the team found
   interesting, not from a user asking for it. That is the weakest possible
   provenance for roadmap space, and the reason this stays a non-binding thesis.
@@ -277,13 +295,15 @@ told.
 - `docs/architecture/intercept-as-built.md:67` — same-UID local-IPC trust
   boundary; `:218` — the witness-append verb among the daemon's 19 methods.
 
-**Decisions**
+**Decisions** (status as at 2026-08-08; all Accepted unless noted)
 
 - ADR-002 — warnings over blocks; enforcement opt-in.
 - ADR-035 — three-pipe observability rule (Kindling = governance facts).
 - ADR-037 — witness chain and L4 policy framework.
-- ADR-052 — drift as an append-only edge-delta event ledger; **rejects
-  daemon/hook/witness-chain capture** (planning council `plan-0e9c300c`).
+- ADR-052 — **`Proposed`, not accepted, not implemented** — drift as an
+  append-only edge-delta event ledger; its planning council (`plan-0e9c300c`)
+  rejected daemon/hook/witness-chain capture. Recorded reasoning, not ratified
+  policy — see [the objection](#the-adr-052-objection).
 - ADR-069 — Graph-V2 persistence; the structural-identity-only privacy line.
 - ADR-072 — git-native governance substrate; content-addressed durable
   evidence, no secrets, missing evidence is `degraded` not `pass`.
