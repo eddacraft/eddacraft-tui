@@ -127,6 +127,28 @@ Unix, so wait until that reported daemon process has exited before running
 well. anvil cannot enumerate every retained MCP process consistently across
 supported platforms, so repeat this for each open client after an upgrade.
 
+## 0.9.3-beta behaviour changes
+
+These changes affect upgrades from 0.9.2-beta and earlier:
+
+- **Standalone installs are recognised by their cargo-dist receipt.** Run
+  `anvil version` and confirm the printed installation method, then use
+  `anvil update --check`. Existing receipts under the legacy `anvil` app name
+  remain supported.
+- **Windows path normalisation can refresh code-scanning alerts once.** SARIF
+  fingerprints for secret findings use the corrected path. Existing alerts may
+  close and reappear after the first 0.9.3-beta upload; review the replacement
+  alert rather than treating the churn as a new secret by itself.
+- **Whole-file findings no longer use line zero.** Plain output omits a line
+  number and JSON emits `"line": null`. Automation that required an integer for
+  every finding must accept `null` for file-level evidence.
+- **Workspace registration is verified before success is reported.** A failed
+  durable registration now exits without claiming `Registered`. Scripts can
+  confirm retained membership with `anvil workspace list --json`.
+- **Coverage wording is more explicit.** `audit`, `gate`, and `check` name the
+  file-type and check domains they actually evaluated. Treat that scope text as
+  part of the result; a clean domain is not a claim about unscanned files.
+
 ## 0.9.1-beta behaviour changes
 
 These shipped in `0.9.1-beta`. Confirm each surface with `anvil --help` on the

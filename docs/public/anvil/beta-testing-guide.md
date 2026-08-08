@@ -62,6 +62,21 @@ From a real project root, in order:
 A clean scan is not a failure. The question is whether the result is explicit,
 repeatable, and recoverable without outside help.
 
+## 0.9.3-beta focus pass
+
+Exercise the paths that changed in this release when they apply to your setup:
+
+| Focus                        | Exercise                                                                                                                                             | Expected evidence                                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Windows standalone install   | On a clean Windows test account or VM, install from the quickstart, open a new terminal, then run `anvil version` and `anvil update --check`         | Installation completes; version reports the standalone installer rather than `cargo install`; the update check reaches GitHub |
+| Project-scoped MCP           | In a disposable project, run `anvil start --mcp-scope project`, select one supported client, restart it if prompted, then run `anvil start --verify` | Consent offers the client; verification reports observed entry presence without claiming which process wrote or read it       |
+| Durable workspace membership | Register a disposable Git worktree with `anvil workspace register -- <path>`, then run `anvil workspace list --json`                                 | Registration reports success only when the JSON list retains the same worktree                                                |
+| Read-only verification       | Record `git status --short`, run `anvil start --verify`, then compare status again                                                                   | The probe reports activation state without changing project files or installing MCP configuration                             |
+| Check and gate scope         | Run a representative `anvil check`, `anvil gate`, or `anvil audit` in plain or machine-readable format                                               | The result names the evaluated domain; whole-file findings omit line zero and JSON uses `"line": null`                        |
+
+Use disposable projects and worktrees for the mutating exercises. Do not test
+installer or registration paths against a production checkout.
+
 ## Stretch (optional, 10 minutes)
 
 Pick what matches how you work:
