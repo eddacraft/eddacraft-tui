@@ -81,6 +81,7 @@ fixture enforces both directions.
 | `mirror-drift-check.yml`               | Auxiliary (mirror)                          | daily `schedule` plus `workflow_dispatch` — reconstructs the would-be-pushed `eddacraft-tui` subtree (split + banner swap) and tree-diffs it against the public `eddacraft/eddacraft-tui:main`; opens/refreshes a `mirror-drift` issue and fails on drift                                                                                                  | TUIR         |
 | `acknowledgements-kit.yml`             | PR + Integration                            | `pull_request` / `push` to `main` (kit + `attribution/licences.toml` + `attribution/licences.node-allow.txt` paths) — kit self-tests (dispatcher schema + two-block + strict-license-field + drift-detector + Node driver preflight/render/strict) plus `expand-licences --check`                                                                          | ATTRIB       |
 | `acknowledgements-autofix.yml`         | Auxiliary (CI autofix)                      | `workflow_run` on `Rust` completion, gated to failed runs on `dependabot/cargo/*` branches — regenerates `ACKNOWLEDGEMENTS.md` and pushes the fix when a Dependabot cargo bump left the Rust attribution block stale                                                                                                                                       | ATTRIB       |
+| `acknowledgements-drift-check.yml`     | Auxiliary (attribution)                     | daily `schedule` plus `workflow_dispatch` — regenerates the attribution blocks from `main` and diffs them against the committed `ACKNOWLEDGEMENTS.md`; opens/refreshes an `attribution-drift` issue and fails on drift                                                                                                                                     | ATTRIB       |
 
 ### PR vs Integration push contract
 
@@ -153,6 +154,19 @@ eliminated, gated, or justified:
   `rust.yml` filters on (`crates/**`, `Cargo.toml`, `Cargo.lock`,
   `rust-toolchain.toml`, …). Any diff that can move the crate's rustdoc
   therefore still reaches the gate in `Test`.
+- `acknowledgements-drift-check.yml` vs `rust.yml` `Acknowledgements freshness`
+  vs `acknowledgements-autofix.yml` — **justified, three tiers of one concern.**
+  `Acknowledgements freshness` is the authoritative PR/push gate but is
+  path-gated, so a bump that lands without a regen leaves `main` stale until
+  some later PR trips the gate and inherits a red check it did not cause.
+  `acknowledgements-autofix.yml` repairs only `dependabot/cargo/*` branches — by
+  design, because it pushes with a `Contents: write` PAT and that is safe only
+  while the branch content is Dependabot-authored. Neither covers a
+  human-authored bump, nor the `node-devtools` block (generated from
+  `tools/dev/package.json`, which sits outside the pnpm workspace and is not in
+  `.github/dependabot.yml`). The scheduled watchdog closes both gaps read-only
+  on `main`: it mints no PAT and only opens an issue. It is a detector, not a
+  gate — the gate authority stays with `Acknowledgements freshness`.
 
 ## Matrix Targeting
 

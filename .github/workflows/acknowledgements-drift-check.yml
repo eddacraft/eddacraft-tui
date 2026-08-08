@@ -1,0 +1,245 @@
+# Detect a stale `ACKNOWLEDGEMENTS.md` on `main`, on a schedule.
+#
+# Why this exists (the gap it closes): `rust.yml`'s `Acknowledgements
+# freshness` job (`acknowledgements-diff`) is the authoritative gate, but it is
+# path-gated — it only runs when a PR touches the Rust path set. A dependency
+# bump that lands *without* regenerating the attribution block therefore leaves
+# `main` stale and silent: the next PR to trip the gate inherits a red check it
+# did not cause. That happened with the nx 22.7.8 CVE bump (6809a2267), which
+# sat stale on `main` for ~2 days until an unrelated CI-cleanup PR surfaced it.
+#
+# `acknowledgements-autofix.yml` does NOT cover this. Its job gate requires a
+# failed `Rust` run, on a `pull_request` event, authored by `dependabot[bot]`,
+# on a `dependabot/cargo/*` branch. A human-authored bump on a normal branch
+# fails every one of those conditions. Coverage is also split by ecosystem:
+# `.github/dependabot.yml` registers `cargo` and root `npm`, but the
+# `node-devtools` attribution block is generated from `tools/dev/package.json`,
+# which is outside the pnpm workspace and is never Dependabot-bumped — so that
+# block has no automated drift coverage at all. This watchdog covers both
+# blocks, regardless of who authored the change.
+#
+# Why a watchdog and not a wider autofix gate: autofix regenerates and pushes
+# with `DEPENDABOT_AUTOFIX_TOKEN` (a `Contents: write` PAT). That is safe only
+# because its narrow gate means the branch content is Dependabot-authored.
+# Widening it to arbitrary branches would run the regen — and hold the PAT in
+# the job — against attacker-influenceable content. This workflow instead runs
+# read-only on `main` (already-reviewed content), mints no PAT, and its only
+# write is opening an issue via the default `GITHUB_TOKEN`.
+#
+# Relationship to the other attribution workflows:
+#   - `rust.yml` `acknowledgements-diff` — the authoritative PR/push gate.
+#   - `acknowledgements-autofix.yml` — repairs Dependabot cargo branches.
+#   - `acknowledgements-kit.yml` — the kit's own self-tests.
+#   - this file — catches whatever the above three let reach `main`.
+#
+# The regen recipe below is deliberately identical to the one in
+# `rust.yml`'s `acknowledgements-diff` and `acknowledgements-autofix.yml`:
+# `cd tools/dev && npm ci` (NOT pnpm — `tools/dev` is excluded from the pnpm
+# workspace) to sync `node_modules` to `tools/dev/package-lock.json`, then the
+# generator from the repo root. A stale `tools/dev/node_modules` makes the
+# regen silently *downgrade* the Node block instead of advancing it, which
+# would report false drift, so the `npm ci` is load-bearing, not incidental.
+
+name: Acknowledgements drift
+
+on:
+  schedule:
+    # Daily at 04:47 UTC. Off-peak and clear of the 02:00 nightly, the 05:27
+    # mirror-drift watchdog, and the Monday 06:xx security/codeql cluster.
+    - cron: '47 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: acknowledgements-drift-check
+  # Queue, don't cancel: a read-only watchdog whose costliest step is a
+  # cargo-about walk of the shipping binary's dependency graph. Cancelling an
+  # in-flight run to start a fresh one just restarts that walk, and risks
+  # orphaning a half-created issue.
+  cancel-in-progress: false
+
+# Least-privilege: read the tree to regenerate the attribution blocks, and
+# write issues only to raise/refresh the drift tracker. Nothing is pushed.
+permissions:
+  contents: read
+  issues: write
+
+env:
+  # Keep in sync with rust.yml's acknowledgements-diff job and
+  # acknowledgements-autofix.yml — a version skew here reports false drift.
+  CARGO_ABOUT_VERSION: '0.8.4'
+  DRIFT_LABEL: attribution-drift
+  ATTRIBUTION_CONFIG: attribution/attribution.toml
+
+jobs:
+  drift:
+    name: Check ACKNOWLEDGEMENTS.md against the live dependency graph
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # The scheduled trigger always runs on the default branch, but
+      # workflow_dispatch runs on whatever ref the operator selects. A feature
+      # branch legitimately carries an in-flight bump whose regen has not been
+      # committed yet, so checking it would open a spurious issue against
+      # `main`. Refuse any ref but main (mirrors mirror-drift-check.yml).
+      - name: Guard — only check drift from refs/heads/main
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != 'refs/heads/main' ]; then
+            echo "::error::drift check refused: GITHUB_REF=${GITHUB_REF} (only refs/heads/main is allowed; this watchdog tracks main)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+
+      - name: Install cargo-about
+        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # The `node-devtools` attribution block needs license-checker on PATH via
+      # tools/dev's own lockfile. `--ignore-scripts` keeps third-party install
+      # hooks out of the job.
+      - name: Install tools/dev devtools (for ATTRIB-015 Node attribution)
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: cd tools/dev && npm ci --no-audit --no-fund --ignore-scripts
+
+      # Exit-code note: the generator returns 1 for drift AND for genuine
+      # failures (missing tool, bad config, driver failure) — the code alone
+      # cannot tell them apart. The discriminator is stdout: `--check` writes
+      # its unified diff to stdout and only ever does so on real drift, while
+      # failure messages go to stderr. So "rc != 0 with an empty stdout" is a
+      # broken check, not drift, and must fail loudly WITHOUT opening an issue
+      # — otherwise a toolchain regression would file drift reports nobody can
+      # act on.
+      - name: Check attribution freshness
+        id: check
+        run: |
+          set -uo pipefail
+          export PATH="${GITHUB_WORKSPACE}/tools/dev/node_modules/.bin:${PATH}"
+          rc=0
+          tools/starters/acknowledgements/generate-acknowledgements.sh \
+            --config "${ATTRIBUTION_CONFIG}" \
+            --check > drift.txt 2> drift.err || rc=$?
+
+          if [ "${rc}" -eq 0 ]; then
+            echo 'drift=false' >> "${GITHUB_OUTPUT}"
+            echo 'ACKNOWLEDGEMENTS.md is current.'
+            exit 0
+          fi
+
+          if [ ! -s drift.txt ]; then
+            echo "::error::the attribution check could not run (exit ${rc}); this is a broken check, not drift"
+            cat drift.err >&2 || true
+            exit "${rc}"
+          fi
+
+          echo 'drift=true' >> "${GITHUB_OUTPUT}"
+          # Bound the captured diff so a pathological result cannot blow the
+          # GitHub issue-body / step-summary field limits.
+          head -c 60000 drift.txt > drift-capped.txt
+          echo '::warning::ACKNOWLEDGEMENTS.md drift detected — see job summary and tracked issue'
+
+      - name: Open or refresh drift issue
+        if: steps.check.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # Idempotent (--force updates if present). Warn-and-continue rather
+          # than abort: a transient blip when the label already exists should
+          # not lose the issue. A genuine missing-label failure still surfaces
+          # — `gh issue create --label` 422s below, and drift reds the job via
+          # "Fail the job on drift" regardless.
+          gh label create "${DRIFT_LABEL}" \
+            --color B60205 \
+            --description 'ACKNOWLEDGEMENTS.md is stale relative to the dependency graph on main' \
+            --force || echo "::warning::gh label create failed — issue may be unlabelable"
+
+          {
+            echo 'The scheduled attribution watchdog found `ACKNOWLEDGEMENTS.md` on `main`'
+            echo 'out of date relative to the current dependency graph.'
+            echo
+            echo "**Run:** ${RUN_URL}"
+            echo "**Source SHA:** \`${GITHUB_SHA}\`"
+            echo
+            echo 'Drift (committed ← regenerated):'
+            echo
+            echo '```diff'
+            cat drift-capped.txt 2>/dev/null || echo '(diff unavailable — see workflow logs)'
+            echo '```'
+            echo
+            echo '**Likely cause:** a dependency bump landed without regenerating the'
+            echo 'attribution blocks. `rust.yml`'"'"'s `Acknowledgements freshness` gate is'
+            echo 'path-gated, so it does not run on every PR, and'
+            echo '`acknowledgements-autofix.yml` only repairs `dependabot/cargo/*` branches.'
+            echo
+            echo '**Fix:**'
+            echo
+            echo '```console'
+            echo 'cd tools/dev && npm ci   # NOT pnpm; a stale node_modules downgrades the Node block'
+            echo 'cd - && tools/starters/acknowledgements/generate-acknowledgements.sh \'
+            echo "  --config ${ATTRIBUTION_CONFIG}"
+            echo '```'
+            echo
+            echo 'Commit the regenerated file, then close this issue.'
+          } > issue-body.md
+
+          existing=$(gh issue list --label "${DRIFT_LABEL}" --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body-file issue-body.md
+            echo "Refreshed existing drift issue #${existing}."
+          else
+            gh issue create \
+              --title 'Attribution drift detected: ACKNOWLEDGEMENTS.md is stale on main' \
+              --label "${DRIFT_LABEL}" \
+              --body-file issue-body.md
+            echo 'Opened a new drift issue.'
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          DRIFT: ${{ steps.check.outputs.drift }}
+        run: |
+          {
+            echo '## Acknowledgements drift check'
+            echo
+            echo 'Target:        `ACKNOWLEDGEMENTS.md` (anvil-001 `main`)'
+            echo 'Config:        `'"${ATTRIBUTION_CONFIG}"'`'
+            echo 'Source commit: `'"${GITHUB_SHA}"'`'
+            echo
+            if [ "${DRIFT:-}" = 'true' ]; then
+              echo '**Result: DRIFT DETECTED** — a tracked issue was opened or refreshed.'
+              echo
+              echo '```diff'
+              cat drift-capped.txt 2>/dev/null || echo '(diff unavailable)'
+              echo '```'
+            elif [ "${DRIFT:-}" = 'false' ]; then
+              echo '**Result: clean** — the committed file matches a fresh regeneration.'
+            else
+              echo '**Result: check did not complete** — see the failed step above.'
+              echo 'This is a broken check, not drift; no issue was opened.'
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Fail the job on drift
+        if: steps.check.outputs.drift == 'true'
+        run: |
+          echo '::error::ACKNOWLEDGEMENTS.md on main is stale relative to the dependency graph'
+          exit 1
