@@ -50,8 +50,16 @@ do
   grep -Fq -- "$needle" "$GUARD" || fail "guard missing required content: $needle"
 done
 
-# Happy path must NOT terminate the whole installer.
-if grep -nE '^\s*exit\s+0\s*$' "$GUARD" >/dev/null; then
+# Happy path must NOT terminate the whole installer. This is the assertion
+# that stands between us and the v0.9.2-beta regression, where the guard's
+# `exit 0` killed the installer before cargo-dist's body ran and `irm | iex`
+# silently did nothing on a clean machine.
+#
+# `[[:space:]]`, not `\s`: `\s` is a GNU extension, absent from POSIX ERE.
+# BSD/macOS grep reads it as a literal `s`, so the pattern became
+# `^s*exits+0s*$` and matched nothing — the guard reported ok with `exit 0`
+# sitting in the file. Verified both ways before this change.
+if grep -nE '^[[:space:]]*exit[[:space:]]+0[[:space:]]*$' "$GUARD" >/dev/null; then
   fail "guard must not use exit 0 (terminates cargo-dist body when injected)"
 fi
 
