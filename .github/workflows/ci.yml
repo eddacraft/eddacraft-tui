@@ -367,9 +367,10 @@ jobs:
           # Added 2026-08-09. An audit of all 48 shell contract tests found ten
           # that no workflow invoked — they were simply never added to this
           # list, and a guard that never runs cannot fail. These six pass
-          # today; the four omitted are red (`cutover-readiness` — CIB-316,
-          # `adr-integrity` — CIB-296) or mutate caches/worktrees
-          # (`cache-evict`, `heal-primary-anchor`).
+          # today; of the rest, `adr-integrity` is red (CIB-296) and
+          # `cache-evict` / `heal-primary-anchor` mutate caches and worktrees.
+          # `cutover-readiness` was deleted under CIB-316 — it asserted that
+          # workflows still trigger on the retired `dev` branch.
           #
           # The costly omission was the Windows package-manager guard: it
           # protects against the v0.9.2-beta regression (the guard's own

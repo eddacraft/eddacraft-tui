@@ -58,7 +58,6 @@
     "test:ci-security-targeting": "bash scripts/ci/security-targeting.test.sh",
     "test:ci-security-summary-gate": "bash scripts/ci/security-summary-gate.test.sh",
     "test:ci-infra-preview-strip": "bash scripts/ci/strip-pulumi-backend.test.sh",
-    "test:ci-cutover-readiness": "bash scripts/ci/cutover-readiness.test.sh",
     "test:aps-active-lint": "bash scripts/aps/_test/active-lint.test.sh",
     "test:aps-drift": "bash scripts/aps/_test/drift-check.test.sh",
     "test:aps-index": "bash scripts/aps/_test/index-counts.test.sh",
