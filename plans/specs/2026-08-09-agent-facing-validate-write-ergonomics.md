@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Approved | MCPX / DRVR / agent-ready reliability | Design approved 2026-08-09 — implementation via RMCPF-040..044 | 2026-08-09 |
+| Spec | Authoritative for RMCPF Phase 4 validate_write ergonomics | MCPX / DRVR / agent-ready reliability | Accepted | 2026-08-09 — Design approved; implementation via RMCPF-040..044 |
 
 | Upstream | Downstream |
 | -------- | ---------- |
