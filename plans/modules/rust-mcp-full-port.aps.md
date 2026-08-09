@@ -2,9 +2,9 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | In Progress | 7/15     |
+| RMCPF | —     | In Progress | 10/15    |
 
-**Last reviewed:** 2026-08-09
+**Last reviewed:** 2026-08-10
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The TypeScript MCP server (`anvil-archive/anvil-mcp-server/`) is now
@@ -601,7 +601,7 @@ harness-agnostic display guidance only (docs; no vendor UI).
 
 #### RMCPF-040: Lean validate_write detail control (A1)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-09 via PR #3718
 - **Intent:** Let callers request a minimal clean-allow response without
   changing validation quality; keep the full envelope as the default until
   drivers and skills are ready for the flip (A4).
@@ -624,7 +624,7 @@ harness-agnostic display guidance only (docs; no vendor UI).
 
 #### RMCPF-041: Skill and tool-description lean-call guidance (A2)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-09 via PR #3718
 - **Intent:** Steer agents to lean request shapes and lean allow interpretation.
 - **Expected Outcome:** Tool description and `anvil-developer-functions` skill
   prefer `anvil_apply_patch` / patch-only validate_write over full
@@ -641,7 +641,7 @@ harness-agnostic display guidance only (docs; no vendor UI).
 
 #### RMCPF-042: apply_patch response detail parity (A3)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-09 via PR #3718
 - **Intent:** Preferred edit path is not the verbose exception.
 - **Expected Outcome:** `anvil_apply_patch` honours the same `detail` /
   env / decision-gated minimal allow rules as validate_write; as-built and
@@ -721,5 +721,5 @@ harness-agnostic display guidance only (docs; no vendor UI).
 | 1 — Tool Parity | 3 | 3/3 done (RMCPF-010 Complete; RMCPF-011/-012 Merged via PR #1558) |
 | 2 — Resources and Transports | 2 | 1/2 done (RMCPF-020 Merged via #2809; RMCPF-021 Draft) |
 | 3 — Cutover | 2 | 0/2 (Draft) |
-| 4 — Validate-write ergonomics | 5 | 0/5 (RMCPF-040 PR #3718; 041–042 In Progress on stack; 043–044 Ready) |
-| **Total** | **15** | **7/15 done** |
+| 4 — Validate-write ergonomics | 5 | 3/5 (RMCPF-040..042 Merged via #3718; 043–044 Ready) |
+| **Total** | **15** | **10/15 done** |
