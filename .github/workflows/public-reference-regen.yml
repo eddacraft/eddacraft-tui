@@ -127,9 +127,22 @@ jobs:
           git checkout -b "${branch}"
           git add -- "${REFERENCE_DIR}"
           git commit -m "docs(reference): regenerate public reference for ${TAG_NAME}"
-          # force-with-lease keeps a re-run of the same tag idempotent without
-          # clobbering a branch someone else advanced in the meantime.
-          git push --force-with-lease origin "HEAD:refs/heads/${branch}"
+
+          # Re-running for the same tag must update the existing branch rather
+          # than fail. A bare `--force-with-lease` cannot do that here: with no
+          # `refs/remotes/origin/<branch>` to lease against (this job checks out
+          # `main` and never fetches the fix branch) git rejects the push with
+          # "stale info". Resolve the expected value explicitly instead, which
+          # also makes the first run a plain non-forced push.
+          expected=$(git ls-remote origin "refs/heads/${branch}" | cut -f1)
+          if [ -n "${expected}" ]; then
+            # Lease on the value we actually observed: if someone advanced the
+            # branch between the ls-remote and the push, this still refuses.
+            git push --force-with-lease="refs/heads/${branch}:${expected}" \
+              origin "HEAD:refs/heads/${branch}"
+          else
+            git push origin "HEAD:refs/heads/${branch}"
+          fi
 
       - name: Open or refresh the regen issue
         if: steps.diff.outputs.changed == 'true'
