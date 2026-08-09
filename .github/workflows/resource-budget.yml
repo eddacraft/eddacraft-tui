@@ -26,9 +26,11 @@ on:
       - 'rust-toolchain.toml'
       - '.github/workflows/resource-budget.yml'
   schedule:
-    # Daily 02:15 UTC — offset from ci-nightly @ 02:00 so both share warm
-    # caches without stampeding the same minute.
-    - cron: '15 2 * * *'
+    # Daily 17:15 UTC — offset from ci-nightly @ 17:00 so both share warm
+    # caches without stampeding the same minute. Moved with ci-nightly when
+    # that shifted from 02:00 to 17:00 UTC (Perth-overnight); the +15 offset
+    # is the load-bearing part, not the absolute hour.
+    - cron: '15 17 * * *'
   workflow_dispatch: {}
   workflow_call:
     inputs:

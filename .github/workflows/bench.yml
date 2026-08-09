@@ -20,7 +20,7 @@ on:
     # bench-adjacent merge — the Criterion job alone is ~81 minutes, and
     # per-merge runs mostly cancelled each other via the concurrency group
     # anyway. Push events still run the cheap `bench-check` compile gate.
-    # Offset from ci-nightly (02:00 UTC) so the two nightly Rust builds
+    # Offset from ci-nightly (17:00 UTC) so the two nightly Rust builds
     # don't compete for cache/runner throughput.
     - cron: '0 19 * * *'
   workflow_dispatch:

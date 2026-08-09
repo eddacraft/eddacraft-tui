@@ -74,7 +74,7 @@ name: Mirror drift — eddacraft-tui crate
 
 on:
   schedule:
-    # Daily at 05:27 UTC. Off-peak and clear of the 02:00 nightly and the
+    # Daily at 05:27 UTC. Off-peak and clear of the 17:00 nightly and the
     # Monday 06:xx security/codeql cluster.
     - cron: '27 5 * * *'
   workflow_dispatch:

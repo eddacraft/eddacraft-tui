@@ -26,7 +26,7 @@ if grep -E '^[[:space:]]*pull_request:' "${workflow}" >/dev/null; then
 fi
 
 assert_contains 'schedule:'
-assert_contains "cron: '15 2 * * *'"
+assert_contains "cron: '15 17 * * *'"
 assert_contains 'workflow_dispatch: {}'
 assert_contains 'workflow_call:'
 # Require the reusable-workflow *input* named `ref` under workflow_call.inputs,

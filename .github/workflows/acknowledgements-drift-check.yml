@@ -52,7 +52,7 @@ name: Generated artefact drift
 
 on:
   schedule:
-    # Daily at 04:47 UTC. Off-peak and clear of the 02:00 nightly, the 05:27
+    # Daily at 04:47 UTC. Off-peak and clear of the 17:00 nightly, the 05:27
     # mirror-drift watchdog, and the Monday 06:xx security/codeql cluster.
     - cron: '47 4 * * *'
   workflow_dispatch:

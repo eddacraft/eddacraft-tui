@@ -10,8 +10,18 @@ name: CI Nightly
 
 on:
   schedule:
-    # Every night at 02:00 UTC (10:00 AM Perth)
-    - cron: '0 2 * * *'
+    # 17:00 UTC — 01:00 Perth, no DST. Matches the convention in
+    # bench-nightly.yml, which already schedules for Perth-overnight rather
+    # than UTC-overnight.
+    #
+    # Was 02:00 UTC, which is 10:00 Perth: a "nightly" landing mid-morning,
+    # so cross-platform breakage sat unseen through the working day that
+    # introduced it. The run takes ~25-30 minutes and GitHub defers scheduled
+    # triggers by roughly half an hour under load, so results are on the board
+    # by ~02:00 Perth — waiting at the start of the day, not arriving during
+    # it. Two hours clear of bench-nightly (19:00 UTC / 03:00 Perth) so the
+    # two do not contend for macOS runners.
+    - cron: '0 17 * * *'
   workflow_dispatch: {}
 
 concurrency:
