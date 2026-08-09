@@ -900,7 +900,8 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content_via_embedded_fallb
                     "arguments": {
                         "path": "src/example.ts",
                         "operation": "create",
-                        "proposedContent": "export const value = 1;\n"
+                        "proposedContent": "export const value = 1;\n",
+                        "detail": "full"
                     }
                 }
             })
@@ -1250,7 +1251,8 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content() {
                     "arguments": {
                         "path": "src/example.ts",
                         "operation": "create",
-                        "proposedContent": "export const value = 1;\n"
+                        "proposedContent": "export const value = 1;\n",
+                        "detail": "full"
                     }
                 }
             })
