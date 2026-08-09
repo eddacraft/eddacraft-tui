@@ -8,7 +8,8 @@ use crate::mcp::tools::shared::{
     WorkspacePathKind, normalise_workspace_relative_path, validate_workspace_root,
 };
 use crate::mcp::tools::validate_write::{
-    correlation_id, diagnostic_summary, normalise_response_diagnostics,
+    apply_response_detail, correlation_id, diagnostic_summary, normalise_response_diagnostics,
+    resolve_response_detail, ResponseDetail,
 };
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, LocalDaemonValidationClient, PreWriteValidationRequest,
@@ -21,7 +22,7 @@ const RESPONSE_SCHEMA: &str = "anvil.mcp.validate-write.v1";
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Validate a unified diff before applying it. Scans added lines for secrets and policy violations. Honour `block` decisions; do not apply patches the tool refuses.",
+        "description": "Validate a unified diff before applying it (preferred lean path for edits). Scans added lines for secrets and policy violations. Prefer this over full-file anvil_validate_write when you have a diff. Honour block; on allow, decision alone is authoritative (detail=minimal may omit empty fields).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -40,6 +41,11 @@ pub fn descriptor() -> Value {
                 "expectedSha256": {
                     "type": ["string", "null"],
                     "description": "Optional SHA-256 hex digest of the current file for integrity verification by the caller."
+                },
+                "detail": {
+                    "type": "string",
+                    "enum": ["full", "minimal"],
+                    "description": "Response envelope detail. Same contract as anvil_validate_write: minimal returns schema+decision on clean allow. Default full until the default-flip release; request overrides ANVIL_MCP_VALIDATE_DETAIL."
                 }
             },
             "required": ["path", "unifiedDiff"],
@@ -162,6 +168,9 @@ fn call_with_validation_client(
         payload["safeDefault"] = json!("do-not-write");
     }
 
+    // RMCPF-042: same decision-gated detail as validate_write.
+    apply_response_detail(&mut payload, request.detail);
+
     tool_result(&payload)
 }
 
@@ -244,6 +253,7 @@ struct ApplyPatchRequest {
     workspace_root: PathBuf,
     relative_path: String,
     diff: String,
+    detail: ResponseDetail,
 }
 
 impl ApplyPatchRequest {
@@ -270,11 +280,13 @@ impl ApplyPatchRequest {
 
         let relative_path =
             normalise_workspace_relative_path("Path", path, WorkspacePathKind::HostFilesystem)?;
+        let detail = resolve_response_detail(arguments);
 
         Ok(Self {
             workspace_root,
             relative_path,
             diff: diff.to_string(),
+            detail,
         })
     }
 }
@@ -360,6 +372,51 @@ mod tests {
         assert_eq!(payload["decision"], "allow");
         assert_eq!(payload["schema"], "anvil.mcp.validate-write.v1");
         assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    /// RMCPF-042: `apply_patch` honours the same minimal allow envelope.
+    #[test]
+    fn clean_diff_minimal_detail_is_schema_and_decision_only() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "unifiedDiff": "@@ -1,3 +1,4 @@\n const a = 1;\n+const b = 2;\n const c = 3;\n",
+                "detail": "minimal"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["schema"], "anvil.mcp.validate-write.v1");
+        let keys: std::collections::BTreeSet<&str> = payload
+            .as_object()
+            .expect("object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            ["decision", "schema"].into_iter().collect(),
+            "minimal allow must be schema+decision only, got {payload}"
+        );
+    }
+
+    #[test]
+    fn secret_in_added_lines_keeps_full_payload_under_minimal_detail() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/secret.ts",
+                "unifiedDiff": "@@ -1 +1,2 @@\n keep\n+const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
+                "detail": "minimal"
+            }),
+        );
+
+        assert_ne!(payload["decision"], "allow");
+        assert!(payload.get("diagnostics").is_some());
+        assert_eq!(payload["safeDefault"], "do-not-write");
     }
 
     #[test]

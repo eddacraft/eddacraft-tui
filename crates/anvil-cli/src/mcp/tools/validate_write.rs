@@ -31,7 +31,7 @@ const VALIDATE_DETAIL_ENV: &str = "ANVIL_MCP_VALIDATE_DETAIL";
 /// How much of the validate-write envelope to return (RMCPF-040 / design
 /// `2026-08-09-agent-facing-validate-write-ergonomics`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ResponseDetail {
+pub(crate) enum ResponseDetail {
     /// Pre-ergonomics envelope (summary, diagnostics, correlation, …).
     Full,
     /// Clean allow only: `{ schema, decision }`. Non-allow stays full.
@@ -41,7 +41,7 @@ enum ResponseDetail {
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Pre-write validation gate. Call this tool before EVERY file write to verify the proposed content does not introduce secrets, anti-patterns, or boundary violations. Honour `block` decisions; do not write files the tool refuses.",
+        "description": "Pre-write validation gate. Call before EVERY file write. Prefer anvil_apply_patch or patch-only payloads for edits; use full proposedContent for creates. Honour block; on allow, decision alone is authoritative (detail=minimal may omit empty fields). preview+contentSha256 is partial validation only. Honour `block` decisions; do not write files the tool refuses.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -334,7 +334,7 @@ fn call_with_validation_client(
 /// `detail: minimal`. Non-allow decisions keep the full action payload
 /// (diagnostics, safeDefault, errors). Validation quality is unchanged —
 /// only serialisation of the result is gated.
-fn apply_response_detail(payload: &mut Value, detail: ResponseDetail) {
+pub(crate) fn apply_response_detail(payload: &mut Value, detail: ResponseDetail) {
     if detail != ResponseDetail::Minimal {
         return;
     }
@@ -358,13 +358,15 @@ fn apply_response_detail(payload: &mut Value, detail: ResponseDetail) {
 
 /// Resolve response detail: request `detail` wins, then
 /// `ANVIL_MCP_VALIDATE_DETAIL`, then **full** (A1 default; A4 flips).
-fn resolve_response_detail(arguments: &serde_json::Map<String, Value>) -> ResponseDetail {
+pub(crate) fn resolve_response_detail(
+    arguments: &serde_json::Map<String, Value>,
+) -> ResponseDetail {
     let env_value = std::env::var(VALIDATE_DETAIL_ENV).ok();
     resolve_response_detail_with(arguments, env_value.as_deref())
 }
 
 /// Pure resolver for unit tests (no process-env mutation required).
-fn resolve_response_detail_with(
+pub(crate) fn resolve_response_detail_with(
     arguments: &serde_json::Map<String, Value>,
     env_value: Option<&str>,
 ) -> ResponseDetail {

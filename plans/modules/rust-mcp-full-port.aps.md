@@ -626,7 +626,7 @@ harness-agnostic display guidance only (docs; no vendor UI).
 
 #### RMCPF-041: Skill and tool-description lean-call guidance (A2)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Steer agents to lean request shapes and lean allow interpretation.
 - **Expected Outcome:** Tool description and `anvil-developer-functions` skill
   prefer `anvil_apply_patch` / patch-only validate_write over full
@@ -643,7 +643,7 @@ harness-agnostic display guidance only (docs; no vendor UI).
 
 #### RMCPF-042: apply_patch response detail parity (A3)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Preferred edit path is not the verbose exception.
 - **Expected Outcome:** `anvil_apply_patch` honours the same `detail` /
   env / decision-gated minimal allow rules as validate_write; as-built and
@@ -723,5 +723,5 @@ harness-agnostic display guidance only (docs; no vendor UI).
 | 1 — Tool Parity | 3 | 3/3 done (RMCPF-010 Complete; RMCPF-011/-012 Merged via PR #1558) |
 | 2 — Resources and Transports | 2 | 1/2 done (RMCPF-020 Merged via #2809; RMCPF-021 Draft) |
 | 3 — Cutover | 2 | 0/2 (Draft) |
-| 4 — Validate-write ergonomics | 5 | 0/5 (RMCPF-040 In Progress; 041–044 Ready) |
+| 4 — Validate-write ergonomics | 5 | 0/5 (RMCPF-040 PR #3718; 041–042 In Progress on stack; 043–044 Ready) |
 | **Total** | **15** | **7/15 done** |

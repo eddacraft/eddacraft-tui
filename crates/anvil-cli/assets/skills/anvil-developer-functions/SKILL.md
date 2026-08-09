@@ -15,14 +15,15 @@ that you use together:
   symbols, dependents, callers, blast radius, affected tests — so you reason
   from a map instead of reading whole files. They return context, never a
   decision, and never block.
-- **`anvil_validate_write`** is the pre-write enforcement gate. You call it
-  _before_ applying a write; it returns a decision based on secrets,
-  anti-patterns, and boundary rules.
+- **`anvil_validate_write`** / **`anvil_apply_patch`** are the pre-write
+  enforcement gates. Call them _before_ applying a write; they return a decision
+  based on secrets, anti-patterns, and boundary rules.
 
 Rule of thumb: reach for the **graph-context tools** when you are trying to
-_understand_ code, and for **`anvil_validate_write`** when you are about to
-_change_ it. They are complementary — pull context to plan an edit, then
-validate the edit before writing.
+_understand_ code, and for the **pre-write gate** when you are about to _change_
+it. Prefer **`anvil_apply_patch`** (or `anvil_validate_write` with `patch` only)
+for edits; use full `proposedContent` for creates. They are complementary with
+graph tools — pull context to plan an edit, then validate before writing.
 
 These tools are an accelerator, not a constraint on your reasoning. Prefer them
 over blind file reads: a graph query is cheaper, bounded, and deterministic.
@@ -120,15 +121,32 @@ Before you touch a file, learn what depends on it.
 
 ### 5. Validate writes before applying them
 
-- **`anvil_validate_write`** — call it with the proposed content _before_ you
-  write the file. The response carries a `decision`:
-  - **`block`** — authoritative. Do not write. Surface the findings and fix
-    them.
-  - **`warn`** — findings were detected but the workspace's enforcement mode
-    lets the write proceed. Surface them and continue.
-  - **`gateUnavailable`** — the gate could not run (credentials missing or
-    backend offline). Surface the warning and proceed.
-  - **`allow`** — it passed; apply the write.
+Prefer the **smallest complete** validation unit:
+
+1. **`anvil_apply_patch`** + `unifiedDiff` — edits as a diff (scans added
+   lines). Preferred lean path.
+2. **`anvil_validate_write`** with **`patch` only** — full post-image after
+   in-memory apply (no disk write).
+3. **`anvil_validate_write`** + full **`proposedContent`** — creates, or when
+   patch construction is wrong/unavailable.
+4. **`preview` + `contentSha256`** — **partial** scan only (`partialScan`); not
+   the quality default.
+
+Response `decision`:
+
+- **`block`** (and other vetoes) — authoritative. Do not write. Surface findings
+  and fix them.
+- **`warn`** — findings present but enforcement lets the write proceed. Surface
+  them and continue.
+- **`gateUnavailable`** / backend error — surface the warning and proceed per
+  existing recovery.
+- **`allow`** — it passed; apply the write. **`decision` alone is
+  authoritative** on allow (with `detail: "minimal"`, empty diagnostics /
+  summary / correlation may be omitted).
+
+Optional `detail: "minimal" | "full"` (default full until the default-flip
+release) and env `ANVIL_MCP_VALIDATE_DETAIL` control envelope size; they never
+change scan quality.
 
 A worked safe-refactor sequence ties the loop together:
 
@@ -138,19 +156,21 @@ A worked safe-refactor sequence ties the loop together:
    symbols and dependent files.
 3. `anvil_affected_tests` with the same `changedFiles` → the tests to run and
    any `coverage_gaps`.
-4. Make the edit, then `anvil_validate_write` on the new content before writing.
+4. Make the edit, then `anvil_apply_patch` (or patch-only
+   `anvil_validate_write`) before writing.
 
 ## Tools at a glance
 
-| Tool                     | Use it to…                                           | Watch out for                                                  |
-| ------------------------ | ---------------------------------------------------- | -------------------------------------------------------------- |
-| `anvil_search_symbols`   | Find where a symbol is                               | Substring match is case-insensitive; paginates                 |
-| `anvil_find_dependents`  | File-level blast radius (who imports this file)      | Caps the walk at 2 hops                                        |
-| `anvil_find_callers`     | Symbol-level callers (who calls this function)       | Over-approximation; `heuristic`/`partial`; no dynamic dispatch |
-| `anvil_impact_of_change` | What breaks if I change these files                  | Paths only, never diffs; ≤200 files; 2-hop depth               |
-| `anvil_affected_tests`   | Which tests to run; coverage gaps                    | Import heuristic, not verified coverage                        |
-| `anvil_symbol_context`   | Understand one symbol without reading the whole file | Snippets are opt-in; can return `bounded` partials             |
-| `anvil_validate_write`   | Check a write before applying it                     | Honour `block`; `warn`/`gateUnavailable` proceed               |
+| Tool                     | Use it to…                                           | Watch out for                                                       |
+| ------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `anvil_search_symbols`   | Find where a symbol is                               | Substring match is case-insensitive; paginates                      |
+| `anvil_find_dependents`  | File-level blast radius (who imports this file)      | Caps the walk at 2 hops                                             |
+| `anvil_find_callers`     | Symbol-level callers (who calls this function)       | Over-approximation; `heuristic`/`partial`; no dynamic dispatch      |
+| `anvil_impact_of_change` | What breaks if I change these files                  | Paths only, never diffs; ≤200 files; 2-hop depth                    |
+| `anvil_affected_tests`   | Which tests to run; coverage gaps                    | Import heuristic, not verified coverage                             |
+| `anvil_symbol_context`   | Understand one symbol without reading the whole file | Snippets are opt-in; can return `bounded` partials                  |
+| `anvil_validate_write`   | Check a write before applying it                     | Prefer patch/apply_patch; honour `block`; `decision` alone on allow |
+| `anvil_apply_patch`      | Lean pre-write check of a unified diff               | Scans added lines only; same decision table as validate_write       |
 
 For clients that prefer MCP resources to tool calls, three identity-only
 `graph://` resources expose the resident graph directly — `graph://stats`

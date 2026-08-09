@@ -11,6 +11,15 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Changed
+
+- **MCP pre-write responses can be lean on clean allow.** `anvil_validate_write`
+  and `anvil_apply_patch` accept optional `detail: "minimal" | "full"` (request
+  overrides `ANVIL_MCP_VALIDATE_DETAIL`). With `detail: "minimal"`, a clean
+  `allow` returns only `schema` and `decision` — validation quality is
+  unchanged. Default remains full until a later default-flip. Prefer
+  `anvil_apply_patch` or patch-only validate for edits.
+
 ## [0.9.4-beta] — 2026-08-09 — Install honesty and membership wait
 
 Field follow-up on the v0.9 line: cargo-dist install-method truth on Windows and
