@@ -113,12 +113,52 @@ mod tests {
     use super::*;
     use std::fs;
 
+    /// Tempdir whose ancestors have no `.git` entry, so the no-boundary case
+    /// is meaningful. Default `tempfile` under `/tmp` is not safe: an ambient
+    /// empty `/tmp/.git` (other tools leave those) makes the walk stop at
+    /// `/tmp` and this assertion fails spuriously.
+    fn tempdir_outside_any_git_tree() -> tempfile::TempDir {
+        let candidates: Vec<PathBuf> = [
+            std::env::var_os("XDG_CACHE_HOME").map(PathBuf::from),
+            std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")),
+            Some(PathBuf::from("/var/tmp")),
+            Some(std::env::temp_dir()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        for base in candidates {
+            let nest = base.join("anvil-run-test-tmp");
+            // Refuse nests whose ancestors include a git worktree before
+            // creating anything — `find_worktree_root` only inspects path
+            // components, so the nest need not exist yet. Creating first
+            // would leave `anvil-run-test-tmp` behind when the base sits
+            // inside a repo (e.g. XDG_CACHE_HOME under a checkout).
+            if find_worktree_root(&nest).is_some() {
+                continue;
+            }
+            if fs::create_dir_all(&nest).is_err() {
+                continue;
+            }
+            if let Ok(tmp) = tempfile::Builder::new().prefix("no-git-").tempdir_in(&nest) {
+                // Double-check: no boundary between nest and the new dir.
+                if find_worktree_root(tmp.path()).is_none() {
+                    return tmp;
+                }
+            }
+        }
+        panic!(
+            "could not allocate a tempdir outside any git tree; \
+             clear ambient .git entries under TMPDIR (e.g. empty /tmp/.git)"
+        );
+    }
+
     #[test]
     fn worktree_root_is_cwd_when_no_git_boundary() {
-        let tmp = tempfile::tempdir().expect("tmp");
+        let tmp = tempdir_outside_any_git_tree();
         let ctx = LaunchContext::resolve(Some(tmp.path().to_path_buf()), None).expect("resolve");
-        // `tmp` is canonicalised; the worktree should resolve to it
-        // (no `.git` anywhere up the tree on a clean tmpdir).
+        // `tmp` is canonicalised; without a `.git` ancestor the worktree is the cwd.
         assert_eq!(ctx.worktree, ctx.cwd);
     }
 
