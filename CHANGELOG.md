@@ -11,7 +11,11 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
-## [0.9.4-beta] — 2026-08-09
+## [0.9.4-beta] — 2026-08-09 — Install honesty and membership wait
+
+Field follow-up on the v0.9 line: cargo-dist install-method truth on Windows and
+macOS, platform-correct upgrade advice, and durable membership confirmation that
+does not race the daemon.
 
 ### Fixed
 

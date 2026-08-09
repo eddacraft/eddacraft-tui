@@ -12,7 +12,11 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.4-beta — 9 August 2026
+## 0.9.4-beta — 9 August 2026 — Install honesty and membership wait
+
+Field follow-up on the v0.9 line: official-installer method detection and
+upgrade advice on Windows/macOS, plus workspace register that waits for durable
+membership instead of racing the daemon.
 
 ### Fixed
 
