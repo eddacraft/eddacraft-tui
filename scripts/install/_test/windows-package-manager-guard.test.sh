@@ -59,7 +59,14 @@ done
 # BSD/macOS grep reads it as a literal `s`, so the pattern became
 # `^s*exits+0s*$` and matched nothing — the guard reported ok with `exit 0`
 # sitting in the file. Verified both ways before this change.
-if grep -nE '^[[:space:]]*exit[[:space:]]+0[[:space:]]*$' "$GUARD" >/dev/null; then
+#
+# The statement forms are enumerated rather than assumed: PowerShell accepts
+# `exit 0`, `exit(0)`, a trailing `;`, and a trailing comment, and every one
+# of them terminates the installer just as fatally as a bare `exit 0`. An
+# earlier version matched only the bare form, so the regression could have
+# returned as `exit 0;` and passed. Leading `#` is still safe — these very
+# comments say "exit 0" and must not self-trip.
+if grep -nE '^[[:space:]]*exit[[:space:]]*\(?[[:space:]]*0[[:space:]]*\)?[[:space:]]*([;#].*)?$' "$GUARD" >/dev/null; then
   fail "guard must not use exit 0 (terminates cargo-dist body when injected)"
 fi
 
