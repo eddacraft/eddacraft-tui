@@ -16,8 +16,8 @@ that you use together:
   from a map instead of reading whole files. They return context, never a
   decision, and never block.
 - **`anvil_validate_write`** / **`anvil_apply_patch`** are the pre-write
-  enforcement gates. Call them _before_ applying a write; they return a decision
-  based on secrets, anti-patterns, and boundary rules.
+  enforcement gate for edits. Call them _before_ applying a write; they return a
+  decision based on secrets, anti-patterns, and boundary rules.
 
 Rule of thumb: reach for the **graph-context tools** when you are trying to
 _understand_ code, and for the **pre-write gate** when you are about to _change_

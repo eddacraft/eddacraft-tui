@@ -54,7 +54,9 @@ fn installs_embedded_bundle_for_codex_at_global_default() {
     let skill = root.path().join(".agents/skills/anvil-developer-functions");
     let body = fs::read_to_string(skill.join("SKILL.md")).unwrap();
     assert!(body.contains("anvil_validate_write"));
+    // Phrase must stay on one physical line (include_str install contract).
     assert!(body.contains("pre-write enforcement gate"));
+    assert!(body.contains("anvil_apply_patch"));
     assert!(body.contains("anvil_find_dependents"));
     assert!(!body.contains("anvil_get_dependencies"));
 
