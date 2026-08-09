@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-kindling-integration",
-  "version": "0.9.3-beta",
+  "version": "0.9.4-beta",
   "description": "Kindling memory integration contracts for Anvil v1",
   "type": "module",
   "main": "./dist/index.js",

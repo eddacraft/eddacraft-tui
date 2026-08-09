@@ -11,6 +11,8 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+## [0.9.4-beta] — 2026-08-09
+
 ### Fixed
 
 - **`anvil version` names the right install method on Windows and macOS.** If

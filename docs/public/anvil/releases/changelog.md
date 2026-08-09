@@ -12,6 +12,33 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
+## 0.9.4-beta — 9 August 2026
+
+### Fixed
+
+- **`anvil version` names the right install method on Windows and macOS.** If
+  you installed with the official installer, `version` could still report
+  `cargo install (CARGO_HOME/bin)` and suggest a `cargo install --git …` command
+  — no use at all without a Rust toolchain, which the installer does not
+  require. `anvil` was looking for the installer's receipt in a directory the
+  installer never writes to on those platforms, so it fell back to guessing from
+  the binary's location. It now reads the receipt from the same place
+  `anvil update` does, so both agree. Linux was unaffected.
+
+- **Installer upgrade advice matches the platform you are on.** Windows installs
+  are now told to re-run the PowerShell installer
+  (`irm … eddacraft-anvil-installer.ps1 | iex`) — the same line `anvil update`
+  prints there — instead of a `curl … | sh` command that needs a shell Windows
+  does not have. Other platforms are unchanged.
+
+- **Workspace register no longer loses a race with the daemon.** After a
+  successful registration, anvil used to read daemon status once to confirm
+  durable membership. If that snapshot was taken a moment before the record was
+  visible, it refused with the same message as a real missing membership even
+  though registration had succeeded. It now waits briefly and re-checks until
+  the membership appears (or the budget expires and the honest refusal still
+  stands).
+
 ## 0.9.3-beta — 7 August 2026 — Honesty and Windows path
 
 ### Fixed
