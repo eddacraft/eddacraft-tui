@@ -10034,7 +10034,7 @@ section above; this block focuses on the build-time runtime surface.
 | minimist | 1.2.8 | MIT | https://github.com/minimistjs/minimist |
 | mkdirp | 0.5.6 | MIT | https://github.com/substack/node-mkdirp |
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms |
-| nanoid | 3.3.16 | MIT | https://github.com/ai/nanoid |
+| nanoid | 3.3.17 | MIT | https://github.com/ai/nanoid |
 | nopt | 4.0.3 | ISC | https://github.com/npm/nopt |
 | normalize-package-data | 2.5.0 | BSD-2-Clause | https://github.com/npm/normalize-package-data |
 | npm-normalize-package-bin | 1.0.1 | ISC | https://github.com/npm/npm-normalize-package-bin |
