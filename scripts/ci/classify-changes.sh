@@ -275,8 +275,14 @@ for path in "${paths[@]}"; do
   # whole-repo Trivy scan that surfaces unrelated `pnpm-lock.yaml`
   # advisories. Rust dependency changes already route to the `rust` class
   # above (`cargo-deny` lives in `.github/workflows/rust.yml`).
+  #
+  # The Trivy suppression files join this class so the audit guards its own
+  # configuration. A malformed ignorefile — or a `trivyignores` input that
+  # stops pointing at it — parses cleanly and silently suppresses nothing,
+  # which is only observable when the audit actually runs. Without them a
+  # config-only PR could land a no-op suppression against a green board.
   case "${path}" in
-    pnpm-lock.yaml | package-lock.json | yarn.lock | package.json | packages/*/package.json | packages/**/package.json)
+    pnpm-lock.yaml | package-lock.json | yarn.lock | package.json | packages/*/package.json | packages/**/package.json | .trivyignore | .trivyignore.yaml)
       add_unique path_classes 'lockfile'
       add_unique risk_classes 'dependencies'
       matched=true

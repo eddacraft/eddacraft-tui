@@ -138,6 +138,17 @@ npm_lock_only=$(run_case npm-lock-only pnpm-lock.yaml)
 assert_json_contains "${npm_lock_only}" '.pathClasses | index("lockfile")' 'pnpm-lock.yaml routes to lockfile class'
 assert_json_contains "${npm_lock_only}" '.requiredChecks | index("dependency-audit")' 'pnpm-lock.yaml adds dependency-audit'
 
+# (d) Trivy suppression config alone must still run the audit. A malformed
+# ignorefile, or a `trivyignores` input that no longer points at it, is only
+# observable when the audit actually runs — the file parses fine and silently
+# suppresses nothing. Without this the gate cannot guard its own config.
+trivyignore_only=$(run_case trivyignore-only .trivyignore.yaml)
+assert_json_contains "${trivyignore_only}" '.pathClasses | index("lockfile")' '.trivyignore.yaml routes to lockfile class'
+assert_json_contains "${trivyignore_only}" '.requiredChecks | index("dependency-audit")' '.trivyignore.yaml adds dependency-audit'
+
+trivyignore_plain=$(run_case trivyignore-plain .trivyignore)
+assert_json_contains "${trivyignore_plain}" '.requiredChecks | index("dependency-audit")' '.trivyignore adds dependency-audit'
+
 # (c) Mixed Cargo.lock + pnpm-lock.yaml — Rust-only suppression must NOT
 # silence the npm audit when npm also changed.
 mixed_lockfiles=$(run_case mixed-lockfiles Cargo.lock pnpm-lock.yaml)
