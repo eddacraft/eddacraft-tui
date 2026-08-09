@@ -102,7 +102,7 @@ re-audit), compress the map:
 
 | Session | Scope                                                     | Goal                                           |
 | ------- | --------------------------------------------------------- | ---------------------------------------------- |
-| A       | Diff triage `v0.9.3-beta..main`                           | Bucket install, daemon, MCP, activation, other |
+| A       | Diff triage `v0.9.3-beta..origin/main`                    | Bucket install, daemon, MCP, activation, other |
 | B       | Chunk **8b** + intercept **5a/5c** (baseline if no delta) | Agent write-path contract                      |
 | C       | Chunk **7** skim + gate/audit/version honesty             | Claims match behaviour                         |
 | D       | Changelog, flags, cut hygiene                             | Release-shaped residual risk                   |
@@ -114,30 +114,30 @@ them. Record under [Sessions](#sessions).
 
 ## Progress board
 
-| Chunk | Name                          | Priority | Status | Last session                          | Findings link                                             |
-| ----- | ----------------------------- | -------- | ------ | ------------------------------------- | --------------------------------------------------------- |
-| 1     | Foundation contracts          | P0       | [ ]    | —                                     | —                                                         |
-| 2     | Kernel: parse, watch, graph   | P0       | [ ]    | —                                     | —                                                         |
-| 3     | Checks pipeline + patterns    | P0       | [ ]    | —                                     | —                                                         |
-| 4     | Policy engine + architecture  | P0       | [ ]    | —                                     | —                                                         |
-| 5     | Intercept daemon              | P0       | [~]    | 2026-08-09 pre-release (5a/5c skim)   | [Sessions](#2026-08-09--v094-beta-pre-release-short-pass) |
-| 6     | CLI quality surfaces          | P0       | [~]    | 2026-08-09 pre-release (6a honesty)   | same                                                      |
-| 7     | Activation and first-run      | P0       | [~]    | 2026-08-09 pre-release (registration) | same                                                      |
-| 8     | MCP shim                      | P0       | [~]    | 2026-08-09 pre-release (8b write)     | same                                                      |
-| 9     | TUI surfaces                  | P1       | [ ]    | —                                     | —                                                         |
-| 10    | Evidence, hooks, packaging    | P1       | [ ]    | —                                     | —                                                         |
-| 11    | Auth, insights, plan glue     | P1       | [~]    | 2026-08-09 pre-release (auth gate)    | same                                                      |
-| 12    | Local dashboard               | P1       | [ ]    | —                                     | —                                                         |
-| 13    | Bundled product data          | P0       | [ ]    | —                                     | —                                                         |
-| 14    | Cloud API (optional)          | P2       | [ ]    | —                                     | —                                                         |
-| 15    | Web / docs apps (optional)    | P2       | [ ]    | —                                     | —                                                         |
-| 16    | TS residual domain (optional) | P2       | [ ]    | —                                     | —                                                         |
-| 17    | APS + adapters (optional)     | P3       | [ ]    | —                                     | —                                                         |
-| 18    | Memory stack (optional)       | P2       | [ ]    | —                                     | —                                                         |
-| 19    | Driver client (optional)      | P3       | [ ]    | —                                     | —                                                         |
-| 20    | ESLint plugin (optional)      | P3       | [ ]    | —                                     | —                                                         |
-| 21    | E2E harness (optional)        | P2       | [ ]    | —                                     | —                                                         |
-| 22    | Bench / spike (optional)      | P3       | [ ]    | —                                     | —                                                         |
+| Chunk | Name                          | Priority | Status | Last session                          | Findings link                                               |
+| ----- | ----------------------------- | -------- | ------ | ------------------------------------- | ----------------------------------------------------------- |
+| 1     | Foundation contracts          | P0       | [ ]    | —                                     | —                                                           |
+| 2     | Kernel: parse, watch, graph   | P0       | [ ]    | —                                     | —                                                           |
+| 3     | Checks pipeline + patterns    | P0       | [ ]    | —                                     | —                                                           |
+| 4     | Policy engine + architecture  | P0       | [ ]    | —                                     | —                                                           |
+| 5     | Intercept daemon              | P0       | [~]    | 2026-08-09 pre-release (5a/5c skim)   | [Session log](#2026-08-09-v094-beta-pre-release-short-pass) |
+| 6     | CLI quality surfaces          | P0       | [~]    | 2026-08-09 pre-release (6a honesty)   | [Session log](#2026-08-09-v094-beta-pre-release-short-pass) |
+| 7     | Activation and first-run      | P0       | [~]    | 2026-08-09 pre-release (registration) | [Session log](#2026-08-09-v094-beta-pre-release-short-pass) |
+| 8     | MCP shim                      | P0       | [~]    | 2026-08-09 pre-release (8b write)     | [Session log](#2026-08-09-v094-beta-pre-release-short-pass) |
+| 9     | TUI surfaces                  | P1       | [ ]    | —                                     | —                                                           |
+| 10    | Evidence, hooks, packaging    | P1       | [ ]    | —                                     | —                                                           |
+| 11    | Auth, insights, plan glue     | P1       | [~]    | 2026-08-09 pre-release (auth gate)    | [Session log](#2026-08-09-v094-beta-pre-release-short-pass) |
+| 12    | Local dashboard               | P1       | [ ]    | —                                     | —                                                           |
+| 13    | Bundled product data          | P0       | [ ]    | —                                     | —                                                           |
+| 14    | Cloud API (optional)          | P2       | [ ]    | —                                     | —                                                           |
+| 15    | Web / docs apps (optional)    | P2       | [ ]    | —                                     | —                                                           |
+| 16    | TS residual domain (optional) | P2       | [ ]    | —                                     | —                                                           |
+| 17    | APS + adapters (optional)     | P3       | [ ]    | —                                     | —                                                           |
+| 18    | Memory stack (optional)       | P2       | [ ]    | —                                     | —                                                           |
+| 19    | Driver client (optional)      | P3       | [ ]    | —                                     | —                                                           |
+| 20    | ESLint plugin (optional)      | P3       | [ ]    | —                                     | —                                                           |
+| 21    | E2E harness (optional)        | P2       | [ ]    | —                                     | —                                                           |
+| 22    | Bench / spike (optional)      | P3       | [ ]    | —                                     | —                                                           |
 
 ---
 
@@ -800,7 +800,7 @@ Copy under each session (or into a dated subsection below).
 - Chunk board update: [ ] → [x] / [~] / [!]
 ```
 
-### Sessions
+## Sessions
 
 ### 2026-08-09 — v0.9.4-beta pre-release short pass
 
