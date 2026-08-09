@@ -210,8 +210,15 @@ fn durable_membership_present(
 /// Returns the first snapshot carrying the membership. If the budget expires
 /// the last snapshot is returned unchanged so the caller still produces the
 /// honest refusal established by CIB-252; if every read failed, the last error
-/// is returned so the caller reports it as before. Callers therefore keep all
-/// three of their original outcomes — only the timing changes.
+/// is returned so the caller reports it as before.
+///
+/// Reads are retried after an `Err` as well as after a snapshot that simply
+/// lacks the membership, because both mean "the daemon has not shown us the
+/// write yet". That deliberately changes one outcome rather than none: a
+/// transient status-read failure which the previous single read reported as
+/// `Rejected` now recovers if a later read succeeds. It is the same class of
+/// false refusal this function exists to remove. Every other outcome is
+/// unchanged.
 fn await_membership_snapshot<F, E>(
     canonical: &Path,
     session_id: &SessionId,
