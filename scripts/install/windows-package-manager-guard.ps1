@@ -1,5 +1,8 @@
 #Requires -Version 5.1
-# Anvil package-manager dual-install guard (CIB-228).
+# Anvil package-manager dual-install guard.
+#
+# This file ships inside the public PowerShell installer, comments and all,
+# so it carries no internal tracker ids — see the guard test beside it.
 #
 # INJECT SHAPE (critical): this fragment is inserted into
 # eddacraft-anvil-installer.ps1 *after* cargo-dist's top-level `param(...)`

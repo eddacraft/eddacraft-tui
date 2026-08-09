@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Insert the Windows package-manager dual-install guard after cargo-dist's param block.
 
-CIB-228: prepending the guard (second param + exit 0) made clean `irm | iex`
-installs a silent no-op. Inject *after* the first top-level `param (...)`.
+Prepending the guard (second param + exit 0) made clean `irm | iex` installs
+a silent no-op. Inject *after* the first top-level `param (...)`.
+
+The banner written here lands in the public installer, so it — like the guard
+itself — carries no internal tracker ids.
 """
 from __future__ import annotations
 
@@ -22,7 +25,7 @@ def inject(ps1_path: Path, guard_path: Path) -> None:
     head, rest = match.group(0), ps1[match.end() :]
     out = (
         head
-        + "\n# --- begin anvil package-manager dual-install guard (CIB-228) ---\n"
+        + "\n# --- begin anvil package-manager dual-install guard ---\n"
         + "# Injected after cargo-dist param (insert_after_param; not prepended).\n"
         + guard
         + "\n# --- end anvil package-manager dual-install guard ---\n\n"

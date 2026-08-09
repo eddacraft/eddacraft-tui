@@ -104,6 +104,14 @@ version-by-version history and downloadable artefacts, use the
   error and doctor's probe now match, so a YAML-named config is not treated as
   missing.
 
+- **`validate` reads one link at a time in plan indexes.** When an index line
+  held an ordinary link before a module link — a design doc, then the module it
+  points at — anvil read the whole span between them as a single path. Two
+  things went wrong: a perfectly clean module path could be reported as broken,
+  and an unsafe one could slip through, because the `..` in it was no longer a
+  path component of its own. Each link destination is now read on its own, so a
+  parent-directory traversal is reported wherever it appears on the line.
+
 ### Changed
 
 - **Activation Install shows the assistants you chose.** The verdict Install

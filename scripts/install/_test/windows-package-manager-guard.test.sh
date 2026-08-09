@@ -17,9 +17,18 @@ fail() {
 [[ -f "$RELEASE_YML" ]] || fail "release workflow missing: $RELEASE_YML"
 
 # CIB-230: public ship artefacts must not embed private tracker ids.
+#
+# The guard ships into eddacraft-anvil-installer.ps1 comments and all, and the
+# inject banner is written straight into it, so this covers comments — not just
+# user-facing strings. CIB-315 widened the pattern: the original check caught
+# only `GH #N` / `GitHub #N`, so `CIB-NNN` survived in shipped comments through
+# v0.9.3-beta and was reported back to us from a beta estate.
 for public_file in "$GUARD" "$INJECT"; do
   if grep -nE 'GH[[:space:]]*#[0-9]+|GitHub[[:space:]]*#[0-9]+' "$public_file" >/dev/null; then
     fail "public install path must not contain GH/GitHub #NNNN (CIB-230): $public_file"
+  fi
+  if grep -nE '\b(CIB|ADR|EVAL)-[0-9]+' "$public_file" >/dev/null; then
+    fail "public install path must not contain internal tracker ids (CIB-230): $public_file"
   fi
 done
 
