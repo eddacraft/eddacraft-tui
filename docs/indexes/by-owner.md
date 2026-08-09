@@ -45,12 +45,13 @@
 
 ## AICON
 
-| Document                                                                  | Path                                      | Type   | Authority     | Owner | Status |
-| ------------------------------------------------------------------------- | ----------------------------------------- | ------ | ------------- | ----- | ------ |
-| [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md)   | `docs/guides/agent-surface-inventory.md`  | Guide  | Authoritative | AICON | Live   |
-| [Development Guides](../../docs/guides/README.md)                         | `docs/guides/README.md`                   | README | Advisory      | AICON | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md) | `docs/guides/documentation-governance.md` | Guide  | Authoritative | AICON | Live   |
-| [Repository Operations](../../docs/guides/repository-operations.md)       | `docs/guides/repository-operations.md`    | Guide  | Authoritative | AICON | Live   |
+| Document                                                                                     | Path                                                | Type   | Authority     | Owner | Status |
+| -------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------ | ------------- | ----- | ------ |
+| [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md)                      | `docs/guides/agent-surface-inventory.md`            | Guide  | Authoritative | AICON | Live   |
+| [Development Guides](../../docs/guides/README.md)                                            | `docs/guides/README.md`                             | README | Advisory      | AICON | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)                    | `docs/guides/documentation-governance.md`           | Guide  | Authoritative | AICON | Live   |
+| [Repository Operations](../../docs/guides/repository-operations.md)                          | `docs/guides/repository-operations.md`              | Guide  | Authoritative | AICON | Live   |
+| [Shipped Codebase Review Checklist](../../docs/reviews/shipped-codebase-review-checklist.md) | `docs/reviews/shipped-codebase-review-checklist.md` | Guide  | Advisory      | AICON | Live   |
 
 ## APGOV
 
