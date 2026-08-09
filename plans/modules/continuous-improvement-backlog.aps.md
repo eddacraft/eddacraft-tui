@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 251/311  |
+| CIB | —     | In Progress | 251/312  |
 
 ## Purpose
 
@@ -9492,4 +9492,46 @@ CIB-251/255 only.
   cargo-dist installs" holds only on Linux until this lands.
 - **Confidence:** high — both sides read from source; the mapping table is
   quoted from `dirs` 6.0.0 doc comments and axoupdater's `get_config_paths`.
+
+### CIB-316: Retire `cutover-readiness.test.sh` — it guards a retired branch
+
+- **Status:** Ready
+- **Priority:** P3 CI hygiene — currently inert, but blocks wiring
+- **Intent:** `scripts/ci/cutover-readiness.test.sh` exists to "lock CICD-012
+  invariants: validation workflows survive the `dev` → `main` cutover" (its own
+  header). That cutover completed and `dev` is retired — the repo ruleset still
+  carries a rule literally named `dev (retired)`. The test asserts that
+  workflows **still** trigger on `dev`:
+
+  ```bash
+  assert_contains "${ci_workflow}"       '      - dev'
+  assert_contains "${security_workflow}" '      - dev'
+  assert_contains "${codeql_workflow}"   'branches: [main, dev]'
+  assert_contains "${rust_workflow}"     "branches: [main, dev, 'rust-*', 'release/*']"
+  ```
+
+  Inverted from what we now want: it would demand we re-add `dev` triggers, or
+  fail forever. It fails on `main` today and nobody noticed, because no
+  workflow runs it (the same audit that produced this item).
+- **Expected Outcome:** the test is deleted along with its `test:ci-cutover-readiness`
+  package.json entry, **or** rewritten to assert the opposite — that no
+  workflow triggers on `dev` — if a standing guard against the branch's return
+  is judged worth keeping. Deletion is the default: its owning module
+  (`ci-cd-validation.aps.md`) is already archived, so the invariant has no live
+  owner.
+- **Non-scope / do not:** do not "fix" it by re-adding `dev` triggers to any
+  workflow; do not touch the other assertions in the file as though they were
+  independently valuable — the whole file is scoped to the cutover.
+- **Files:** `scripts/ci/cutover-readiness.test.sh`, `package.json`
+- **Validation:** after deletion, `rg -n cutover-readiness` returns only
+  historical references (`plans/archive/`, the CI log); after a rewrite,
+  the inverted assertion must be proven RED by planting a `- dev` trigger.
+- **Identified From:** the 2026-08-09 audit of all 48 shell contract tests,
+  which found ten that no workflow invokes. Wiring the passing six (#3711)
+  left this one out because it is red; see also [[CIB-296]] (`adr-integrity`,
+  red for an unrelated reason).
+- **Coordinates with:** #3711 (wiring the six that pass), CIB-288 (the same
+  never-wired gap, fixed once for `install.sh`)
+- **Confidence:** high — the failure and its cause were both reproduced:
+  `expected …/ci.yml to contain:       - dev`.
 
