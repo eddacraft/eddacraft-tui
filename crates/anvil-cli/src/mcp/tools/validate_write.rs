@@ -345,7 +345,9 @@ pub(crate) fn apply_response_detail(payload: &mut Value, detail: ResponseDetail)
     }
     // Clean allow only: any non-empty diagnostics array means the agent
     // must still see findings (RTAI-006 "decision off", not "diagnostics off").
-    if let Some(diagnostics) = payload.get("diagnostics").and_then(|value| value.as_array())
+    if let Some(diagnostics) = payload
+        .get("diagnostics")
+        .and_then(|value| value.as_array())
         && !diagnostics.is_empty()
     {
         return;
