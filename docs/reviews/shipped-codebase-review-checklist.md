@@ -1,8 +1,8 @@
 # Shipped Codebase Review Checklist
 
-| Type  | Authority | Owner | Status | Freshness                                                                                       |
-| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-09 against `CONTEXT.md`, `docs/architecture/overview.md`, and `crates/*/` |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                               |
+| ----- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-09: v0.9.4 pre-release short pass against `v0.9.3-beta..origin/main` and write-path sources under `crates/anvil-cli/src/mcp/`, `crates/anvil-cli/src/registration.rs`, `crates/anvil-cli/src/commands/version.rs` |
 
 | Upstream                                                                                          | Downstream                                           |
 | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -95,34 +95,49 @@ hide integration-test failures (`AGENTS.md`).
 
 P0-only (security / correctness short pass): **1 → 2 → 3 → 5 → 8 → 6a (gate)**.
 
+### Pre-release short pass (`v0.9.4-beta`)
+
+When the active window is honesty / field follow-up (not a full engine
+re-audit), compress the map:
+
+| Session | Scope                                                     | Goal                                           |
+| ------- | --------------------------------------------------------- | ---------------------------------------------- |
+| A       | Diff triage `v0.9.3-beta..main`                           | Bucket install, daemon, MCP, activation, other |
+| B       | Chunk **8b** + intercept **5a/5c** (baseline if no delta) | Agent write-path contract                      |
+| C       | Chunk **7** skim + gate/audit/version honesty             | Claims match behaviour                         |
+| D       | Changelog, flags, cut hygiene                             | Release-shaped residual risk                   |
+
+Do **not** deep-read foundation/kernel/checks unless the post-tag diff touches
+them. Record under [Sessions](#sessions).
+
 ---
 
 ## Progress board
 
-| Chunk | Name                          | Priority | Status | Last session | Findings link |
-| ----- | ----------------------------- | -------- | ------ | ------------ | ------------- |
-| 1     | Foundation contracts          | P0       | [ ]    | —            | —             |
-| 2     | Kernel: parse, watch, graph   | P0       | [ ]    | —            | —             |
-| 3     | Checks pipeline + patterns    | P0       | [ ]    | —            | —             |
-| 4     | Policy engine + architecture  | P0       | [ ]    | —            | —             |
-| 5     | Intercept daemon              | P0       | [ ]    | —            | —             |
-| 6     | CLI quality surfaces          | P0       | [ ]    | —            | —             |
-| 7     | Activation and first-run      | P0       | [ ]    | —            | —             |
-| 8     | MCP shim                      | P0       | [ ]    | —            | —             |
-| 9     | TUI surfaces                  | P1       | [ ]    | —            | —             |
-| 10    | Evidence, hooks, packaging    | P1       | [ ]    | —            | —             |
-| 11    | Auth, insights, plan glue     | P1       | [ ]    | —            | —             |
-| 12    | Local dashboard               | P1       | [ ]    | —            | —             |
-| 13    | Bundled product data          | P0       | [ ]    | —            | —             |
-| 14    | Cloud API (optional)          | P2       | [ ]    | —            | —             |
-| 15    | Web / docs apps (optional)    | P2       | [ ]    | —            | —             |
-| 16    | TS residual domain (optional) | P2       | [ ]    | —            | —             |
-| 17    | APS + adapters (optional)     | P3       | [ ]    | —            | —             |
-| 18    | Memory stack (optional)       | P2       | [ ]    | —            | —             |
-| 19    | Driver client (optional)      | P3       | [ ]    | —            | —             |
-| 20    | ESLint plugin (optional)      | P3       | [ ]    | —            | —             |
-| 21    | E2E harness (optional)        | P2       | [ ]    | —            | —             |
-| 22    | Bench / spike (optional)      | P3       | [ ]    | —            | —             |
+| Chunk | Name                          | Priority | Status | Last session                          | Findings link                                             |
+| ----- | ----------------------------- | -------- | ------ | ------------------------------------- | --------------------------------------------------------- |
+| 1     | Foundation contracts          | P0       | [ ]    | —                                     | —                                                         |
+| 2     | Kernel: parse, watch, graph   | P0       | [ ]    | —                                     | —                                                         |
+| 3     | Checks pipeline + patterns    | P0       | [ ]    | —                                     | —                                                         |
+| 4     | Policy engine + architecture  | P0       | [ ]    | —                                     | —                                                         |
+| 5     | Intercept daemon              | P0       | [~]    | 2026-08-09 pre-release (5a/5c skim)   | [Sessions](#2026-08-09--v094-beta-pre-release-short-pass) |
+| 6     | CLI quality surfaces          | P0       | [~]    | 2026-08-09 pre-release (6a honesty)   | same                                                      |
+| 7     | Activation and first-run      | P0       | [~]    | 2026-08-09 pre-release (registration) | same                                                      |
+| 8     | MCP shim                      | P0       | [~]    | 2026-08-09 pre-release (8b write)     | same                                                      |
+| 9     | TUI surfaces                  | P1       | [ ]    | —                                     | —                                                         |
+| 10    | Evidence, hooks, packaging    | P1       | [ ]    | —                                     | —                                                         |
+| 11    | Auth, insights, plan glue     | P1       | [~]    | 2026-08-09 pre-release (auth gate)    | same                                                      |
+| 12    | Local dashboard               | P1       | [ ]    | —                                     | —                                                         |
+| 13    | Bundled product data          | P0       | [ ]    | —                                     | —                                                         |
+| 14    | Cloud API (optional)          | P2       | [ ]    | —                                     | —                                                         |
+| 15    | Web / docs apps (optional)    | P2       | [ ]    | —                                     | —                                                         |
+| 16    | TS residual domain (optional) | P2       | [ ]    | —                                     | —                                                         |
+| 17    | APS + adapters (optional)     | P3       | [ ]    | —                                     | —                                                         |
+| 18    | Memory stack (optional)       | P2       | [ ]    | —                                     | —                                                         |
+| 19    | Driver client (optional)      | P3       | [ ]    | —                                     | —                                                         |
+| 20    | ESLint plugin (optional)      | P3       | [ ]    | —                                     | —                                                         |
+| 21    | E2E harness (optional)        | P2       | [ ]    | —                                     | —                                                         |
+| 22    | Bench / spike (optional)      | P3       | [ ]    | —                                     | —                                                         |
 
 ---
 
@@ -787,7 +802,93 @@ Copy under each session (or into a dated subsection below).
 
 ### Sessions
 
-_None yet — start the first pass at Chunk 1 or the P0-only short pass._
+### 2026-08-09 — v0.9.4-beta pre-release short pass
+
+- **Reviewer:** agent (Grok Build), operator-requested
+- **Scope:** Sessions A–C of the pre-release short pass (not full P0 map). Diff
+  base: `v0.9.3-beta` (`cfe0857cb`) → `origin/main` at pass time.
+- **Outcome:** no cut-blocking product defects in the post-tag delta; residual
+  risk is APS/release-plan bookkeeping lag and baseline write-path vocabulary
+  nuance (documented below).
+
+#### A — Diff triage
+
+| Bucket                         | Post-tag product code? | Notes                                                                 |
+| ------------------------------ | ---------------------- | --------------------------------------------------------------------- |
+| Install / version              | **Yes**                | `version.rs`, `update.rs` — CIB-315 receipt + platform upgrade advice |
+| Daemon membership / activation | **Yes**                | `registration.rs` — wait for durable membership after register ack    |
+| MCP write path                 | No                     | Zero commits under `crates/anvil-cli/src/mcp/`                        |
+| Intercept                      | No                     | Zero commits under `crates/anvil-intercept*`                          |
+| Audit / gate                   | No (product)           | CIB-281 TUI/SARIF scope already **in** `v0.9.3-beta`                  |
+| Docs / CI / plans              | Yes                    | Majority of the 19 commits                                            |
+
+**Stat (product crates only):** 3 files, +467 / −115 in `anvil-cli` (`version`,
+`update`, `registration`). Full tree: 32 files, mostly docs/CI.
+
+#### B — Write path (Chunk 8b + intercept 5a/5c baseline)
+
+- `validate_write` accepts workspace-relative or absolute-in-root paths;
+  absolute paths are aligned via `align_absolute_path_to_canonical_root` before
+  `strip_prefix` (symlink / Windows spelling).
+- MCP enforcement default is `Interrupt` (`MCP_DEFAULT_ENFORCEMENT`); vetoes use
+  `ControlDecision::is_veto` (covers `block` / `fence` / `interrupt`).
+- Daemon operational failure: hard stop with `decision: block` and
+  `daemonStatus: unavailable` (not warn-through).
+- Auth-missing path uses `decision: gateUnavailable` with
+  `safeDefault: allow-with-warning` (documented in server instructions).
+- Intercept pipeline: pure `Allow` / `Interrupt` evaluation; callers own
+  delivery (thin control plane).
+
+**Commands (all exit 0):**
+
+```text
+cargo test -p eddacraft-anvil --bin anvil membership_ -- --nocapture
+  → 9 passed
+cargo test -p eddacraft-anvil --bin anvil upgrade_command -- --nocapture
+  → 1 passed
+cargo test -p eddacraft-anvil --bin anvil install_method -- --nocapture
+  → 4 passed
+cargo test -p eddacraft-anvil --bin anvil dist_receipt -- --nocapture
+  → 2 passed
+cargo test -p eddacraft-anvil --bin anvil repeated_status_read -- --nocapture
+  → 1 passed
+cargo test -p eddacraft-anvil --bin anvil validate_write -- --nocapture
+  → 79 passed
+cargo test -p eddacraft-anvil -- version  (integration filters)
+  → version_offline + usage_observation ok
+```
+
+#### C — Honesty surfaces
+
+- **version / update:** shared `load_dist_receipt` via axoupdater (current +
+  legacy app name); Windows upgrade string is one constant shared with `update`
+  — unrepresentable divergence.
+- **registration:** `await_membership_snapshot` polls up to 2s / 50ms; healthy
+  path is one read; absent membership still refuses (CIB-252 honesty preserved).
+- **audit security scope:** present on plain, JSON, TUI, SARIF in tree;
+  `47e0ae766` is an ancestor of `v0.9.3-beta` (already shipped).
+- **Changelog Unreleased:** matches CIB-315 user-visible claims.
+
+#### Findings
+
+| Sev           | Finding                                                                                                                                | Impact                                                                                       | Follow-up                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Med (process) | **CIB-315** implementation is on `main` with unit tests, but the CIB module item still reads **Ready**                                 | Operators may re-implement or mis-scope 0.9.4 claim                                          | Bookkeeping-branch CIB reconcile only (`plans/project-context.md` multi-writer rule)                |
+| Low (process) | **RELEASE-PLAN** still lists **CIB-281** as a 0.9.4 candidate; fix is already in `v0.9.3-beta`                                         | Inflates provisional claim list                                                              | Drop from candidate table when claim locks                                                          |
+| Low (observe) | Agent-facing MCP instructions still lead with `block` / `warn` / `allow` / `gateUnavailable`; runtime also emits `interrupt` / `fence` | Agents that match only the string `block` and ignore `isError` / `is_veto` could under-react | Not a post-tag regression; prefer documenting `is_veto` / `isError` in skill copy when next touched |
+| Info          | Membership confirm budget is **2s**                                                                                                    | Under extreme daemon lag, honest refusal still possible after wait                           | Acceptable honesty trade-off; warn log records reads/wait                                           |
+
+#### Cut recommendation (provisional 0.9.4)
+
+- Post-tag **product delta is shippable** from this pass’s perspective (install
+  honesty + durable-membership wait).
+- Before claim lock: reconcile CIB statuses (315 done-on-main; 281 already
+  shipped) on a bookkeeping branch; re-run Cross matrix / readiness only when
+  claim freezes.
+- No need for a full 22-chunk engine review for this window unless field signal
+  expands scope.
+
+- **Chunk board update:** 5, 6, 7, 8, 11 → `[~]` (partial pre-release pass)
 
 ---
 
