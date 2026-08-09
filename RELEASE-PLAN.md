@@ -49,8 +49,8 @@ nothing else.
 ## Active window — `v0.9.4-beta` (provisional — field follow-up)
 
 **Theme:** Post-`v0.9.3-beta` field honesty on the v0.9 line — install-method
-truth on Windows/macOS, plus registration confirm that does not race the daemon.
-Not a new product minor.
+truth on Windows/macOS, plus registration confirmation that does not race the
+daemon. Not a new product minor.
 
 **Status:** **Implement done on main; claim draft locked; cut not scheduled.**
 Pre-release short pass (2026-08-09) found no cut-blocking product defects in
