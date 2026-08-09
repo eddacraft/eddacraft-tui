@@ -74,16 +74,26 @@ const DAEMON_TRANSPORT_TIMEOUT: &str = "timed out talking to the daemon";
 /// other result — including the durable-gate refusal these tests exist to
 /// cover — is returned from the first response and asserted strictly, because
 /// those *are* observed outcomes and retrying could mask a real regression.
-fn run_workspace_awaiting_daemon(home: &Path, args: &[&str]) -> (bool, String) {
+///
+/// Returns `(exit_ok, stdout, retried)`. The `retried` flag matters because the
+/// timeout is **client-side only**: `round_trip` (`registration.rs:562`) writes
+/// the request on a spawned thread and gives up on `recv_timeout`, so a timed
+/// -out request may still have been processed by the daemon — nothing cancels
+/// it. A retry can therefore land on an already-applied state and get the
+/// idempotent wording rather than the acting wording. Callers use the flag to
+/// widen an assertion for exactly that window and no wider.
+fn run_workspace_awaiting_daemon(home: &Path, args: &[&str]) -> (bool, String, bool) {
     let mut last = run_workspace(home, args);
+    let mut retried = false;
     for _ in 0..10 {
         if !last.1.contains(DAEMON_TRANSPORT_TIMEOUT) {
-            return last;
+            return (last.0, last.1, retried);
         }
         std::thread::sleep(Duration::from_millis(100));
         last = run_workspace(home, args);
+        retried = true;
     }
-    last
+    (last.0, last.1, retried)
 }
 
 /// Compare paths after resolving both spellings to the same filesystem identity.
@@ -323,7 +333,11 @@ fn live_json_list_preserves_registered_membership() {
     let worktree = dunce::canonicalize(worktree).expect("canonical worktree");
     let worktree_text = worktree.to_str().expect("utf-8 worktree");
     assert!(run_workspace(home.path(), &["allow", worktree_text]).0);
-    let (registered, registration_stdout) =
+    // `register` needs no idempotency allowance: a timed-out-but-processed
+    // request retries into `WorktreeRegistration::Refreshed`
+    // ("Refreshed … (already registered)"), which `live_wire_ok` below already
+    // accepts. Only `unregister` changes wording across that boundary.
+    let (registered, registration_stdout, _) =
         run_workspace_awaiting_daemon(home.path(), &["register", worktree_text, "--persist"]);
     // `workspace register` exits 0 even when the live daemon outcome is a
     // refusal: `--persist` records intent independently (ACTMO-019).
@@ -390,11 +404,23 @@ fn live_json_list_preserves_registered_membership() {
     // Same single-shot daemon round-trip as `register` above, asserted on the
     // same way — it would have failed identically on a slow runner, it just
     // has not lost the race yet.
-    let (unregistered, unregistration_stdout) =
+    let (unregistered, unregistration_stdout, unregister_retried) =
         run_workspace_awaiting_daemon(home.path(), &["unregister", worktree_text]);
+    // Unlike `register`, unregister's wording changes across a retry: if the
+    // timed-out request was in fact processed, the retry finds nothing to do
+    // and prints the idempotent "was not registered — nothing to do."
+    // (`workspace.rs:261`) instead of "Unregistered". Accept that wording
+    // **only when a retry actually happened**, so the ordinary path stays
+    // strict and a genuinely silent unregister cannot pass unnoticed.
+    //
+    // The real proof of unregistration is the state assertion immediately
+    // below (`live_registered == false`), which holds either way.
+    let unregister_reported = unregistration_stdout.contains("Unregistered")
+        || (unregister_retried && unregistration_stdout.contains("was not registered"));
     assert!(
-        unregistered && unregistration_stdout.contains("Unregistered"),
-        "live unregister succeeds without dropping persisted intent: {unregistration_stdout}"
+        unregistered && unregister_reported,
+        "live unregister succeeds without dropping persisted intent \
+         (retried={unregister_retried}): {unregistration_stdout}"
     );
 
     let value = wait_for_unregistered_worktree(home.path(), &worktree);
