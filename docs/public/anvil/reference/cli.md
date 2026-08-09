@@ -9,7 +9,7 @@ description: Discover every public top-level anvil command.
 # CLI command reference
 
 This page is generated from the command definitions shipped with anvil
-0.9.3-beta. Use `anvil <command> --help` for flags, examples, and subcommands
+0.9.4-beta. Use `anvil <command> --help` for flags, examples, and subcommands
 for your installed version.
 
 For a first installation, use the [quickstart](../quickstart.md).
