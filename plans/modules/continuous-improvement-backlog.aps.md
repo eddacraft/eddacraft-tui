@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 250/310  |
+| CIB | —     | In Progress | 250/311  |
 
 ## Purpose
 
@@ -9419,4 +9419,53 @@ CIB-251/255 only.
   surfaces
 - **Confidence:** medium-high — logic described in finding; confirm on
   implementation against `readProductSource` paths.
+
+### CIB-315: Install-receipt lookup reads the wrong root on Windows and macOS
+
+- **Status:** Ready
+- **Priority:** P1 released-claim honesty — affects two of three platforms
+- **Intent:** `anvil version` must report the install method from receipt
+  provenance, as the v0.9.3-beta changelog already claims it does. Today the
+  receipt branch is ordered correctly but is fed a root the receipt writer
+  never uses, so official-installer users on Windows and macOS are told they
+  installed via `cargo install` and are handed
+  `cargo install --git … --force` — advice a toolchain-less user cannot run.
+- **Expected Outcome:** `classify_exe_path` resolves receipt roots the way
+  cargo-dist / axoupdater resolves them, so `version` and `update --check`
+  agree on every platform. Root mapping, verified against `dirs` 6.0.0 doc
+  comments and `axoupdater` 0.10.0 `receipt.rs::get_config_paths`:
+
+  | Platform | `dirs::config_dir()` (today)      | axoupdater writes                 | Agrees |
+  | -------- | --------------------------------- | --------------------------------- | ------ |
+  | Linux    | `$XDG_CONFIG_HOME` or `~/.config` | `$XDG_CONFIG_HOME` or `~/.config` | yes    |
+  | macOS    | `~/Library/Application Support`   | `~/.config`                       | no     |
+  | Windows  | `%APPDATA%` (known folder)        | `%LOCALAPPDATA%` (env var)        | no     |
+
+  Note the Windows writer reads the **environment variable**, not the
+  known-folder API, so matching it also makes redirected-profile installs
+  report honestly.
+- **Non-scope / do not:** do not change detection order (the CIB-229 ordering
+  is correct); do not move receipt loading in `update.rs` — axoupdater already
+  resolves the root correctly there, and it is the comparator this item
+  restores agreement with; do not chase cargo-dist's own
+  `install_layout: "cargo-home"` receipt field, which is written upstream by
+  the installer and is not ours to set.
+- **Files:** `crates/anvil-cli/src/commands/version.rs`
+- **Validation:** a unit test that exercises the **production** root resolver
+  rather than the injected-root helper, proven RED against the current
+  mapping. The existing `classify_exe_path_with_receipt_root` tests inject a
+  temp dir and so cannot fail on this defect — the comment at
+  `version.rs:1295-1298` records the divergence as a test-harness
+  inconvenience rather than the bug it is. Cover the Windows mapping through a
+  platform-parameterised pure helper so it stays checkable from Linux CI.
+- **Identified From:** Dave beta re-test pack 04 (`RETEST-1`), 2026-08-08,
+  against v0.9.3-beta on Windows 11; confirmed against source and widened to
+  macOS during triage. Reported as install-method detection following the
+  binary path rather than receipt provenance.
+- **Coordinates with:** CIB-228 / CIB-229 (Windows install path and
+  receipt-aware detection) and `anvil update --check`. The v0.9.3-beta
+  changelog claim "`anvil update --check` and install method work for
+  cargo-dist installs" holds only on Linux until this lands.
+- **Confidence:** high — both sides read from source; the mapping table is
+  quoted from `dirs` 6.0.0 doc comments and axoupdater's `get_config_paths`.
 
