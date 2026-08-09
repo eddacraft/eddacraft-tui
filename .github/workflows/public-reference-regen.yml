@@ -1,0 +1,224 @@
+# Regenerate the public reference docs after a release tag is cut.
+#
+# Why a TAG trigger and not a path filter: the generator
+# (`scripts/docs/generate-anvil-public-reference.mjs`) does not render from the
+# working tree. It reads the newest `## X.Y.Z` heading in
+# `docs/public/anvil/releases/changelog.md`, then pulls every product source via
+# `git show v<version>:<path>`, falling back to the workspace tree only while
+# that tag does not exist yet. So during release prep the check passes against
+# the workspace, and **the tag cut silently changes the generator's inputs with
+# no commit, no file change, and no pull request**. The generator's own comment
+# states the contract: "the tag cut is what freezes the shipped product sources
+# for the next regenerate." That regenerate previously had no trigger.
+#
+# Confirmed concrete: three generator inputs (`crates/anvil-cli/src/main.rs`,
+# `crates/anvil-cli/src/commands/start.rs`,
+# `crates/anvil-cli/src/activation/agent_registry.rs`) differ between the
+# `v0.9.2-beta` and `v0.9.3-beta` trees, so cutting v0.9.3-beta made
+# `docs/public/anvil/reference/cli.md` stale on main. Nothing detected it —
+# `Docs Lint`'s heavy steps are gated on `markdownlint-required`, and a tag push
+# produces no diff at all — until an unrelated PR that happened to touch a `.md`
+# inherited the red check (#3676).
+#
+# Why this pushes a BRANCH and opens an ISSUE rather than opening a PR:
+# GitHub does not start workflow runs from events caused by `GITHUB_TOKEN`
+# (anti-recursion). A PR opened by this job would therefore never receive its
+# required checks and could never merge — the same trap
+# `acknowledgements-autofix.yml` documents for pushes. A human opening the PR
+# from the pushed branch triggers CI normally, because the `pull_request` event
+# is then caused by them. If a PAT with `pull-requests: write` is ever added,
+# this can be upgraded to open the PR directly.
+#
+# The regen targets `main`, NOT the tag: the tag is immutable and the stale file
+# lives on main. The checkout below is explicit about that.
+
+name: Public reference regen
+
+on:
+  push:
+    # CLI releases only (`v0.9.3-beta`, …), matching release.yml. Prefixed
+    # library tags (`eddacraft-tui-v*`) do not match and must not trigger this.
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Least-privilege: push the fix branch, and open the notification issue.
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: public-reference-regen-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  REFERENCE_DIR: docs/public/anvil/reference
+  REGEN_LABEL: reference-regen
+
+jobs:
+  regen:
+    name: Regenerate public reference against main
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Defense in depth with the `v*` tag filter (mirrors release.yml's guard):
+    # only CLI-style tags should reach this job. Dispatch is allowed from any
+    # ref for operator testing.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
+    steps:
+      # `ref: main` is load-bearing. On a tag push the default checkout is the
+      # tag, but the stale generated file lives on main and the tag is
+      # immutable. `fetch-depth: 0` is also load-bearing: the generator shells
+      # `git show <tag>:<path>`, and on a shallow clone those reads fail into
+      # the workspace-tree fallback — which would MASK the drift rather than
+      # report it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      # Supplies `node_modules/.bin/oxfmt`. Also load-bearing: the generator's
+      # `formatMarkdown` SILENTLY returns unformatted content when oxfmt is
+      # absent (it resolves the binary relative to the script and just returns
+      # the input if missing), which would produce a bogus "drift" diff.
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Assert oxfmt is present (else the regen output is unformatted)
+        run: |
+          set -euo pipefail
+          if [ ! -x node_modules/.bin/oxfmt ]; then
+            echo '::error::node_modules/.bin/oxfmt missing — the generator would silently emit unformatted markdown and report false drift'
+            exit 1
+          fi
+
+      - name: Regenerate public reference
+        run: node scripts/docs/generate-anvil-public-reference.mjs
+
+      - name: Detect changes
+        id: diff
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- "${REFERENCE_DIR}"; then
+            echo 'changed=false' >> "${GITHUB_OUTPUT}"
+            echo "::notice::${REFERENCE_DIR} is already current for ${GITHUB_REF_NAME} — nothing to do."
+          else
+            echo 'changed=true' >> "${GITHUB_OUTPUT}"
+            git diff --stat -- "${REFERENCE_DIR}" | head -c 60000 > regen-stat.txt
+            git diff -- "${REFERENCE_DIR}" | head -c 60000 > regen-diff.txt
+          fi
+
+      - name: Push the fix branch
+        id: push
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Branch name is derived from the tag, so re-running for the same tag
+          # is idempotent rather than accumulating branches. `TAG_NAME` reaches
+          # the shell via env, never `${{ }}` interpolation into the script
+          # body: ref names permit `(`, `)` and backticks, so splicing one into
+          # `run:` would be a command-injection sink.
+          branch="chore/public-reference-regen-${TAG_NAME}"
+          echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b "${branch}"
+          git add -- "${REFERENCE_DIR}"
+          git commit -m "docs(reference): regenerate public reference for ${TAG_NAME}"
+          # force-with-lease keeps a re-run of the same tag idempotent without
+          # clobbering a branch someone else advanced in the meantime.
+          git push --force-with-lease origin "HEAD:refs/heads/${branch}"
+
+      - name: Open or refresh the regen issue
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+          RUN_URL:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh label create "${REGEN_LABEL}" \
+            --color 1D76DB \
+            --description 'Generated public reference needs regenerating after a release tag' \
+            --force || echo "::warning::gh label create failed — issue may be unlabelable"
+
+          {
+            echo "Cutting \`${TAG_NAME}\` changed the public reference generator's inputs, so"
+            echo "\`${REFERENCE_DIR}/\` on \`main\` is now stale."
+            echo
+            echo "The regenerated files are already pushed and ready to merge:"
+            echo
+            echo "**Open the PR:** ${REPO_URL}/compare/main...${BRANCH}?expand=1"
+            echo
+            echo "**Branch:** \`${BRANCH}\`"
+            echo "**Run:** ${RUN_URL}"
+            echo
+            echo 'Changes:'
+            echo
+            echo '```'
+            cat regen-stat.txt 2>/dev/null || echo '(stat unavailable — see workflow logs)'
+            echo '```'
+            echo
+            echo '<details><summary>Full diff</summary>'
+            echo
+            echo '```diff'
+            cat regen-diff.txt 2>/dev/null || echo '(diff unavailable — see workflow logs)'
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo 'Why this is not already a pull request: GitHub does not start workflow'
+            echo 'runs from events caused by `GITHUB_TOKEN`, so a PR opened by this job'
+            echo 'would never receive its required checks and could never merge. Opening'
+            echo 'it yourself from the link above triggers CI normally.'
+            echo
+            echo 'To reproduce locally instead:'
+            echo
+            echo '```console'
+            echo 'pnpm install && node scripts/docs/generate-anvil-public-reference.mjs'
+            echo '```'
+          } > issue-body.md
+
+          existing=$(gh issue list --label "${REGEN_LABEL}" --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body-file issue-body.md
+            echo "Refreshed existing regen issue #${existing}."
+          else
+            gh issue create \
+              --title "Public reference needs regenerating after ${TAG_NAME}" \
+              --label "${REGEN_LABEL}" \
+              --body-file issue-body.md
+            echo 'Opened a new regen issue.'
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          CHANGED: ${{ steps.diff.outputs.changed }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          {
+            echo '## Public reference regen'
+            echo
+            echo "Trigger ref:  \`${TAG_NAME}\`"
+            echo "Target:       \`${REFERENCE_DIR}/\` on \`main\`"
+            echo
+            if [ "${CHANGED:-}" = 'true' ]; then
+              echo "**Result: regenerated** — pushed \`${BRANCH}\`; a tracked issue was opened or refreshed."
+              echo
+              echo '```'
+              cat regen-stat.txt 2>/dev/null || echo '(stat unavailable)'
+              echo '```'
+            elif [ "${CHANGED:-}" = 'false' ]; then
+              echo '**Result: already current** — the tag cut did not change the generated output.'
+            else
+              echo '**Result: did not complete** — see the failed step above.'
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"

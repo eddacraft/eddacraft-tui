@@ -40,7 +40,15 @@
 # regen silently *downgrade* the Node block instead of advancing it, which
 # would report false drift, so the `npm ci` is load-bearing, not incidental.
 
-name: Acknowledgements drift
+# SECOND JOB (`reference`): the same latent-staleness shape for the generated
+# public reference under `docs/public/anvil/reference/`. Its authoritative
+# repair path is `public-reference-regen.yml`, which fires on the tag cut — the
+# event that actually changes that generator's inputs. This job is only the
+# backstop for a tag push that failed, was reverted, or never ran. It is a
+# SEPARATE job, not extra steps on `drift`, so that a root `pnpm install`
+# failure cannot take the attribution check down with it.
+
+name: Generated artefact drift
 
 on:
   schedule:
@@ -69,6 +77,8 @@ env:
   CARGO_ABOUT_VERSION: '0.8.4'
   DRIFT_LABEL: attribution-drift
   ATTRIBUTION_CONFIG: attribution/attribution.toml
+  REFERENCE_DIR: docs/public/anvil/reference
+  REFERENCE_LABEL: reference-regen
 
 jobs:
   drift:
@@ -248,4 +258,151 @@ jobs:
         if: steps.check.outputs.drift == 'true'
         run: |
           echo '::error::ACKNOWLEDGEMENTS.md on main is stale relative to the dependency graph'
+          exit 1
+
+  reference:
+    name: Check the generated public reference is current
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Same main-only guard as the attribution job: a feature branch can carry
+      # an in-flight regen, and reporting that as main drift would be a false
+      # alarm.
+      - name: Guard — only check drift from refs/heads/main
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != 'refs/heads/main' ]; then
+            echo "::error::reference drift check refused: GITHUB_REF=${GITHUB_REF} (only refs/heads/main is allowed; this watchdog tracks main)"
+            exit 1
+          fi
+
+      # `fetch-depth: 0` is load-bearing, not caution: the generator resolves
+      # its inputs with `git show <release-tag>:<path>`. On a shallow clone
+      # those reads fail into the workspace-tree fallback, which would MASK
+      # drift instead of reporting it — a silently useless watchdog.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Supplies `node_modules/.bin/oxfmt`, which the generator's
+      # `formatMarkdown` needs. If it is absent the generator SILENTLY returns
+      # unformatted content rather than failing, producing bogus drift.
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Assert oxfmt is present (else the check reports false drift)
+        run: |
+          set -euo pipefail
+          if [ ! -x node_modules/.bin/oxfmt ]; then
+            echo '::error::node_modules/.bin/oxfmt missing — the generator would silently emit unformatted markdown and report false drift'
+            exit 1
+          fi
+
+      # Unlike the attribution generator, this one has clean exit semantics:
+      # `--check` writes `[anvil-reference] stale: <path>` lines to stderr and
+      # exits non-zero only for drift or a hard failure, and the stale list is
+      # what we surface. Capture both streams for the issue body.
+      - name: Check the generated reference is current
+        id: check
+        run: |
+          set -euo pipefail
+          rc=0
+          node scripts/docs/generate-anvil-public-reference.mjs --check \
+            > reference-check.out 2> reference-check.err || rc=$?
+
+          if [ "${rc}" -eq 0 ]; then
+            echo 'drift=false' >> "${GITHUB_OUTPUT}"
+            echo 'Generated public reference is current.'
+            exit 0
+          fi
+
+          if ! grep -q '\[anvil-reference\] stale:' reference-check.err; then
+            echo "::error::the reference check could not run (exit ${rc}); this is a broken check, not drift"
+            cat reference-check.err >&2 || true
+            exit "${rc}"
+          fi
+
+          echo 'drift=true' >> "${GITHUB_OUTPUT}"
+          grep '\[anvil-reference\] stale:' reference-check.err | head -c 20000 > reference-stale.txt
+          echo '::warning::generated public reference is stale — see job summary and tracked issue'
+
+      - name: Open or refresh the reference drift issue
+        if: steps.check.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create "${REFERENCE_LABEL}" \
+            --color 1D76DB \
+            --description 'Generated public reference needs regenerating after a release tag' \
+            --force || echo "::warning::gh label create failed — issue may be unlabelable"
+
+          {
+            echo "The daily watchdog found \`${REFERENCE_DIR}/\` on \`main\` out of date."
+            echo
+            echo "**Run:** ${RUN_URL}"
+            echo "**Source SHA:** \`${GITHUB_SHA}\`"
+            echo
+            echo 'Stale files:'
+            echo
+            echo '```'
+            cat reference-stale.txt 2>/dev/null || echo '(list unavailable — see workflow logs)'
+            echo '```'
+            echo
+            echo '**Expected repair path:** `public-reference-regen.yml` fires on the release'
+            echo 'tag cut and pushes a ready-to-merge branch. Reaching this watchdog means'
+            echo 'that run failed, was reverted, or never happened — check it first.'
+            echo
+            echo 'Manual fix:'
+            echo
+            echo '```console'
+            echo 'pnpm install && node scripts/docs/generate-anvil-public-reference.mjs'
+            echo '```'
+          } > reference-issue.md
+
+          existing=$(gh issue list --label "${REFERENCE_LABEL}" --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body-file reference-issue.md
+            echo "Refreshed existing reference issue #${existing}."
+          else
+            gh issue create \
+              --title 'Generated public reference is stale on main' \
+              --label "${REFERENCE_LABEL}" \
+              --body-file reference-issue.md
+            echo 'Opened a new reference issue.'
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          DRIFT: ${{ steps.check.outputs.drift }}
+        run: |
+          {
+            echo '## Generated public reference drift check'
+            echo
+            echo "Target:        \`${REFERENCE_DIR}/\` (anvil-001 \`main\`)"
+            echo "Source commit: \`${GITHUB_SHA}\`"
+            echo
+            if [ "${DRIFT:-}" = 'true' ]; then
+              echo '**Result: DRIFT DETECTED** — a tracked issue was opened or refreshed.'
+              echo
+              echo '```'
+              cat reference-stale.txt 2>/dev/null || echo '(list unavailable)'
+              echo '```'
+            elif [ "${DRIFT:-}" = 'false' ]; then
+              echo '**Result: clean** — the committed reference matches a fresh generation.'
+            else
+              echo '**Result: check did not complete** — see the failed step above.'
+              echo 'This is a broken check, not drift; no issue was opened.'
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Fail the job on drift
+        if: steps.check.outputs.drift == 'true'
+        run: |
+          echo '::error::the generated public reference on main is stale'
           exit 1

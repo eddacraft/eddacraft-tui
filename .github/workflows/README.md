@@ -81,7 +81,8 @@ fixture enforces both directions.
 | `mirror-drift-check.yml`               | Auxiliary (mirror)                          | daily `schedule` plus `workflow_dispatch` — reconstructs the would-be-pushed `eddacraft-tui` subtree (split + banner swap) and tree-diffs it against the public `eddacraft/eddacraft-tui:main`; opens/refreshes a `mirror-drift` issue and fails on drift                                                                                                  | TUIR         |
 | `acknowledgements-kit.yml`             | PR + Integration                            | `pull_request` / `push` to `main` (kit + `attribution/licences.toml` + `attribution/licences.node-allow.txt` paths) — kit self-tests (dispatcher schema + two-block + strict-license-field + drift-detector + Node driver preflight/render/strict) plus `expand-licences --check`                                                                          | ATTRIB       |
 | `acknowledgements-autofix.yml`         | Auxiliary (CI autofix)                      | `workflow_run` on `Rust` completion, gated to failed runs on `dependabot/cargo/*` branches — regenerates `ACKNOWLEDGEMENTS.md` and pushes the fix when a Dependabot cargo bump left the Rust attribution block stale                                                                                                                                       | ATTRIB       |
-| `acknowledgements-drift-check.yml`     | Auxiliary (attribution)                     | daily `schedule` plus `workflow_dispatch` — regenerates the attribution blocks from `main` and diffs them against the committed `ACKNOWLEDGEMENTS.md`; opens/refreshes an `attribution-drift` issue and fails on drift                                                                                                                                     | ATTRIB       |
+| `acknowledgements-drift-check.yml`     | Auxiliary (generated-artefact drift)        | daily `schedule` plus `workflow_dispatch` — two independent jobs on `main`: regenerates the attribution blocks and diffs them against `ACKNOWLEDGEMENTS.md` (`attribution-drift` issue), and `--check`s the generated public reference (`reference-regen` issue); each fails on drift                                                                      | ATTRIB       |
+| `public-reference-regen.yml`           | Auxiliary (docs regen)                      | `push` of a CLI release tag (`v*`) plus `workflow_dispatch` — regenerates `docs/public/anvil/reference/` against `main` (a tag cut changes the generator's inputs with no commit), pushes a ready-to-merge branch and opens/refreshes a `reference-regen` issue                                                                                            | DOCGOV       |
 
 ### PR vs Integration push contract
 
@@ -167,6 +168,19 @@ eliminated, gated, or justified:
   `.github/dependabot.yml`). The scheduled watchdog closes both gaps read-only
   on `main`: it mints no PAT and only opens an issue. It is a detector, not a
   gate — the gate authority stays with `Acknowledgements freshness`.
+- `public-reference-regen.yml` vs the `reference` job in
+  `acknowledgements-drift-check.yml` vs `docs:check`'s `public-docs` surface —
+  **justified, repair path plus backstop plus gate.** `public-docs` (inside the
+  required `Docs Lint`) is the authoritative gate, but its heavy steps are gated
+  on `markdownlint-required`, and the event that actually invalidates the
+  generated reference is a **tag push**, which produces no commit and no `.md`
+  diff at all. The generator renders product sources from
+  `git show v<version>:<path>`, so cutting a tag changes its inputs with nothing
+  to path-filter on; staleness then waits for an unrelated `.md` PR to inherit
+  the red check (#3676). `public-reference-regen.yml` is the repair path, fired
+  by the tag cut itself. The `reference` watchdog job is only the backstop for a
+  tag run that failed, was reverted, or never ran — it detects and reports, it
+  does not gate.
 
 ## Matrix Targeting
 
