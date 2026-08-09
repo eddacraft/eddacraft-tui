@@ -8065,8 +8065,12 @@ CIB-251/255 only.
 
 ### CIB-281: `audit` security scope is absent from the TUI and SARIF surfaces
 
-- **Status:** Ready — promoted by the operator 2026-08-05 (membrane
-  checkpoint); filed from a dev-loop run, not self-authorised.
+- **Status:** Merged 2026-08-06 via PR #3652 (`47e0ae766`) — `AuditData` carries
+  single-source `security_scope`; TUI project panel and SARIF run metadata both
+  surface the same statement as plain/JSON. Code was an ancestor of the
+  `v0.9.3-beta` tag but was not on that window's formal claim list; bookkeeping
+  reconcile 2026-08-09 (was still Ready in this module). Not re-claimed for
+  `v0.9.4-beta`.
 - **Priority:** P2 presentation (completes CIB-234 on the surfaces it did not
   reach; the TUI is the default, so this is where most readers land)
 - **Intent:** CIB-234 shipped `SECURITY_SCOPE` on `audit`'s plain and JSON
@@ -9432,7 +9436,8 @@ CIB-251/255 only.
   POSIX shell). Coverage completed by PR #3703, which pins the per-platform
   receipt location — the tests shipped with #3698 all drive the lookup
   through `AXOUPDATER_CONFIG_PATH`, which short-circuits location resolution,
-  so the macOS half had no assertion on any leg until then.
+  so the macOS half had no assertion on any leg until then. Primary claim candidate for
+  provisional `v0.9.4-beta`.
 - **Priority:** P1 released-claim honesty — affects two of three platforms
 - **Intent:** `anvil version` must report the install method from receipt
   provenance, as the v0.9.3-beta changelog already claims it does. Today the

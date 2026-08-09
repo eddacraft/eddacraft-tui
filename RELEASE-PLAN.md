@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                            |
-| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Release plan | Derived   | APS modules | Live   | 2026-08-09: **`v0.9.3-beta` shipped** (honesty + Windows path). Closeout hygiene: durable record under `plans/releases/`, APS claim items advanced. **Active window** is provisional **`v0.9.4-beta`** (field follow-up / remaining honesty) — not cut-ready until claim solidifies. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                          |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-09: **`v0.9.3-beta` shipped**. Active window provisional **`v0.9.4-beta`** — product delta on main is install-receipt honesty (**CIB-315**) + durable-membership wait (#3700); pre-release short pass found no cut-blockers. Claim draft locked below; freeze when operator schedules cut. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -39,28 +39,37 @@ nothing else.
 - **Prior:** `v0.9.2-beta` MCP reconnect; `v0.9.1-beta` daily path + MCP 2.0.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** provisional **`v0.9.4-beta`** — field follow-up and
-  remaining honesty; claim not frozen. Programme work (Graph Trust Surfaces
-  Wave 0) runs **beside** this window and is not the cut claim.
+- **Active window:** provisional **`v0.9.4-beta`** — field follow-up on the v0.9
+  line. **Claim draft** below (operator freeze still required before cut).
+  Programme work (Graph Trust Surfaces Wave 0) runs **beside** this window and
+  is not the cut claim.
 
 ---
 
 ## Active window — `v0.9.4-beta` (provisional — field follow-up)
 
-**Theme:** Remaining honesty surfaces and post-`v0.9.3-beta` field signal on the
-v0.9 line. Not a new product minor. Re-scope or promote to a named claim when
-operator signal warrants a cut.
+**Theme:** Post-`v0.9.3-beta` field honesty on the v0.9 line — install-method
+truth on Windows/macOS, plus registration confirm that does not race the daemon.
+Not a new product minor.
 
-**Status:** **Not cut-ready.** Placeholder after 0.9.3 closeout so
-`RELEASE-PLAN.md` stays forward-looking (one active, untagged window).
+**Status:** **Implement done on main; claim draft locked; cut not scheduled.**
+Pre-release short pass (2026-08-09) found no cut-blocking product defects in
+`v0.9.3-beta..main`. Standing base bar (Cross matrix, readiness,
+ACKNOWLEDGEMENTS, openapi) still required at freeze/cut.
 
-### Candidate claim (not frozen)
+### Claim draft (operator freeze before cut)
 
-| ID          | Item                                                                               | Pri | Notes                                      |
-| ----------- | ---------------------------------------------------------------------------------- | --- | ------------------------------------------ |
-| **CIB-281** | `audit` security scope present on TUI + SARIF (completes CIB-234 disclosure class) | P2  | Ready leftover from 0.9.3 honesty class    |
-| **CIB-305** | Concurrent CI-log tracked writers (data-loss correctness)                          | P0  | Internal bookkeeping path; not user-facing |
-| Field TBD   | Post-0.9.3 beta feedback                                                           | —   | Intake before locking primary claim        |
+| ID / ref    | Item                                                                                       | Pri | State on main                    |
+| ----------- | ------------------------------------------------------------------------------------------ | --- | -------------------------------- |
+| **CIB-315** | Install-receipt roots + platform-correct upgrade advice (Windows/macOS cargo-dist honesty) | P1  | Merged #3698 (+ #3703 pin tests) |
+| **#3700**   | Wait for durable membership after register ack (false CIB-252 refusal race)                | P2  | Merged #3700                     |
+| **CIB-305** | Concurrent CI-log tracked writers (internal data-loss)                                     | P0  | Draft — **not** in product claim |
+
+### Already shipped — do not re-claim
+
+| ID          | Item                                  | Notes                                                               |
+| ----------- | ------------------------------------- | ------------------------------------------------------------------- |
+| **CIB-281** | `audit` security scope on TUI + SARIF | Merged #3652; code in `v0.9.3-beta` tree; formal claim list omitted |
 
 ### Not a claim of this release
 
@@ -70,16 +79,17 @@ operator signal warrants a cut.
 - **CONF-001** intent-conformance ADR (Schedule; programme unlocker)
 - Browser dashboard default-on / Team-Lead Surface (`v0.10.0-beta` when scoped)
 - Full `rmcp` adoption (MCP26-012)
+- **CIB-305** and other clawpatch Drafts (internal / promote separately)
 
 ### Phase plan
 
-| Phase              | Scope                                   | State                          |
-| ------------------ | --------------------------------------- | ------------------------------ |
-| **0.9.3 closeout** | Record + APS advance + prune            | Done 2026-08-09 (this hygiene) |
-| **Field intake**   | Post-0.9.3 beta signal; triage into CIB | Next                           |
-| **Claim lock**     | Freeze primary/secondary IDs for v0.9.4 | Blocked on intake              |
-| **Implement**      | Ready claim items                       | Not started                    |
-| **Cut**            | Preflight → prepare → readiness → tag   | Not scheduled                  |
+| Phase              | Scope                                   | State                                                |
+| ------------------ | --------------------------------------- | ---------------------------------------------------- |
+| **0.9.3 closeout** | Record + APS advance + prune            | Done 2026-08-09                                      |
+| **Field intake**   | Post-0.9.3 beta signal; triage into CIB | Done for CIB-315 + #3700; further optional           |
+| **Claim lock**     | Freeze primary/secondary IDs for v0.9.4 | **Draft locked 2026-08-09** — operator freeze at cut |
+| **Implement**      | Ready claim items                       | Done on main (CIB-315, #3700)                        |
+| **Cut**            | Preflight → prepare → readiness → tag   | Not scheduled                                        |
 
 ### Cut criteria (when claim locks)
 

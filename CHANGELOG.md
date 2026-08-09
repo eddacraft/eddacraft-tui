@@ -28,6 +28,14 @@ engineering maintenance are recorded in the
   prints there — instead of a `curl … | sh` command that needs a shell Windows
   does not have. Other platforms are unchanged.
 
+- **Workspace register no longer loses a race with the daemon.** After a
+  successful registration, anvil used to read daemon status once to confirm
+  durable membership. If that snapshot was taken a moment before the record was
+  visible, it refused with the same message as a real missing membership even
+  though registration had succeeded. It now waits briefly and re-checks until
+  the membership appears (or the budget expires and the honest refusal still
+  stands).
+
 ## [0.9.3-beta] — 2026-08-07 — Honesty and Windows path
 
 ### Fixed
