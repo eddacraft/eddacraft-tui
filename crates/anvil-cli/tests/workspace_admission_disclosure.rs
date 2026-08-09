@@ -52,6 +52,40 @@ fn run_workspace(home: &Path, args: &[&str]) -> (bool, String) {
     )
 }
 
+/// Phrase the CLI emits when a daemon round-trip exceeds its budget.
+/// Mirrors `registration.rs`'s transport error; kept as a constant so the
+/// retry helper and the assertions below cannot drift apart.
+const DAEMON_TRANSPORT_TIMEOUT: &str = "timed out talking to the daemon";
+
+/// Run a `workspace` subcommand that performs a daemon round-trip, retrying
+/// **only** on transport timeout.
+///
+/// The round-trip budget is 500 ms (`ACTIVATION_DAEMON_QUERY_TIMEOUT`), tuned
+/// so an interactive command cannot hang on a sick daemon. The registry waits
+/// below get 100 attempts against that budget; these calls got exactly one —
+/// and their stdout is what the assertions read. The most load-bearing step
+/// had the least tolerance, which is how a contended Windows runner failed
+/// `live_json_list_preserves_registered_membership` in CI nightly on
+/// 2026-08-09: `list` succeeded because it had ~100 chances, `register` had
+/// one and lost the race.
+///
+/// Deliberately narrow. A transport timeout means the daemon never answered,
+/// so no outcome was observed and retrying asks the same question again. Every
+/// other result — including the durable-gate refusal these tests exist to
+/// cover — is returned from the first response and asserted strictly, because
+/// those *are* observed outcomes and retrying could mask a real regression.
+fn run_workspace_awaiting_daemon(home: &Path, args: &[&str]) -> (bool, String) {
+    let mut last = run_workspace(home, args);
+    for _ in 0..10 {
+        if !last.1.contains(DAEMON_TRANSPORT_TIMEOUT) {
+            return last;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+        last = run_workspace(home, args);
+    }
+    last
+}
+
 /// Compare paths after resolving both spellings to the same filesystem identity.
 ///
 /// Windows may expose one temp path in long form and another in 8.3 form; macOS
@@ -290,12 +324,24 @@ fn live_json_list_preserves_registered_membership() {
     let worktree_text = worktree.to_str().expect("utf-8 worktree");
     assert!(run_workspace(home.path(), &["allow", worktree_text]).0);
     let (registered, registration_stdout) =
-        run_workspace(home.path(), &["register", worktree_text, "--persist"]);
+        run_workspace_awaiting_daemon(home.path(), &["register", worktree_text, "--persist"]);
     // `workspace register` exits 0 even when the live daemon outcome is a
     // refusal: `--persist` records intent independently (ACTMO-019).
     assert!(
         registered,
         "register command should exit 0 (persist is independent of live outcome): {registration_stdout}"
+    );
+
+    // Separate the two refusal families before asserting on copy. A transport
+    // timeout means the daemon never answered, so none of the durable-gate
+    // wording below can be present — the phrases at `registration.rs:91/271/
+    // 292/328` all sit on paths where the daemon *did* acknowledge. Without
+    // this line a timeout fails the durable-gate assertion instead, which
+    // reads as a wording defect and sends the next reader after the wrong bug.
+    assert!(
+        !registration_stdout.contains(DAEMON_TRANSPORT_TIMEOUT),
+        "daemon round-trip still timing out after retries — a transport failure, \
+         not the durable-gate refusal asserted below: {registration_stdout}"
     );
 
     let live_wire_ok =
@@ -341,8 +387,11 @@ fn live_json_list_preserves_registered_membership() {
     );
     assert_single_path_state(&value["register_on_start"], &worktree, "registered");
 
+    // Same single-shot daemon round-trip as `register` above, asserted on the
+    // same way — it would have failed identically on a slow runner, it just
+    // has not lost the race yet.
     let (unregistered, unregistration_stdout) =
-        run_workspace(home.path(), &["unregister", worktree_text]);
+        run_workspace_awaiting_daemon(home.path(), &["unregister", worktree_text]);
     assert!(
         unregistered && unregistration_stdout.contains("Unregistered"),
         "live unregister succeeds without dropping persisted intent: {unregistration_stdout}"
