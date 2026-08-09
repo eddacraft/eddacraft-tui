@@ -39,7 +39,7 @@ on:
     # CLI releases only (`v0.9.3-beta`, …), matching release.yml. Prefixed
     # library tags (`eddacraft-tui-v*`) do not match and must not trigger this.
     tags:
-      - 'v*'
+      - 'v[0-9]*'
   workflow_dispatch:
 
 # Least-privilege: push the fix branch, and open the notification issue.
@@ -60,18 +60,40 @@ jobs:
     name: Regenerate public reference against main
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Defense in depth with the `v*` tag filter (mirrors release.yml's guard):
-    # only CLI-style tags should reach this job. Dispatch is allowed from any
-    # ref for operator testing.
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
+    # Do NOT put the tag/dispatch gate on `jobs.*.if`. When that expression is
+    # false the run finishes with zero jobs, and GitHub records the workflow as
+    # **failure** (empty jobs array — see Actions run history after this file
+    # landed). A first-step gate that exits 0 keeps the suite green if a push
+    # ever matches the workflow without being a release tag.
     steps:
+      - name: Gate — tag or workflow_dispatch only
+        id: gate
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
+            echo 'run=true' >> "${GITHUB_OUTPUT}"
+            echo 'Manual dispatch — regenerating against main.'
+            exit 0
+          fi
+          case "${{ github.ref }}" in
+            refs/tags/v[0-9]*)
+              echo 'run=true' >> "${GITHUB_OUTPUT}"
+              echo "Tag ${{ github.ref_name }} — regenerating against main."
+              ;;
+            *)
+              echo 'run=false' >> "${GITHUB_OUTPUT}"
+              echo "::notice::Skipping public reference regen for ${{ github.ref }} (v* tags or workflow_dispatch only)."
+              ;;
+          esac
+
       # `ref: main` is load-bearing. On a tag push the default checkout is the
       # tag, but the stale generated file lives on main and the tag is
       # immutable. `fetch-depth: 0` is also load-bearing: the generator shells
       # `git show <tag>:<path>`, and on a shallow clone those reads fail into
       # the workspace-tree fallback — which would MASK the drift rather than
       # report it.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 0
@@ -82,9 +104,11 @@ jobs:
       # absent (it resolves the binary relative to the script and just returns
       # the input if missing), which would produce a bogus "drift" diff.
       - name: Setup workspace
+        if: steps.gate.outputs.run == 'true'
         uses: ./.github/actions/setup-workspace
 
       - name: Assert oxfmt is present (else the regen output is unformatted)
+        if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
           if [ ! -x node_modules/.bin/oxfmt ]; then
@@ -93,10 +117,12 @@ jobs:
           fi
 
       - name: Regenerate public reference
+        if: steps.gate.outputs.run == 'true'
         run: node scripts/docs/generate-anvil-public-reference.mjs
 
       - name: Detect changes
         id: diff
+        if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
           if git diff --quiet -- "${REFERENCE_DIR}"; then
@@ -110,7 +136,7 @@ jobs:
 
       - name: Push the fix branch
         id: push
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.gate.outputs.run == 'true' && steps.diff.outputs.changed == 'true'
         env:
           TAG_NAME: ${{ github.ref_name }}
         run: |
@@ -145,7 +171,7 @@ jobs:
           fi
 
       - name: Open or refresh the regen issue
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.gate.outputs.run == 'true' && steps.diff.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.ref_name }}
@@ -213,6 +239,7 @@ jobs:
       - name: Summary
         if: always()
         env:
+          SHOULD_RUN: ${{ steps.gate.outputs.run }}
           CHANGED: ${{ steps.diff.outputs.changed }}
           BRANCH: ${{ steps.push.outputs.branch }}
           TAG_NAME: ${{ github.ref_name }}
@@ -223,7 +250,9 @@ jobs:
             echo "Trigger ref:  \`${TAG_NAME}\`"
             echo "Target:       \`${REFERENCE_DIR}/\` on \`main\`"
             echo
-            if [ "${CHANGED:-}" = 'true' ]; then
+            if [ "${SHOULD_RUN:-}" != 'true' ]; then
+              echo '**Result: skipped** — not a `v*` tag cut or `workflow_dispatch`.'
+            elif [ "${CHANGED:-}" = 'true' ]; then
               echo "**Result: regenerated** — pushed \`${BRANCH}\`; a tracked issue was opened or refreshed."
               echo
               echo '```'
