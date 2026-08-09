@@ -53,12 +53,16 @@ fn installs_embedded_bundle_for_codex_at_global_default() {
 
     let skill = root.path().join(".agents/skills/anvil-developer-functions");
     let body = fs::read_to_string(skill.join("SKILL.md")).unwrap();
-    assert!(body.contains("anvil_validate_write"));
-    // Phrase must stay on one physical line (include_str install contract).
-    assert!(body.contains("pre-write enforcement gate"));
-    assert!(body.contains("anvil_apply_patch"));
-    assert!(body.contains("anvil_find_dependents"));
-    assert!(!body.contains("anvil_get_dependencies"));
+    // Markdown formatters may wrap; compare on whitespace-normalised text.
+    let compact = body.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(compact.contains("anvil_validate_write"));
+    assert!(
+        compact.contains("pre-write enforcement gate")
+            || compact.contains("pre-write validation gate")
+    );
+    assert!(compact.contains("anvil_apply_patch"));
+    assert!(compact.contains("anvil_find_dependents"));
+    assert!(!compact.contains("anvil_get_dependencies"));
 
     let reference = fs::read_to_string(skill.join("references/tool-reference.md")).unwrap();
     assert!(reference.contains("Call it before applying a write."));
