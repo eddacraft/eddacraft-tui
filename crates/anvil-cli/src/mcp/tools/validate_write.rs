@@ -380,8 +380,8 @@ fn resolve_response_detail_with(
     }
     match env_value {
         Some("minimal") => ResponseDetail::Minimal,
-        Some("full") => ResponseDetail::Full,
-        _ => ResponseDetail::Full,
+        // Explicit "full", unset, or any other value → full (A1 default).
+        Some("full") | _ => ResponseDetail::Full,
     }
 }
 
