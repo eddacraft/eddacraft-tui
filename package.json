@@ -64,6 +64,7 @@
     "test:aps-index": "bash scripts/aps/_test/index-counts.test.sh",
     "test:release-publish-contents": "bash scripts/release/_test/publish-public-contents.test.sh",
     "test:windows-pm-guard": "bash scripts/install/_test/windows-package-manager-guard.test.sh",
+    "test:ci-rust-coverage": "bash scripts/ci/rust-coverage.test.sh",
     "test:install-sh": "bash scripts/install.test.sh",
     "test:release-sign-artefacts": "bash scripts/ci/release-sign-artefacts-workflow.test.sh && bash scripts/release/_test/validate-signing-inputs.test.sh && bash scripts/release/_test/normalise-minisign-secret-key.test.sh",
     "test:wt-cleanup-sweep": "bash scripts/dev/wt-cleanup-sweep.test.sh",

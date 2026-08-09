@@ -257,6 +257,35 @@ jobs:
           needs.detect-changes.outputs.script-fixtures-required == 'true'
         run: pnpm run test:install-sh
 
+      # The same gap as the CIB-288 note above, found by auditing all 48 shell
+      # contract tests: these six had `pnpm` scripts (or none) and no workflow
+      # ever invoked them, so they were unfalsifiable everywhere — a guard that
+      # never runs cannot fail. The Windows package-manager guard is the costly
+      # one: it protects against the v0.9.2-beta regression (the guard's own
+      # `exit 0` terminating the installer before cargo-dist's body ran) and
+      # the CIB-230 "no internal tracker ids in public ship artefacts" policy.
+      #
+      # Gated on workflow changes as well as script changes, deliberately.
+      # `script-fixtures-required` fires on `scripts/**` only, but four of
+      # these assert *about* workflow files — wiring them on the script gate
+      # alone would rebuild the same trap one level up, where editing
+      # `release.yml` skips the very test that guards it.
+      #
+      # All six are shell/node against fixtures: no network, no `gh`, and
+      # `ci-log` sets its own git identity.
+      - name: Run script contract tests
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.script-fixtures-required == 'true' ||
+          needs.detect-changes.outputs.workflow-lint-required == 'true'
+        run: |
+          pnpm run test:windows-pm-guard
+          pnpm run test:aps-drift
+          pnpm run test:ci-log
+          pnpm run test:ci-security-targeting
+          pnpm run test:ci-rust-coverage
+          pnpm run test:release-publish-contents
+
       # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
       # the canonical CLI (anvil-plan-spec) pinned to an IMMUTABLE commit and
       # point APS_CANONICAL_BIN at it, rather than piping a curl|bash installer
