@@ -256,6 +256,14 @@ carry verdicts forward, defer-don't-block) — lives in
 [`release-process.md`](release-process.md). Do not tag until its human gate is
 signed in `plans/reviews/release-council/<date>-<tag>-pre-tag.md`.
 
+**Tracking-issue approvals.** `prepare.sh` opens the release tracking issue with
+an **Operator approvals** checkbox block. Operators tick boxes and fill
+`Signed-off-by:` on the issue body. Supporting agents treat a gate as approved
+only when the box is checked **and** signed; see the agent rules at the top of
+that block. **Tag authority** on the issue is the agent-readable go/no-go for
+`tag.sh` — it does not replace the council artefact when the runbook requires
+one.
+
 #### 6. Tag
 
 ```bash
@@ -630,6 +638,8 @@ A release is done only when all are true:
 - APS counts reconciled — `drift-check.mjs` reports no drift (step 11)
 - release issue is closed
 
-The tracking issue is an operator log only. Link live verification evidence from
-the issue; do not treat the issue as release authority or shipped-state
-authority. Shipped-state authority is the release record plus APS statuses.
+The tracking issue is an operator log and the **agent-facing approval surface**
+(checkbox gates with `Signed-off-by:`). Link live verification evidence from the
+issue. Do **not** treat the issue as shipped-state authority — that remains the
+release record plus APS statuses — but agents **must** honour unchecked or
+unsigned gates and must not invent approval.

@@ -91,6 +91,95 @@ release_version_without_prefix() {
   printf '%s' "${version#v}"
 }
 
+# Operator-facing tracking issue body. Checkbox rules are the agent contract:
+# a step is approved only when its box is `[x]`/`[X]` and the Signed-off-by
+# line under that step is non-empty. Unchecked or unsigned = not approved.
+tracking_issue_body() {
+  node - "$version" "$release_type" "$strategy" "${source_sha:-}" <<'NODE'
+const [version, releaseType, strategy, sourceSha] = process.argv.slice(2);
+const sha = sourceSha || '_(filled by prepare metadata comment)_';
+process.stdout.write(`Release tracking issue for \`${version}\`.
+
+## Intent
+
+| Field | Value |
+| --- | --- |
+| Version | \`${version}\` |
+| Type | ${releaseType} |
+| Strategy | ${strategy} |
+| Source SHA (at prepare) | \`${sha}\` |
+
+Operator log and **approval surface** for supporting agents. Shipped-state
+authority remains the release record and APS; this issue does not replace
+\`plans/releases/<tag>.md\`.
+
+## Operator approvals
+
+**Agent rules (do not invent authority):**
+
+1. A step is **approved** only when its checkbox is \`[x]\` or \`[X]\` **and**
+   the \`Signed-off-by:\` line under that step names a human operator
+   (GitHub login or real name). A bare check without a sign-off is **not**
+   approval.
+2. Unchecked (\`[ ]\`) or missing sign-off = **not approved**. Do not proceed
+   past that gate.
+3. \`tag.sh\` requires **Tag authority** checked and signed. Pre-tag review
+   artefacts may still be required by the runbook; the issue gate is the
+   agent-readable go/no-go.
+4. Operators tick boxes by editing this issue body (preferred) so the top of
+   the issue stays the single source of truth.
+
+### Claim freeze
+
+- [ ] Claim locked — theme and primary claim IDs accepted for this cut
+  - Signed-off-by:
+  - At (UTC):
+
+### Preflight and readiness
+
+- [ ] Local preflight green (\`scripts/release/preflight.sh\`)
+  - Signed-off-by:
+  - At (UTC):
+- [ ] Release readiness green on the **exact** source SHA
+  - Run URL:
+  - Signed-off-by:
+  - At (UTC):
+
+### Pre-tag review
+
+- [ ] Pre-tag review complete (focused or full per \`docs/runbooks/release-process.md\`)
+  - Artefact path (if any):
+  - Signed-off-by:
+  - At (UTC):
+- [ ] Human gate — authorised to tag
+  - Signed-off-by:
+  - At (UTC):
+
+### Tag and publish
+
+- [ ] **Tag authority** — \`tag.sh\` for \`${version}\` may run on the frozen SHA
+  - Signed-off-by:
+  - At (UTC):
+- [ ] Publish / monitor / verify may proceed after tag (optional batch tick)
+  - Signed-off-by:
+  - At (UTC):
+
+### Closeout
+
+- [ ] Closeout hygiene (record filled, APS advance, \`RELEASE-PLAN\` roll) may merge
+  - Signed-off-by:
+  - At (UTC):
+
+## Links
+
+- Runbook: \`docs/runbooks/release-runbook.md\`
+- Pre-tag doctrine: \`docs/runbooks/release-process.md\`
+- Cut actions: \`plans/execution/${version}.cut.actions.md\` (when present)
+- Closeout skeleton: \`plans/releases/${version}.md\` (when present)
+`);
+NODE
+}
+
 ensure_tracking_issue() {
   if [[ -n "${ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE:-}" ]]; then
     node - "$ANVIL_RELEASE_PREPARE_FAKE_ISSUES_FILE" "$repo" "$version" "$tracking_issue" <<'NODE'
@@ -130,15 +219,21 @@ NODE
       exit 1
     }
   else
-    gh api "repos/$repo/issues" \
-      --method POST \
-      -f "title=Release $version" \
-      -f "body=Release tracking issue for $version." \
-      -f "labels[]=release" \
-      --jq '{number, url: .html_url}' 2>/dev/null || {
+    local body
+    body="$(tracking_issue_body)"
+    # JSON stdin keeps multiline body intact (unlike -f body=).
+    if ! node - "$version" "$body" <<'NODE' | gh api "repos/${repo}/issues" --method POST --input - --jq '{number, url: .html_url}' 2>/dev/null
+const [version, body] = process.argv.slice(2);
+process.stdout.write(JSON.stringify({
+  title: `Release ${version}`,
+  body,
+  labels: ['release'],
+}));
+NODE
+    then
       emit_envelope "failed" "$(empty_data_json)" "$(failure_json auth-failed "failed to create tracking issue" true gh-auth)" "prepare" "Authenticate gh and rerun prepare."
       exit 1
-    }
+    fi
   fi
 }
 

@@ -155,6 +155,12 @@ The `release` tier requires a **human** sign-off: the release owner (not just
 the agent panel) signs the synthesised verdict in the output artefact's "Human
 gate sign-off" block **before** `tag.sh` runs. No sign-off, no tag.
 
+Mirror that authority on the **release tracking issue** opened by `prepare.sh`:
+tick **Human gate — authorised to tag** and **Tag authority**, each with a
+non-empty `Signed-off-by:` line. Supporting agents read those checkboxes as the
+go/no-go surface; a checked box without a sign-off is not approval. Detailed
+council prose stays in `plans/reviews/release-council/<date>-<tag>-pre-tag.md`.
+
 ## Full vs focused
 
 - **Full** (minor/significant tags, `vX.Y.0`): the whole reviewer panel over the
