@@ -24,6 +24,19 @@ pub const TOOL_NAME: &str = "anvil_validate_write";
 
 const RESPONSE_SCHEMA: &str = "anvil.mcp.validate-write.v1";
 const MAX_PROPOSED_CONTENT_BYTES: usize = 1024 * 1024;
+/// Process env override for response detail (RMCPF-040). Request `detail`
+/// wins when both are set. Default is full until RMCPF-043 flips it.
+const VALIDATE_DETAIL_ENV: &str = "ANVIL_MCP_VALIDATE_DETAIL";
+
+/// How much of the validate-write envelope to return (RMCPF-040 / design
+/// `2026-08-09-agent-facing-validate-write-ergonomics`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ResponseDetail {
+    /// Pre-ergonomics envelope (summary, diagnostics, correlation, …).
+    Full,
+    /// Clean allow only: `{ schema, decision }`. Non-allow stays full.
+    Minimal,
+}
 
 pub fn descriptor() -> Value {
     json!({
@@ -59,6 +72,11 @@ pub fn descriptor() -> Value {
                 "preview": {
                     "type": "string",
                     "description": "First lines of the proposed content. Used for partial validation when proposedContent is omitted."
+                },
+                "detail": {
+                    "type": "string",
+                    "enum": ["full", "minimal"],
+                    "description": "Response envelope detail. `minimal` returns only schema+decision on clean allow (omit empty diagnostics/summary/correlation/claim/tier). `full` returns the complete envelope. Default is full until the default-flip release; request overrides ANVIL_MCP_VALIDATE_DETAIL."
                 },
                 "contentEncoding": {
                     "type": "string",
@@ -207,7 +225,9 @@ fn call_with_validation_client(
             request.content.as_deref().expect("materialised above"),
         )
     {
-        return tool_result(&tiered_validation_payload(&request, &hit, enforcement_mode));
+        let mut payload = tiered_validation_payload(&request, &hit, enforcement_mode);
+        apply_response_detail(&mut payload, request.detail);
+        return tool_result(&payload);
     }
 
     let mut backend = ValidationBackend::Embedded;
@@ -306,7 +326,63 @@ fn call_with_validation_client(
         "decision": "full",
         "reason": full_tier_reason,
     });
+    apply_response_detail(&mut payload, request.detail);
     tool_result(&payload)
+}
+
+/// RMCPF-040: shrink clean-allow responses when the caller asked for
+/// `detail: minimal`. Non-allow decisions keep the full action payload
+/// (diagnostics, safeDefault, errors). Validation quality is unchanged —
+/// only serialisation of the result is gated.
+fn apply_response_detail(payload: &mut Value, detail: ResponseDetail) {
+    if detail != ResponseDetail::Minimal {
+        return;
+    }
+    let decision = payload.get("decision").and_then(|value| value.as_str());
+    if decision != Some("allow") {
+        return;
+    }
+    let schema = payload
+        .get("schema")
+        .cloned()
+        .unwrap_or_else(|| json!(RESPONSE_SCHEMA));
+    let decision = payload
+        .get("decision")
+        .cloned()
+        .unwrap_or_else(|| json!("allow"));
+    *payload = json!({
+        "schema": schema,
+        "decision": decision,
+    });
+}
+
+/// Resolve response detail: request `detail` wins, then
+/// `ANVIL_MCP_VALIDATE_DETAIL`, then **full** (A1 default; A4 flips).
+fn resolve_response_detail(arguments: &serde_json::Map<String, Value>) -> ResponseDetail {
+    let env_value = std::env::var(VALIDATE_DETAIL_ENV).ok();
+    resolve_response_detail_with(arguments, env_value.as_deref())
+}
+
+/// Pure resolver for unit tests (no process-env mutation required).
+fn resolve_response_detail_with(
+    arguments: &serde_json::Map<String, Value>,
+    env_value: Option<&str>,
+) -> ResponseDetail {
+    if let Some(raw) = arguments.get("detail").and_then(|value| value.as_str()) {
+        match raw {
+            "minimal" => return ResponseDetail::Minimal,
+            "full" => return ResponseDetail::Full,
+            _ => {
+                // Unknown values fall through to env/default rather than
+                // failing the whole write gate.
+            }
+        }
+    }
+    match env_value {
+        Some("minimal") => ResponseDetail::Minimal,
+        Some("full") => ResponseDetail::Full,
+        _ => ResponseDetail::Full,
+    }
 }
 
 /// POLRESET-006 / OPAE-007: run kill-switch-gated, fail-open pre-write policy
@@ -817,6 +893,8 @@ struct ValidateWriteRequest {
     patch_text: Option<String>,
     partial_scan: bool,
     preflight_problem: Option<ToolProblem>,
+    /// RMCPF-040: envelope detail for the response.
+    detail: ResponseDetail,
 }
 
 impl ValidateWriteRequest {
@@ -878,6 +956,7 @@ impl ValidateWriteRequest {
             _ => (None, false),
         };
         let patch_text = patch_content.map(str::to_string);
+        let detail = resolve_response_detail(arguments);
 
         Ok(Self {
             workspace_root,
@@ -887,6 +966,7 @@ impl ValidateWriteRequest {
             patch_text,
             partial_scan,
             preflight_problem,
+            detail,
         })
     }
 
@@ -4312,5 +4392,115 @@ mod tests {
         assert_eq!(normalised.len(), 2);
         assert_eq!(normalised[0].id, "diag_a");
         assert_eq!(normalised[1].id, "diag_b");
+    }
+
+    /// RMCPF-040: default detail remains full so existing clients keep
+    /// the pre-ergonomics envelope until the A4 default flip.
+    #[test]
+    fn clean_allow_default_detail_is_full_envelope() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["schema"], super::RESPONSE_SCHEMA);
+        assert_eq!(payload["summary"]["total"], 0);
+        assert_eq!(payload["diagnostics"], json!([]));
+        assert!(payload.get("correlation").is_some());
+        assert!(payload.get("tier").is_some());
+    }
+
+    /// RMCPF-040: `detail: minimal` on clean allow returns only schema
+    /// and decision — no empty diagnostics, summary, correlation, or tier.
+    #[test]
+    fn clean_allow_minimal_detail_omits_empty_envelope_fields() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "proposedContent": "export const value = 1;\n",
+                "detail": "minimal"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["schema"], super::RESPONSE_SCHEMA);
+        let keys: std::collections::BTreeSet<&str> = payload
+            .as_object()
+            .expect("object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            ["decision", "schema"].into_iter().collect(),
+            "minimal allow must be schema+decision only, got {payload}"
+        );
+    }
+
+    /// RMCPF-040: veto paths ignore minimal detail — agents still need
+    /// diagnostics and safeDefault.
+    #[test]
+    fn block_keeps_full_payload_under_minimal_detail() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "path": "src/secret.ts",
+                "operation": "update",
+                "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
+                "detail": "minimal"
+            }),
+        );
+
+        assert_ne!(payload["decision"], "allow");
+        assert!(payload.get("diagnostics").is_some());
+        assert_eq!(payload["safeDefault"], "do-not-write");
+        assert!(payload.get("correlation").is_some());
+    }
+
+    #[test]
+    fn apply_response_detail_leaves_non_allow_unchanged() {
+        let mut payload = json!({
+            "schema": super::RESPONSE_SCHEMA,
+            "decision": "warn",
+            "diagnostics": [{"id": "x"}],
+            "summary": { "total": 1 }
+        });
+        super::apply_response_detail(&mut payload, super::ResponseDetail::Minimal);
+        assert_eq!(payload["decision"], "warn");
+        assert_eq!(payload["diagnostics"][0]["id"], "x");
+    }
+
+    #[test]
+    fn resolve_response_detail_request_beats_env() {
+        let mut map = serde_json::Map::new();
+        map.insert("detail".into(), json!("full"));
+        assert_eq!(
+            super::resolve_response_detail_with(&map, Some("minimal")),
+            super::ResponseDetail::Full
+        );
+        map.insert("detail".into(), json!("minimal"));
+        assert_eq!(
+            super::resolve_response_detail_with(&map, Some("full")),
+            super::ResponseDetail::Minimal
+        );
+        map.clear();
+        assert_eq!(
+            super::resolve_response_detail_with(&map, Some("minimal")),
+            super::ResponseDetail::Minimal
+        );
+        assert_eq!(
+            super::resolve_response_detail_with(&map, None),
+            super::ResponseDetail::Full
+        );
     }
 }

@@ -2,9 +2,9 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | In Progress | 7/10     |
+| RMCPF | —     | In Progress | 7/15     |
 
-**Last reviewed:** 2026-06-19
+**Last reviewed:** 2026-08-09
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The TypeScript MCP server (`anvil-archive/anvil-mcp-server/`) is now
@@ -592,6 +592,105 @@ retirement decisions:
 
 ---
 
+---
+
+### Phase 4 — Agent-facing validate_write ergonomics
+
+Design authority:
+[`plans/specs/2026-08-09-agent-facing-validate-write-ergonomics.md`](../specs/2026-08-09-agent-facing-validate-write-ergonomics.md)
+(Approved 2026-08-09). Layer A is wire lean (anvil ships). Layer B is
+harness-agnostic display guidance only (docs; no vendor UI).
+
+#### RMCPF-040: Lean validate_write detail control (A1)
+
+- **Status:** In Progress
+- **Intent:** Let callers request a minimal clean-allow response without
+  changing validation quality; keep the full envelope as the default until
+  drivers and skills are ready for the flip (A4).
+- **Expected Outcome:** `anvil_validate_write` accepts optional
+  `detail: "minimal" | "full"` and honours process env
+  `ANVIL_MCP_VALIDATE_DETAIL` (request wins over env; default **full**). On
+  clean `decision: allow` with `detail: minimal`, the JSON body is only
+  `{ "schema": "anvil.mcp.validate-write.v1", "decision": "allow" }`. Warn,
+  block/veto, and error paths keep actionable full payloads. Validation
+  quality (secrets, policy, patch/post-image) is unchanged.
+- **Validation:** `cargo test -p eddacraft-anvil --lib mcp::tools::validate_write` (or
+  equivalent filter covering new detail tests) passes; existing allow tests
+  still see full envelope under default detail.
+- **Files:** `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
+  `plans/specs/2026-08-09-agent-facing-validate-write-ergonomics.md`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** none (design approved)
+- **releaseScope:** patch
+
+#### RMCPF-041: Skill and tool-description lean-call guidance (A2)
+
+- **Status:** Ready
+- **Intent:** Steer agents to lean request shapes and lean allow interpretation.
+- **Expected Outcome:** Tool description and `anvil-developer-functions` skill
+  prefer `anvil_apply_patch` / patch-only validate_write over full
+  `proposedContent`; state that `decision` alone is authoritative on allow;
+  rank preview+hash as partial, not quality-default.
+- **Validation:** Docs/skill review against the design decision table; no
+  regression in MCP tool catalogue tests.
+- **Files:** `crates/anvil-cli/src/mcp/tools/validate_write.rs` (descriptor),
+  skill pack / developer-functions skill as distributed for this repo
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** RMCPF-040
+- **releaseScope:** patch
+
+#### RMCPF-042: apply_patch response detail parity (A3)
+
+- **Status:** Ready
+- **Intent:** Preferred edit path is not the verbose exception.
+- **Expected Outcome:** `anvil_apply_patch` honours the same `detail` /
+  env / decision-gated minimal allow rules as validate_write; as-built and
+  CHANGELOG note the contract.
+- **Validation:** Unit tests for apply_patch minimal/full allow; as-built
+  section updated.
+- **Files:** `crates/anvil-cli/src/mcp/tools/apply_patch.rs`,
+  `docs/architecture/mcp-shim-as-built.md`, `CHANGELOG.md`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** RMCPF-040
+- **releaseScope:** patch
+
+#### RMCPF-043: Flip default validate detail to minimal (A4)
+
+- **Status:** Ready
+- **Intent:** Make lean allow the default for all harnesses after consumers
+  tolerate omitted empty fields.
+- **Expected Outcome:** Default response detail is **minimal** for clean
+  allow; `detail: "full"` and env restore the pre-A4 envelope. Driver fixtures
+  and release notes updated.
+- **Validation:** Default-allow tests expect minimal keys; full detail
+  fixture still matches claim-bearing envelope; TS driver client tests green.
+- **Files:** `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
+  `packages/anvil-driver-client/` as needed, release notes
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** RMCPF-040, RMCPF-041, RMCPF-042
+- **releaseScope:** minor (default wire behaviour change)
+
+#### RMCPF-044: Harness-agnostic display summary contract (B1)
+
+- **Status:** Ready
+- **Intent:** Publish portable one-line summary guidance for every MCP client;
+  no vendor UI code.
+- **Expected Outcome:** Public/integration MCP docs state tool · path ·
+  decision summary shape, display ≠ context, and never fold non-allow into
+  allow-only groups; skill cross-link.
+- **Validation:** `pnpm docs:check` (or narrow docs lint for touched paths).
+- **Files:** `docs/public/anvil/integrations/mcp.md` (or current integration
+  guide), skill cross-link
+- **Confidence:** high
+- **Priority:** Medium
+- **Dependencies:** RMCPF-040 (wire fields stable enough to document)
+- **releaseScope:** patch
+
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -624,4 +723,5 @@ retirement decisions:
 | 1 — Tool Parity | 3 | 3/3 done (RMCPF-010 Complete; RMCPF-011/-012 Merged via PR #1558) |
 | 2 — Resources and Transports | 2 | 1/2 done (RMCPF-020 Merged via #2809; RMCPF-021 Draft) |
 | 3 — Cutover | 2 | 0/2 (Draft) |
-| **Total** | **10** | **7/10 done** |
+| 4 — Validate-write ergonomics | 5 | 0/5 (RMCPF-040 In Progress; 041–044 Ready) |
+| **Total** | **15** | **7/15 done** |
