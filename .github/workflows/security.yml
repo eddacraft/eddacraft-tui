@@ -146,6 +146,10 @@ jobs:
           scanners: 'vuln'
           severity: 'HIGH,CRITICAL'
           exit-code: '1'
+          # Trivy auto-detects `.trivyignore` but NOT `.trivyignore.yaml`, so
+          # the richer format (per-entry `statement` + `expired_at`) has to be
+          # pointed at explicitly or every suppression is silently ignored.
+          trivyignores: '.trivyignore.yaml'
 
   # ── Secret Scanning ────────────────────────────────────────────
   # TruffleHog is cheap and a secret can land in any non-docs file,

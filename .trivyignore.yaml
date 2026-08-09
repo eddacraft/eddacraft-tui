@@ -1,0 +1,46 @@
+# Trivy vulnerability suppressions.
+#
+# Every entry MUST carry a `statement` justifying the risk acceptance and an
+# `expired_at` date. Trivy stops honouring an entry once it expires, so a stale
+# suppression re-breaks the build rather than silently hiding a live issue.
+# Review on expiry: either the upstream fix has shipped (drop the entry) or the
+# rationale still holds (extend it deliberately).
+#
+# Suppress only advisories with no available fix. Anything with a `Fixed
+# Version` belongs in a dependency bump, not here.
+
+vulnerabilities:
+  # image-size: Denial of Service via crafted image buffer (zero-valued size),
+  # and via crafted ICNS image buffer.
+  #
+  # No fix exists. Both advisories report no patched version, the vulnerable
+  # range is `<= 2.0.2`, and npm's `latest` IS 2.0.2 — every published version
+  # is affected, so there is nothing to upgrade to. Upstream last released
+  # 2.0.2 on 2025-04-02 and has landed only README changes since.
+  #
+  # Not reachable from shipped code. Anvil's shipped surface is Rust; there are
+  # zero `image-size` imports anywhere in this repo's sources. It arrives only
+  # as a transitive dependency of `@docusaurus/mdx-loader`, used by the
+  # `private: true` static docs apps (`apps/docs-public`,
+  # `apps/anvil-docs-private`) at build time. Upgrading Docusaurus does not
+  # help: 3.10.2's mdx-loader still declares `image-size: ^2.0.2`.
+  #
+  # The exploit requires parsing a hostile image. The only images parsed are
+  # ones committed to this repository's docs, so the input is trusted; an
+  # attacker able to supply one already has commit access.
+  - id: CVE-2025-71329
+    paths:
+      - 'pnpm-lock.yaml'
+    statement: >-
+      No fixed version exists (all published image-size versions are affected and npm latest is the
+      vulnerable 2.0.2). Build-time-only transitive dependency of @docusaurus/mdx-loader in private
+      static docs apps; parses only repo-committed images, never attacker-supplied input.
+    expired_at: 2026-11-09
+  - id: CVE-2025-71330
+    paths:
+      - 'pnpm-lock.yaml'
+    statement: >-
+      No fixed version exists (all published image-size versions are affected and npm latest is the
+      vulnerable 2.0.2). Build-time-only transitive dependency of @docusaurus/mdx-loader in private
+      static docs apps; parses only repo-committed images, never attacker-supplied input.
+    expired_at: 2026-11-09
