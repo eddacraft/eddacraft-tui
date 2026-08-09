@@ -657,7 +657,7 @@ harness-agnostic display guidance only (docs; no vendor UI).
 
 #### RMCPF-043: Flip default validate detail to minimal (A4)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make lean allow the default for all harnesses after consumers
   tolerate omitted empty fields.
 - **Expected Outcome:** Default response detail is **minimal** for clean
@@ -674,7 +674,7 @@ harness-agnostic display guidance only (docs; no vendor UI).
 
 #### RMCPF-044: Harness-agnostic display summary contract (B1)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Publish portable one-line summary guidance for every MCP client;
   no vendor UI code.
 - **Expected Outcome:** Public/integration MCP docs state tool · path ·
@@ -721,5 +721,5 @@ harness-agnostic display guidance only (docs; no vendor UI).
 | 1 — Tool Parity | 3 | 3/3 done (RMCPF-010 Complete; RMCPF-011/-012 Merged via PR #1558) |
 | 2 — Resources and Transports | 2 | 1/2 done (RMCPF-020 Merged via #2809; RMCPF-021 Draft) |
 | 3 — Cutover | 2 | 0/2 (Draft) |
-| 4 — Validate-write ergonomics | 5 | 3/5 (RMCPF-040..042 Merged via #3718; 043–044 Ready) |
+| 4 — Validate-write ergonomics | 5 | 3/5 (040–042 Merged; 043–044 In Progress) |
 | **Total** | **15** | **10/15 done** |

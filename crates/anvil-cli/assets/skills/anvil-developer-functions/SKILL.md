@@ -141,12 +141,12 @@ Response `decision`:
 - **`gateUnavailable`** / backend error — surface the warning and proceed per
   existing recovery.
 - **`allow`** — it passed; apply the write. **`decision` alone is
-  authoritative** on allow (with `detail: "minimal"`, empty diagnostics /
-  summary / correlation may be omitted).
+  authoritative** on allow. By default the envelope is minimal (schema +
+  decision only); empty diagnostics / summary / correlation may be omitted.
 
-Optional `detail: "minimal" | "full"` (default full until the default-flip
-release) and env `ANVIL_MCP_VALIDATE_DETAIL` control envelope size; they never
-change scan quality.
+Optional `detail: "minimal" | "full"` (default **minimal**) and env
+`ANVIL_MCP_VALIDATE_DETAIL` control envelope size; they never change scan
+quality. Use `detail: "full"` when you need correlation, claim, or tier.
 
 A worked safe-refactor sequence ties the loop together:
 

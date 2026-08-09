@@ -126,6 +126,38 @@ Graph context shared through a configured client is identity-only by default.
 See [local data and security](../operations/security.md) before enabling source
 snippet egress.
 
+## Pre-write tool responses (agent clients)
+
+`anvil_validate_write` and `anvil_apply_patch` return a `decision` on every
+call. On a clean **allow**, the default response is lean: only `schema` and
+`decision`. Pass `detail: "full"` when you need diagnostics, correlation, or the
+protection claim. Prefer `anvil_apply_patch` (or patch-only
+`anvil_validate_write`) for edits so tool arguments stay small.
+
+### Display summary (portable)
+
+Agent UIs should show a **one-line** summary by default and expand for full
+JSON. Recommended shape:
+
+```text
+anvil_validate_write  path/to/file.ts  allow
+anvil_validate_write  path/to/file.ts  block  (1 error)
+```
+
+| Summary field | Source                                                          |
+| ------------- | --------------------------------------------------------------- |
+| Tool name     | MCP tool name                                                   |
+| Path          | Request `path` (always available on the call)                   |
+| Outcome       | Response `decision`                                             |
+| Finding hint  | `summary.total` or first diagnostic id when present (non-allow) |
+
+Do not fold a **block** / **warn** result into an allow-only group. Collapsed
+display is for operators only — it does not shrink model context; lean wire
+payloads do.
+
+Managed agent skills that teach this loop ship with anvil when your binary
+exposes them — see [managed agent skills](skills.md).
+
 ## Next step
 
 Use [save-time validation](../guides/save-time-validation.md) as fallback

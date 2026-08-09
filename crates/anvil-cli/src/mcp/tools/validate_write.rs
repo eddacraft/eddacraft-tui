@@ -24,8 +24,8 @@ pub const TOOL_NAME: &str = "anvil_validate_write";
 
 const RESPONSE_SCHEMA: &str = "anvil.mcp.validate-write.v1";
 const MAX_PROPOSED_CONTENT_BYTES: usize = 1024 * 1024;
-/// Process env override for response detail (RMCPF-040). Request `detail`
-/// wins when both are set. Default is full until RMCPF-043 flips it.
+/// Process env override for response detail (RMCPF-040/043). Request `detail`
+/// wins when both are set. Default is **minimal** (RMCPF-043).
 const VALIDATE_DETAIL_ENV: &str = "ANVIL_MCP_VALIDATE_DETAIL";
 
 /// How much of the validate-write envelope to return (RMCPF-040 / design
@@ -76,7 +76,7 @@ pub fn descriptor() -> Value {
                 "detail": {
                     "type": "string",
                     "enum": ["full", "minimal"],
-                    "description": "Response envelope detail. `minimal` returns only schema+decision on clean allow (omit empty diagnostics/summary/correlation/claim/tier). `full` returns the complete envelope. Default is full until the default-flip release; request overrides ANVIL_MCP_VALIDATE_DETAIL."
+                    "description": "Response envelope detail. Default `minimal`: clean allow returns only schema+decision. `full` returns the complete envelope (summary, diagnostics, correlation, claim, tier). Request overrides ANVIL_MCP_VALIDATE_DETAIL."
                 },
                 "contentEncoding": {
                     "type": "string",
@@ -357,7 +357,7 @@ pub(crate) fn apply_response_detail(payload: &mut Value, detail: ResponseDetail)
 }
 
 /// Resolve response detail: request `detail` wins, then
-/// `ANVIL_MCP_VALIDATE_DETAIL`, then **full** (A1 default; A4 flips).
+/// `ANVIL_MCP_VALIDATE_DETAIL`, then **minimal** (RMCPF-043).
 pub(crate) fn resolve_response_detail(
     arguments: &serde_json::Map<String, Value>,
 ) -> ResponseDetail {
@@ -380,11 +380,11 @@ pub(crate) fn resolve_response_detail_with(
             }
         }
     }
-    if env_value == Some("minimal") {
-        ResponseDetail::Minimal
-    } else {
-        // Explicit "full", unset, or any other value → full (A1 default).
+    if env_value == Some("full") {
         ResponseDetail::Full
+    } else {
+        // Explicit "minimal", unset, or any other value → minimal (A4 default).
+        ResponseDetail::Minimal
     }
 }
 
@@ -1970,6 +1970,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -2013,6 +2014,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2053,6 +2055,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2077,6 +2080,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2147,6 +2151,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2192,6 +2197,7 @@ mod tests {
     fn daemon_and_embedded_paths_emit_identical_diagnostic_envelopes() {
         let workspace = tempdir().expect("workspace exists");
         let arguments = json!({
+            "detail": "full",
             "path": "src/secret.ts",
             "operation": "create",
             "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2244,6 +2250,7 @@ mod tests {
         };
         let payload = parse_payload(&call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2277,6 +2284,7 @@ mod tests {
         };
         let payload = parse_payload(&call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2321,6 +2329,7 @@ mod tests {
 
         let workspace = tempdir().expect("workspace exists");
         let arguments = json!({
+            "detail": "full",
             "path": "src/secret.ts",
             "operation": "create",
             "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2393,6 +2402,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -2425,6 +2435,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "update",
                 "proposedContent": "export const value = 1;\n",
@@ -2453,6 +2464,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "update",
                 "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const value = 1;\n+export const value = 2;\n"
@@ -2482,6 +2494,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "update",
                 "patch": "--- a/src/secret.ts\n+++ b/src/secret.ts\n@@ -1 +1 @@\n-const placeholder = 'redacted';\n+const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -2538,6 +2551,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "meta/tags.json",
                 "operation": "update",
                 "patch": patch
@@ -2593,6 +2607,7 @@ mod tests {
 
         let payload = parse_payload(&call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"new-name\",\n"
@@ -2639,6 +2654,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"new-name\",\n"
@@ -2708,6 +2724,7 @@ mod tests {
         let create = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "create",
                 "patch": rename_patch
@@ -2725,6 +2742,7 @@ mod tests {
             let payload = call_payload(
                 workspace.path(),
                 &json!({
+                    "detail": "full",
                     "path": "config.json",
                     "operation": operation,
                     "patch": rename_patch
@@ -2755,6 +2773,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"new-name\",\n@@ -4 +4 @@\n-  \"kind\": \"demo\"\n+  \"kind\": \"demo\"\n"
@@ -2786,6 +2805,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\r\n+  \"name\": \"new-name\",\r\n"
@@ -2809,6 +2829,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -2831,6 +2852,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2,2 +2,2 @@\n-  \"name\": \"old-name\",\n-  \"version\": \"1.0.0\"\n+  \"name\": \"new-name\",\n+  \"version\": \"2.0.0\"\n"
@@ -2855,6 +2877,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"title\": \"old-name\",\n"
@@ -2879,6 +2902,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.yaml",
                 "operation": "update",
                 "patch": "--- a/config.yaml\n+++ b/config.yaml\n@@ -1 +1 @@\n-name: old-name\n+name: new-name\n"
@@ -2906,6 +2930,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n"
@@ -2936,6 +2961,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\",\n+  \"name\": 42,\n"
@@ -2956,6 +2982,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "config.json",
                 "operation": "update",
                 "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2,2 @@\n-  \"name\": \"old-name\",\n+  \"name\": \"old-name\",\n+  \"extra\": \"added\",\n"
@@ -3022,6 +3049,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "update",
                 "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -2,0 +3,2 @@\n+inserted-1\n+inserted-2\n"
@@ -3091,6 +3119,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "update",
                 "preview": "const placeholder = 'redacted';\n",
@@ -3132,6 +3161,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/old.ts",
                 "operation": "delete",
                 "patch": "--- a/src/old.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3158,6 +3188,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "update",
                 "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -2,1 +1,0 @@\n-delete me\n"
@@ -3187,6 +3218,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/huge.ts",
                 "operation": "update",
                 "patch": "--- a/src/huge.ts\n+++ b/src/huge.ts\n@@ -1 +1 @@\n-old\n+new\n"
@@ -3213,6 +3245,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "update",
                 "patch": "--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const VALUE = 1;\n+export const VALUE = 2;\n"
@@ -3233,6 +3266,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/nope.ts",
                 "operation": "update",
                 "patch": "--- a/src/nope.ts\n+++ b/src/nope.ts\n@@ -1 +1 @@\n-old\n+new\n"
@@ -3249,6 +3283,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/reasoning.ts",
                 "operation": "update",
                 "proposedContent": "// the lead said to skip this branch\nexport const value = 1;\n"
@@ -3283,6 +3318,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3301,6 +3337,7 @@ mod tests {
             let payload = call_payload(
                 workspace.path(),
                 &json!({
+                    "detail": "full",
                     "path": path,
                     "operation": "create",
                     "proposedContent": "export const value = 1;\n"
@@ -3322,6 +3359,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "./src//x.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3346,6 +3384,7 @@ mod tests {
             };
             let result = call_with_validation_client(
                 &json!({
+                    "detail": "full",
                     "path": path,
                     "operation": "create",
                     "proposedContent": "export const value = 1;\n"
@@ -3374,6 +3413,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": r"src/a\b.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3394,6 +3434,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/blob.bin",
                 "operation": "create",
                 "proposedContent": "abc\0def"
@@ -3410,6 +3451,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/blob.bin",
                 "operation": "create",
                 "contentEncoding": "base64",
@@ -3427,6 +3469,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/huge.ts",
                 "operation": "create",
                 "proposedContent": "x".repeat(MAX_PROPOSED_CONTENT_BYTES + 1)
@@ -3443,6 +3486,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "../outside.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3481,6 +3525,7 @@ mod tests {
             let payload = call_payload(
                 workspace.path(),
                 &json!({
+                    "detail": "full",
                     "path": path,
                     "operation": "create",
                     "proposedContent": "export const value = 1;\n"
@@ -3501,6 +3546,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": absolute.to_string_lossy(),
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3535,6 +3581,7 @@ mod tests {
         let payload = call_payload(
             &alias,
             &json!({
+                "detail": "full",
                 "path": absolute.to_string_lossy(),
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3562,6 +3609,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": absolute.to_string_lossy(),
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3582,6 +3630,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "link/../target.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3602,6 +3651,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": absolute.to_string_lossy(),
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3619,6 +3669,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "workspaceRoot": other_workspace.path().to_string_lossy(),
                 "path": "src/example.ts",
                 "operation": "create",
@@ -3649,6 +3700,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "workspaceRoot": root_file.to_string_lossy(),
                 "path": "src/example.ts",
                 "operation": "create",
@@ -3667,6 +3719,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3695,6 +3748,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3726,6 +3780,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3786,6 +3841,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3812,6 +3868,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3838,6 +3895,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "create",
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3876,6 +3934,7 @@ mod tests {
             drop(scratch);
 
             let result = super::call(&json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -3899,9 +3958,23 @@ mod tests {
         serde_json::from_str(text).expect("tool result text is JSON")
     }
 
+    /// Test helper: injects `detail: "full"` when absent so envelope-field
+    /// assertions stay readable after RMCPF-043's minimal default.
     fn call_payload(workspace_root: &std::path::Path, arguments: &Value) -> Value {
+        call_payload_preserving_detail(workspace_root, arguments, true)
+    }
+
+    fn call_payload_preserving_detail(
+        workspace_root: &std::path::Path,
+        arguments: &Value,
+        inject_full_detail: bool,
+    ) -> Value {
+        let mut arguments = arguments.clone();
+        if inject_full_detail && let Some(object) = arguments.as_object_mut() {
+            object.entry("detail").or_insert_with(|| json!("full"));
+        }
         let result = call_with_validation_client(
-            arguments,
+            &arguments,
             workspace_root,
             &FixtureDaemon {
                 outcome: DaemonValidationOutcome::Unavailable,
@@ -3918,6 +3991,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "update",
                 "preview": "export const value = 1;\n"
@@ -3940,6 +4014,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "operation": "update",
                 "preview": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
@@ -3956,6 +4031,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -4040,6 +4116,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -4075,6 +4152,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -4111,6 +4189,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -4147,6 +4226,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -4194,6 +4274,7 @@ mod tests {
         let workspace = tempdir().expect("workspace exists");
         let with_claim = parse_payload(&call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -4217,6 +4298,7 @@ mod tests {
 
         let without_claim = parse_payload(&call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "operation": "create",
                 "proposedContent": "export const value = 1;\n"
@@ -4505,7 +4587,41 @@ mod tests {
         );
         assert_eq!(
             super::resolve_response_detail_with(&map, None),
+            super::ResponseDetail::Minimal,
+            "RMCPF-043: default detail is minimal"
+        );
+        assert_eq!(
+            super::resolve_response_detail_with(&map, Some("full")),
             super::ResponseDetail::Full
+        );
+    }
+
+    /// RMCPF-043: omitting `detail` yields the lean allow envelope.
+    #[test]
+    fn clean_allow_default_detail_is_minimal_envelope() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload_preserving_detail(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "operation": "update",
+                "proposedContent": "export const value = 1;\n"
+            }),
+            false,
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_eq!(payload["schema"], super::RESPONSE_SCHEMA);
+        let keys: std::collections::BTreeSet<&str> = payload
+            .as_object()
+            .expect("object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            ["decision", "schema"].into_iter().collect(),
+            "default allow must be schema+decision only, got {payload}"
         );
     }
 }

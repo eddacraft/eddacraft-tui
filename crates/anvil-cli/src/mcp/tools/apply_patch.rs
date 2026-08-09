@@ -45,7 +45,7 @@ pub fn descriptor() -> Value {
                 "detail": {
                     "type": "string",
                     "enum": ["full", "minimal"],
-                    "description": "Response envelope detail. Same contract as anvil_validate_write: minimal returns schema+decision on clean allow. Default full until the default-flip release; request overrides ANVIL_MCP_VALIDATE_DETAIL."
+                    "description": "Response envelope detail. Same contract as anvil_validate_write: default minimal returns schema+decision on clean allow; full restores the complete envelope. Request overrides ANVIL_MCP_VALIDATE_DETAIL."
                 }
             },
             "required": ["path", "unifiedDiff"],
@@ -343,9 +343,23 @@ mod tests {
         }
     }
 
+    /// Injects `detail: "full"` when absent so envelope assertions stay
+    /// readable after RMCPF-043's minimal default.
     fn call_payload(workspace_root: &Path, arguments: &Value) -> Value {
+        call_payload_preserving_detail(workspace_root, arguments, true)
+    }
+
+    fn call_payload_preserving_detail(
+        workspace_root: &Path,
+        arguments: &Value,
+        inject_full_detail: bool,
+    ) -> Value {
+        let mut arguments = arguments.clone();
+        if inject_full_detail && let Some(object) = arguments.as_object_mut() {
+            object.entry("detail").or_insert_with(|| json!("full"));
+        }
         let result = call_with_validation_client(
-            arguments,
+            &arguments,
             workspace_root,
             &FixtureDaemon {
                 outcome: DaemonValidationOutcome::Unavailable,
@@ -365,13 +379,40 @@ mod tests {
             workspace.path(),
             &json!({
                 "path": "src/example.ts",
-                "unifiedDiff": "@@ -1,3 +1,4 @@\n const a = 1;\n+const b = 2;\n const c = 3;\n"
+                "unifiedDiff": "@@ -1,3 +1,4 @@\n const a = 1;\n+const b = 2;\n const c = 3;\n",
+                "detail": "full"
             }),
         );
 
         assert_eq!(payload["decision"], "allow");
         assert_eq!(payload["schema"], "anvil.mcp.validate-write.v1");
         assert_eq!(payload["summary"]["total"], 0);
+    }
+
+    #[test]
+    fn clean_diff_default_detail_is_minimal() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload_preserving_detail(
+            workspace.path(),
+            &json!({
+                "path": "src/example.ts",
+                "unifiedDiff": "@@ -1,3 +1,4 @@\n const a = 1;\n+const b = 2;\n const c = 3;\n"
+            }),
+            false,
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        let keys: std::collections::BTreeSet<&str> = payload
+            .as_object()
+            .expect("object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            ["decision", "schema"].into_iter().collect(),
+            "default allow must be schema+decision only, got {payload}"
+        );
     }
 
     /// RMCPF-042: `apply_patch` honours the same minimal allow envelope.
@@ -427,6 +468,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": "./src//x.ts",
                 "unifiedDiff": "+const x = 1;\n"
             }),
@@ -450,6 +492,7 @@ mod tests {
             };
             let result = call_with_validation_client(
                 &json!({
+                    "detail": "full",
                     "path": path,
                     "unifiedDiff": "+const x = 1;\n"
                 }),
@@ -477,6 +520,7 @@ mod tests {
         };
         let result = call_with_validation_client(
             &json!({
+                "detail": "full",
                 "path": r"src/a\b.ts",
                 "unifiedDiff": "+const x = 1;\n"
             }),
@@ -496,6 +540,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/secret.ts",
                 "unifiedDiff": "@@ -1 +1 @@\n-const old = 1;\n+const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
@@ -512,6 +557,7 @@ mod tests {
         let payload = call_payload(
             workspace.path(),
             &json!({
+                "detail": "full",
                 "path": "src/example.ts",
                 "unifiedDiff": "@@ -1 +0,0 @@\n-const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
