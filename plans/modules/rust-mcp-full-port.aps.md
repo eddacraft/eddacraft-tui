@@ -592,8 +592,6 @@ retirement decisions:
 
 ---
 
----
-
 ### Phase 4 — Agent-facing validate_write ergonomics
 
 Design authority:
