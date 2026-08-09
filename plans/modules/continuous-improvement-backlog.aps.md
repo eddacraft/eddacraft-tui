@@ -9444,6 +9444,15 @@ CIB-251/255 only.
   Note the Windows writer reads the **environment variable**, not the
   known-folder API, so matching it also makes redirected-profile installs
   report honestly.
+
+  **Second half, surfaced by the first:** correcting detection makes the
+  `CargoDist` arm of `upgrade_command_for` reachable on Windows for the first
+  time, and that arm returns only the shell installer. Landing detection alone
+  would move a Windows user from `cargo install --git … --force` (needs a Rust
+  toolchain) to `curl … | sh` (needs a POSIX shell) — still unrunnable, on the
+  platform the report came from. Windows receipt installs must be pointed at
+  the PowerShell installer, sharing one string with the line `anvil update`
+  prints when it declines to self-update there.
 - **Non-scope / do not:** do not change detection order (the CIB-229 ordering
   is correct); do not move receipt loading in `update.rs` — axoupdater already
   resolves the root correctly there, and it is the comparator this item
@@ -9457,11 +9466,16 @@ CIB-251/255 only.
   temp dir and so cannot fail on this defect — the comment at
   `version.rs:1295-1298` records the divergence as a test-harness
   inconvenience rather than the bug it is. Cover the Windows mapping through a
-  platform-parameterised pure helper so it stays checkable from Linux CI.
+  platform-parameterised pure helper so it stays checkable from Linux CI —
+  the reporting estate is Windows-only and the Windows/macOS CI legs are
+  nightly, so a `cfg!` inside the branch would leave the advice Windows users
+  actually receive unasserted on every leg that runs per-PR.
 - **Identified From:** Dave beta re-test pack 04 (`RETEST-1`), 2026-08-08,
   against v0.9.3-beta on Windows 11; confirmed against source and widened to
   macOS during triage. Reported as install-method detection following the
-  binary path rather than receipt provenance.
+  binary path rather than receipt provenance. **The macOS half is ours to
+  verify** — the reporting estate is Windows-only, so no field evidence for it
+  will arrive.
 - **Coordinates with:** CIB-228 / CIB-229 (Windows install path and
   receipt-aware detection) and `anvil update --check`. The v0.9.3-beta
   changelog claim "`anvil update --check` and install method work for
