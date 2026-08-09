@@ -4397,17 +4397,19 @@ mod tests {
         assert_eq!(normalised[1].id, "diag_b");
     }
 
-    /// RMCPF-040: default detail remains full so existing clients keep
-    /// the pre-ergonomics envelope until the A4 default flip.
+    /// RMCPF-040: `detail: full` returns the complete pre-ergonomics envelope.
+    /// Default selection is covered by `resolve_response_detail_with` to avoid
+    /// inheriting `ANVIL_MCP_VALIDATE_DETAIL` from the process environment.
     #[test]
-    fn clean_allow_default_detail_is_full_envelope() {
+    fn clean_allow_full_detail_is_full_envelope() {
         let workspace = tempdir().expect("workspace exists");
         let payload = call_payload(
             workspace.path(),
             &json!({
                 "path": "src/example.ts",
                 "operation": "update",
-                "proposedContent": "export const value = 1;\n"
+                "proposedContent": "export const value = 1;\n",
+                "detail": "full"
             }),
         );
 
