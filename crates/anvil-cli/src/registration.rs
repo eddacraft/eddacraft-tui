@@ -12,7 +12,7 @@
 
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anvil_intercept_proto::session::AgentTag;
 use anvil_intercept_proto::{SessionId, SessionRecord};
@@ -24,6 +24,21 @@ const REGISTER_METHOD: &str = "session.register";
 const UNREGISTER_METHOD: &str = "session.unregister";
 const HEARTBEAT_METHOD: &str = "heartbeat";
 const RESPONSE_LINE_BYTES: u64 = 1 << 20;
+
+/// The daemon acknowledges `session.register`/`heartbeat` before the record is
+/// guaranteed to be visible in its `daemon.status` snapshot, so reading status
+/// once immediately after the acknowledgement races the daemon and can report
+/// an honest-but-wrong "membership absent" refusal. These bound a short wait
+/// for the write to become visible.
+///
+/// The budget is only ever paid on the failing path: the first snapshot that
+/// already carries the membership returns immediately, so a healthy
+/// registration adds no latency. A registration the daemon genuinely refuses
+/// (for example when the durable-claim peer check fails closed) still refuses,
+/// just `MEMBERSHIP_CONFIRM_BUDGET` later.
+const MEMBERSHIP_CONFIRM_BUDGET: Duration = Duration::from_secs(2);
+/// Gap between status polls while waiting for the write to become visible.
+const MEMBERSHIP_CONFIRM_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Outcome of a worktree registration attempt against the intercept daemon.
 /// ACTMO-014 enriches the original four-variant enum with the daemon's
@@ -64,10 +79,13 @@ pub(crate) fn register_worktree_with_daemon(worktree: &Path) -> WorktreeRegistra
         &request_id,
         ACTIVATION_DAEMON_QUERY_TIMEOUT,
     ) {
-        Ok(_) => match crate::commands::intercept::query_daemon_status_with_timeout(
-            ACTIVATION_DAEMON_QUERY_TIMEOUT,
-        ) {
-            Ok(status) => confirm_durable_registration(&canonical, &status.sessions),
+        Ok(_) => match await_membership_snapshot(&canonical, &session_id, || {
+            crate::commands::intercept::query_daemon_status_with_timeout(
+                ACTIVATION_DAEMON_QUERY_TIMEOUT,
+            )
+            .map(|status| status.sessions)
+        }) {
+            Ok(sessions) => confirm_durable_registration(&canonical, &sessions),
             Err(err) => {
                 let message = format!(
                     "daemon acknowledged registration for {}, but durable membership could not be confirmed: {err}",
@@ -158,18 +176,98 @@ fn confirm_registration_membership(
     sessions: &[SessionRecord],
     confirmed: WorktreeRegistration,
 ) -> WorktreeRegistration {
-    let present = sessions.iter().any(|session| {
+    if durable_membership_present(canonical, session_id, sessions) {
+        confirmed
+    } else {
+        missing_durable_membership(canonical)
+    }
+}
+
+fn durable_membership_present(
+    canonical: &Path,
+    session_id: &SessionId,
+    sessions: &[SessionRecord],
+) -> bool {
+    sessions.iter().any(|session| {
         &session.id == session_id
             && canonicalise_for_registration(&session.worktree) == canonical
             && session
                 .agent_tag
                 .as_ref()
                 .is_some_and(AgentTag::is_durable_membership)
-    });
-    if present {
-        confirmed
-    } else {
-        missing_durable_membership(canonical)
+    })
+}
+
+/// Read daemon status until it reflects the durable membership we just wrote,
+/// or the budget expires.
+///
+/// `session.register` and `heartbeat` are acknowledged before the record is
+/// necessarily visible in `daemon.status`, so a single read immediately after
+/// the acknowledgement races the daemon. Under load — a full-workspace test
+/// run, for instance — that race loses often enough to turn a healthy
+/// registration into a spurious "durable membership was absent" refusal.
+///
+/// Returns the first snapshot carrying the membership. If the budget expires
+/// the last snapshot is returned unchanged so the caller still produces the
+/// honest refusal established by CIB-252; if every read failed, the last error
+/// is returned so the caller reports it as before. Callers therefore keep all
+/// three of their original outcomes — only the timing changes.
+fn await_membership_snapshot<F, E>(
+    canonical: &Path,
+    session_id: &SessionId,
+    fetch: F,
+) -> Result<Vec<SessionRecord>, E>
+where
+    F: FnMut() -> Result<Vec<SessionRecord>, E>,
+{
+    await_membership_snapshot_within(
+        canonical,
+        session_id,
+        MEMBERSHIP_CONFIRM_BUDGET,
+        MEMBERSHIP_CONFIRM_INTERVAL,
+        fetch,
+    )
+}
+
+fn await_membership_snapshot_within<F, E>(
+    canonical: &Path,
+    session_id: &SessionId,
+    budget: Duration,
+    interval: Duration,
+    mut fetch: F,
+) -> Result<Vec<SessionRecord>, E>
+where
+    F: FnMut() -> Result<Vec<SessionRecord>, E>,
+{
+    let started = Instant::now();
+    let deadline = started + budget;
+    let mut reads = 1_usize;
+    let mut last = fetch();
+    loop {
+        if let Ok(sessions) = &last
+            && durable_membership_present(canonical, session_id, sessions)
+        {
+            return last;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            // Diagnostic only: the caller still owns the outcome and the
+            // user-facing copy is unchanged. Recording how hard we looked
+            // distinguishes a daemon write that never landed from a claim
+            // the daemon refused outright, which the refusal copy cannot.
+            tracing::warn!(
+                worktree = %canonical.display(),
+                session_id = session_id.as_str(),
+                status_reads = reads,
+                waited_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                last_read_failed = last.is_err(),
+                "activation: durable membership did not appear before the confirm budget expired",
+            );
+            return last;
+        }
+        std::thread::sleep(interval.min(remaining));
+        last = fetch();
+        reads += 1;
     }
 }
 
@@ -201,11 +299,14 @@ fn refresh_existing_activation_session(
         &request_id,
         ACTIVATION_DAEMON_QUERY_TIMEOUT,
     ) {
-        Ok(_) => match crate::commands::intercept::query_daemon_status_with_timeout(
-            ACTIVATION_DAEMON_QUERY_TIMEOUT,
-        ) {
-            Ok(status) => {
-                let outcome = confirm_durable_refresh(canonical, &status.sessions);
+        Ok(_) => match await_membership_snapshot(canonical, session_id, || {
+            crate::commands::intercept::query_daemon_status_with_timeout(
+                ACTIVATION_DAEMON_QUERY_TIMEOUT,
+            )
+            .map(|status| status.sessions)
+        }) {
+            Ok(sessions) => {
+                let outcome = confirm_durable_refresh(canonical, &sessions);
                 if outcome == WorktreeRegistration::Refreshed {
                     tracing::info!(
                         worktree = %canonical.display(),
@@ -765,6 +866,128 @@ mod tests {
                     && message.contains(&worktree.display().to_string())),
             "an acknowledged registration must not report success when daemon status has no durable membership: {outcome:?}",
         );
+    }
+
+    #[test]
+    fn membership_visible_only_after_the_first_read_is_still_confirmed() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let session_id = activation_session_id(&worktree);
+        let session = durable_session(session_id.clone(), &worktree);
+
+        let mut reads = 0_usize;
+        let snapshot = await_membership_snapshot_within(
+            &worktree,
+            &session_id,
+            Duration::from_secs(5),
+            Duration::from_millis(1),
+            || -> Result<Vec<SessionRecord>, std::convert::Infallible> {
+                reads += 1;
+                if reads < 3 {
+                    Ok(Vec::new())
+                } else {
+                    Ok(vec![session.clone()])
+                }
+            },
+        )
+        .expect("status reads succeed");
+
+        assert_eq!(
+            reads, 3,
+            "the wait must re-read daemon status rather than trust the first snapshot",
+        );
+        assert_eq!(
+            confirm_durable_registration(&worktree, &snapshot),
+            WorktreeRegistration::Registered,
+            "a membership that lands after the acknowledgement must still confirm",
+        );
+    }
+
+    #[test]
+    fn membership_already_present_is_confirmed_without_a_second_read() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let session_id = activation_session_id(&worktree);
+        let session = durable_session(session_id.clone(), &worktree);
+
+        let mut reads = 0_usize;
+        let started = Instant::now();
+        let snapshot = await_membership_snapshot_within(
+            &worktree,
+            &session_id,
+            Duration::from_secs(30),
+            Duration::from_secs(30),
+            || -> Result<Vec<SessionRecord>, std::convert::Infallible> {
+                reads += 1;
+                Ok(vec![session.clone()])
+            },
+        )
+        .expect("status reads succeed");
+
+        assert_eq!(reads, 1, "the healthy path must not poll a second time");
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the healthy path must not pay the wait budget",
+        );
+        assert_eq!(
+            confirm_durable_registration(&worktree, &snapshot),
+            WorktreeRegistration::Registered,
+        );
+    }
+
+    #[test]
+    fn membership_that_never_appears_still_refuses_within_the_budget() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let session_id = activation_session_id(&worktree);
+
+        let mut reads = 0_usize;
+        let started = Instant::now();
+        let snapshot = await_membership_snapshot_within(
+            &worktree,
+            &session_id,
+            Duration::from_millis(120),
+            Duration::from_millis(20),
+            || -> Result<Vec<SessionRecord>, std::convert::Infallible> {
+                reads += 1;
+                Ok(Vec::new())
+            },
+        )
+        .expect("status reads succeed");
+        let elapsed = started.elapsed();
+
+        assert!(reads > 1, "an absent membership must be re-checked");
+        assert!(
+            elapsed >= Duration::from_millis(100),
+            "the wait must actually span the budget, got {elapsed:?}",
+        );
+        assert!(
+            elapsed < Duration::from_secs(10),
+            "the wait must stay bounded, got {elapsed:?}",
+        );
+        assert_eq!(
+            confirm_durable_registration(&worktree, &snapshot),
+            missing_durable_membership(&worktree),
+            "CIB-252: a membership that never lands must still refuse honestly",
+        );
+    }
+
+    #[test]
+    fn repeated_status_read_failures_surface_the_last_error() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let session_id = activation_session_id(&worktree);
+
+        let error = await_membership_snapshot_within(
+            &worktree,
+            &session_id,
+            Duration::from_millis(60),
+            Duration::from_millis(20),
+            || -> Result<Vec<SessionRecord>, String> { Err("daemon status unreadable".to_owned()) },
+        )
+        .expect_err("every read failed");
+
+        assert_eq!(error, "daemon status unreadable");
     }
 
     #[test]
