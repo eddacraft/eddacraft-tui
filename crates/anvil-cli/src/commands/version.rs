@@ -1424,6 +1424,109 @@ mod tests {
         assert!(!missing, "no receipt must not report cargo-dist provenance");
     }
 
+    /// Where the receipt lives on **this** host, with no override in play.
+    ///
+    /// CIB-315 shipped a fix whose whole content is "look where cargo-dist
+    /// writes", but every test of it uses `AXOUPDATER_CONFIG_PATH`, which
+    /// short-circuits location resolution before the platform branch is
+    /// reached. Those tests pass identically on a fixed and a broken macOS,
+    /// so the nightly macOS leg — which does run `cargo test --workspace`
+    /// (`ci-nightly.yml`, `aarch64-apple-darwin`, `can_test: true`) — had
+    /// nothing to fail on. This test is what makes that leg mean something.
+    ///
+    /// Deliberately platform-conditional, and honest about the cost: on
+    /// Linux the two candidate locations coincide (`$HOME/.config` either
+    /// way), so this **cannot** fail there even against the old
+    /// implementation. Its value is realised only on the macOS and Windows
+    /// legs, where the locations differ — which is precisely where the
+    /// defect lived and where no assertion existed.
+    #[test]
+    fn dist_receipt_present_finds_the_receipt_at_this_platforms_location() {
+        let home = tempfile::tempdir().unwrap();
+
+        // Mirror `axoupdater::receipt::get_config_paths`: `%LOCALAPPDATA%`
+        // read as an env var on Windows, `$HOME/.config` everywhere else.
+        let receipt_dir = if cfg!(windows) {
+            home.path().join("eddacraft-anvil")
+        } else {
+            home.path().join(".config").join("eddacraft-anvil")
+        };
+        std::fs::create_dir_all(&receipt_dir).unwrap();
+        std::fs::write(
+            receipt_dir.join("eddacraft-anvil-receipt.json"),
+            r#"{"install_prefix":"/tmp","binaries":["anvil"],"source":{"app_name":"eddacraft-anvil","name":"anvil","owner":"eddacraft","release_type":"github"},"version":"0.9.3-beta","provider":{"source":"cargo-dist","version":"0.31.0"}}"#,
+        )
+        .unwrap();
+
+        // No AXOUPDATER_CONFIG_PATH: the point is to exercise the real
+        // per-platform resolution, not the override. XDG_CONFIG_HOME is
+        // cleared so the `$XDG_CONFIG_HOME/<app>` candidate cannot answer
+        // for the home-based one on Linux.
+        let found = temp_env::with_vars(
+            [
+                ("AXOUPDATER_CONFIG_PATH", None),
+                ("AXOUPDATER_CONFIG_WORKING_DIR", None),
+                ("XDG_CONFIG_HOME", None),
+                ("HOME", Some(home.path().as_os_str())),
+                ("LOCALAPPDATA", Some(home.path().as_os_str())),
+            ],
+            dist_receipt_present,
+        );
+        assert!(
+            found,
+            "receipt at this platform's cargo-dist location must be found"
+        );
+    }
+
+    /// The macOS half of CIB-315, stated as a negative: a receipt in the
+    /// **pre-fix** location must not be read as provenance.
+    ///
+    /// `dirs::config_dir()` — what the broken implementation used — is
+    /// `$HOME/Library/Application Support` on macOS, and `dirs` resolves
+    /// `$HOME` from the environment there, so a revert to it fails this test
+    /// loudly. That makes this the only assertion in the suite that fails on
+    /// the *specific* macOS defect rather than on the shared plumbing.
+    ///
+    /// macOS-only by necessity, not preference:
+    /// - On Linux the pre-fix and post-fix locations are the same directory
+    ///   (`$HOME/.config`), so there is nothing to distinguish.
+    /// - On Windows `dirs::config_dir()` goes through the known-folder API
+    ///   and ignores `%APPDATA%`, so a reverted implementation would read the
+    ///   runner's real profile no matter what this test set — the pin is not
+    ///   expressible through environment redirection. Windows is covered
+    ///   instead by the positive `%LOCALAPPDATA%` case above.
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn dist_receipt_present_ignores_the_pre_fix_config_dir() {
+        let home = tempfile::tempdir().unwrap();
+        let wrong_dir = home
+            .path()
+            .join("Library")
+            .join("Application Support")
+            .join("eddacraft-anvil");
+        std::fs::create_dir_all(&wrong_dir).unwrap();
+        std::fs::write(
+            wrong_dir.join("eddacraft-anvil-receipt.json"),
+            r#"{"install_prefix":"/tmp","binaries":["anvil"],"source":{"app_name":"eddacraft-anvil","name":"anvil","owner":"eddacraft","release_type":"github"},"version":"0.9.3-beta","provider":{"source":"cargo-dist","version":"0.31.0"}}"#,
+        )
+        .unwrap();
+
+        let found = temp_env::with_vars(
+            [
+                ("AXOUPDATER_CONFIG_PATH", None),
+                ("AXOUPDATER_CONFIG_WORKING_DIR", None),
+                ("XDG_CONFIG_HOME", None),
+                ("HOME", Some(home.path().as_os_str())),
+            ],
+            dist_receipt_present,
+        );
+        assert!(
+            !found,
+            "a receipt in the pre-fix `dirs::config_dir()` location must not \
+             be read as cargo-dist provenance"
+        );
+    }
+
     #[test]
     fn dist_receipt_present_accepts_the_legacy_app_name() {
         // Installs predating the eddacraft-anvil rename wrote `anvil`. The
