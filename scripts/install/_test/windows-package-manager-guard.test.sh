@@ -27,7 +27,12 @@ for public_file in "$GUARD" "$INJECT"; do
   if grep -nE 'GH[[:space:]]*#[0-9]+|GitHub[[:space:]]*#[0-9]+' "$public_file" >/dev/null; then
     fail "public install path must not contain GH/GitHub #NNNN (CIB-230): $public_file"
   fi
-  if grep -nE '\b(CIB|ADR|EVAL)-[0-9]+' "$public_file" >/dev/null; then
+  # No `\b`: it is a GNU extension, not POSIX ERE. BSD/macOS grep reads it as
+  # a literal `b`, which would demand a `b` before the id and quietly match
+  # nothing — a guard that cannot fail, which is the defect class this check
+  # exists to catch. Matching anywhere in the line is also the stricter
+  # reading: no internal id belongs in a shipped artefact in any position.
+  if grep -nE '(CIB|ADR|EVAL)-[0-9]+' "$public_file" >/dev/null; then
     fail "public install path must not contain internal tracker ids (CIB-230): $public_file"
   fi
 done
