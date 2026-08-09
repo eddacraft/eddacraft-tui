@@ -69,7 +69,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 - [ ] status/verify distinguishes config vs daemon vs MCP process vs graph
 - [ ] No default path kills children of live parents
 
-## Work items
+## Work Items
 
 ### MCPLH-001: PATH-stable MCP install command
 
@@ -209,6 +209,9 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
   serve when re-exec proves unsafe on a promoted client.
 - **Expected Outcome:** Only authorised after soak evidence that parents tear
   down on re-exec; config argv stays `anvil mcp serve --stdio`.
+- **Validation:** Not executable until soak evidence promotes this item to
+  Ready; then process tests prove worker restart under a stable parent pipe
+  without harness session restart
 - **Dependencies:** MCPLH-002 failed soak evidence
 - **Design ref:** spec §8, slice G
 
