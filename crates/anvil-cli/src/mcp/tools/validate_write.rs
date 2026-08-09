@@ -330,16 +330,24 @@ fn call_with_validation_client(
     tool_result(&payload)
 }
 
-/// RMCPF-040: shrink clean-allow responses when the caller asked for
-/// `detail: minimal`. Non-allow decisions keep the full action payload
-/// (diagnostics, safeDefault, errors). Validation quality is unchanged —
-/// only serialisation of the result is gated.
+/// RMCPF-040/043: shrink **clean** allow responses under `detail: minimal`.
+/// Non-allow decisions keep the full action payload. Allow with diagnostics
+/// (for example enforcement mode `off` still reporting findings) also keeps
+/// the full envelope so callers still see findings. Validation quality is
+/// unchanged — only serialisation of the result is gated.
 pub(crate) fn apply_response_detail(payload: &mut Value, detail: ResponseDetail) {
     if detail != ResponseDetail::Minimal {
         return;
     }
     let decision = payload.get("decision").and_then(|value| value.as_str());
     if decision != Some("allow") {
+        return;
+    }
+    // Clean allow only: any non-empty diagnostics array means the agent
+    // must still see findings (RTAI-006 "decision off", not "diagnostics off").
+    if let Some(diagnostics) = payload.get("diagnostics").and_then(|value| value.as_array())
+        && !diagnostics.is_empty()
+    {
         return;
     }
     let schema = payload

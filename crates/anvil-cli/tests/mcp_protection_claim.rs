@@ -192,7 +192,10 @@ fn run_validate_write_with_daemon(
             "arguments": {
                 "path": "src/clean.ts",
                 "operation": "create",
-                "proposedContent": proposed_content
+                "proposedContent": proposed_content,
+                // RMCPF-043: default detail is minimal (schema+decision only
+                // on clean allow). Claim-bearing envelope tests require full.
+                "detail": "full"
             }
         }
     });
