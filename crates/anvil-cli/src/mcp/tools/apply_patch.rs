@@ -8,8 +8,8 @@ use crate::mcp::tools::shared::{
     WorkspacePathKind, normalise_workspace_relative_path, validate_workspace_root,
 };
 use crate::mcp::tools::validate_write::{
-    apply_response_detail, correlation_id, diagnostic_summary, normalise_response_diagnostics,
-    resolve_response_detail, ResponseDetail,
+    ResponseDetail, apply_response_detail, correlation_id, diagnostic_summary,
+    normalise_response_diagnostics, resolve_response_detail,
 };
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, LocalDaemonValidationClient, PreWriteValidationRequest,
