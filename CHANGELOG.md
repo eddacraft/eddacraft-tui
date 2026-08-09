@@ -11,6 +11,18 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Fixed
+
+- **`anvil version` names the right install method on Windows and macOS.** If
+  you installed with the official installer, `version` could still report
+  `cargo install (CARGO_HOME/bin)` and suggest a `cargo install --git …` command
+  — no use at all without a Rust toolchain, which the installer does not
+  require. anvil was looking for the installer's receipt in a directory the
+  installer never writes to on those platforms, so it fell back to guessing from
+  the binary's location. It now reads the receipt from the same place
+  `anvil update` does, so both agree and the upgrade advice is something you can
+  run. Linux was unaffected.
+
 ## [0.9.3-beta] — 2026-08-07 — Honesty and Windows path
 
 ### Fixed

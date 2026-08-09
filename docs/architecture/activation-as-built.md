@@ -619,6 +619,13 @@ PowerShell installer detected via the install receipt), `CargoInstall`,
 `DevBuild`, and `Unknown`. Each variant maps to a recommended upgrade command
 via `upgrade_command_for` (`commands/version.rs:169-196`).
 
+The receipt itself is resolved by `commands::update::load_dist_receipt`, the
+same lookup `anvil update` uses, rather than by a path this module builds. That
+is deliberate: resolving it here diverged from the writer on Windows
+(`%LOCALAPPDATA%`) and macOS (`~/.config`), so `CargoDist` was unreachable on
+both and official-installer users were reported as `CargoInstall` (CIB-315). One
+lookup shared between the two surfaces makes the divergence unrepresentable.
+
 The latest-release lookup is HTTPS to
 `api.github.com/repos/eddacraft/anvil/releases/latest` and is bounded by a
 3-second timeout. `--offline` skips the network probe entirely

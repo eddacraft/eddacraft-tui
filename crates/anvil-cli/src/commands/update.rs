@@ -549,7 +549,27 @@ const GITHUB_OWNER: &str = "eddacraft";
 const GITHUB_REPO: &str = "anvil";
 /// App name must match cargo-dist / install receipt (`eddacraft-anvil`), not
 /// the binary short name `anvil` (CIB-229).
-const DIST_APP_NAME: &str = "eddacraft-anvil";
+pub(crate) const DIST_APP_NAME: &str = "eddacraft-anvil";
+/// Receipt name written before the package was renamed. Probed as a fallback
+/// so an install that predates the rename still reports its real provenance.
+pub(crate) const LEGACY_DIST_APP_NAME: &str = "anvil";
+
+/// Load the cargo-dist install receipt (written by the shell / `PowerShell`
+/// installers) into `updater`, preferring the current app name and falling
+/// back to the legacy one. Returns whether either succeeded.
+///
+/// This is the **single** receipt lookup in the CLI, shared with
+/// [`crate::commands::version::detect_install_method`]. `version` used to
+/// resolve the receipt path itself via `dirs::config_dir()`, which is not
+/// where the receipt is written on Windows (`%LOCALAPPDATA%`, read as an
+/// environment variable) or macOS (`~/.config`) — so `version` reported
+/// `cargo install` for the very installs `update --check` could update, and
+/// handed a toolchain-only upgrade command to people with no toolchain
+/// (CIB-315). Routing both surfaces through axoupdater makes that
+/// divergence unrepresentable rather than merely fixed.
+pub(crate) fn load_dist_receipt(updater: &mut axoupdater::AxoUpdater) -> bool {
+    updater.load_receipt().is_ok() || updater.load_receipt_as(LEGACY_DIST_APP_NAME).is_ok()
+}
 
 fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let current = env!("CARGO_PKG_VERSION");
@@ -569,7 +589,7 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
 
     // Try loading the cargo-dist install receipt (created by shell/powershell installers).
     // Prefer the package name; also try legacy `anvil` receipt paths.
-    let receipt_loaded = updater.load_receipt().is_ok() || updater.load_receipt_as("anvil").is_ok();
+    let receipt_loaded = load_dist_receipt(&mut updater);
 
     // If missing (dev build, manual install), configure the release source
     // manually *and* set install_prefix so is_update_needed is configured

@@ -503,10 +503,10 @@ pub fn detect_install_method_cached() -> InstallMethod {
 /// 4. `cargo install` location (`$CARGO_HOME/bin` or `~/.cargo/bin`) without receipt.
 /// 5. Fall through to `Unknown`.
 pub(crate) fn classify_exe_path(exe: &Path) -> InstallMethod {
-    // Package-manager markers first so production never pays for
-    // `dirs::config_dir()` (Windows known-folder / macOS Application Support)
-    // on Homebrew, Scoop, or WinGet paths. Receipt lookup is deferred until
-    // the remaining classify path needs it.
+    // Package-manager markers first so production never pays for the receipt
+    // probe (a file read plus a JSON parse) on Homebrew, Scoop, or WinGet
+    // paths. Receipt lookup is deferred until the remaining classify path
+    // needs it.
     let s = exe.to_string_lossy();
     if HOMEBREW_PREFIXES.iter().any(|p| s.starts_with(p)) {
         return InstallMethod::Homebrew;
@@ -517,23 +517,45 @@ pub(crate) fn classify_exe_path(exe: &Path) -> InstallMethod {
     if WINGET_MARKERS.iter().any(|m| s.contains(m)) {
         return InstallMethod::Winget;
     }
-    classify_exe_path_with_receipt_root(exe, dirs::config_dir().as_deref())
+    classify_exe_path_with_receipt(exe, dist_receipt_present())
 }
 
-/// Same as [`classify_exe_path`], but the cargo-dist receipt root is injected.
+/// Whether cargo-dist's install receipt is present for this install.
 ///
-/// Production reaches this after package-manager early returns, then passes
-/// [`dirs::config_dir`]. Tests pass an isolated temp dir: on macOS/Windows,
-/// `dirs::config_dir` ignores `XDG_CONFIG_HOME` / `HOME` / `APPDATA` (Windows
-/// uses the known-folder API), so planting a receipt under env-redirected
-/// paths does not exercise the receipt branch.
+/// Delegates to the shared [`crate::commands::update::load_dist_receipt`]
+/// rather than resolving the receipt path here. Resolving it here is what
+/// broke: `dirs::config_dir()` is `%APPDATA%` on Windows and
+/// `~/Library/Application Support` on macOS, while cargo-dist writes to
+/// `%LOCALAPPDATA%` and `~/.config` respectively, so the receipt branch was
+/// unreachable on both platforms and every official-installer user there was
+/// classified as `cargo install` (CIB-315). Only Linux ever agreed.
 ///
-/// Package-manager checks are repeated here so injected-root unit tests keep a
+/// Note this is a load, not an existence probe: a receipt that cannot be
+/// parsed no longer counts as provenance. That is the intent — `update`
+/// cannot use an unparseable receipt either, and the two surfaces must not
+/// disagree about the same install.
+fn dist_receipt_present() -> bool {
+    let mut updater = axoupdater::AxoUpdater::new_for(crate::commands::update::DIST_APP_NAME);
+    crate::commands::update::load_dist_receipt(&mut updater)
+}
+
+/// Same as [`classify_exe_path`], but whether a cargo-dist receipt was found
+/// is injected.
+///
+/// Production reaches this after the package-manager early returns and passes
+/// [`dist_receipt_present`]. Tests pass the flag directly, so they exercise
+/// the ordering without needing a receipt on disk.
+///
+/// Note what this signature deliberately does *not* take: a receipt **root**.
+/// The previous shape injected one, which let every unit test pass a temp dir
+/// and pass — while production passed a root the receipt writer never uses on
+/// two of three platforms. A defect no test could express is not a tested
+/// defect (CIB-315). Root resolution now lives in exactly one place, shared
+/// with `anvil update`.
+///
+/// Package-manager checks are repeated here so injected-flag unit tests keep a
 /// single full-order classifier (they call this helper directly).
-pub(crate) fn classify_exe_path_with_receipt_root(
-    exe: &Path,
-    receipt_config_dir: Option<&Path>,
-) -> InstallMethod {
+pub(crate) fn classify_exe_path_with_receipt(exe: &Path, receipt_present: bool) -> InstallMethod {
     let s = exe.to_string_lossy();
 
     if HOMEBREW_PREFIXES.iter().any(|p| s.starts_with(p)) {
@@ -546,7 +568,7 @@ pub(crate) fn classify_exe_path_with_receipt_root(
         return InstallMethod::Winget;
     }
     // Receipt before CARGO_HOME/bin: shell/PowerShell installers use that path.
-    if receipt_config_dir.is_some_and(cargo_dist_receipt_present) {
+    if receipt_present {
         return InstallMethod::CargoDist;
     }
     if is_dev_build(exe) {
@@ -595,29 +617,6 @@ fn is_dev_build(exe: &Path) -> bool {
         return false;
     };
     grandparent.as_os_str() == "target"
-}
-
-/// Whether a cargo-dist install receipt exists under `config_dir`.
-///
-/// cargo-dist / axoupdater write `{config_dir}/{app_name}/{app_name}-receipt.json`.
-/// Our package/app name is `eddacraft-anvil` (not `anvil`). Also probe the
-/// legacy `anvil/anvil-receipt.json` path in case older tools wrote it.
-/// See CIB-229.
-fn cargo_dist_receipt_present(config_dir: &Path) -> bool {
-    cargo_dist_receipt_candidates(config_dir)
-        .into_iter()
-        .any(|p| p.exists())
-}
-
-/// Possible install-receipt paths under a user config root (testable).
-pub(crate) fn cargo_dist_receipt_candidates(config_dir: &Path) -> Vec<std::path::PathBuf> {
-    vec![
-        config_dir
-            .join("eddacraft-anvil")
-            .join("eddacraft-anvil-receipt.json"),
-        // Legacy / mistaken path used before CIB-229.
-        config_dir.join("anvil").join("anvil-receipt.json"),
-    ]
 }
 
 // ─── Latest-version probe ────────────────────────────────────────────
@@ -1272,85 +1271,118 @@ mod tests {
         // the env var is restored after the test.
         let dir = tempfile::tempdir().unwrap();
         let bin = dir.path().join("bin").join("anvil");
-        // Empty receipt root: do not consult the host `dirs::config_dir`
-        // (Windows known-folder / macOS Application Support can still hold
-        // a real cargo-dist receipt even when XDG_CONFIG_HOME is redirected).
-        let empty_config = dir.path().join("config");
-        std::fs::create_dir_all(&empty_config).unwrap();
         let result = temp_env::with_vars(
             [
                 ("CARGO_HOME", Some(dir.path().as_os_str())),
                 ("HOME", Some(dir.path().as_os_str())),
             ],
-            || classify_exe_path_with_receipt_root(&bin, Some(empty_config.as_path())),
+            || classify_exe_path_with_receipt(&bin, false),
         );
         assert_eq!(result, InstallMethod::CargoInstall);
     }
 
     #[test]
-    fn classify_exe_path_cargo_home_with_eddacraft_receipt_is_cargo_dist() {
-        // CIB-229: cargo-dist default layout is CARGO_HOME/bin + receipt
-        // under eddacraft-anvil/. Receipt must win over CargoInstall.
-        //
-        // Inject the receipt root explicitly: planting under XDG_CONFIG_HOME
-        // only works on Linux. macOS (`~/Library/Application Support`) and
-        // Windows (known-folder RoamingAppData) ignore that env, so Cross
-        // previously saw CargoInstall and failed this claim test.
+    fn classify_exe_path_cargo_home_with_receipt_is_cargo_dist() {
+        // CIB-229: cargo-dist's default layout is CARGO_HOME/bin + a receipt,
+        // so a found receipt must beat the CargoInstall path check. This
+        // covers the ordering only — that the receipt is found where the
+        // installer actually writes it is
+        // `dist_receipt_present_reads_the_path_cargo_dist_writes`.
         let dir = tempfile::tempdir().unwrap();
-        let config = dir.path().join("config");
-        let receipt_dir = config.join("eddacraft-anvil");
-        std::fs::create_dir_all(&receipt_dir).unwrap();
-        std::fs::write(
-            receipt_dir.join("eddacraft-anvil-receipt.json"),
-            r#"{"install_prefix":"/tmp","binaries":["anvil"],"source":{"app_name":"eddacraft-anvil","name":"anvil","owner":"eddacraft","release_type":"github"},"version":"0.9.2-beta","provider":{"source":"cargo-dist","version":"0.31.0"}}"#,
-        )
-        .unwrap();
         let bin = dir.path().join("cargo").join("bin").join("anvil");
         let result = temp_env::with_vars(
             [
                 ("CARGO_HOME", Some(dir.path().join("cargo").as_os_str())),
                 ("HOME", Some(dir.path().as_os_str())),
             ],
-            || classify_exe_path_with_receipt_root(&bin, Some(config.as_path())),
+            || classify_exe_path_with_receipt(&bin, true),
         );
         assert_eq!(result, InstallMethod::CargoDist);
     }
 
     #[test]
-    fn cargo_dist_receipt_present_finds_eddacraft_anvil_layout() {
+    fn dist_receipt_present_reads_the_path_cargo_dist_writes() {
+        // CIB-315. The claim under test is agreement with the *writer*, so
+        // the receipt is planted through axoupdater's own path override
+        // rather than through a root this module chooses — a root of our own
+        // choosing is exactly what was wrong, and a test that picks one can
+        // never fail on it.
+        //
+        // RED against the previous implementation on every platform:
+        // `dirs::config_dir()` does not read AXOUPDATER_CONFIG_PATH. RED on
+        // Windows and macOS for the shipped reason too — `%APPDATA%` and
+        // `~/Library/Application Support` are not where the receipt lands.
+        //
+        // HOME and XDG_CONFIG_HOME are redirected so the developer's own
+        // `~/.config/eddacraft-anvil` receipt cannot satisfy the positive
+        // case under a broken implementation. Without that, the assertion
+        // goes green on any machine with anvil installed — which is every
+        // machine likely to run it.
+        let home = tempfile::tempdir().unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let config = dir.path();
-        let receipt_dir = config.join("eddacraft-anvil");
-        std::fs::create_dir_all(&receipt_dir).unwrap();
         std::fs::write(
-            receipt_dir.join("eddacraft-anvil-receipt.json"),
-            r#"{"provider":{"source":"cargo-dist"}}"#,
+            dir.path().join("eddacraft-anvil-receipt.json"),
+            r#"{"install_prefix":"/tmp","binaries":["anvil"],"source":{"app_name":"eddacraft-anvil","name":"anvil","owner":"eddacraft","release_type":"github"},"version":"0.9.3-beta","provider":{"source":"cargo-dist","version":"0.31.0"}}"#,
         )
         .unwrap();
-        assert!(cargo_dist_receipt_present(config));
-        assert!(!cargo_dist_receipt_present(&config.join("missing")));
+
+        let found = temp_env::with_vars(
+            [
+                ("AXOUPDATER_CONFIG_PATH", Some(dir.path().as_os_str())),
+                ("XDG_CONFIG_HOME", Some(home.path().as_os_str())),
+                ("HOME", Some(home.path().as_os_str())),
+            ],
+            dist_receipt_present,
+        );
+        assert!(
+            found,
+            "receipt written where cargo-dist writes it must be found by `version`"
+        );
+
+        let empty = tempfile::tempdir().unwrap();
+        let missing = temp_env::with_vars(
+            [
+                ("AXOUPDATER_CONFIG_PATH", Some(empty.path().as_os_str())),
+                ("XDG_CONFIG_HOME", Some(home.path().as_os_str())),
+                ("HOME", Some(home.path().as_os_str())),
+            ],
+            dist_receipt_present,
+        );
+        assert!(!missing, "no receipt must not report cargo-dist provenance");
     }
 
     #[test]
-    fn cargo_dist_receipt_candidates_prefer_eddacraft_anvil_name() {
-        let root = PathBuf::from("/tmp/cfg");
-        let c = cargo_dist_receipt_candidates(&root);
-        assert_eq!(
-            c[0],
-            PathBuf::from("/tmp/cfg/eddacraft-anvil/eddacraft-anvil-receipt.json")
+    fn dist_receipt_present_accepts_the_legacy_app_name() {
+        // Installs predating the eddacraft-anvil rename wrote `anvil`. The
+        // fallback exists in `update`; `version` must agree, or the two
+        // surfaces disagree about the same install again. HOME and
+        // XDG_CONFIG_HOME are redirected for the same reason as above.
+        let home = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("anvil-receipt.json"),
+            r#"{"install_prefix":"/tmp","binaries":["anvil"],"source":{"app_name":"anvil","name":"anvil","owner":"eddacraft","release_type":"github"},"version":"0.8.1-beta","provider":{"source":"cargo-dist","version":"0.31.0"}}"#,
+        )
+        .unwrap();
+
+        let found = temp_env::with_vars(
+            [
+                ("AXOUPDATER_CONFIG_PATH", Some(dir.path().as_os_str())),
+                ("XDG_CONFIG_HOME", Some(home.path().as_os_str())),
+                ("HOME", Some(home.path().as_os_str())),
+            ],
+            dist_receipt_present,
         );
-        assert!(c.iter().any(|p| p.ends_with("anvil/anvil-receipt.json")));
+        assert!(found, "legacy `anvil` receipt must still report cargo-dist");
     }
 
     #[test]
     fn classify_exe_path_falls_through_to_unknown_for_arbitrary_path() {
         // No package-manager marker, not under target/, not in
-        // CARGO_HOME — falls through to Unknown. Inject an empty
-        // receipt root so a host cargo-dist install cannot tip this
-        // into CargoDist (dirs known-folder / Application Support).
+        // CARGO_HOME — falls through to Unknown. Inject "no receipt" so a
+        // host cargo-dist install on the developer machine running the tests
+        // cannot tip this into CargoDist.
         let dir = tempfile::tempdir().unwrap();
-        let empty_config = dir.path().join("config");
-        std::fs::create_dir_all(&empty_config).unwrap();
         let result = temp_env::with_vars(
             [
                 ("HOME", Some(dir.path().as_os_str())),
@@ -1358,12 +1390,7 @@ mod tests {
                 // the unknown path even when run on a developer machine.
                 ("CARGO_HOME", None),
             ],
-            || {
-                classify_exe_path_with_receipt_root(
-                    &PathBuf::from("/opt/some/random/anvil"),
-                    Some(empty_config.as_path()),
-                )
-            },
+            || classify_exe_path_with_receipt(&PathBuf::from("/opt/some/random/anvil"), false),
         );
         assert_eq!(result, InstallMethod::Unknown);
     }
