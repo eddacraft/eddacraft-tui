@@ -17,7 +17,7 @@ engineering maintenance are recorded in the
   you installed with the official installer, `version` could still report
   `cargo install (CARGO_HOME/bin)` and suggest a `cargo install --git …` command
   — no use at all without a Rust toolchain, which the installer does not
-  require. anvil was looking for the installer's receipt in a directory the
+  require. `anvil` was looking for the installer's receipt in a directory the
   installer never writes to on those platforms, so it fell back to guessing from
   the binary's location. It now reads the receipt from the same place
   `anvil update` does, so both agree. Linux was unaffected.
