@@ -813,7 +813,7 @@ fn report_windows_unsupported(current: &str, global: &GlobalArgs) {
                 "message": message,
                 "alternatives": [
                     "winget upgrade --id eddacraft.anvil",
-                    "irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex",
+                    crate::commands::version::WINDOWS_INSTALLER_UPGRADE,
                 ],
             })
         );
@@ -823,7 +823,9 @@ fn report_windows_unsupported(current: &str, global: &GlobalArgs) {
     }
 }
 
-fn windows_unsupported_message() -> &'static str {
+/// Exposed to `version` so a test can prove the two surfaces print the same
+/// Windows upgrade command; a user who runs both must not get two answers.
+pub(crate) fn windows_unsupported_message() -> &'static str {
     "Self-update is not supported on Windows in this release.\n\
      \n\
      To upgrade, use one of:\n  \

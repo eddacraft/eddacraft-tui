@@ -438,6 +438,19 @@ fn install_method_display(m: InstallMethod) -> &'static str {
 /// Recommended upgrade command per install method. Strings are stable
 /// — tooling can pin against them.
 pub fn upgrade_command_for(m: InstallMethod) -> &'static str {
+    upgrade_command_for_platform(m, cfg!(windows))
+}
+
+/// [`upgrade_command_for`] with the host platform injected, so both branches
+/// are reachable from any CI leg.
+///
+/// The parameter is not decoration: the Windows arm below became reachable for
+/// the first time when receipt detection was fixed (CIB-315), and a `cfg!`
+/// inside the match would have made the advice Windows users actually receive
+/// untestable everywhere except the nightly Windows leg. That is the same
+/// shape as the defect this item exists to fix — a production value no test on
+/// the default legs can supply.
+pub(crate) fn upgrade_command_for_platform(m: InstallMethod, windows: bool) -> &'static str {
     match m {
         InstallMethod::Homebrew => "brew upgrade eddacraft/tap/anvil",
         InstallMethod::Scoop => "scoop update anvil",
@@ -448,8 +461,20 @@ pub fn upgrade_command_for(m: InstallMethod) -> &'static str {
         // header comment so a user pasting the printed line into
         // their shell hits the same release artefact `install.sh`
         // resolves.
+        //
+        // Platform-split on purpose: a Windows user cannot run
+        // `curl … | sh`, and `anvil update` cannot self-update on Windows
+        // either (`install-updater = false`), so re-running the PowerShell
+        // installer is the only working upgrade path there. Without this
+        // split, fixing detection would have swapped one unrunnable
+        // instruction (`cargo install --git …`, needs a toolchain) for
+        // another (`curl … | sh`, needs a POSIX shell).
         InstallMethod::CargoDist => {
-            "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh"
+            if windows {
+                WINDOWS_INSTALLER_UPGRADE
+            } else {
+                UNIX_INSTALLER_UPGRADE
+            }
         }
         // The `eddacraft-anvil` crate is `publish = false`, so a
         // bare `cargo install eddacraft-anvil` will fail. The only
@@ -467,6 +492,15 @@ pub fn upgrade_command_for(m: InstallMethod) -> &'static str {
 }
 
 // ─── Install method detection ────────────────────────────────────────
+
+/// The only working upgrade path for a receipt install on Windows: re-run the
+/// PowerShell installer. Kept identical to the line `anvil update` prints when
+/// it declines to self-update on Windows, so the two surfaces cannot suggest
+/// different commands for the same install.
+pub(crate) const WINDOWS_INSTALLER_UPGRADE: &str = "irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex";
+
+/// The shell-installer equivalent for every other platform.
+pub(crate) const UNIX_INSTALLER_UPGRADE: &str = "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh";
 
 const HOMEBREW_PREFIXES: &[&str] = &["/opt/homebrew/", "/usr/local/Cellar/", "/home/linuxbrew/"];
 const SCOOP_MARKERS: &[&str] = &["scoop\\apps\\anvil\\", "scoop/apps/anvil/"];
@@ -1137,7 +1171,7 @@ mod tests {
         let cargo_dist_cmd = upgrade_command_for(InstallMethod::CargoDist);
         assert!(
             cargo_dist_cmd.contains(
-                "github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh"
+                "github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer."
             ),
             "CargoDist upgrade command must point at the canonical \
              release URL: {cargo_dist_cmd}"
@@ -1298,6 +1332,45 @@ mod tests {
             || classify_exe_path_with_receipt(&bin, true),
         );
         assert_eq!(result, InstallMethod::CargoDist);
+    }
+
+    #[test]
+    fn cargo_dist_upgrade_advice_is_runnable_on_the_platform_it_targets() {
+        // CIB-315. Fixing receipt detection made the CargoDist arm reachable
+        // on Windows for the first time. Before this, the arm only ever
+        // returned the shell installer — so a Windows user would have been
+        // moved off `cargo install --git …` (needs a toolchain they do not
+        // have) onto `curl … | sh` (needs a shell they do not have). Both
+        // branches are asserted from every CI leg, because the Windows leg
+        // is nightly-only and this is precisely the advice Windows users see.
+        let win = upgrade_command_for_platform(InstallMethod::CargoDist, true);
+        assert!(
+            win.contains("eddacraft-anvil-installer.ps1"),
+            "Windows must be pointed at the PowerShell installer: {win}"
+        );
+        assert!(
+            !win.contains("| sh") && !win.contains("curl "),
+            "Windows must not be told to pipe into sh: {win}"
+        );
+
+        let unix = upgrade_command_for_platform(InstallMethod::CargoDist, false);
+        assert!(
+            unix.contains("eddacraft-anvil-installer.sh"),
+            "non-Windows must be pointed at the shell installer: {unix}"
+        );
+        assert!(
+            !unix.contains("irm "),
+            "non-Windows must not be told to use irm: {unix}"
+        );
+
+        // `anvil update` declines to self-update on Windows and prints its own
+        // upgrade line. If these two drift, one install gets two different
+        // instructions depending on which command you happened to run.
+        assert!(
+            crate::commands::update::windows_unsupported_message()
+                .contains(WINDOWS_INSTALLER_UPGRADE),
+            "`version` and `update` must print the same Windows upgrade command"
+        );
     }
 
     #[test]

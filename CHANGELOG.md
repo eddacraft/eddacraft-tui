@@ -20,8 +20,13 @@ engineering maintenance are recorded in the
   require. anvil was looking for the installer's receipt in a directory the
   installer never writes to on those platforms, so it fell back to guessing from
   the binary's location. It now reads the receipt from the same place
-  `anvil update` does, so both agree and the upgrade advice is something you can
-  run. Linux was unaffected.
+  `anvil update` does, so both agree. Linux was unaffected.
+
+- **Installer upgrade advice matches the platform you are on.** Windows installs
+  are now told to re-run the PowerShell installer
+  (`irm … eddacraft-anvil-installer.ps1 | iex`) — the same line `anvil update`
+  prints there — instead of a `curl … | sh` command that needs a shell Windows
+  does not have. Other platforms are unchanged.
 
 ## [0.9.3-beta] — 2026-08-07 — Honesty and Windows path
 
