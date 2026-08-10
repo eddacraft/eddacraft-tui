@@ -1,8 +1,8 @@
 # Benchmark Results
 
-| Type  | Authority | Owner                                                                                                                                   | Status | Freshness                                                            |
-| ----- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------- |
-| Guide | Advisory  | RLB ([`plans/modules/resource-load-benchmarking.aps.md`](../../plans/modules/resource-load-benchmarking.aps.md)); KFIT kindling section | Live   | Kindling history seed 2026-08-03; RLB resource-budget run 2026-06-04 |
+| Type  | Authority | Owner                                                                                                                                   | Status | Freshness                                                       |
+| ----- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------- |
+| Guide | Advisory  | RLB ([`plans/modules/resource-load-benchmarking.aps.md`](../../plans/modules/resource-load-benchmarking.aps.md)); KFIT kindling section | Live   | Full-suite history 2026-08-10; Kindling history seed 2026-08-03 |
 
 | Upstream                                                                                                             | Downstream                                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -27,11 +27,75 @@ are the CI artifacts produced by the `.github/workflows/resource-budget.yml` and
   loaded box or a backgrounded agent shell inflates absolute numbers; the curve
   _shape_ still holds.
 
+### Scheduled runs versus committed history
+
+- [`bench.yml`](../../.github/workflows/bench.yml) runs the hosted Criterion and
+  mid-edit suites daily at 19:00 UTC (03:00 AWST), plus manual dispatch.
+- [`resource-budget.yml`](../../.github/workflows/resource-budget.yml) runs the
+  per-process budgets daily at 17:15 UTC (01:15 AWST), plus integration,
+  release-readiness, and manual triggers.
+- [`bench-nightly.yml`](../../.github/workflows/bench-nightly.yml) is manual
+  only while no self-hosted `bench` runner is online.
+
+Those workflows upload expiring artefacts; they do not commit this ledger. A
+reviewed quiet-box run must be promoted through the
+[`benchmarks/history/` workflow](../../benchmarks/README.md#adding-a-run) to
+become durable history.
+
 Reference machine for the dev-box entries below: **AMD Ryzen 7 5800X (8c/16t),
 Linux 6.17** — the intercept interactive pool is 4 threads (half-cores capped at
 4).
 
 ---
+
+## Full-suite run — 2026-08-10, dev box
+
+Source: anvil `adabdb782`, Rust 1.97.1, AMD Ryzen 7 5800X (16 logical CPUs),
+Linux 6.17. Machine-readable record:
+[`benchmarks/history/2026-08-10.json`](../../benchmarks/history/2026-08-10.json).
+The stable `pnpm bench` entrypoint hit the known non-TTY `cargo | tee` capture
+failure before measurement; every declared command then ran directly and
+sequentially using the documented fallback. Compile checks and 81 `anvil-bench`
+tests passed.
+
+All hard latency and resource budgets passed. The mid-edit comparator reported
+**0 SLO breaches and 11 soft drift warnings across 14 rows**. The largest
+warnings were the empty and 1 KiB service paths (+91.0% and +88.8% against the
+committed developer-machine baseline); absolute p95 remained 2.112 ms and 2.184
+ms against the 50 ms service SLO. Treat this as drift to watch, not an
+unqualified no-change result.
+
+### Latency gates
+
+| Surface / worst budgeted case              | Observed p95 | Budget | Verdict                  |
+| ------------------------------------------ | ------------ | ------ | ------------------------ |
+| `validate_paths`, 4 agents + executor scan | 0.091 ms     | 80 ms  | pass                     |
+| Mid-edit service, near-cap buffer          | 28.899 ms    | 50 ms  | pass, soft drift warning |
+| Mid-edit roundtrip, near-cap buffer        | 37.751 ms    | 80 ms  | pass                     |
+| Hot read, slowest certification case       | 0.035 ms     | 80 ms  | pass                     |
+| Call lift, cap-ceiling file                | 5.230 ms     | 80 ms  | pass                     |
+
+### CPU / RSS budgets
+
+| Process / phase                | CPU (measured / budget) | RSS (measured / budget) | Status |
+| ------------------------------ | ----------------------- | ----------------------- | ------ |
+| `anvil watch` — churn path     | 0.95% / 50%             | 23.64 / 300 MiB         | pass   |
+| intercept daemon — idle        | 0.0% / 5%               | 16.52 / 96 MiB          | pass   |
+| intercept daemon — burst       | 100.03% / 250%          | 16.52 / 128 MiB         | pass   |
+| MCP server                     | 5.57% / 200%            | 16.14 / 96 MiB          | pass   |
+| concurrent all-three aggregate | 99.06% / 800%           | 54.43 / 700 MiB         | pass   |
+
+### Same-host throughput signals
+
+- Secret scanning: 6.201 s serial versus 0.842 s parallel (**7.37× speed-up**).
+- Discovery walk: 85.78 ms sequential versus 13.87 ms parallel (**6.19×
+  speed-up**).
+- Call-lift p95 improved by 19–33% across the three common cases versus
+  2026-06-26.
+- The parallel mixed antipattern corpus was 0.637 ms, **39.2% slower** than
+  2026-06-26. The TypeScript small/medium/large and clean-file cases were 30–52%
+  slower. These remain below the ledger's >2× investigation threshold, but they
+  are the clearest same-host regression signal in this run.
 
 ## Latency — save-time `validate_paths` (intercept `ipc_roundtrip`)
 

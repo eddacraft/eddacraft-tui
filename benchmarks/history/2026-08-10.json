@@ -1,0 +1,569 @@
+{
+  "schema_version": 1,
+  "run": {
+    "date": "2026-08-10",
+    "commit": "adabdb782",
+    "rustc": "1.97.1",
+    "trigger": "manual full suite (quiet box; direct per-surface fallback)",
+    "host": {
+      "note": "local reference box; sequential quiet-box run via scripts/bench/run.sh surfaces",
+      "hostname": "deus",
+      "cpus": 16
+    },
+    "source": "benchmark-results/manual-20260810T155233Z (direct per-surface fallback after pnpm bench pipe abort)"
+  },
+  "benches": {
+    "kernel": [
+      {
+        "case": "cold_graph_build/files/10",
+        "ns_per_iter": 533254,
+        "variance_ns": 23682
+      },
+      {
+        "case": "cold_graph_build/files/50",
+        "ns_per_iter": 2543770,
+        "variance_ns": 61098
+      },
+      {
+        "case": "cold_graph_build/files/100",
+        "ns_per_iter": 5769255,
+        "variance_ns": 149652
+      },
+      {
+        "case": "cold_graph_build/files/500",
+        "ns_per_iter": 64817880,
+        "variance_ns": 1517124
+      },
+      {
+        "case": "cold_graph_build/files/1000",
+        "ns_per_iter": 218981664,
+        "variance_ns": 2933628
+      },
+      {
+        "case": "cold_graph_build/files/5000",
+        "ns_per_iter": 4903901529,
+        "variance_ns": 42523020
+      },
+      {
+        "case": "incremental_update/single_file_reparse_and_update",
+        "ns_per_iter": 27109,
+        "variance_ns": 327
+      },
+      {
+        "case": "incremental_update_varied/loc/10",
+        "ns_per_iter": 47111,
+        "variance_ns": 703
+      },
+      {
+        "case": "incremental_update_varied/loc/100",
+        "ns_per_iter": 363370,
+        "variance_ns": 3870
+      },
+      {
+        "case": "incremental_update_varied/loc/500",
+        "ns_per_iter": 1795588,
+        "variance_ns": 96422
+      },
+      {
+        "case": "incremental_update_varied/loc/1000",
+        "ns_per_iter": 3686918,
+        "variance_ns": 308477
+      },
+      {
+        "case": "symbol_extraction/loc/10",
+        "ns_per_iter": 8250,
+        "variance_ns": 112
+      },
+      {
+        "case": "symbol_extraction/loc/100",
+        "ns_per_iter": 60339,
+        "variance_ns": 768
+      },
+      {
+        "case": "symbol_extraction/loc/500",
+        "ns_per_iter": 300242,
+        "variance_ns": 2369
+      },
+      {
+        "case": "symbol_extraction/loc/1000",
+        "ns_per_iter": 608215,
+        "variance_ns": 5355
+      },
+      {
+        "case": "import_resolution/files/100",
+        "ns_per_iter": 209212,
+        "variance_ns": 1266
+      },
+      {
+        "case": "import_resolution/files/1000",
+        "ns_per_iter": 14440629,
+        "variance_ns": 129287
+      },
+      {
+        "case": "import_resolution/files/10000",
+        "ns_per_iter": 1584665608,
+        "variance_ns": 26080425
+      },
+      {
+        "case": "trust_annotation/files/100",
+        "ns_per_iter": 15047,
+        "variance_ns": 6322
+      },
+      {
+        "case": "trust_annotation/files/1000",
+        "ns_per_iter": 166514,
+        "variance_ns": 92321
+      },
+      {
+        "case": "trust_annotation/files/5000",
+        "ns_per_iter": 873247,
+        "variance_ns": 39560
+      },
+      {
+        "case": "policy_evaluation/evaluate_all_invariants",
+        "ns_per_iter": 1552,
+        "variance_ns": 24
+      },
+      {
+        "case": "policy_scaling/4_invariants/1_symbols",
+        "ns_per_iter": 3098,
+        "variance_ns": 60
+      },
+      {
+        "case": "policy_scaling/4_invariants/10_symbols",
+        "ns_per_iter": 12220,
+        "variance_ns": 126
+      },
+      {
+        "case": "policy_scaling/4_invariants/50_symbols",
+        "ns_per_iter": 64741,
+        "variance_ns": 842
+      },
+      {
+        "case": "policy_scaling/10_invariants/1_symbols",
+        "ns_per_iter": 6591,
+        "variance_ns": 54
+      },
+      {
+        "case": "policy_scaling/10_invariants/10_symbols",
+        "ns_per_iter": 26352,
+        "variance_ns": 239
+      },
+      {
+        "case": "policy_scaling/10_invariants/50_symbols",
+        "ns_per_iter": 135037,
+        "variance_ns": 3782
+      },
+      {
+        "case": "policy_scaling/25_invariants/1_symbols",
+        "ns_per_iter": 17074,
+        "variance_ns": 292
+      },
+      {
+        "case": "policy_scaling/25_invariants/10_symbols",
+        "ns_per_iter": 59027,
+        "variance_ns": 666
+      },
+      {
+        "case": "policy_scaling/25_invariants/50_symbols",
+        "ns_per_iter": 323525,
+        "variance_ns": 5196
+      },
+      {
+        "case": "policy_scaling/50_invariants/1_symbols",
+        "ns_per_iter": 33753,
+        "variance_ns": 240
+      },
+      {
+        "case": "policy_scaling/50_invariants/10_symbols",
+        "ns_per_iter": 110715,
+        "variance_ns": 879
+      },
+      {
+        "case": "policy_scaling/50_invariants/50_symbols",
+        "ns_per_iter": 618069,
+        "variance_ns": 11608
+      },
+      {
+        "case": "event_emission/emit_1000_progress_events",
+        "ns_per_iter": 258061,
+        "variance_ns": 3521
+      },
+      {
+        "case": "graph_query/symbols_in_file/1000",
+        "ns_per_iter": 151,
+        "variance_ns": 2
+      },
+      {
+        "case": "graph_query/outgoing_edges/1000",
+        "ns_per_iter": 19,
+        "variance_ns": 0
+      },
+      {
+        "case": "graph_query/symbols_in_file/5000",
+        "ns_per_iter": 153,
+        "variance_ns": 1
+      },
+      {
+        "case": "graph_query/outgoing_edges/5000",
+        "ns_per_iter": 18,
+        "variance_ns": 0
+      },
+      {
+        "case": "graph_query/symbols_in_file/10000",
+        "ns_per_iter": 153,
+        "variance_ns": 1
+      },
+      {
+        "case": "graph_query/outgoing_edges/10000",
+        "ns_per_iter": 18,
+        "variance_ns": 0
+      },
+      {
+        "case": "debouncer_throughput/record_and_tick/100",
+        "ns_per_iter": 15904,
+        "variance_ns": 501
+      },
+      {
+        "case": "debouncer_throughput/backpressure_flush/100",
+        "ns_per_iter": 7507,
+        "variance_ns": 38
+      },
+      {
+        "case": "debouncer_throughput/record_and_tick/500",
+        "ns_per_iter": 86256,
+        "variance_ns": 452
+      },
+      {
+        "case": "debouncer_throughput/backpressure_flush/500",
+        "ns_per_iter": 41610,
+        "variance_ns": 271
+      },
+      {
+        "case": "debouncer_throughput/record_and_tick/1000",
+        "ns_per_iter": 170289,
+        "variance_ns": 71685
+      },
+      {
+        "case": "debouncer_throughput/backpressure_flush/1000",
+        "ns_per_iter": 83343,
+        "variance_ns": 591
+      },
+      {
+        "case": "filter_throughput/paths/1000",
+        "ns_per_iter": 82100,
+        "variance_ns": 1475
+      },
+      {
+        "case": "filter_throughput/paths/10000",
+        "ns_per_iter": 833425,
+        "variance_ns": 4670
+      },
+      {
+        "case": "filter_throughput/paths/50000",
+        "ns_per_iter": 4127260,
+        "variance_ns": 44784
+      }
+    ],
+    "checks": [
+      {
+        "case": "secret_scan/small_file",
+        "ns_per_iter": 2162582,
+        "variance_ns": 29260
+      },
+      {
+        "case": "secret_scan/medium_file",
+        "ns_per_iter": 2842935,
+        "variance_ns": 24783
+      },
+      {
+        "case": "secret_scan/large_file",
+        "ns_per_iter": 9683786,
+        "variance_ns": 80488
+      },
+      {
+        "case": "secret_scan/clean_file",
+        "ns_per_iter": 2793982,
+        "variance_ns": 42930
+      },
+      {
+        "case": "entropy/short_string",
+        "ns_per_iter": 225,
+        "variance_ns": 1
+      },
+      {
+        "case": "entropy/long_string",
+        "ns_per_iter": 697,
+        "variance_ns": 31
+      },
+      {
+        "case": "antipattern/typescript_small",
+        "ns_per_iter": 59755,
+        "variance_ns": 299
+      },
+      {
+        "case": "antipattern/typescript_medium",
+        "ns_per_iter": 575836,
+        "variance_ns": 10647
+      },
+      {
+        "case": "antipattern/typescript_large",
+        "ns_per_iter": 5564354,
+        "variance_ns": 37226
+      },
+      {
+        "case": "antipattern/html_file",
+        "ns_per_iter": 4263,
+        "variance_ns": 47
+      },
+      {
+        "case": "antipattern/clean_file",
+        "ns_per_iter": 437971,
+        "variance_ns": 2555
+      },
+      {
+        "case": "command_safety/simple_command",
+        "ns_per_iter": 255,
+        "variance_ns": 1
+      },
+      {
+        "case": "command_safety/dangerous_command",
+        "ns_per_iter": 369,
+        "variance_ns": 2
+      },
+      {
+        "case": "command_safety/compound_command",
+        "ns_per_iter": 2590,
+        "variance_ns": 60
+      },
+      {
+        "case": "command_safety/wrapped_command",
+        "ns_per_iter": 713,
+        "variance_ns": 5
+      },
+      {
+        "case": "command_safety/complex_pipeline",
+        "ns_per_iter": 2947,
+        "variance_ns": 431
+      },
+      {
+        "case": "command_safety/rule_matching",
+        "ns_per_iter": 8903,
+        "variance_ns": 394
+      }
+    ],
+    "stress": [
+      {
+        "case": "watcher_saturation/small_burst",
+        "ns_per_iter": 37870057,
+        "variance_ns": 46645
+      },
+      {
+        "case": "graph_memory/small_graph",
+        "ns_per_iter": 292463,
+        "variance_ns": 1438
+      },
+      {
+        "case": "incremental_throughput/sustained_edits",
+        "ns_per_iter": 100094410,
+        "variance_ns": 3479
+      },
+      {
+        "case": "policy_scaling/rule_scaling",
+        "ns_per_iter": 107945,
+        "variance_ns": 475
+      },
+      {
+        "case": "cold_start/scaling",
+        "ns_per_iter": 3444478,
+        "variance_ns": 17398
+      }
+    ],
+    "antipattern_scan": [
+      {
+        "case": "antipattern_scan/parallel_mixed_corpus",
+        "ns_per_iter": 636575,
+        "variance_ns": 10888
+      }
+    ],
+    "secret_scan_parallel": [
+      {
+        "case": "scan/serial_baseline",
+        "ns_per_iter": 6200723476,
+        "variance_ns": 29064469
+      },
+      {
+        "case": "scan/parallel_rollout",
+        "ns_per_iter": 841603987,
+        "variance_ns": 8365436
+      }
+    ],
+    "walk_discovery": [
+      {
+        "case": "walk_discovery/sequential_walkbuilder",
+        "ns_per_iter": 85779052,
+        "variance_ns": 355803
+      },
+      {
+        "case": "walk_discovery/parallel_walkparallel",
+        "ns_per_iter": 13867006,
+        "variance_ns": 136481
+      }
+    ],
+    "ipc_roundtrip": [
+      {
+        "case": "validation.service",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.001,
+        "p99_ms": 0.001
+      },
+      {
+        "case": "validation.roundtrip",
+        "samples": 200,
+        "p50_ms": 0.018,
+        "p95_ms": 0.024,
+        "p99_ms": 0.033
+      }
+    ],
+    "midedit_roundtrip": [
+      {
+        "case": "midedit_service/empty",
+        "median": "2.0225 ms"
+      },
+      {
+        "case": "midedit_roundtrip/empty",
+        "median": "2.3219 ms"
+      }
+    ],
+    "hot_read": [
+      {
+        "case": "resident_symbols (hub)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "symbol_owner (hub api)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "known_edge (importer\u2192hub)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "boundary_membership (hub api)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "reverse_impact depth=1 (hub)",
+        "samples": 200,
+        "p50_ms": 0.005,
+        "p95_ms": 0.005,
+        "p99_ms": 0.008
+      },
+      {
+        "case": "reverse_impact depth=cap (hub)",
+        "samples": 200,
+        "p50_ms": 0.027,
+        "p95_ms": 0.028,
+        "p99_ms": 0.031
+      },
+      {
+        "case": "certify ContentModify (hub)",
+        "samples": 200,
+        "p50_ms": 0.029,
+        "p95_ms": 0.031,
+        "p99_ms": 0.046
+      },
+      {
+        "case": "certify free-fn ContentModify (hub)",
+        "samples": 200,
+        "p50_ms": 0.029,
+        "p95_ms": 0.035,
+        "p99_ms": 0.048
+      }
+    ],
+    "call_lift": [
+      {
+        "case": "update_file lift (hot.ts, ~300 calls)",
+        "samples": 200,
+        "p50_ms": 2.554,
+        "p95_ms": 2.591,
+        "p99_ms": 2.633
+      },
+      {
+        "case": "re_resolve_calls (accumulator, ~300 calls)",
+        "samples": 200,
+        "p50_ms": 2.24,
+        "p95_ms": 2.31,
+        "p99_ms": 3.131
+      },
+      {
+        "case": "update_file lift (cap-ceiling file, MAX_CALL_SITES calls)",
+        "samples": 200,
+        "p50_ms": 5.118,
+        "p95_ms": 5.23,
+        "p99_ms": 5.342
+      }
+    ]
+  },
+  "watch_resource_budget": {
+    "status": "pass",
+    "steady_state_cpu_pct": 0.9473060982830076,
+    "peak_rss_mib": 23.64453125,
+    "budget": {
+      "steady_state_cpu_pct": 50.0,
+      "peak_rss_mib": 300.0
+    }
+  },
+  "mcp_resource_budget": {
+    "status": "pass",
+    "steady_state_cpu_pct": 5.571446337520209,
+    "peak_rss_mib": 16.13671875,
+    "budget": {
+      "steady_state_cpu_pct": 200.0,
+      "peak_rss_mib": 96.0
+    },
+    "requests": 1910
+  },
+  "intercept_resource_budget": {
+    "idle": {
+      "status": "pass",
+      "steady_state_cpu_pct": 0.0,
+      "peak_rss_mib": 16.5234375,
+      "budget": {
+        "steady_state_cpu_pct": 5.0,
+        "peak_rss_mib": 96.0
+      }
+    },
+    "burst": {
+      "status": "pass",
+      "steady_state_cpu_pct": 100.03087372645878,
+      "peak_rss_mib": 16.5234375,
+      "budget": {
+        "steady_state_cpu_pct": 250.0,
+        "peak_rss_mib": 128.0
+      }
+    }
+  },
+  "concurrent_resource_budget": {
+    "status": "pass",
+    "steady_state_cpu_pct": 99.06450024618415,
+    "peak_rss_mib": 54.4296875,
+    "budget": {
+      "steady_state_cpu_pct": 800.0,
+      "peak_rss_mib": 700.0
+    }
+  }
+}
