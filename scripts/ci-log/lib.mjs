@@ -96,10 +96,20 @@ function acquireTrackedLogLock(cwd = process.cwd()) {
       if (!error || error.code !== 'EEXIST') throw error;
       if (Date.now() >= deadline) {
         let owner = '<unavailable>';
+        let ownerFd;
         try {
-          owner = readFileSync(path, 'utf8').trim() || '<empty>';
+          ownerFd = openSync(path, 'r');
+          owner = readFileSync(ownerFd, 'utf8').trim() || '<empty>';
         } catch {
           // The holder may have released the lock between EEXIST and this diagnostic.
+        } finally {
+          if (ownerFd !== undefined) {
+            try {
+              closeSync(ownerFd);
+            } catch {
+              // Owner reporting is diagnostic-only; preserve the timeout error.
+            }
+          }
         }
         throw new Error(`Timed out waiting for tracked CI-log lock at ${path} (owner: ${owner})`);
       }
