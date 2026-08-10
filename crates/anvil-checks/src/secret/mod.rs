@@ -22,5 +22,5 @@ pub use scanner::{
 };
 pub use types::{
     AllowlistProvenance, EntropyFinding, FindingType, SecretCheckConfig, SecretCheckResult,
-    SecretFinding, SecretPatternDef, Suppression,
+    SecretFinding, SecretPatternDef, Suppression, TokenShape,
 };

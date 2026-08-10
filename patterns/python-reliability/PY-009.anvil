@@ -1,0 +1,35 @@
+---
+id: PY-009
+type: rule
+family: python-reliability
+title: os.system / shell=True / pickle.loads / unsafe yaml.load
+version: 1
+
+severity: error
+confidence: high
+spectrum_position: 9
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '\b(os\.system|os\.popen)\s*\(|\bshell\s*=\s*True\b|\bpickle\.loads?\s*\(|\byaml\.load\s*\('
+
+related: [PY-008, AP-008]
+enabled: true
+opt_in: false
+---
+
+These Python surfaces turn a string (or a byte stream) into process or object
+execution. Prefer:
+
+- `subprocess.run([...], check=True)` with an argument list (no shell)
+- `yaml.safe_load` / an explicit `Loader=yaml.SafeLoader`
+- a typed serializer (pydantic, msgspec) instead of `pickle` for untrusted input
+
+`shell=True` is flagged even when the command is a static list today, because
+the flag is the hazard — it reopens command injection as soon as the command is
+built by concatenation. Suppress with a reason if the call is genuinely
+hard-coded and reviewed.

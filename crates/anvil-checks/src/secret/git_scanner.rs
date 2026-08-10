@@ -209,6 +209,9 @@ pub fn scan_git_history(
                 pattern_name: format!("{} (in git history)", pattern.name),
                 redacted_match: matcher.redact_secret(matched_value),
                 redacted_line: matcher.redact_line(line_content.trim()),
+                match_start: None,
+                match_end: None,
+                token_shape: None,
             });
         }
     }

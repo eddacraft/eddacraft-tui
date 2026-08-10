@@ -6,7 +6,7 @@ category: error-handling
 targets: [source]
 related: [deferred-debt, guardrail-suppression]
 tensions: []
-rules: [PY-001, PY-002, PY-003, PY-004, PY-005, PY-006, PY-007]
+rules: [PY-001, PY-002, PY-003, PY-004, PY-005, PY-006, PY-007, PY-008, PY-009]
 ---
 
 ## What It Is
@@ -18,7 +18,10 @@ silenced (`# type: ignore` with no `[code]`, bare `# noqa`, `# pylint:
 disable`), error handling that swallows everything (`except:` / `except
 Exception: pass`), namespace-polluting wildcard imports (`from x import *`),
 stray `print()` debugging left in shipped code, and `Any` annotations that opt a
-value out of the type system entirely.
+value out of the type system entirely. It also covers dynamic-execution
+surfaces (`eval`/`exec`/`compile`, `os.system`, `shell=True`, `pickle`,
+unsafe `yaml.load`) as PY-008 / PY-009 — the Python counterpart of the
+TypeScript `dynamic-execution` family.
 
 These are the Python analogues of the TypeScript escape hatches Anvil already
 governs (`any`, `as any`, broad `eslint-disable`, `@ts-ignore`) and the Rust

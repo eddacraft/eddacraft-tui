@@ -159,6 +159,9 @@ pub fn scan_env_file(
                 pattern_name: pattern.name.clone(),
                 redacted_match: matcher.redact_secret(matched_value),
                 redacted_line: matcher.redact_range_in_line(line_text, redact_start, redact_end),
+                match_start: Some(redact_start),
+                match_end: Some(redact_end),
+                token_shape: Some(crate::secret::types::TokenShape::Opaque),
             };
 
             findings.push(EnvFinding {

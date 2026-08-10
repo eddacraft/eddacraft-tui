@@ -81,6 +81,44 @@ pub struct SecretFinding {
     pub pattern_name: String,
     pub redacted_match: String,
     pub redacted_line: String,
+    /// Byte offset of the matched token within the source line (0-based).
+    /// Present so machine consumers can re-read the source span without
+    /// the secret being echoed in the redacted payload (Dave SEC-FP-2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_start: Option<usize>,
+    /// Exclusive end byte offset of the matched token within the source line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_end: Option<usize>,
+    /// Non-secret classifier for the matched token shape. Lets consumers
+    /// triage without seeing the raw token (e.g. `"path"` vs `"opaque"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_shape: Option<TokenShape>,
+}
+
+/// Coarse, non-secret token classification for machine-readable triage.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TokenShape {
+    /// Path-shaped token (separators and/or document extension).
+    Path,
+    /// Opaque credential-like token.
+    Opaque,
+}
+
+impl Default for SecretFinding {
+    fn default() -> Self {
+        Self {
+            file: String::new(),
+            line: 0,
+            finding_type: FindingType::Pattern,
+            pattern_name: String::new(),
+            redacted_match: String::new(),
+            redacted_line: String::new(),
+            match_start: None,
+            match_end: None,
+            token_shape: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

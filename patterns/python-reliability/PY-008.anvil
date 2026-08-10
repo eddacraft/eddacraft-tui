@@ -1,0 +1,36 @@
+---
+id: PY-008
+type: rule
+family: python-reliability
+title: eval() / exec() / compile() called with a dynamic argument
+version: 1
+
+severity: error
+confidence: high
+spectrum_position: 8
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '\b(eval|exec|compile)\s*\(\s*[A-Za-z_]'
+
+related: [AP-008, PY-009]
+enabled: true
+opt_in: false
+---
+
+Don't call `eval()`, `exec()`, or `compile(..., "exec")` with a dynamic
+argument. The first character inside the parens is an identifier, which means
+the string being executed is not a static literal and may be attacker-controlled
+at runtime.
+
+Replace with a structured dispatch — a dict of callables keyed on the input, a
+pydantic / attrs schema for data validation, or a restricted interpreter
+(`ast.literal_eval` for literals only, RestrictedPython, a subprocess with a
+clean env) if you genuinely need to run untrusted code.
+
+If the argument is a string literal you control end-to-end (e.g. `eval("1 + 1")`),
+the rule skips you when the leading character inside the parens is a quote.

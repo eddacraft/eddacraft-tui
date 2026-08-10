@@ -256,9 +256,19 @@ fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
         Ok(None) | Err(_) => return Ok(()),
     };
     let started = Instant::now();
+    // Post-commit is the only hook that can bind a real commit SHA: the object
+    // exists and HEAD points at it. Pre-commit intentionally leaves
+    // `commit_sha: None` (the commit does not exist yet). Without this binding
+    // `anvil audit-chain` always reports 0 witnessed (Dave SEC-WIT-1).
     let commit_sha = resolve_head_sha(repo_root);
     let appended = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
-        let mut line = build_witness_line(&identity.project_uuid, None, "post-commit", seq, prev);
+        let mut line = build_witness_line(
+            &identity.project_uuid,
+            Some(commit_sha.clone()),
+            "post-commit",
+            seq,
+            prev,
+        );
         line.kind = "post-commit".to_string();
         line
     });
@@ -2259,6 +2269,56 @@ mod tests {
     // ----- MLP2-010: post-hook Kindling action_executed emission -----
 
     const MLP2_010_SESSION_UUID: &str = "22222222-2222-4222-8222-222222222222";
+
+    #[test]
+    fn post_commit_binds_head_commit_sha_on_witness_line() {
+        // Dave SEC-WIT-1: without commit_sha on the witness record,
+        // audit-chain can never mark a commit as witnessed.
+        let (_tmp, root) = make_test_repo();
+        // Seed a real git commit so resolve_head_sha returns a hex SHA.
+        let init = Command::new("git")
+            .args(["-C", &root.to_string_lossy(), "init"])
+            .output()
+            .expect("git init");
+        assert!(init.status.success(), "git init: {init:?}");
+        let _ = Command::new("git")
+            .args(["-C", &root.to_string_lossy(), "config", "user.email", "t@t"])
+            .status();
+        let _ = Command::new("git")
+            .args(["-C", &root.to_string_lossy(), "config", "user.name", "t"])
+            .status();
+        fs::write(root.join("f.txt"), "x").unwrap();
+        let _ = Command::new("git")
+            .args(["-C", &root.to_string_lossy(), "add", "f.txt"])
+            .status();
+        let commit = Command::new("git")
+            .args([
+                "-C",
+                &root.to_string_lossy(),
+                "commit",
+                "-m",
+                "seed",
+                "--allow-empty",
+            ])
+            .output()
+            .expect("git commit");
+        assert!(commit.status.success(), "git commit: {commit:?}");
+        let head = resolve_head_sha(&root);
+        assert!(
+            head.len() >= 7 && head.chars().all(|c| c.is_ascii_hexdigit()),
+            "expected hex HEAD, got {head}"
+        );
+
+        let (emitter, _recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
+        run_post_commit(&root, &emitter).unwrap();
+
+        let active = root.join("anvil/witness/active.ndjson");
+        let contents = fs::read_to_string(&active).expect("active.ndjson");
+        assert!(
+            contents.contains(&format!("\"commit_sha\":\"{head}\"")),
+            "post-commit witness must bind HEAD ({head}):\n{contents}"
+        );
+    }
 
     #[test]
     fn post_commit_emits_one_action_executed_row_per_invocation() {

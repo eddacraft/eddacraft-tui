@@ -175,6 +175,17 @@ struct JsonWarning {
     suggestion: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     nudge: Option<String>,
+    /// Non-secret token classifier (`path` | `opaque`). Present on secret
+    /// findings so consumers can triage without re-reading the source line
+    /// for redacted matches (Dave SEC-FP-2).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token_shape: Option<&'static str>,
+    /// Byte offset of the matched token within the source line (0-based).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    match_start: Option<usize>,
+    /// Exclusive end byte offset of the matched token within the source line.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    match_end: Option<usize>,
 }
 
 // ── Entry point ─────────────────────────────────────────────────────
@@ -564,6 +575,9 @@ fn antipattern_warning_to_json(w: &Warning) -> JsonWarning {
         line: w.location.line,
         suggestion: w.suggestion.clone(),
         nudge: w.nudge.clone(),
+        token_shape: None,
+        match_start: None,
+        match_end: None,
     }
 }
 
@@ -596,6 +610,10 @@ fn secret_finding_to_json(
     let id = secret_rule_id(&f.pattern_name);
     let file =
         crate::display_path::render_secret_finding(&f.file, scanned, workspace_root.map(Path::new));
+    let token_shape = f.token_shape.map(|shape| match shape {
+        anvil_checks::secret::TokenShape::Path => "path",
+        anvil_checks::secret::TokenShape::Opaque => "opaque",
+    });
     JsonWarning {
         id,
         category: "secret".to_string(),
@@ -608,6 +626,9 @@ fn secret_finding_to_json(
             "Move the value to a secret manager or environment variable; never commit literals."
                 .to_string(),
         nudge: None,
+        token_shape,
+        match_start: f.match_start,
+        match_end: f.match_end,
     }
 }
 
@@ -2147,6 +2168,7 @@ mod tests {
             pattern_name: "High Entropy String".to_string(),
             redacted_match: "sk-***".to_string(),
             redacted_line: "const apiKey = \"sk-***\";".to_string(),
+            ..Default::default()
         };
         let json = secret_finding_to_json(&finding, &[], None);
         assert_eq!(json.category, "secret");
@@ -2271,6 +2293,7 @@ mod tests {
             pattern_name: "High Entropy String".to_string(),
             redacted_match: "[REDACTED]".to_string(),
             redacted_line: "const apiKey = \"[REDACTED]\";".to_string(),
+            ..Default::default()
         };
         let json = secret_finding_to_json(
             &finding,
@@ -2297,6 +2320,7 @@ mod tests {
             pattern_name: "High Entropy String".to_string(),
             redacted_match: "[REDACTED]".to_string(),
             redacted_line: "API_KEY=[REDACTED]".to_string(),
+            ..Default::default()
         };
         let json = secret_finding_to_json(
             &finding,
@@ -2455,6 +2479,7 @@ mod tests {
                 pattern_name: "OpenAI key".to_string(),
                 redacted_match: "sk-…".to_string(),
                 redacted_line: "const k = \"sk-…\"".to_string(),
+                ..Default::default()
             },
             &["/home/dev/project/src/config.ts"],
             Some("/home/dev/project"),

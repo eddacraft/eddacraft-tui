@@ -308,6 +308,7 @@ mod tests {
                 pattern_name: "Generic Secret".to_string(),
                 redacted_match: "abcd***7890".to_string(),
                 redacted_line: "const a = 'abcd***7890'; const b = 'wxyz***4321';".to_string(),
+                ..Default::default()
             },
             SecretFinding {
                 file: "src/config.ts".to_string(),
@@ -316,6 +317,7 @@ mod tests {
                 pattern_name: "Generic Secret".to_string(),
                 redacted_match: "wxyz***4321".to_string(),
                 redacted_line: "const a = 'abcd***7890'; const b = 'wxyz***4321';".to_string(),
+                ..Default::default()
             },
         ];
 

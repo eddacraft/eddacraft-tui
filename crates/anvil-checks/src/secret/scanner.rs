@@ -58,6 +58,9 @@ pub fn scan_lockfile_url_credentials(
                 pattern_name: "Credential URL".to_string(),
                 redacted_match: matcher.redact_secret(&line[range.clone()]),
                 redacted_line: matcher.redact_range_in_line(line, range.start, range.end),
+                match_start: Some(range.start),
+                match_end: Some(range.end),
+                token_shape: Some(crate::secret::types::TokenShape::Opaque),
             });
             if findings.len() == limit {
                 return findings;
@@ -605,6 +608,9 @@ pub fn scan_content_with_compiled_patterns(
                 pattern_name: pattern.name.clone(),
                 redacted_match: matcher.redact_secret(matched_value),
                 redacted_line: matcher.redact_range_in_line(line, range.start, range.end),
+                match_start: Some(range.start),
+                match_end: Some(range.end),
+                token_shape: Some(crate::secret::types::TokenShape::Opaque),
             });
             if findings.len() == limit {
                 return (findings, stats);

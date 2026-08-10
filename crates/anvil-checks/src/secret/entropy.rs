@@ -99,8 +99,19 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
                 continue;
             };
             let candidate = candidate_match.as_str();
+            let match_start = candidate_match.start();
+            let match_end = candidate_match.end();
 
             if candidate.len() < config.min_entropy_length {
+                continue;
+            }
+            // Path-shaped tokens (drive-prefixed document paths, absolute
+            // filesystem paths ending in known document extensions) trip
+            // the generic entropy heuristic because path separators and
+            // long English filenames raise the score past threshold.
+            // Vendor-prefixed secret rules still fire on those strings —
+            // this exemption is entropy-only (Dave SEC-FP-1).
+            if is_path_shaped_document_token(candidate, line, match_start, match_end) {
                 continue;
             }
             if matcher.looks_like_code(candidate) {
@@ -145,11 +156,10 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
                 finding_type: FindingType::Entropy,
                 pattern_name: "High Entropy String".to_string(),
                 redacted_match: matcher.redact_secret(candidate),
-                redacted_line: matcher.redact_range_in_line(
-                    line,
-                    candidate_match.start(),
-                    candidate_match.end(),
-                ),
+                redacted_line: matcher.redact_range_in_line(line, match_start, match_end),
+                match_start: Some(match_start),
+                match_end: Some(match_end),
+                token_shape: Some(crate::secret::types::TokenShape::Opaque),
             });
             if findings.len() == limit {
                 return findings;
@@ -158,6 +168,168 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
     }
 
     findings
+}
+
+/// True when the matched token is a filesystem / document path rather than a
+/// credential. Used only by the generic high-entropy pass — vendor-prefixed
+/// rules (`SECRET-STRIPE-KEY`, etc.) still fire when a secret sits inside a
+/// path-shaped string.
+///
+/// Heuristic (Dave SEC-FP-1, pack 05 / 05a):
+/// - token contains a path separator (`/` or `\`), **and**
+/// - either the token itself or the characters immediately after the match
+///   end in a known document extension, **or**
+/// - the match is introduced by a Windows drive-letter colon (`D:…`) which
+///   the assignment regex otherwise treats as a secret assignment.
+pub(crate) fn is_path_shaped_document_token(
+    candidate: &str,
+    line: &str,
+    match_start: usize,
+    match_end: usize,
+) -> bool {
+    let has_sep = candidate.contains('/') || candidate.contains('\\');
+    if !has_sep {
+        return false;
+    }
+
+    // Characters after the regex capture often hold the document extension
+    // (the capture class excludes `.`).
+    let after = line.get(match_end..).unwrap_or("");
+    if document_extension_prefix(after).is_some() {
+        return true;
+    }
+    // Capture may already include a dotted extension when the pattern
+    // changes; keep this branch for future char-class expansion.
+    if candidate
+        .rsplit_once('.')
+        .is_some_and(|(_, ext)| is_document_extension(ext))
+    {
+        return true;
+    }
+
+    // Windows drive assignment false positive: `D:/DOCS/…` — the `:` after a
+    // single letter is the assignment-pattern trigger, not a secret binding.
+    if match_start >= 2 {
+        let prefix = &line[..match_start];
+        if let Some(drive_idx) = prefix.rfind(':') {
+            let before_colon = &prefix[..drive_idx];
+            let letter = before_colon.chars().last();
+            if letter.is_some_and(|c| c.is_ascii_alphabetic()) {
+                let rest_ok = before_colon
+                    .chars()
+                    .rev()
+                    .skip(1)
+                    .next()
+                    .is_none_or(|c| !c.is_ascii_alphanumeric());
+                if rest_ok {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // Multi-segment paths with no extension still look like paths when they
+    // carry several separators (e.g. nested project directories).
+    let seps = candidate
+        .chars()
+        .filter(|c| *c == '/' || *c == '\\')
+        .count();
+    seps >= 2
+}
+
+fn document_extension_prefix(after: &str) -> Option<&str> {
+    let trimmed = after.trim_start_matches(|c: char| c == '"' || c == '\'');
+    let ext = trimmed.strip_prefix('.')?;
+    let end = ext
+        .find(|c: char| !c.is_ascii_alphanumeric())
+        .unwrap_or(ext.len());
+    let token = &ext[..end];
+    if is_document_extension(token) {
+        Some(token)
+    } else {
+        None
+    }
+}
+
+fn is_document_extension(ext: &str) -> bool {
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "md" | "markdown"
+            | "txt"
+            | "rst"
+            | "adoc"
+            | "html"
+            | "htm"
+            | "css"
+            | "scss"
+            | "less"
+            | "json"
+            | "yaml"
+            | "yml"
+            | "toml"
+            | "xml"
+            | "csv"
+            | "tsv"
+            | "pdf"
+            | "doc"
+            | "docx"
+            | "xls"
+            | "xlsx"
+            | "ppt"
+            | "pptx"
+            | "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "svg"
+            | "webp"
+            | "ico"
+            | "mp4"
+            | "mp3"
+            | "wav"
+            | "zip"
+            | "gz"
+            | "tgz"
+            | "tar"
+            | "7z"
+            | "rar"
+            | "log"
+            | "ini"
+            | "cfg"
+            | "conf"
+            | "properties"
+            | "env"
+            | "gitignore"
+            | "editorconfig"
+            | "lock"
+            | "sum"
+            | "mod"
+            | "rs"
+            | "py"
+            | "ts"
+            | "tsx"
+            | "js"
+            | "jsx"
+            | "mjs"
+            | "cjs"
+            | "go"
+            | "java"
+            | "kt"
+            | "rb"
+            | "php"
+            | "cs"
+            | "cpp"
+            | "c"
+            | "h"
+            | "hpp"
+            | "swift"
+            | "sh"
+            | "bash"
+            | "zsh"
+            | "ps1"
+            | "bat"
+            | "cmd"
+    )
 }
 
 fn is_benign_entropy_fixture(file: &str, lines: &[&str], index: usize, candidate: &str) -> bool {
@@ -392,6 +564,50 @@ mod tests {
                 .iter()
                 .map(|f| &f.redacted_match)
                 .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn does_not_flag_drive_prefixed_document_paths() {
+        // Dave SEC-FP-1: ordinary Windows document paths trip the generic
+        // entropy rule because the drive colon matches the assignment
+        // pattern and the long path scores above threshold.
+        let config = SecretCheckConfig::default();
+        let content = "See D:/DOCS/PROPOSAL_quarterly_revenue_forecast_summary_20260704.md\n";
+        let findings = detect_high_entropy_strings(content, "notes.md", &config);
+        assert!(
+            findings.is_empty(),
+            "drive-prefixed document path must not trip entropy, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+
+        // Bare filename of the same shape still passes (control).
+        let bare = "PROPOSAL_quarterly_revenue_forecast_summary_20260704.md\n";
+        assert!(detect_high_entropy_strings(bare, "notes.md", &config).is_empty());
+    }
+
+    #[test]
+    fn path_shaped_exemption_does_not_mask_opaque_secrets() {
+        // Entropy still flags a high-entropy opaque token that is not path-shaped.
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let content = "const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';\n";
+        let findings = detect_high_entropy_strings(content, "src/auth.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.pattern_name == "High Entropy String"),
+            "opaque high-entropy secret must still flag: {findings:?}"
+        );
+        assert!(
+            findings
+                .iter()
+                .all(|f| f.match_start.is_some() && f.match_end.is_some())
         );
     }
 

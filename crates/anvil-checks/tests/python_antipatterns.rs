@@ -357,6 +357,37 @@ fn anvil_ignore_for_other_rule_does_not_suppress() {
     );
 }
 
+// --- PY-008 / PY-009: dynamic execution (Dave SEC-COV-1) --------------------
+
+#[test]
+fn py008_eval_with_dynamic_argument_fires() {
+    assert!(fires("src/app.py", "result = eval(user_input)\n", "PY-008"));
+    assert!(fires("src/app.py", "exec(payload)\n", "PY-008"));
+    assert!(fires(
+        "src/app.py",
+        "code = compile(src, '<str>', 'exec')\n",
+        "PY-008"
+    ));
+}
+
+#[test]
+fn py008_eval_with_string_literal_does_not_fire() {
+    assert!(!fires("src/app.py", "result = eval(\"1 + 1\")\n", "PY-008"));
+    assert!(!fires("src/app.py", "exec('pass')\n", "PY-008"));
+}
+
+#[test]
+fn py009_shell_true_and_pickle_fire() {
+    assert!(fires(
+        "src/app.py",
+        "subprocess.call(\"ls \" + user_input, shell=True)\n",
+        "PY-009"
+    ));
+    assert!(fires("src/app.py", "os.system(cmd)\n", "PY-009"));
+    assert!(fires("src/app.py", "obj = pickle.loads(blob)\n", "PY-009"));
+    assert!(fires("src/app.py", "data = yaml.load(stream)\n", "PY-009"));
+}
+
 // --- Extension scoping ------------------------------------------------------
 
 #[test]

@@ -320,6 +320,7 @@ mod tests {
             pattern_name: pattern.to_string(),
             redacted_match: "***".to_string(),
             redacted_line: "***".to_string(),
+            ..Default::default()
         }
     }
 

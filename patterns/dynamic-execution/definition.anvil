@@ -56,7 +56,9 @@ an `any` flows in, an attacker-controlled string can flow in.
 - **Hard fail (severity error, on by default):**
   `eval(<dynamic>)`, `new Function(<anything>)`. The string being
   executed is either trivially attacker-controlled or
-  indistinguishable-at-analysis-time from one that is.
+  indistinguishable-at-analysis-time from one that is. Python dynamic
+  execution is covered by PY-008 / PY-009 in the `python-reliability`
+  family (prefix map keeps PY bound to that family).
 - **Hard fail — server-side template injection (severity error, on by
   default):** compiling a template from a dynamic string
   (`render_template_string(<dynamic>)`, `env.from_string(<dynamic>)`,
