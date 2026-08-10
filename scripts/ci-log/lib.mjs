@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import {
   closeSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
   openSync,
   readdirSync,
@@ -233,21 +234,41 @@ export function writePendingEntry(entry, { cwd = process.cwd(), stamp } = {}) {
   const dir = ensurePendingDir(cwd);
   const ts = stamp ?? utcStamp();
   const slug = slugFromEntry(body) || 'entry';
-  let n = 0;
-  // Exclusive create so concurrent agents cannot clobber each other between
-  // existsSync and write (review: race-safe pending queue).
-  for (;;) {
-    const path = join(dir, n === 0 ? `${ts}-${slug}.md` : `${ts}-${slug}-${n}.md`);
-    try {
-      writeFileSync(path, body, { encoding: 'utf8', flag: 'wx' });
-      return path;
-    } catch (error) {
-      if (error && error.code === 'EEXIST') {
-        n += 1;
-        continue;
+  const temp = join(dir, `.ci-log-pending-tmp-${process.pid}-${randomUUID()}`);
+  let fd;
+  let published = false;
+  try {
+    fd = openSync(temp, 'wx', 0o600);
+    writeFileSync(fd, body, 'utf8');
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = undefined;
+
+    // The tracked-log lock also serialises final-name selection against every
+    // harvest. Only the complete inode becomes visible when rename succeeds.
+    return withTrackedLogLock(cwd, () => {
+      let n = 0;
+      for (;;) {
+        const path = join(dir, n === 0 ? `${ts}-${slug}.md` : `${ts}-${slug}-${n}.md`);
+        if (existsSync(path)) {
+          n += 1;
+          continue;
+        }
+        renameSync(temp, path);
+        published = true;
+        return path;
       }
-      throw error;
+    });
+  } catch (error) {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        // Preserve the publication failure; cleanup below owns this temp.
+      }
     }
+    if (!published) rmSync(temp, { force: true });
+    throw error;
   }
 }
 

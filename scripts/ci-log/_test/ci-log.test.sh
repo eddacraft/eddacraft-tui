@@ -210,4 +210,34 @@ valid_body_entry=$'### 2024-02-29 — codex\n\n- **Task:** valid leap body date\
 grep -q 'valid leap body date' "$tmp/repo/.git/anvil/ci-log-pending/"*.md || \
   fail "body append rejected valid leap heading date"
 
+# 14) a delayed pending writer never publishes a harvestable partial .md file
+"${HARVEST[@]}" --json >/dev/null
+delay_signal="$tmp/delayed-pending-ready"
+delay_release="$tmp/delayed-pending-release"
+NODE_OPTIONS="--require=$ROOT/scripts/ci-log/_test/delay-pending-write.cjs" \
+  ANVIL_CI_LOG_TEST_DELAY_SIGNAL="$delay_signal" \
+  ANVIL_CI_LOG_TEST_DELAY_RELEASE="$delay_release" \
+  "${APPEND[@]}" --task 'atomic delayed pending body' --agent codex --outcome complete \
+  >"$tmp/delayed-pending.out" 2>"$tmp/delayed-pending.err" &
+delayed_pending_pid=$!
+for _ in $(seq 1 100); do
+  [[ -f "$delay_signal" ]] && break
+  sleep 0.02
+done
+[[ -f "$delay_signal" ]] || fail "delayed pending writer did not reach publication window"
+first_delayed_harvest="$("${HARVEST[@]}" --json)"
+: > "$delay_release"
+wait "$delayed_pending_pid"
+second_delayed_harvest="$("${HARVEST[@]}" --json)"
+echo "$first_delayed_harvest" | grep -q '"harvested": 0' || \
+  fail "harvest consumed a partially published pending entry"
+echo "$second_delayed_harvest" | grep -q '"harvested": 1' || \
+  fail "harvest did not consume the completed pending entry"
+[[ "$(grep -c 'atomic delayed pending body' plans/reviews/continuous-improvement-log.md)" -eq 1 ]] || \
+  fail "delayed pending body was lost or duplicated"
+[[ ! -e "$tmp/repo/.git/anvil/ci-log-pending/"*.md ]] || \
+  fail "delayed pending entry remained after harvest"
+[[ ! -e "$tmp/repo/.git/anvil/ci-log-pending/".ci-log-pending-tmp-* ]] || \
+  fail "owned pending publication temp leaked"
+
 printf 'ci-log.test.sh: OK\n'
