@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BetaInvite } from '../beta-invite.js';
 import { OtpCode } from '../otp-code.js';
+import { ReleaseAnnouncement } from '../release-announcement.js';
 import { WaitlistConfirmation } from '../waitlist-confirmation.js';
 import { WaitlistMigration } from '../waitlist-migration.js';
 
@@ -67,6 +68,23 @@ describe('transactional templates render to valid HTML', () => {
 
     expect(html).toContain('Josh');
     expect(html).toContain('tester@example.com');
+    expect(html).not.toContain('undefined');
+    expect(html).toMatch(/^<!DOCTYPE html/i);
+  });
+
+  it('ReleaseAnnouncement defaults to the current beta roundup', async () => {
+    const html = await render(
+      <ReleaseAnnouncement email="tester@example.com" unsubscribeMailto={UNSUBSCRIBE} />
+    );
+
+    expect(html).toContain('v0.9.4-beta');
+    expect(html).toContain('tester@example.com');
+    expect(html).toContain('anvil auth login');
+    expect(html).toContain('anvil update');
+    expect(html).toContain('curl -fsSL https://install.eddacraft.ai | sh');
+    expect(html).toContain('irm https://install.eddacraft.ai/windows | iex');
+    expect(html).toContain('href="https://github.com/eddacraft/anvil/releases/tag/v0.9.4-beta"');
+    expect(html).toContain(`href="${UNSUBSCRIBE}"`);
     expect(html).not.toContain('undefined');
     expect(html).toMatch(/^<!DOCTYPE html/i);
   });

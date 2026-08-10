@@ -15,5 +15,6 @@ export { WaitlistMigration, default as WaitlistMigrationDefault } from './waitli
 export {
   ReleaseAnnouncement,
   default as ReleaseAnnouncementDefault,
+  CURRENT_RELEASE_DEFAULTS,
   V070_DEFAULTS,
 } from './release-announcement.js';

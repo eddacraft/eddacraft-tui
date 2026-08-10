@@ -100,7 +100,73 @@ broadcast contract.
 
 ## Props packs
 
-### v0.9.0-beta (catch-up if never broadcast)
+### v0.9.4-beta (current — beta roundup + new auth)
+
+Matches template defaults in
+`packages/transactional/emails/release-announcement.tsx`
+(`CURRENT_RELEASE_DEFAULTS`). Prefer passing these props explicitly on send.
+
+```json
+{
+  "version": "v0.9.4-beta",
+  "theme": "Beta roundup — new sign-in and a clearer daily path",
+  "intro": "A lot has landed since the last broad release note. This mail is a short roundup through v0.9.4-beta: how you sign in, how assistants use the graph, and how install advice matches reality — plus one important upgrade note for this hop only.",
+  "highlights": [
+    {
+      "title": "New sign-in: GitHub device flow (and OTP if you need it)",
+      "body": "Default login is now `anvil auth login`: short code + GitHub verification link (SSH/tmux friendly). No GitHub? `anvil auth login --otp`. Sign in once after upgrade if you still hold a legacy token or idle session."
+    },
+    {
+      "title": "Assistant graph context over MCP",
+      "body": "Search symbols, dependents, callers, change impact, and affected tests from supported AI clients — identity-only by default."
+    },
+    {
+      "title": "First-run wins and quieter daily activation",
+      "body": "`anvil welcome`, honest start/activation copy, multi-client MCP, and MCP 2.0 reconnect for Claude/Codex-class tools."
+    },
+    {
+      "title": "Install method and upgrade advice that match reality",
+      "body": "Correct Windows/macOS install method reporting, PowerShell upgrade advice, membership wait, fewer path false positives, leaner clean MCP allows."
+    },
+    {
+      "title": "Signed updates once you are current",
+      "body": "After this one manual hop, day-to-day upgrades are `anvil update` on your channel."
+    }
+  ],
+  "releaseUrl": "https://github.com/eddacraft/anvil/releases/tag/v0.9.4-beta",
+  "upgradeCommands": [
+    {
+      "label": "Homebrew (if that is how you installed)",
+      "command": "brew upgrade eddacraft/tap/anvil"
+    },
+    {
+      "label": "curl installer (macOS / Linux — reinstall once is fine)",
+      "command": "curl -fsSL https://install.eddacraft.ai | sh"
+    },
+    {
+      "label": "Windows official installer (PowerShell)",
+      "command": "irm https://install.eddacraft.ai/windows | iex"
+    },
+    {
+      "label": "WinGet (if that is how you installed)",
+      "command": "winget upgrade --id eddacraft.anvil"
+    },
+    {
+      "label": "Scoop (if that is how you installed)",
+      "command": "scoop update anvil"
+    }
+  ],
+  "firstInvocationNote": {
+    "state": "authRequired",
+    "recovery": "anvil auth login",
+    "rationale": "This hop is special: upgrade once with your original method or the official installer. After that, `anvil update` is normal. Then sign in with `anvil auth login` or `anvil auth login --otp` if prompted."
+  },
+  "migrationUrl": "https://docs.eddacraft.ai/anvil/beta-testing-guide",
+  "feedbackEmail": "anvil@updates.eddacraft.ai"
+}
+```
+
+### v0.9.0-beta (historical catch-up pack)
 
 Ready to send after confirming install paths still serve this tag (or point
 `releaseUrl` / upgrade lines at the latest if you only want “current beta”).
@@ -201,10 +267,11 @@ theme changes.
 
 ## Template defaults note
 
-`packages/transactional/emails/release-announcement.tsx` still exports
-`V070_DEFAULTS` for local email preview of the historical v0.7.0-beta mail.
-**Production sends must pass explicit `templateProps`.** Do not rely on those
-defaults for a current release.
+`packages/transactional/emails/release-announcement.tsx` exports
+`CURRENT_RELEASE_DEFAULTS` (and legacy alias `V070_DEFAULTS`) for local preview
+and subject fallback. Content currently tracks **v0.9.4-beta**. **Production
+sends should still pass explicit `templateProps`** so the broadcast snapshot
+freezes the copy you reviewed — do not assume live defaults forever.
 
 ## Related
 

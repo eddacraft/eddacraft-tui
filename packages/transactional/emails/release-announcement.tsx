@@ -48,79 +48,83 @@ export interface ReleaseAnnouncementProps {
 // Exported so `sendReleaseAnnouncement` can derive a matching subject line
 // when the operator omits version + theme. Removing or renaming this requires
 // updating the sender's subject derivation in apps/anvil-api/src/lib/email.ts.
-export const V070_DEFAULTS: Omit<ReleaseAnnouncementProps, 'email' | 'unsubscribeMailto'> = {
-  version: 'v0.7.0-beta',
-  theme: 'Daemon-Working End-to-End Protection',
+//
+// Content tracks the latest published beta (v0.9.4-beta). Production broadcasts
+// should still pass explicit templateProps; these defaults back previews and
+// partial subject fallback. `V070_DEFAULTS` is a historical export name kept as
+// a stable alias for importers.
+export const CURRENT_RELEASE_DEFAULTS: Omit<
+  ReleaseAnnouncementProps,
+  'email' | 'unsubscribeMailto'
+> = {
+  version: 'v0.9.4-beta',
+  theme: 'Beta roundup — new sign-in and a clearer daily path',
   intro:
-    'A new anvil release is live. Every protection layer now operates as a single verifiable claim — from file-save through commit, push, and wrapped agent launch.',
+    'A lot has landed since the last broad release note. This mail is a short roundup through v0.9.4-beta: how you sign in, how assistants use the graph, and how install advice matches reality — plus one important upgrade note for this hop only.',
   highlights: [
     {
-      title: 'End-to-end daemon-backed protection',
-      body: 'Hooks, the witness chain, baseline adoption, L4 policy, and `anvil-run` operate as one pipeline. Every commit is witnessed, every save passes the same checks, and every agent-driven write is attributable.',
+      title: 'New sign-in: GitHub device flow (and OTP if you need it)',
+      body: 'Default login is now `anvil auth login`: you get a short code and a GitHub verification link (works over SSH/tmux). No GitHub? `anvil auth login --otp` sends a one-time code to your beta email. After upgrade, sign in once with the new path if you still hold a legacy token or an idle session.',
     },
     {
-      title: 'One typed protection claim across every surface',
-      body: '`anvil status`, `anvil doctor`, the MCP server, and the TypeScript driver-client all emit the same shape. Editors, CI, and agents read identical state.',
+      title: 'Assistant graph context over MCP',
+      body: 'Supported AI clients can search symbols, dependents, callers, change impact, and affected tests — identity-only by default, with source snippets only behind operator consent.',
     },
     {
-      title: 'Wrapped agent launch via `anvil-run`',
-      body: '`anvil-run --tool claude-code -- <command>` wraps Claude Code, Codex, Aider, Cursor, and Windsurf so the daemon can attribute work, enforce fences, and clean up stale sessions.',
+      title: 'First-run wins and quieter daily activation',
+      body: '`anvil welcome` can surface a real finding on your own project. Repeat `anvil start` is more honest about what activation does (and what still needs watch/MCP). Multi-client MCP install and MCP 2.0 reconnect keep Claude, Codex, and friends attached.',
     },
     {
-      title: 'Signed `anvil update`',
-      body: 'Every supported install path verifies a minisign signature on the downloaded binary before replacing the running one.',
+      title: 'Install method and upgrade advice that match reality',
+      body: 'Official Windows and macOS installs report the right method, Windows upgrade copy is PowerShell (not a Unix pipe), and registration waits for durable membership before claiming failure. Fewer path-shaped “secret” false positives and leaner MCP allow replies when a write is clean.',
     },
     {
-      title: 'Hook coexistence with lefthook, husky, and pre-commit-framework',
-      body: 'anvil registers as a managed entry under your host hook manager instead of overwriting `.git/hooks/`.',
-    },
-    {
-      title: '`anvil insights` weekly summary',
-      body: 'A periodic value signal during the quiet middle of normal use, derived from the witness chain. Local-only, no telemetry.',
+      title: 'Signed updates once you are current',
+      body: 'Supported channels verify a minisign signature on the binary. After this one manual hop (below), day-to-day upgrades are `anvil update` on the channel you already use.',
     },
   ],
-  releaseUrl: 'https://github.com/eddacraft/anvil/releases/tag/v0.7.0-beta',
+  releaseUrl: 'https://github.com/eddacraft/anvil/releases/tag/v0.9.4-beta',
   upgradeCommands: [
-    { label: 'Homebrew', command: 'brew upgrade eddacraft/tap/anvil' },
-    { label: 'curl installer', command: 'curl -fsSL https://install.eddacraft.ai | sh' },
-    { label: 'WinGet', command: 'winget upgrade --id eddacraft.anvil' },
-    { label: 'Scoop', command: 'scoop update anvil' },
+    {
+      label: 'Homebrew (if that is how you installed)',
+      command: 'brew upgrade eddacraft/tap/anvil',
+    },
+    {
+      label: 'curl installer (macOS / Linux — reinstall once is fine)',
+      command: 'curl -fsSL https://install.eddacraft.ai | sh',
+    },
+    {
+      label: 'Windows official installer (PowerShell)',
+      command: 'irm https://install.eddacraft.ai/windows | iex',
+    },
+    {
+      label: 'WinGet (if that is how you installed)',
+      command: 'winget upgrade --id eddacraft.anvil',
+    },
+    {
+      label: 'Scoop (if that is how you installed)',
+      command: 'scoop update anvil',
+    },
   ],
   firstInvocationNote: {
     state: 'authRequired',
     recovery: 'anvil auth login',
     rationale:
-      'If your refresh session has been idle, your first `anvil status` or `anvil start` after upgrade will surface `state: "authRequired"`. The v0.7.0-beta auth surface deliberately distinguishes "needs login" from "login failed" so editors and scripts can route you to the right step.',
+      'This hop is special: if `anvil update` is missing, stale, or cannot see a newer channel, upgrade once with the same method you used originally (Homebrew / WinGet / Scoop) or re-run the curl / PowerShell installer. After that, `anvil update` is the normal path. Then sign in with the new auth surface if status or start asks: `anvil auth login` (GitHub device flow) or `anvil auth login --otp`.',
   },
-  migrationUrl:
-    'https://github.com/eddacraft/anvil/blob/main/docs/runbooks/v0.6.x-to-v0.7.0-beta-migration.md',
-  knownGaps: [
-    {
-      title: 'Daemon-side `session.report_process` IPC handler unimplemented',
-      body: "`anvil-run` recovers gracefully and exits cleanly, but you'll see a one-line stderr warning on each launch until the handler ships.",
-      trackingUrl: 'https://github.com/eddacraft/anvil-001/issues/1827',
-    },
-    {
-      title: 'Marketplace publishing track deferred',
-      body: 'The `anvil-action` GitHub Action is still blocked on the licensing / pricing model lock and is not part of this release.',
-    },
-  ],
-  boringWeekAsk: {
-    durationLabel: 'one calendar week',
-    participantCount: 'three or more',
-    replyInstruction:
-      "Reply with \"I'm in\" and the project you'll run it against. We'll send a one-page note covering what to log and where to file feedback.",
-  },
+  migrationUrl: 'https://docs.eddacraft.ai/anvil/beta-testing-guide',
   feedbackEmail: 'anvil@updates.eddacraft.ai',
 };
 
+/** @deprecated Prefer CURRENT_RELEASE_DEFAULTS; kept for stable import paths. */
+export const V070_DEFAULTS = CURRENT_RELEASE_DEFAULTS;
+
 export function ReleaseAnnouncement(propsIn: Partial<ReleaseAnnouncementProps>) {
-  // The v0.7.0-beta defaults apply only when the caller doesn't override the
-  // identifying release fields. A future release with `version="v0.7.1-beta"`
-  // gets a blank canvas — optional sections (firstInvocationNote, knownGaps,
-  // boringWeekAsk, migrationUrl) stay omitted unless the caller provides them.
-  const useV070Defaults = !propsIn.version && !propsIn.theme;
-  const merged = useV070Defaults ? { ...V070_DEFAULTS, ...propsIn } : propsIn;
+  // Current-release defaults apply only when the caller omits both identifying
+  // fields. A send with `version="v0.9.5-beta"` (and no theme) is a blank canvas
+  // for optional sections unless the operator supplies them explicitly.
+  const useCurrentDefaults = !propsIn.version && !propsIn.theme;
+  const merged = useCurrentDefaults ? { ...CURRENT_RELEASE_DEFAULTS, ...propsIn } : propsIn;
 
   const email = merged.email ?? 'you@example.com';
   const version = merged.version ?? 'v0.0.0';
@@ -179,7 +183,13 @@ export function ReleaseAnnouncement(propsIn: Partial<ReleaseAnnouncementProps>) 
               </Link>
             </Text>
 
-            <Text style={sectionLabel}>Upgrade &mdash; one command:</Text>
+            <Text style={sectionLabel}>
+              Upgrade this time &mdash; original method or reinstall once:
+            </Text>
+            <Text style={muted}>
+              Pick the path that matches how you installed (or use the official installer line).
+              After this hop, day-to-day upgrades are <code style={inlineCode}>anvil update</code>.
+            </Text>
             {upgradeCommands.map((c, i) => (
               <Section key={i} style={codeBlock}>
                 <Text style={codeLabelInline}>{c.label}</Text>
@@ -189,11 +199,14 @@ export function ReleaseAnnouncement(propsIn: Partial<ReleaseAnnouncementProps>) 
 
             {firstInvocationNote ? (
               <>
-                <Text style={sectionLabel}>One thing to know about first invocation:</Text>
+                <Text style={sectionLabel}>After you upgrade:</Text>
                 <Text style={bodyText}>{firstInvocationNote.rationale}</Text>
-                <Text style={bodyText}>Recovery is one command:</Text>
+                <Text style={bodyText}>Sign in (if prompted):</Text>
                 <Section style={codeBlock}>
                   <Text style={codeText}>$ {firstInvocationNote.recovery}</Text>
+                </Section>
+                <Section style={codeBlock}>
+                  <Text style={codeText}>$ anvil auth login --otp</Text>
                 </Section>
                 {migrationUrl ? (
                   <Text style={muted}>
