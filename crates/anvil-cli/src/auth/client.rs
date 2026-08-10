@@ -254,6 +254,25 @@ pub struct EmailUpdateUser {
     pub status: String,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NameUpdateResponse {
+    pub email: String,
+    pub name: String,
+    pub waitlist_updated: bool,
+    pub user_updated: bool,
+    pub user: Option<NameUpdateUser>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct NameUpdateUser {
+    pub id: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub notes: Option<String>,
+    pub status: String,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct WhoamiResponse {
     pub email: String,
@@ -522,6 +541,31 @@ impl AnvilClient {
             Body {
                 current_email,
                 new_email,
+            },
+        )
+        .await
+    }
+
+    pub async fn update_user_name(
+        &self,
+        email: &str,
+        name: &str,
+        notes: Option<&str>,
+    ) -> Result<NameUpdateResponse> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Body<'a> {
+            email: &'a str,
+            name: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            notes: Option<&'a str>,
+        }
+        self.post(
+            "/admin/user/name-update",
+            Body {
+                email,
+                name,
+                notes,
             },
         )
         .await
@@ -1304,6 +1348,48 @@ mod tests {
             .unwrap();
         assert_eq!(result.previous_email, "old@example.com");
         assert_eq!(result.user.email, "new@example.com");
+    }
+
+    #[tokio::test]
+    async fn update_user_name_posts_camel_case_body() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/user/name-update"))
+            .and(body_json(serde_json::json!({
+                "email": "person@example.com",
+                "name": "Rinaldo De Paolis",
+                "notes": "follow-up"
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "email": "person@example.com",
+                "name": "Rinaldo De Paolis",
+                "waitlistUpdated": true,
+                "userUpdated": true,
+                "user": {
+                    "id": "u1",
+                    "email": "person@example.com",
+                    "name": "Rinaldo De Paolis",
+                    "notes": "follow-up",
+                    "status": "active"
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let result = client
+            .update_user_name("person@example.com", "Rinaldo De Paolis", Some("follow-up"))
+            .await
+            .unwrap();
+        assert_eq!(result.email, "person@example.com");
+        assert_eq!(result.name, "Rinaldo De Paolis");
+        assert!(result.waitlist_updated);
+        assert!(result.user_updated);
+        assert_eq!(
+            result.user.as_ref().map(|u| u.name.as_deref()),
+            Some(Some("Rinaldo De Paolis"))
+        );
     }
 
     #[tokio::test]

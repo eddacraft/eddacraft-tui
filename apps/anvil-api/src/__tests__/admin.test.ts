@@ -1114,6 +1114,229 @@ describe('admin endpoints', () => {
     });
   });
 
+  describe('POST /admin/user/name-update', () => {
+    beforeEach(() => {
+      vi.mocked(findUserByEmail).mockReset();
+      vi.mocked(findWaitlistEntryByEmail).mockReset();
+    });
+
+    const existingUser = {
+      id: 'user-1',
+      email: 'person@example.com',
+      status: 'active',
+      name: 'Old Name',
+      notes: 'prior notes',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    it('updates waitlist and beta user name without notes', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser);
+      mockSql.transaction.mockResolvedValue([
+        [{ email: 'person@example.com', name: 'New Name' }],
+        [
+          {
+            id: 'user-1',
+            email: 'person@example.com',
+            name: 'New Name',
+            notes: 'prior notes',
+            status: 'active',
+          },
+        ],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        { email: 'person@example.com', name: 'New Name' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toEqual({
+        email: 'person@example.com',
+        name: 'New Name',
+        waitlistUpdated: true,
+        userUpdated: true,
+        user: {
+          id: 'user-1',
+          email: 'person@example.com',
+          name: 'New Name',
+          notes: 'prior notes',
+          status: 'active',
+        },
+      });
+      expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+      expect(sendBetaInvite).not.toHaveBeenCalled();
+    });
+
+    it('updates waitlist-only when no beta user exists', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([
+        [{ email: 'pending@example.com', name: 'Rinaldo De Paolis' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        { email: 'pending@example.com', name: 'Rinaldo De Paolis' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.waitlistUpdated).toBe(true);
+      expect(body.userUpdated).toBe(false);
+      expect(body.user).toBeNull();
+      expect(body.name).toBe('Rinaldo De Paolis');
+      expect(sendBetaInvite).not.toHaveBeenCalled();
+    });
+
+    it('updates beta user notes when provided', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce(null);
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser);
+      mockSql.transaction.mockResolvedValue([
+        [
+          {
+            id: 'user-1',
+            email: 'person@example.com',
+            name: 'Gavin Wall',
+            notes: 'design partner',
+            status: 'active',
+          },
+        ],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        {
+          email: 'person@example.com',
+          name: 'Gavin Wall',
+          notes: 'design partner',
+        },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user?.notes).toBe('design partner');
+      expect(body.waitlistUpdated).toBe(false);
+      expect(body.userUpdated).toBe(true);
+    });
+
+    it('normalises mixed-case email before lookup', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
+      mockSql.transaction.mockResolvedValue([
+        [{ email: 'person@example.com', name: 'Alice' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        { email: 'Person@Example.com', name: 'Alice' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findWaitlistEntryByEmail)).toHaveBeenCalledWith(
+        expect.anything(),
+        'person@example.com'
+      );
+      expect(vi.mocked(findUserByEmail)).toHaveBeenCalledWith(
+        expect.anything(),
+        'person@example.com'
+      );
+    });
+
+    it('returns 404 when neither waitlist nor beta user exists', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce(null);
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
+
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        { email: 'missing@example.com', name: 'Nobody' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(404);
+      expect(mockSql.transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when notes are provided for a waitlist-only email', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
+
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        {
+          email: 'pending@example.com',
+          name: 'Pending Person',
+          notes: 'should fail',
+        },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(400);
+      expect(mockSql.transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 for empty name after trim', async () => {
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        { email: 'person@example.com', name: '   ' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for invalid email format', async () => {
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        { email: 'not-an-email', name: 'Alice' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 401 without admin auth', async () => {
+      const res = await request('POST', '/admin/user/name-update', {
+        email: 'person@example.com',
+        name: 'Alice',
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 404 when beta user deleted between lookup and update', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce(null);
+      vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser);
+      mockSql.transaction.mockResolvedValue([[], [{ id: 'audit-1' }]]);
+
+      const res = await request(
+        'POST',
+        '/admin/user/name-update',
+        { email: 'person@example.com', name: 'Alice' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(404);
+      const body = await res.json();
+      expect(body.error).toBe('User was deleted during update');
+    });
+  });
+
   describe('POST /admin/user/email-update', () => {
     // vi.clearAllMocks() doesn't drop mockResolvedValueOnce queues, so reset
     // findUserByEmail explicitly to avoid state leaking across tests here.

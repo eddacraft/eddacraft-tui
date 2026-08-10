@@ -659,6 +659,31 @@ anvil --json admin email-update old@example.com new@example.com
 The API rejects same-address updates, missing users, and collisions with an
 existing beta user email.
 
+### `name-update <email> --name <name>` — enrich display name without inviting
+
+Operator enrichment path: set display name (and optional `beta_users` notes)
+**without** invite, approve, token issue, or outbound email. Use this when you
+learn a person's name from a follow-up message or other ops context and need to
+correct waitlist / beta_users records.
+
+Wraps `POST /admin/user/name-update`.
+
+```bash
+anvil admin name-update person@example.com --name "Full Name"
+anvil admin name-update person@example.com --name "Full Name" --notes "design partner"
+anvil --json admin name-update person@example.com --name "Full Name"
+```
+
+Behaviour:
+
+- Overwrites `waitlist.name` when a waitlist row exists.
+- Overwrites `beta_users.name` when a beta user exists; optional `--notes`
+  updates only when a beta user exists (API returns 400 if notes are sent for a
+  waitlist-only email).
+- Returns 404 when neither waitlist nor beta_users has the email.
+- Audits as `user.name.updated`. Prefer this over re-running `invite` solely to
+  set a name (invite re-sends beta mail and activates).
+
 ## Exit codes
 
 | Code | Meaning                               | Typical cause                                                                       |

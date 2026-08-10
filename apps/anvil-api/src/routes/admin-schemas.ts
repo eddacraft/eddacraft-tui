@@ -127,6 +127,15 @@ export const userEmailUpdateSchema = z.object({
   newEmail: z.string().email().max(254),
 });
 
+// Operator enrichment: set display name (and optional notes) without invite,
+// approve, token issue, or outbound email. Name is required and overwrites;
+// notes is optional and only applies when a beta_users row exists.
+export const userNameUpdateSchema = z.object({
+  email: z.string().email().max(254),
+  name: z.string().trim().min(1).max(200),
+  notes: z.string().max(1000).optional(),
+});
+
 // Query string schemas — numeric fields arrive as strings via URL and
 // are coerced to numbers with bounded ranges. Defaults mirror the design
 // spec (pending / all / 50 / 0).
@@ -166,5 +175,6 @@ export type MigrationInput = z.infer<typeof migrationSchema>;
 export type BroadcastInput = z.infer<typeof broadcastSchema>;
 export type DriftDiffResponse = z.infer<typeof driftDiffSchema>;
 export type UserEmailUpdateInput = z.infer<typeof userEmailUpdateSchema>;
+export type UserNameUpdateInput = z.infer<typeof userNameUpdateSchema>;
 export type WaitlistListQuery = z.infer<typeof waitlistListQuerySchema>;
 export type AuditListQuery = z.infer<typeof auditListQuerySchema>;

@@ -35,6 +35,7 @@ import {
   migrationSchema,
   broadcastSchema,
   userEmailUpdateSchema,
+  userNameUpdateSchema,
   waitlistListQuerySchema,
   auditListQuerySchema,
 } from './admin-schemas.js';
@@ -1003,6 +1004,139 @@ admin.post('/user/email-update', zValidator('json', userEmailUpdateSchema), asyn
   return c.json({
     user: { id: updated.id, email: updated.email, status: updated.status },
     previousEmail: normalizedCurrent,
+  });
+});
+
+/**
+ * POST /admin/user/name-update
+ *
+ * Operator enrichment for display name (and optional beta-user notes) without
+ * invite/approve side effects: no token issue, no status change, no email.
+ *
+ * - Overwrites `waitlist.name` when a waitlist row exists.
+ * - Overwrites `beta_users.name` when a beta user exists; optional `notes`
+ *   updates only when a beta user exists (400 if notes are sent for a
+ *   waitlist-only email).
+ * - 404 when neither waitlist nor beta_users has the email.
+ */
+admin.post('/user/name-update', zValidator('json', userNameUpdateSchema), async (c) => {
+  const { email, name, notes } = c.req.valid('json');
+  debug('POST /admin/user/name-update');
+  const sql = getClient();
+  const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const waitlist = await findWaitlistEntryByEmail(sql, normalizedEmail);
+  const existing = await findUserByEmail(sql, normalizedEmail);
+
+  if (!waitlist && !existing) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  if (notes !== undefined && !existing) {
+    return c.json(
+      {
+        error: 'notes require an existing beta user; waitlist-only entries store name only',
+      },
+      400
+    );
+  }
+
+  const statements = [];
+
+  if (waitlist) {
+    statements.push(
+      sql`UPDATE waitlist
+          SET name = ${name}, updated_at = NOW()
+          WHERE email = ${normalizedEmail}
+          RETURNING email, name`
+    );
+  }
+
+  if (existing) {
+    if (notes !== undefined) {
+      statements.push(
+        sql`UPDATE beta_users
+            SET name = ${name}, notes = ${notes}, updated_at = NOW()
+            WHERE id = ${existing.id}
+            RETURNING id, email, name, notes, status`
+      );
+    } else {
+      statements.push(
+        sql`UPDATE beta_users
+            SET name = ${name}, updated_at = NOW()
+            WHERE id = ${existing.id}
+            RETURNING id, email, name, notes, status`
+      );
+    }
+  }
+
+  statements.push(
+    sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+        VALUES (
+          ${'user.name.updated'},
+          ${actor},
+          ${JSON.stringify({
+            email: normalizedEmail,
+            name,
+            notesProvided: notes !== undefined,
+            waitlistUpdated: Boolean(waitlist),
+            userUpdated: Boolean(existing),
+            userId: existing?.id ?? null,
+          })},
+          ${authMethod}
+        )
+        RETURNING *`
+  );
+
+  const txResult = (await sql.transaction(statements)) as unknown[][];
+
+  let waitlistName: string | null = null;
+  let userRow: {
+    id: string;
+    email: string;
+    name: string | null;
+    notes: string | null;
+    status: string;
+  } | null = null;
+
+  let idx = 0;
+  if (waitlist) {
+    const row = txResult[idx]?.[0] as { email: string; name: string | null } | undefined;
+    waitlistName = row?.name ?? name;
+    idx += 1;
+  }
+  if (existing) {
+    userRow =
+      (txResult[idx]?.[0] as
+        | {
+            id: string;
+            email: string;
+            name: string | null;
+            notes: string | null;
+            status: string;
+          }
+        | undefined) ?? null;
+    if (!userRow) {
+      return c.json({ error: 'User was deleted during update' }, 404);
+    }
+  }
+
+  return c.json({
+    email: normalizedEmail,
+    name: userRow?.name ?? waitlistName ?? name,
+    waitlistUpdated: Boolean(waitlist),
+    userUpdated: Boolean(existing),
+    user: userRow
+      ? {
+          id: userRow.id,
+          email: userRow.email,
+          name: userRow.name,
+          notes: userRow.notes,
+          status: userRow.status,
+        }
+      : null,
   });
 });
 
