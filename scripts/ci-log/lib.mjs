@@ -178,9 +178,11 @@ export function normaliseEntry(raw) {
   }
   // Heading must be the first non-empty line (no multiline search — a later
   // ### heading must not validate a malformed prefix).
-  if (!/^###\s+\d{4}-\d{2}-\d{2}\b/.test(text)) {
+  const headingDate = text.match(/^###\s+(\d{4}-\d{2}-\d{2})\b/)?.[1];
+  if (!headingDate) {
     throw new Error('CI-log entry must start with a heading like `### YYYY-MM-DD — agent`');
   }
+  assertRealCalendarDate(headingDate);
   if (!text.endsWith('\n')) text += '\n';
   // Exactly one trailing blank line after the entry body.
   text = text.replace(/\n+$/, '\n') + '\n';
@@ -199,7 +201,6 @@ export function buildEntryFromFields({
   followUp = 'none',
   title = '',
 } = {}) {
-  assertRealCalendarDate(date);
   if (!task || !String(task).trim()) {
     throw new Error('--task is required when building an entry from fields');
   }

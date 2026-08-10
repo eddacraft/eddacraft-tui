@@ -196,4 +196,18 @@ grep -q 'Last triaged:\*\* 2024-02-29' plans/reviews/continuous-improvement-log.
   fail "watermark rejected valid leap date"
 "${SINCE[@]}" --since 2024-02-29 >/dev/null || fail "since rejected valid leap date"
 
+# 13) full-entry append modes share the same calendar validation boundary
+invalid_stdin_entry=$'### 2026-02-30 — codex\n\n- **Task:** impossible stdin date\n- **Outcome:** rejected\n'
+if printf '%s' "$invalid_stdin_entry" | "${APPEND[@]}" --stdin 2>/dev/null; then
+  fail "stdin append accepted impossible heading date"
+fi
+invalid_body_entry=$'### 2025-02-29 — codex\n\n- **Task:** impossible body date\n- **Outcome:** rejected\n'
+if "${APPEND[@]}" --body "$invalid_body_entry" 2>/dev/null; then
+  fail "body append accepted non-leap heading date"
+fi
+valid_body_entry=$'### 2024-02-29 — codex\n\n- **Task:** valid leap body date\n- **Outcome:** queued\n'
+"${APPEND[@]}" --body "$valid_body_entry" >/dev/null
+grep -q 'valid leap body date' "$tmp/repo/.git/anvil/ci-log-pending/"*.md || \
+  fail "body append rejected valid leap heading date"
+
 printf 'ci-log.test.sh: OK\n'
