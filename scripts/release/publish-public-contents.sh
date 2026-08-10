@@ -89,10 +89,17 @@ command -v base64 >/dev/null 2>&1 || die "base64 is required"
 
 # Existing SHA for update-in-place; empty means create.
 existing_sha=""
-if existing_sha=$(gh api "repos/${repo}/contents/${remote_path}" --jq '.sha' 2>/dev/null); then
+if existing_sha=$(gh api "repos/${repo}/contents/${remote_path}" --jq '.sha' 2>&1); then
   :
 else
-  existing_sha=""
+  lookup_error="$existing_sha"
+  not_found_pattern='HTTP[[:space:]]+404([^0-9]|$)'
+  if [[ "$lookup_error" =~ $not_found_pattern ]]; then
+    existing_sha=""
+  else
+    printf '%s\n' "$lookup_error" >&2
+    die "failed to look up ${repo}:${remote_path}; refusing to create"
+  fi
 fi
 
 payload="$(mktemp)"

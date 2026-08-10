@@ -33,6 +33,10 @@ if [[ "${1:-}" == "api" ]]; then
   done
   # GET contents → optional existing sha
   if [[ "$*" != *"--method"* && "$*" != *"-X"* && "$*" != *"--input"* ]]; then
+    if [[ -n "${ANVIL_FAKE_GH_LOOKUP_ERROR:-}" ]]; then
+      printf '%s\n' "$ANVIL_FAKE_GH_LOOKUP_ERROR" >&2
+      exit 1
+    fi
     if [[ -n "${ANVIL_FAKE_GH_EXISTING_SHA:-}" ]]; then
       body=$(printf '{"sha":"%s"}' "$ANVIL_FAKE_GH_EXISTING_SHA")
       if [[ -n "$jq_filter" ]]; then
@@ -91,7 +95,8 @@ printf 'hello acknowledgements\n' >"$file"
 
 # Success: create
 : >"$ANVIL_FAKE_GH_LOG"
-unset ANVIL_FAKE_GH_EXISTING_SHA ANVIL_FAKE_GH_REQUIRE_SHA ANVIL_FAKE_GH_FAIL_PUT
+unset ANVIL_FAKE_GH_EXISTING_SHA ANVIL_FAKE_GH_REQUIRE_SHA ANVIL_FAKE_GH_FAIL_PUT \
+  ANVIL_FAKE_GH_LOOKUP_ERROR
 "$SCRIPT" \
   --repo eddacraft/anvil \
   --path ACKNOWLEDGEMENTS.md \
@@ -99,6 +104,40 @@ unset ANVIL_FAKE_GH_EXISTING_SHA ANVIL_FAKE_GH_REQUIRE_SHA ANVIL_FAKE_GH_FAIL_PU
   --message "chore(release): update ACKNOWLEDGEMENTS.md" \
   >/dev/null || fail "create path failed"
 grep -Fq 'contents/ACKNOWLEDGEMENTS.md' "$ANVIL_FAKE_GH_LOG" || fail "GET/PUT path not logged"
+
+# Only a genuine HTTP 404 may fall through to create. Permission, upstream,
+# authentication, and network failures must retain the useful gh error and
+# stop before PUT.
+lookup_failures=0
+while IFS='|' read -r label upstream_error expected_context; do
+  : >"$ANVIL_FAKE_GH_LOG"
+  export ANVIL_FAKE_GH_LOOKUP_ERROR="$upstream_error"
+  if "$SCRIPT" \
+    --repo eddacraft/anvil \
+    --path ACKNOWLEDGEMENTS.md \
+    --file "$file" \
+    --message "must not create after $label" \
+    >/dev/null 2>"$tmp/lookup-$label.err"
+  then
+    echo "lookup $label unexpectedly succeeded" >&2
+    lookup_failures=$((lookup_failures + 1))
+  fi
+  if grep -Fq -- '--method PUT' "$ANVIL_FAKE_GH_LOG"; then
+    echo "lookup $label attempted PUT" >&2
+    lookup_failures=$((lookup_failures + 1))
+  fi
+  if ! grep -Fq "$expected_context" "$tmp/lookup-$label.err"; then
+    echo "lookup $label dropped upstream context: $expected_context" >&2
+    lookup_failures=$((lookup_failures + 1))
+  fi
+done <<'CASES'
+forbidden|gh: Resource not accessible by integration (HTTP 403)|HTTP 403
+server|gh: Internal Server Error (HTTP 500)|HTTP 500
+auth|gh: authentication failed for api.github.com|authentication failed
+network|gh: failed to connect to api.github.com|failed to connect
+CASES
+unset ANVIL_FAKE_GH_LOOKUP_ERROR
+[[ "$lookup_failures" -eq 0 ]] || fail "$lookup_failures non-404 lookup guard assertion(s) failed"
 
 # Success: update existing
 : >"$ANVIL_FAKE_GH_LOG"
