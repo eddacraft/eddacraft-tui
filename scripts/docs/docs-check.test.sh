@@ -624,6 +624,68 @@ else
   fail "--update-baseline happy path failed to write or dropped a carried-forward key"
 fi
 
+# CIB-307: valid JSON is still unsafe baseline input when the surface process
+# could not run successfully. A tooling-failed surface must leave every byte of
+# the known-good baseline untouched and explain why its JSON was rejected.
+cat >"${bl_root}/tooling-json-surface.mjs" <<'EOF'
+console.log(JSON.stringify({
+  surface: 'tooling-json',
+  findings: [],
+  summary: { errors: 0, warnings: 0, filesChecked: 0 },
+}));
+process.exit(2);
+EOF
+cat >"${bl_root}/surfaces-tooling-json.json" <<'EOF'
+[
+  {
+    "name": "tooling-json",
+    "script": "tooling-json-surface.mjs",
+    "baselineable": true
+  }
+]
+EOF
+baseline_before_tooling="${bl_root}/baseline-before-tooling.json"
+cp "${baseline_file}" "${baseline_before_tooling}"
+set +e
+out="$(cd "${repo_root}" && node "${orchestrator}" --update-baseline --root "${bl_root}" --surfaces "${bl_root}/surfaces-tooling-json.json" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] && echo "${out}" | grep -qE "^\[docs-check\] tooling-json: ERROR \(tooling\)"; then
+  pass "--update-baseline rejects valid JSON from a tooling-failed surface"
+else
+  fail "--update-baseline accepted tooling-failed JSON or omitted its diagnostic (status ${status}); got: ${out}"
+fi
+if cmp -s "${baseline_before_tooling}" "${baseline_file}"; then
+  pass "--update-baseline preserves the baseline byte-for-byte on tooling failure"
+else
+  fail "--update-baseline changed the baseline after a tooling-failed surface"
+fi
+
+# Guard the exit taxonomy from CIB-278: valid JSON from an ordinary content
+# failure remains acceptable regeneration input.
+cat >"${bl_root}/content-json-surface.mjs" <<'EOF'
+console.log(JSON.stringify({
+  surface: 'content-json',
+  findings: [{ severity: 'ERROR', file: 'docs/content.md', message: 'content debt' }],
+  summary: { errors: 1, warnings: 0, filesChecked: 1 },
+}));
+process.exit(1);
+EOF
+cat >"${bl_root}/surfaces-content-json.json" <<'EOF'
+[
+  { "name": "content-json", "script": "content-json-surface.mjs", "baselineable": true }
+]
+EOF
+set +e
+(cd "${repo_root}" && node "${orchestrator}" --update-baseline --root "${bl_root}" --surfaces "${bl_root}/surfaces-content-json.json" >/dev/null 2>&1)
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] && node -e "const b=require(process.argv[1]); process.exit(b['content-json']?.['docs/content.md']?.includes('content debt') ? 0 : 1)" "${baseline_file}"; then
+  pass "--update-baseline accepts valid JSON from a content-failed surface"
+else
+  fail "--update-baseline rejected valid content-failure JSON or failed to write it (status ${status})"
+fi
+
 # Case 12 (DOCGOV-012 defect 3): a malformed percent escape in a link must
 # produce a labelled ERROR finding and a non-zero exit, never an uncaught
 # URIError that aborts the whole surface.

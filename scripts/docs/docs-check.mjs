@@ -225,6 +225,13 @@ async function regenerateBaseline() {
       failures.push(surface.name);
       continue;
     }
+    if (result.verdict === EXIT_TOOLING_FAILURE) {
+      process.stderr.write(
+        `[docs-check] ${surface.name}: ERROR (tooling) — JSON output rejected\n`
+      );
+      failures.push(surface.name);
+      continue;
+    }
     next[surface.name] = collapseFindings(parsed.findings ?? []);
     process.stdout.write(
       `[docs-check] ${surface.name}: ${parsed.summary?.errors ?? '?'} errors, ` +
