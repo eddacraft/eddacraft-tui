@@ -66,7 +66,7 @@ async function revokeGitHubToken(accessToken: string): Promise<void> {
   try {
     const { clientId, clientSecret } = getGitHubCredentials();
     const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    await fetch(`https://api.github.com/applications/${clientId}/token`, {
+    const response = await fetch(`https://api.github.com/applications/${clientId}/token`, {
       method: 'DELETE',
       signal: AbortSignal.timeout(8_000),
       headers: {
@@ -76,6 +76,9 @@ async function revokeGitHubToken(accessToken: string): Promise<void> {
       },
       body: JSON.stringify({ access_token: accessToken }),
     });
+    if (!response.ok) {
+      throw new Error(`GitHub token revocation failed: ${response.status}`);
+    }
   } catch (err) {
     debug('failed to revoke github token', {
       error: err instanceof Error ? err.message : String(err),
@@ -102,15 +105,20 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
   const { code } = c.req.valid('json');
 
   let ghUser: GitHubIdentity;
+  let accessToken: string | undefined;
   try {
-    const accessToken = await exchangeCodeForToken(code);
+    accessToken = await exchangeCodeForToken(code);
     ghUser = await fetchGitHubUser(accessToken);
-    // Revoke the GitHub token before finalising the callback. The helper is
-    // best-effort, so an upstream revocation failure does not fail auth.
-    await revokeGitHubToken(accessToken);
   } catch (err) {
     debug('github auth failed', { error: err instanceof Error ? err.message : String(err) });
     return c.json({ error: 'GitHub authentication failed' }, 401);
+  } finally {
+    if (accessToken) {
+      // Revoke every successfully exchanged GitHub token before finalising
+      // the callback, including identity-fetch failures. The helper is
+      // best-effort, so an upstream revocation failure does not fail auth.
+      await revokeGitHubToken(accessToken);
+    }
   }
 
   const sql = getClient();

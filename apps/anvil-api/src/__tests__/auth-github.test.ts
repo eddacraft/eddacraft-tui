@@ -221,6 +221,66 @@ describe('POST /auth/github/callback', () => {
       expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
     });
 
+    it.each(['profile', 'email'] as const)(
+      'awaits token revocation before returning 401 when %s fetch fails',
+      async (failure) => {
+        let resolveRevocation!: (response: Response) => void;
+        const revocationResponse = new Promise<Response>((resolve) => {
+          resolveRevocation = resolve;
+        });
+        let markRevocationStarted!: () => void;
+        const revocationStarted = new Promise<void>((resolve) => {
+          markRevocationStarted = resolve;
+        });
+
+        vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+          const url = typeof input === 'string' ? input : input.toString();
+          if (url === 'https://github.com/login/oauth/access_token') {
+            return jsonResponse({
+              ok: true,
+              json: { access_token: 'gh-token', token_type: 'bearer' },
+            });
+          }
+          if (url === 'https://api.github.com/user') {
+            return failure === 'profile'
+              ? jsonResponse({ ok: false, status: 500 })
+              : jsonResponse({
+                  ok: true,
+                  json: { id: 1, login: 'octocat', name: 'Octocat', avatar_url: null },
+                });
+          }
+          if (url === 'https://api.github.com/user/emails') {
+            return failure === 'email'
+              ? jsonResponse({ ok: false, status: 502 })
+              : jsonResponse({
+                  ok: true,
+                  json: [{ email: 'octo@example.com', primary: true, verified: true }],
+                });
+          }
+          if (url === 'https://api.github.com/applications/test-client-id/token') {
+            markRevocationStarted();
+            return revocationResponse;
+          }
+          throw new Error(`unexpected fetch(${url})`);
+        });
+
+        const callbackResponse = callback({ code: 'gh-code' });
+
+        await revocationStarted;
+        const callbackState = await Promise.race([
+          callbackResponse.then(() => 'finalised' as const),
+          new Promise<'waiting'>((resolve) => setTimeout(() => resolve('waiting'), 50)),
+        ]);
+
+        resolveRevocation(jsonResponse({ ok: true, json: {} }));
+        expect(callbackState).toBe('waiting');
+        const res = await callbackResponse;
+        expect(res.status).toBe(401);
+        expect(await res.json()).toEqual({ error: 'GitHub authentication failed' });
+        expect(vi.mocked(linkOrCreateGitHubUser)).not.toHaveBeenCalled();
+      }
+    );
+
     it('returns 401 when the account has no verified primary email', async () => {
       mockFetch({
         'https://github.com/login/oauth/access_token': {
@@ -459,6 +519,57 @@ describe('POST /auth/github/callback', () => {
       expect(callbackState).toBe('waiting');
       const res = await callbackResponse;
       expect(res.status).toBe(200);
+    });
+
+    it('observes a non-2xx revocation without failing successful authentication', async () => {
+      const previousDebug = process.env['ANVIL_DEBUG'];
+      process.env['ANVIL_DEBUG'] = '1';
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+      try {
+        mockFetch({
+          'https://github.com/login/oauth/access_token': {
+            ok: true,
+            json: { access_token: 'gho_sensitive-token-value', token_type: 'bearer' },
+          },
+          'https://api.github.com/user': {
+            ok: true,
+            json: { id: 42, login: 'octocat', name: 'Octocat', avatar_url: null },
+          },
+          'https://api.github.com/user/emails': {
+            ok: true,
+            json: [{ email: 'active@example.com', primary: true, verified: true }],
+          },
+          'https://api.github.com/applications/': { ok: false, status: 403 },
+        });
+        vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+          user: {
+            id: 'user-3',
+            email: 'active@example.com',
+            name: 'octocat',
+            status: 'active',
+            notes: null,
+            github_id: 42,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          isNewPending: false,
+          didFirstLink: false,
+        });
+
+        const res = await callback({ code: 'gh-code' });
+
+        expect(res.status).toBe(200);
+        expect(typeof (await res.json()).license).toBe('string');
+        const revokeLog = debugSpy.mock.calls.find(([message]) =>
+          String(message).includes('failed to revoke github token')
+        );
+        expect(revokeLog).toBeDefined();
+        expect(JSON.stringify(revokeLog)).toContain('GitHub token revocation failed: 403');
+        expect(JSON.stringify(revokeLog)).not.toContain('gho_sensitive-token-value');
+      } finally {
+        if (previousDebug === undefined) delete process.env['ANVIL_DEBUG'];
+        else process.env['ANVIL_DEBUG'] = previousDebug;
+      }
     });
 
     it('bounds stalled token revocation and keeps authentication best-effort', async () => {
