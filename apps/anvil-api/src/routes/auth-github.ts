@@ -14,6 +14,7 @@ import { createDebugger } from '../lib/debug.js';
 const debug = createDebugger('api');
 
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
+const UPSTREAM_TIMEOUT_MS = 8_000;
 
 const callbackSchema = z.object({
   code: z.string().min(1).max(256),
@@ -68,7 +69,7 @@ async function revokeGitHubToken(accessToken: string): Promise<void> {
     const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const response = await fetch(`https://api.github.com/applications/${clientId}/token`, {
       method: 'DELETE',
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       headers: {
         Authorization: `Basic ${auth}`,
         Accept: 'application/json',
