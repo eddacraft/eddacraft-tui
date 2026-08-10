@@ -218,8 +218,7 @@ pub(crate) fn is_path_shaped_document_token(
                 let rest_ok = before_colon
                     .chars()
                     .rev()
-                    .skip(1)
-                    .next()
+                    .nth(1)
                     .is_none_or(|c| !c.is_ascii_alphanumeric());
                 if rest_ok {
                     return true;
@@ -238,7 +237,7 @@ pub(crate) fn is_path_shaped_document_token(
 }
 
 fn document_extension_prefix(after: &str) -> Option<&str> {
-    let trimmed = after.trim_start_matches(|c: char| c == '"' || c == '\'');
+    let trimmed = after.trim_start_matches(['"', '\'']);
     let ext = trimmed.strip_prefix('.')?;
     let end = ext
         .find(|c: char| !c.is_ascii_alphanumeric())

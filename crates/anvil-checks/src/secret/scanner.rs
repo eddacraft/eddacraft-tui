@@ -51,17 +51,15 @@ pub fn scan_lockfile_url_credentials(
     for (index, line) in content.lines().enumerate() {
         for matched in CREDENTIAL_URL_PATTERN.find_iter(line) {
             let range = matched.range();
-            findings.push(SecretFinding {
-                file: file_path.to_string(),
-                line: index + 1,
-                finding_type: FindingType::Pattern,
-                pattern_name: "Credential URL".to_string(),
-                redacted_match: matcher.redact_secret(&line[range.clone()]),
-                redacted_line: matcher.redact_range_in_line(line, range.start, range.end),
-                match_start: Some(range.start),
-                match_end: Some(range.end),
-                token_shape: Some(crate::secret::types::TokenShape::Opaque),
-            });
+            findings.push(pattern_finding(
+                file_path,
+                index + 1,
+                "Credential URL".to_string(),
+                matcher.redact_secret(&line[range.clone()]),
+                matcher.redact_range_in_line(line, range.start, range.end),
+                range.start,
+                range.end,
+            ));
             if findings.len() == limit {
                 return findings;
             }
@@ -517,6 +515,28 @@ pub fn scan_content_with_limit_and_stats(
 /// once per file. Use this from any flow that calls the scanner in a
 /// loop or in parallel.
 ///
+fn pattern_finding(
+    file_path: &str,
+    line_number: usize,
+    pattern_name: String,
+    redacted_match: String,
+    redacted_line: String,
+    match_start: usize,
+    match_end: usize,
+) -> SecretFinding {
+    SecretFinding {
+        file: file_path.to_string(),
+        line: line_number,
+        finding_type: FindingType::Pattern,
+        pattern_name,
+        redacted_match,
+        redacted_line,
+        match_start: Some(match_start),
+        match_end: Some(match_end),
+        token_shape: Some(crate::secret::types::TokenShape::Opaque),
+    }
+}
+
 /// Compile errors are caller-owned: get them from
 /// [`compile_custom_patterns`] (or [`compile_secret_patterns`])
 /// once upfront and surface them at the boundary that owns
@@ -601,17 +621,15 @@ pub fn scan_content_with_compiled_patterns(
             }
 
             let matched_value = &line[range.clone()];
-            findings.push(SecretFinding {
-                file: file_path.to_string(),
-                line: line_number,
-                finding_type: FindingType::Pattern,
-                pattern_name: pattern.name.clone(),
-                redacted_match: matcher.redact_secret(matched_value),
-                redacted_line: matcher.redact_range_in_line(line, range.start, range.end),
-                match_start: Some(range.start),
-                match_end: Some(range.end),
-                token_shape: Some(crate::secret::types::TokenShape::Opaque),
-            });
+            findings.push(pattern_finding(
+                file_path,
+                line_number,
+                pattern.name.clone(),
+                matcher.redact_secret(matched_value),
+                matcher.redact_range_in_line(line, range.start, range.end),
+                range.start,
+                range.end,
+            ));
             if findings.len() == limit {
                 return (findings, stats);
             }
