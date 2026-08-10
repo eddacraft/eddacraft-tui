@@ -249,4 +249,60 @@ describe('Protection Overview typed resource', () => {
 
     expect(onSeverityChange).toHaveBeenCalledWith('low');
   });
+
+  it('keeps affected-file evidence selected when a severity filter hides its warning row', async () => {
+    const mediumWarning = {
+      ...protectionOverviewFixture.warnings[0],
+      id: 'warning-medium',
+      evidence_id: 'evidence-medium',
+      severity: 'medium' as const,
+      rule: 'medium-rule',
+      file_path: 'src/medium.ts',
+    };
+    const overview = {
+      ...protectionOverviewFixture,
+      next_attention: {
+        title: 'Review medium-rule',
+        detail: 'src/medium.ts:18',
+        evidence_id: 'evidence-medium',
+      },
+      warnings: [...protectionOverviewFixture.warnings, mediumWarning],
+    };
+
+    await render(
+      {
+        next_attention: overview.next_attention,
+        warnings: overview.warnings,
+      },
+      { view: 'warnings', severity: 'all' }
+    );
+
+    await act(async () => {
+      container
+        ?.querySelector<HTMLButtonElement>('.affected-files-panel .table-select-button')
+        ?.click();
+    });
+
+    expect(container?.querySelector('#evidence-inspector')?.textContent).toContain(
+      'typed-secret-rule'
+    );
+
+    await act(async () => {
+      root?.render(
+        <ProtectionOverviewContent overview={overview} severity="medium" view="warnings" />
+      );
+    });
+
+    const inspector = container?.querySelector('#evidence-inspector');
+    expect(inspector?.textContent).toContain('typed-secret-rule');
+    expect(inspector?.textContent).not.toContain('medium-rule');
+  });
+
+  it('shows no evidence when an explicit selection id is missing', async () => {
+    await render({}, { initialEvidence: 'missing-evidence' });
+
+    expect(container?.querySelector('#evidence-inspector')?.textContent).toContain(
+      'No evidence is selected.'
+    );
+  });
 });

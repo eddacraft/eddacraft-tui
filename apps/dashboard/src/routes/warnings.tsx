@@ -12,6 +12,17 @@ import type { components } from '@/api/generated/openapi';
 
 type Warning = components['schemas']['WarningSummary'];
 
+export function resolveWarningSelection(
+  warnings: readonly Warning[],
+  evidence: string | undefined,
+  selected: Warning | undefined
+) {
+  if (evidence !== undefined) {
+    return warnings.find((warning) => warning.id === evidence || warning.evidence_id === evidence);
+  }
+  return selected;
+}
+
 export function DashboardWarningsRoute() {
   const query = useProtectionOverview();
   const search = useSearch({ from: '/warnings' });
@@ -28,10 +39,7 @@ export function DashboardWarningsRoute() {
   return (
     <QueryBoundary query={query} loadingLabel="Warnings">
       {(overview) => {
-        const initial =
-          overview.warnings.find(
-            (warning) => warning.id === search.evidence || warning.evidence_id === search.evidence
-          ) ?? selected;
+        const initial = resolveWarningSelection(overview.warnings, search.evidence, selected);
         return (
           <section className="warnings-page">
             <header className="protection-heading">

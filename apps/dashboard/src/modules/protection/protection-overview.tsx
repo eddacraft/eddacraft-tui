@@ -83,17 +83,24 @@ export function ProtectionOverviewContent({
   view?: ProtectionView;
 }) {
   const fallbackEvidence = overview.next_attention?.evidence_id ?? overview.warnings[0]?.id;
-  const [localSelectedId, setLocalSelectedId] = useState(initialEvidence ?? fallbackEvidence);
+  const [localSelectedId, setLocalSelectedId] = useState(initialEvidence);
   const evidenceIsControlled = initialEvidence !== undefined || onEvidenceChange !== undefined;
-  const selectedId = evidenceIsControlled ? (initialEvidence ?? fallbackEvidence) : localSelectedId;
+  const explicitSelectedId = evidenceIsControlled ? initialEvidence : localSelectedId;
   const filteredWarnings =
     severity === 'all'
       ? overview.warnings
       : overview.warnings.filter((warning) => warning.severity === severity);
-  const selected =
+  const fallbackSelected =
     filteredWarnings.find(
-      (warning) => warning.id === selectedId || warning.evidence_id === selectedId
+      (warning) => warning.id === fallbackEvidence || warning.evidence_id === fallbackEvidence
     ) ?? filteredWarnings[0];
+  const selected =
+    explicitSelectedId === undefined
+      ? fallbackSelected
+      : overview.warnings.find(
+          (warning) =>
+            warning.id === explicitSelectedId || warning.evidence_id === explicitSelectedId
+        );
   const select = (id: string) => {
     if (!evidenceIsControlled) setLocalSelectedId(id);
     onEvidenceChange?.(id);
