@@ -12,11 +12,20 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.4-beta — 9 August 2026 — Install honesty and membership wait
+## 0.9.4-beta — 10 August 2026 — Install honesty and field follow-up
 
 Field follow-up on the v0.9 line: official-installer method detection and
-upgrade advice on Windows/macOS, plus workspace register that waits for durable
-membership instead of racing the daemon.
+upgrade advice on Windows/macOS, durable membership confirmation that does not
+race the daemon, leaner MCP allow responses, fewer path false-positives in
+secret scan, and broader Python dynamic-execution coverage.
+
+### Changed
+
+- **MCP pre-write responses are lean by default on clean allow.**
+  `anvil_validate_write` and `anvil_apply_patch` accept optional
+  `detail: "minimal" | "full"`. Default is **minimal**: clean `allow` returns
+  only `schema` and `decision`. Pass `detail: "full"` for the complete envelope.
+  Validation quality is unchanged.
 
 ### Fixed
 
@@ -42,6 +51,18 @@ membership instead of racing the daemon.
   though registration had succeeded. It now waits briefly and re-checks until
   the membership appears (or the budget expires and the honest refusal still
   stands).
+
+- **Path-shaped document tokens no longer trip generic secret entropy.** Long
+  hex or base64-looking strings that are clearly file paths are not treated as
+  high-entropy secrets.
+
+- **Post-commit witness lines bind to the HEAD commit** so they cannot be
+  confused with a different HEAD after a race.
+
+### Added
+
+- **Python dynamic-execution surfaces PY-008 and PY-009** in the reliability
+  pack for additional dynamic-execution shapes.
 
 ## 0.9.3-beta — 7 August 2026 — Honesty and Windows path
 
