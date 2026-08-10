@@ -10,7 +10,7 @@ description: Look up source-pattern rules compiled into anvil.
 
 This catalogue covers source-pattern rules in the compiled registry shipped with
 anvil 0.9.4-beta. Secrets, architecture, policy, command-safety, and other gate
-checks have separate engines and are not listed here. The registry contains **45
+checks have separate engines and are not listed here. The registry contains **47
 enabled rules across 11 families**.
 
 Rule IDs are stable identifiers you may see in terminal or machine-readable
@@ -41,6 +41,8 @@ failed.
 | `PY-005`   | wildcard import (from x import \*)                             | python-reliability        | warning          | .py                                             |
 | `PY-006`   | print() in production code                                     | python-reliability        | info             | .py                                             |
 | `PY-007`   | Any annotation escapes the type system                         | python-reliability        | warning          | .py                                             |
+| `PY-008`   | eval() / exec() / compile() called with a dynamic argument     | python-reliability        | error            | .py                                             |
+| `PY-009`   | os.system / shell=True / pickle.loads / yaml.load              | python-reliability        | error            | .py                                             |
 | `RL-001`   | Unverified pre-existing claim                                  | responsibility-laundering | warning          | agent-output, pr-description                    |
 | `RL-002`   | Phantom follow-up tracking                                     | responsibility-laundering | warning          | agent-output, pr-description, commit-message    |
 | `RL-003`   | Blanket unrelated dismissal                                    | responsibility-laundering | error            | agent-output, pr-description                    |
