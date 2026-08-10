@@ -120,19 +120,19 @@ export const CURRENT_RELEASE_DEFAULTS: Omit<
 export const V070_DEFAULTS = CURRENT_RELEASE_DEFAULTS;
 
 export function ReleaseAnnouncement(propsIn: Partial<ReleaseAnnouncementProps>) {
-  // Current-release defaults apply only when the caller omits both identifying
-  // fields. A send with `version="v0.9.5-beta"` (and no theme) is a blank canvas
-  // for optional sections unless the operator supplies them explicitly.
-  const useCurrentDefaults = !propsIn.version && !propsIn.theme;
-  const merged = useCurrentDefaults ? { ...CURRENT_RELEASE_DEFAULTS, ...propsIn } : propsIn;
+  // Per-field overlay, same idea as `sendReleaseAnnouncement` subject fallback
+  // in apps/anvil-api/src/lib/email.ts: missing version/theme/releaseUrl (etc.)
+  // keep CURRENT_RELEASE_DEFAULTS so HTML cannot show an empty header while the
+  // subject still carries a default theme. Explicit props always win.
+  const merged = { ...CURRENT_RELEASE_DEFAULTS, ...propsIn };
 
   const email = merged.email ?? 'you@example.com';
-  const version = merged.version ?? 'v0.0.0';
-  const theme = merged.theme ?? '';
-  const intro = merged.intro ?? '';
-  const highlights = merged.highlights ?? [];
-  const releaseUrl = merged.releaseUrl ?? '';
-  const upgradeCommands = merged.upgradeCommands ?? [];
+  const version = merged.version ?? CURRENT_RELEASE_DEFAULTS.version;
+  const theme = merged.theme ?? CURRENT_RELEASE_DEFAULTS.theme;
+  const intro = merged.intro ?? CURRENT_RELEASE_DEFAULTS.intro;
+  const highlights = merged.highlights ?? CURRENT_RELEASE_DEFAULTS.highlights;
+  const releaseUrl = merged.releaseUrl ?? CURRENT_RELEASE_DEFAULTS.releaseUrl;
+  const upgradeCommands = merged.upgradeCommands ?? CURRENT_RELEASE_DEFAULTS.upgradeCommands;
   const firstInvocationNote = merged.firstInvocationNote;
   const migrationUrl = merged.migrationUrl;
   const knownGaps = merged.knownGaps;

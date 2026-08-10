@@ -88,4 +88,21 @@ describe('transactional templates render to valid HTML', () => {
     expect(html).not.toContain('undefined');
     expect(html).toMatch(/^<!DOCTYPE html/i);
   });
+
+  it('ReleaseAnnouncement fills theme and releaseUrl when only version is set', async () => {
+    const html = await render(
+      <ReleaseAnnouncement
+        email="tester@example.com"
+        version="v0.9.5-beta"
+        unsubscribeMailto={UNSUBSCRIBE}
+      />
+    );
+
+    expect(html).toContain('v0.9.5-beta');
+    // Default theme must still render — matches subject per-field fallback.
+    expect(html).toContain('new sign-in and a clearer daily path');
+    expect(html).toContain('href="https://github.com/eddacraft/anvil/releases/tag/v0.9.4-beta"');
+    expect(html).not.toContain('[ OK ] v0.9.5-beta &mdash; </');
+    expect(html).not.toContain('undefined');
+  });
 });
