@@ -133,11 +133,27 @@ while IFS='|' read -r label upstream_error expected_context; do
 done <<'CASES'
 forbidden|gh: Resource not accessible by integration (HTTP 403)|HTTP 403
 server|gh: Internal Server Error (HTTP 500)|HTTP 500
+mixed-server|gh: proxy saw HTTP 404 while handling request (HTTP 500)|HTTP 500
+mixed-forbidden|gh: cache returned HTTP 404 before policy check (HTTP 403)|HTTP 403
+ambiguous|gh: upstream statuses HTTP 404/500|HTTP 404/500
 auth|gh: authentication failed for api.github.com|authentication failed
 network|gh: failed to connect to api.github.com|failed to connect
 CASES
 unset ANVIL_FAKE_GH_LOOKUP_ERROR
 [[ "$lookup_failures" -eq 0 ]] || fail "$lookup_failures non-404 lookup guard assertion(s) failed"
+
+# The terminal status is authoritative: an earlier 500 does not prevent a
+# genuine terminal 404 from taking the create path.
+: >"$ANVIL_FAKE_GH_LOG"
+export ANVIL_FAKE_GH_LOOKUP_ERROR='gh: proxy saw HTTP 500 while handling request (HTTP 404)'
+"$SCRIPT" \
+  --repo eddacraft/anvil \
+  --path ACKNOWLEDGEMENTS.md \
+  --file "$file" \
+  --message "create after terminal 404" \
+  >/dev/null || fail "terminal 404 did not take create path"
+grep -Fq -- '--method PUT' "$ANVIL_FAKE_GH_LOG" || fail "terminal 404 did not attempt PUT"
+unset ANVIL_FAKE_GH_LOOKUP_ERROR
 
 # Success: update existing
 : >"$ANVIL_FAKE_GH_LOG"

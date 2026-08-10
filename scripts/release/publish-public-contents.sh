@@ -93,8 +93,14 @@ if existing_sha=$(gh api "repos/${repo}/contents/${remote_path}" --jq '.sha' 2>&
   :
 else
   lookup_error="$existing_sha"
-  not_found_pattern='HTTP[[:space:]]+404([^0-9]|$)'
-  if [[ "$lookup_error" =~ $not_found_pattern ]]; then
+  terminal_status_pattern='HTTP[[:space:]]+([0-9]{3})[[:space:]]*[)]?[[:space:]]*$'
+  terminal_status=""
+  # Only the final, syntactically complete HTTP status is authoritative.
+  # Missing or malformed terminal status remains ambiguous and fails closed.
+  if [[ "$lookup_error" =~ $terminal_status_pattern ]]; then
+    terminal_status="${BASH_REMATCH[1]}"
+  fi
+  if [[ "$terminal_status" == "404" ]]; then
     existing_sha=""
   else
     printf '%s\n' "$lookup_error" >&2
