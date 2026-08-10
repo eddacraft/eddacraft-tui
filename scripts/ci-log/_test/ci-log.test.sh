@@ -146,8 +146,9 @@ wait "$harvest_two_pid"
   fail "dual harvest lost or duplicated first entry"
 [[ "$(grep -c 'dual harvest two' plans/reviews/continuous-improvement-log.md)" -eq 1 ]] || \
   fail "dual harvest lost or duplicated second entry"
-[[ ! -e "$tmp/repo/.git/anvil/ci-log-pending/"*.md ]] || \
+if compgen -G "$tmp/repo/.git/anvil/ci-log-pending/*.md" >/dev/null; then
   fail "dual harvest left processed pending entries"
+fi
 grep -q '^foreign-temp-sentinel$' plans/reviews/continuous-improvement-log.md.harvest-tmp || \
   fail "harvest clobbered a foreign fixed-name temp file"
 rm plans/reviews/continuous-improvement-log.md.harvest-tmp
@@ -235,9 +236,11 @@ echo "$second_delayed_harvest" | grep -q '"harvested": 1' || \
   fail "harvest did not consume the completed pending entry"
 [[ "$(grep -c 'atomic delayed pending body' plans/reviews/continuous-improvement-log.md)" -eq 1 ]] || \
   fail "delayed pending body was lost or duplicated"
-[[ ! -e "$tmp/repo/.git/anvil/ci-log-pending/"*.md ]] || \
+if compgen -G "$tmp/repo/.git/anvil/ci-log-pending/*.md" >/dev/null; then
   fail "delayed pending entry remained after harvest"
-[[ ! -e "$tmp/repo/.git/anvil/ci-log-pending/".ci-log-pending-tmp-* ]] || \
+fi
+if compgen -G "$tmp/repo/.git/anvil/ci-log-pending/.ci-log-pending-tmp-*" >/dev/null; then
   fail "owned pending publication temp leaked"
+fi
 
 printf 'ci-log.test.sh: OK\n'

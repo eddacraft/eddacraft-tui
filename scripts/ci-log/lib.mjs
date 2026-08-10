@@ -95,7 +95,13 @@ function acquireTrackedLogLock(cwd = process.cwd()) {
       }
       if (!error || error.code !== 'EEXIST') throw error;
       if (Date.now() >= deadline) {
-        throw new Error(`Timed out waiting for tracked CI-log lock at ${path}`);
+        let owner = '<unavailable>';
+        try {
+          owner = readFileSync(path, 'utf8').trim() || '<empty>';
+        } catch {
+          // The holder may have released the lock between EEXIST and this diagnostic.
+        }
+        throw new Error(`Timed out waiting for tracked CI-log lock at ${path} (owner: ${owner})`);
       }
       sleepSync(Math.min(LOCK_RETRY_MS, Math.max(1, deadline - Date.now())));
     }
@@ -119,11 +125,26 @@ function releaseTrackedLogLock(lock) {
 
 function withTrackedLogLock(cwd, mutation) {
   const lock = acquireTrackedLogLock(cwd);
+  let result;
+  let mutationError;
   try {
-    return mutation();
-  } finally {
-    releaseTrackedLogLock(lock);
+    result = mutation();
+  } catch (error) {
+    mutationError = error;
   }
+  try {
+    releaseTrackedLogLock(lock);
+  } catch (releaseError) {
+    if (mutationError) {
+      throw new AggregateError(
+        [mutationError, releaseError],
+        'Tracked CI-log mutation failed and its lock could not be released'
+      );
+    }
+    throw releaseError;
+  }
+  if (mutationError) throw mutationError;
+  return result;
 }
 
 export function ensurePendingDir(cwd = process.cwd()) {
