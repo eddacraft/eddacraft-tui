@@ -118,14 +118,14 @@ enum AdminCommand {
     /// Update display name (and optional notes) without inviting
     #[command(name = "name-update")]
     NameUpdate {
-        /// Email address on the waitlist and/or beta_users
+        /// Email address on the waitlist and/or `beta_users`
         email: String,
 
         /// Display name to set (overwrites existing)
         #[arg(long)]
         name: String,
 
-        /// Internal notes (beta_users only; omitted leaves notes unchanged)
+        /// Internal notes (`beta_users` only; omitted leaves notes unchanged)
         #[arg(long)]
         notes: Option<String>,
     },
@@ -781,16 +781,8 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
                 print_email_update(&result);
             }
         }
-        AdminCommand::NameUpdate {
-            email,
-            name,
-            notes,
-        } => {
-            let result = rt.block_on(client.update_user_name(
-                email,
-                name,
-                notes.as_deref(),
-            ))?;
+        AdminCommand::NameUpdate { email, name, notes } => {
+            let result = rt.block_on(client.update_user_name(email, name, notes.as_deref()))?;
             if !render_json(&result, global.json)? {
                 print_name_update(&result);
             }
@@ -1746,11 +1738,7 @@ mod tests {
         ])
         .unwrap();
         match w.inner.command {
-            AdminCommand::NameUpdate {
-                email,
-                name,
-                notes,
-            } => {
+            AdminCommand::NameUpdate { email, name, notes } => {
                 assert_eq!(email, "person@example.com");
                 assert_eq!(name, "Rinaldo De Paolis");
                 assert_eq!(notes.as_deref(), Some("follow-up"));

@@ -560,15 +560,8 @@ impl AnvilClient {
             #[serde(skip_serializing_if = "Option::is_none")]
             notes: Option<&'a str>,
         }
-        self.post(
-            "/admin/user/name-update",
-            Body {
-                email,
-                name,
-                notes,
-            },
-        )
-        .await
+        self.post("/admin/user/name-update", Body { email, name, notes })
+            .await
     }
 
     pub async fn whoami(&self) -> Result<WhoamiResponse> {
