@@ -14,8 +14,7 @@ type Warning = components['schemas']['WarningSummary'];
 
 export function resolveWarningSelection(
   warnings: readonly Warning[],
-  evidence: string | undefined,
-  _selected?: Warning
+  evidence: string | undefined
 ) {
   if (evidence === undefined) return undefined;
   return warnings.find((warning) => warning.id === evidence || warning.evidence_id === evidence);
