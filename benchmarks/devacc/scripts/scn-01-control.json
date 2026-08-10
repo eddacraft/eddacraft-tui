@@ -1,0 +1,40 @@
+{
+  "steps": [
+    {
+      "tool": "list_dir",
+      "path": "src"
+    },
+    {
+      "tool": "list_dir",
+      "path": "src/services"
+    },
+    {
+      "tool": "list_dir",
+      "path": "src/routes"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/index.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/services/orderService.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/routes/orders.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/store/orderStore.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/services/inventoryService.ts"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/createOrder.symbol.json"
+    }
+  ]
+}

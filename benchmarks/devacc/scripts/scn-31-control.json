@@ -1,0 +1,22 @@
+{
+  "steps": [
+    {
+      "tool": "read_file",
+      "path": "src/routes/orders.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/store/orderStore.ts"
+    },
+    {
+      "tool": "propose_write",
+      "path": "src/routes/orders.ts",
+      "content_key": "boundary_violation",
+      "lands": true
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/scn-31.rubric.json"
+    }
+  ]
+}

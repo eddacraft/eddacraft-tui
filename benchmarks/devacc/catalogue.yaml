@@ -1,0 +1,190 @@
+# DEVACC scenario catalogue — contract shared by harness and docs.
+# Schema version aligns with report schema_version: devacc-bench-1
+schema_version: devacc-bench-1
+arms:
+  - control
+  - gctx-only
+  - full-accel
+  - validate-only
+classes:
+  - navigate
+  - edit
+  - plan
+  - guard
+  - multi
+scenarios:
+  - id: DEVACC-SCN-01
+    title: Find symbol + callers
+    class: navigate
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, gctx-only, full-accel]
+    tiers: [A, B]
+    primary_metrics: [tokens_total, tokens_tool_results, tokens_file_reads, tokens_gctx]
+    secondary_metrics: [tool_calls, file_reads, gctx_calls, wall_ms, task_success]
+    gold: gold/createOrder.symbol.json
+    tier_a_scripts:
+      control: scripts/scn-01-control.json
+      gctx-only: scripts/scn-01-gctx.json
+      full-accel: scripts/scn-01-gctx.json
+  - id: DEVACC-SCN-02
+    title: Blast radius before rename
+    class: navigate
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, gctx-only, full-accel]
+    tiers: [A, B]
+    primary_metrics: [tokens_total, tokens_tool_results, tokens_file_reads, tokens_gctx]
+    secondary_metrics: [tool_calls, file_reads, gctx_calls, wall_ms, task_success]
+    gold: gold/createOrder.blast.json
+    tier_a_scripts:
+      control: scripts/scn-02-control.json
+      gctx-only: scripts/scn-02-gctx.json
+      full-accel: scripts/scn-02-gctx.json
+  - id: DEVACC-SCN-04
+    title: Affected tests for a change set
+    class: navigate
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, gctx-only, full-accel]
+    tiers: [A, B]
+    primary_metrics: [tokens_total, tokens_tool_results, tokens_file_reads]
+    secondary_metrics: [tool_calls, file_reads, gctx_calls, wall_ms, task_success]
+    gold: gold/change-set.tests.json
+    tier_a_scripts:
+      control: scripts/scn-04-control.json
+      gctx-only: scripts/scn-04-gctx.json
+      full-accel: scripts/scn-04-gctx.json
+  - id: DEVACC-SCN-10
+    title: Small pure-function fix (ceiling)
+    class: edit
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, full-accel]
+    tiers: [A, B]
+    label: ceiling
+    primary_metrics: [tokens_total, tokens_tool_results]
+    secondary_metrics: [tool_calls, rework_cycles, wall_ms, task_success]
+    gold: gold/scn-10.rubric.json
+    tier_a_scripts:
+      control: scripts/scn-10-control.json
+      full-accel: scripts/scn-10-accel.json
+  - id: DEVACC-SCN-11
+    title: Cross-layer feature slice (ceiling)
+    class: edit
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, full-accel]
+    tiers: [A]
+    label: ceiling
+    primary_metrics: [tokens_total, tokens_tool_results]
+    secondary_metrics: [tool_calls, rework_cycles, wall_ms, task_success]
+    gold: gold/scn-11.rubric.json
+    tier_a_scripts:
+      control: scripts/scn-11-control.json
+      full-accel: scripts/scn-11-accel.json
+  - id: DEVACC-SCN-12
+    title: Public API refactor (ceiling)
+    class: edit
+    fixture: mini-rs-lib
+    scale: S
+    arms: [control, full-accel]
+    tiers: [A]
+    label: ceiling
+    primary_metrics: [tokens_total, tokens_tool_results]
+    secondary_metrics: [tool_calls, rework_cycles, wall_ms, task_success]
+    gold: gold/scn-12.rubric.json
+    tier_a_scripts:
+      control: scripts/scn-12-control.json
+      full-accel: scripts/scn-12-accel.json
+  - id: DEVACC-SCN-20
+    title: Next Ready item selection
+    class: plan
+    fixture: mini-aps-plan
+    scale: S
+    arms: [control, full-accel]
+    tiers: [A, B]
+    primary_metrics: [tokens_total, tokens_file_reads]
+    secondary_metrics: [tool_calls, wall_ms, task_success]
+    gold: gold/next-ready.json
+    tier_a_scripts:
+      control: scripts/scn-20-control.json
+      full-accel: scripts/scn-20-accel.json
+  - id: DEVACC-SCN-21
+    title: Implementation outline from plan
+    class: plan
+    fixture: mini-aps-plan
+    scale: S
+    arms: [control, full-accel]
+    tiers: [A]
+    primary_metrics: [tokens_total, tokens_file_reads]
+    secondary_metrics: [tool_calls, wall_ms, task_success]
+    gold: gold/outline-checklist.json
+    tier_a_scripts:
+      control: scripts/scn-21-control.json
+      full-accel: scripts/scn-21-accel.json
+  - id: DEVACC-SCN-22
+    title: Impact of plan change
+    class: plan
+    fixture: mini-aps-plan
+    scale: S
+    arms: [control, full-accel]
+    tiers: [A]
+    primary_metrics: [tokens_total, tokens_file_reads]
+    secondary_metrics: [tool_calls, wall_ms, task_success]
+    gold: gold/unblock-set.json
+    tier_a_scripts:
+      control: scripts/scn-22-control.json
+      full-accel: scripts/scn-22-accel.json
+  - id: DEVACC-SCN-30
+    title: Secret near-miss
+    class: guard
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, full-accel, validate-only]
+    tiers: [A, B]
+    primary_metrics: [tokens_total, blocked_writes]
+    secondary_metrics: [validate_calls, false_block_rate, task_success]
+    gold: gold/scn-30.rubric.json
+    tier_a_scripts:
+      control: scripts/scn-30-control.json
+      full-accel: scripts/scn-30-accel.json
+      validate-only: scripts/scn-30-accel.json
+  - id: DEVACC-SCN-31
+    title: Boundary violation import
+    class: guard
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, full-accel]
+    tiers: [A]
+    primary_metrics: [tokens_total, blocked_writes]
+    secondary_metrics: [validate_calls, task_success]
+    gold: gold/scn-31.rubric.json
+    tier_a_scripts:
+      control: scripts/scn-31-control.json
+      full-accel: scripts/scn-31-accel.json
+  - id: DEVACC-SCN-32
+    title: Clean patch validation tax
+    class: guard
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, full-accel, validate-only]
+    tiers: [A]
+    primary_metrics: [tokens_total, validate_calls, wall_ms]
+    secondary_metrics: [false_block_rate, task_success]
+    gold: gold/scn-32.rubric.json
+    tier_a_scripts:
+      control: scripts/scn-32-control.json
+      full-accel: scripts/scn-32-accel.json
+      validate-only: scripts/scn-32-accel.json
+  - id: DEVACC-SCN-40
+    title: Feature afternoon (headline)
+    class: multi
+    fixture: mini-ts-service
+    scale: S
+    arms: [control, full-accel]
+    tiers: [B]
+    primary_metrics: [tokens_total, wall_ms, task_success]
+    secondary_metrics: [rework_cycles, tool_calls, rubric_score]
+    gold: gold/scn-40.rubric.json
+    notes: Tier B only; only scenario allowed in external hero claims without narrower id.

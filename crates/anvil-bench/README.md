@@ -308,3 +308,43 @@ anvil-bench = { path = "../anvil-bench" }
 cargo test -p anvil-bench
 cargo bench -p anvil-bench
 ```
+
+## Developer Acceleration (DEVACC)
+
+Task-level **Anvil on vs off** suite for token efficiency and success. Distinct
+from RLB (CPU/RSS) and GCTX-031 (`token_reduction` payload micro-bench).
+
+**Default cadence: on-demand.** Nightly/CI gates are opt-in (DEVACC-011/012) and
+off by default.
+
+```bash
+# Tier A — free, deterministic
+cargo test -p anvil-bench -- devacc_
+cargo run -p anvil-bench --release -- devacc --tier A
+
+# Tier B — dry-run scaffold (no model credentials)
+cargo run -p anvil-bench --release -- devacc --tier B --dry-run
+
+# Tier B — external driver (credentials + command required)
+ANVIL_DEVACC_DRIVER=external \
+ANVIL_DEVACC_MODEL=… \
+ANVIL_DEVACC_EXTERNAL_CMD='…' \
+  cargo run -p anvil-bench --release -- devacc --tier B --live --out benchmark-results/devacc-live
+```
+
+Catalogue: `benchmarks/devacc/catalogue.yaml`  
+Fixtures: `benchmarks/fixtures/devacc/`  
+Claims policy: `benchmarks/devacc/claims-policy.md`  
+Design: `docs/architecture/dev-acceleration-benchmark-spec.md`
+
+**Headless driver (DEVACC-007):** first-class path is a **custom MCP host** via
+`ANVIL_DEVACC_DRIVER=external` writing `external-results.json`. Built-in
+`dry-run` reuses Tier A scripts for schema smoke and is **not** publishable
+agent evidence. SCN-40 hero claims require live Tier B with quality veto.
+
+**Opt-in automation (not required for Complete):**
+
+| Item               | Default | Enablement                                                                         |
+| ------------------ | ------- | ---------------------------------------------------------------------------------- |
+| DEVACC-011 nightly | **Off** | Add a `workflow_dispatch`/schedule workflow only when deliberately enabling cost   |
+| DEVACC-012 PR gate | **Off** | Do not add required checks; optional report-only step only after explicit decision |

@@ -1,0 +1,8 @@
+{
+  "symbol": "createOrder",
+  "defined_in": "src/services/orderService.ts",
+  "callers": [
+    { "file": "src/routes/orders.ts", "name": "handleCreateOrder" },
+    { "file": "src/index.ts", "name": "re-export" }
+  ]
+}

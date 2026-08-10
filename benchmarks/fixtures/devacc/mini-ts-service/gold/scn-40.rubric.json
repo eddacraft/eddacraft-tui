@@ -1,0 +1,4 @@
+{
+  "composite": ["orient", "impact", "implement", "validate", "tests"],
+  "requires_secondary": true
+}

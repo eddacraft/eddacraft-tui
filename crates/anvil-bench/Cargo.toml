@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 description = "Stress test harness for anvil-kernel — repo generation, memory measurement, scenario runners"
 publish = false
+default-run = "anvil-bench"
 
 [dependencies]
 anvil-kernel = { path = "../anvil-kernel", package = "eddacraft-anvil-kernel" }
@@ -13,6 +14,7 @@ anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-
 anvil-gctx-types = { path = "../anvil-gctx-types", package = "eddacraft-anvil-gctx-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 petgraph = { workspace = true }
 tempfile.workspace = true
 rand = "0.10"

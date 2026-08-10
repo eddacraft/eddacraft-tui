@@ -1,0 +1,24 @@
+{
+  "steps": [
+    {
+      "tool": "list_dir",
+      "path": "plans"
+    },
+    {
+      "tool": "list_dir",
+      "path": "plans/modules"
+    },
+    {
+      "tool": "read_file",
+      "path": "plans/modules/demo.aps.md"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/README.md"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/next-ready.json"
+    }
+  ]
+}

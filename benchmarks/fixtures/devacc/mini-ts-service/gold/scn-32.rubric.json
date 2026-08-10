@@ -1,0 +1,5 @@
+{
+  "clean_patch_path": "src/services/orderService.ts",
+  "expect_block": false,
+  "gold_good": true
+}

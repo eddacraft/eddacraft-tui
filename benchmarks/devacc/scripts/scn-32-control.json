@@ -1,0 +1,18 @@
+{
+  "steps": [
+    {
+      "tool": "read_file",
+      "path": "src/services/orderService.ts"
+    },
+    {
+      "tool": "propose_write",
+      "path": "src/services/orderService.ts",
+      "content_key": "clean_fix",
+      "lands": true
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/scn-32.rubric.json"
+    }
+  ]
+}

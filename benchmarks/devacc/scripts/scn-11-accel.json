@@ -1,0 +1,30 @@
+{
+  "steps": [
+    {
+      "tool": "gctx_payload",
+      "payload": "gold/payloads/createOrder.impact.json"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/routes/orders.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/services/orderService.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/store/orderStore.ts"
+    },
+    {
+      "tool": "validate_write",
+      "path": "src/services/orderService.ts",
+      "content_key": "clean_fix",
+      "decision": "allow"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/scn-11.rubric.json"
+    }
+  ]
+}

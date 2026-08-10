@@ -496,9 +496,12 @@ SHA**.
 
 ## Open questions
 
-1. **Headless agent driver:** Which client is first-class for Tier B — Claude
-   Code print/headless mode, a custom MCP host, or Cursor? Decision needed
-   before Phase 2 (DEVACC-007).
+1. **Headless agent driver:** **Resolved (DEVACC-007).** First-class path is a
+   **custom MCP host** protocol (`ANVIL_DEVACC_DRIVER=external` +
+   `ANVIL_DEVACC_EXTERNAL_CMD`, writing `external-results.json`). Built-in
+   `dry-run` scaffolds schema smoke from Tier A and is not publishable agent
+   evidence. Claude Code / Cursor adapters may plug the same external contract
+   later without changing the report schema.
 2. **Whether Tier A edit scenarios count "ideal tool scripts" as treatment.**
    Ideal scripts measure _ceiling_ savings if the agent uses tools perfectly;
    Tier B measures _achieved_ savings. Both are useful; label them `ceiling` vs
@@ -532,7 +535,7 @@ SHA**.
 | **Owner**           | DEVACC (execution); product surface still GCTX/RMCP/skill                                                                         |
 | **Status**          | Live (design); DEVACC first wave Ready                                                                                            |
 | **Does not change** | Runtime product behaviour; public marketing numbers until DEVACC-010                                                              |
-| **Next**            | Execute DEVACC-001..006 on demand; resolve Tier B driver before promoting 007                                                     |
+| **Next**            | Run Tier A on demand; live Tier B external driver when credentials available; keep 011/012 opt-in off by default                  |
 
 ---
 

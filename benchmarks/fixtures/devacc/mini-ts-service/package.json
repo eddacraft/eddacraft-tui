@@ -1,0 +1,5 @@
+{
+  "name": "mini-ts-service",
+  "private": true,
+  "type": "module"
+}

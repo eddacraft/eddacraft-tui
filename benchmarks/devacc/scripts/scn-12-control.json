@@ -1,0 +1,20 @@
+{
+  "steps": [
+    {
+      "tool": "list_dir",
+      "path": "src"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/lib.rs"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/bin/demo.rs"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/scn-12.rubric.json"
+    }
+  ]
+}

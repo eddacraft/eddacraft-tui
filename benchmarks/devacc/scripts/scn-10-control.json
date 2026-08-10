@@ -1,0 +1,28 @@
+{
+  "steps": [
+    {
+      "tool": "list_dir",
+      "path": "src/services"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/services/orderService.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/services/inventoryService.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "tests/orderService.test.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/store/orderStore.ts"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/scn-10.rubric.json"
+    }
+  ]
+}

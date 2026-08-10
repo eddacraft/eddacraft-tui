@@ -1,0 +1,5 @@
+{
+  "illegal_import": "from \"../store/orderStore.js\"",
+  "from_layer": "routes",
+  "expect_block_full_accel": true
+}

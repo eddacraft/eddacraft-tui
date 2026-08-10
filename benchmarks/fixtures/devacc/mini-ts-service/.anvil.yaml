@@ -1,0 +1,11 @@
+architecture:
+  layers:
+    - name: routes
+      paths: ['src/routes/**']
+      mayDependOn: [services]
+    - name: services
+      paths: ['src/services/**']
+      mayDependOn: [store]
+    - name: store
+      paths: ['src/store/**']
+      mayDependOn: []

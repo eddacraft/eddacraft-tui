@@ -1,0 +1,5 @@
+{
+  "symbol": "createOrder",
+  "dependent_files": ["src/routes/orders.ts", "src/index.ts", "tests/orders.route.test.ts"],
+  "depth": 2
+}

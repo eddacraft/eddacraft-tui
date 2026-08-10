@@ -1,0 +1,12 @@
+{
+  "steps": [
+    {
+      "tool": "read_file",
+      "path": "plans/modules/demo.aps.md"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/unblock-set.json"
+    }
+  ]
+}

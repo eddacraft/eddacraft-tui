@@ -1,0 +1,6 @@
+{
+  "tool": "anvil_affected_tests",
+  "changed": ["src/services/orderService.ts", "src/store/orderStore.ts", "src/routes/orders.ts"],
+  "known_tests": ["tests/orderService.test.ts", "tests/orders.route.test.ts"],
+  "coverage_gaps": []
+}

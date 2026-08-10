@@ -1,0 +1,5 @@
+{
+  "fix_path": "src/services/orderService.ts",
+  "expected_total": 20,
+  "allowed_paths": ["src/services/orderService.ts"]
+}

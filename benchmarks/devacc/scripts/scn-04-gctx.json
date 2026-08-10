@@ -1,0 +1,12 @@
+{
+  "steps": [
+    {
+      "tool": "gctx_payload",
+      "payload": "gold/payloads/affected_tests.json"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/change-set.tests.json"
+    }
+  ]
+}

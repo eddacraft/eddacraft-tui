@@ -1,0 +1,12 @@
+{
+  "tool": "anvil_impact_of_change",
+  "symbol": "createOrder",
+  "defined_in": "src/services/orderService.ts",
+  "dependents": [
+    { "file": "src/routes/orders.ts", "kind": "caller" },
+    { "file": "src/index.ts", "kind": "reexport" },
+    { "file": "tests/orders.route.test.ts", "kind": "test" }
+  ],
+  "known_tests": ["tests/orders.route.test.ts", "tests/orderService.test.ts"],
+  "partial": false
+}

@@ -1,0 +1,12 @@
+{
+  "steps": [
+    {
+      "tool": "gctx_payload",
+      "payload": "gold/payloads/createOrder.callers.json"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/createOrder.symbol.json"
+    }
+  ]
+}

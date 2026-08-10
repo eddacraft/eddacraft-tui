@@ -1,0 +1,4 @@
+{
+  "work_item": "DEMO-002",
+  "steps": ["Load catalogue", "Implement Tier A runner", "Emit JSON report", "Add unit goldens"]
+}

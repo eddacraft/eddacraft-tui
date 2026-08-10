@@ -1,0 +1,40 @@
+{
+  "steps": [
+    {
+      "tool": "list_dir",
+      "path": "src"
+    },
+    {
+      "tool": "list_dir",
+      "path": "src/routes"
+    },
+    {
+      "tool": "list_dir",
+      "path": "src/services"
+    },
+    {
+      "tool": "list_dir",
+      "path": "src/store"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/routes/orders.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/services/orderService.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/store/orderStore.ts"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/index.ts"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/scn-11.rubric.json"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "steps": [
+    {
+      "tool": "gctx_payload",
+      "payload": "gold/payloads/greet.impact.json"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/lib.rs"
+    },
+    {
+      "tool": "read_file",
+      "path": "src/bin/demo.rs"
+    },
+    {
+      "tool": "assert_gold",
+      "gold": "gold/scn-12.rubric.json"
+    }
+  ]
+}

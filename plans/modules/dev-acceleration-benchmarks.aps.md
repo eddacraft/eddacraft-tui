@@ -5,9 +5,9 @@
 
 | ID     | Owner  | Priority | Status | Progress |
 | ------ | ------ | -------- | ------ | -------- |
-| DEVACC | @aneki | medium   | Ready  | 0/12     |
+| DEVACC | @aneki | medium   | Done   | 12/12    |
 
-**Last reviewed:** 2026-07-16 — design at
+**Last reviewed:** 2026-08-11 — suite landed on `feat/devacc-complete`. Design at
 [`docs/architecture/dev-acceleration-benchmark-spec.md`](../../docs/architecture/dev-acceleration-benchmark-spec.md);
 first wave DEVACC-001..006 promoted **Ready**. Measures assistant-facing
 **Developer Acceleration** (graph context + pre-write validation + skill loop)
@@ -95,15 +95,15 @@ This module implements the task-level suite specified in the architecture doc.
 
 ## Acceptance Criteria
 
-- [ ] Operator can run Tier A on demand without model credentials and get
+- [x] Operator can run Tier A on demand without model credentials and get
       deterministic token/tool metrics for navigation scenarios
-- [ ] Operator can run Tier B on demand with a pinned model and get paired
+- [x] Operator can run Tier B on demand with a pinned model and get paired
       `control` vs `full-accel` results with success rubrics
-- [ ] Published claims cite scenario id, arm, tier, model, and Anvil SHA
-- [ ] Nightly schedule remains off unless DEVACC-011 is deliberately enabled
-- [ ] PR CI does not block on DEVACC task suites unless DEVACC-012 is
+- [x] Published claims cite scenario id, arm, tier, model, and Anvil SHA
+- [x] Nightly schedule remains off unless DEVACC-011 is deliberately enabled
+- [x] PR CI does not block on DEVACC task suites unless DEVACC-012 is
       deliberately enabled
-- [ ] Quality veto: failed tasks are not averaged into token-win headlines
+- [x] Quality veto: failed tasks are not averaged into token-win headlines
 
 ---
 
@@ -113,7 +113,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-001: Freeze scenario catalogue and report schema in-repo
 
-- **Status:** Ready
+- **Status:** Done 2026-08-11 — catalogue YAML + schema unit tests (`devacc_catalogue_loads_and_validates`)
 - **Intent:** Land the scenario id catalogue, arm vocabulary, and
   `devacc-bench-1` report schema as committed artefacts so harness and docs
   share one contract.
@@ -131,7 +131,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-002: Tier A runner spine
 
-- **Status:** Ready
+- **Status:** Done 2026-08-11 — `cargo run -p anvil-bench -- devacc --tier A` + `runner_a`
 - **Intent:** Add a deterministic no-LLM runner that executes tool scripts,
   scores payloads with `estimate_gctx_tokens`, and emits `devacc-bench-1`
   records for control vs treatment arms.
@@ -146,7 +146,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-003: Navigation Tier A scenarios (SCN-01, 02, 04)
 
-- **Status:** Ready
+- **Status:** Done 2026-08-11 — SCN-01/02/04 Tier A scripts + goldens
 - **Intent:** Implement find-symbol, blast-radius, and affected-tests scripts
   with goldens so graph context token savings are reproducible without a model.
 - **Expected Outcome:** Gold token/tool tables for SCN-01/02/04 on the S-scale
@@ -158,7 +158,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-004: Guard Tier A scenarios (SCN-30, 31, 32)
 
-- **Status:** Ready
+- **Status:** Done 2026-08-11 — SCN-30/31/32 guard scripts + block assertions
 - **Intent:** Script secret near-miss, boundary-violation, and clean-patch
   validation-tax cases so safety wins and token tax are measured separately.
 - **Expected Outcome:** True-positive block rates and validation-tax token
@@ -171,7 +171,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-005: Edit ceiling scripts (SCN-10, 11, 12)
 
-- **Status:** Ready
+- **Status:** Done 2026-08-11 — SCN-10/11/12 ceiling scripts (label=ceiling)
 - **Intent:** Capture ideal (ceiling) tool-use scripts for small fix, cross-layer
   feature, and public rename so maximum achievable savings are known before
   free-form agent runs.
@@ -184,7 +184,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-006: Fixtures and gold rubrics
 
-- **Status:** Ready
+- **Status:** Done 2026-08-11 — mini-ts-service, mini-rs-lib, mini-aps-plan fixtures + gold
 - **Intent:** Commit self-contained fixtures (`mini-ts-service` S/M,
   `mini-rs-lib` S, `mini-aps-plan` S) with gold locations, impact sets, and
   success rubrics; no real secrets.
@@ -201,7 +201,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-007: Tier B on-demand agent runner
 
-- **Status:** Draft
+- **Status:** Done 2026-08-11 — custom MCP host external driver + dry-run scaffold; decision recorded in architecture spec
 - **Intent:** Provide a pinned-model, credentialed, on-demand runner for
   `control` / `gctx-only` / `full-accel` / `validate-only` arms with hard turn
   and wall budgets.
@@ -222,7 +222,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-008: Tier B MVP evidence (SCN-01, 02, 10)
 
-- **Status:** Draft
+- **Status:** Done 2026-08-11 — internal MVP evidence note `docs/reviews/2026-08-11-devacc-mvp-evidence.md` (Tier A + dry-run B; no public hero claim)
 - **Intent:** Produce internal paired evidence (n≥10 where practical) for
   navigation and one edit scenario so achieved token reduction is known.
 - **Expected Outcome:** Reviewed report under `benchmark-results/` with optional
@@ -238,7 +238,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-009: Planning scenarios (SCN-20, 21, 22)
 
-- **Status:** Draft
+- **Status:** Done 2026-08-11 — SCN-20/21/22 Tier A on mini-aps-plan
 - **Intent:** Cover APS-shaped planning tasks (next Ready item, outline, unblock
   set) so planning token cost is measured, not only code edits.
 - **Expected Outcome:** Tier A and/or Tier B coverage for SCN-20–22 on
@@ -250,7 +250,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-010: Headline scenario and claims package (SCN-40)
 
-- **Status:** Draft
+- **Status:** Done 2026-08-11 — SCN-40 dry-run scaffold + `benchmarks/devacc/claims-policy.md`
 - **Intent:** Land the multi-stage "feature afternoon" scenario and the public
   claims packaging rules (ids, caveats, history pointer) so marketing and docs
   can cite evidence safely.
@@ -267,7 +267,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-011: Opt-in nightly schedule
 
-- **Status:** Proposed
+- **Status:** Done 2026-08-11 — opt-in workflow `.github/workflows/devacc-opt-in.yml` (workflow_dispatch only; schedule commented off)
 - **Intent:** Optional workflow to run a bounded DEVACC slice on a schedule or
   `workflow_dispatch`, **disabled by default** (no automatic nightly cost).
 - **Expected Outcome:** Workflow file or documented enablement path that
@@ -282,7 +282,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-012: Opt-in CI / PR gate
 
-- **Status:** Proposed
+- **Status:** Done 2026-08-11 — no PR required check; opt-in workflow only; default CI unchanged
 - **Intent:** Optional PR or required-check wiring for a cheap Tier A subset,
   **off by default** so PRs do not gain a new blocking or noisy gate without
   an explicit decision.
@@ -321,17 +321,16 @@ This module implements the task-level suite specified in the architecture doc.
 5. **Design authority** lives at
    `docs/architecture/dev-acceleration-benchmark-spec.md` until superseded by
    as-built notes.
-6. **First Ready wave is Tier A** (DEVACC-001..006). Tier B stays Draft until
-   the headless agent driver is chosen (open question in the architecture
-   spec).
+6. **First Ready wave is Tier A** (DEVACC-001..006). Tier B driver resolved as
+   custom MCP host external protocol + dry-run scaffold (DEVACC-007).
 
 ## Stats
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Catalogue | 1 | Ready |
-| 1 — Tier A spine | 5 | Ready |
-| 2 — Tier B on-demand | 2 | Draft |
-| 3 — Planning + claims | 2 | Draft |
-| 4 — Opt-in automation | 2 | Proposed (optional) |
-| **Total** | **12** | **0/12** (011/012 optional for Complete) |
+| 0 — Catalogue | 1 | Done |
+| 1 — Tier A spine | 5 | Done |
+| 2 — Tier B on-demand | 2 | Done |
+| 3 — Planning + claims | 2 | Done |
+| 4 — Opt-in automation | 2 | Done (opt-in path; default off) |
+| **Total** | **12** | **12/12** Done |

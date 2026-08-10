@@ -1,0 +1,9 @@
+{
+  "tool": "anvil_impact_of_change",
+  "symbol": "greet",
+  "defined_in": "src/lib.rs",
+  "dependents": [
+    { "file": "src/lib.rs", "kind": "caller" },
+    { "file": "src/bin/demo.rs", "kind": "caller" }
+  ]
+}

@@ -1,6 +1,7 @@
 #![allow(clippy::cast_precision_loss)]
 
 pub mod budget;
+pub mod devacc;
 pub mod churn;
 pub mod cli_command;
 pub mod fixture;

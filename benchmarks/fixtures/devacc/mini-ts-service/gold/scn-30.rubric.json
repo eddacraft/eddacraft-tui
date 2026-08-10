@@ -1,0 +1,5 @@
+{
+  "bad_payload_contains": "sk_live_",
+  "expect_block_full_accel": true,
+  "expect_block_control": false
+}

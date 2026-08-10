@@ -168,6 +168,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "serde_yaml",
  "temp-env",
  "tempfile",
  "workspace-hack",
