@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                          |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-09: **`v0.9.3-beta` shipped**. Active window provisional **`v0.9.4-beta`** — product delta on main is install-receipt honesty (**CIB-315**) + durable-membership wait (#3700); pre-release short pass found no cut-blockers. Claim draft locked below; freeze when operator schedules cut. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                    |
+| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release plan | Derived   | APS modules | Live   | 2026-08-10: **`v0.9.4-beta` shipped** (clearer install advice and quieter false alarms). Closeout hygiene: durable record under `plans/releases/`. **Active window** is provisional **`v0.9.5-beta`** (field intake) — not cut-ready until claim solidifies. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -32,44 +32,38 @@ nothing else.
 
 ## Current state
 
-- **Latest tag:** `v0.9.3-beta` "Honesty and Windows path" (2026-08-07 on
-  `cfe0857cb`; binaries + signing published). Record:
-  [`plans/releases/v0.9.3-beta.md`](./plans/releases/v0.9.3-beta.md). Public:
-  https://github.com/eddacraft/anvil/releases/tag/v0.9.3-beta
-- **Prior:** `v0.9.2-beta` MCP reconnect; `v0.9.1-beta` daily path + MCP 2.0.
+- **Latest tag:** `v0.9.4-beta` "Clearer install advice and quieter false
+  alarms" (2026-08-10 on `165d33dfb`). Record:
+  [`plans/releases/v0.9.4-beta.md`](./plans/releases/v0.9.4-beta.md).
+- **Prior:** `v0.9.3-beta` honesty + Windows path
+  ([record](./plans/releases/v0.9.3-beta.md)); `v0.9.2-beta` MCP reconnect;
+  `v0.9.1-beta` daily path + MCP 2.0.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** provisional **`v0.9.4-beta`** — field follow-up on the v0.9
-  line. **Claim draft** below (operator freeze still required before cut).
-  Programme work (Graph Trust Surfaces Wave 0) runs **beside** this window and
-  is not the cut claim.
+- **Active window:** provisional **`v0.9.5-beta`** — post-`v0.9.4-beta` field
+  intake; claim not frozen. Programme work (Graph Trust Surfaces Wave 0) runs
+  **beside** this window and is not the cut claim.
 
 ---
 
-## Active window — `v0.9.4-beta` (provisional — field follow-up)
+## Active window — `v0.9.5-beta` (provisional — field intake)
 
-**Theme:** Post-`v0.9.3-beta` field honesty on the v0.9 line — install-method
-truth on Windows/macOS, plus registration confirmation that does not race the
-daemon. Not a new product minor.
+**Theme:** Post-`v0.9.4-beta` field signal on the v0.9 line. Not a new product
+minor. Re-scope or promote to a named claim when operator signal warrants a cut.
 
-**Status:** **Implement done on main; claim draft locked; cut not scheduled.**
-Pre-release short pass (2026-08-09) found no cut-blocking product defects in
-`v0.9.3-beta..main`. Standing base bar (Cross matrix, readiness,
-ACKNOWLEDGEMENTS, openapi) still required at freeze/cut.
+**Status:** **Not cut-ready.** Placeholder after 0.9.4 closeout so
+`RELEASE-PLAN.md` stays forward-looking (one active, untagged window).
 
 ### Claim draft (operator freeze before cut)
 
-| ID / ref    | Item                                                                                       | Pri | State on main                    |
-| ----------- | ------------------------------------------------------------------------------------------ | --- | -------------------------------- |
-| **CIB-315** | Install-receipt roots + platform-correct upgrade advice (Windows/macOS cargo-dist honesty) | P1  | Merged #3698 (+ #3703 pin tests) |
-| **#3700**   | Wait for durable membership after register ack (false CIB-252 refusal race)                | P2  | Merged #3700                     |
-| **CIB-305** | Concurrent CI-log tracked writers (internal data-loss)                                     | P0  | Draft — **not** in product claim |
+| ID        | Item                          | Pri | Notes                               |
+| --------- | ----------------------------- | --- | ----------------------------------- |
+| Field TBD | Post-`v0.9.4-beta` feedback   | —   | Intake before locking primary claim |
+| Carry-in  | Unshipped `v0.9.4-beta` claim | —   | Re-triage at intake; do not assume  |
 
-### Already shipped — do not re-claim
-
-| ID          | Item                                  | Notes                                                               |
-| ----------- | ------------------------------------- | ------------------------------------------------------------------- |
-| **CIB-281** | `audit` security scope on TUI + SARIF | Merged #3652; code in `v0.9.3-beta` tree; formal claim list omitted |
+> Carry-in is deliberately unenumerated: which `v0.9.4-beta` candidates shipped
+> is only known from the cut, so listing IDs here before closeout would assert
+> what the record has not yet established.
 
 ### Not a claim of this release
 
@@ -83,13 +77,13 @@ ACKNOWLEDGEMENTS, openapi) still required at freeze/cut.
 
 ### Phase plan
 
-| Phase              | Scope                                   | State                                                |
-| ------------------ | --------------------------------------- | ---------------------------------------------------- |
-| **0.9.3 closeout** | Record + APS advance + prune            | Done 2026-08-09                                      |
-| **Field intake**   | Post-0.9.3 beta signal; triage into CIB | Done for CIB-315 + #3700; further optional           |
-| **Claim lock**     | Freeze primary/secondary IDs for v0.9.4 | **Draft locked 2026-08-09** — operator freeze at cut |
-| **Implement**      | Ready claim items                       | Done on main (CIB-315, #3700)                        |
-| **Cut**            | Preflight → prepare → readiness → tag   | Not scheduled                                        |
+| Phase              | Scope                                          | State                          |
+| ------------------ | ---------------------------------------------- | ------------------------------ |
+| **0.9.4 closeout** | Record + APS advance + prune                   | Done 2026-08-10 (this hygiene) |
+| **Field intake**   | Post-`v0.9.4-beta` signal; triage into CIB     | Next                           |
+| **Claim lock**     | Freeze primary/secondary IDs for `v0.9.5-beta` | Blocked on intake              |
+| **Implement**      | Ready claim items                              | Not started                    |
+| **Cut**            | Preflight → prepare → readiness → tag          | Not scheduled                  |
 
 ### Cut criteria (when claim locks)
 

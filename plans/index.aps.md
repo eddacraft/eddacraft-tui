@@ -3,19 +3,18 @@
 
 # Anvil — Save-time Trust
 
-> **Latest promoted release: `v0.9.3-beta`** (shipped 2026-08-07 on
-> `cfe0857cb`) — honesty + Windows path (Morgan CIB-220..227; Dave
-> CIB-228..245 / packs; pre-250 **CIB-205/214/100/160**). Record:
-> [`plans/releases/v0.9.3-beta.md`](./releases/v0.9.3-beta.md). Prior:
-> `v0.9.2-beta` MCP reconnect; `v0.9.1-beta` daily path + multi-client MCP.
+> **Latest promoted release: `v0.9.4-beta`** (shipped 2026-08-10 on
+> `165d33dfb`) — clearer install advice and quieter false alarms (CIB-315,
+> membership wait, MCP lean allow, Dave pack 05 field fixes). Record:
+> [`plans/releases/v0.9.4-beta.md`](./releases/v0.9.4-beta.md). Prior:
+> `v0.9.3-beta` honesty + Windows path; `v0.9.2-beta` MCP reconnect.
 > Dashboard remains flag-gated. Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is provisional **`v0.9.4-beta`** (field follow-up —
-> claim **draft** locked: **CIB-315** + membership wait #3700; freeze at cut).
-> Highest-value **programme** track is Graph Trust Surfaces Wave 0 (**CGBDG**
-> discovery; **CONF-001** schedule). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)
-> and NBI.
+> The active release window is provisional **`v0.9.5-beta`** (field intake —
+> claim not frozen). Highest-value **programme** track is Graph Trust Surfaces
+> Wave 0 (**CGBDG** discovery; **CONF-001** schedule). See
+> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
 ## Contents
 
@@ -105,12 +104,12 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | Provisional v0.9.4-beta — cut when ready | Schedule | [RELEASE-PLAN](../RELEASE-PLAN.md) | Product claim draft on main (CIB-315 + #3700); pre-release short pass clean. | Operator freeze → Cross/readiness → prepare → tag; merge draft closeout #3706 after tag. |
-| 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the patch window. Not a release cut claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
-| 3 | MCPLH-001..006 — MCP live-heal (agent-ready without session restart) | Ready | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Multi-harness fleets strand old `mcp serve` after upgrade; restarting agent sessions is hard. Not a release cut claim. | Start MCPLH-001 (PATH-stable install), then 002 re-exec / 003 refresh cascade. |
-| 4 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
-| 5 | CIB-305 — concurrent CI-log tracked writers | Draft | [CIB](./modules/continuous-improvement-backlog.aps.md) | P0 internal data-loss correctness on bookkeeping path (not user-facing product). | Promote/shape then fix concurrent writers in `scripts/ci-log` — not in 0.9.4 product claim. |
-| 6 | CIB-315 — install receipt roots | Merged | [CIB](./modules/continuous-improvement-backlog.aps.md), #3698 | Primary 0.9.4 honesty claim; shipped on main. | Advance to Released/Shipped at `v0.9.4-beta` closeout. |
+| 1 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track after `v0.9.4-beta`. Not a release cut claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
+| 2 | MCPLH-001..006 — MCP live-heal (agent-ready without session restart) | Ready | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Multi-harness fleets strand old `mcp serve` after upgrade; restarting agent sessions is hard. Not a release cut claim. | Start MCPLH-001 (PATH-stable install), then 002 re-exec / 003 refresh cascade. |
+| 3 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
+| 4 | Provisional v0.9.5-beta — field intake | Schedule | [RELEASE-PLAN](../RELEASE-PLAN.md) | One untagged active window after 0.9.4 closeout. | Intake post-0.9.4 field signal; lock claim before cut. |
+| 5 | CIB-305 — concurrent CI-log tracked writers | Draft | [CIB](./modules/continuous-improvement-backlog.aps.md) | P0 internal data-loss correctness on bookkeeping path (not user-facing product). | Promote/shape then fix concurrent writers in `scripts/ci-log`. |
+| 6 | v0.9.4-beta claim set | Released/Shipped | [release record](./releases/v0.9.4-beta.md) | Install honesty + field follow-up published 2026-08-10. | None — historical. |
 | 7 | v0.9.3-beta claim set | Released/Shipped | [release record](./releases/v0.9.3-beta.md), [CIB](./modules/continuous-improvement-backlog.aps.md) | Honesty + Windows window published 2026-08-07; APS items advanced at closeout. | None — historical. |
 ## Release Plan
 
@@ -118,15 +117,14 @@ Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
 **Shipped release windows** — `v0.5.0-beta` (2026-05-01) through
-`v0.9.3-beta` (2026-08-07, honesty + Windows path) are fully shipped as
-promoted headline windows.
+`v0.9.4-beta` (2026-08-10, clearer install advice and quieter false alarms) are
+fully shipped as promoted headline windows.
 Windows through `v0.7.4-beta` have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); later records
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is provisional **`v0.9.4-beta`** (field follow-up; claim **draft** locked
-to CIB-315 + membership wait #3700 — freeze at cut), declared in
+window is provisional **`v0.9.5-beta`** (field intake; claim not frozen), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
 

@@ -1,7 +1,7 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-09 (`v0.9.3-beta` honesty + Windows path published;
-provisional next release window `v0.9.4-beta`; highest-value programme track is
+**Last updated:** 2026-08-10 (`v0.9.4-beta` clearer install advice published;
+provisional next release window `v0.9.5-beta`; highest-value programme track is
 Graph Trust Surfaces Wave 0 / CGBDG. See `RELEASE-PLAN.md`. Module status lives
 in the SOT files below; this roadmap stays thematic.)
 
@@ -105,11 +105,12 @@ browser surface. Immutable records live under
 | `v0.9.1-beta` | Daily Path Polish and MCP 2.0 support  | Bare daily ensure, default activation TUI, twelve-client MCP install, dual-era protocol support, managed skills, and warning-over-block gate honesty. Shipped 2026-08-02. |
 | `v0.9.2-beta` | MCP 2.0 reconnect                      | Patch: MCP reconnect (MCP26-013) + dashboard openapi version fix. Shipped 2026-08-03.                                                                                     |
 | `v0.9.3-beta` | Honesty and Windows path               | Daily-path honesty + Windows install/self-update path (Morgan + Dave field packs). Shipped 2026-08-07.                                                                    |
+| `v0.9.4-beta` | Clearer install advice and quieter FPs | Install method honesty, membership wait, lean MCP allow, path secret FP + Python DE coverage. Shipped 2026-08-10.                                                         |
 
-**Latest shipped headline:** `v0.9.3-beta` (2026-08-07). Release record:
-[`plans/releases/v0.9.3-beta.md`](./plans/releases/v0.9.3-beta.md).
+**Latest shipped headline:** `v0.9.4-beta` (2026-08-10). Release record:
+[`plans/releases/v0.9.4-beta.md`](./plans/releases/v0.9.4-beta.md).
 
-### Horizon 2 — Daily path + MCP reach — shipped through `v0.9.3-beta`
+### Horizon 2 — Daily path + MCP reach — shipped through `v0.9.4-beta`
 
 **Delivered theme:** Daily path polish, MCP 2.0 support, reconnect, and honesty
 
@@ -121,8 +122,8 @@ behind `dashboard.web` (default-off) for testing only — not a customer claim
 until default-on or a later named window owns it. Graph Trust Surfaces Wave 0
 (CGBDG discovery, CONF-001, …) is a **side programme**, not the active cut.
 
-**Active window:** provisional `v0.9.4-beta` (field follow-up / remaining
-honesty; claim not frozen). Prior shipped: `v0.9.3-beta`. Current state:
+**Active window:** provisional `v0.9.5-beta` (field intake; claim not frozen).
+Prior shipped: `v0.9.4-beta`. Current state:
 [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 

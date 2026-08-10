@@ -9426,18 +9426,18 @@ CIB-251/255 only.
 
 ### CIB-315: Install-receipt lookup reads the wrong root on Windows and macOS
 
-- **Status:** Merged 2026-08-09 via PR #3698 — receipt resolution now goes
-  through the shared `update::load_dist_receipt`, so `version` and
-  `update --check` cannot disagree about the same install. Landed with a
-  second commit for the upgrade advice: correcting detection made the
-  `CargoDist` arm reachable on Windows for the first time, where it returned
-  only the shell installer, so detection alone would have swapped
-  `cargo install --git …` (needs a toolchain) for `curl … | sh` (needs a
-  POSIX shell). Coverage completed by PR #3703, which pins the per-platform
-  receipt location — the tests shipped with #3698 all drive the lookup
-  through `AXOUPDATER_CONFIG_PATH`, which short-circuits location resolution,
-  so the macOS half had no assertion on any leg until then. Primary claim candidate for
-  provisional `v0.9.4-beta`.
+- **Status:** Released/Shipped via v0.9.4-beta (165d33dfb · 2026-08-10). Merged
+  2026-08-09 via PR #3698 — receipt resolution now goes through the shared
+  `update::load_dist_receipt`, so `version` and `update --check` cannot disagree
+  about the same install. Landed with a second commit for the upgrade advice:
+  correcting detection made the `CargoDist` arm reachable on Windows for the
+  first time, where it returned only the shell installer, so detection alone
+  would have swapped `cargo install --git …` (needs a toolchain) for
+  `curl … | sh` (needs a POSIX shell). Coverage completed by PR #3703, which
+  pins the per-platform receipt location — the tests shipped with #3698 all
+  drive the lookup through `AXOUPDATER_CONFIG_PATH`, which short-circuits
+  location resolution, so the macOS half had no assertion on any leg until then.
+  Primary claim shipped on `v0.9.4-beta`.
 - **Priority:** P1 released-claim honesty — affects two of three platforms
 - **Intent:** `anvil version` must report the install method from receipt
   provenance, as the v0.9.3-beta changelog already claims it does. Today the
