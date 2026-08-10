@@ -105,6 +105,7 @@ import {
 } from '../db/queries.js';
 import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { resolveApiScope } from '../lib/feature-flags.js';
+import { generateToken, hashToken } from '../lib/token.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -227,6 +228,55 @@ describe('admin endpoints', () => {
         'manual'
       );
       expect(vi.mocked(sendBetaInvite)).toHaveBeenCalledWith('alice@example.com');
+    });
+
+    it('stores explicit scopes as an expiring grant without returning its raw token', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-08-11T00:00:00.000Z'));
+      try {
+        mockSql.transaction.mockResolvedValue([
+          [{ email: 'alice@example.com' }],
+          [{ id: 'user-1', email: 'alice@example.com' }],
+          [{ id: 'token-1' }],
+          [{ id: 'audit-1' }],
+        ]);
+
+        const res = await request(
+          'POST',
+          '/admin/invite',
+          {
+            email: 'alice@example.com',
+            scopes: ['preview', 'internal'],
+            days: 30,
+          },
+          ADMIN_KEY
+        );
+
+        expect(res.status).toBe(201);
+        const body = await res.json();
+        const rawToken = 'anvil_beta_' + 'X'.repeat(43);
+        expect(body.scopes).toEqual(['preview', 'internal']);
+        expect(body.token).toBeUndefined();
+        expect(JSON.stringify(body)).not.toContain(rawToken);
+
+        expect(vi.mocked(generateToken)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(hashToken)).toHaveBeenCalledWith(rawToken);
+        expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+        const [statements] = mockSql.transaction.mock.calls[0] as [unknown[]];
+        expect(statements).toHaveLength(4);
+
+        const accessTokenCall = mockSql.mock.calls.find((call) =>
+          (call[0] as TemplateStringsArray).some((chunk) =>
+            chunk.includes('INSERT INTO access_tokens')
+          )
+        );
+        expect(accessTokenCall).toBeDefined();
+        expect(accessTokenCall).toContain('mocked-hash');
+        expect(accessTokenCall).toContainEqual(['preview', 'internal']);
+        expect(accessTokenCall).toContain('2026-09-10T00:00:00.000Z');
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('default flow writes no device_codes row (GHCLIAUTH-007)', async () => {

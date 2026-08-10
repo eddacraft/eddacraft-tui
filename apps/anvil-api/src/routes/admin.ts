@@ -223,6 +223,12 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   // github_id, or --otp proves the invited email) — ADR-066 decision 7.
   // Stamp waitlist.approved_at (first grant wins) so admin list/Neon filters
   // show operator admission, not merely beta_users existence.
+  // The access_tokens row is the durable scope grant read during session
+  // minting. Its raw token material is deliberately discarded: default
+  // invites authenticate through GitHub or OTP, never a returned bearer.
+  const grantHash = hashToken(generateToken());
+  const grantExpiresAt = new Date();
+  grantExpiresAt.setDate(grantExpiresAt.getDate() + days);
   const txResult = await sql.transaction([
     sql`UPDATE waitlist
         SET approved_at = COALESCE(approved_at, NOW()), updated_at = NOW()
@@ -234,6 +240,12 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
           name = COALESCE(${name ?? null}, beta_users.name),
           notes = COALESCE(${notes ?? null}, beta_users.notes),
           status = ${'active'}
+        RETURNING *`,
+    sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+        VALUES (
+          (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+          ${grantHash}, ${scopes}, ${grantExpiresAt.toISOString()}
+        )
         RETURNING *`,
     sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
         VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })}, ${authMethod})
