@@ -91,12 +91,19 @@ noisy and wrong for this surface.
 
 Three concrete symptoms of the ungoverned state:
 
-- Public docs are pinned to five different product versions simultaneously
-  (12 references to `0.9.4-beta`, 8 to `0.9.1-beta`, 4 to `0.9.3-beta`, 2 each
-  to `0.9.2-beta` and `0.9.0-beta`), with nothing reconciling them.
+- Version information exists only as prose, so correctness can only be assessed
+  by hand, one reference at a time. A manual audit of the 18 version references
+  outside the changelog found the corpus mostly sound — the "`0.9.1-beta` and
+  later" form used in `overview.md`, `security.md`, `skills.md`, and
+  `telemetry.md` is a durable capability claim and stays correct across
+  releases — and exactly one defect: `integrations/mcp.md` asserted dual-era MCP
+  support for `0.9.1-beta` with no "and later", leaving a reader on `0.9.4-beta`
+  unable to tell whether it still applied. That audit is unrepeatable and
+  nothing would have caught the defect. The problem is the absence of a
+  mechanism, not a mass of stale numbers.
 - The governance guide already requires public docs to "cite the release or
   product version they describe". Nothing enforces it, and there is nowhere
-  structured to put it.
+  structured to put it — which is why the audit above had to read prose.
 - The strongest check in the whole documentation system — `docs:public:commands`,
   which executes every `anvil …` example in the public corpus against a real
   released binary — is pinned to `ANVIL_DOCS_VERSION: 0.9.1-beta`
