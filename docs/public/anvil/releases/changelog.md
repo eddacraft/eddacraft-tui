@@ -12,57 +12,45 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.4-beta — 10 August 2026 — Install honesty and field follow-up
+## 0.9.4-beta — 10 August 2026 — Clearer install advice and quieter false alarms
 
-Field follow-up on the v0.9 line: official-installer method detection and
-upgrade advice on Windows/macOS, durable membership confirmation that does not
-race the daemon, leaner MCP allow responses, fewer path false-positives in
-secret scan, and broader Python dynamic-execution coverage.
+This patch is about trusting what anvil tells you: how you installed it, whether
+registration really stuck, and fewer “secret” false alarms on ordinary file
+paths — plus leaner MCP answers when a write is fine.
 
 ### Changed
 
-- **MCP pre-write responses are lean by default on clean allow.**
-  `anvil_validate_write` and `anvil_apply_patch` accept optional
-  `detail: "minimal" | "full"`. Default is **minimal**: clean `allow` returns
-  only `schema` and `decision`. Pass `detail: "full"` for the complete envelope.
-  Validation quality is unchanged.
+- **Clean MCP allow responses are shorter by default.** When a pre-write check
+  passes with nothing to report, the agent gets a small “allowed” answer instead
+  of a full payload every time. Ask for full detail when you need the complete
+  envelope. Checks themselves are unchanged.
 
 ### Fixed
 
-- **`anvil version` names the right install method on Windows and macOS.** If
-  you installed with the official installer, `version` could still report
-  `cargo install (CARGO_HOME/bin)` and suggest a `cargo install --git …` command
-  — no use at all without a Rust toolchain, which the installer does not
-  require. `anvil` was looking for the installer's receipt in a directory the
-  installer never writes to on those platforms, so it fell back to guessing from
-  the binary's location. It now reads the receipt from the same place
-  `anvil update` does, so both agree. Linux was unaffected.
+- **Official installs on Windows and macOS report the right install method.**
+  After installing with the installer, `anvil version` could still say
+  `cargo install` and suggest a Rust rebuild you do not need. It now matches
+  `anvil update`. Linux was already correct.
 
-- **Installer upgrade advice matches the platform you are on.** Windows installs
-  are now told to re-run the PowerShell installer
-  (`irm … eddacraft-anvil-installer.ps1 | iex`) — the same line `anvil update`
-  prints there — instead of a `curl … | sh` command that needs a shell Windows
-  does not have. Other platforms are unchanged.
+- **Windows upgrade advice is PowerShell, not a Unix pipe.** Official Windows
+  installs are pointed at the PowerShell installer line (the same one
+  `anvil update` prints there), not `curl … | sh`.
 
-- **Workspace register no longer loses a race with the daemon.** After a
-  successful registration, anvil used to read daemon status once to confirm
-  durable membership. If that snapshot was taken a moment before the record was
-  visible, it refused with the same message as a real missing membership even
-  though registration had succeeded. It now waits briefly and re-checks until
-  the membership appears (or the budget expires and the honest refusal still
-  stands).
+- **Workspace register no longer says “failed” when it actually worked.**
+  Registration could succeed and then immediately look missing for a moment.
+  anvil now waits briefly and checks again before giving up.
 
-- **Path-shaped document tokens no longer trip generic secret entropy.** Long
-  hex or base64-looking strings that are clearly file paths are not treated as
-  high-entropy secrets.
+- **File paths are less likely to be flagged as secrets.** Path-like strings in
+  docs or configs no longer trip the “looks like a random secret” check as
+  often.
 
-- **Post-commit witness lines bind to the HEAD commit** so they cannot be
-  confused with a different HEAD after a race.
+- **Commit protection notes stay tied to the commit they belong to**, so they
+  are not mixed up with a different HEAD.
 
 ### Added
 
-- **Python dynamic-execution surfaces PY-008 and PY-009** in the reliability
-  pack for additional dynamic-execution shapes.
+- **More Python dynamic-execution patterns** in reliability checks, so more “run
+  code at runtime” shapes show up in audit and gate.
 
 ## 0.9.3-beta — 7 August 2026 — Honesty and Windows path
 
