@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 
-const ANVIL_VERSION = 'v0.9.4';
+const ANVIL_VERSION = 'v0.9.4-beta';
 const ANVIL_BUILD_HASH = '165d33';
 
 interface ResponseLine {

@@ -11,7 +11,7 @@ description:
 Start with:
 
 ```text
-anvil --version
+anvil version
 anvil doctor
 anvil status
 ```
