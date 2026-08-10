@@ -42,6 +42,16 @@ URLs when the next cut ships. Subject line is derived as:
 anvil {version} — {theme}
 ```
 
+### 1b) Single-recipient preview (recommended before cohort)
+
+```bash
+anvil admin email-send you@example.com --template release-announcement \
+  --props-file ./release-props.json
+```
+
+Sends only to that address (audited as `email.sent`). Prefer this for copy
+checks. Full cohort still uses broadcast dry-run → real-send below.
+
 ### 2) Dry-run broadcast
 
 ```bash

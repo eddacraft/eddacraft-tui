@@ -36,6 +36,7 @@ import {
   broadcastSchema,
   userEmailUpdateSchema,
   userNameUpdateSchema,
+  emailSendSchema,
   waitlistListQuerySchema,
   auditListQuerySchema,
 } from './admin-schemas.js';
@@ -73,6 +74,13 @@ admin.use(
 // per-actor cap independent of the coarse one. Scope is on the endpoint
 // (not per template) so alternating templates can't dodge the budget.
 admin.use('/broadcast', adminRateLimit({ windowMs: 60 * 60 * 1000, max: 5, scope: 'broadcast' }));
+
+// Single-recipient operator sends: tighter than the coarse admin cap, looser
+// than full-cohort broadcast (previews + one-offs are expected).
+admin.use(
+  '/email-send',
+  adminRateLimit({ windowMs: 60 * 60 * 1000, max: 30, scope: 'email-send' })
+);
 
 /**
  * GET /admin/fleet
@@ -1140,6 +1148,94 @@ admin.post('/user/name-update', zValidator('json', userNameUpdateSchema), async 
           status: userRow.status,
         }
       : null,
+  });
+});
+
+/**
+ * POST /admin/email-send
+ *
+ * Single-recipient operator email for broadcast-kind templates
+ * (release-announcement, waitlist-migration). Skips snapshot/cohort
+ * machinery so operators can preview or one-off without mailing a full
+ * audience. Transactional templates stay on invite / OTP / waitlist paths.
+ *
+ * Error codes:
+ *   400 template_unknown
+ *   400 template_kind_not_sendable  — transactional template
+ *   400 template_props_invalid
+ *   502 delivery_failed             — Resend / sender returned sent:false
+ */
+admin.post('/email-send', zValidator('json', emailSendSchema), async (c) => {
+  const { email, template, name, templateProps } = c.req.valid('json');
+  debug('POST /admin/email-send', { template, hasName: Boolean(name) });
+  const sql = getClient();
+  const actor = resolveAdminActor(c);
+  const authMethod = resolveAuthMethod(c);
+  const normalizedEmail = email.toLowerCase().trim();
+
+  if (!Object.hasOwn(EMAIL_REGISTRY, template)) {
+    return c.json({ code: 'template_unknown', error: `unknown template: ${template}` }, 400);
+  }
+  const entry = EMAIL_REGISTRY[template as TemplateKey];
+  if (entry.kind !== 'broadcast') {
+    return c.json(
+      {
+        code: 'template_kind_not_sendable',
+        error: `template '${template}' is transactional; use invite/OTP/waitlist surfaces instead`,
+      },
+      400
+    );
+  }
+
+  const propsParse = entry.propsSchema.safeParse(templateProps ?? {});
+  if (!propsParse.success) {
+    return c.json(
+      {
+        code: 'template_props_invalid',
+        error: propsParse.error.message,
+      },
+      400
+    );
+  }
+  const validatedProps = propsParse.data as Record<string, unknown>;
+
+  const delivery = await entry.sender(
+    {
+      email: normalizedEmail,
+      name: name ?? null,
+      user_id: null,
+    },
+    validatedProps
+  );
+
+  if (!delivery.sent) {
+    return c.json(
+      {
+        code: 'delivery_failed',
+        error: delivery.message ?? 'email delivery failed',
+        providerCode: delivery.code ?? null,
+      },
+      502
+    );
+  }
+
+  await insertAuditLog(
+    sql,
+    'email.sent',
+    actor,
+    {
+      email: normalizedEmail,
+      template,
+      name: name ?? null,
+      propsKeys: Object.keys(validatedProps).sort(),
+    },
+    authMethod
+  );
+
+  return c.json({
+    sent: true,
+    email: normalizedEmail,
+    template,
   });
 });
 

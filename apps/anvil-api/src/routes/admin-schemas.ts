@@ -136,6 +136,22 @@ export const userNameUpdateSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+// Single-recipient operator email (preview / one-off). Only broadcast-kind
+// templates are allowed — transactional invites/OTP keep their dedicated
+// surfaces. templateProps shape is narrowed per-template in the handler.
+export const emailSendSchema = z.object({
+  email: z.string().email().max(254),
+  template: z.string().min(1).max(64),
+  name: z.string().trim().min(1).max(200).optional(),
+  templateProps: z
+    .record(z.string().max(64), z.unknown())
+    .refine((o) => Object.keys(o).length <= 64, {
+      message: 'templateProps may not have more than 64 keys',
+    })
+    .optional()
+    .default({}),
+});
+
 // Query string schemas — numeric fields arrive as strings via URL and
 // are coerced to numbers with bounded ranges. Defaults mirror the design
 // spec (pending / all / 50 / 0).
@@ -176,5 +192,6 @@ export type BroadcastInput = z.infer<typeof broadcastSchema>;
 export type DriftDiffResponse = z.infer<typeof driftDiffSchema>;
 export type UserEmailUpdateInput = z.infer<typeof userEmailUpdateSchema>;
 export type UserNameUpdateInput = z.infer<typeof userNameUpdateSchema>;
+export type EmailSendInput = z.infer<typeof emailSendSchema>;
 export type WaitlistListQuery = z.infer<typeof waitlistListQuerySchema>;
 export type AuditListQuery = z.infer<typeof auditListQuerySchema>;

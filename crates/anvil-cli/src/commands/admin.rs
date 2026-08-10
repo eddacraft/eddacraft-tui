@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
 use crate::auth::client::{
-    ApiError, AuditResponse, EmailUpdateResponse, FleetOverviewResponse, MigrationPreviewResponse,
-    MigrationSendResponse, NameUpdateResponse, RevokeResponse, ShowUserResponse, WaitlistResponse,
+    ApiError, AuditResponse, EmailSendResponse, EmailUpdateResponse, FleetOverviewResponse,
+    MigrationPreviewResponse, MigrationSendResponse, NameUpdateResponse, RevokeResponse,
+    ShowUserResponse, WaitlistResponse,
 };
 use crate::output::AuthRequired;
 
@@ -128,6 +129,29 @@ enum AdminCommand {
         /// Internal notes (`beta_users` only; omitted leaves notes unchanged)
         #[arg(long)]
         notes: Option<String>,
+    },
+
+    /// Send a broadcast-kind template email to one address
+    #[command(name = "email-send")]
+    EmailSend {
+        /// Recipient email address
+        email: String,
+
+        /// Template key (`release-announcement`, `waitlist-migration`)
+        #[arg(long)]
+        template: String,
+
+        /// Optional display name (used by templates that personalise)
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Inline JSON object for templateProps
+        #[arg(long, conflicts_with = "props_file")]
+        props: Option<String>,
+
+        /// Path to a JSON file of templateProps
+        #[arg(long = "props-file", conflicts_with = "props")]
+        props_file: Option<PathBuf>,
     },
 
     /// Approve a waitlisted user by email
@@ -787,6 +811,24 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
                 print_name_update(&result);
             }
         }
+        AdminCommand::EmailSend {
+            email,
+            template,
+            name,
+            props,
+            props_file,
+        } => {
+            let template_props = load_template_props(props.as_deref(), props_file.as_deref())?;
+            let result = rt.block_on(client.send_template_email(
+                email,
+                template,
+                name.as_deref(),
+                template_props.as_ref(),
+            ))?;
+            if !render_json(&result, global.json)? {
+                print_email_send(&result);
+            }
+        }
         AdminCommand::Approve { email, batch } => {
             if let Some(email) = email {
                 rt.block_on(client.approve_user(email))?;
@@ -1224,6 +1266,42 @@ fn print_name_update(result: &NameUpdateResponse) {
         "✓ Updated name for {} to \"{}\" ({})",
         result.email, result.name, surfaces
     );
+}
+
+fn print_email_send(result: &EmailSendResponse) {
+    println!(
+        "✓ Sent template `{}` to {}",
+        result.template, result.email
+    );
+}
+
+fn load_template_props(
+    props: Option<&str>,
+    props_file: Option<&Path>,
+) -> Result<Option<serde_json::Value>> {
+    match (props, props_file) {
+        (None, None) => Ok(None),
+        (Some(raw), None) => {
+            let value: serde_json::Value = serde_json::from_str(raw)
+                .context("failed to parse --props as JSON")?;
+            if !value.is_object() {
+                bail!("--props must be a JSON object");
+            }
+            Ok(Some(value))
+        }
+        (None, Some(path)) => {
+            let raw = fs::read_to_string(path)
+                .with_context(|| format!("failed to read --props-file {}", path.display()))?;
+            let value: serde_json::Value = serde_json::from_str(&raw).with_context(|| {
+                format!("failed to parse --props-file {} as JSON", path.display())
+            })?;
+            if !value.is_object() {
+                bail!("--props-file must contain a JSON object");
+            }
+            Ok(Some(value))
+        }
+        (Some(_), Some(_)) => unreachable!("clap conflicts_with prevents both props sources"),
+    }
 }
 
 fn rewrite_migration_error(err: anyhow::Error) -> anyhow::Error {
@@ -1752,6 +1830,59 @@ mod tests {
         let err =
             Wrapper::try_parse_from(["test", "name-update", "person@example.com"]).unwrap_err();
         assert_ne!(err.exit_code(), 0);
+    }
+
+    #[test]
+    fn args_parses_email_send() {
+        let w = Wrapper::try_parse_from([
+            "test",
+            "email-send",
+            "josh@eddacraft.ai",
+            "--template",
+            "release-announcement",
+            "--name",
+            "Josh",
+            "--props",
+            r#"{"version":"v0.9.4-beta"}"#,
+        ])
+        .unwrap();
+        match w.inner.command {
+            AdminCommand::EmailSend {
+                email,
+                template,
+                name,
+                props,
+                props_file,
+            } => {
+                assert_eq!(email, "josh@eddacraft.ai");
+                assert_eq!(template, "release-announcement");
+                assert_eq!(name.as_deref(), Some("Josh"));
+                assert_eq!(props.as_deref(), Some(r#"{"version":"v0.9.4-beta"}"#));
+                assert!(props_file.is_none());
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn args_requires_template_for_email_send() {
+        let err =
+            Wrapper::try_parse_from(["test", "email-send", "josh@eddacraft.ai"]).unwrap_err();
+        assert_ne!(err.exit_code(), 0);
+    }
+
+    #[test]
+    fn load_template_props_parses_object() {
+        let value = load_template_props(Some(r#"{"version":"v0.9.4-beta"}"#), None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(value["version"], "v0.9.4-beta");
+    }
+
+    #[test]
+    fn load_template_props_rejects_non_object() {
+        let err = load_template_props(Some(r#"["nope"]"#), None).unwrap_err();
+        assert!(err.to_string().contains("JSON object"));
     }
 
     #[test]

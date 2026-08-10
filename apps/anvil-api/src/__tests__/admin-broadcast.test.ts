@@ -935,3 +935,144 @@ describe('POST /admin/broadcast', () => {
     });
   });
 });
+
+describe('POST /admin/email-send', () => {
+  const originalAdminKey = process.env['ADMIN_KEY'];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    _resetAdminRateLimitForTests();
+    process.env['ADMIN_KEY'] = ADMIN_KEY;
+    vi.mocked(sendReleaseAnnouncement).mockResolvedValue({ sent: true });
+    vi.mocked(sendWaitlistMigration).mockResolvedValue({ sent: true });
+  });
+
+  afterEach(() => {
+    if (originalAdminKey === undefined) {
+      delete process.env['ADMIN_KEY'];
+    } else {
+      process.env['ADMIN_KEY'] = originalAdminKey;
+    }
+  });
+
+  it('sends a release announcement to one email and audits', async () => {
+    const res = await request(
+      'POST',
+      '/admin/email-send',
+      {
+        email: 'Josh@Eddacraft.ai',
+        template: 'release-announcement',
+        templateProps: {
+          version: 'v0.9.4-beta',
+          theme: 'Beta roundup',
+        },
+      },
+      ADMIN_KEY
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({
+      sent: true,
+      email: 'josh@eddacraft.ai',
+      template: 'release-announcement',
+    });
+    expect(vi.mocked(sendReleaseAnnouncement)).toHaveBeenCalledWith('josh@eddacraft.ai', {
+      version: 'v0.9.4-beta',
+      theme: 'Beta roundup',
+    });
+    expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
+      expect.anything(),
+      'email.sent',
+      expect.any(String),
+      expect.objectContaining({
+        email: 'josh@eddacraft.ai',
+        template: 'release-announcement',
+      }),
+      expect.anything()
+    );
+    expect(resolveAudienceMock).not.toHaveBeenCalled();
+    expect(vi.mocked(insertBroadcastSnapshot)).not.toHaveBeenCalled();
+  });
+
+  it('sends waitlist-migration with optional name', async () => {
+    const res = await request(
+      'POST',
+      '/admin/email-send',
+      {
+        email: 'person@example.com',
+        template: 'waitlist-migration',
+        name: 'Alex',
+      },
+      ADMIN_KEY
+    );
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(sendWaitlistMigration)).toHaveBeenCalledWith('person@example.com', 'Alex');
+  });
+
+  it('rejects transactional templates', async () => {
+    const res = await request(
+      'POST',
+      '/admin/email-send',
+      { email: 'person@example.com', template: 'beta-invite' },
+      ADMIN_KEY
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('template_kind_not_sendable');
+    expect(vi.mocked(sendReleaseAnnouncement)).not.toHaveBeenCalled();
+  });
+
+  it('rejects unknown templates', async () => {
+    const res = await request(
+      'POST',
+      '/admin/email-send',
+      { email: 'person@example.com', template: 'nope' },
+      ADMIN_KEY
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('template_unknown');
+  });
+
+  it('rejects invalid templateProps', async () => {
+    const res = await request(
+      'POST',
+      '/admin/email-send',
+      {
+        email: 'person@example.com',
+        template: 'release-announcement',
+        templateProps: { releaseUrl: 'javascript:alert(1)' },
+      },
+      ADMIN_KEY
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).code).toBe('template_props_invalid');
+  });
+
+  it('returns 502 when delivery fails', async () => {
+    vi.mocked(sendReleaseAnnouncement).mockResolvedValueOnce({
+      sent: false,
+      code: 'resend_not_configured',
+      message: 'Resend is not configured',
+    });
+
+    const res = await request(
+      'POST',
+      '/admin/email-send',
+      { email: 'person@example.com', template: 'release-announcement' },
+      ADMIN_KEY
+    );
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.code).toBe('delivery_failed');
+    expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 without admin auth', async () => {
+    const res = await request('POST', '/admin/email-send', {
+      email: 'person@example.com',
+      template: 'release-announcement',
+    });
+    expect(res.status).toBe(401);
+  });
+});

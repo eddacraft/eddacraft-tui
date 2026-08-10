@@ -265,6 +265,13 @@ pub struct NameUpdateResponse {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct EmailSendResponse {
+    pub sent: bool,
+    pub email: String,
+    pub template: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct NameUpdateUser {
     pub id: String,
     pub email: String,
@@ -562,6 +569,35 @@ impl AnvilClient {
         }
         self.post("/admin/user/name-update", Body { email, name, notes })
             .await
+    }
+
+    pub async fn send_template_email(
+        &self,
+        email: &str,
+        template: &str,
+        name: Option<&str>,
+        template_props: Option<&serde_json::Value>,
+    ) -> Result<EmailSendResponse> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Body<'a> {
+            email: &'a str,
+            template: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            name: Option<&'a str>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            template_props: Option<&'a serde_json::Value>,
+        }
+        self.post(
+            "/admin/email-send",
+            Body {
+                email,
+                template,
+                name,
+                template_props,
+            },
+        )
+        .await
     }
 
     pub async fn whoami(&self) -> Result<WhoamiResponse> {
@@ -1383,6 +1419,45 @@ mod tests {
             result.user.as_ref().map(|u| u.name.as_deref()),
             Some(Some("Rinaldo De Paolis"))
         );
+    }
+
+    #[tokio::test]
+    async fn send_template_email_posts_camel_case_body() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/email-send"))
+            .and(body_json(serde_json::json!({
+                "email": "josh@eddacraft.ai",
+                "template": "release-announcement",
+                "name": "Josh",
+                "templateProps": {"version": "v0.9.4-beta", "theme": "Beta roundup"}
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sent": true,
+                "email": "josh@eddacraft.ai",
+                "template": "release-announcement"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let props = serde_json::json!({
+            "version": "v0.9.4-beta",
+            "theme": "Beta roundup"
+        });
+        let result = client
+            .send_template_email(
+                "josh@eddacraft.ai",
+                "release-announcement",
+                Some("Josh"),
+                Some(&props),
+            )
+            .await
+            .unwrap();
+        assert!(result.sent);
+        assert_eq!(result.email, "josh@eddacraft.ai");
+        assert_eq!(result.template, "release-announcement");
     }
 
     #[tokio::test]

@@ -659,6 +659,26 @@ anvil --json admin email-update old@example.com new@example.com
 The API rejects same-address updates, missing users, and collisions with an
 existing beta user email.
 
+### `email-send <email> --template <key>` — one-off template email
+
+Send a **broadcast-kind** template to a single address (preview / operator
+one-off). Does not use the broadcast snapshot/cohort machinery.
+
+```bash
+anvil admin email-send person@example.com --template release-announcement
+anvil admin email-send person@example.com --template release-announcement \
+  --props-file ./props.json
+anvil --json admin email-send person@example.com --template waitlist-migration --name "Alex"
+```
+
+- Allowed templates: `release-announcement`, `waitlist-migration`
+- Transactional templates (`beta-invite`, `otp-code`, …) stay on invite / OTP /
+  waitlist routes
+- Empty `templateProps` is fine for release-announcement (template defaults
+  apply)
+- Audits as `email.sent`
+- Rate-limited separately from full-cohort `/admin/broadcast`
+
 ### `name-update <email> --name <name>` — enrich display name without inviting
 
 Operator enrichment path: set display name (and optional `beta_users` notes)
