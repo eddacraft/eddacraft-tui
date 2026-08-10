@@ -35,6 +35,15 @@ describe('protection history aggregation', () => {
     expect(buckets[0]).toMatchObject({ passRate: 0.5, warningCount: 4, score: 60 });
   });
 
+  it('orders daily buckets chronologically for reverse-ordered input', () => {
+    const buckets = aggregateProtectionHistory(
+      [point('2026-07-03T12:00:00Z', 'pass', 3), point('2026-07-01T12:00:00Z', 'pass', 1)],
+      'daily'
+    );
+
+    expect(buckets.map((bucket) => bucket.key)).toEqual(['2026-07-01', '2026-07-03']);
+  });
+
   it('keeps the chronologically latest score and warning count for a bucket', () => {
     const newest = {
       ...point('2026-07-06T18:00:00Z', 'pass', 9),
@@ -66,6 +75,15 @@ describe('protection history aggregation', () => {
 
     expect(buckets.map((bucket) => bucket.key)).toEqual(['2026-06-29', '2026-07-06']);
     expect(buckets[1]).toMatchObject({ passRate: 0.5, warningCount: 7, score: 60 });
+  });
+
+  it('orders weekly buckets chronologically for reverse-ordered input', () => {
+    const buckets = aggregateProtectionHistory(
+      [point('2026-07-15T12:00:00Z', 'pass', 3), point('2026-07-01T12:00:00Z', 'pass', 1)],
+      'weekly'
+    );
+
+    expect(buckets.map((bucket) => bucket.key)).toEqual(['2026-06-29', '2026-07-13']);
   });
 
   it('labels only the actual covered range', () => {

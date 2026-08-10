@@ -74,7 +74,9 @@ export function aggregateProtectionHistory(
       warningCount: point.warning_count,
     });
   }
-  return [...grouped.values()].map(({ latestRecordedAt: _, passCount: __, ...bucket }) => bucket);
+  return [...grouped.values()]
+    .sort((left, right) => left.key.localeCompare(right.key))
+    .map(({ latestRecordedAt: _, passCount: __, ...bucket }) => bucket);
 }
 
 export function formatActualRange(range: HistoryRange | null) {
