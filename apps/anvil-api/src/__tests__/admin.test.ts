@@ -207,6 +207,7 @@ describe('admin endpoints', () => {
       mockSql.transaction.mockResolvedValue([
         [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
       ]);
 
@@ -285,6 +286,7 @@ describe('admin endpoints', () => {
       mockSql.transaction.mockResolvedValue([
         [{ email: 'alice@example.com' }],
         [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
       ]);
 
