@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                         |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Reviewed 2026-08-09 against `v0.9.3-beta`, `plans/releases/v0.9.3-beta.md`, installed CLI help, and current repository operations |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                     |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Reviewed 2026-08-10 against `0.9.4-beta` product version, public changelog, and release cut candidate on main |
 
 | Upstream                                               | Downstream                      |
 | ------------------------------------------------------ | ------------------------------- |

@@ -43,7 +43,7 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     env:
-      ANVIL_VERSION: 0.9.1-beta
+      ANVIL_VERSION: 0.9.4-beta
     steps:
       - uses: actions/checkout@v4
 

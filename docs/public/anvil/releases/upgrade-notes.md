@@ -127,6 +127,28 @@ Unix, so wait until that reported daemon process has exited before running
 well. anvil cannot enumerate every retained MCP process consistently across
 supported platforms, so repeat this for each open client after an upgrade.
 
+## 0.9.4-beta behaviour changes
+
+These changes affect upgrades from 0.9.3-beta and earlier:
+
+- **Clean MCP allow responses are lean by default.** `anvil_validate_write` and
+  `anvil_apply_patch` return only `schema` and `decision` on a clean allow. Pass
+  `detail: "full"` on the tool call, or set `ANVIL_MCP_VALIDATE_DETAIL=full` in
+  the MCP server environment, when you need correlation, tier, or the protection
+  claim. Block, warn, and error responses stay full. See
+  [MCP integration](../integrations/mcp.md#pre-write-tool-responses-agent-clients).
+- **Standalone install method is honest on Windows and macOS.** After an
+  official installer install, `anvil version` and upgrade advice match the
+  cargo-dist receipt (as Linux already did). Re-run `anvil version` after
+  upgrading and confirm the printed method before following rebuild advice.
+- **Windows upgrade advice uses PowerShell.** Official Windows installs are
+  directed to the PowerShell installer line, not a Unix `curl | sh` pipe.
+- **Workspace registration waits for durable membership.** A brief race after
+  register no longer prints a false failure when membership is about to appear.
+  Confirm with `anvil workspace list --json` when scripting.
+- **Path-shaped strings trip secret entropy less often.** Long path-like tokens
+  in docs and configs are less likely to be flagged as high-entropy secrets.
+
 ## 0.9.3-beta behaviour changes
 
 These changes affect upgrades from 0.9.2-beta and earlier:

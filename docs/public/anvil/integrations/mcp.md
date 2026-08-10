@@ -129,13 +129,15 @@ snippet egress.
 ## Pre-write tool responses (agent clients)
 
 `anvil_validate_write` and `anvil_apply_patch` return a `decision` on every
-call. On a clean **allow**, the default response is lean: only `schema` and
-`decision`. Pass `detail: "full"` when you need correlation, tier, or the
-protection claim on an **allow** (for example driver telemetry). **block**,
-**warn**, and error responses always carry the full actionable payload
-(diagnostics, `safeDefault`, and so on) regardless of `detail`. Prefer
-`anvil_apply_patch` (or patch-only `anvil_validate_write`) for edits so tool
-arguments stay small.
+call. On a clean **allow**, the default response is lean (`detail: "minimal"`
+since `0.9.4-beta`): only `schema` and `decision`. Pass `detail: "full"` on the
+tool call, or set `ANVIL_MCP_VALIDATE_DETAIL=full` in the MCP server
+environment, when you need correlation, tier, or the protection claim on an
+**allow** (for example driver telemetry). Request `detail` overrides the
+environment. **block**, **warn**, and error responses always carry the full
+actionable payload (diagnostics, `safeDefault`, and so on) regardless of
+`detail`. Prefer `anvil_apply_patch` (or patch-only `anvil_validate_write`) for
+edits so tool arguments stay small.
 
 ### Display summary (portable)
 

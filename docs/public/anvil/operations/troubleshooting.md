@@ -18,6 +18,21 @@ anvil status
 
 Record the exact command, exit code, and first useful error line.
 
+## Wrong install method or upgrade advice
+
+`anvil version` prints the install method and upgrade guidance. Prefer it over
+`anvil --version` when diagnosing install ownership.
+
+- Official installer installs on Windows and macOS should not report a plain
+  `cargo install` method or suggest a Rust rebuild you do not need (`0.9.4-beta`
+  and later). If they still do, reinstall with the
+  [quickstart](../quickstart.md) method for your platform, open a new terminal,
+  and re-check.
+- On Windows, official installs should point at the PowerShell installer line,
+  not a Unix `curl | sh` pipe.
+- When a package manager owns the binary, upgrade or remove it only through that
+  manager. See [upgrade notes](../releases/upgrade-notes.md).
+
 ## anvil is not found
 
 ### macOS or Linux
