@@ -68,6 +68,7 @@ async function revokeGitHubToken(accessToken: string): Promise<void> {
     const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     await fetch(`https://api.github.com/applications/${clientId}/token`, {
       method: 'DELETE',
+      signal: AbortSignal.timeout(8_000),
       headers: {
         Authorization: `Basic ${auth}`,
         Accept: 'application/json',
@@ -104,8 +105,9 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
   try {
     const accessToken = await exchangeCodeForToken(code);
     ghUser = await fetchGitHubUser(accessToken);
-    // Fire-and-forget: revoke the GitHub token now that we have the profile
-    revokeGitHubToken(accessToken).catch(() => {});
+    // Revoke the GitHub token before finalising the callback. The helper is
+    // best-effort, so an upstream revocation failure does not fail auth.
+    await revokeGitHubToken(accessToken);
   } catch (err) {
     debug('github auth failed', { error: err instanceof Error ? err.message : String(err) });
     return c.json({ error: 'GitHub authentication failed' }, 401);

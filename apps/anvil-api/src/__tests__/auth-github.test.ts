@@ -270,11 +270,9 @@ describe('POST /auth/github/callback', () => {
           ok: true,
           json: [{ email, primary: true, verified: true }],
         },
-        // revokeGitHubToken fires-and-forgets to DELETE /applications/:id/token
-        // after a successful profile fetch. We absorb it here so the background
-        // fetch doesn't throw against the strict default-throw mock. Asserting
-        // on it is deliberately skipped: the call is not awaited, so it races
-        // the test's afterEach and would be flaky.
+        // revokeGitHubToken DELETEs /applications/:id/token after a successful
+        // profile fetch. Most lifecycle tests only need a successful cleanup;
+        // the ordering and timeout contracts have dedicated coverage below.
         'https://api.github.com/applications/': { ok: true, json: {} },
       });
       return { id, login, email };
@@ -395,6 +393,145 @@ describe('POST /auth/github/callback', () => {
         'active@example.com',
         expect.objectContaining({ githubId: 42 })
       );
+    });
+
+    it('waits for GitHub token revocation before finalising a successful callback', async () => {
+      vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+        user: {
+          id: 'user-3',
+          email: 'active@example.com',
+          name: 'octocat',
+          status: 'active',
+          notes: null,
+          github_id: 42,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        isNewPending: false,
+        didFirstLink: false,
+      });
+
+      let resolveRevocation!: (response: Response) => void;
+      const revocationResponse = new Promise<Response>((resolve) => {
+        resolveRevocation = resolve;
+      });
+      let markRevocationStarted!: () => void;
+      const revocationStarted = new Promise<void>((resolve) => {
+        markRevocationStarted = resolve;
+      });
+
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url === 'https://github.com/login/oauth/access_token') {
+          return jsonResponse({
+            ok: true,
+            json: { access_token: 'gh-token', token_type: 'bearer' },
+          });
+        }
+        if (url === 'https://api.github.com/user') {
+          return jsonResponse({
+            ok: true,
+            json: { id: 42, login: 'octocat', name: 'Octocat', avatar_url: null },
+          });
+        }
+        if (url === 'https://api.github.com/user/emails') {
+          return jsonResponse({
+            ok: true,
+            json: [{ email: 'active@example.com', primary: true, verified: true }],
+          });
+        }
+        if (url === 'https://api.github.com/applications/test-client-id/token') {
+          markRevocationStarted();
+          return revocationResponse;
+        }
+        throw new Error(`unexpected fetch(${url})`);
+      });
+
+      const callbackResponse = callback({ code: 'gh-code' });
+
+      await revocationStarted;
+      const callbackState = await Promise.race([
+        callbackResponse.then(() => 'finalised' as const),
+        new Promise<'waiting'>((resolve) => setTimeout(() => resolve('waiting'), 50)),
+      ]);
+
+      resolveRevocation(jsonResponse({ ok: true, json: {} }));
+      expect(callbackState).toBe('waiting');
+      const res = await callbackResponse;
+      expect(res.status).toBe(200);
+    });
+
+    it('bounds stalled token revocation and keeps authentication best-effort', async () => {
+      vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+        user: {
+          id: 'user-3',
+          email: 'active@example.com',
+          name: 'octocat',
+          status: 'active',
+          notes: null,
+          github_id: 42,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        isNewPending: false,
+        didFirstLink: false,
+      });
+
+      const timeoutController = new AbortController();
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeoutController.signal);
+      let revokeSignal: AbortSignal | null | undefined;
+      let markRevocationStarted!: () => void;
+      const revocationStarted = new Promise<void>((resolve) => {
+        markRevocationStarted = resolve;
+      });
+
+      vi.spyOn(globalThis, 'fetch').mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = typeof input === 'string' ? input : input.toString();
+          if (url === 'https://github.com/login/oauth/access_token') {
+            return jsonResponse({
+              ok: true,
+              json: { access_token: 'gh-token', token_type: 'bearer' },
+            });
+          }
+          if (url === 'https://api.github.com/user') {
+            return jsonResponse({
+              ok: true,
+              json: { id: 42, login: 'octocat', name: 'Octocat', avatar_url: null },
+            });
+          }
+          if (url === 'https://api.github.com/user/emails') {
+            return jsonResponse({
+              ok: true,
+              json: [{ email: 'active@example.com', primary: true, verified: true }],
+            });
+          }
+          if (url === 'https://api.github.com/applications/test-client-id/token') {
+            revokeSignal = init?.signal;
+            markRevocationStarted();
+            if (!revokeSignal) throw new Error('missing revocation timeout signal');
+            return new Promise<Response>((_resolve, reject) => {
+              revokeSignal?.addEventListener(
+                'abort',
+                () => reject(revokeSignal?.reason ?? new DOMException('timed out', 'AbortError')),
+                { once: true }
+              );
+            });
+          }
+          throw new Error(`unexpected fetch(${url})`);
+        }
+      );
+
+      const callbackResponse = callback({ code: 'gh-code' });
+      await revocationStarted;
+
+      expect(timeoutSpy).toHaveBeenCalledWith(8_000);
+      expect(revokeSignal).toBe(timeoutController.signal);
+
+      timeoutController.abort(new DOMException('timed out', 'AbortError'));
+      const res = await callbackResponse;
+      expect(res.status).toBe(200);
+      expect(typeof (await res.json()).license).toBe('string');
     });
 
     it('audits github_oauth_link when first-linking an active invite', async () => {
