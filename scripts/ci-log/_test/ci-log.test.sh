@@ -125,6 +125,32 @@ grep -q 'waited tracked append' plans/reviews/continuous-improvement-log.md || \
 grep -q 'Last triaged:\*\* 2026-07-11' plans/reviews/continuous-improvement-log.md || \
   fail "watermark did not resume after lock release"
 
+# 7a) timeout diagnostics report only validated owners and do not follow lock symlinks
+valid_lock_owner='4242:12345678-1234-4abc-8def-1234567890ab'
+printf '%s\n' "$valid_lock_owner" > "$tracked_lock"
+if ANVIL_CI_LOG_TEST_LOCK_TIMEOUT_MS=5 \
+  "${APPEND[@]}" --tracked --task 'owner diagnostic' --agent codex --outcome blocked \
+  >"$tmp/owner-diagnostic.out" 2>"$tmp/owner-diagnostic.err"; then
+  fail "tracked append ignored a held lock during owner diagnostic"
+fi
+grep -Fq "owner: $valid_lock_owner" "$tmp/owner-diagnostic.err" || \
+  fail "timeout diagnostic omitted the validated lock owner"
+rm "$tracked_lock"
+
+printf 'arbitrary-target-contents-must-not-leak\n' > "$tmp/lock-symlink-target"
+ln -s "$tmp/lock-symlink-target" "$tracked_lock"
+if ANVIL_CI_LOG_TEST_LOCK_TIMEOUT_MS=5 \
+  "${APPEND[@]}" --tracked --task 'symlink diagnostic' --agent codex --outcome blocked \
+  >"$tmp/symlink-diagnostic.out" 2>"$tmp/symlink-diagnostic.err"; then
+  fail "tracked append ignored a symlink lock during owner diagnostic"
+fi
+if grep -Fq 'arbitrary-target-contents-must-not-leak' "$tmp/symlink-diagnostic.err"; then
+  fail "timeout diagnostic leaked lock symlink target contents"
+fi
+grep -Eq 'owner: <(unavailable|invalid)>' "$tmp/symlink-diagnostic.err" || \
+  fail "timeout diagnostic did not reject the lock symlink owner"
+rm "$tracked_lock" "$tmp/lock-symlink-target"
+
 # 8) dual harvests serialise without losing or duplicating pending entries
 "${APPEND[@]}" --task 'dual harvest one' --agent codex --outcome queued >/dev/null
 "${APPEND[@]}" --task 'dual harvest two' --agent codex --outcome queued >/dev/null

@@ -10,12 +10,15 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
   closeSync,
+  constants,
   existsSync,
+  fstatSync,
   fsyncSync,
   mkdirSync,
   openSync,
   readdirSync,
   readFileSync,
+  readSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -27,9 +30,11 @@ export const PENDING_DIR_NAME = 'anvil/ci-log-pending';
 export const WATERMARK_RE = /^>\s*\*\*Last triaged:\*\*\s*(\d{4}-\d{2}-\d{2}|never)\s*$/m;
 
 const TRACKED_LOG_LOCK_NAME = 'anvil/ci-log-tracked.lock';
-const LOCK_ACQUIRE_TIMEOUT_MS = 10_000;
+const DEFAULT_LOCK_ACQUIRE_TIMEOUT_MS = 10_000;
 const LOCK_RETRY_MS = 25;
 const LOCK_SLEEP_BUFFER = new Int32Array(new SharedArrayBuffer(4));
+const LOCK_OWNER_RE = /^\d+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_LOCK_OWNER_BYTES = 128;
 
 export function runGit(args, { cwd, allowFail = false } = {}) {
   try {
@@ -71,10 +76,45 @@ function sleepSync(milliseconds) {
   Atomics.wait(LOCK_SLEEP_BUFFER, 0, 0, milliseconds);
 }
 
+function lockAcquireTimeoutMs() {
+  const configured = process.env.ANVIL_CI_LOG_TEST_LOCK_TIMEOUT_MS;
+  if (configured === undefined) return DEFAULT_LOCK_ACQUIRE_TIMEOUT_MS;
+  if (!/^[1-9]\d{0,4}$/.test(configured)) {
+    throw new Error('ANVIL_CI_LOG_TEST_LOCK_TIMEOUT_MS must be an integer from 1 to 99999');
+  }
+  return Number(configured);
+}
+
+function lockOwnerForDiagnostic(path) {
+  let fd;
+  try {
+    const noFollow = constants.O_NOFOLLOW ?? 0;
+    fd = openSync(path, constants.O_RDONLY | noFollow);
+    if (!fstatSync(fd).isFile()) return '<invalid>';
+    const buffer = Buffer.alloc(MAX_LOCK_OWNER_BYTES);
+    const bytesRead = readSync(fd, buffer, 0, buffer.length, 0);
+    if (bytesRead === buffer.length) return '<invalid>';
+    const owner = buffer.toString('utf8', 0, bytesRead).trim();
+    return LOCK_OWNER_RE.test(owner) ? owner : '<invalid>';
+  } catch {
+    // The holder may release the lock between EEXIST and this diagnostic. On
+    // platforms with O_NOFOLLOW, a substituted symlink is rejected here too.
+    return '<unavailable>';
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        // Owner reporting is diagnostic-only; preserve the timeout error.
+      }
+    }
+  }
+}
+
 function acquireTrackedLogLock(cwd = process.cwd()) {
   const path = trackedLogLockPath(cwd);
   const token = `${process.pid}:${randomUUID()}`;
-  const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
+  const deadline = Date.now() + lockAcquireTimeoutMs();
   mkdirSync(dirname(path), { recursive: true });
 
   for (;;) {
@@ -95,22 +135,7 @@ function acquireTrackedLogLock(cwd = process.cwd()) {
       }
       if (!error || error.code !== 'EEXIST') throw error;
       if (Date.now() >= deadline) {
-        let owner = '<unavailable>';
-        let ownerFd;
-        try {
-          ownerFd = openSync(path, 'r');
-          owner = readFileSync(ownerFd, 'utf8').trim() || '<empty>';
-        } catch {
-          // The holder may have released the lock between EEXIST and this diagnostic.
-        } finally {
-          if (ownerFd !== undefined) {
-            try {
-              closeSync(ownerFd);
-            } catch {
-              // Owner reporting is diagnostic-only; preserve the timeout error.
-            }
-          }
-        }
+        const owner = lockOwnerForDiagnostic(path);
         throw new Error(`Timed out waiting for tracked CI-log lock at ${path} (owner: ${owner})`);
       }
       sleepSync(Math.min(LOCK_RETRY_MS, Math.max(1, deadline - Date.now())));
