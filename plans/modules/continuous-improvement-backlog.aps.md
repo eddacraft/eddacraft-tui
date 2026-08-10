@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 252/312  |
+| CIB | —     | In Progress | 252/314  |
 
 ## Purpose
 
@@ -9151,9 +9151,8 @@ CIB-251/255 only.
 
 ### CIB-305: Concurrent CI-log tracked writers can lose or duplicate entries
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage of the
-  2026-08-06 review batch, not self-authorised. Needs an operator promotion
-  before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3733; Council session `council-f805deae` PASS.
 - **Priority:** P0 internal data-loss correctness (bookkeeping path, not
   customer product)
 - **Intent:** `scripts/ci-log/lib.mjs` performs unlocked read-modify-write on
@@ -9185,8 +9184,8 @@ CIB-251/255 only.
 
 ### CIB-306: GitHub OAuth callback can return before revoking the upstream token
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3734; Council session `council-f805deae` PASS.
 - **Priority:** P1 security (serverless freeze can leave a live GitHub bearer
   token after Anvil session mint)
 - **Intent:** `apps/anvil-api/src/routes/auth-github.ts` exchanges the OAuth
@@ -9215,8 +9214,8 @@ CIB-251/255 only.
 
 ### CIB-307: Baseline regeneration accepts tooling-failed surface output
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3735; Council session `council-f805deae` PASS.
 - **Priority:** P1 data-loss guard (docs baseline integrity)
 - **Intent:** `scripts/docs/docs-check.mjs` `regenerateBaseline` only treats
   empty or unparsable stdout as surface failure. A surface that emits valid
@@ -9244,8 +9243,8 @@ CIB-251/255 only.
 
 ### CIB-308: Protection history aggregation uses response order, not timestamp
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3736; Council session `council-f805deae` PASS.
 - **Priority:** P2 dashboard correctness
 - **Intent:** `aggregateProtectionHistory` overwrites `score` and
   `warningCount` for every point in a bucket, so the last array element wins
@@ -9270,8 +9269,8 @@ CIB-251/255 only.
 
 ### CIB-309: Warning selection can show evidence for a different warning
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3736; Council session `council-f805deae` PASS.
 - **Priority:** P2 dashboard UX correctness
 - **Intent:** Two related selection bugs:
   1. `protection-overview.tsx` resolves the inspector only against
@@ -9299,8 +9298,8 @@ CIB-251/255 only.
 
 ### CIB-310: Critical severity missing from dashboard search and warning filter
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3736; Council session `council-f805deae` PASS.
 - **Priority:** P2 dashboard contract completeness
 - **Intent:** Theme and rendering recognise `critical` severity, but
   `dashboardSearchSchema` omits it (URL `severity=critical` silently becomes
@@ -9323,8 +9322,8 @@ CIB-251/255 only.
 
 ### CIB-311: CI-log date options accept impossible calendar dates
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3733; Council session `council-f805deae` PASS.
 - **Priority:** P2 internal tooling correctness
 - **Intent:** CI-log watermark and entry date handling accept impossible
   calendar values (e.g. non-normalising YYYY-MM-DD strings), which can skew
@@ -9347,8 +9346,8 @@ CIB-251/255 only.
 
 ### CIB-312: publish-public-contents treats non-404 lookup failures as create
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3737; Council session `council-f805deae` PASS.
 - **Priority:** P2 release tooling correctness
 - **Intent:** `scripts/release/publish-public-contents.sh` clears
   `existing_sha` on any failed `gh api` contents lookup. Auth, rate-limit, or
@@ -9372,8 +9371,8 @@ CIB-251/255 only.
 
 ### CIB-313: Non-token admin invites acknowledge scopes that are never persisted
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3738; Council session `council-f805deae` PASS.
 - **Priority:** P2 API contract honesty
 - **Intent:** Default (`tokenOnly=false`) admin invite validates and returns
   requested `scopes` in the 201 body, but the transaction only stamps
@@ -9399,8 +9398,8 @@ CIB-251/255 only.
 
 ### CIB-314: Existing release tags can silently mix workspace and tag sources
 
-- **Status:** Draft — filed from the 2026-08-07 clawpatch triage, not
-  self-authorised. Needs an operator promotion before implementation.
+- **Status:** In Progress — operator-promoted 2026-08-11; implementation
+  review-ready via PR #3739; Council session `council-f805deae` PASS.
 - **Priority:** P2 release-docs correctness
 - **Intent:** `scripts/docs/generate-anvil-public-reference.mjs` can fall back
   to workspace inputs when a release tag exists but lacks a particular input,
@@ -9540,3 +9539,59 @@ CIB-251/255 only.
 - **Confidence:** high — the failure and its cause were both reproduced:
   `expected …/ci.yml to contain:       - dev`.
 
+### CIB-317: CI-log crashes can strand locks or replay harvested entries
+
+- **Status:** Draft — filed from Council session `council-f805deae` finding
+  C-010 and its binding debate verdict, not self-authorised.
+- **Priority:** P2 internal durability and recovery
+- **Intent:** CIB-305 serialises live writers, but a process death can leave
+  behind a lock owned by a dead process. A crash after the tracked log rename
+  but before pending-entry deletion can also replay already-harvested entries
+  on the next run.
+- **Expected Outcome:** CI-log mutations recover from dead owners without
+  stealing a live writer's lock, and harvest recovery is idempotent across the
+  log-publication/pending-deletion crash window. Recovery must preserve every
+  entry exactly once.
+- **Non-scope / do not:** do not weaken CIB-305's shared common-directory
+  exclusion; do not reclaim a lock based on age alone while its owner is live.
+- **Files:** `scripts/ci-log/lib.mjs`,
+  `scripts/ci-log/_test/ci-log.test.sh` and deterministic crash-test helpers
+- **Validation:** deterministic process-termination fixtures cover death
+  before mutation and between tracked-log publication and pending deletion;
+  the next writer recovers without loss, duplication, or lock theft.
+- **Identified From:** Council session `council-f805deae`, finding C-010;
+  debate verdict B classified the risk as real but beyond CIB-305's concurrent
+  live-writer acceptance boundary.
+- **Coordinates with:** CIB-191, CIB-305,
+  `docs/guides/continuous-improvement-log.md`
+- **Confidence:** medium — the failure windows are concrete; the
+  ownership-safe recovery protocol needs a separate design and test seam.
+
+### CIB-318: Non-bearer admin scope grants need selective lifecycle controls
+
+- **Status:** Draft — filed from Council session `council-f805deae` finding
+  C-004, not self-authorised.
+- **Priority:** P2 access-control lifecycle correctness
+- **Intent:** CIB-313 persists default-invite scopes as an expiring,
+  non-returned internal grant, closing the response/persistence mismatch.
+  That grant is not yet independently addressable for selective revocation,
+  narrowing, or replacement without affecting unrelated grants.
+- **Expected Outcome:** operators can identify and revoke, narrow, or replace
+  one non-bearer scope grant; subsequent session minting reflects the effective
+  scope set, and audit evidence records the lifecycle change without exposing
+  raw token material.
+- **Non-scope / do not:** do not return the internal bearer material; do not
+  weaken token hashing, expiry, or audit requirements; do not redesign the
+  GitHub OAuth broker.
+- **Files:** `apps/anvil-api/src/routes/admin.ts`, relevant session/grant
+  helpers, database migrations if the selected lifecycle model requires one,
+  and focused admin/session tests
+- **Validation:** issue a default invite grant, selectively revoke or narrow
+  it by stable identity, and prove subsequent effective scopes and audit
+  records change while unrelated grants remain intact.
+- **Identified From:** Council session `council-f805deae`, finding C-004;
+  deferred because selective lifecycle management exceeds CIB-313's
+  persistence-honesty acceptance boundary.
+- **Coordinates with:** CIB-313 and ADR-066
+- **Confidence:** medium — the lifecycle gap is concrete; stable grant
+  identity and replacement semantics require shaping before implementation.
