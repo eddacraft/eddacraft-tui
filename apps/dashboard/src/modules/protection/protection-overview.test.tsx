@@ -250,6 +250,34 @@ describe('Protection Overview typed resource', () => {
     expect(onSeverityChange).toHaveBeenCalledWith('low');
   });
 
+  it('offers and restores critical severity filtering', async () => {
+    const criticalWarning = {
+      ...protectionOverviewFixture.warnings[0],
+      id: 'warning-critical',
+      evidence_id: 'evidence-critical',
+      severity: 'critical',
+      rule: 'critical-rule',
+      file_path: 'src/critical.ts',
+    };
+
+    await render(
+      { warnings: [...protectionOverviewFixture.warnings, criticalWarning] },
+      { view: 'warnings', severity: 'critical' }
+    );
+
+    const severityFilter = container?.querySelector<HTMLSelectElement>(
+      'select[aria-label="Filter warnings by severity"]'
+    );
+    expect([...(severityFilter?.options ?? [])].map((option) => option.value)).toContain(
+      'critical'
+    );
+    expect(severityFilter?.value).toBe('critical');
+
+    const warningsPanel = container?.querySelector('[role="tabpanel"][data-state="active"]');
+    expect(warningsPanel?.textContent).toContain('critical-rule');
+    expect(warningsPanel?.textContent).not.toContain('typed-secret-rule');
+  });
+
   it('keeps affected-file evidence selected when a severity filter hides its warning row', async () => {
     const mediumWarning = {
       ...protectionOverviewFixture.warnings[0],

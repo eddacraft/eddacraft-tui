@@ -29,7 +29,7 @@ type DataState = components['schemas']['DataState'];
 type ProtectionView = DashboardSearch['view'];
 type SeverityFilter = DashboardSearch['severity'];
 
-const severityOptions: readonly SeverityFilter[] = ['all', 'high', 'medium', 'low'];
+const severityOptions: readonly SeverityFilter[] = ['all', 'critical', 'high', 'medium', 'low'];
 
 function resourceLabel(label: string, state: DataState, count: number) {
   if (state === 'complete') return `${label} (${count})`;
