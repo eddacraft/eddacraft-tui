@@ -212,6 +212,13 @@ async function regenerateBaseline() {
     if (!surface.baselineable) continue;
     process.stdout.write(`[docs-check] regenerating ${surface.name}...\n`);
     const result = runSurface(surface, { json: true, forceNoBaseline: true });
+    if (result.verdict === EXIT_TOOLING_FAILURE) {
+      process.stderr.write(
+        `[docs-check] ${surface.name}: ERROR (tooling) — JSON output rejected\n`
+      );
+      failures.push(surface.name);
+      continue;
+    }
     if (!result.stdout.trim()) {
       process.stderr.write(`[docs-check] ${surface.name}: no JSON output\n`);
       failures.push(surface.name);
@@ -222,13 +229,6 @@ async function regenerateBaseline() {
       parsed = JSON.parse(result.stdout);
     } catch (err) {
       process.stderr.write(`[docs-check] ${surface.name}: JSON parse failed (${err.message})\n`);
-      failures.push(surface.name);
-      continue;
-    }
-    if (result.verdict === EXIT_TOOLING_FAILURE) {
-      process.stderr.write(
-        `[docs-check] ${surface.name}: ERROR (tooling) — JSON output rejected\n`
-      );
       failures.push(surface.name);
       continue;
     }

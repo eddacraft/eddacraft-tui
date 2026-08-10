@@ -661,6 +661,33 @@ else
   fail "--update-baseline changed the baseline after a tooling-failed surface"
 fi
 
+# A tooling failure's stdout is not trustworthy enough to parse. Non-JSON
+# output must retain the tooling verdict instead of producing a parse error.
+cat >"${bl_root}/tooling-text-surface.mjs" <<'EOF'
+console.log('tooling startup failed before JSON initialisation');
+process.exit(2);
+EOF
+cat >"${bl_root}/surfaces-tooling-text.json" <<'EOF'
+[
+  {
+    "name": "tooling-text",
+    "script": "tooling-text-surface.mjs",
+    "baselineable": true
+  }
+]
+EOF
+set +e
+out="$(cd "${repo_root}" && node "${orchestrator}" --update-baseline --root "${bl_root}" --surfaces "${bl_root}/surfaces-tooling-text.json" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -qE "^\[docs-check\] tooling-text: ERROR \(tooling\)" \
+  && ! echo "${out}" | grep -q "JSON parse failed"; then
+  pass "--update-baseline checks tooling verdict before parsing stdout"
+else
+  fail "--update-baseline misclassified tooling-failed text output (status ${status}); got: ${out}"
+fi
+
 # Guard the exit taxonomy from CIB-278: valid JSON from an ordinary content
 # failure remains acceptable regeneration input.
 cat >"${bl_root}/content-json-surface.mjs" <<'EOF'
