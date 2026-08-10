@@ -32,9 +32,12 @@ pub struct RunTierBOptions {
 }
 
 pub fn run_tier_b(opts: &RunTierBOptions) -> Result<Vec<DevaccReport>, String> {
-    // Default and dry_run both use the scaffold driver; live work requires external.
-    let _ = opts.dry_run;
-    let driver = std::env::var("ANVIL_DEVACC_DRIVER").unwrap_or_else(|_| "dry-run".into());
+    // Explicit env wins; otherwise --live selects external and --dry-run selects dry-run.
+    let driver = match std::env::var("ANVIL_DEVACC_DRIVER") {
+        Ok(v) if !v.is_empty() => v,
+        _ if opts.dry_run => "dry-run".into(),
+        _ => "external".into(),
+    };
 
     match driver.as_str() {
         "dry-run" => run_dry(opts),

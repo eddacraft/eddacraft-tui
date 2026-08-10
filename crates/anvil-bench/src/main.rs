@@ -105,6 +105,8 @@ fn main() {
     let path = report_output_path(&out_dir, report.generated_at_epoch);
     write_report_exclusive(&report, &path).expect("failed to write report");
     eprintln!("Report written to {}", path.display());
+
+    print_summary(&report);
 }
 
 fn run_devacc(args: &[String]) -> Result<(), String> {
@@ -219,13 +221,62 @@ Env:
     );
 }
 
-fn report_output_path(out_dir: &std::path::Path, epoch: u64) -> PathBuf {
-    out_dir.join(format!("report-{epoch}.json"))
+fn report_output_path(out_dir: &std::path::Path, generated_at_epoch: u64) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    out_dir.join(format!(
+        "stress-{generated_at_epoch}-{}-{nanos}.json",
+        process::id()
+    ))
 }
 
-fn write_report_exclusive(report: &BenchReport, path: &PathBuf) -> std::io::Result<()> {
+fn write_report_exclusive(report: &BenchReport, path: &std::path::Path) -> std::io::Result<()> {
+    let json = report
+        .to_json()
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-    let json = serde_json::to_string_pretty(report).expect("serialize report");
-    file.write_all(json.as_bytes())?;
-    Ok(())
+    file.write_all(json.as_bytes())
+}
+
+fn print_summary(report: &BenchReport) {
+    println!("\n{:=<60}", "");
+    println!(" anvil Stress Test Results");
+    println!("{:=<60}\n", "");
+
+    for result in &report.results {
+        println!("── {} ({:.2}s)", result.scenario, result.duration_secs);
+        for metric in &result.metrics {
+            println!(
+                "   {:<40} {:>10.2} {}",
+                metric.name, metric.value, metric.unit
+            );
+        }
+        println!();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_report_exclusive_refuses_to_overwrite_existing_report() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("stress-fixed.json");
+        let report = BenchReport::new("anvil-stress");
+
+        write_report_exclusive(&report, &path).expect("write initial report");
+        let first = fs::read_to_string(&path).expect("read initial report");
+
+        let err = write_report_exclusive(&report, &path)
+            .expect_err("second write to same report path should fail");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(
+            fs::read_to_string(&path).expect("report should remain unchanged"),
+            first
+        );
+    }
 }

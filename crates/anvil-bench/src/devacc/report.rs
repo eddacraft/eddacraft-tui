@@ -87,11 +87,17 @@ impl DevaccReport {
         if !self.scenario.starts_with("DEVACC-SCN-") {
             return Err(format!("bad scenario id {}", self.scenario));
         }
-        if self.tokens_total != self.tokens_in + self.tokens_out
-            && self.tokens_in == 0
-            && self.tokens_out == 0
-        {
-            // Tier A often fills only tokens_total / tool_results without provider splits.
+        // When provider splits are present, they must sum to tokens_total.
+        // Tier A often sets only tokens_total (tokens_in == tokens_total, tokens_out == 0)
+        // or fills tokens_total without independent in/out — allow those.
+        if self.tokens_in > 0 || self.tokens_out > 0 {
+            let sum = self.tokens_in.saturating_add(self.tokens_out);
+            if sum != self.tokens_total {
+                return Err(format!(
+                    "tokens_in ({}) + tokens_out ({}) != tokens_total ({})",
+                    self.tokens_in, self.tokens_out, self.tokens_total
+                ));
+            }
         }
         Ok(())
     }
