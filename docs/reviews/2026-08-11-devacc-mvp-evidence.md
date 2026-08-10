@@ -1,31 +1,32 @@
-# DEVACC Tier A MVP evidence note
+# DEVACC MVP evidence note (Tier A + dry-run B)
 
 | Type  | Authority | Owner  | Status | Freshness  |
 | ----- | --------- | ------ | ------ | ---------- |
 | Guide | Advisory  | DEVACC | Live   | 2026-08-11 |
 
-| Upstream                                                                                                    | Downstream                                                 |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`dev-acceleration-benchmark-spec.md`](../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..006 | `plans/modules/dev-acceleration-benchmarks.aps.md`, claims |
+| Upstream                                                                                                                        | Downstream                                         |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [`dev-acceleration-benchmark-spec.md`](../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..010 (no live agent yet) | `plans/modules/dev-acceleration-benchmarks.aps.md` |
 
-## Scope
+## What this note covers (no headless-agent choice required)
 
-Tier A only (DEVACC-001..006). Tier B live agent evidence is out of this note.
-
-| Field                  | Value                                            |
-| ---------------------- | ------------------------------------------------ |
-| Branch                 | `feat/devacc-complete`                           |
-| Suite                  | Tier A deterministic scripts                     |
-| Publishable hero claim | **No** — task-level marketing claims need Tier B |
+| Surface                                   | Status        | Notes                                                                   |
+| ----------------------------------------- | ------------- | ----------------------------------------------------------------------- |
+| Tier A deterministic suite                | Done          | navigate / edit ceiling / plan / guard scripts                          |
+| Tier B dry-run + external driver contract | Done          | `ANVIL_DEVACC_DRIVER=dry-run\|external`; not Claude/Cursor-specific     |
+| Claims packaging                          | Done          | `benchmarks/devacc/claims-policy.md`                                    |
+| Live pinned-model agent runs (n≥10)       | **Not done**  | Needs credentials + external driver implementation; not publishable yet |
+| Opt-in nightly / PR gate                  | Proposed only | Off by default; not required for Complete                               |
 
 ## Commands
 
 ```bash
 cargo test -p anvil-bench --lib -- devacc_
 cargo run -p anvil-bench --bin anvil-bench -- devacc --tier A
+cargo run -p anvil-bench --bin anvil-bench -- devacc --tier B --dry-run
 ```
 
-## Sample paired reductions (`gctx-simple-v1`, quality veto)
+## Sample Tier A paired reductions (`gctx-simple-v1`, quality veto)
 
 | Scenario         | Control tokens | Treatment       | Reduction                      |
 | ---------------- | -------------- | --------------- | ------------------------------ |
@@ -33,16 +34,20 @@ cargo run -p anvil-bench --bin anvil-bench -- devacc --tier A
 | SCN-02           | 574            | 215             | ~63%                           |
 | SCN-04           | 494            | 170             | ~66%                           |
 | SCN-10 (ceiling) | 400            | 335             | ~16%                           |
+| SCN-20 (plan)    | 276            | 229             | ~17%                           |
 | SCN-30 (guard)   | 171            | 166 + block     | safety win, not token headline |
 | SCN-32 (tax)     | 184            | 170             | ~8% validation tax             |
 
-Edit ceilings SCN-11/12 may show higher treatment tokens when a gctx payload is
-added on top of required file reads — labelled `ceiling`, not `achieved`.
+## Tier B dry-run
+
+Dry-run records reuse Tier A scripts (and a composite SCN-40 scaffold) with
+`tier: B` and `model: dry-run`. Notes mark them **non-publishable**. They prove
+report schema + runner wiring only.
 
 ## Docs closeout
 
-| Field               | Value                                                     |
-| ------------------- | --------------------------------------------------------- |
-| **Type**            | Review (internal measurement evidence)                    |
-| **Does not change** | Product runtime; public marketing numbers                 |
-| **Next**            | DEVACC-007..010 remain for Tier B / claims when scheduled |
+| Field               | Value                                                              |
+| ------------------- | ------------------------------------------------------------------ |
+| **Type**            | Guide (internal measurement evidence)                              |
+| **Does not change** | Product runtime; public marketing numbers                          |
+| **Next**            | Live external driver runs when credentials exist; keep 011/012 off |

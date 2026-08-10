@@ -136,6 +136,12 @@
 | ------------------------------------------------------- | -------------------------------- | ----- | ------------- | ----- | ------ |
 | [Local Dashboard](../../docs/guides/local-dashboard.md) | `docs/guides/local-dashboard.md` | Guide | Authoritative | DASH  | Live   |
 
+## DEVACC
+
+| Document                                                                                              | Path                                             | Type  | Authority | Owner  | Status |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----- | --------- | ------ | ------ |
+| [DEVACC MVP evidence note (Tier A + dry-run B)](../../docs/reviews/2026-08-11-devacc-mvp-evidence.md) | `docs/reviews/2026-08-11-devacc-mvp-evidence.md` | Guide | Advisory  | DEVACC | Live   |
+
 ## DEVACC (plans/modules/dev-acceleration-benchmarks.aps.md)
 
 | Document                                                                                               | Path                                                   | Type | Authority | Owner                                                     | Status |
