@@ -5,9 +5,9 @@
 
 | ID     | Owner  | Priority | Status | Progress |
 | ------ | ------ | -------- | ------ | -------- |
-| DEVACC | @aneki | medium   | Done   | 12/12    |
+| DEVACC | @aneki | medium   | Ready  | 6/12     |
 
-**Last reviewed:** 2026-08-11 — suite landed on `feat/devacc-complete`. Design at
+**Last reviewed:** 2026-08-11 — Tier A (DEVACC-001..006) landed on `feat/devacc-complete`; stop after Tier A. Design at
 [`docs/architecture/dev-acceleration-benchmark-spec.md`](../../docs/architecture/dev-acceleration-benchmark-spec.md);
 first wave DEVACC-001..006 promoted **Ready**. Measures assistant-facing
 **Developer Acceleration** (graph context + pre-write validation + skill loop)
@@ -97,9 +97,9 @@ This module implements the task-level suite specified in the architecture doc.
 
 - [x] Operator can run Tier A on demand without model credentials and get
       deterministic token/tool metrics for navigation scenarios
-- [x] Operator can run Tier B on demand with a pinned model and get paired
+- [ ] Operator can run Tier B on demand with a pinned model and get paired
       `control` vs `full-accel` results with success rubrics
-- [x] Published claims cite scenario id, arm, tier, model, and Anvil SHA
+- [ ] Published claims cite scenario id, arm, tier, model, and Anvil SHA
 - [x] Nightly schedule remains off unless DEVACC-011 is deliberately enabled
 - [x] PR CI does not block on DEVACC task suites unless DEVACC-012 is
       deliberately enabled
@@ -201,7 +201,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-007: Tier B on-demand agent runner
 
-- **Status:** Done 2026-08-11 — custom MCP host external driver + dry-run scaffold; decision recorded in architecture spec
+- **Status:** Draft — headless driver chosen (custom MCP host external + dry-run scaffold present in tree); promote when scheduling Phase 2
 - **Intent:** Provide a pinned-model, credentialed, on-demand runner for
   `control` / `gctx-only` / `full-accel` / `validate-only` arms with hard turn
   and wall budgets.
@@ -222,7 +222,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-008: Tier B MVP evidence (SCN-01, 02, 10)
 
-- **Status:** Done 2026-08-11 — internal MVP evidence note `docs/reviews/2026-08-11-devacc-mvp-evidence.md` (Tier A + dry-run B; no public hero claim)
+- **Status:** Draft — depends on DEVACC-007 live runs; Tier A internal note only so far
 - **Intent:** Produce internal paired evidence (n≥10 where practical) for
   navigation and one edit scenario so achieved token reduction is known.
 - **Expected Outcome:** Reviewed report under `benchmark-results/` with optional
@@ -238,7 +238,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-009: Planning scenarios (SCN-20, 21, 22)
 
-- **Status:** Done 2026-08-11 — SCN-20/21/22 Tier A on mini-aps-plan
+- **Status:** Draft
 - **Intent:** Cover APS-shaped planning tasks (next Ready item, outline, unblock
   set) so planning token cost is measured, not only code edits.
 - **Expected Outcome:** Tier A and/or Tier B coverage for SCN-20–22 on
@@ -250,7 +250,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-010: Headline scenario and claims package (SCN-40)
 
-- **Status:** Done 2026-08-11 — SCN-40 dry-run scaffold + `benchmarks/devacc/claims-policy.md`
+- **Status:** Draft — claims-policy.md scaffold exists; public package waits Phase 3
 - **Intent:** Land the multi-stage "feature afternoon" scenario and the public
   claims packaging rules (ids, caveats, history pointer) so marketing and docs
   can cite evidence safely.
@@ -267,7 +267,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-011: Opt-in nightly schedule
 
-- **Status:** Done 2026-08-11 — opt-in workflow `.github/workflows/devacc-opt-in.yml` (workflow_dispatch only; schedule commented off)
+- **Status:** Proposed — opt-in nightly not required for Complete; not enabled
 - **Intent:** Optional workflow to run a bounded DEVACC slice on a schedule or
   `workflow_dispatch`, **disabled by default** (no automatic nightly cost).
 - **Expected Outcome:** Workflow file or documented enablement path that
@@ -282,7 +282,7 @@ This module implements the task-level suite specified in the architecture doc.
 
 #### DEVACC-012: Opt-in CI / PR gate
 
-- **Status:** Done 2026-08-11 — no PR required check; opt-in workflow only; default CI unchanged
+- **Status:** Proposed — opt-in PR gate not required for Complete; not enabled
 - **Intent:** Optional PR or required-check wiring for a cheap Tier A subset,
   **off by default** so PRs do not gain a new blocking or noisy gate without
   an explicit decision.
@@ -330,7 +330,7 @@ This module implements the task-level suite specified in the architecture doc.
 | ----- | ----- | ------ |
 | 0 — Catalogue | 1 | Done |
 | 1 — Tier A spine | 5 | Done |
-| 2 — Tier B on-demand | 2 | Done |
-| 3 — Planning + claims | 2 | Done |
-| 4 — Opt-in automation | 2 | Done (opt-in path; default off) |
-| **Total** | **12** | **12/12** Done |
+| 2 — Tier B on-demand | 2 | Draft |
+| 3 — Planning + claims | 2 | Draft |
+| 4 — Opt-in automation | 2 | Proposed (optional) |
+| **Total** | **12** | **6/12** Tier A Done; stop after Tier A |

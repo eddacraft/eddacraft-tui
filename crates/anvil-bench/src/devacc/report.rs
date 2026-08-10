@@ -108,10 +108,7 @@ fn default_host_class() -> String {
 }
 
 /// Quality veto: do not include failed runs in token-win means.
-pub fn token_reduction_vs_control(
-    control: &DevaccReport,
-    treatment: &DevaccReport,
-) -> Option<f64> {
+pub fn token_reduction_vs_control(control: &DevaccReport, treatment: &DevaccReport) -> Option<f64> {
     if !control.task_success || !treatment.task_success {
         return None;
     }

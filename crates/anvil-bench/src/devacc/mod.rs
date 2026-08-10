@@ -23,10 +23,7 @@ pub fn resolve_repo_root(explicit: Option<&Path>) -> Result<PathBuf, String> {
         if cat.is_file() {
             return Ok(p.to_path_buf());
         }
-        return Err(format!(
-            "catalogue not found at {}",
-            cat.display()
-        ));
+        return Err(format!("catalogue not found at {}", cat.display()));
     }
 
     let mut dir = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -39,8 +36,5 @@ pub fn resolve_repo_root(explicit: Option<&Path>) -> Result<PathBuf, String> {
             break;
         }
     }
-    Err(
-        "could not locate benchmarks/devacc/catalogue.yaml from cwd or ancestors"
-            .to_string(),
-    )
+    Err("could not locate benchmarks/devacc/catalogue.yaml from cwd or ancestors".to_string())
 }

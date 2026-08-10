@@ -118,10 +118,7 @@ fn run_devacc(args: &[String]) -> Result<(), String> {
         match args[i].as_str() {
             "--tier" => {
                 i += 1;
-                tier = args
-                    .get(i)
-                    .ok_or("--tier requires A|B")?
-                    .to_uppercase();
+                tier = args.get(i).ok_or("--tier requires A|B")?.to_uppercase();
             }
             "--scenario" => {
                 i += 1;
@@ -161,11 +158,7 @@ fn run_devacc(args: &[String]) -> Result<(), String> {
                 arm_filter: arm,
                 out_dir: Some(out_dir.clone()),
             })?;
-            eprintln!(
-                "✓ {} records → {}",
-                reports.len(),
-                out_dir.display()
-            );
+            eprintln!("✓ {} records → {}", reports.len(), out_dir.display());
             for r in &reports {
                 eprintln!(
                     "  {} arm={} success={} tokens_total={}",
@@ -174,8 +167,10 @@ fn run_devacc(args: &[String]) -> Result<(), String> {
             }
         }
         "B" => {
-            eprintln!("▸ DEVACC Tier B (driver={}, dry_run={dry_run})...", 
-                std::env::var("ANVIL_DEVACC_DRIVER").unwrap_or_else(|_| "dry-run".into()));
+            eprintln!(
+                "▸ DEVACC Tier B (driver={}, dry_run={dry_run})...",
+                std::env::var("ANVIL_DEVACC_DRIVER").unwrap_or_else(|_| "dry-run".into())
+            );
             let reports = run_tier_b(&RunTierBOptions {
                 repo_root: None,
                 scenario_filter: scenario,
@@ -183,11 +178,7 @@ fn run_devacc(args: &[String]) -> Result<(), String> {
                 out_dir: Some(out_dir.clone()),
                 dry_run,
             })?;
-            eprintln!(
-                "✓ {} records → {}",
-                reports.len(),
-                out_dir.display()
-            );
+            eprintln!("✓ {} records → {}", reports.len(), out_dir.display());
             for r in &reports {
                 eprintln!(
                     "  {} arm={} success={} tokens_total={} model={:?}",
@@ -233,10 +224,7 @@ fn report_output_path(out_dir: &std::path::Path, epoch: u64) -> PathBuf {
 }
 
 fn write_report_exclusive(report: &BenchReport, path: &PathBuf) -> std::io::Result<()> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)?;
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     let json = serde_json::to_string_pretty(report).expect("serialize report");
     file.write_all(json.as_bytes())?;
     Ok(())

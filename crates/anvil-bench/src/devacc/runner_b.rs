@@ -159,9 +159,8 @@ fn dry_scn40(
         r.tool_calls = tools;
         r.turns = 5;
         r.wall_ms = 0;
-        r.notes = Some(
-            "dry-run composite scaffold (SCN-01+10+32); not publishable hero evidence".into(),
-        );
+        r.notes =
+            Some("dry-run composite scaffold (SCN-01+10+32); not publishable hero evidence".into());
         r.validate_shape()?;
         reports.push(r);
     }
@@ -206,10 +205,7 @@ fn run_external(opts: &RunTierBOptions) -> Result<Vec<DevaccReport>, String> {
         .unwrap_or_else(|| root.join("benchmark-results/devacc-external"));
     let path = out.join("external-results.json");
     if !path.is_file() {
-        return Err(format!(
-            "external driver did not write {}",
-            path.display()
-        ));
+        return Err(format!("external driver did not write {}", path.display()));
     }
     let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let mut reports: Vec<DevaccReport> =
@@ -254,10 +250,10 @@ mod tests {
         })
         .expect("scn40");
         assert!(reports.iter().any(|r| r.scenario == "DEVACC-SCN-40"));
-        assert!(
-            reports
-                .iter()
-                .all(|r| r.notes.as_deref().is_some_and(|n| n.contains("not publishable")))
-        );
+        assert!(reports.iter().all(|r| {
+            r.notes
+                .as_deref()
+                .is_some_and(|n| n.contains("not publishable"))
+        }));
     }
 }

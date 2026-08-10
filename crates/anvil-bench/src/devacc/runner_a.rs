@@ -177,10 +177,7 @@ fn apply_step(
             apply_assert_gold(step, fixture, arm, acc)?;
         }
         other => {
-            return Err(format!(
-                "unknown tool {other} in {}",
-                script_path.display()
-            ));
+            return Err(format!("unknown tool {other} in {}", script_path.display()));
         }
     }
     Ok(())
@@ -333,6 +330,10 @@ mod tests {
         })
         .expect("run scn-10");
         assert!(reports.iter().all(|r| r.task_success));
-        assert!(reports.iter().any(|r| r.label.as_deref() == Some("ceiling")));
+        assert!(
+            reports
+                .iter()
+                .any(|r| r.label.as_deref() == Some("ceiling"))
+        );
     }
 }

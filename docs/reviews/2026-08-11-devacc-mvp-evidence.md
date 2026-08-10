@@ -1,21 +1,31 @@
-# DEVACC MVP evidence note (2026-08-11)
+# DEVACC Tier A MVP evidence note
 
-| Field                  | Value                                                   |
-| ---------------------- | ------------------------------------------------------- |
-| Branch                 | `feat/devacc-complete`                                  |
-| Suite                  | Tier A deterministic + Tier B dry-run scaffold          |
-| Publishable hero claim | **No** — live Tier B n≥10 / SCN-40 not run with a model |
+| Type  | Authority | Owner  | Status | Freshness  |
+| ----- | --------- | ------ | ------ | ---------- |
+| Guide | Advisory  | DEVACC | Live   | 2026-08-11 |
 
-## Tier A (reproducible)
+| Upstream                                                                                                    | Downstream                                                 |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [`dev-acceleration-benchmark-spec.md`](../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..006 | `plans/modules/dev-acceleration-benchmarks.aps.md`, claims |
 
-Command:
+## Scope
+
+Tier A only (DEVACC-001..006). Tier B live agent evidence is out of this note.
+
+| Field                  | Value                                            |
+| ---------------------- | ------------------------------------------------ |
+| Branch                 | `feat/devacc-complete`                           |
+| Suite                  | Tier A deterministic scripts                     |
+| Publishable hero claim | **No** — task-level marketing claims need Tier B |
+
+## Commands
 
 ```bash
 cargo test -p anvil-bench --lib -- devacc_
 cargo run -p anvil-bench --bin anvil-bench -- devacc --tier A
 ```
 
-Sample paired reductions (`gctx-simple-v1` estimator, quality veto applied):
+## Sample paired reductions (`gctx-simple-v1`, quality veto)
 
 | Scenario         | Control tokens | Treatment       | Reduction                      |
 | ---------------- | -------------- | --------------- | ------------------------------ |
@@ -26,18 +36,13 @@ Sample paired reductions (`gctx-simple-v1` estimator, quality veto applied):
 | SCN-30 (guard)   | 171            | 166 + block     | safety win, not token headline |
 | SCN-32 (tax)     | 184            | 170             | ~8% validation tax             |
 
-Edit ceilings SCN-11/12 may show **higher** treatment tokens when gctx payload
-is added on top of required file reads — labelled `ceiling`, not `achieved`.
+Edit ceilings SCN-11/12 may show higher treatment tokens when a gctx payload is
+added on top of required file reads — labelled `ceiling`, not `achieved`.
 
-## Tier B
+## Docs closeout
 
-- Driver decision: **custom MCP host** via `ANVIL_DEVACC_DRIVER=external`
-  writing `external-results.json`.
-- Built-in `dry-run` scaffolds schema-valid B records from Tier A; notes mark
-  them non-publishable.
-- SCN-40 dry-run is a composite scaffold only.
-
-## Claims
-
-See `benchmarks/devacc/claims-policy.md`. No public marketing numbers are
-authorised from this dry-run window.
+| Field               | Value                                                     |
+| ------------------- | --------------------------------------------------------- |
+| **Type**            | Review (internal measurement evidence)                    |
+| **Does not change** | Product runtime; public marketing numbers                 |
+| **Next**            | DEVACC-007..010 remain for Tier B / claims when scheduled |
