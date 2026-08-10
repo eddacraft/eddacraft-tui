@@ -1269,10 +1269,7 @@ fn print_name_update(result: &NameUpdateResponse) {
 }
 
 fn print_email_send(result: &EmailSendResponse) {
-    println!(
-        "✓ Sent template `{}` to {}",
-        result.template, result.email
-    );
+    println!("✓ Sent template `{}` to {}", result.template, result.email);
 }
 
 fn load_template_props(
@@ -1282,8 +1279,8 @@ fn load_template_props(
     match (props, props_file) {
         (None, None) => Ok(None),
         (Some(raw), None) => {
-            let value: serde_json::Value = serde_json::from_str(raw)
-                .context("failed to parse --props as JSON")?;
+            let value: serde_json::Value =
+                serde_json::from_str(raw).context("failed to parse --props as JSON")?;
             if !value.is_object() {
                 bail!("--props must be a JSON object");
             }
@@ -1866,8 +1863,7 @@ mod tests {
 
     #[test]
     fn args_requires_template_for_email_send() {
-        let err =
-            Wrapper::try_parse_from(["test", "email-send", "josh@eddacraft.ai"]).unwrap_err();
+        let err = Wrapper::try_parse_from(["test", "email-send", "josh@eddacraft.ai"]).unwrap_err();
         assert_ne!(err.exit_code(), 0);
     }
 
