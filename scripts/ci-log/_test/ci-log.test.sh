@@ -174,4 +174,26 @@ echo "$status_json" | grep -q '"pendingCount": 1' || fail "dry-run should not cl
 pending2="$(ls "$tmp/repo/.git/anvil/ci-log-pending/"*.md | tail -1)"
 grep -q 'promote: CIB' "$pending2" || fail "follow-up not written"
 
+# 12) command date inputs must name real UTC calendar dates
+for invalid_date in 2026-02-30 2025-02-29; do
+  if "${APPEND[@]}" --date "$invalid_date" --task 'impossible date' --agent codex \
+    2>/dev/null; then
+    fail "append accepted impossible date: $invalid_date"
+  fi
+  if "${WATER[@]}" --date "$invalid_date" 2>/dev/null; then
+    fail "watermark accepted impossible date: $invalid_date"
+  fi
+  if "${SINCE[@]}" --since "$invalid_date" 2>/dev/null; then
+    fail "since accepted impossible date: $invalid_date"
+  fi
+done
+
+"${APPEND[@]}" --date 2024-02-29 --task 'valid leap date' --agent codex >/dev/null
+grep -q '^### 2024-02-29 ' "$tmp/repo/.git/anvil/ci-log-pending/"*.md || \
+  fail "append rejected valid leap date"
+"${WATER[@]}" --date 2024-02-29 >/dev/null
+grep -q 'Last triaged:\*\* 2024-02-29' plans/reviews/continuous-improvement-log.md || \
+  fail "watermark rejected valid leap date"
+"${SINCE[@]}" --since 2024-02-29 >/dev/null || fail "since rejected valid leap date"
+
 printf 'ci-log.test.sh: OK\n'

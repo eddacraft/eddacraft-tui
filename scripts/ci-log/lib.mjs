@@ -158,6 +158,18 @@ export function todayUtc(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+function assertRealCalendarDate(date, { allowNever = false } = {}) {
+  if (allowNever && date === 'never') return date;
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`invalid date: ${date}`);
+  }
+  const parsed = new Date(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+    throw new Error(`invalid date: ${date}`);
+  }
+  return date;
+}
+
 /** Normalise an entry body to start with ### heading and end with one blank line. */
 export function normaliseEntry(raw) {
   let text = String(raw).replace(/\r\n/g, '\n').trim();
@@ -187,6 +199,7 @@ export function buildEntryFromFields({
   followUp = 'none',
   title = '',
 } = {}) {
+  assertRealCalendarDate(date);
   if (!task || !String(task).trim()) {
     throw new Error('--task is required when building an entry from fields');
   }
@@ -262,6 +275,7 @@ export function readWatermark(cwd = process.cwd()) {
 }
 
 export function setWatermark(date, { cwd = process.cwd() } = {}) {
+  assertRealCalendarDate(date, { allowNever: true });
   return withTrackedLogLock(cwd, () => {
     const path = trackedLogPath(cwd);
     const text = readText(path);
@@ -315,6 +329,7 @@ export function parseEntries(text) {
 }
 
 export function entriesSince(date, { cwd = process.cwd() } = {}) {
+  if (date && date !== 'never') assertRealCalendarDate(date);
   const text = readText(trackedLogPath(cwd));
   const entries = parseEntries(text);
   if (!date || date === 'never') return entries;
