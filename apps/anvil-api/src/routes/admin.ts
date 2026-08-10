@@ -1043,6 +1043,8 @@ admin.post('/user/name-update', zValidator('json', userNameUpdateSchema), async 
     );
   }
 
+  // Updates first; derive waitlistUpdated/userUpdated from RETURNING so the
+  // response and audit match what actually changed (race-safe).
   const statements = [];
 
   if (waitlist) {
@@ -1072,27 +1074,10 @@ admin.post('/user/name-update', zValidator('json', userNameUpdateSchema), async 
     }
   }
 
-  statements.push(
-    sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-        VALUES (
-          ${'user.name.updated'},
-          ${actor},
-          ${JSON.stringify({
-            email: normalizedEmail,
-            name,
-            notesProvided: notes !== undefined,
-            waitlistUpdated: Boolean(waitlist),
-            userUpdated: Boolean(existing),
-            userId: existing?.id ?? null,
-          })},
-          ${authMethod}
-        )
-        RETURNING *`
-  );
-
   const txResult = (await sql.transaction(statements)) as unknown[][];
 
   let waitlistName: string | null = null;
+  let waitlistUpdated = false;
   let userRow: {
     id: string;
     email: string;
@@ -1104,7 +1089,8 @@ admin.post('/user/name-update', zValidator('json', userNameUpdateSchema), async 
   let idx = 0;
   if (waitlist) {
     const row = txResult[idx]?.[0] as { email: string; name: string | null } | undefined;
-    waitlistName = row?.name ?? name;
+    waitlistUpdated = Boolean(row);
+    waitlistName = row?.name ?? null;
     idx += 1;
   }
   if (existing) {
@@ -1118,16 +1104,33 @@ admin.post('/user/name-update', zValidator('json', userNameUpdateSchema), async 
             status: string;
           }
         | undefined) ?? null;
-    if (!userRow) {
-      return c.json({ error: 'User was deleted during update' }, 404);
-    }
   }
+
+  const userUpdated = Boolean(userRow);
+  if (!waitlistUpdated && !userUpdated) {
+    return c.json({ error: 'User was deleted during update' }, 404);
+  }
+
+  await insertAuditLog(
+    sql,
+    'user.name.updated',
+    actor,
+    {
+      email: normalizedEmail,
+      name,
+      notesProvided: notes !== undefined,
+      waitlistUpdated,
+      userUpdated,
+      userId: userRow?.id ?? existing?.id ?? null,
+    },
+    authMethod
+  );
 
   return c.json({
     email: normalizedEmail,
     name: userRow?.name ?? waitlistName ?? name,
-    waitlistUpdated: Boolean(waitlist),
-    userUpdated: Boolean(existing),
+    waitlistUpdated,
+    userUpdated,
     user: userRow
       ? {
           id: userRow.id,

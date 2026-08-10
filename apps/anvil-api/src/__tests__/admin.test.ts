@@ -1118,6 +1118,7 @@ describe('admin endpoints', () => {
     beforeEach(() => {
       vi.mocked(findUserByEmail).mockReset();
       vi.mocked(findWaitlistEntryByEmail).mockReset();
+      vi.mocked(insertAuditLog).mockClear();
     });
 
     const existingUser = {
@@ -1144,7 +1145,6 @@ describe('admin endpoints', () => {
             status: 'active',
           },
         ],
-        [{ id: 'audit-1' }],
       ]);
 
       const res = await request(
@@ -1170,6 +1170,16 @@ describe('admin endpoints', () => {
         },
       });
       expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+      expect(insertAuditLog).toHaveBeenCalledWith(
+        expect.anything(),
+        'user.name.updated',
+        expect.any(String),
+        expect.objectContaining({
+          waitlistUpdated: true,
+          userUpdated: true,
+        }),
+        expect.anything()
+      );
       expect(sendBetaInvite).not.toHaveBeenCalled();
     });
 
@@ -1178,7 +1188,6 @@ describe('admin endpoints', () => {
       vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
       mockSql.transaction.mockResolvedValue([
         [{ email: 'pending@example.com', name: 'Rinaldo De Paolis' }],
-        [{ id: 'audit-1' }],
       ]);
 
       const res = await request(
@@ -1210,7 +1219,6 @@ describe('admin endpoints', () => {
             status: 'active',
           },
         ],
-        [{ id: 'audit-1' }],
       ]);
 
       const res = await request(
@@ -1234,10 +1242,7 @@ describe('admin endpoints', () => {
     it('normalises mixed-case email before lookup', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce({ id: 'wl-1' });
       vi.mocked(findUserByEmail).mockResolvedValueOnce(null);
-      mockSql.transaction.mockResolvedValue([
-        [{ email: 'person@example.com', name: 'Alice' }],
-        [{ id: 'audit-1' }],
-      ]);
+      mockSql.transaction.mockResolvedValue([[{ email: 'person@example.com', name: 'Alice' }]]);
 
       const res = await request(
         'POST',
@@ -1322,7 +1327,7 @@ describe('admin endpoints', () => {
     it('returns 404 when beta user deleted between lookup and update', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValueOnce(null);
       vi.mocked(findUserByEmail).mockResolvedValueOnce(existingUser);
-      mockSql.transaction.mockResolvedValue([[], [{ id: 'audit-1' }]]);
+      mockSql.transaction.mockResolvedValue([[]]);
 
       const res = await request(
         'POST',
@@ -1334,6 +1339,7 @@ describe('admin endpoints', () => {
       expect(res.status).toBe(404);
       const body = await res.json();
       expect(body.error).toBe('User was deleted during update');
+      expect(insertAuditLog).not.toHaveBeenCalled();
     });
   });
 
