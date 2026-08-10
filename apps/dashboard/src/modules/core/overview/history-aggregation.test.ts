@@ -35,6 +35,25 @@ describe('protection history aggregation', () => {
     expect(buckets[0]).toMatchObject({ passRate: 0.5, warningCount: 4, score: 60 });
   });
 
+  it('keeps the chronologically latest score and warning count for a bucket', () => {
+    const newest = {
+      ...point('2026-07-06T18:00:00Z', 'pass', 9),
+      score: 97,
+    };
+    const older = {
+      ...point('2026-07-06T08:00:00Z', 'fail', 2),
+      score: 42,
+    };
+
+    const buckets = aggregateProtectionHistory([newest, older], 'daily');
+
+    expect(buckets).toHaveLength(1);
+    expect(buckets[0]).toMatchObject({
+      score: 97,
+      warningCount: 9,
+    });
+  });
+
   it('starts weekly buckets on Monday UTC and keeps the last warning level', () => {
     const buckets = aggregateProtectionHistory(
       [
@@ -60,7 +79,7 @@ describe('protection history aggregation', () => {
 
   it('aggregates the bounded 500-point resource without padding', () => {
     const points = Array.from({ length: 500 }, (_, index) =>
-      point(`2026-07-01T00:${String(index % 60).padStart(2, '0')}:00Z`, 'pass', index)
+      point(new Date(Date.UTC(2026, 6, 1) + index * 1_000).toISOString(), 'pass', index)
     );
 
     const buckets = aggregateProtectionHistory(points, 'daily');
