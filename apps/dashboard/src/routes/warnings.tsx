@@ -15,19 +15,16 @@ type Warning = components['schemas']['WarningSummary'];
 export function resolveWarningSelection(
   warnings: readonly Warning[],
   evidence: string | undefined,
-  selected: Warning | undefined
+  _selected?: Warning
 ) {
-  if (evidence !== undefined) {
-    return warnings.find((warning) => warning.id === evidence || warning.evidence_id === evidence);
-  }
-  return selected;
+  if (evidence === undefined) return undefined;
+  return warnings.find((warning) => warning.id === evidence || warning.evidence_id === evidence);
 }
 
 export function DashboardWarningsRoute() {
   const query = useProtectionOverview();
   const search = useSearch({ from: '/warnings' });
   const navigate = useNavigate({ from: '/warnings' });
-  const [selected, setSelected] = useState<Warning | undefined>();
   const [panelState, setPanelState] = useState({
     evidence: search.evidence,
     open: Boolean(search.evidence),
@@ -39,7 +36,7 @@ export function DashboardWarningsRoute() {
   return (
     <QueryBoundary query={query} loadingLabel="Warnings">
       {(overview) => {
-        const initial = resolveWarningSelection(overview.warnings, search.evidence, selected);
+        const initial = resolveWarningSelection(overview.warnings, search.evidence);
         return (
           <section className="warnings-page">
             <header className="protection-heading">
@@ -49,7 +46,6 @@ export function DashboardWarningsRoute() {
             </header>
             <WarningTable
               onSelect={(warning) => {
-                setSelected(warning);
                 setOpen(true);
                 void navigate({
                   search: (current) => ({

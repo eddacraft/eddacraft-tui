@@ -8,6 +8,17 @@ describe('warnings route selection', () => {
     const retained = protectionOverviewFixture.warnings[0]!;
 
     expect(resolveWarningSelection([retained], 'stale-evidence', retained)).toBeUndefined();
-    expect(resolveWarningSelection([retained], undefined, retained)).toBe(retained);
+  });
+
+  it('does not reuse local selection when URL evidence is absent', () => {
+    const retained = protectionOverviewFixture.warnings[0]!;
+
+    expect(resolveWarningSelection([retained], undefined, retained)).toBeUndefined();
+  });
+
+  it('resolves a current warning once its evidence id is in the URL', () => {
+    const warning = protectionOverviewFixture.warnings[0]!;
+
+    expect(resolveWarningSelection([warning], warning.evidence_id)).toBe(warning);
   });
 });
