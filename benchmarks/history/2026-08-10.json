@@ -10,7 +10,21 @@
       "hostname": "deus",
       "cpus": 16
     },
-    "source": "benchmark-results/manual-20260810T155233Z (direct per-surface fallback after pnpm bench pipe abort)"
+    "source": "benchmark-results/manual-20260810T155233Z (direct per-surface fallback after pnpm bench pipe abort)",
+    "antipattern_catalogue": {
+      "schema_version": 1,
+      "fingerprint": "sha256:3d5e5c324022474303b659ddf4aecab7fd526e83fb5737c39ea87eb3908944c2",
+      "enabled_scanner_fingerprint": "sha256:27ec806949b799399047ec4ac2b69c68bac0bf3fa0ec89044346b3a85d89344e",
+      "pattern_count": 47,
+      "scanner_pattern_count": 39,
+      "enabled_scanner_pattern_count": 39,
+      "default_scanner_pattern_count": 33,
+      "default_source_rules": {
+        "typescript": 19,
+        "rust": 3,
+        "python": 14
+      }
+    }
   },
   "benches": {
     "kernel": [

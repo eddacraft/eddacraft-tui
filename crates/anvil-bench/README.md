@@ -35,11 +35,15 @@ Active
   include the full stress runner used by the nightly workflow.
 - **stress** -- Kernel-level stress scenarios (graph, policy, cold start,
   incremental throughput).
-- **antipattern_scan** -- Parallel anti-pattern scan throughput on a
-  320-artifact synthetic corpus spanning every `ArtifactKind`. Exercises the
-  rayon fan-out plus every enabled registry rule (including the SPG-003
-  post-filter rules and the `flags:"i"` inline prefix). This is the CI guard for
-  the parallel-scan claim in ADR-026.
+- **antipattern_scan** -- Rust scanner parallel throughput on the versioned
+  320-artifact `parallel_balanced_corpus_v2`, spanning every `ArtifactKind`.
+  Source artefacts are split evenly across TypeScript, Rust, and Python;
+  non-source artefacts exercise the SPG-003 post-filters and `flags:"i"` path.
+  This is the CI guard for the parallel-scan claim in ADR-026.
+- **checks antipattern group** -- Rust scanner per-file scaling on matched and
+  clean TypeScript, Rust, and Python inputs. The group is named
+  `antipattern_rust_scanner`: language labels describe inputs, not scanner
+  implementations.
 - **secret_scan_parallel** -- Serial vs parallel throughput on the secret scan
   path. Validates the parallel rollout speedup claim.
 - **walk_discovery** -- Sequential `ignore::WalkBuilder` vs `WalkParallel` for
@@ -104,12 +108,29 @@ The 0.5.0-beta release captures two new headline numbers in this harness:
 The per-bench detail below is the dev-box baseline that produced these
 release-level numbers; future releases extend the table the same way.
 
-### antipattern_scan baseline
+### antipattern_scan corpus versions
+
+The current case is `parallel_balanced_corpus_v2_fnv1a_<content-digest>`:
+
+- 60% source, split evenly across `.ts`, `.rs`, and `.py`;
+- 20% PR descriptions;
+- 10% commit messages;
+- 10% agent output.
+
+Changing the distribution or intended workload semantics requires a new
+corpus-version suffix. Any fixture-content change also changes the deterministic
+digest in the case name, preventing history from silently comparing different
+matched-pattern densities. Catalogue changes are versioned independently by the
+default and enabled-regex fingerprints that `scripts/bench/to-history.py` writes
+into each history record.
+
+### antipattern_scan legacy corpus-v1 baseline
 
 Collected on an Ubuntu 25.04 / Linux 6.17 / rayon default thread pool (recorded
 2026-04-28, local dev machine, `dev` branch post-rmcp stdio tool protocol):
 
-- Corpus: 320 synthetic artifacts, mixed kinds:
+- Corpus: 320 synthetic artifacts, mixed kinds (retired `parallel_mixed_corpus`
+  v1):
   - 60% source (`.ts`) cycling 6 content variants — exercises AP-\*,
     DD-001/002/003, GS-001.
   - 20% pr-description cycling 6 variants — exercises DD-004, RL-001/002/

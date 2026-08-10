@@ -11,6 +11,11 @@
   gates landed. New work item aligns the routine suite with CI and extends the
   committed history schema (`secret_scan_parallel`, `walk_discovery`,
   `hot_read`, `call_lift`, resource budgets). Status **In Progress**.
+- **TCOV-026 follow-up 2026-08-11.** The first full-suite comparison after the
+  rule catalogue expanded showed that antipattern timings were being compared
+  across different rule workloads and a TypeScript-heavy corpus. The active
+  follow-up adds language-labelled Rust-scanner cases, a balanced corpus v2,
+  and automatic catalogue fingerprints in committed history.
 
 ## Progress (as of 2026-06-20)
 
@@ -695,15 +700,31 @@ Change status to **Ready** when:
     `walk_discovery`.
   - `scripts/bench/to-history.py` normalises a `benchmark-results/manual-*`
     artifact dir into `benchmarks/history/<date>.json`.
+  - The checks benchmark names the Rust scanner explicitly and measures matched
+    plus clean TypeScript, Rust, and Python source inputs.
+  - The parallel scanner benchmark uses a versioned corpus whose source share is
+    split evenly across TypeScript, Rust, and Python.
+  - History records fingerprint the performance-relevant regex catalogue and
+    record default per-language rule counts; changed fingerprints establish a
+    new baseline instead of reporting a scanner-only regression.
 - **Files:**
   - `scripts/bench/run.sh`
   - `scripts/bench/to-history.py`
   - `.github/workflows/bench.yml`
+  - `crates/anvil-checks/benches/checks.rs`
+  - `crates/anvil-bench/benches/antipattern_scan.rs`
+  - `crates/anvil-bench/README.md`
   - `benchmarks/README.md`
+  - `benchmarks/history/<date>.json`
+  - `docs/testing/benchmark-results.md`
 - **Dependencies:** —
 - **Validation:** `pnpm bench -- --skip-resource-budget` completes on a quiet
   box; `python3 scripts/bench/to-history.py --help` documents usage; workflow
   YAML includes `secret_scan_parallel`; `cargo check -p eddacraft-anvil-graph-cache
   --benches` is in the bench compile-check job.
+  Follow-up: `python3 scripts/bench/to_history_test.py`;
+  `cargo bench -p eddacraft-anvil-checks --bench checks -- --test
+  antipattern_rust_scanner`; `cargo bench -p anvil-bench --bench
+  antipattern_scan -- --test`.
 - **Confidence:** high
 - **Status:** In Progress

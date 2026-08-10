@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -45,6 +46,23 @@ RESOURCE_LOGS: dict[str, str] = {
 }
 
 IPC_CASES = frozenset({"validation.service", "validation.roundtrip"})
+CATALOGUE_PERF_FIELDS = (
+    "id",
+    "version",
+    "enabled",
+    "opt_in",
+    "targets",
+    "detection",
+    "file_extensions",
+    "allowlist",
+    "threshold",
+    "all_file_types",
+)
+SOURCE_EXTENSIONS = {
+    "typescript": ".ts",
+    "rust": ".rs",
+    "python": ".py",
+}
 
 
 def repo_root() -> Path:
@@ -59,6 +77,74 @@ def git_short_commit(cwd: Path) -> str:
 
 def rustc_version() -> str:
     return subprocess.check_output(["rustc", "--version"], text=True).strip().split()[1]
+
+
+def antipattern_catalogue_metadata(path: Path) -> dict[str, Any]:
+    """Return performance-relevant identity for one compiled rule catalogue."""
+    registry = json.loads(path.read_text())
+    patterns = registry.get("patterns", [])
+    if not isinstance(patterns, list):
+        raise ValueError(f"registry patterns must be an array: {path}")
+
+    scanner_patterns = [
+        pattern
+        for pattern in patterns
+        if isinstance(pattern, dict)
+        and isinstance(pattern.get("detection"), dict)
+        and pattern["detection"].get("type") == "regex"
+    ]
+    enabled_patterns = [
+        pattern for pattern in scanner_patterns if pattern.get("enabled") is True
+    ]
+    default_patterns = [
+        pattern
+        for pattern in enabled_patterns
+        if not pattern.get("opt_in", False)
+    ]
+
+    def fingerprint(patterns_to_hash: list[dict[str, Any]]) -> str:
+        performance_contract: list[dict[str, Any]] = []
+        for pattern in patterns_to_hash:
+            selected = {
+                key: pattern[key]
+                for key in CATALOGUE_PERF_FIELDS
+                if key in pattern
+            }
+            for key in ("targets", "file_extensions", "allowlist"):
+                value = selected.get(key)
+                if isinstance(value, list):
+                    selected[key] = sorted(value)
+            performance_contract.append(selected)
+        performance_contract.sort(key=lambda pattern: str(pattern.get("id", "")))
+
+        canonical = json.dumps(
+            performance_contract, sort_keys=True, separators=(",", ":")
+        ).encode()
+        return f"sha256:{hashlib.sha256(canonical).hexdigest()}"
+
+    def applies_to_source(pattern: dict[str, Any], extension: str) -> bool:
+        targets = pattern.get("targets") or ["source"]
+        if "source" not in targets:
+            return False
+        extensions = pattern.get("file_extensions") or []
+        return not extensions or extension in extensions
+
+    return {
+        "schema_version": registry.get("schema_version"),
+        "fingerprint": fingerprint(default_patterns),
+        "enabled_scanner_fingerprint": fingerprint(enabled_patterns),
+        "pattern_count": len(patterns),
+        "scanner_pattern_count": len(scanner_patterns),
+        "enabled_scanner_pattern_count": len(enabled_patterns),
+        "default_scanner_pattern_count": len(default_patterns),
+        "default_source_rules": {
+            language: sum(
+                applies_to_source(pattern, extension)
+                for pattern in default_patterns
+            )
+            for language, extension in SOURCE_EXTENSIONS.items()
+        },
+    }
 
 
 def parse_bencher_log(path: Path) -> list[dict[str, Any]]:
@@ -265,6 +351,14 @@ def main(argv: list[str] | None = None) -> int:
         "--source",
         help="Provenance string. Defaults to the artifact_dir path.",
     )
+    parser.add_argument(
+        "--registry",
+        type=Path,
+        help=(
+            "Compiled antipattern registry used by the run "
+            "(default: patterns/compiled/registry.json under repo root)."
+        ),
+    )
     parser.add_argument("--hostname", help="Host label for run.host.hostname")
     parser.add_argument("--cpus", type=int, help="CPU count for run.host.cpus")
     parser.add_argument(
@@ -308,6 +402,10 @@ def main(argv: list[str] | None = None) -> int:
         trigger=args.trigger,
         source=source,
         host=host,
+    )
+    registry = args.registry or (root / "patterns" / "compiled" / "registry.json")
+    history["run"]["antipattern_catalogue"] = antipattern_catalogue_metadata(
+        registry.resolve()
     )
 
     payload = json.dumps(history, indent=2) + "\n"

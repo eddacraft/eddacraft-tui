@@ -94,8 +94,17 @@ unqualified no-change result.
   2026-06-26.
 - The parallel mixed antipattern corpus was 0.637 ms, **39.2% slower** than
   2026-06-26. The TypeScript small/medium/large and clean-file cases were 30–52%
-  slower. These remain below the ledger's >2× investigation threshold, but they
-  are the clearest same-host regression signal in this run.
+  slower. Post-run catalogue analysis found that the default regex rules the
+  scanner executes had grown from 23 to 33, while default TypeScript-source
+  rules grew from 11 to 19. Because the workload changed, these timings are a
+  new workload baseline rather than evidence of a scanner-only regression.
+
+This is the final `parallel_mixed_corpus` v1 result. Later runs use
+`parallel_balanced_corpus_v2_fnv1a_<content-digest>`, with the source share
+split evenly across TypeScript, Rust, and Python. The case identity changes when
+fixture content changes; history also records default and enabled-regex
+antipattern-catalogue fingerprints. Compare timings only when the complete case
+name and applicable fingerprint match.
 
 ## Latency — save-time `validate_paths` (intercept `ipc_roundtrip`)
 

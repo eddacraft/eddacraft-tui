@@ -8,7 +8,9 @@ use anvil_checks::secret::entropy::calculate_entropy;
 use anvil_checks::secret::{SecretCheckConfig, scan_content};
 use std::hint::black_box;
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{
+    BenchmarkGroup, BenchmarkId, Criterion, criterion_group, criterion_main, measurement::WallTime,
+};
 
 const SHORT_ENTROPY_STRING: &str = "A7f9K2mN4pQ8xR3s";
 const LONG_ENTROPY_STRING: &str =
@@ -48,6 +50,48 @@ fn base_typescript_line(index: usize) -> String {
         _ => format!(
             "export function compute{index}(left: number, right: number): number {{ return left + right + {index}; }}"
         ),
+    }
+}
+
+fn base_rust_line(index: usize) -> String {
+    match index % 6 {
+        0 => format!("pub struct Record{index} {{ pub id: usize, pub active: bool }}"),
+        1 => format!(
+            "pub const FEATURE_FLAG_{index}: bool = {};",
+            index.is_multiple_of(2)
+        ),
+        2 => format!(
+            "pub fn build_payload_{index}(id: usize) -> String {{ format!(\"{{id}}-{index}\") }}"
+        ),
+        3 => format!(
+            "pub fn compute_{index}(left: usize, right: usize) -> usize {{ left + right + {index} }}"
+        ),
+        4 => {
+            format!("pub fn is_active_{index}(record: &Record{index}) -> bool {{ record.active }}")
+        }
+        _ => format!("pub const ROUTE_{index}: &str = \"/api/v1/resource/{index}\";"),
+    }
+}
+
+fn base_python_line(index: usize) -> String {
+    match index % 6 {
+        0 => format!(
+            "FEATURE_FLAG_{index} = {}",
+            if index.is_multiple_of(2) {
+                "True"
+            } else {
+                "False"
+            }
+        ),
+        1 => format!(
+            "def build_payload_{index}(identifier: str) -> str: return f\"{{identifier}}-{index}\""
+        ),
+        2 => format!("route_{index} = \"/api/v1/resource/{index}\""),
+        3 => format!("record_{index} = {{\"id\": {index}, \"active\": True}}"),
+        4 => format!(
+            "def compute_{index}(left: int, right: int) -> int: return left + right + {index}"
+        ),
+        _ => format!("result_{index} = compute_{index}({index}, {index} + 1)"),
     }
 }
 
@@ -101,21 +145,14 @@ fn generate_typescript_file(lines: usize, secrets_count: usize) -> String {
     output
 }
 
-fn generate_typescript_with_antipatterns(lines: usize, antipattern_count: usize) -> String {
+fn generate_source_with_antipatterns(
+    lines: usize,
+    antipattern_count: usize,
+    base_line: fn(usize) -> String,
+    snippets: &[&str],
+) -> String {
     let mut output = String::new();
     let mut line_count = 0;
-    let snippets = [
-        "const payload: any = input;",
-        "/* eslint-disable */",
-        "// @ts-ignore legacy type mismatch",
-        "try { doWork(); } catch (e) {}",
-        "const fallback: any = {};",
-        "// eslint-disable",
-        "const result = value as any;",
-        "// @ts-ignore upstream typings",
-        "const parser = <any>factory();",
-        "/* eslint-disable */",
-    ];
 
     let spacing = lines
         .checked_div(antipattern_count)
@@ -124,11 +161,7 @@ fn generate_typescript_with_antipatterns(lines: usize, antipattern_count: usize)
     let mut inserted = 0;
     while line_count < lines {
         let current_index = line_count;
-        push_line(
-            &mut output,
-            &mut line_count,
-            &base_typescript_line(current_index),
-        );
+        push_line(&mut output, &mut line_count, &base_line(current_index));
 
         if inserted < antipattern_count
             && line_count < lines
@@ -141,6 +174,44 @@ fn generate_typescript_with_antipatterns(lines: usize, antipattern_count: usize)
     }
 
     output
+}
+
+fn generate_typescript_with_antipatterns(lines: usize, antipattern_count: usize) -> String {
+    const SNIPPETS: &[&str] = &[
+        "const payload: any = input;",
+        "/* eslint-disable */",
+        "// @ts-ignore legacy type mismatch",
+        "try { doWork(); } catch (e) {}",
+        "const fallback: any = {};",
+        "// eslint-disable",
+        "const result = value as any;",
+        "// @ts-ignore upstream typings",
+        "const parser = <any>factory();",
+        "/* eslint-disable */",
+    ];
+    generate_source_with_antipatterns(lines, antipattern_count, base_typescript_line, SNIPPETS)
+}
+
+fn generate_rust_with_antipatterns(lines: usize, antipattern_count: usize) -> String {
+    const SNIPPETS: &[&str] = &[
+        "// TODO refactor soon",
+        "// HACK bypass validation",
+        "// temporary compatibility shim",
+    ];
+    generate_source_with_antipatterns(lines, antipattern_count, base_rust_line, SNIPPETS)
+}
+
+fn generate_python_with_antipatterns(lines: usize, antipattern_count: usize) -> String {
+    const SNIPPETS: &[&str] = &[
+        "value = payload  # type: ignore",
+        "import os  # noqa",
+        "# pylint: disable=all",
+        "from service.config import *",
+        "result = eval(user_input)",
+        "os.system(command)",
+        "digest = hashlib.md5(payload)",
+    ];
+    generate_source_with_antipatterns(lines, antipattern_count, base_python_line, SNIPPETS)
 }
 
 fn generate_html_file(lines: usize) -> String {
@@ -263,70 +334,146 @@ fn secret_benchmarks(c: &mut Criterion) {
     entropy_group.finish();
 }
 
+fn bench_language_inputs(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    language: &str,
+    extension: &str,
+    matched_small: &str,
+    matched_medium: &str,
+    matched_large: &str,
+    clean_medium: &str,
+) {
+    let small_path = format!("src/{language}_small.{extension}");
+    let medium_path = format!("src/{language}_medium.{extension}");
+    let large_path = format!("src/{language}_large.{extension}");
+    let clean_path = format!("src/{language}_clean.{extension}");
+
+    group.sample_size(100);
+    group.bench_function(BenchmarkId::new(language, "matched_50_lines"), |b| {
+        b.iter(|| {
+            black_box(scan_file(
+                black_box(small_path.as_str()),
+                black_box(matched_small),
+                None,
+            ))
+        });
+    });
+    group.bench_function(BenchmarkId::new(language, "matched_500_lines"), |b| {
+        b.iter(|| {
+            black_box(scan_file(
+                black_box(medium_path.as_str()),
+                black_box(matched_medium),
+                None,
+            ))
+        });
+    });
+    group.sample_size(50);
+    group.bench_function(BenchmarkId::new(language, "matched_5000_lines"), |b| {
+        b.iter(|| {
+            black_box(scan_file(
+                black_box(large_path.as_str()),
+                black_box(matched_large),
+                None,
+            ))
+        });
+    });
+    group.sample_size(100);
+    group.bench_function(BenchmarkId::new(language, "clean_500_lines"), |b| {
+        b.iter(|| {
+            black_box(scan_file(
+                black_box(clean_path.as_str()),
+                black_box(clean_medium),
+                None,
+            ))
+        });
+    });
+}
+
+fn assert_language_fixture(language: &str, extension: &str, matched: &str, clean: &str) {
+    let matched_path = format!("src/{language}_fixture.{extension}");
+    let clean_path = format!("src/{language}_clean.{extension}");
+    let matched_result = scan_file(&matched_path, matched, None);
+    let clean_result = scan_file(&clean_path, clean, None);
+
+    assert!(
+        !matched_result.warnings.is_empty(),
+        "{language} matched fixture must exercise at least one default rule"
+    );
+    assert!(
+        clean_result.warnings.is_empty(),
+        "{language} clean fixture unexpectedly emitted: {:?}",
+        clean_result
+            .warnings
+            .iter()
+            .map(|warning| warning.id.as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
 fn antipattern_benchmarks(c: &mut Criterion) {
     let ts_small = generate_typescript_with_antipatterns(50, 3);
     let ts_medium = generate_typescript_with_antipatterns(500, 10);
     let ts_large = generate_typescript_with_antipatterns(5000, 20);
-    let html_file = generate_html_file(200);
     let ts_clean = generate_typescript_with_antipatterns(500, 0);
+    let rust_small = generate_rust_with_antipatterns(50, 3);
+    let rust_medium = generate_rust_with_antipatterns(500, 10);
+    let rust_large = generate_rust_with_antipatterns(5000, 20);
+    let rust_clean = generate_rust_with_antipatterns(500, 0);
+    let python_small = generate_python_with_antipatterns(50, 3);
+    let python_medium = generate_python_with_antipatterns(500, 10);
+    let python_large = generate_python_with_antipatterns(5000, 20);
+    let python_clean = generate_python_with_antipatterns(500, 0);
+    let html_file = generate_html_file(200);
+
+    assert_language_fixture("typescript", "ts", &ts_small, &ts_clean);
+    assert_language_fixture("rust", "rs", &rust_small, &rust_clean);
+    assert_language_fixture("python", "py", &python_small, &python_clean);
 
     let html_options = anvil_checks::antipattern::scanner::ScanOptions {
         patterns: None,
         include_opt_in: true,
     };
 
-    let mut group = c.benchmark_group("antipattern");
+    // This group name names the implementation under test. Language labels
+    // below describe input artefacts, not separate scanner engines.
+    let mut group = c.benchmark_group("antipattern_rust_scanner");
     group.measurement_time(Duration::from_secs(5));
-    group.sample_size(100);
 
-    group.bench_function("typescript_small", |b| {
-        b.iter(|| {
-            black_box(scan_file(
-                "src/small.ts",
-                black_box(ts_small.as_str()),
-                None,
-            ))
-        });
-    });
-
-    group.bench_function("typescript_medium", |b| {
-        b.iter(|| {
-            black_box(scan_file(
-                "src/medium.ts",
-                black_box(ts_medium.as_str()),
-                None,
-            ))
-        });
-    });
-
-    group.sample_size(50);
-    group.bench_function("typescript_large", |b| {
-        b.iter(|| {
-            black_box(scan_file(
-                "src/large.ts",
-                black_box(ts_large.as_str()),
-                None,
-            ))
-        });
-    });
+    bench_language_inputs(
+        &mut group,
+        "typescript",
+        "ts",
+        &ts_small,
+        &ts_medium,
+        &ts_large,
+        &ts_clean,
+    );
+    bench_language_inputs(
+        &mut group,
+        "rust",
+        "rs",
+        &rust_small,
+        &rust_medium,
+        &rust_large,
+        &rust_clean,
+    );
+    bench_language_inputs(
+        &mut group,
+        "python",
+        "py",
+        &python_small,
+        &python_medium,
+        &python_large,
+        &python_clean,
+    );
 
     group.sample_size(100);
-    group.bench_function("html_file", |b| {
+    group.bench_function(BenchmarkId::new("html_opt_in", "200_lines"), |b| {
         b.iter(|| {
             black_box(scan_file(
                 "templates/report.html",
                 black_box(html_file.as_str()),
                 Some(&html_options),
-            ))
-        });
-    });
-
-    group.bench_function("clean_file", |b| {
-        b.iter(|| {
-            black_box(scan_file(
-                "src/clean.ts",
-                black_box(ts_clean.as_str()),
-                None,
             ))
         });
     });

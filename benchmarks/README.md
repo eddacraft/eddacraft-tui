@@ -19,6 +19,16 @@ record a trend graph can be built from).
   "schema_version": 1,
   "run": {
     "date", "commit", "rustc", "trigger", "host", "source",
+    "antipattern_catalogue": {
+      "schema_version",
+      "fingerprint",             // SHA-256 over performance-relevant rule fields
+      "enabled_scanner_fingerprint",
+      "pattern_count",
+      "scanner_pattern_count",
+      "enabled_scanner_pattern_count",
+      "default_scanner_pattern_count",
+      "default_source_rules": { "typescript", "rust", "python" }
+    },
     // optional, run-dependent:
     //   "anvil_version", "samples",
     //   "partial": true + "caveats": [...]  // for headline / non-comparable runs
@@ -57,8 +67,12 @@ record a trend graph can be built from).
      --date YYYY-MM-DD
    ```
 
-   Or hand-parse each bench's stdout. Keep `commit` + `host` accurate —
-   comparisons across different hardware are not apples-to-apples.
+   The normaliser reads `patterns/compiled/registry.json` by default and stamps
+   its performance fingerprint and per-language default-rule counts. Pass
+   `--registry` when the benchmarked run used a registry outside that checkout.
+   Or hand-parse each bench's stdout. Keep `commit`, `host`, and
+   `antipattern_catalogue` accurate — comparisons across different hardware or
+   rule workloads are not apples-to-apples.
 
 ## Comparing across runs
 
@@ -70,6 +84,18 @@ from another machine and the `0.3.0-beta` era, so its deltas vs
 `2026-05-30.json` may reflect environment rather than code. Runs that are not
 hardware-comparable carry `"partial": true` and a `caveats` list — treat their
 cross-run direction as indicative, not a regression signal.
+
+For antipattern results, also require the same benchmark case and applicable
+catalogue fingerprint. The mixed-corpus case contains both a semantic version
+and a deterministic content digest, so fixture-content changes automatically
+create a new case identity. Default scanner cases use
+`run.antipattern_catalogue.fingerprint`; the `html_opt_in` case uses
+`enabled_scanner_fingerprint`, which also covers enabled opt-in regex rules. A
+changed case or fingerprint establishes a new baseline: report the workload
+delta separately instead of classifying the timing delta as a scanner
+regression. Both fingerprints exclude generated timestamps, prose-only fields,
+and AST rules the scanner does not execute, but include matching, target,
+extension, and allowlist fields that can change cost.
 
 ## Pre-`schema_version:1` data
 

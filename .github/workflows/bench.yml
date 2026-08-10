@@ -10,6 +10,7 @@ on:
       - 'crates/anvil-checks/**'
       - 'crates/anvil-intercept/**'
       - 'crates/anvil-graph-cache/**'
+      - 'scripts/bench/**'
       - 'scripts/check-midedit-baseline.sh'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -45,6 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+      - run: python3 scripts/bench/to_history_test.py
       - run: cargo check -p anvil-bench --all-targets
       - run: cargo check -p eddacraft-anvil-kernel --benches
       - run: cargo check -p eddacraft-anvil-checks --benches

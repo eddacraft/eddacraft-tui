@@ -19,6 +19,7 @@ usage() {
 Usage: pnpm bench [-- <options>]
 
 Runs all routine benchmark surfaces from one command:
+  - Benchmark-history normaliser contract test
   - Rust benchmark compile checks (incl. graph-cache gate benches)
   - kernel, checks, stress, antipattern_scan, secret_scan_parallel,
     walk_discovery
@@ -90,6 +91,7 @@ run_logged_shell() {
 
 echo "Benchmark artifacts: ${artifact_dir}"
 
+run_logged benchmark-history-test python3 scripts/bench/to_history_test.py
 run_logged cargo-check-anvil-bench cargo check -p anvil-bench --all-targets
 run_logged cargo-check-kernel-benches cargo check -p eddacraft-anvil-kernel --benches
 run_logged cargo-check-checks-benches cargo check -p eddacraft-anvil-checks --benches
