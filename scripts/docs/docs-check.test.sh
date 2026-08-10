@@ -589,8 +589,9 @@ else
 fi
 
 # Pre-tag prepare PRs deliberately use one all-workspace source mode. Restore a
-# valid workspace CLI, name the next release without creating its tag, and
-# require one ref-level fallback diagnostic rather than one decision per file.
+# valid workspace CLI, name the next release without creating its tag, and add
+# a same-named branch that Git must not mistake for the tag. Require one
+# ref-level fallback diagnostic rather than one decision per file.
 git -C "${generated_root}" show v1.2.3-beta:crates/anvil-cli/src/main.rs \
   >"${generated_root}/crates/anvil-cli/src/main.rs"
 cat >"${generated_root}/docs/public/anvil/releases/changelog.md" <<'EOF'
@@ -598,6 +599,7 @@ cat >"${generated_root}/docs/public/anvil/releases/changelog.md" <<'EOF'
 
 ## 1.2.5-beta
 EOF
+git -C "${generated_root}" branch v1.2.5-beta v1.2.3-beta
 set +e
 pretag_out="$(node "${generator}" --root "${generated_root}" 2>&1)"
 pretag_status=$?

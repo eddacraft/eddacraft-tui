@@ -30,16 +30,17 @@ const inputs = {
 };
 
 const release = latestPublicRelease();
-const sourceRef = release ? `v${release}` : undefined;
-const sourceRefResolved = sourceRef ? resolvesToCommit(sourceRef) : false;
+const sourceTag = release ? `v${release}` : undefined;
+const sourceTagRef = sourceTag ? `refs/tags/${sourceTag}` : undefined;
+const sourceRefResolved = sourceTagRef ? resolvesToCommit(sourceTagRef, sourceTag) : false;
 
 if (!sourceRefResolved) {
   for (const [name, path] of Object.entries(inputs)) {
     if (!existsSync(path)) fail(`missing ${name} workspace source: ${path}`);
   }
-  if (sourceRef) {
+  if (sourceTag) {
     process.stderr.write(
-      `[anvil-reference] public release ref ${sourceRef} does not resolve; using workspace tree for all product inputs\n`
+      `[anvil-reference] public release ref ${sourceTag} does not resolve; using workspace tree for all product inputs\n`
     );
   }
 }
@@ -428,7 +429,7 @@ function latestPublicRelease() {
   return match[1];
 }
 
-function resolvesToCommit(ref) {
+function resolvesToCommit(ref, displayRef) {
   const result = spawnSync(
     'git',
     ['-C', ROOT, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`],
@@ -439,20 +440,20 @@ function resolvesToCommit(ref) {
   if (result.status === 0) return true;
   if (result.status === 1) return false;
   const detail = (result.stderr || result.stdout || `git exited ${result.status}`).trim();
-  fail(`could not resolve public release ref ${ref}: ${detail}`);
+  fail(`could not resolve public release ref ${displayRef}: ${detail}`);
 }
 
 function readProductSource(path) {
   if (!sourceRefResolved) return readFileSync(path, 'utf8');
   const repoPath = relative(ROOT, path).replaceAll('\\', '/');
-  const result = spawnSync('git', ['-C', ROOT, 'show', `${sourceRef}:${repoPath}`], {
+  const result = spawnSync('git', ['-C', ROOT, 'show', `${sourceTagRef}:${repoPath}`], {
     encoding: 'utf8',
   });
   if (result.status === 0) {
     return result.stdout;
   }
   const detail = (result.stderr || result.stdout || `git show exited ${result.status}`).trim();
-  fail(`could not read ${repoPath} from resolved public release ref ${sourceRef}: ${detail}`);
+  fail(`could not read ${repoPath} from resolved public release ref ${sourceTag}: ${detail}`);
 }
 
 function releaseLabel() {
