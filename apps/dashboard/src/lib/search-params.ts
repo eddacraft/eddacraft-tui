@@ -7,7 +7,7 @@ const safeEnum = <T extends readonly [string, ...string[]]>(values: T, fallback:
   );
 
 export const dashboardSearchSchema = z.object({
-  severity: safeEnum(['all', 'high', 'medium', 'low'], 'all'),
+  severity: safeEnum(['all', 'critical', 'high', 'medium', 'low'], 'all'),
   view: safeEnum(['runs', 'warnings'], 'runs'),
   evidence: z.preprocess(
     (value) => (typeof value === 'string' && value.length <= 128 ? value : undefined),

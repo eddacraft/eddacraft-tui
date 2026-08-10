@@ -48,11 +48,11 @@ afterEach(() => {
   container = null;
 });
 
-async function render() {
+async function render(rows: readonly Warning[] = warnings) {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root?.render(<WarningTable warnings={warnings} />));
+  await act(async () => root?.render(<WarningTable warnings={rows} />));
 }
 
 function change(selector: string, value: string) {
@@ -82,6 +82,32 @@ describe('WarningTable', () => {
     change('[aria-label="Filter warnings by category"]', 'Maintainability');
     expect(container?.textContent).toContain('antipattern-scan');
     expect(container?.textContent).not.toContain('secret-detection');
+  });
+
+  it('offers critical severity and isolates critical warning rows', async () => {
+    const criticalWarning: Warning = {
+      ...warnings[0],
+      id: 'w-critical',
+      severity: 'critical',
+      category: 'Security',
+      message: 'Confirmed credential exposure',
+      file_path: 'src/credentials.ts',
+      evidence_id: 'w-critical',
+      rule: 'credential-exposure',
+    };
+    await render([...warnings, criticalWarning]);
+
+    const severityFilter = container?.querySelector<HTMLSelectElement>(
+      '[aria-label="Filter warnings by severity"]'
+    );
+    expect([...(severityFilter?.options ?? [])].map((option) => option.value)).toContain(
+      'critical'
+    );
+
+    change('[aria-label="Filter warnings by severity"]', 'critical');
+    expect(container?.textContent).toContain('credential-exposure');
+    expect(container?.textContent).not.toContain('secret-detection');
+    expect(container?.textContent).not.toContain('antipattern-scan');
   });
 
   it('matches free text against both file paths and warning messages', () => {

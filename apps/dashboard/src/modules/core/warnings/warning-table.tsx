@@ -118,6 +118,7 @@ export function WarningTable({
             value={severity}
           >
             <option value="all">All</option>
+            <option value="critical">Critical</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
             <option value="low">Low</option>

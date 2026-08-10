@@ -13,6 +13,13 @@ describe('dashboard route search state', () => {
     ).toEqual({ severity: 'high', view: 'warnings', evidence: 'warning-api-key' });
   });
 
+  it('preserves the recognised critical severity', () => {
+    expect(dashboardSearchSchema.parse({ severity: 'critical' })).toEqual({
+      severity: 'critical',
+      view: 'runs',
+    });
+  });
+
   it('falls back safely when a shared URL contains invalid values', () => {
     expect(
       dashboardSearchSchema.parse({ severity: 'catastrophic', view: 'raw', evidence: 42 })
