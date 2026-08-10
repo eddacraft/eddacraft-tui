@@ -561,6 +561,57 @@ else
   fail "generated reference contract failed (fresh ${fresh_status}, shapes ${shape_status}, stale ${stale_status})"
 fi
 
+# A resolved release tag is the source boundary for every product input. Make
+# the next tag without dist-workspace.toml, then restore that file only in the
+# workspace: generation must fail instead of silently mixing the two trees.
+cat >"${generated_root}/docs/public/anvil/releases/changelog.md" <<'EOF'
+# Current release notes
+
+## 1.2.4-beta
+EOF
+git -C "${generated_root}" rm -q dist-workspace.toml
+git -C "${generated_root}" add docs/public/anvil/releases/changelog.md
+git -C "${generated_root}" commit -qm "fixture release missing one product input"
+git -C "${generated_root}" tag v1.2.4-beta
+cat >"${generated_root}/dist-workspace.toml" <<'EOF'
+targets = ["x86_64-unknown-linux-gnu"]
+EOF
+set +e
+missing_tag_out="$(node "${generator}" --root "${generated_root}" 2>&1)"
+missing_tag_status=$?
+set -e
+if [[ "${missing_tag_status}" -ne 0 ]] \
+  && grep -q 'v1.2.4-beta' <<<"${missing_tag_out}" \
+  && grep -q 'dist-workspace.toml' <<<"${missing_tag_out}"; then
+  pass "resolved release tag fails closed when a tagged product input is missing"
+else
+  fail "resolved tag mixed a workspace input (status ${missing_tag_status}); got: ${missing_tag_out}"
+fi
+
+# Pre-tag prepare PRs deliberately use one all-workspace source mode. Restore a
+# valid workspace CLI, name the next release without creating its tag, and
+# require one ref-level fallback diagnostic rather than one decision per file.
+git -C "${generated_root}" show v1.2.3-beta:crates/anvil-cli/src/main.rs \
+  >"${generated_root}/crates/anvil-cli/src/main.rs"
+cat >"${generated_root}/docs/public/anvil/releases/changelog.md" <<'EOF'
+# Current release notes
+
+## 1.2.5-beta
+EOF
+set +e
+pretag_out="$(node "${generator}" --root "${generated_root}" 2>&1)"
+pretag_status=$?
+set -e
+pretag_fallback_count="$(grep -c 'using workspace tree' <<<"${pretag_out}" || true)"
+if [[ "${pretag_status}" -eq 0 ]] \
+  && [[ "${pretag_fallback_count}" -eq 1 ]] \
+  && grep -q 'v1.2.5-beta' <<<"${pretag_out}" \
+  && grep -q 'anvil run-check' "${generated_root}/docs/public/anvil/reference/cli.md"; then
+  pass "unresolved pre-tag release uses one all-workspace fallback mode"
+else
+  fail "pre-tag workspace fallback contract failed (status ${pretag_status}, fallbacks ${pretag_fallback_count}); got: ${pretag_out}"
+fi
+
 # Case 11 (DOCGOV-012 defect 1): --update-baseline must NOT overwrite the
 # tracked baseline when a baselineable surface fails to emit valid JSON. Uses
 # the --root / --surfaces test seam with stub surface scripts so the live

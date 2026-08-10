@@ -29,12 +29,21 @@ const inputs = {
   dist: resolve(ROOT, 'dist-workspace.toml'),
 };
 
-for (const [name, path] of Object.entries(inputs)) {
-  if (!existsSync(path)) fail(`missing ${name} source: ${path}`);
-}
-
 const release = latestPublicRelease();
 const sourceRef = release ? `v${release}` : undefined;
+const sourceRefResolved = sourceRef ? resolvesToCommit(sourceRef) : false;
+
+if (!sourceRefResolved) {
+  for (const [name, path] of Object.entries(inputs)) {
+    if (!existsSync(path)) fail(`missing ${name} workspace source: ${path}`);
+  }
+  if (sourceRef) {
+    process.stderr.write(
+      `[anvil-reference] public release ref ${sourceRef} does not resolve; using workspace tree for all product inputs\n`
+    );
+  }
+}
+
 const registry = JSON.parse(readProductSource(inputs.registry));
 const commands = parseCommands(readProductSource(inputs.cli));
 const startFlags = parseStartFlags(readProductSource(inputs.start));
@@ -419,8 +428,22 @@ function latestPublicRelease() {
   return match[1];
 }
 
+function resolvesToCommit(ref) {
+  const result = spawnSync(
+    'git',
+    ['-C', ROOT, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`],
+    {
+      encoding: 'utf8',
+    }
+  );
+  if (result.status === 0) return true;
+  if (result.status === 1) return false;
+  const detail = (result.stderr || result.stdout || `git exited ${result.status}`).trim();
+  fail(`could not resolve public release ref ${ref}: ${detail}`);
+}
+
 function readProductSource(path) {
-  if (!sourceRef) return readFileSync(path, 'utf8');
+  if (!sourceRefResolved) return readFileSync(path, 'utf8');
   const repoPath = relative(ROOT, path).replaceAll('\\', '/');
   const result = spawnSync('git', ['-C', ROOT, 'show', `${sourceRef}:${repoPath}`], {
     encoding: 'utf8',
@@ -428,19 +451,8 @@ function readProductSource(path) {
   if (result.status === 0) {
     return result.stdout;
   }
-  // Pre-tag release prep: the public changelog may already name the next version
-  // before `vX.Y.Z` exists as a git tag. Fall back to the workspace tree so
-  // docs:check can pass on the prepare PR; the tag cut is what freezes the
-  // shipped product sources for the next regenerate.
-  if (!existsSync(path)) {
-    fail(
-      `could not read ${repoPath} from the public release tag ${sourceRef} and workspace path is missing`
-    );
-  }
-  process.stderr.write(
-    `[anvil-reference] tag ${sourceRef} missing ${repoPath}; using workspace tree\n`
-  );
-  return readFileSync(path, 'utf8');
+  const detail = (result.stderr || result.stdout || `git show exited ${result.status}`).trim();
+  fail(`could not read ${repoPath} from resolved public release ref ${sourceRef}: ${detail}`);
 }
 
 function releaseLabel() {
