@@ -57,6 +57,9 @@ STATUS=(node "$ROOT/scripts/ci-log/status.mjs")
 SINCE=(node "$ROOT/scripts/ci-log/since.mjs")
 WATER=(node "$ROOT/scripts/ci-log/set-watermark.mjs")
 
+# All tracked-log writers coordinate through this git-common-dir lock.
+tracked_lock="$tmp/repo/.git/anvil/ci-log-tracked.lock"
+
 # 1) append to pending (default)
 out="$("${APPEND[@]}" --task 'pending path test' --agent opencode --outcome 'queued' --json)"
 echo "$out" | grep -q '"destination": "pending"' || fail "append pending destination"
@@ -97,7 +100,59 @@ echo "$since_out" | grep -q 'pending path test\|direct tracked\|2026-07-' || fai
 "${WATER[@]}" --date 2026-07-10 >/dev/null
 grep -q 'Last triaged:\*\* 2026-07-10' plans/reviews/continuous-improvement-log.md || fail "watermark not set"
 
-# 7) reject empty / bad body / heading not first
+# 7) an externally held tracked-log lock blocks both mutation paths until release
+mkdir -p "$(dirname "$tracked_lock")"
+printf 'external-test-owner\n' > "$tracked_lock"
+"${APPEND[@]}" --tracked --task 'waited tracked append' --agent codex --outcome locked \
+  >"$tmp/locked-append.out" 2>"$tmp/locked-append.err" &
+append_pid=$!
+"${WATER[@]}" --date 2026-07-11 \
+  >"$tmp/locked-watermark.out" 2>"$tmp/locked-watermark.err" &
+watermark_pid=$!
+sleep 0.25
+kill -0 "$append_pid" 2>/dev/null || fail "tracked append ignored an externally held lock"
+kill -0 "$watermark_pid" 2>/dev/null || fail "watermark update ignored an externally held lock"
+grep -q 'waited tracked append' plans/reviews/continuous-improvement-log.md && \
+  fail "tracked append mutated the log while lock was held"
+grep -q 'Last triaged:\*\* 2026-07-11' plans/reviews/continuous-improvement-log.md && \
+  fail "watermark mutated the log while lock was held"
+grep -q '^external-test-owner$' "$tracked_lock" || fail "writer replaced a foreign lock"
+rm "$tracked_lock"
+wait "$append_pid"
+wait "$watermark_pid"
+grep -q 'waited tracked append' plans/reviews/continuous-improvement-log.md || \
+  fail "tracked append did not resume after lock release"
+grep -q 'Last triaged:\*\* 2026-07-11' plans/reviews/continuous-improvement-log.md || \
+  fail "watermark did not resume after lock release"
+
+# 8) dual harvests serialise without losing or duplicating pending entries
+"${APPEND[@]}" --task 'dual harvest one' --agent codex --outcome queued >/dev/null
+"${APPEND[@]}" --task 'dual harvest two' --agent codex --outcome queued >/dev/null
+printf 'foreign-temp-sentinel\n' > plans/reviews/continuous-improvement-log.md.harvest-tmp
+printf 'external-test-owner\n' > "$tracked_lock"
+"${HARVEST[@]}" --json >"$tmp/harvest-one.out" 2>"$tmp/harvest-one.err" &
+harvest_one_pid=$!
+"${HARVEST[@]}" --json >"$tmp/harvest-two.out" 2>"$tmp/harvest-two.err" &
+harvest_two_pid=$!
+sleep 0.25
+kill -0 "$harvest_one_pid" 2>/dev/null || fail "first harvest ignored tracked-log lock"
+kill -0 "$harvest_two_pid" 2>/dev/null || fail "second harvest ignored tracked-log lock"
+[[ "$(ls "$tmp/repo/.git/anvil/ci-log-pending/"*.md | wc -l)" -eq 2 ]] || \
+  fail "harvest changed pending queue while lock was held"
+rm "$tracked_lock"
+wait "$harvest_one_pid"
+wait "$harvest_two_pid"
+[[ "$(grep -c 'dual harvest one' plans/reviews/continuous-improvement-log.md)" -eq 1 ]] || \
+  fail "dual harvest lost or duplicated first entry"
+[[ "$(grep -c 'dual harvest two' plans/reviews/continuous-improvement-log.md)" -eq 1 ]] || \
+  fail "dual harvest lost or duplicated second entry"
+[[ ! -e "$tmp/repo/.git/anvil/ci-log-pending/"*.md ]] || \
+  fail "dual harvest left processed pending entries"
+grep -q '^foreign-temp-sentinel$' plans/reviews/continuous-improvement-log.md.harvest-tmp || \
+  fail "harvest clobbered a foreign fixed-name temp file"
+rm plans/reviews/continuous-improvement-log.md.harvest-tmp
+
+# 9) reject empty / bad body / heading not first
 if "${APPEND[@]}" --body 'no heading here' 2>/dev/null; then
   fail "accepted body without heading"
 fi
@@ -105,7 +160,7 @@ if "${APPEND[@]}" --body $'preamble\n### 2026-07-12 — opencode\n\n- **Task:** 
   fail "accepted body with heading not first"
 fi
 
-# 8) second pending then dry-run harvest
+# 10) second pending then dry-run harvest
 "${APPEND[@]}" --task 'second pending' --agent codex --outcome x >/dev/null
 dry="$("${HARVEST[@]}" --dry-run --json)"
 echo "$dry" | grep -q '"harvested": 1' || fail "dry-run harvest"
@@ -114,7 +169,7 @@ echo "$dry" | grep -q '"dryRun": true' || fail "dryRun flag"
 status_json="$("${STATUS[@]}" --json)"
 echo "$status_json" | grep -q '"pendingCount": 1' || fail "dry-run should not clear pending"
 
-# 9) follow-up field round-trip
+# 11) follow-up field round-trip
 "${APPEND[@]}" --task 'promote me' --follow-up 'promote: CIB' --agent opencode --json >/dev/null
 pending2="$(ls "$tmp/repo/.git/anvil/ci-log-pending/"*.md | tail -1)"
 grep -q 'promote: CIB' "$pending2" || fail "follow-up not written"

@@ -7,9 +7,12 @@
 // Tracked log: plans/reviews/continuous-improvement-log.md (merge=union).
 
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import {
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -21,6 +24,11 @@ import { dirname, join, resolve } from 'node:path';
 export const TRACKED_LOG_REL = 'plans/reviews/continuous-improvement-log.md';
 export const PENDING_DIR_NAME = 'anvil/ci-log-pending';
 export const WATERMARK_RE = /^>\s*\*\*Last triaged:\*\*\s*(\d{4}-\d{2}-\d{2}|never)\s*$/m;
+
+const TRACKED_LOG_LOCK_NAME = 'anvil/ci-log-tracked.lock';
+const LOCK_ACQUIRE_TIMEOUT_MS = 10_000;
+const LOCK_RETRY_MS = 25;
+const LOCK_SLEEP_BUFFER = new Int32Array(new SharedArrayBuffer(4));
 
 export function runGit(args, { cwd, allowFail = false } = {}) {
   try {
@@ -52,6 +60,69 @@ export function pendingDir(cwd = process.cwd()) {
 
 export function trackedLogPath(cwd = process.cwd()) {
   return join(resolveRepoRoot(cwd), TRACKED_LOG_REL);
+}
+
+export function trackedLogLockPath(cwd = process.cwd()) {
+  return join(resolveGitCommonDir(cwd), TRACKED_LOG_LOCK_NAME);
+}
+
+function sleepSync(milliseconds) {
+  Atomics.wait(LOCK_SLEEP_BUFFER, 0, 0, milliseconds);
+}
+
+function acquireTrackedLogLock(cwd = process.cwd()) {
+  const path = trackedLogLockPath(cwd);
+  const token = `${process.pid}:${randomUUID()}`;
+  const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS;
+  mkdirSync(dirname(path), { recursive: true });
+
+  for (;;) {
+    let fd;
+    try {
+      fd = openSync(path, 'wx', 0o600);
+      writeFileSync(fd, `${token}\n`, 'utf8');
+      closeSync(fd);
+      return { path, token };
+    } catch (error) {
+      if (fd !== undefined) {
+        try {
+          closeSync(fd);
+        } catch {
+          // The descriptor may already have been closed after a successful write.
+        }
+        rmSync(path, { force: true });
+      }
+      if (!error || error.code !== 'EEXIST') throw error;
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for tracked CI-log lock at ${path}`);
+      }
+      sleepSync(Math.min(LOCK_RETRY_MS, Math.max(1, deadline - Date.now())));
+    }
+  }
+}
+
+function releaseTrackedLogLock(lock) {
+  let owner;
+  try {
+    owner = readText(lock.path).trim();
+  } catch (error) {
+    throw new Error(`Tracked CI-log lock disappeared before release: ${lock.path}`, {
+      cause: error,
+    });
+  }
+  if (owner !== lock.token) {
+    throw new Error(`Tracked CI-log lock ownership changed before release: ${lock.path}`);
+  }
+  rmSync(lock.path);
+}
+
+function withTrackedLogLock(cwd, mutation) {
+  const lock = acquireTrackedLogLock(cwd);
+  try {
+    return mutation();
+  } finally {
+    releaseTrackedLogLock(lock);
+  }
 }
 
 export function ensurePendingDir(cwd = process.cwd()) {
@@ -168,16 +239,18 @@ export function writePendingEntry(entry, { cwd = process.cwd(), stamp } = {}) {
 
 export function appendTrackedEntry(entry, { cwd = process.cwd() } = {}) {
   const body = normaliseEntry(entry);
-  const path = trackedLogPath(cwd);
-  if (!existsSync(path)) {
-    throw new Error(`Tracked CI-log missing at ${TRACKED_LOG_REL}`);
-  }
-  let existing = readText(path);
-  if (!existing.endsWith('\n')) existing += '\n';
-  // Ensure a blank line between previous content and new entry when needed.
-  if (!existing.endsWith('\n\n')) existing += '\n';
-  writeText(path, existing + body);
-  return path;
+  return withTrackedLogLock(cwd, () => {
+    const path = trackedLogPath(cwd);
+    if (!existsSync(path)) {
+      throw new Error(`Tracked CI-log missing at ${TRACKED_LOG_REL}`);
+    }
+    let existing = readText(path);
+    if (!existing.endsWith('\n')) existing += '\n';
+    // Ensure a blank line between previous content and new entry when needed.
+    if (!existing.endsWith('\n\n')) existing += '\n';
+    writeText(path, existing + body);
+    return path;
+  });
 }
 
 export function readWatermark(cwd = process.cwd()) {
@@ -189,23 +262,25 @@ export function readWatermark(cwd = process.cwd()) {
 }
 
 export function setWatermark(date, { cwd = process.cwd() } = {}) {
-  const path = trackedLogPath(cwd);
-  const text = readText(path);
-  const line = `> **Last triaged:** ${date}`;
-  let next;
-  if (WATERMARK_RE.test(text)) {
-    next = text.replace(WATERMARK_RE, line);
-  } else {
-    // Insert after the concurrent-writes blockquote, or after the title.
-    const concurrentEnd = text.indexOf('\n## Template');
-    if (concurrentEnd !== -1) {
-      next = `${text.slice(0, concurrentEnd)}\n${line}\n${text.slice(concurrentEnd)}`;
+  return withTrackedLogLock(cwd, () => {
+    const path = trackedLogPath(cwd);
+    const text = readText(path);
+    const line = `> **Last triaged:** ${date}`;
+    let next;
+    if (WATERMARK_RE.test(text)) {
+      next = text.replace(WATERMARK_RE, line);
     } else {
-      next = text.replace(/^(# [^\n]+\n)/, `$1\n${line}\n`);
+      // Insert after the concurrent-writes blockquote, or after the title.
+      const concurrentEnd = text.indexOf('\n## Template');
+      if (concurrentEnd !== -1) {
+        next = `${text.slice(0, concurrentEnd)}\n${line}\n${text.slice(concurrentEnd)}`;
+      } else {
+        next = text.replace(/^(# [^\n]+\n)/, `$1\n${line}\n`);
+      }
     }
-  }
-  writeText(path, next);
-  return date;
+    writeText(path, next);
+    return date;
+  });
 }
 
 /**
@@ -247,30 +322,41 @@ export function entriesSince(date, { cwd = process.cwd() } = {}) {
 }
 
 export function harvestPending({ cwd = process.cwd(), dryRun = false } = {}) {
-  const files = listPendingFiles(cwd);
-  if (files.length === 0) {
-    return { harvested: 0, paths: [], dryRun };
-  }
-  const entries = files.map((file) => ({
-    file,
-    body: normaliseEntry(readText(file)),
-  }));
   if (dryRun) {
+    const files = listPendingFiles(cwd);
+    const entries = files.map((file) => ({
+      file,
+      body: normaliseEntry(readText(file)),
+    }));
     return { harvested: entries.length, paths: files, dryRun: true };
   }
-  const logPath = trackedLogPath(cwd);
-  let existing = readText(logPath);
-  if (!existing.endsWith('\n')) existing += '\n';
-  if (!existing.endsWith('\n\n')) existing += '\n';
-  const block = entries.map((e) => e.body.replace(/\n+$/, '\n') + '\n').join('');
-  // Atomic-ish write: write temp beside target then rename.
-  const tmp = `${logPath}.harvest-tmp`;
-  writeText(tmp, existing + block);
-  renameSync(tmp, logPath);
-  for (const { file } of entries) {
-    rmSync(file, { force: true });
-  }
-  return { harvested: entries.length, paths: files, dryRun: false, logPath };
+
+  return withTrackedLogLock(cwd, () => {
+    const files = listPendingFiles(cwd);
+    if (files.length === 0) {
+      return { harvested: 0, paths: [], dryRun: false };
+    }
+    const entries = files.map((file) => ({
+      file,
+      body: normaliseEntry(readText(file)),
+    }));
+    const logPath = trackedLogPath(cwd);
+    let existing = readText(logPath);
+    if (!existing.endsWith('\n')) existing += '\n';
+    if (!existing.endsWith('\n\n')) existing += '\n';
+    const block = entries.map((e) => e.body.replace(/\n+$/, '\n') + '\n').join('');
+    const tmp = `${logPath}.harvest-${process.pid}-${randomUUID()}.tmp`;
+    try {
+      writeText(tmp, existing + block);
+      renameSync(tmp, logPath);
+      for (const { file } of entries) {
+        rmSync(file, { force: true });
+      }
+    } finally {
+      rmSync(tmp, { force: true });
+    }
+    return { harvested: entries.length, paths: files, dryRun: false, logPath };
+  });
 }
 
 export function pendingSummary(cwd = process.cwd()) {
