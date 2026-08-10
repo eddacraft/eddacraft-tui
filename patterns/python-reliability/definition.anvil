@@ -20,7 +20,7 @@ Exception: pass`), namespace-polluting wildcard imports (`from x import *`),
 stray `print()` debugging left in shipped code, and `Any` annotations that opt a
 value out of the type system entirely. It also covers dynamic-execution
 surfaces (`eval`/`exec`/`compile`, `os.system`, `shell=True`, `pickle`,
-unsafe `yaml.load`) as PY-008 / PY-009 — the Python counterpart of the
+`yaml.load`) as PY-008 / PY-009 — the Python counterpart of the
 TypeScript `dynamic-execution` family.
 
 These are the Python analogues of the TypeScript escape hatches Anvil already

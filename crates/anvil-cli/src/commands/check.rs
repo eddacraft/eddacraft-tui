@@ -2159,7 +2159,7 @@ mod tests {
 
     #[test]
     fn secret_finding_maps_to_blocking_error_json_warning() {
-        use anvil_checks::secret::{FindingType, SecretFinding};
+        use anvil_checks::secret::{FindingType, SecretFinding, TokenShape};
 
         let finding = SecretFinding {
             file: "src/smelly.ts".to_string(),
@@ -2168,7 +2168,9 @@ mod tests {
             pattern_name: "High Entropy String".to_string(),
             redacted_match: "sk-***".to_string(),
             redacted_line: "const apiKey = \"sk-***\";".to_string(),
-            ..Default::default()
+            match_start: Some(16),
+            match_end: Some(40),
+            token_shape: Some(TokenShape::Opaque),
         };
         let json = secret_finding_to_json(&finding, &[], None);
         assert_eq!(json.category, "secret");
@@ -2178,6 +2180,10 @@ mod tests {
         assert_eq!(json.file, "src/smelly.ts");
         assert_eq!(json.line, 1);
         assert!(json.id.starts_with("SECRET-"));
+        // Dave SEC-FP-2: non-secret triage fields must survive the JSON projection.
+        assert_eq!(json.token_shape, Some("opaque"));
+        assert_eq!(json.match_start, Some(16));
+        assert_eq!(json.match_end, Some(40));
         assert!(json_severity_meets_threshold(
             &json.severity,
             WarningSeverity::Error

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-08-10T05:23:32.561Z",
+  "compiled_at": "2026-08-10T06:02:33.750Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -807,7 +807,7 @@
     {
       "id": "PY-009",
       "family": "python-reliability",
-      "title": "os.system / shell=True / pickle.loads / unsafe yaml.load",
+      "title": "os.system / shell=True / pickle.loads / yaml.load",
       "version": 1,
       "severity": "error",
       "confidence": "high",
@@ -825,7 +825,7 @@
         "**/conftest.py",
         "**/explain/**"
       ],
-      "nudge": "These Python surfaces turn a string (or a byte stream) into process or object\nexecution. Prefer:\n\n- `subprocess.run([...], check=True)` with an argument list (no shell)\n- `yaml.safe_load` / an explicit `Loader=yaml.SafeLoader`\n- a typed serializer (pydantic, msgspec) instead of `pickle` for untrusted input\n\n`shell=True` is flagged even when the command is a static list today, because\nthe flag is the hazard — it reopens command injection as soon as the command is\nbuilt by concatenation. Suppress with a reason if the call is genuinely\nhard-coded and reviewed.",
+      "nudge": "These Python surfaces turn a string (or a byte stream) into process or object\nexecution. Prefer:\n\n- `subprocess.run([...], check=True)` with an argument list (no shell)\n- `yaml.safe_load` (preferred) rather than `yaml.load`\n- a typed serializer (pydantic, msgspec) instead of `pickle` for untrusted input\n\nDetection is lexical: any `yaml.load(` call is flagged, including calls that\npass a safe loader on the same line — the regex tier does not distinguish\nloader arguments. Prefer `yaml.safe_load` and suppress with a reason only when\na reviewed explicit-loader form is intentional.\n\n`shell=True` is flagged even when the command is a static list today, because\nthe flag is the hazard — it reopens command injection as soon as the command is\nbuilt by concatenation. Suppress with a reason if the call is genuinely\nhard-coded and reviewed.",
       "related": ["PY-008", "AP-008"],
       "enabled": true,
       "opt_in": false,

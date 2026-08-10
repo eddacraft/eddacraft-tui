@@ -227,13 +227,10 @@ pub(crate) fn is_path_shaped_document_token(
         }
     }
 
-    // Multi-segment paths with no extension still look like paths when they
-    // carry several separators (e.g. nested project directories).
-    let seps = candidate
-        .chars()
-        .filter(|c| *c == '/' || *c == '\\')
-        .count();
-    seps >= 2
+    // Do not exempt on separator count alone: opaque base64-ish tokens can
+    // contain multiple `/` characters. Extension / drive-letter evidence above
+    // is required (Copilot review on #3724).
+    false
 }
 
 fn document_extension_prefix(after: &str) -> Option<&str> {

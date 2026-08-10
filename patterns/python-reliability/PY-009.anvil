@@ -2,7 +2,7 @@
 id: PY-009
 type: rule
 family: python-reliability
-title: os.system / shell=True / pickle.loads / unsafe yaml.load
+title: os.system / shell=True / pickle.loads / yaml.load
 version: 1
 
 severity: error
@@ -26,8 +26,13 @@ These Python surfaces turn a string (or a byte stream) into process or object
 execution. Prefer:
 
 - `subprocess.run([...], check=True)` with an argument list (no shell)
-- `yaml.safe_load` / an explicit `Loader=yaml.SafeLoader`
+- `yaml.safe_load` (preferred) rather than `yaml.load`
 - a typed serializer (pydantic, msgspec) instead of `pickle` for untrusted input
+
+Detection is lexical: any `yaml.load(` call is flagged, including calls that
+pass a safe loader on the same line — the regex tier does not distinguish
+loader arguments. Prefer `yaml.safe_load` and suppress with a reason only when
+a reviewed explicit-loader form is intentional.
 
 `shell=True` is flagged even when the command is a static list today, because
 the flag is the hazard — it reopens command injection as soon as the command is
