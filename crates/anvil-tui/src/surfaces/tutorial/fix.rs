@@ -33,6 +33,68 @@ pub enum FixPhase {
 /// Default timeout in ticks (600 ticks at ~100 ms/tick = 60 s).
 const DEFAULT_TIMEOUT_TICKS: u32 = 600;
 
+/// Pending inline-editor save: a line-range replacement, not whole-file content.
+///
+/// The inline editor only edits the displayed context window. Writing
+/// [`Self::content`] alone to the source path would truncate every line
+/// outside that window. Callers must apply the replacement with
+/// [`Self::apply_to`] before writing to disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingSave {
+    /// 1-based start line of the replaced range in the original file.
+    pub start_line: usize,
+    /// Number of original context lines this edit replaces (the window size
+    /// when the editor opened, not the post-edit line count).
+    pub original_line_count: usize,
+    /// Replacement text for that range (may contain a different line count).
+    pub content: String,
+}
+
+impl PendingSave {
+    /// Splice this range replacement into full `original` file text.
+    ///
+    /// Lines before [`Self::start_line`] and after the original window remain
+    /// intact. The result is complete file content suitable for writing to disk.
+    #[must_use]
+    pub fn apply_to(&self, original: &str) -> String {
+        let trailing_newline = !original.is_empty() && original.ends_with('\n');
+        let lines: Vec<&str> = original.lines().collect();
+
+        let start = self.start_line.saturating_sub(1).min(lines.len());
+        let end = start
+            .saturating_add(self.original_line_count)
+            .min(lines.len());
+
+        let replacement: Vec<&str> = if self.content.is_empty() {
+            Vec::new()
+        } else {
+            // `split` keeps a trailing empty segment when content ends with \n,
+            // matching EditorState::content() join behaviour.
+            self.content.split('\n').collect()
+        };
+
+        let mut out =
+            Vec::with_capacity(lines.len().saturating_sub(end - start) + replacement.len());
+        out.extend_from_slice(&lines[..start]);
+        out.extend(replacement.iter().copied());
+        out.extend_from_slice(&lines[end..]);
+
+        if out.is_empty() {
+            return if trailing_newline {
+                "\n".to_string()
+            } else {
+                String::new()
+            };
+        }
+
+        let mut result = out.join("\n");
+        if trailing_newline {
+            result.push('\n');
+        }
+        result
+    }
+}
+
 /// TUI surface that presents a single finding and lets the user fix it via
 /// external editing, inline editing, or skip.
 ///
@@ -64,11 +126,13 @@ pub struct FixState {
     pub wants_advance: bool,
     /// Set when the user explicitly skips the fix.
     pub wants_skip: bool,
-    /// Content captured from the inline editor when the user saves.
+    /// Pending inline-editor save captured when the user saves.
     ///
-    /// The caller reads this to write the content to disk and re-run the
-    /// check. Cleared after the caller processes it.
-    pub pending_save_content: Option<String>,
+    /// This is a **range replacement** for the context window, not whole-file
+    /// content. Callers must use [`PendingSave::apply_to`] against the original
+    /// file text before writing to disk, then re-run the check. Cleared after
+    /// the caller processes it via [`Self::take_pending_save`].
+    pub pending_save: Option<PendingSave>,
     /// When true, the inline editor ('e' key) is disabled. Set by callers
     /// that cannot drive the editor save/check loop (e.g. the welcome flow).
     pub editor_disabled: bool,
@@ -90,7 +154,7 @@ impl FixState {
             wants_back: false,
             wants_advance: false,
             wants_skip: false,
-            pending_save_content: None,
+            pending_save: None,
             editor_disabled: false,
         }
     }
@@ -103,13 +167,14 @@ impl FixState {
         self.context_start_line = start_line;
     }
 
-    /// Take the pending save content, clearing the field atomically.
+    /// Take the pending save, clearing the field atomically.
     ///
-    /// Returns `Some(content)` if the user saved from the inline editor
-    /// since the last call. The caller should write the content to disk
-    /// and then call [`set_check_result`].
-    pub fn take_pending_save(&mut self) -> Option<String> {
-        self.pending_save_content.take()
+    /// Returns `Some(PendingSave)` if the user saved from the inline editor
+    /// since the last call. The caller must apply the range replacement to the
+    /// original file via [`PendingSave::apply_to`] before writing to disk, then
+    /// call [`Self::set_check_result`].
+    pub fn take_pending_save(&mut self) -> Option<PendingSave> {
+        self.pending_save.take()
     }
 
     /// Notify that the watched file changed on disk.
@@ -209,10 +274,15 @@ impl FixState {
             // Action::None. We also accept Select (Enter) as a save trigger
             // when in editor mode to ensure there is always a reachable path.
             Action::Character('\x13') | Action::Select => {
-                // Capture the editor content so the caller can write it to
-                // disk and re-run the check. We stash the content before
-                // closing because close_editor drops the EditorState.
-                self.pending_save_content = Some(editor.content());
+                // Capture a range replacement for the context window. The
+                // editor only holds that window — writing its content alone
+                // would truncate the rest of the file. Stash before
+                // close_editor drops the EditorState.
+                self.pending_save = Some(PendingSave {
+                    start_line: self.context_start_line,
+                    original_line_count: self.context_lines.len(),
+                    content: editor.content(),
+                });
                 self.close_editor();
             }
             Action::Character(c) => editor.insert(c),
@@ -302,7 +372,7 @@ impl Surface for FixState {
         self.wants_back = false;
         self.wants_advance = false;
         self.wants_skip = false;
-        self.pending_save_content = None;
+        self.pending_save = None;
     }
 
     fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
@@ -658,7 +728,7 @@ mod tests {
         state.handle_key(Action::Select);
         assert_eq!(state.phase, FixPhase::Watching);
         assert!(state.editor.is_none());
-        assert!(state.pending_save_content.is_some());
+        assert!(state.pending_save.is_some());
     }
 
     #[test]
@@ -668,18 +738,20 @@ mod tests {
         state.handle_key(Action::Character('\x13'));
         assert_eq!(state.phase, FixPhase::Watching);
         assert!(state.editor.is_none());
-        assert!(state.pending_save_content.is_some());
+        assert!(state.pending_save.is_some());
     }
 
     #[test]
-    fn pending_save_content_captures_editor_text() {
+    fn pending_save_captures_editor_text() {
         let mut state = state_with_context();
         state.open_editor();
         // Insert a character to modify the content.
         state.handle_key(Action::Character('x'));
         state.handle_key(Action::Select);
-        let content = state.pending_save_content.as_ref().unwrap();
-        assert!(content.contains('x'));
+        let save = state.pending_save.as_ref().unwrap();
+        assert!(save.content.contains('x'));
+        assert_eq!(save.start_line, 7);
+        assert_eq!(save.original_line_count, make_context_lines().len());
     }
 
     // ── Key handling: Resolved ──────────────────────────────────────────
@@ -804,7 +876,7 @@ mod tests {
     fn reset_returns_to_initial_state() {
         let mut state = state_with_context();
         state.open_editor();
-        state.handle_key(Action::Select); // triggers save, sets pending_save_content
+        state.handle_key(Action::Select); // triggers save, sets pending_save
         state.ticks = 100;
         state.should_quit = true;
         state.wants_advance = true;
@@ -823,18 +895,18 @@ mod tests {
         assert!(!state.wants_back);
         assert!(!state.wants_advance);
         assert!(!state.wants_skip);
-        assert!(state.pending_save_content.is_none());
+        assert!(state.pending_save.is_none());
     }
 
     #[test]
-    fn reset_clears_pending_save_content() {
+    fn reset_clears_pending_save() {
         let mut state = state_with_context();
         state.open_editor();
         state.handle_key(Action::Select);
-        assert!(state.pending_save_content.is_some());
+        assert!(state.pending_save.is_some());
 
         state.reset();
-        assert!(state.pending_save_content.is_none());
+        assert!(state.pending_save.is_none());
     }
 
     #[test]
@@ -843,12 +915,112 @@ mod tests {
         state.open_editor();
         state.handle_key(Action::Select);
 
-        let content = state.take_pending_save();
-        assert!(content.is_some());
-        assert!(state.pending_save_content.is_none());
+        let save = state.take_pending_save();
+        assert!(save.is_some());
+        assert!(state.pending_save.is_none());
 
         // Second call returns None.
         assert!(state.take_pending_save().is_none());
+    }
+
+    // ── PendingSave range apply (data-loss regression) ──────────────────
+
+    #[test]
+    fn pending_save_preserves_content_outside_context_window() {
+        // Full source with content before and after the displayed window.
+        let original = "prefix_a
+prefix_b
+window_1
+window_2_SECRET
+window_3
+suffix_a
+suffix_b
+";
+        // Context window is lines 3-5 only (the window_* block).
+        let window = vec![
+            "window_1".to_string(),
+            "window_2_SECRET".to_string(),
+            "window_3".to_string(),
+        ];
+        let mut state = FixState::new(Finding {
+            file: "src/main.rs".to_string(),
+            line: Some(4),
+            severity: FindingSeverity::Error,
+            source: FindingSource::AntiPattern,
+            title: "hardcoded secret".to_string(),
+            message: "API key found in source".to_string(),
+            suggestion: "Move the secret to an environment variable".to_string(),
+            warning_id: None,
+        });
+        state.set_context(window, 3);
+
+        // Open editor, move to the secret line, replace it via delete+type.
+        state.open_editor();
+        // Cursor is on warning line (line 4 => offset 1 within window).
+        assert_eq!(state.editor.as_ref().unwrap().cursor_line(), 1);
+
+        // Clear the secret line and type a safe replacement.
+        // End then backspace until empty, then type the fix.
+        state.handle_key(Action::End);
+        for _ in 0.."window_2_SECRET".len() {
+            state.handle_key(Action::Backspace);
+        }
+        for ch in "window_2_SAFE".chars() {
+            state.handle_key(Action::Character(ch));
+        }
+        state.handle_key(Action::Select);
+
+        let save = state
+            .take_pending_save()
+            .expect("pending save after inline edit");
+        // Contract: payload is a range, not a whole-file dump of the window.
+        assert_eq!(save.start_line, 3);
+        assert_eq!(save.original_line_count, 3);
+        assert!(save.content.contains("window_2_SAFE"));
+        assert!(!save.content.contains("SECRET"));
+
+        // Naive whole-file write of the window alone would drop prefix/suffix.
+        assert!(
+            !save.content.contains("prefix_a"),
+            "window-only payload must not look like a full file"
+        );
+
+        let applied = save.apply_to(original);
+        assert!(
+            applied.starts_with("prefix_a\nprefix_b\n"),
+            "prefix must be preserved: {applied:?}"
+        );
+        assert!(
+            applied.contains("window_2_SAFE"),
+            "edit must be present: {applied:?}"
+        );
+        assert!(
+            !applied.contains("SECRET"),
+            "old secret must be gone: {applied:?}"
+        );
+        assert!(
+            applied.ends_with("suffix_a\nsuffix_b\n") || applied.contains("\nsuffix_a\nsuffix_b\n"),
+            "suffix must be preserved: {applied:?}"
+        );
+        // Byte-stable regions outside the window.
+        let prefix = "prefix_a\nprefix_b\n";
+        assert_eq!(&applied[..prefix.len()], prefix);
+        assert!(applied.ends_with("suffix_a\nsuffix_b\n"));
+        assert_eq!(
+            applied.matches('\n').count(),
+            original.matches('\n').count()
+        );
+    }
+
+    #[test]
+    fn pending_save_apply_to_round_trips_unchanged_window() {
+        let original = "a\nb\nc\nd\ne\n";
+        let mut state = FixState::new(make_finding());
+        state.set_context(vec!["b".to_string(), "c".to_string(), "d".to_string()], 2);
+        state.open_editor();
+        state.handle_key(Action::Select); // save without edits
+        let save = state.take_pending_save().expect("save");
+        assert_eq!(save.apply_to(original), original);
     }
 
     // ── Full flow: external edit ────────────────────────────────────────
