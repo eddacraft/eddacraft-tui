@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 262/314  |
+| CIB | —     | In Progress | 263/314  |
 
 ## Purpose
 
@@ -9499,7 +9499,9 @@ CIB-251/255 only.
 
 ### CIB-316: Retire `cutover-readiness.test.sh` — it guards a retired branch
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-09 via PR #3714 (`9e6e7794`) — the stale guard
+  and package script were removed; the resulting commit is an ancestor of
+  `origin/main`.
 - **Priority:** P3 CI hygiene — currently inert, but blocks wiring
 - **Intent:** `scripts/ci/cutover-readiness.test.sh` exists to "lock CICD-012
   invariants: validation workflows survive the `dev` → `main` cutover" (its own

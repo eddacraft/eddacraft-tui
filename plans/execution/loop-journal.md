@@ -816,9 +816,13 @@ never with feature work.
   `2026-08-11T01:27:00Z`. Landing-fence PR #3742 then recorded the exact
   pre-merge heads and landed as `e7dc04e8233fd842ba64adb434870ea83bdf2775`
   at `2026-08-11T03:07:17Z`, before the implementation wave.
-- Plan changes: CIB-305..314 advance from In Progress to Merged; the standing
-  module count advances from 252/314 to 262/314. CIB-317 and CIB-318 remain
-  Draft follow-ups and are not part of this landing wave.
+- Plan changes: CIB-305..314 advance from In Progress to Merged. Final
+  bookkeeping also reconciles CIB-316 from stale Ready to Merged: PR #3714
+  landed `9e6e7794723fa71bb4b3b2a02cf16d387f1b7281` at
+  `2026-08-09T14:39:19Z`, and that result is an ancestor of `origin/main`.
+  The standing module count therefore advances from the stored 252/314 to
+  263/314: ten items from this wave plus one previously landed item. CIB-317
+  and CIB-318 remain Draft follow-ups and are not part of this landing wave.
 - Authority: no administrator merge, policy bypass, review dismissal, release,
   or publication action was used.
 - Next: obtain release or shipped evidence before advancing these items beyond
