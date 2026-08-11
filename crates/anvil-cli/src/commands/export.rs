@@ -133,6 +133,10 @@ fn resolve_path_for_identity(path: &std::path::Path) -> std::path::PathBuf {
 }
 
 /// True when both existing paths refer to the same underlying file.
+///
+/// Unix uses device+inode. Windows hard-link identity needs the unstable
+/// `windows_by_handle` API, so non-Unix platforms fall back to path comparison
+/// in `output_targets_source`.
 fn files_share_identity(source: &std::path::Path, output: &std::path::Path) -> bool {
     #[cfg(unix)]
     {
@@ -144,18 +148,7 @@ fn files_share_identity(source: &std::path::Path, output: &std::path::Path) -> b
             _ => false,
         }
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        match (std::fs::metadata(source), std::fs::metadata(output)) {
-            (Ok(src_meta), Ok(out_meta)) => {
-                src_meta.volume_serial_number() == out_meta.volume_serial_number()
-                    && src_meta.file_index() == out_meta.file_index()
-            }
-            _ => false,
-        }
-    }
-    #[cfg(not(any(unix, windows)))]
+    #[cfg(not(unix))]
     {
         let _ = (source, output);
         false
