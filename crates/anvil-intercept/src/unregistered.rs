@@ -100,21 +100,43 @@ impl UnregisteredHandler for UnregisteredChangePolicy {
     }
 }
 
-/// Derive the worktree key for a change. v1 uses the change's
-/// parent directory: the watcher sees a change to
-/// `<worktree>/path/to/file.rs`, and the fence store uses
-/// canonicalised paths so any ancestor we choose collapses to the
-/// same canonical key on disk.
+/// Derive the worktree key for a change that could not be attributed
+/// to a registered session.
 ///
-/// A more sophisticated heuristic (e.g. nearest enclosing `.git`
-/// directory) is deliberately out of scope for v1 — the registry's
-/// `attribute_path` already returns `Unknown` for changes whose
-/// nearest registered worktree does not match, so reaching this
-/// path means the change really is unowned. Fencing the parent
-/// directory is the conservative answer; an operator who wants
-/// finer granularity registers more sessions.
+/// Prefer the nearest enclosing Git worktree root (directory that
+/// contains a `.git` entry — either a directory for a main worktree
+/// or a `gitdir:` file for a linked worktree). Registration and
+/// [`crate::fence::FenceState::is_fenced`] both key on that worktree
+/// path, so fencing only the file's immediate parent would leave the
+/// real worktree unfenced and would fail to de-duplicate fences
+/// across nested child directories.
+///
+/// When no Git boundary is found (non-git trees, synthetic fixtures),
+/// fall back to the change's parent directory so the policy still
+/// records *some* fence key rather than dropping the event.
 fn derive_worktree_for(path: &std::path::Path) -> Option<PathBuf> {
+    if let Some(root) = enclosing_git_worktree(path) {
+        return Some(root);
+    }
     path.parent().map(std::path::Path::to_path_buf)
+}
+
+/// Walk ancestors of `path` looking for a Git worktree root. Starts
+/// at the path's parent (the file itself is never a worktree root)
+/// and stops at the first directory that contains a `.git` entry.
+/// Does not shell out to `git`.
+fn enclosing_git_worktree(path: &std::path::Path) -> Option<PathBuf> {
+    for dir in path.ancestors().skip(1) {
+        if dir.as_os_str().is_empty() {
+            continue;
+        }
+        let git = dir.join(".git");
+        match std::fs::symlink_metadata(&git) {
+            Ok(meta) if meta.is_dir() || meta.is_file() => return Some(dir.to_path_buf()),
+            _ => {}
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -143,6 +165,17 @@ mod tests {
         }
     }
 
+    /// Seed a minimal Git worktree marker so fixtures stay hermetic even
+    /// when `TMPDIR` lives inside another repository (nearest-`.git`
+    /// walk would otherwise climb out of the fixture).
+    fn init_git_worktree(worktree: &Path) {
+        std::fs::create_dir_all(worktree).unwrap();
+        let git = worktree.join(".git");
+        if !git.exists() {
+            std::fs::create_dir(&git).unwrap();
+        }
+    }
+
     fn config_with(amb: AmbiguousOwnership) -> Resolved {
         Resolved {
             mode: ConfigMode::Fence,
@@ -161,7 +194,7 @@ mod tests {
     fn fence_setting_fences_the_changes_worktree() {
         let tmp = tempfile::tempdir().unwrap();
         let worktree = tmp.path().join("workspace");
-        std::fs::create_dir(&worktree).unwrap();
+        init_git_worktree(&worktree);
         let store = store_in(&tmp);
         let policy = UnregisteredChangePolicy::new(
             Arc::clone(&store),
@@ -203,7 +236,7 @@ mod tests {
     fn unknown_change_is_tagged_in_fence_reason() {
         let tmp = tempfile::tempdir().unwrap();
         let worktree = tmp.path().join("rogue");
-        std::fs::create_dir(&worktree).unwrap();
+        init_git_worktree(&worktree);
         let store = store_in(&tmp);
         let policy = UnregisteredChangePolicy::new(
             Arc::clone(&store),
@@ -233,7 +266,7 @@ mod tests {
     fn warn_setting_still_hard_caps_to_fence() {
         let tmp = tempfile::tempdir().unwrap();
         let worktree = tmp.path().join("ws");
-        std::fs::create_dir(&worktree).unwrap();
+        init_git_worktree(&worktree);
         let store = store_in(&tmp);
         let policy = UnregisteredChangePolicy::new(
             Arc::clone(&store),
@@ -249,14 +282,84 @@ mod tests {
         assert!(store.load().unwrap().is_fenced(&worktree));
     }
 
+    /// Nested paths must fence the git worktree root, not the file's
+    /// immediate parent. `is_fenced` matches exact worktree keys used at
+    /// registration, so fencing only `.../src/nested` leaves the real
+    /// worktree unfenced and fails to de-duplicate across child dirs.
+    #[test]
+    fn nested_change_fences_enclosing_git_worktree_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let worktree = tmp.path().join("workspace");
+        init_git_worktree(&worktree);
+        let nested = worktree.join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        let store = store_in(&tmp);
+        let policy = UnregisteredChangePolicy::new(
+            Arc::clone(&store),
+            config_with(AmbiguousOwnership::Fence),
+        );
+
+        let changes = vec![change_in(&nested, "file.rs")];
+        let outcomes = policy.apply(&changes);
+        assert_eq!(outcomes.len(), 1);
+        match &outcomes[0] {
+            UnregisteredOutcome::Fenced { worktree: w, .. } => {
+                assert_eq!(
+                    w, &worktree,
+                    "fence key must be the git worktree root, not the nested parent",
+                );
+            }
+            other @ UnregisteredOutcome::UnableToFence { .. } => {
+                panic!("expected Fenced, got {other:?}")
+            }
+        }
+        assert!(
+            store.load().expect("load").is_fenced(&worktree),
+            "canonical worktree root must be fenced after nested unknown change",
+        );
+        assert!(
+            !store.load().expect("load").is_fenced(&nested),
+            "nested parent directory must not be the fence key",
+        );
+    }
+
+    /// Linked worktrees store `.git` as a file pointing at a gitdir.
+    /// The fence key is still the linked worktree root that contains
+    /// that file, not a parent of the gitdir.
+    #[test]
+    fn nested_change_fences_linked_worktree_with_git_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let worktree = tmp.path().join("linked-wt");
+        let nested = worktree.join("crates/foo");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(worktree.join(".git"), b"gitdir: /tmp/fake-gitdir\n").unwrap();
+        let store = store_in(&tmp);
+        let policy = UnregisteredChangePolicy::new(
+            Arc::clone(&store),
+            config_with(AmbiguousOwnership::Fence),
+        );
+
+        let outcomes = policy.apply(&[change_in(&nested, "lib.rs")]);
+        match &outcomes[0] {
+            UnregisteredOutcome::Fenced { worktree: w, .. } => {
+                assert_eq!(w, &worktree);
+            }
+            other => panic!("expected Fenced, got {other:?}"),
+        }
+        assert!(store.load().unwrap().is_fenced(&worktree));
+    }
+
     /// Multiple changes inside the same worktree fence the
     /// worktree once, not N times. The policy de-duplicates by
-    /// derived worktree key.
+    /// derived worktree key — including when nested paths would
+    /// otherwise yield distinct parent directories.
     #[test]
     fn multiple_changes_in_same_worktree_fence_once() {
         let tmp = tempfile::tempdir().unwrap();
         let worktree = tmp.path().join("multi");
-        std::fs::create_dir(&worktree).unwrap();
+        init_git_worktree(&worktree);
+        std::fs::create_dir_all(worktree.join("src/a")).unwrap();
+        std::fs::create_dir_all(worktree.join("src/b")).unwrap();
         let store = store_in(&tmp);
         let policy = UnregisteredChangePolicy::new(
             Arc::clone(&store),
@@ -264,8 +367,8 @@ mod tests {
         );
 
         let changes = vec![
-            change_in(&worktree, "a.rs"),
-            change_in(&worktree, "b.rs"),
+            change_in(&worktree.join("src/a"), "a.rs"),
+            change_in(&worktree.join("src/b"), "b.rs"),
             change_in(&worktree, "c.rs"),
         ];
         let outcomes = policy.apply(&changes);
@@ -277,6 +380,36 @@ mod tests {
             fenced_count, 1,
             "single fence per worktree, got {outcomes:?}"
         );
+        assert!(store.load().unwrap().is_fenced(&worktree));
+    }
+
+    /// When no Git worktree boundary exists above the change, fall
+    /// back to the file's parent directory (pre-fix behaviour for
+    /// non-git trees). Skipped when the temp location itself sits
+    /// inside a real repository — nearest-`.git` walk then correctly
+    /// prefers that outer root.
+    #[test]
+    fn non_git_tree_falls_back_to_parent_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        if enclosing_git_worktree(tmp.path()).is_some() {
+            return;
+        }
+        let worktree = tmp.path().join("nongit-ws");
+        std::fs::create_dir(&worktree).unwrap();
+        let store = store_in(&tmp);
+        let policy = UnregisteredChangePolicy::new(
+            Arc::clone(&store),
+            config_with(AmbiguousOwnership::Fence),
+        );
+
+        let outcomes = policy.apply(&[change_in(&worktree, "file.rs")]);
+        match &outcomes[0] {
+            UnregisteredOutcome::Fenced { worktree: w, .. } => {
+                assert_eq!(w, &worktree);
+            }
+            other => panic!("expected Fenced, got {other:?}"),
+        }
+        assert!(store.load().unwrap().is_fenced(&worktree));
     }
 
     /// Path with no parent (e.g. `"file.rs"` at the cwd root) is
