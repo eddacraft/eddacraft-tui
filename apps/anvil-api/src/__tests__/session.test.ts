@@ -4,6 +4,7 @@ vi.mock('../db/queries.js', () => ({
   findActiveScopesForUser: vi.fn(),
   insertRefreshToken: vi.fn(),
   consumeAndRotateRefreshToken: vi.fn(),
+  stampUserLogin: vi.fn(),
 }));
 
 vi.mock('../lib/licence.js', () => ({
@@ -19,6 +20,7 @@ import {
   consumeAndRotateRefreshToken,
   findActiveScopesForUser,
   insertRefreshToken,
+  stampUserLogin,
 } from '../db/queries.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
 import { hashToken } from '../lib/token.js';
@@ -35,6 +37,7 @@ beforeEach(() => {
   vi.mocked(signLicence).mockResolvedValue('signed.jwt.token');
   vi.mocked(hashToken).mockImplementation((t: string) => `hash:${t}`);
   vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
+  vi.mocked(stampUserLogin).mockResolvedValue(undefined);
   vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({
     status: 'rotated',
     token: {
@@ -147,6 +150,38 @@ describe('mintSession', () => {
   });
 });
 
+it('stamps interactive login when loginMethod is provided (BACT-002)', async () => {
+  await mintSession(sql, {
+    user,
+    identity: { provider: 'github', id: '42' },
+    loginMethod: 'github',
+  });
+  expect(vi.mocked(stampUserLogin)).toHaveBeenCalledWith(sql, 'user-1', 'github');
+});
+
+it('does not stamp login when loginMethod is omitted', async () => {
+  await mintSession(sql, {
+    user,
+    identity: { provider: 'email', id: null },
+  });
+  expect(vi.mocked(stampUserLogin)).not.toHaveBeenCalled();
+});
+
+it('stamps otp and device methods for email-identity paths', async () => {
+  await mintSession(sql, {
+    user,
+    identity: { provider: 'email', id: null },
+    loginMethod: 'otp',
+  });
+  await mintSession(sql, {
+    user,
+    identity: { provider: 'email', id: null },
+    loginMethod: 'device',
+  });
+  expect(vi.mocked(stampUserLogin)).toHaveBeenNthCalledWith(1, sql, 'user-1', 'otp');
+  expect(vi.mocked(stampUserLogin)).toHaveBeenNthCalledWith(2, sql, 'user-1', 'device');
+});
+
 describe('mintRotatedSession', () => {
   it('rotates via the atomic query then signs a licence', async () => {
     const result = await mintRotatedSession(sql, {
@@ -188,5 +223,17 @@ describe('mintRotatedSession', () => {
     expect(result).toEqual({ ok: false });
     expect(vi.mocked(signLicence)).not.toHaveBeenCalled();
     expect(vi.mocked(findActiveScopesForUser)).not.toHaveBeenCalled();
+  });
+});
+
+describe('mintRotatedSession login stamps (BACT-002)', () => {
+  it('does not stamp login on refresh rotation', async () => {
+    await mintRotatedSession(sql, {
+      user,
+      identity: { provider: 'github', id: '42' },
+      familyId: 'family-1',
+      oldTokenId: 'rt-1',
+    });
+    expect(vi.mocked(stampUserLogin)).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,8 @@
 | ----- | ----- | -------- | ------ |
 | FLEET | —     | High     | Done |
 
-**Last reviewed:** 2026-08-03 against `v0.9.1-beta`, installed
+**Last reviewed:** 2026-08-11 — identity boundary clarified vs BACT (FLEET
+stays anonymous). Prior review 2026-08-03 against `v0.9.1-beta`, installed
 `anvil telemetry --help`, and the FLEET-001..007 implementation evidence.
 [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) is the accepted
 consent and dimension contract.
@@ -23,6 +24,13 @@ consent and dimension contract.
 Give the operator fleet-level visibility — what version is out there, which
 install method delivered it, and which features are actually used — via an
 explicitly consented, phone-home telemetry channel.
+
+**Identity boundary (2026-08-11):** FLEET answers population questions only
+(“is anyone using `watch`?”). Named beta customer-success questions (“did
+Elliot log in / use `watch`?”) are owned by
+[beta-account-activity](./beta-account-activity.aps.md) (BACT) on an
+**authenticated** path. Do not put email, user ids, or `install_id`→account
+joins on this beacon — that remains forbidden under ADR-107.
 
 This was a **posture change**, not an increment: the earlier privacy contract
 promised observations never left the machine, and the INSIGHTS module shipped
@@ -96,6 +104,10 @@ shipped it in `v0.9.1-beta`.
 - Licence-gate / entitlement surface — the beacon and the licence check
   must not become a covert second telemetry channel; whatever the ADR
   decides applies to both.
+- [beta-account-activity](./beta-account-activity.aps.md) (BACT) — identity-bound
+  beta CS signals (login stamps, allowlisted per-account feature touch).
+  Coordinates with FLEET’s feature-key vocabulary where useful; does **not**
+  amend the anonymous beacon allowlist.
 
 **Exposes:**
 

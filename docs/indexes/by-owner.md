@@ -484,11 +484,11 @@
 | -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | --------------------------------------------------------------------------- | ------ |
 | [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/archive/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
 
-## USAGE, FLEET
+## USAGE, FLEET, BACT
 
-| Document                                                                        | Path                                    | Type  | Authority     | Owner        | Status |
-| ------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ------------ | ------ |
-| [Usage Analytics Privacy Contract](../../docs/observability/usage-analytics.md) | `docs/observability/usage-analytics.md` | Guide | Authoritative | USAGE, FLEET | Live   |
+| Document                                                                        | Path                                    | Type  | Authority     | Owner              | Status |
+| ------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ------------------ | ------ |
+| [Usage Analytics Privacy Contract](../../docs/observability/usage-analytics.md) | `docs/observability/usage-analytics.md` | Guide | Authoritative | USAGE, FLEET, BACT | Live   |
 
 ## VISION
 

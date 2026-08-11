@@ -161,6 +161,7 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
   const session = await mintSession(sql, {
     user,
     identity: { provider: 'email', id: null },
+    loginMethod: 'otp',
   });
 
   debug('otp verified successfully', { userId: user.id });

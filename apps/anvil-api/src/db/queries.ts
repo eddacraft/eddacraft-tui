@@ -40,6 +40,11 @@ const BetaUserSchema = z.object({
   // coerced to 0. `.optional()` keeps the output type assignable from row
   // fixtures that predate this column (real rows always carry it post-015).
   github_id: z.union([z.null(), z.coerce.number()]).optional(),
+  // BACT-002: interactive login stamps. Optional/null for pre-migration rows
+  // and invite-only accounts that have never completed a session mint.
+  first_login_at: z.union([DateStringSchema, z.null()]).optional(),
+  last_login_at: z.union([DateStringSchema, z.null()]).optional(),
+  last_login_method: z.union([z.enum(['github', 'otp', 'device']), z.null()]).optional(),
   created_at: DateStringSchema,
   updated_at: DateStringSchema,
 });
@@ -81,6 +86,32 @@ export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 // Helper to cast Neon query results (returns union type) to row array
 function rows(result: unknown): Record<string, unknown>[] {
   return result as Record<string, unknown>[];
+}
+
+/** Closed set of interactive login methods stamped by BACT-002. */
+export type LoginMethod = 'github' | 'otp' | 'device';
+
+/**
+ * Record an interactive login for a beta user (BACT-002).
+ *
+ * Sets `first_login_at` only when still null; always refreshes
+ * `last_login_at` and `last_login_method`. Invite/approve token mint must
+ * not call this — only real session mint paths.
+ */
+export async function stampUserLogin(
+  sql: NeonClient,
+  userId: string,
+  method: LoginMethod
+): Promise<void> {
+  await sql`
+    UPDATE beta_users
+    SET
+      first_login_at = COALESCE(first_login_at, now()),
+      last_login_at = now(),
+      last_login_method = ${method},
+      updated_at = now()
+    WHERE id = ${userId}
+  `;
 }
 
 export async function findUserByEmail(sql: NeonClient, email: string): Promise<BetaUser | null> {

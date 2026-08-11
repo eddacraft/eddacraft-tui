@@ -174,6 +174,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   const session = await mintSession(sql, {
     user,
     identity: { provider: 'email', id: null },
+    loginMethod: 'device',
   });
 
   debug('device code consumed, licence issued');

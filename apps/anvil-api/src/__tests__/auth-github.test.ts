@@ -21,6 +21,7 @@ vi.mock('../db/queries.js', async (importOriginal) => {
       created_at: new Date().toISOString(),
     }),
     insertRefreshToken: vi.fn().mockResolvedValue(undefined),
+    stampUserLogin: vi.fn().mockResolvedValue(undefined),
     findActiveScopesForUser: vi.fn().mockResolvedValue(['beta']),
   };
 });

@@ -493,7 +493,10 @@ describe('POST /auth/github-device/poll', () => {
       expect(mintSession).toHaveBeenCalledTimes(1);
       expect(mintSession).toHaveBeenCalledWith(
         expect.anything(),
-        expect.objectContaining({ identity: { provider: 'github', id: '424242' } })
+        expect.objectContaining({
+          identity: { provider: 'github', id: '424242' },
+          loginMethod: 'github',
+        })
       );
 
       // the stored mint is the session encrypted under the client-held token

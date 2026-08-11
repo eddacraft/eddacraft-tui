@@ -12,6 +12,11 @@ description:
 from the detailed local observations that support `anvil insights` and kindling:
 those rows stay on your machine and are never uploaded.
 
+This anonymous beacon is **not** how anvil tracks a signed-in beta account. When
+you log in, the server may record login timestamps on your account for product
+access and support. That path is separate from this beacon, does not use the
+install identifier below, and never turns the beacon into a named user report.
+
 ## Consent and timing
 
 Telemetry uses a disclosed opt-out posture. It starts enabled, but anvil cannot

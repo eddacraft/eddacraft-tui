@@ -4,9 +4,13 @@ import {
   consumeAndRotateRefreshToken,
   findActiveScopesForUser,
   insertRefreshToken,
+  stampUserLogin,
+  type LoginMethod,
 } from '../db/queries.js';
 import { signLicence, type LicenceClaims } from './licence.js';
 import { hashToken } from './token.js';
+
+export type { LoginMethod };
 
 /** Access-token (JWT licence) lifetime used by every interactive auth path. */
 const DEFAULT_LICENCE_TTL_DAYS = 7;
@@ -30,6 +34,12 @@ export interface MintSessionInput {
    * rotate within it (session refresh).
    */
   familyId?: string;
+  /**
+   * BACT-002: when set, stamp first/last interactive login on `beta_users`.
+   * Omit for paths that mint sessions without a fresh interactive login
+   * (none today — refresh uses `mintRotatedSession` and never stamps).
+   */
+  loginMethod?: LoginMethod;
 }
 
 export interface MintSessionResult {
@@ -59,6 +69,7 @@ export async function mintSession(
     ttlDays = DEFAULT_LICENCE_TTL_DAYS,
     refreshTtlDays = DEFAULT_REFRESH_TTL_DAYS,
     familyId = randomUUID(),
+    loginMethod,
   } = input;
 
   const scopes = await findActiveScopesForUser(sql, user.id);
@@ -79,6 +90,10 @@ export async function mintSession(
   const refreshHash = hashToken(rawRefreshToken);
   const refreshExpiresAt = new Date(Date.now() + refreshTtlDays * DAY_MS);
   await insertRefreshToken(sql, user.id, refreshHash, familyId, refreshExpiresAt);
+
+  if (loginMethod) {
+    await stampUserLogin(sql, user.id, loginMethod);
+  }
 
   const expiresAt = new Date(Date.now() + ttlDays * DAY_MS).toISOString();
 

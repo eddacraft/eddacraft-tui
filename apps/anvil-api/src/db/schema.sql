@@ -16,6 +16,14 @@ CREATE TABLE beta_users (
   -- Sparse + nullable; authoritative match key for returning users once set.
   -- Email stays the invitation key. NULLs are distinct under UNIQUE.
   github_id  bigint UNIQUE,
+  -- BACT-002: interactive login stamps (nullable; invite-only rows stay NULL).
+  first_login_at     timestamptz,
+  last_login_at      timestamptz,
+  last_login_method  text
+                     CHECK (
+                       last_login_method IS NULL
+                       OR last_login_method IN ('github', 'otp', 'device')
+                     ),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -190,6 +198,8 @@ CREATE TABLE telemetry_daily_feature_usage (
 );
 
 -- Indexes
+CREATE INDEX idx_beta_users_last_login_at
+  ON beta_users (last_login_at DESC NULLS LAST);
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
 -- Mirrors migration 010-access-tokens-scope-index.sql so fresh-install

@@ -1,16 +1,20 @@
 # Usage Analytics Privacy Contract
 
-| Type  | Authority     | Owner        | Status | Freshness                         |
-| ----- | ------------- | ------------ | ------ | --------------------------------- |
-| Guide | Authoritative | USAGE, FLEET | Live   | Live as of 2026-07-16 (FLEET-006) |
+| Type  | Authority     | Owner              | Status | Freshness                             |
+| ----- | ------------- | ------------------ | ------ | ------------------------------------- |
+| Guide | Authoritative | USAGE, FLEET, BACT | Live   | Live as of 2026-08-11 (BACT two-pipe) |
 
-| Upstream                                                    | Downstream                                                                    |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| ADR-035, ADR-041, ADR-019, ADR-107, USAGE and FLEET modules | Usage-analytics producers, fleet beacon, public telemetry docs, and reviewers |
+| Upstream                                                                                             | Downstream                                                                                                |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| ADR-035, ADR-041, ADR-019, ADR-107 (incl. 2026-08-11 BACT amendment), USAGE, FLEET, and BACT modules | Usage-analytics producers, fleet beacon, signed-in account activity, public telemetry docs, and reviewers |
 
-> **Status:** Live as of 2026-07-16 (FLEET-006). This is the founder-confirmed
-> privacy contract for local command-invocation observations and the ADR-107
-> remote aggregate. Any change to either allowlist requires founder review.
+> **Status:** Live as of 2026-08-11 (BACT two-pipe clarification; FLEET-006
+> beacon contract still as of 2026-07-16). This is the founder-confirmed privacy
+> contract for local command-invocation observations, the ADR-107 remote
+> aggregate, and the complementary signed-in beta account-activity pipe (BACT).
+> Any change to the FLEET allowlist requires founder review and a dated ADR-107
+> amendment. BACT identity-bound fields must never be joined onto the anonymous
+> beacon.
 >
 > Normative references:
 > [ADR-035](../../plans/decisions/035-three-pipe-observability-rule.md)
@@ -20,13 +24,21 @@
 > [ADR-019](../../plans/decisions/019-flags-observability-alignment.md)
 > (gate-affecting-only Kindling flag facts).
 
-This guide distinguishes two separate pipes:
+This guide distinguishes **three** separate stories:
 
 - **Local Kindling observations** retain detailed command and governance facts
   on the device. They are not uploaded.
 - **The remote fleet beacon** is the narrow ADR-107 aggregate described below.
   It does not upload Kindling rows and cannot contain command names, arguments,
-  paths, repository names, hostnames, emails, findings, or file contents.
+  paths, repository names, hostnames, emails, findings, or file contents. It
+  answers population questions only (“is anyone using this feature?”).
+- **Signed-in beta account activity (BACT)** is identity-bound server-side
+  bookkeeping for customer success on authenticated accounts (login stamps on
+  interactive session mint; later allowlisted per-account feature touch). It
+  answers “did _this_ beta user log in / use a core surface?” and must **not**
+  re-identify fleet `install_id` values or put email on the anonymous beacon.
+  See [beta-account-activity](../../plans/modules/beta-account-activity.aps.md)
+  and the 2026-08-11 amendment to ADR-107.
 
 ## Purpose
 

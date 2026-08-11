@@ -181,6 +181,7 @@ authGithub.post('/callback', zValidator('json', callbackSchema), async (c) => {
   const session = await mintSession(sql, {
     user,
     identity: { provider: 'github', id: String(ghUser.id) },
+    loginMethod: 'github',
   });
 
   await insertAuditLog(sql, 'github_oauth_login', user.email, {

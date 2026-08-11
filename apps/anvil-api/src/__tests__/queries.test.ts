@@ -5,6 +5,7 @@ import {
   findActiveScopesForUser,
   insertOtpCodeIfUnderLimit,
   revokeRefreshFamilyAndAccessTokensForUser,
+  stampUserLogin,
 } from '../db/queries.js';
 
 function mockSql(result?: unknown): NeonClient {
@@ -16,6 +17,21 @@ function mockSql(result?: unknown): NeonClient {
 }
 
 describe('db queries', () => {
+  describe('stampUserLogin', () => {
+    it('issues a single UPDATE for the user id and method (BACT-002)', async () => {
+      const sql = mockSql([]);
+      await expect(stampUserLogin(sql, 'user-1', 'github')).resolves.toBeUndefined();
+      expect(sql).toHaveBeenCalledTimes(1);
+      // neon tagged template: first arg is strings, subsequent are values
+      const call = vi.mocked(sql).mock.calls[0];
+      expect(call).toBeDefined();
+      // values include user id and method somewhere in the template args
+      const flat = call?.flatMap((part) => (Array.isArray(part) ? part : [part]));
+      const asText = JSON.stringify(flat);
+      expect(asText).toContain('user-1');
+      expect(asText).toContain('github');
+    });
+  });
   describe('findActiveScopesForUser', () => {
     it('defaults to beta when the user has no active token rows', async () => {
       const sql = mockSql([{ active_token_count: 0, scopes: [] }]);

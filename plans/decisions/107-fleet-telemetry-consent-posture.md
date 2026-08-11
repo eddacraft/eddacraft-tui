@@ -131,3 +131,26 @@ the local identity convention at all.
 - External: `plans/specs/2026-04-09-feature-flagging-design.md`
   (Observability section), `docs/guides/feature-flag-governance.md`,
   <https://consoledonottrack.com/>
+
+## Amendment 2026-08-11 — complementary BACT pipe (no identity change)
+
+Operator-accepted clarification (APS module
+[beta-account-activity](../modules/beta-account-activity.aps.md), BACT):
+
+- **FLEET remains anonymous.** This ADR's install UUID, dimension allowlist,
+  and "no email / user id / principal on the beacon" rules are unchanged.
+  Do **not** join `install_id` to a beta account on the public beacon path.
+- **BACT owns named customer-success signals** on an **authenticated** path
+  (login stamps on session mint; later allowlisted per-account feature touch).
+  That answers "did this invitee log in / use a core surface?" without
+  re-identifying the fleet beacon.
+- **Login stamps are auth bookkeeping**, not a client usage beacon: the server
+  records `first_login_at` / `last_login_at` / `last_login_method` when a real
+  interactive session is minted. Invite/approve token mint without interactive
+  login does not stamp.
+- Population metrics ("is anyone using `watch`?") stay on FLEET; account CS
+  metrics stay on BACT.
+
+This amendment does **not** expand the FLEET allowlist and does **not** authorise
+putting identity on the anonymous beacon.
+

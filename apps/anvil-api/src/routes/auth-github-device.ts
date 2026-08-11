@@ -446,6 +446,7 @@ authGithubDevice.post(
     const mintResult = await mintSession(sql, {
       user,
       identity: { provider: 'github', id: String(ghUser.id) },
+      loginMethod: 'github',
     });
 
     // Single-use claim: only the first mint is recorded; a concurrent loser
