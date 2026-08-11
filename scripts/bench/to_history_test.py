@@ -140,7 +140,9 @@ class AntipatternCatalogueMetadataTests(unittest.TestCase):
 
         self.assertEqual(first_fingerprint, second_fingerprint)
 
-    def test_opt_in_change_only_changes_enabled_workload_fingerprint(self) -> None:
+    def test_opt_in_regex_change_only_changes_enabled_workload_fingerprint(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             first = self.write_registry(

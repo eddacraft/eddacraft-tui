@@ -389,16 +389,34 @@ fn bench_language_inputs(
     });
 }
 
-fn assert_language_fixture(language: &str, extension: &str, matched: &str, clean: &str) {
-    let matched_path = format!("src/{language}_fixture.{extension}");
+/// Guard the benchmark inputs on the *same* paths `bench_language_inputs`
+/// scans. `scan_file` applies per-pattern allowlist globs to the file path, so
+/// asserting on a path the benchmarks never use could pass while a benchmark
+/// path is silently allowlisted into an empty workload.
+fn assert_language_fixture(
+    language: &str,
+    extension: &str,
+    matched_small: &str,
+    matched_medium: &str,
+    matched_large: &str,
+    clean: &str,
+) {
+    for (size, matched) in [
+        ("small", matched_small),
+        ("medium", matched_medium),
+        ("large", matched_large),
+    ] {
+        let matched_path = format!("src/{language}_{size}.{extension}");
+        let matched_result = scan_file(&matched_path, matched, None);
+        assert!(
+            !matched_result.warnings.is_empty(),
+            "{matched_path} must exercise at least one default rule"
+        );
+    }
+
     let clean_path = format!("src/{language}_clean.{extension}");
-    let matched_result = scan_file(&matched_path, matched, None);
     let clean_result = scan_file(&clean_path, clean, None);
 
-    assert!(
-        !matched_result.warnings.is_empty(),
-        "{language} matched fixture must exercise at least one default rule"
-    );
     assert!(
         clean_result.warnings.is_empty(),
         "{language} clean fixture unexpectedly emitted: {:?}",
@@ -425,9 +443,30 @@ fn antipattern_benchmarks(c: &mut Criterion) {
     let python_clean = generate_python_with_antipatterns(500, 0);
     let html_file = generate_html_file(200);
 
-    assert_language_fixture("typescript", "ts", &ts_small, &ts_clean);
-    assert_language_fixture("rust", "rs", &rust_small, &rust_clean);
-    assert_language_fixture("python", "py", &python_small, &python_clean);
+    assert_language_fixture(
+        "typescript",
+        "ts",
+        &ts_small,
+        &ts_medium,
+        &ts_large,
+        &ts_clean,
+    );
+    assert_language_fixture(
+        "rust",
+        "rs",
+        &rust_small,
+        &rust_medium,
+        &rust_large,
+        &rust_clean,
+    );
+    assert_language_fixture(
+        "python",
+        "py",
+        &python_small,
+        &python_medium,
+        &python_large,
+        &python_clean,
+    );
 
     let html_options = anvil_checks::antipattern::scanner::ScanOptions {
         patterns: None,
