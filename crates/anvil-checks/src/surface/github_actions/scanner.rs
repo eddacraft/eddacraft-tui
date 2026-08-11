@@ -222,27 +222,131 @@ fn is_pull_request_target_line(trimmed: &str) -> bool {
     false
 }
 
-/// True when `hay` contains `key` as a YAML mapping key (identifier followed
-/// by optional whitespace and `:`), with a non-identifier character before it
-/// so substrings like `not_pull_request_target:` do not match.
+/// True when `hay` contains `key` as a **top-level** YAML flow-mapping key
+/// (brace depth 1). Nested keys such as
+/// `on: { workflow_call: { inputs: { pull_request_target: {} } } }` do not
+/// match, and substrings like `not_pull_request_target:` are rejected.
 fn flow_mapping_has_key(hay: &str, key: &str) -> bool {
+    flow_map_top_level_value(hay, key).is_some()
+}
+
+/// Locate `key` as a top-level key inside the first flow mapping in `hay` and
+/// return the remainder of the string starting at that key's value (after `:`).
+///
+/// Tracks brace depth and quote state so nested maps and quoted scalars do not
+/// produce false positives (e.g. `with: { uses: … }` is not a top-level `uses`).
+fn flow_map_top_level_value<'a>(hay: &'a str, key: &str) -> Option<&'a str> {
     let bytes = hay.as_bytes();
-    let mut start = 0;
-    while let Some(rel) = hay[start..].find(key) {
-        let abs = start + rel;
-        let before_ok = abs == 0 || {
-            let b = bytes[abs - 1];
-            !b.is_ascii_alphanumeric() && b != b'_'
-        };
-        if before_ok {
-            let after = hay[abs + key.len()..].trim_start();
-            if after.starts_with(':') {
-                return true;
+    let Some(open) = hay.find('{') else {
+        return None;
+    };
+    let mut i = open;
+    let mut depth: i32 = 0;
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut expect_key = false;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if in_single {
+            if b == b'\'' {
+                in_single = false;
+            }
+            i += 1;
+            continue;
+        }
+        if in_double {
+            if b == b'"' {
+                in_double = false;
+            }
+            i += 1;
+            continue;
+        }
+        match b {
+            b'\'' => {
+                in_single = true;
+                i += 1;
+            }
+            b'"' => {
+                in_double = true;
+                i += 1;
+            }
+            b'{' => {
+                depth += 1;
+                if depth == 1 {
+                    expect_key = true;
+                }
+                i += 1;
+            }
+            b'}' => {
+                depth -= 1;
+                if depth <= 0 {
+                    return None;
+                }
+                i += 1;
+            }
+            b',' if depth == 1 => {
+                expect_key = true;
+                i += 1;
+            }
+            _ if depth == 1 && expect_key && !b.is_ascii_whitespace() => {
+                // Optional quoted key: "key" / 'key'
+                let (parsed, next) = parse_flow_key(hay, i);
+                i = next;
+                while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+                    i += 1;
+                }
+                if i < bytes.len() && bytes[i] == b':' {
+                    i += 1; // consume ':'
+                    if parsed.as_deref() == Some(key) {
+                        return Some(&hay[i..]);
+                    }
+                    expect_key = false;
+                }
+                // If no colon, keep scanning (malformed / not a key).
+            }
+            _ => {
+                i += 1;
             }
         }
-        start = abs + 1;
     }
-    false
+    None
+}
+
+/// Parse a flow-mapping key at `start`: unquoted identifier, or a single- or
+/// double-quoted scalar. Returns `(Some(key), index_after_key)` or
+/// `(None, start+1)` when the next token is not a key shape.
+fn parse_flow_key(hay: &str, start: usize) -> (Option<String>, usize) {
+    let bytes = hay.as_bytes();
+    if start >= bytes.len() {
+        return (None, start);
+    }
+    let b = bytes[start];
+    if b == b'"' || b == b'\'' {
+        let quote = b;
+        let mut i = start + 1;
+        while i < bytes.len() {
+            if bytes[i] == quote {
+                let inner = &hay[start + 1..i];
+                return (Some(inner.to_string()), i + 1);
+            }
+            i += 1;
+        }
+        return (None, start + 1);
+    }
+    if !(b.is_ascii_alphanumeric() || b == b'_') {
+        return (None, start + 1);
+    }
+    let mut i = start;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c.is_ascii_alphanumeric() || c == b'_' || c == b'-' {
+            i += 1;
+        } else {
+            break;
+        }
+    }
+    (Some(hay[start..i].to_string()), i)
 }
 
 /// True when this line declares a self-hosted runner — either inline
@@ -292,8 +396,9 @@ fn uses_branch_ref(line: &str) -> Option<&str> {
     Some(reference)
 }
 
-/// Extract the value after a `uses:` key inside a YAML flow mapping, e.g.
-/// `- { uses: owner/repo@ref }` or `{ name: x, uses: owner/repo@ref }`.
+/// Extract the value after a top-level `uses:` key inside a YAML flow mapping,
+/// e.g. `- { uses: owner/repo@ref }` or `{ name: x, uses: owner/repo@ref }`.
+/// Nested maps such as `with: { uses: … }` are ignored.
 fn uses_value_from_flow_mapping(line: &str) -> Option<&str> {
     let s = line.trim_start();
     let s = match s.strip_prefix('-') {
@@ -303,17 +408,7 @@ fn uses_value_from_flow_mapping(line: &str) -> Option<&str> {
     if !s.starts_with('{') {
         return None;
     }
-    let bytes = s.as_bytes();
-    let mut start = 0;
-    while let Some(rel) = s[start..].find("uses:") {
-        let abs = start + rel;
-        let before_ok = abs == 0 || matches!(bytes[abs - 1], b'{' | b' ' | b'\t' | b',');
-        if before_ok {
-            return Some(&s[abs + "uses:".len()..]);
-        }
-        start = abs + 1;
-    }
-    None
+    flow_map_top_level_value(s, "uses")
 }
 
 /// Take a single YAML flow scalar from the start of `s`, stopping at an
@@ -451,6 +546,13 @@ mod tests {
         assert_eq!(
             risks("      - { name: Checkout, uses: actions/checkout@main }\n"),
             vec![GhaRisk::UnpinnedActionRef]
+        );
+        // Nested keys must not fire (top-level only).
+        assert!(
+            risks("on: { workflow_call: { inputs: { pull_request_target: {} } } }\n").is_empty()
+        );
+        assert!(
+            risks("      - { with: { uses: actions/checkout@main }, run: echo hi }\n").is_empty()
         );
         // Pinned flow-mapping uses remain clean.
         assert!(risks("      - { uses: actions/checkout@v4 }\n").is_empty());
