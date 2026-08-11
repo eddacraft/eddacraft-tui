@@ -390,9 +390,9 @@ fn apply_fix(
 }
 
 /// Replace `path` with `new_content` without ever truncating the original
-/// first. Content is written to a sibling temporary file, flushed, then
-/// renamed over the destination. On any failure before a successful
-/// rename the original file is left byte-for-byte unchanged.
+/// first. Content is written to a sibling temporary file, flushed/synced,
+/// then renamed over the destination. On any failure before a successful
+/// replace the original file is left byte-for-byte unchanged.
 fn replace_file_contents_atomic(path: &Path, new_content: &[u8]) -> Result<(), String> {
     let dir = path
         .parent()
@@ -408,28 +408,48 @@ fn replace_file_contents_atomic(path: &Path, new_content: &[u8]) -> Result<(), S
         .map_err(|err| format!("filePath write failed: {err}"))?;
     tmp.flush()
         .map_err(|err| format!("filePath write failed: {err}"))?;
+    // Surface delayed ENOSPC/quota/I/O before we replace the destination.
+    // `flush` alone is not enough on many filesystems.
+    tmp.as_file()
+        .sync_all()
+        .map_err(|err| format!("filePath write failed: {err}"))?;
 
     // Preserve the original mode/ACL-ish permissions when the destination
     // already exists. A fresh tempfile may otherwise land with restrictive
     // default perms (e.g. 0o600) that would silently tighten source files.
     if let Ok(meta) = fs::metadata(path) {
-        let _ = tmp.as_file().set_permissions(meta.permissions());
+        tmp.as_file()
+            .set_permissions(meta.permissions())
+            .map_err(|err| format!("filePath write failed: {err}"))?;
     }
 
-    // On Windows, TempPath::persist uses rename which fails if the
-    // destination already exists. Remove first (best-effort atomicity).
+    // On Windows, `rename` fails if the destination already exists, so move
+    // the original aside first. If the new content cannot be installed, restore
+    // the backup — never delete the original until the replacement is durable.
     #[cfg(windows)]
     {
-        if let Err(err) = fs::remove_file(path)
-            && err.kind() != std::io::ErrorKind::NotFound
-        {
-            return Err(format!("filePath write failed: {err}"));
+        let backup = dir.join(format!(".anvil-fix-backup-{}", std::process::id()));
+        match fs::rename(path, &backup) {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(format!("filePath write failed: {err}")),
         }
+        if let Err(err) = tmp.persist(path) {
+            // Best-effort restore of the pre-replace content.
+            let _ = fs::rename(&backup, path);
+            let _ = fs::remove_file(&backup);
+            return Err(format!("filePath write failed: {}", err.error));
+        }
+        let _ = fs::remove_file(&backup);
+        return Ok(());
     }
 
-    tmp.persist(path)
-        .map_err(|err| format!("filePath write failed: {}", err.error))?;
-    Ok(())
+    #[cfg(not(windows))]
+    {
+        tmp.persist(path)
+            .map_err(|err| format!("filePath write failed: {}", err.error))?;
+        Ok(())
+    }
 }
 
 struct AcquiredLock {
