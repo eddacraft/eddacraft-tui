@@ -918,7 +918,7 @@ mod tests {
     }
 
     impl InterceptRule for RunRecordingRule {
-        fn rule_id(&self) -> &str {
+        fn rule_id(&self) -> &'static str {
             "run-recording"
         }
 
