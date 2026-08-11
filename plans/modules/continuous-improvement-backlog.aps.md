@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 263/314  |
+| CIB | —     | In Progress | 263/315  |
 
 ## Purpose
 
@@ -9597,3 +9597,73 @@ CIB-251/255 only.
 - **Coordinates with:** CIB-313 and ADR-066
 - **Confidence:** medium — the lifecycle gap is concrete; stable grant
   identity and replacement semantics require shaping before implementation.
+
+### CIB-320: No gate sees an Nx project graph that only breaks on Vercel
+
+- **Status:** Ready — filed by operator request 2026-08-11, immediately after
+  the second occurrence of the failure class.
+- **Priority:** P1 deploy availability — the failure takes every Nx-built
+  Vercel app down on `main` and is invisible to CI
+- **Intent:** Adding a directory anywhere in the repo that contains lintable
+  source but is not a pnpm workspace member makes the `@nx/eslint` plugin
+  infer a project node with no resolvable name. Nx then aborts project-graph
+  processing before any build starts, so **every** `nx build` on Vercel fails.
+  No CI job computes the project graph, so the defect can only be discovered
+  by a production deployment going red after merge.
+- **Expected Outcome:** a PR that introduces a graph-breaking directory fails
+  a fast, required CI check with the Nx error text, instead of landing on
+  `main` and taking the docs site down until someone notices.
+- **Algorithm (ship as one vertical slice):**
+
+  ```text
+  job: Nx Graph
+    - checkout, setup workspace, pnpm install --frozen-lockfile
+    - run with a COLD graph cache:
+        NX_DAEMON=false
+        NX_WORKSPACE_DATA_DIRECTORY=$(mktemp -d)
+        NX_CACHE_DIRECTORY=$(mktemp -d)
+        nx show projects
+    - non-zero exit → fail, surfacing Nx's stderr verbatim
+  ```
+
+  The cold cache is the load-bearing part: a warm `.nx/workspace-data`
+  restored from an earlier run can mask the fault, which is exactly how the
+  Vercel builds behaved inconsistently before diagnosis.
+
+- **Non-scope / do not:** do not path-gate this job to `nx.json` /
+  `.nxignore` / `package.json` — the two real triggers were a security
+  scanner directory and a benchmark fixture, neither of which touches Nx
+  config, so a path gate would have missed both (see the Docs Lint path-gate
+  drift trap). Do not build or lint any project; graph computation only. Do
+  not add it to the heavy Rust matrix — it must stay a sub-minute check that
+  can be a required merge gate.
+- **Files:**
+  - `.github/workflows/ci.yml` — new `Nx Graph` job, not path-gated,
+    included in the merge gate
+  - `scripts/ci/nx-graph-check.sh` — cold-cache invocation, so the same
+    command is runnable locally
+  - `package.json` — `nx:graph:check` script entry
+- **Validation:**
+  - `bash scripts/ci/nx-graph-check.sh` passes on a clean tree.
+  - **Prove RED:** on a scratch branch, remove the `benchmarks/fixtures`
+    line from `.nxignore` and strip `name` from
+    `benchmarks/fixtures/devacc/mini-ts-service/package.json`; the check must
+    fail with "projects in the following directories have no name provided".
+    Restore both; the check must pass. A guard that cannot be made to fail
+    this way has not been proven to reach the defect.
+  - Confirm the job appears as a check on a PR that touches no Nx config.
+- **Identified From:** 2026-08-11 production incident — `eddacraft-docs-shell`
+  (the only app whose `vercel.json` `buildCommand` routes through Nx) failed
+  every production deployment from `4fbbb57c7` until `736a9c68a`, aliased to
+  `docs.eddacraft.ai`. Root cause was the DEVACC fixture
+  `benchmarks/fixtures/devacc/mini-ts-service`; fixed by adding
+  `benchmarks/fixtures` to `.nxignore` via PR #3746. **Second occurrence of
+  the class** — `.nxignore`'s existing `.deepsec` entry documents the
+  identical Nx error from a different directory, so this is a recurring
+  defect with no detection, not a one-off.
+- **Coordinates with:** `.nxignore`, `nx.json` plugin `exclude` lists,
+  `apps/docs-shell/vercel.json`, CIB-300 (the same shape of gap — no gate saw
+  a committed conflict marker either).
+- **Confidence:** high — the check is a single command with a proven RED
+  reproduction, and the failure it catches is deterministic once the cache is
+  cold.
