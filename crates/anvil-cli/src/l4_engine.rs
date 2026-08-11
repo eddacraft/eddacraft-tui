@@ -608,8 +608,11 @@ fn resolve_blob_oids(
 ) -> Result<Vec<Option<String>>, EngineUnavailableReason> {
     // 64 paths per invocation is well under ARG_MAX even for long paths.
     const CHUNK: usize = 64;
-    // Path bytes → oid. Use Vec<u8> keys so lossy UTF-8 paths still
-    // round-trip against ls-tree's raw path field.
+    // Path bytes → oid. Keys are the raw path field from ls-tree so
+    // lookups match git's path encoding. Callers pass UTF-8 `&str`
+    // paths (from `list_commit_files`); non-UTF-8 path bytes cannot
+    // round-trip through that surface and will miss here, which the
+    // engine treats as an unreadable scannable path (fail-closed).
     let mut by_path: HashMap<Vec<u8>, String> = HashMap::with_capacity(paths.len());
     for chunk in paths.chunks(CHUNK) {
         let mut cmd = Command::new("git");
@@ -854,6 +857,7 @@ mod tests {
     /// without `-z`, git C-quotes paths containing quotes/tabs/newlines so
     /// the extension filter never sees a scannable suffix. List must return
     /// the literal path bytes.
+    #[cfg(unix)]
     #[test]
     fn list_commit_files_returns_literal_special_character_paths() {
         let tmp = TempDir::new().unwrap();
@@ -907,6 +911,7 @@ mod tests {
     /// End-to-end: a scannable source file whose name forces git to C-quote
     /// under non-`-z` output must still be inspected. Returning `Allow` would
     /// reintroduce the L4 bypass.
+    #[cfg(unix)]
     #[test]
     fn validate_commit_blocks_antipattern_in_special_character_paths() {
         let tmp = TempDir::new().unwrap();
@@ -950,6 +955,7 @@ mod tests {
     /// `<sha>:<path>` cat-file requests. OID-based batch must still return
     /// the body, and colon-bearing paths in-tree must resolve (no longer
     /// refused solely because of the colon).
+    #[cfg(unix)]
     #[test]
     fn read_commit_blobs_batch_reads_special_character_paths() {
         let tmp = TempDir::new().unwrap();
