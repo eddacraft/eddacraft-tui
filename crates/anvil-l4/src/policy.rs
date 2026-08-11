@@ -1,6 +1,8 @@
-use std::fs;
+use std::ffi::OsStr;
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anvil_config::{ConfigFormat, ParseError, parse_str};
 use serde::{Deserialize, Serialize};
@@ -323,29 +325,77 @@ pub fn pin_cutoff_commit(path: &Path, cutoff: &str) -> Result<(), PolicyPinError
     let updated = Value::Object(object);
     let bytes = serialise_in_format(&updated, format)?;
 
-    // Atomic temp-then-rename to avoid a half-written file under
-    // crash or concurrent reload. Refuse a pre-existing symlink at
-    // the temp path so a hostile state can't redirect the write.
+    // Atomic exclusive-temp-then-rename. A fixed sibling name (.<file>.tmp)
+    // would let concurrent pin operations clobber each other and opens a
+    // check-then-create symlink TOCTOU window. create_new (O_CREAT|O_EXCL
+    // on Unix) never follows a planted symlink at the chosen path and
+    // fails closed if the name is already occupied, so each invocation
+    // stages into a private file before rename.
     let parent = path
         .parent()
         .ok_or_else(|| PolicyPinError::Io(io::Error::other("policy path has no parent")))?;
     let file_name = path
         .file_name()
         .ok_or_else(|| PolicyPinError::Io(io::Error::other("policy path has no file name")))?;
-    let mut tmp_name = std::ffi::OsString::from(".");
-    tmp_name.push(file_name);
-    tmp_name.push(".tmp");
-    let tmp_path = parent.join(&tmp_name);
-    refuse_if_symlink(&tmp_path)?;
 
-    {
-        let mut f = fs::File::create(&tmp_path)?;
-        f.write_all(&bytes)?;
-        f.sync_all()?;
+    let (mut staging, tmp_path) = open_exclusive_staging_file(parent, file_name)?;
+    if let Err(e) = staging.write_all(&bytes).and_then(|()| staging.sync_all()) {
+        drop(staging);
+        let _ = fs::remove_file(&tmp_path);
+        return Err(e.into());
     }
-    refuse_if_symlink(path)?;
-    atomic_replace(&tmp_path, path)?;
+    // Drop before rename so Windows can replace an open destination.
+    drop(staging);
+    if let Err(e) = (|| -> Result<(), PolicyPinError> {
+        refuse_if_symlink(path)?;
+        atomic_replace(&tmp_path, path)?;
+        Ok(())
+    })() {
+        // Best-effort cleanup of the exclusive staging file on failure.
+        let _ = fs::remove_file(&tmp_path);
+        return Err(e);
+    }
     Ok(())
+}
+
+/// Create a uniquely named staging file next to the destination policy.
+///
+/// Uses `OpenOptions::create_new` so the open is exclusive: on Unix this
+/// maps to `O_CREAT|O_EXCL`, which refuses to follow a pre-existing
+/// symlink and fails with `AlreadyExists` if the path is occupied. That
+/// closes the fixed-name concurrent-clobber and check-then-create symlink
+/// races that a shared `.<name>.tmp` path allowed.
+fn open_exclusive_staging_file(
+    parent: &Path,
+    policy_file_name: &OsStr,
+) -> Result<(File, PathBuf), PolicyPinError> {
+    let stem = policy_file_name.to_string_lossy();
+    let pid = std::process::id();
+    for attempt in 0u32..32 {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        // Mix pid, wall-clock nanos, and attempt so concurrent callers and
+        // same-nanosecond retries almost never collide; create_new still
+        // serialises any true collision safely.
+        let nonce =
+            nanos ^ (u128::from(pid) << 64) ^ (u128::from(attempt) << 48) ^ u128::from(attempt);
+        let tmp_name = format!(".{stem}.{pid}-{nonce}.tmp");
+        let tmp_path = parent.join(&tmp_name);
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
+        {
+            Ok(file) => return Ok((file, tmp_path)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Err(PolicyPinError::Io(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "exhausted exclusive temporary policy file name attempts",
+    )))
 }
 
 fn serialise_in_format(value: &Value, format: ConfigFormat) -> Result<Vec<u8>, PolicyPinError> {
@@ -807,9 +857,23 @@ branches:
 
         pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
 
-        // After pin, the .tmp sibling must not linger.
-        let tmp_path = tmp.path().join(".policy.yaml.tmp");
-        assert!(!tmp_path.exists(), "temp file leaked: {tmp_path:?}");
+        // After pin, neither the legacy fixed staging name nor any unique
+        // exclusive staging temp may linger beside the policy file.
+        let legacy_tmp = tmp.path().join(".policy.yaml.tmp");
+        assert!(
+            !legacy_tmp.exists(),
+            "legacy temp file leaked: {legacy_tmp:?}"
+        );
+        let leftovers: Vec<_> = fs::read_dir(tmp.path())
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .map(|e| e.file_name())
+            .filter(|n| {
+                let s = n.to_string_lossy();
+                s.starts_with(".policy.yaml.") && s.ends_with(".tmp")
+            })
+            .collect();
+        assert!(leftovers.is_empty(), "staging temps leaked: {leftovers:?}");
     }
 
     #[cfg(unix)]
@@ -832,10 +896,10 @@ branches:
 
     #[cfg(unix)]
     #[test]
-    fn pin_refuses_when_temp_sibling_is_symlink_pre_write() {
-        // A hostile worktree could pre-create the temp sibling as a
-        // symlink pointing outside the repo; without the temp-path
-        // refusal, `File::create` would happily write *through* it.
+    fn pin_does_not_follow_legacy_fixed_temp_sibling_symlink() {
+        // The historical fixed staging path (.<name>.tmp) is a TOCTOU and
+        // concurrent-clobber hazard. Pin must not use it: a pre-planted
+        // symlink there must neither be followed nor block the write.
         use std::os::unix::fs::symlink;
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("policy.yaml");
@@ -843,9 +907,82 @@ branches:
         let outside = tmp.path().join("outside.yaml");
         symlink(&outside, tmp.path().join(".policy.yaml.tmp")).unwrap();
 
-        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
-        assert!(matches!(err, PolicyPinError::SymlinkRefusal { .. }));
-        assert!(!outside.exists(), "temp symlink wrote through to outside");
+        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+
+        assert!(!outside.exists(), "legacy fixed temp symlink was followed");
+        let raw = fs::read_to_string(&path).unwrap();
+        assert!(raw.contains("a3b2ea4e"), "cutoff not written: {raw}");
+        assert!(
+            tmp.path()
+                .join(".policy.yaml.tmp")
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink(),
+            "legacy plant should remain an untouched symlink",
+        );
+    }
+
+    #[test]
+    fn pin_concurrent_calls_do_not_share_staging_path() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let path = Arc::new(tmp.path().join("policy.yaml"));
+        fs::write(path.as_ref(), yaml_without_cutoff()).unwrap();
+
+        let barrier = Arc::new(Barrier::new(2));
+        let cutoffs = ["aaaaaaaa", "bbbbbbbb"];
+        let mut handles = Vec::new();
+        for cutoff in cutoffs {
+            let path = Arc::clone(&path);
+            let barrier = Arc::clone(&barrier);
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                pin_cutoff_commit(path.as_ref(), cutoff)
+            }));
+        }
+        let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        assert!(
+            results.iter().all(std::result::Result::is_ok),
+            "concurrent pin must not fail from shared staging clobber: {results:?}",
+        );
+        let raw = fs::read_to_string(path.as_ref()).unwrap();
+        let p = Policy::parse(&raw, ConfigFormat::Yaml, path.as_ref()).unwrap();
+        let cutoff = p.baseline.cutoff_commit.as_deref().unwrap();
+        assert!(
+            cutoff == "aaaaaaaa" || cutoff == "bbbbbbbb",
+            "final cutoff should be one of the concurrent writers, got {cutoff}",
+        );
+        let leftovers: Vec<_> = fs::read_dir(tmp.path())
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .map(|e| e.file_name())
+            .filter(|n| {
+                let s = n.to_string_lossy();
+                s.starts_with(".policy.yaml.") && s.ends_with(".tmp")
+            })
+            .collect();
+        assert!(leftovers.is_empty(), "staging temps leaked: {leftovers:?}");
+    }
+
+    #[test]
+    fn open_exclusive_staging_file_returns_distinct_paths() {
+        let tmp = tempfile::tempdir().unwrap();
+        let parent = tmp.path();
+        let name = std::ffi::OsStr::new("policy.yaml");
+        let (f1, p1) = open_exclusive_staging_file(parent, name).unwrap();
+        drop(f1);
+        let (f2, p2) = open_exclusive_staging_file(parent, name).unwrap();
+        drop(f2);
+        assert_ne!(p1, p2, "exclusive staging paths must not collide");
+        fs::write(&p1, b"one").unwrap();
+        fs::write(&p2, b"two").unwrap();
+        assert_eq!(fs::read(&p1).unwrap(), b"one");
+        assert_eq!(fs::read(&p2).unwrap(), b"two");
+        let _ = fs::remove_file(&p1);
+        let _ = fs::remove_file(&p2);
     }
 
     #[test]
