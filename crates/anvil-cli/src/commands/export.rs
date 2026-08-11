@@ -80,6 +80,80 @@ fn generate_default_output(source: &str, ext: &str) -> String {
         .to_string()
 }
 
+/// Collapse `.` / `..` components without requiring intermediate directories.
+fn lexical_normalize(path: &std::path::Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut components: Vec<Component<'_>> = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if matches!(components.last(), Some(Component::Normal(_))) {
+                    components.pop();
+                } else if matches!(
+                    components.last(),
+                    Some(Component::RootDir | Component::Prefix(_))
+                ) {
+                    // Parent of root/prefix is a no-op; drop the `..`.
+                } else {
+                    // Relative path still climbing (`../x`) — keep the component.
+                    components.push(component);
+                }
+            }
+            other => components.push(other),
+        }
+    }
+    components.iter().collect()
+}
+
+/// Resolve a path for identity comparison.
+/// Prefer filesystem canonicalisation when the path exists; otherwise build an
+/// absolute lexically-normalised path so a not-yet-existing output (or a path
+/// with `..` through a missing intermediate) can still be compared.
+fn resolve_path_for_identity(path: &std::path::Path) -> std::path::PathBuf {
+    if let Ok(canon) = dunce::canonicalize(path) {
+        return canon;
+    }
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path),
+            Err(_) => path.to_path_buf(),
+        }
+    };
+    let normalized = lexical_normalize(&absolute);
+    if let Some(parent) = normalized.parent()
+        && let Ok(parent_canon) = dunce::canonicalize(parent)
+        && let Some(name) = normalized.file_name()
+    {
+        return parent_canon.join(name);
+    }
+    normalized
+}
+
+/// True when both paths refer to the same file (device+inode on Unix when both
+/// exist; otherwise normalised absolute paths).
+fn output_targets_source(source: &str, output: &str) -> bool {
+    let source_path = std::path::Path::new(source);
+    let output_path = std::path::Path::new(output);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let (Ok(src_meta), Ok(out_meta)) = (
+            std::fs::metadata(source_path),
+            std::fs::metadata(output_path),
+        ) && src_meta.dev() == out_meta.dev()
+            && src_meta.ino() == out_meta.ino()
+        {
+            return true;
+        }
+    }
+
+    resolve_path_for_identity(source_path) == resolve_path_for_identity(output_path)
+}
+
 fn export_plan(
     source: &str,
     target_format: &str,
@@ -108,6 +182,14 @@ fn export_plan(
 
     let output_path =
         output.map_or_else(|| generate_default_output(source, target_ext), String::from);
+
+    // Reject explicit (or derived) destinations that would overwrite the source
+    // plan — conversion must never clobber the only input file.
+    if output_targets_source(source, &output_path) {
+        bail!(
+            "refusing to overwrite source: output path resolves to the same file as source ({source})"
+        );
+    }
 
     let output_dir = std::path::Path::new(&output_path)
         .parent()
@@ -1641,6 +1723,50 @@ Validate the export command.
             err.contains("Source file not found"),
             "should report missing source, got: {err}"
         );
+    }
+
+    #[test]
+    fn export_plan_rejects_output_equal_to_source() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+        let original_bytes = std::fs::read(&src).unwrap();
+
+        let path = src.to_str().unwrap();
+        let result = export_plan(path, "json", Some(path), None, false, &default_global());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("refusing to overwrite source"),
+            "should reject output equal to source, got: {err}"
+        );
+        let after = std::fs::read(&src).unwrap();
+        assert_eq!(after, original_bytes, "source plan bytes must be unchanged");
+    }
+
+    #[test]
+    fn export_plan_rejects_output_resolving_to_source() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+        let original_bytes = std::fs::read(&src).unwrap();
+
+        // Equivalent path via parent `..` component — must not overwrite source.
+        let out = tmp.path().join("nested").join("..").join("plan.aps.md");
+        let result = export_plan(
+            src.to_str().unwrap(),
+            "json",
+            Some(out.to_str().unwrap()),
+            None,
+            false,
+            &default_global(),
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("refusing to overwrite source"),
+            "should reject output that resolves to source, got: {err}"
+        );
+        let after = std::fs::read(&src).unwrap();
+        assert_eq!(after, original_bytes, "source plan bytes must be unchanged");
     }
 
     #[test]
