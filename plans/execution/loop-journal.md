@@ -781,3 +781,45 @@ never with feature work.
   resulting `MERGED` commit plus integration ancestry or landed-tree-equivalence
   proof, then reconcile the shared CIB module once as Merged. Release evidence
   is still required for later states.
+
+## Cycle — 2026-08-11 (CIB-305..314 rebase landing complete)
+
+- Items: CIB-305 through CIB-314 from the verified Clawpatch remediation wave.
+- Outcome: all seven implementation PRs were normally rebase-merged into
+  `main`, with GitHub's resulting commits and UTC merge times:
+  - CIB-305 / CIB-311: `MERGED(87433bd77d0d412c764091515517aba38ba3918a,`
+    `2026-08-11T03:08:53Z)` via PR #3733.
+  - CIB-306: `MERGED(bfd68858bf0b60ec57f43743b85415b25672973f,`
+    `2026-08-11T03:09:09Z)` via PR #3734.
+  - CIB-307: `MERGED(cb0f1b24d3d8bf3a6f83cf9bb1a2f88afc87f401,`
+    `2026-08-11T03:09:53Z)` via PR #3735.
+  - CIB-308 / CIB-309 / CIB-310:
+    `MERGED(0f989402e8d756a672ed834764bbe095b149c1d5,`
+    `2026-08-11T03:10:57Z)` via PR #3736.
+  - CIB-312: `MERGED(27a59d74cc414ba9824e2dadabda8a4c81d33aa5,`
+    `2026-08-11T03:12:12Z)` via PR #3737.
+  - CIB-313: `MERGED(69a57eb4928de4af92b0ce7aa9852746078f6b94,`
+    `2026-08-11T03:13:06Z)` via PR #3738.
+  - CIB-314: `MERGED(f2f327622e04dfbff095d753ac795121886d1da0,`
+    `2026-08-11T03:15:33Z)` via PR #3739.
+- Integration proof: after the final fetch, every resulting commit above passed
+  `git merge-base --is-ancestor <commit> origin/main`; `origin/main` was
+  `f2f327622e04dfbff095d753ac795121886d1da0`. Focused landed-content probes
+  also confirmed the CI-log, docs baseline, dashboard, release lookup, admin
+  scope, and public-reference changes on `origin/main`.
+- Review and gates: each implementation PR was non-draft, terminal green,
+  mergeable, and had zero unresolved review threads immediately before merge.
+  Council session `council-f805deae` converged with PASS and all review
+  repairs were independently re-verified.
+- Coordination: review-ready bookkeeping PR #3740 landed first as
+  `792842fc624d2060601903da5ffd1c7f88bbae5f` at
+  `2026-08-11T01:27:00Z`. Landing-fence PR #3742 then recorded the exact
+  pre-merge heads and landed as `e7dc04e8233fd842ba64adb434870ea83bdf2775`
+  at `2026-08-11T03:07:17Z`, before the implementation wave.
+- Plan changes: CIB-305..314 advance from In Progress to Merged; the standing
+  module count advances from 252/314 to 262/314. CIB-317 and CIB-318 remain
+  Draft follow-ups and are not part of this landing wave.
+- Authority: no administrator merge, policy bypass, review dismissal, release,
+  or publication action was used.
+- Next: obtain release or shipped evidence before advancing these items beyond
+  Merged; do not mark them Released/Shipped or Complete from merge evidence.

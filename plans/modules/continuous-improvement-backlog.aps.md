@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 252/314  |
+| CIB | —     | In Progress | 262/314  |
 
 ## Purpose
 
@@ -9151,8 +9151,8 @@ CIB-251/255 only.
 
 ### CIB-305: Concurrent CI-log tracked writers can lose or duplicate entries
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3733; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3733 (`87433bd7`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P0 internal data-loss correctness (bookkeeping path, not
   customer product)
 - **Intent:** `scripts/ci-log/lib.mjs` performs unlocked read-modify-write on
@@ -9184,8 +9184,8 @@ CIB-251/255 only.
 
 ### CIB-306: GitHub OAuth callback can return before revoking the upstream token
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3734; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3734 (`bfd68858`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P1 security (serverless freeze can leave a live GitHub bearer
   token after Anvil session mint)
 - **Intent:** `apps/anvil-api/src/routes/auth-github.ts` exchanges the OAuth
@@ -9214,8 +9214,8 @@ CIB-251/255 only.
 
 ### CIB-307: Baseline regeneration accepts tooling-failed surface output
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3735; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3735 (`cb0f1b24`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P1 data-loss guard (docs baseline integrity)
 - **Intent:** `scripts/docs/docs-check.mjs` `regenerateBaseline` only treats
   empty or unparsable stdout as surface failure. A surface that emits valid
@@ -9243,8 +9243,8 @@ CIB-251/255 only.
 
 ### CIB-308: Protection history aggregation uses response order, not timestamp
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3736; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3736 (`0f989402`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P2 dashboard correctness
 - **Intent:** `aggregateProtectionHistory` overwrites `score` and
   `warningCount` for every point in a bucket, so the last array element wins
@@ -9269,8 +9269,8 @@ CIB-251/255 only.
 
 ### CIB-309: Warning selection can show evidence for a different warning
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3736; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3736 (`0f989402`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P2 dashboard UX correctness
 - **Intent:** Two related selection bugs:
   1. `protection-overview.tsx` resolves the inspector only against
@@ -9298,8 +9298,8 @@ CIB-251/255 only.
 
 ### CIB-310: Critical severity missing from dashboard search and warning filter
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3736; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3736 (`0f989402`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P2 dashboard contract completeness
 - **Intent:** Theme and rendering recognise `critical` severity, but
   `dashboardSearchSchema` omits it (URL `severity=critical` silently becomes
@@ -9322,8 +9322,8 @@ CIB-251/255 only.
 
 ### CIB-311: CI-log date options accept impossible calendar dates
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3733; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3733 (`87433bd7`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P2 internal tooling correctness
 - **Intent:** CI-log watermark and entry date handling accept impossible
   calendar values (e.g. non-normalising YYYY-MM-DD strings), which can skew
@@ -9346,8 +9346,8 @@ CIB-251/255 only.
 
 ### CIB-312: publish-public-contents treats non-404 lookup failures as create
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3737; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3737 (`27a59d74`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P2 release tooling correctness
 - **Intent:** `scripts/release/publish-public-contents.sh` clears
   `existing_sha` on any failed `gh api` contents lookup. Auth, rate-limit, or
@@ -9371,8 +9371,8 @@ CIB-251/255 only.
 
 ### CIB-313: Non-token admin invites acknowledge scopes that are never persisted
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3738; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3738 (`69a57eb4`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P2 API contract honesty
 - **Intent:** Default (`tokenOnly=false`) admin invite validates and returns
   requested `scopes` in the 201 body, but the transaction only stamps
@@ -9398,8 +9398,8 @@ CIB-251/255 only.
 
 ### CIB-314: Existing release tags can silently mix workspace and tag sources
 
-- **Status:** In Progress — operator-promoted 2026-08-11; implementation
-  review-ready via PR #3739; Council session `council-f805deae` PASS.
+- **Status:** Merged 2026-08-11 via PR #3739 (`f2f32762`) — rebase result is
+  an ancestor of `origin/main`; Council session `council-f805deae` PASS.
 - **Priority:** P2 release-docs correctness
 - **Intent:** `scripts/docs/generate-anvil-public-reference.mjs` can fall back
   to workspace inputs when a release tag exists but lacks a particular input,
