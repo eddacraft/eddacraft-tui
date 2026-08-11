@@ -105,6 +105,7 @@ pub const FIXTURE_NAMES: &[&str] = &[
     "invalid_path",
     "path_too_long",
     "unsupported_mode",
+    "binary_content",
     "rule_panic_isolated",
     "transport_timeout",
     "server_busy",
@@ -323,6 +324,50 @@ pub fn assert_unsupported_mode_response(response: &Value) {
     assert!(
         response.get("result").is_none(),
         "unsupported mode must NOT silently pass with a result: {response}",
+    );
+}
+
+/// Build the JSON-RPC request for the binary/NUL content case.
+///
+/// Sends a rule-triggering secret payload that also contains a NUL
+/// byte. The daemon must reject with `Invalid params` (-32602) rather
+/// than returning an empty successful diagnostics list (which would
+/// look clean to pre-write callers).
+#[must_use]
+pub fn binary_content_request() -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "scan_buffer",
+        "params": {
+            "path": "src/contract/binary.bin",
+            "text": "api_key='abcdEFGH1234567890'\u{0000}",
+            "version": 2,
+            "mode": "preWrite"
+        },
+        "id": "contract-binary-content"
+    })
+}
+
+/// Assert the binary/NUL content response shape.
+pub fn assert_binary_content_response(response: &Value) {
+    assert_envelope_is_error_or_diagnostics(response);
+    assert_eq!(response["jsonrpc"], "2.0");
+    assert_eq!(response["id"], "contract-binary-content");
+    assert_eq!(
+        response["error"]["code"], -32602,
+        "binary/NUL content must map to Invalid params (-32602): {response}",
+    );
+    assert_eq!(response["error"]["message"], "Invalid params");
+    let reason = response["error"]["data"]["reason"]
+        .as_str()
+        .expect("binary-content reason string");
+    assert!(
+        reason.contains("binary content") || reason.contains("NUL"),
+        "binary-content reason must identify binary/NUL rejection, got: {reason}",
+    );
+    assert!(
+        response.get("result").is_none(),
+        "binary/NUL content must NOT silently pass with a result: {response}",
     );
 }
 
@@ -632,6 +677,11 @@ where
         "unsupported_mode" => {
             let response = transport(unsupported_mode_request());
             assert_unsupported_mode_response(&response);
+            true
+        }
+        "binary_content" => {
+            let response = transport(binary_content_request());
+            assert_binary_content_response(&response);
             true
         }
         // Bespoke setup required — consumer wires these via the

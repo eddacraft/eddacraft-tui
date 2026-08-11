@@ -4754,9 +4754,8 @@ fn scan_buffer_failure(method: &str, err: &midedit::ScanBufferError) -> JsonRpcF
         midedit::ScanBufferError::UnsupportedMode
         | midedit::ScanBufferError::PathTooLong { .. }
         | midedit::ScanBufferError::InvalidPath
-        | midedit::ScanBufferError::ContentTooLarge { .. } => {
-            invalid_params(method, err.to_string())
-        }
+        | midedit::ScanBufferError::ContentTooLarge { .. }
+        | midedit::ScanBufferError::BinaryContent => invalid_params(method, err.to_string()),
         midedit::ScanBufferError::Busy => JsonRpcFailure {
             code: -32000,
             message: "Server busy",

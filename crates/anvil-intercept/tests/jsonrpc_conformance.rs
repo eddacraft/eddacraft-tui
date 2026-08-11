@@ -914,7 +914,7 @@ async fn scan_buffer_uses_listener_configured_rule_set() {
 }
 
 #[tokio::test]
-async fn scan_buffer_short_circuits_binary_content() {
+async fn scan_buffer_rejects_binary_content_with_nul() {
     let response = request(json!({
         "jsonrpc": "2.0",
         "method": "scan_buffer",
@@ -928,8 +928,21 @@ async fn scan_buffer_short_circuits_binary_content() {
     }))
     .await;
 
-    assert_eq!(response["result"]["version"], 2);
-    assert_eq!(response["result"]["diagnostics"], json!([]));
+    // NUL content is invalid params, not a clean success with empty diagnostics.
+    assert_eq!(response["id"], "scan-binary");
+    assert_eq!(response["error"]["code"], -32602);
+    assert_eq!(response["error"]["message"], "Invalid params");
+    let reason = response["error"]["data"]["reason"]
+        .as_str()
+        .expect("binary-content reason string");
+    assert!(
+        reason.contains("binary content") || reason.contains("NUL"),
+        "reason must identify binary/NUL rejection, got: {reason}"
+    );
+    assert!(
+        response.get("result").is_none(),
+        "NUL content must not silently pass with a result: {response}"
+    );
 }
 
 /// TRACE-001 / ADR-035: a valid W3C `traceparent` placed on the

@@ -145,6 +145,12 @@ pub enum ScanBufferError {
     InvalidPath,
     #[error("content exceeds {cap} byte cap (got {len} bytes)")]
     ContentTooLarge { len: usize, cap: usize },
+    /// Buffer contains a NUL byte. Treated as binary / non-text input
+    /// and rejected before the rule pipeline runs so clients cannot
+    /// mistake an unscanned payload for a clean success (pre-write
+    /// callers would otherwise authorise unenforced content).
+    #[error("binary content is not supported by scan_buffer (NUL byte present)")]
+    BinaryContent,
     #[error("scan_buffer service busy")]
     Busy,
     #[error("scan_buffer timed out")]
@@ -418,13 +424,9 @@ pub fn scan_buffer_with_pipeline(
         });
     }
     if content.contains(&0) {
-        return Ok(ScanBufferResponse {
-            version: request.version,
-            diagnostics: Vec::new(),
-            truncated: false,
-            rules_sha: None,
-            spoof_block: None,
-        });
+        // Reject rather than returning an empty successful scan: an
+        // unscanned NUL buffer must not look clean to pre-write callers.
+        return Err(ScanBufferError::BinaryContent);
     }
 
     let change = ProposedChange {
@@ -649,7 +651,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_buffer_short_circuits_binary_content() {
+    fn scan_buffer_rejects_binary_content_with_nul() {
         let request = ScanBufferRequest {
             path: PathBuf::from("asset.bin"),
             text: "api_key='abcdEFGH1234567890'\0".to_string(),
@@ -660,10 +662,33 @@ mod tests {
         };
 
         let pipeline = EnforcementPipeline::default();
-        let response = scan_buffer_with_pipeline(&request, &pipeline)
-            .expect("binary content is a clean short-circuit");
+        let err = scan_buffer_with_pipeline(&request, &pipeline)
+            .expect_err("NUL-containing content must not return a clean scan");
 
-        assert!(response.diagnostics.is_empty());
+        assert!(
+            matches!(err, ScanBufferError::BinaryContent),
+            "expected BinaryContent, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn scan_buffer_pre_write_rejects_nul_even_with_rule_triggering_payload() {
+        // Pre-write callers must not treat unscanned NUL content as
+        // write-authorised: a clean success would bypass enforcement.
+        let request = ScanBufferRequest {
+            path: PathBuf::from("src/auth/client.ts"),
+            text: "const api_key = 'abcdEFGH1234567890';\0".to_string(),
+            version: 9,
+            mode: ScanBufferMode::PreWrite,
+            env_agent_tag: None,
+            session_id: None,
+        };
+
+        let pipeline = EnforcementPipeline::new(default_rule_registry());
+        let err = scan_buffer_with_pipeline(&request, &pipeline)
+            .expect_err("pre-write NUL buffer must be rejected, not cleaned");
+
+        assert!(matches!(err, ScanBufferError::BinaryContent));
     }
 
     #[test]
