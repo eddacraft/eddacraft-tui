@@ -32,13 +32,13 @@ A report-only probe (`scripts/docs/check-docs-owed.mjs`, branch
 `docs-owed-probe`) joins the declared upstream paths to `git log`:
 
 ```
-84 owed, 7 review, 103 checked, 29 uncheckable,
-94 without governance metadata, of 227 documents
+86 owed, 7 review, 103 checked, 30 uncheckable,
+94 without governance metadata, of 228 documents
 ```
 
 `owed` means the upstream moved and the document has not been committed since —
 nobody has looked. `review` means the document was committed after its upstream
-moved, so it may already be reconciled with a stale date. The 84/7 split says
+moved, so it may already be reconciled with a stale date. The 86/7 split says
 this is overwhelmingly untouched documentation, not date-keeping noise. By type:
 44 Guides, 24 Runbooks, 14 As-built, 7 Specs.
 
@@ -135,8 +135,8 @@ A file-level upstream is a claim precise enough to act on. A directory-level
 upstream fires on any commit anywhere beneath it and cannot be acted on. The
 measured distribution makes this concrete: the two highest-frequency triggers in
 the corpus are `crates/anvil-cli` (7 findings) and `crates/anvil-checks` (6),
-both whole-crate references. Of the 84 owed findings, 49 cite file-level
-upstreams only, 19 cite directories only, and 16 are mixed.
+both whole-crate references. Of the 86 owed findings, 50 cite file-level
+upstreams only, 20 cite directories only, and 16 are mixed.
 
 A mixed document gates on its file-level components and reports the rest. A
 directory-only document is never red.
@@ -145,7 +145,7 @@ directory-only document is never red.
 
 `owed` (the document has not been committed since its upstream moved) is
 gate-eligible. `review` (the document was committed after, so the date may
-simply be stale) is advisory date-hygiene. Measured 84 versus 7.
+simply be stale) is advisory date-hygiene. Measured 86 versus 7.
 
 ### D4 — Same-day counts as reviewed
 
@@ -174,17 +174,37 @@ at zero visual cost. The five-column table is not reintroduced to
 
 ### D6 — Public docs are verified against the release boundary
 
-`verified_against` names the product version a page was last checked against.
-At release readiness, for each public document, the check is:
+`verified_against` names the product version a page was last checked against, so
+**that** is the diff base — one per page, not one per release. At release
+readiness, for each public document:
 
 ```
-git diff <previous_tag> <candidate_tag> -- <declared upstream paths>
+git diff v<verified_against> <candidate_tag> -- <declared upstream paths>
 ```
 
 A non-empty diff means the page is owed re-verification before the release ships.
-`.github/workflows/release-readiness.yml` already accepts a `previous_tag` input
-described as "Previous release tag or product boundary for release-content
-checks", so this needs no new plumbing.
+
+Anchoring on the page's own value rather than the release's `previous_tag` is
+load-bearing, not a detail. A page verified against `0.9.1-beta` whose upstream
+changed in `0.9.2-beta` produces an *empty* `0.9.3-beta..0.9.4-beta` diff and
+would be reported clean while remaining stale. Per-page anchoring is also the
+only version of this check that expresses what the metadata actually claims: the
+alternative — asserting an invariant that every governed page is re-verified
+before each release — would force the whole public corpus through re-verification
+every cut, which is precisely the untargeted burden this ADR exists to avoid.
+
+Two failure modes must be loud rather than silent, because both would otherwise
+resolve to "no diff, therefore clean":
+
+- `verified_against` naming a tag that does not exist (a typo, or a version
+  never cut) is an error, not a pass.
+- A page with no `verified_against` at all is unverifiable, and counts against
+  coverage under D9. It is never treated as verified.
+
+The release's own `previous_tag` input keeps a narrower job: reporting the
+release-over-release delta for operators. It is not the correctness anchor.
+`.github/workflows/release-readiness.yml` already accepts it, so the workflow
+plumbing exists either way.
 
 The consequences of that placement are deliberate:
 
@@ -212,14 +232,14 @@ another review obligation. Generated documents cannot drift.
 
 ### D8 — Ratchet from a baseline, do not big-bang
 
-The existing 84 owed findings are baselined the way `links` already carries 130
+The existing 86 owed findings are baselined the way `links` already carries 130
 entries in `docs/governance/docs-check.baseline.json`. New violations gate from
 day one; the backlog burns down by owner. The surface is `baselineable: true` in
 `DEFAULT_SURFACES`.
 
 ### D9 — Coverage is reported, always
 
-Only 103 of 227 documents are checkable at all. An uncheckable document is
+Only 103 of 228 documents are checkable at all. An uncheckable document is
 invisible to this check, not clean, so the summary always prints the
 `uncheckable`, `withoutGovernanceMetadata`, and directory-only counts. Coverage
 must never be silently traded for a green result.

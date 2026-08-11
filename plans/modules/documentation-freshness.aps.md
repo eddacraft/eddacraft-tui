@@ -27,8 +27,8 @@ documentation changes, and staled when code changes.
 Measured by the report-only prototype `scripts/docs/check-docs-owed.mjs`:
 
 ```
-84 owed, 7 review, 103 checked, 29 uncheckable,
-94 without governance metadata, of 227 documents
+86 owed, 7 review, 103 checked, 30 uncheckable,
+94 without governance metadata, of 228 documents
 ```
 
 The information needed to detect this is already declared in the corpus and has
@@ -121,7 +121,7 @@ release rather than `main`.
   must run the check that notices.
 - **Expected Outcome:** `docs-owed` runs in CI when source paths change, not
   only when `markdownlint-required` is set, using `--since` against the merge
-  base so it reports what *this* change owes. The existing 84 findings are
+  base so it reports what *this* change owes. The existing 86 findings are
   seeded into `docs/governance/docs-check.baseline.json` so only new violations
   surface. A Rust-only pull request that moves a declared file-level upstream
   produces a finding; one that does not, stays silent.
@@ -136,7 +136,7 @@ release rather than `main`.
 
 ### DOCFRESH-004: Grow the checkable corpus — Draft
 
-- **Intent:** Coverage is the ceiling on this whole model; 124 of 227 documents
+- **Intent:** Coverage is the ceiling on this whole model; 125 of 228 documents
   are currently invisible to it.
 - **Expected Outcome:** The 29 documents that carry governance metadata but no
   review date or no resolvable upstream path are backfilled, and the
@@ -173,12 +173,15 @@ release rather than `main`.
 - **Intent:** Public docs describe the shipped release, so check them when the
   release changes rather than on every pull request.
 - **Expected Outcome:** Release readiness runs
-  `git diff <previous_tag> <candidate> -- <declared upstream>` per public
-  document and reports pages owed re-verification, blocking the **release**
-  rather than any pull request. It reuses the `previous_tag` input
-  `release-readiness.yml` already accepts. A pull request that moves a public
-  page's upstream gets an advisory note only. `public-reference-regen.yml`
-  becomes one case of this check rather than a bespoke workflow.
+  `git diff v<verified_against> <candidate> -- <declared upstream>` per public
+  document — anchored on each page's own last-verified version, **not** the
+  release's `previous_tag`, which reports a page clean whenever its upstream
+  moved during a release that page skipped — and reports pages owed
+  re-verification, blocking the **release** rather than any pull request. A
+  `verified_against` that is missing, or names a tag that does not exist, is an
+  error rather than a pass. A pull request that moves a public page's upstream
+  gets an advisory note only. `public-reference-regen.yml` becomes one case of
+  this check rather than a bespoke workflow.
 - **Scope:** `.github/workflows/release-readiness.yml`,
   `scripts/ci/release-readiness-workflow.test.sh`, new checker script
 - **Non-scope:** Retiring `public-reference-regen.yml` (follow-up once the

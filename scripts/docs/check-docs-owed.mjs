@@ -47,12 +47,22 @@
 //
 // Only `owed` would be gate-eligible. `review` is a date-hygiene backlog.
 //
+// PROTOTYPE LIMITATION: severity here is derived from that confidence class
+// ALONE. The granularity split — file-level upstreams gate, directory and glob
+// upstreams stay advisory — is NOT applied, so an `owed` finding backed only by
+// a directory upstream still prints as ERROR. Directory upstreams are visible
+// and counted in both modes (see upstreamTouchedByDiff), which is what the
+// measurement needs; downgrading their severity is DOCFRESH-002's job. Read
+// diff mode as the gate's *scoping* shape, not as its finished verdict.
+//
 // KNOWN LIMITS (do not let these be discovered as surprises later)
 //
-//   * Date granularity. `Last reviewed` is a date, commits carry a timestamp.
-//     A same-day upstream commit is treated as reviewed, so this UNDER-reports.
-//     Chosen deliberately: a false "you must review this" is far more corrosive
-//     to a docs gate's credibility than a missed one.
+//   * Date granularity, and its exact scope. `Last reviewed` is a date, commits
+//     carry a timestamp, so a same-day upstream commit is treated as reviewed
+//     and this UNDER-reports. Chosen deliberately: a false "you must review
+//     this" is far more corrosive to a docs gate's credibility than a missed
+//     one. That rule applies ONLY to the human-written review date. Ordering
+//     one commit against another uses real timestamps — see lastCommit().
 //   * Declared, not derived. A document that names no Upstream path is not
 //     checkable — it is invisible here, not clean. `uncheckable` in the summary
 //     is the real coverage denominator, and shrinking it is a corpus problem
@@ -114,6 +124,23 @@ try {
   process.exit(2);
 }
 
+/**
+ * Is this declared upstream implicated by the diff?
+ *
+ * `git diff --name-only` yields files, so a set-membership test silently drops
+ * every directory upstream — `crates/anvil-cli` is never itself a changed path.
+ * That would make directory-declared dependencies invisible in diff mode while
+ * they remain visible in corpus mode, contradicting the posture that they stay
+ * reported (advisory, but never hidden) and breaking the coverage counts.
+ * Directories therefore match on path prefix.
+ */
+function upstreamTouchedByDiff(upstreamPath, changed) {
+  if (changed.has(upstreamPath)) return true;
+  const prefix = `${upstreamPath}/`;
+  for (const path of changed) if (path.startsWith(prefix)) return true;
+  return false;
+}
+
 /** Paths touched in the diff range, when running in diff mode. */
 let changedPaths = null;
 if (values.since) {
@@ -143,18 +170,33 @@ const files = await globby(
 files.sort();
 
 const lastCommitCache = new Map();
-/** Newest commit date (YYYY-MM-DD) touching `path`, or null if git knows none. */
-function lastCommitDate(path) {
+/**
+ * Newest commit touching `path` as `{ date, ts }`, or null if git knows none.
+ *
+ * Both representations are returned because they answer different questions and
+ * must not be interchanged. `date` (`%cs`, YYYY-MM-DD) is the only thing
+ * comparable to a hand-written `Last reviewed` date, and comparing at day
+ * granularity there is the deliberate under-reporting rule. `ts` (`%ct`, unix
+ * seconds) is for ordering two *commits* against each other, where real
+ * timestamps exist and throwing them away would be a bug: a document committed
+ * three hours after its upstream on the same day was plainly touched
+ * afterwards, and day-granularity comparison would misfile it as untouched.
+ */
+function lastCommit(path) {
   if (lastCommitCache.has(path)) return lastCommitCache.get(path);
-  let date = null;
+  let value = null;
   try {
-    date = git(['log', '-1', '--format=%cs', '--', path]).trim() || null;
+    const raw = git(['log', '-1', '--format=%cs %ct', '--', path]).trim();
+    if (raw) {
+      const [date, ts] = raw.split(' ');
+      value = { date, ts: Number.parseInt(ts, 10) };
+    }
   } catch {
     // Unreadable or untracked path: asbuilt-paths owns "does it exist", so a
     // silent skip here avoids duplicate reporting of the same defect.
   }
-  lastCommitCache.set(path, date);
-  return date;
+  lastCommitCache.set(path, value);
+  return value;
 }
 
 /**
@@ -193,11 +235,22 @@ for (const relFile of files) {
   try {
     parsed = parseDocGovernance(await readFile(resolve(root, relFile), 'utf8'), relFile);
   } catch (err) {
-    // Missing or malformed metadata is the metadata surface's finding, not
-    // ours. Counting it keeps the coverage denominator honest.
-    if (err instanceof ParseError) unparsed += 1;
-    else unparsed += 1;
-    continue;
+    // A document with missing or malformed metadata is the metadata surface's
+    // finding, not ours; counting it keeps the coverage denominator honest.
+    // Anything else — an I/O failure, an unexpected parser crash — means this
+    // surface did not actually read the corpus it is about to report on.
+    // Folding that into `unparsed` would let a broken scan render as a clean
+    // one, which is exactly the misattribution the exit-2 taxonomy exists to
+    // prevent (lib/surface-delegate.mjs).
+    if (err instanceof ParseError) {
+      unparsed += 1;
+      continue;
+    }
+    process.stderr.write(`[${SURFACE}] cannot run: failed to read ${relFile}: ${err.message}\n`);
+    process.stderr.write(
+      `[${SURFACE}] this is not a docs content defect; the corpus was not read.\n`
+    );
+    process.exit(2);
   }
 
   if (SKIPPED_STATUSES.has(parsed.metadata.status)) {
@@ -224,7 +277,7 @@ for (const relFile of files) {
   }
 
   const considered = changedPaths
-    ? upstreamPaths.filter((p) => changedPaths.has(p))
+    ? upstreamPaths.filter((p) => upstreamTouchedByDiff(p, changedPaths))
     : upstreamPaths;
   if (considered.length === 0) {
     if (!changedPaths) uncheckable += 1;
@@ -233,15 +286,17 @@ for (const relFile of files) {
   checked += 1;
 
   const moved = considered
-    .map((path) => ({ path, date: lastCommitDate(path) }))
-    .filter((u) => u.date && u.date > reviewedOn)
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
+    .map((path) => ({ path, commit: lastCommit(path) }))
+    .filter((u) => u.commit && u.commit.date > reviewedOn)
+    .sort((a, b) => b.commit.ts - a.commit.ts);
 
   if (moved.length === 0) continue;
 
-  const docLastCommit = lastCommitDate(relFile);
+  const docCommit = lastCommit(relFile);
   const newest = moved[0];
-  const documentTouchedSince = Boolean(docLastCommit && docLastCommit > newest.date);
+  // Commit-versus-commit, so compare real timestamps. The day-granularity rule
+  // is specific to `reviewedOn` above, where no clock time exists.
+  const documentTouchedSince = Boolean(docCommit && docCommit.ts > newest.commit.ts);
 
   findings.push({
     severity: documentTouchedSince ? 'WARN' : 'ERROR',
@@ -251,14 +306,14 @@ for (const relFile of files) {
     type: parsed.metadata.type,
     owner: parsed.metadata.owner,
     reviewedOn,
-    docLastCommit,
-    daysBehind: Math.round((Date.parse(newest.date) - Date.parse(reviewedOn)) / 86_400_000),
-    movedUpstream: moved.map((m) => `${m.path}@${m.date}`),
+    docLastCommit: docCommit?.date ?? null,
+    daysBehind: Math.round((Date.parse(newest.commit.date) - Date.parse(reviewedOn)) / 86_400_000),
+    movedUpstream: moved.map((m) => `${m.path}@${m.commit.date}`),
     message:
-      `upstream moved since review: ${newest.path} committed ${newest.date}, ` +
+      `upstream moved since review: ${newest.path} committed ${newest.commit.date}, ` +
       `document last reviewed ${reviewedOn}` +
       (moved.length > 1 ? ` (+${moved.length - 1} more upstream path(s))` : '') +
-      (documentTouchedSince ? `; document itself committed ${docLastCommit}` : ''),
+      (documentTouchedSince ? `; document itself committed ${docCommit.date}` : ''),
   });
 }
 
