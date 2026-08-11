@@ -123,20 +123,48 @@ fn derive_worktree_for(path: &std::path::Path) -> Option<PathBuf> {
 
 /// Walk ancestors of `path` looking for a Git worktree root. Starts
 /// at the path's parent (the file itself is never a worktree root)
-/// and stops at the first directory that contains a `.git` entry.
+/// and stops at the first directory that is a real Git worktree root.
 /// Does not shell out to `git`.
+///
+/// A real root is a directory whose `.git` entry is either a directory
+/// (main worktree) or a file whose contents begin with a `gitdir:`
+/// pointer (linked worktree / some submodule layouts). A bare file
+/// named `.git` that is *not* a gitdir pointer does not count — that
+/// would let an accidental or adversarial nested file truncate the
+/// walk and fence the wrong directory.
 fn enclosing_git_worktree(path: &std::path::Path) -> Option<PathBuf> {
     for dir in path.ancestors().skip(1) {
         if dir.as_os_str().is_empty() {
             continue;
         }
-        let git = dir.join(".git");
-        match std::fs::symlink_metadata(&git) {
-            Ok(meta) if meta.is_dir() || meta.is_file() => return Some(dir.to_path_buf()),
-            _ => {}
+        if is_git_worktree_root(dir) {
+            return Some(dir.to_path_buf());
         }
     }
     None
+}
+
+/// `true` when `dir` looks like a Git worktree root (main or linked).
+fn is_git_worktree_root(dir: &std::path::Path) -> bool {
+    let git = dir.join(".git");
+    let Ok(meta) = std::fs::symlink_metadata(&git) else {
+        return false;
+    };
+    if meta.is_dir() {
+        return true;
+    }
+    if !meta.is_file() {
+        return false;
+    }
+    // Linked worktree (and some submodule) form: `.git` is a file
+    // containing `gitdir: <path>`. Reject other files so a stray
+    // nested `.git` cannot truncate the ancestor walk.
+    match std::fs::read_to_string(&git) {
+        Ok(contents) => contents
+            .lines()
+            .any(|line| line.trim().starts_with("gitdir:")),
+        Err(_) => false,
+    }
 }
 
 #[cfg(test)]
@@ -387,13 +415,29 @@ mod tests {
 
     /// When no Git worktree boundary exists above the change, fall
     /// back to the file's parent directory (pre-fix behaviour for
-    /// non-git trees). Skipped when the temp location itself sits
-    /// inside a real repository — nearest-`.git` walk then correctly
-    /// prefers that outer root.
+    /// non-git trees). Prefer a known non-repo host on Unix so the
+    /// fallback is exercised even when process `TMPDIR` sits inside a
+    /// real repository; keep a last-resort skip for exotic hosts.
     #[test]
     fn non_git_tree_falls_back_to_parent_directory() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = {
+            #[cfg(unix)]
+            {
+                tempfile::Builder::new()
+                    .prefix("anvil-unreg-nongit-")
+                    .tempdir_in("/tmp")
+                    .unwrap_or_else(|_| tempfile::tempdir().unwrap())
+            }
+            #[cfg(not(unix))]
+            {
+                tempfile::tempdir().unwrap()
+            }
+        };
         if enclosing_git_worktree(tmp.path()).is_some() {
+            // Host temp still sits under a real git worktree; the
+            // nearest-root walk is correct to prefer it — skip the
+            // parent-fallback assertion rather than asserting the
+            // wrong key.
             return;
         }
         let worktree = tmp.path().join("nongit-ws");
@@ -408,6 +452,39 @@ mod tests {
         match &outcomes[0] {
             UnregisteredOutcome::Fenced { worktree: w, .. } => {
                 assert_eq!(w, &worktree);
+            }
+            other @ UnregisteredOutcome::UnableToFence { .. } => {
+                panic!("expected Fenced, got {other:?}")
+            }
+        }
+        assert!(store.load().unwrap().is_fenced(&worktree));
+    }
+
+    /// A stray nested `.git` *file* that is not a gitdir pointer must
+    /// not truncate the ancestor walk. The real worktree root above
+    /// it remains the fence key.
+    #[test]
+    fn stray_nested_git_file_does_not_truncate_walk() {
+        let tmp = tempfile::tempdir().unwrap();
+        let worktree = tmp.path().join("workspace");
+        init_git_worktree(&worktree);
+        let nested = worktree.join("src/nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        // Adversarial / accidental file — not a gitdir pointer.
+        std::fs::write(nested.join(".git"), b"not a gitdir pointer\n").unwrap();
+        let store = store_in(&tmp);
+        let policy = UnregisteredChangePolicy::new(
+            Arc::clone(&store),
+            config_with(AmbiguousOwnership::Fence),
+        );
+
+        let outcomes = policy.apply(&[change_in(&nested, "file.rs")]);
+        match &outcomes[0] {
+            UnregisteredOutcome::Fenced { worktree: w, .. } => {
+                assert_eq!(
+                    w, &worktree,
+                    "stray nested .git file must not become the fence key",
+                );
             }
             other @ UnregisteredOutcome::UnableToFence { .. } => {
                 panic!("expected Fenced, got {other:?}")
