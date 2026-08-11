@@ -441,7 +441,7 @@ fn replace_file_contents_atomic(path: &Path, new_content: &[u8]) -> Result<(), S
             return Err(format!("filePath write failed: {}", err.error));
         }
         let _ = fs::remove_file(&backup);
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(windows))]
