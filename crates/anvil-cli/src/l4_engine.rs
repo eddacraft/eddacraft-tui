@@ -5,6 +5,7 @@
 //! → `EngineUnavailable` (never silent `Allow`). Non-scannable or delete-only
 //! commits `Allow`. Git failures degrade to `EngineUnavailable` (ADR-038).
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -415,7 +416,7 @@ fn committed_store_size(repo_root: &Path, tip: &str) -> StoreSize {
     }
 }
 
-/// `git diff-tree --no-commit-id --name-only -r --root
+/// `git diff-tree --no-commit-id --name-only -z -r --root
 ///   --diff-filter=ACMR <sha>` — returns paths added/changed by the
 /// commit, relative to repo root.
 ///
@@ -428,6 +429,11 @@ fn committed_store_size(repo_root: &Path, tip: &str) -> StoreSize {
 ///   `continue` on `git show <sha>:<deleted-path>` failure would let
 ///   any delete-only commit collapse to `materialised.is_empty()`
 ///   without surfacing why (Council #C-016F).
+/// - `-z` emits NUL-delimited literal path bytes. Without it, git
+///   C-quotes paths that contain quotes, tabs, newlines, or other
+///   special characters (`"foo\"bar.ts"`), so the scannable-extension
+///   filter never matches and L4 admits the commit unexamined
+///   (Clawpatch fnd_sig-feat-cli-command-79ebbc42f6-_ddb9293a0c).
 fn list_commit_files(repo_root: &Path, sha: &str) -> Result<Vec<String>, EngineUnavailableReason> {
     if !is_hex_sha(sha) || is_zero_sha(sha) {
         return Err(EngineUnavailableReason::IoError);
@@ -440,6 +446,7 @@ fn list_commit_files(repo_root: &Path, sha: &str) -> Result<Vec<String>, EngineU
             "diff-tree",
             "--no-commit-id",
             "--name-only",
+            "-z",
             "-r",
             "--root",
             "--diff-filter=ACMR",
@@ -459,31 +466,38 @@ fn list_commit_files(repo_root: &Path, sha: &str) -> Result<Vec<String>, EngineU
         log_git_failure("diff-tree", sha, &stderr_buf);
         return Err(EngineUnavailableReason::IoError);
     }
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-        .collect())
+    Ok(split_nul_paths(&output.stdout))
 }
 
-/// MLP2-068: batched blob fetch. Spawns `git cat-file --batch` once,
-/// pipes `<sha>:<path>` revspecs for every entry in `paths` over
-/// stdin, and returns a vec aligned with `paths` carrying the blob
-/// bytes. Returns `None` for per-path refusals or tree misses, and
-/// `Err` for batch-level I/O/tooling failures.
+/// Split git `-z` path output on NUL. Empty segments (trailing NUL) are
+/// dropped. Paths are decoded lossily to UTF-8 so rare non-UTF-8 path
+/// bytes still surface rather than aborting the whole commit list.
+fn split_nul_paths(stdout: &[u8]) -> Vec<String> {
+    stdout
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+        .collect()
+}
+
+/// MLP2-068: batched blob fetch. Resolves each path to a blob object
+/// ID via `git ls-tree -z` (argv-safe for special characters, including
+/// `:`, quotes, tabs, and newlines), then spawns `git cat-file --batch`
+/// once with those OIDs and returns a vec aligned with `paths`.
+/// Returns `None` for tree misses and non-blob entries, and `Err` for
+/// batch-level I/O/tooling failures.
 ///
 /// Pre-MLP2-068, the engine spawned one `git show` per scannable file
 /// — a 200-file commit paid ~1–3 s on process startup alone, most of
 /// `PRE_PUSH_BUDGET`. This helper amortises the spawn cost across the
 /// whole batch.
 ///
-/// Guards preserved from the singular `read_commit_blob` it replaces:
-/// - Non-hex / zero SHA → entire result is `None` per input, git is
-///   never invoked.
-/// - Path containing `:` → that entry yields `None` without travelling
-///   to git, so `<rev>:<path>` revspec parsing stays unambiguous
-///   (Council #C-016G).
+/// Path encoding notes (Clawpatch fnd_sig-feat-cli-command-79ebbc42f6-_ddb9293a0c):
+/// - Line-delimited `<sha>:<path>` cat-file requests cannot encode paths
+///   that themselves contain newlines, and `<sha>:weird:path.ts` is an
+///   ambiguous revspec (Council #C-016G). Feeding blob OIDs avoids both
+///   classes of failure while preserving the single-spawn batch.
+/// - Non-hex / zero SHA → `Err` before git is invoked.
 ///
 /// git stderr is forwarded to `tracing::debug!` on invocation failure
 /// so production incident debugging can still distinguish "git not on
@@ -500,22 +514,17 @@ fn read_commit_blobs_batch(
         return Err(EngineUnavailableReason::IoError);
     }
 
-    // Build the per-input query list. Paths containing `:` are
-    // recorded as refused up-front (per Council #C-016G) and excluded
-    // from the stdin batch. `had_query[i]` is `true` iff `paths[i]`
-    // produced a stdin line — the parse-output scatter relies on this
-    // boolean, not a stored index, to keep the order invariant
-    // explicit: each `true` slot consumes exactly one parsed entry in
-    // the order git emitted them.
+    let oids = resolve_blob_oids(repo_root, sha, paths)?;
     let mut queries: Vec<String> = Vec::with_capacity(paths.len());
     let mut had_query: Vec<bool> = Vec::with_capacity(paths.len());
-    for path in paths {
-        if path.contains(':') {
-            had_query.push(false);
-            continue;
+    for oid in &oids {
+        match oid {
+            Some(oid) => {
+                had_query.push(true);
+                queries.push(format!("{oid}\n"));
+            }
+            None => had_query.push(false),
         }
-        had_query.push(true);
-        queries.push(format!("{sha}:{path}\n"));
     }
 
     let mut results: Vec<Option<Vec<u8>>> = vec![None; paths.len()];
@@ -575,11 +584,9 @@ fn read_commit_blobs_batch(
         return Err(EngineUnavailableReason::IoError);
     };
 
-    // `parsed` carries one entry per query in the same order they were
-    // written to stdin. Drain it into the slots that produced queries,
-    // leaving the refused (colon-path) slots as the pre-set `None`.
-    // `.flatten()` collapses "iterator exhausted" and "parsed entry is
-    // None" — both map to the same fail-safe outcome.
+    // `parsed` carries one entry per OID query in the order written to
+    // stdin. Drain into slots that produced queries; missing paths stay
+    // the pre-set `None`.
     let mut parsed_iter = parsed.into_iter();
     for (slot, queried) in results.iter_mut().zip(had_query.iter()) {
         if *queried {
@@ -587,6 +594,86 @@ fn read_commit_blobs_batch(
         }
     }
     Ok(results)
+}
+
+/// Resolve each path to its blob OID under `sha` via `git ls-tree -z`.
+/// Paths travel as argv after `--`, so quotes, tabs, newlines, and
+/// colons remain unambiguous (unlike `<rev>:<path>` revspecs). Output
+/// order from git is tree order, not request order — match by path
+/// bytes. Chunks keep argv under platform limits.
+fn resolve_blob_oids(
+    repo_root: &Path,
+    sha: &str,
+    paths: &[&str],
+) -> Result<Vec<Option<String>>, EngineUnavailableReason> {
+    // Path bytes → oid. Use Vec<u8> keys so lossy UTF-8 paths still
+    // round-trip against ls-tree's raw path field.
+    let mut by_path: HashMap<Vec<u8>, String> = HashMap::with_capacity(paths.len());
+    // 64 paths per invocation is well under ARG_MAX even for long paths.
+    const CHUNK: usize = 64;
+    for chunk in paths.chunks(CHUNK) {
+        let mut cmd = Command::new("git");
+        cmd.arg("-C")
+            .arg(repo_root)
+            .args(["ls-tree", "-z", sha, "--"]);
+        for path in chunk {
+            cmd.arg(path);
+        }
+        let output = cmd
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied => {
+                    EngineUnavailableReason::BinaryMissing
+                }
+                _ => EngineUnavailableReason::IoError,
+            })?;
+        if !output.status.success() {
+            log_git_failure("ls-tree", sha, &output.stderr);
+            return Err(EngineUnavailableReason::IoError);
+        }
+        parse_ls_tree_z(&output.stdout, &mut by_path);
+    }
+    Ok(paths
+        .iter()
+        .map(|p| by_path.get(p.as_bytes()).cloned())
+        .collect())
+}
+
+/// Parse `git ls-tree -z` records of the form
+/// `<mode> SP <type> SP <object> TAB <file>\0` into `out`. Non-blob
+/// entries (trees, commits/gitlinks) are skipped so callers never
+/// treat a tree as file content.
+fn parse_ls_tree_z(stdout: &[u8], out: &mut HashMap<Vec<u8>, String>) {
+    for entry in stdout.split(|&b| b == 0) {
+        if entry.is_empty() {
+            continue;
+        }
+        let Some(tab) = entry.iter().position(|&b| b == b'\t') else {
+            continue;
+        };
+        let meta = &entry[..tab];
+        let path = &entry[tab + 1..];
+        let Ok(meta_str) = std::str::from_utf8(meta) else {
+            continue;
+        };
+        let mut parts = meta_str.split(' ');
+        let _mode = parts.next();
+        let Some(obj_type) = parts.next() else {
+            continue;
+        };
+        let Some(oid) = parts.next() else {
+            continue;
+        };
+        if parts.next().is_some() {
+            // Unexpected extra fields — skip rather than mis-parse.
+            continue;
+        }
+        if obj_type != "blob" {
+            continue;
+        }
+        out.insert(path.to_vec(), oid.to_owned());
+    }
 }
 
 /// Parse the streaming `git cat-file --batch` stdout into a vec of
@@ -763,6 +850,149 @@ mod tests {
         );
     }
 
+    /// Clawpatch fnd_sig-feat-cli-command-79ebbc42f6-_ddb9293a0c:
+    /// without `-z`, git C-quotes paths containing quotes/tabs/newlines so
+    /// the extension filter never sees a scannable suffix. List must return
+    /// the literal path bytes.
+    #[test]
+    fn list_commit_files_returns_literal_special_character_paths() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        let quote_path = "foo\"bar.ts";
+        let tab_path = "tab\tname.ts";
+        let newline_path = "new\nline.ts";
+        std::fs::write(root.join(quote_path), "export const q = 1;\n").unwrap();
+        std::fs::write(root.join(tab_path), "export const t = 1;\n").unwrap();
+        std::fs::write(root.join(newline_path), "export const n = 1;\n").unwrap();
+        run(&["add", "-A"]);
+        run(&["commit", "-q", "-m", "special names"]);
+        let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        let files = list_commit_files(&root, &sha).expect("diff-tree -z succeeded");
+        assert!(
+            files.iter().any(|p| p == quote_path),
+            "literal quote path missing from {files:?}",
+        );
+        assert!(
+            files.iter().any(|p| p == tab_path),
+            "literal tab path missing from {files:?}",
+        );
+        assert!(
+            files.iter().any(|p| p == newline_path),
+            "literal newline path missing from {files:?}",
+        );
+        // Must never surface git's C-quoted form, which ends in `"` not `.ts`.
+        assert!(
+            files.iter().all(|p| !p.starts_with('"')),
+            "quoted path form leaked into listing: {files:?}",
+        );
+    }
+
+    /// End-to-end: a scannable source file whose name forces git to C-quote
+    /// under non-`-z` output must still be inspected. Returning `Allow` would
+    /// reintroduce the L4 bypass.
+    #[test]
+    fn validate_commit_blocks_antipattern_in_special_character_paths() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        let content = "/* eslint-disable */\nimport { x } from './m';\n";
+        let quote_path = "leak\"q.ts";
+        let newline_path = "leak\nn.ts";
+        std::fs::write(root.join(quote_path), content).unwrap();
+        std::fs::write(root.join(newline_path), content).unwrap();
+        run(&["add", "-A"]);
+        run(&["commit", "-q", "-m", "special antipattern"]);
+        let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        let verdict = validate_commit(&root, &sha, None);
+        let ValidationVerdict::Block { diagnostics } = verdict else {
+            panic!("expected Block for special-character paths, got {verdict:?}");
+        };
+        assert!(
+            diagnostics.iter().any(|d| d.rule_id == "AP-001"),
+            "expected AP-001 in {diagnostics:?}",
+        );
+    }
+
+    /// Newline-bearing paths cannot travel through line-delimited
+    /// `<sha>:<path>` cat-file requests. OID-based batch must still return
+    /// the body, and colon-bearing paths in-tree must resolve (no longer
+    /// refused solely because of the colon).
+    #[test]
+    fn read_commit_blobs_batch_reads_special_character_paths() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let run = |args: &[&str]| {
+            let out = Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        let quote_path = "q\"uote.ts";
+        let newline_path = "n\nl.ts";
+        let colon_path = "weird:path.ts";
+        std::fs::write(root.join(quote_path), b"quote-body\n").unwrap();
+        std::fs::write(root.join(newline_path), b"newline-body\n").unwrap();
+        std::fs::write(root.join(colon_path), b"colon-body\n").unwrap();
+        run(&["add", "-A"]);
+        run(&["commit", "-q", "-m", "special blobs"]);
+        let sha = String::from_utf8(run(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        let bodies = read_commit_blobs_batch(
+            &root,
+            &sha,
+            &[quote_path, newline_path, colon_path, "missing.ts"],
+        )
+        .expect("batch succeeded");
+        assert_eq!(bodies.len(), 4);
+        assert_eq!(bodies[0].as_deref(), Some(b"quote-body\n".as_ref()));
+        assert_eq!(bodies[1].as_deref(), Some(b"newline-body\n".as_ref()));
+        assert_eq!(bodies[2].as_deref(), Some(b"colon-body\n".as_ref()));
+        assert!(bodies[3].is_none(), "missing path stays None");
+    }
+
     /// Non-hex SHA inputs are refused before invoking git. Defence in
     /// depth — the SHA travels in from policy resolution and the
     /// engine should never feed a revspec or path to `git show`.
@@ -781,16 +1011,18 @@ mod tests {
         assert!(list_commit_files(&root, &"0".repeat(40)).is_err());
     }
 
-    /// Council #C-016G: filenames containing a colon would mis-parse
-    /// `<rev>:<path>`. The batch helper must yield `None` for those
-    /// entries rather than feed git an ambiguous string. Other valid
-    /// entries in the same batch must still resolve.
+    /// Council #C-016G (updated): colon-bearing pathnames used to be
+    /// refused because `<rev>:<path>` is ambiguous. The batch helper now
+    /// resolves via `ls-tree` + blob OIDs, so a missing colon path still
+    /// yields `None` (tree miss) while other valid entries resolve. A
+    /// present colon path is covered by
+    /// `read_commit_blobs_batch_reads_special_character_paths`.
     #[test]
     fn read_commit_blobs_batch_returns_none_for_colon_path() {
         let (_tmp, root, sha) = commit_with_file("body\n", "f.txt");
         let bodies = read_commit_blobs_batch(&root, &sha, &["weird:path.ts", "f.txt"]).unwrap();
         assert_eq!(bodies.len(), 2);
-        assert!(bodies[0].is_none(), "colon path must be refused");
+        assert!(bodies[0].is_none(), "missing colon path must be None");
         assert_eq!(bodies[1].as_deref(), Some(b"body\n".as_ref()));
     }
 
