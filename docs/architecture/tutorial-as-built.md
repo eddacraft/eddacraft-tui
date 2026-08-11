@@ -595,12 +595,12 @@ The four legacy paths (Policy / Architecture / Drift / CI) were written before
 the LAUNCH series reframed activation. Concrete drift visible in the source
 today (`paths.rs:138-306`):
 
-- **Policy** — since refreshed (2026-07-02 review): the intro now frames
-  policies as Rego (`.rego`) files run through the Open Policy Agent (OPA)
-  engine, and the walk creates `.anvil/policies/no-todos.rego`. Step 4 ("Test
-  the Policy") now runs `anvil policy test` (with an honest note that Rego test
-  execution is not yet wired in the Rust CLI, so `opa test .anvil/policies` is
-  the interim). The earlier "declarative YAML" / `anvil doctor` drift is gone.
+- **Policy** — since refreshed (2026-07-02 review; execution fix 2026-08-12):
+  the intro frames policies as Rego (`.rego`) files, and the walk creates
+  `.anvil/policies/no-todos.rego`. Step 4 ("Test the Policy") runs
+  `anvil policy test`, which executes pack and free-form `*_test.rego` files
+  in-process and exits non-zero on failure. The earlier "declarative YAML" /
+  `anvil doctor` drift is gone.
 - **Architecture** asks the user to create `.anvil/architecture.yaml` with layer
   definitions (`paths.rs:194-197`). The "Choose a Template" language ("layered,
   hexagonal, modular") describes a template catalog the v0.6.0-beta CLI does not

@@ -11,6 +11,7 @@ mod eval_regression;
 mod install;
 #[cfg(test)]
 mod starter_proof;
+mod test_run;
 mod validate;
 
 #[derive(Debug, Args)]
@@ -94,49 +95,7 @@ struct PolicyDiffResult {
     removed: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct TestCase {
-    name: String,
-    passed: bool,
-    message: String,
-}
-
-#[derive(Debug, Serialize)]
-struct TestResult {
-    passed: u32,
-    failed: u32,
-    skipped: u32,
-    tests: Vec<TestCase>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    warning: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    files: Option<Vec<String>>,
-}
-
-fn policy_test_file_walker(test_path: &str) -> ignore::Walk {
-    ignore::WalkBuilder::new(test_path)
-        .follow_links(false)
-        .standard_filters(false)
-        .hidden(false)
-        .build()
-}
-
-fn collect_policy_test_files(test_path: &str) -> Vec<String> {
-    let mut files: Vec<String> = policy_test_file_walker(test_path)
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
-        .map(|e| e.path().to_string_lossy().to_string())
-        .collect();
-    files.sort();
-    files
-}
-
-fn count_policy_test_files(test_path: &str) -> usize {
-    policy_test_file_walker(test_path)
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
-        .count()
-}
+// Test result types and discovery walkers live in `test_run` (execution path).
 
 /// Render an anvil-checks severity to the stable `list`/`explain` string form.
 fn severity_label(severity: anvil_checks::antipattern::WarningSeverity) -> &'static str {
@@ -320,81 +279,7 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
         PolicyCommand::Install(install_args) => return install::run_install(install_args, global),
         PolicyCommand::Show(show_args) => return install::run_show(show_args, global),
         PolicyCommand::Test { path, list_files } => {
-            let test_path = path.as_deref().unwrap_or(".anvil/policies");
-
-            if !std::path::Path::new(test_path).exists() {
-                if global.json {
-                    let result = TestResult {
-                        passed: 0,
-                        failed: 0,
-                        skipped: 0,
-                        tests: vec![],
-                        warning: Some(format!("No policy test directory found at '{test_path}'")),
-                        files: None,
-                    };
-                    crate::output::json::print(&result)?;
-                } else {
-                    crate::output::plain::blank();
-                    crate::output::plain::warn(&format!(
-                        "No policy test directory found at '{test_path}'"
-                    ));
-                    crate::output::plain::warn(
-                        "Policy test execution is not yet implemented. \
-                         Create Rego tests in .anvil/policies/ for future use.",
-                    );
-                }
-                return Ok(());
-            }
-
-            let (file_count, test_files) = if *list_files {
-                let files = collect_policy_test_files(test_path);
-                (files.len(), Some(files))
-            } else {
-                (count_policy_test_files(test_path), None)
-            };
-
-            if file_count == 0 {
-                if global.json {
-                    let result = TestResult {
-                        passed: 0,
-                        failed: 0,
-                        skipped: 0,
-                        tests: vec![],
-                        warning: Some(format!("No test files found in '{test_path}'")),
-                        files: None,
-                    };
-                    crate::output::json::print(&result)?;
-                } else {
-                    crate::output::plain::blank();
-                    crate::output::plain::warn("No test files found");
-                }
-                return Ok(());
-            }
-
-            if global.json {
-                let result = TestResult {
-                    passed: 0,
-                    failed: 0,
-                    skipped: u32::try_from(file_count).unwrap_or(u32::MAX),
-                    tests: vec![],
-                    warning: Some(format!(
-                        "Found {file_count} test file(s) but policy test execution \
-                         is not yet implemented. Use 'opa test' directly."
-                    )),
-                    files: test_files.clone(),
-                };
-                crate::output::json::print(&result)?;
-            } else {
-                crate::output::plain::blank();
-                crate::output::plain::warn(&format!(
-                    "Found {file_count} test file(s) in '{test_path}' but policy test execution is not yet implemented",
-                ));
-                if let Some(files) = &test_files {
-                    for f in files {
-                        crate::output::plain::info(f);
-                    }
-                }
-            }
+            return test_run::run(path.as_deref(), *list_files, global);
         }
     }
 
@@ -584,11 +469,10 @@ mod tests {
         fs::write(root.join("b.rego"), "package b").unwrap();
         fs::write(hidden_dir.join("a.rego"), "package a").unwrap();
 
-        let files = collect_policy_test_files(&root.to_string_lossy());
+        let files = test_run::collect_policy_test_files(&root.to_string_lossy());
 
         assert_eq!(files.len(), 2);
         assert!(Path::new(&files[0]).ends_with(Path::new(".hidden").join("a.rego")));
         assert!(Path::new(&files[1]).ends_with("b.rego"));
-        assert_eq!(count_policy_test_files(&root.to_string_lossy()), 2);
     }
 }

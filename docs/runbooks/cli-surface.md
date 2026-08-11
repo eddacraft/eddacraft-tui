@@ -1586,19 +1586,19 @@ trust-regression CI locally, or inspect active policies.
 
 **Subcommands:**
 
-| Subcommand                             | Description                                                                        |
-| -------------------------------------- | ---------------------------------------------------------------------------------- |
-| `eval`                                 | Evaluate a Rego policy against an input document.                                  |
-| `eval-regression`                      | Run trust-regression eval suites against the persisted baseline (report-only).     |
-| `attack-regression`                    | Run a prompt-attack regression pack and gate on the fail-policy verdict.           |
-| `probe-trends`                         | Show adversarial probe pass/fail trends by category from eval history.             |
-| `list [--category <c>] [--enabled]`    | List available policies.                                                           |
-| `explain <policy-id>`                  | Explain a specific policy.                                                         |
-| `diff <base> <head>`                   | Show policy differences.                                                           |
-| `validate [path]`                      | Validate a policy pack (`pack.yaml`, metadata, structure, tests).                  |
-| `install [pack-id] [--list] [--force]` | Install a bundled starter pack into `.anvil/policies/`.                            |
-| `show [pack-id]`                       | Show a bundled starter pack without installing it.                                 |
-| `test [path] [--list-files]`           | Discover policy test files (**execution stub** — use `opa test` or pack validate). |
+| Subcommand                             | Description                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `eval`                                 | Evaluate a Rego policy against an input document.                                           |
+| `eval-regression`                      | Run trust-regression eval suites against the persisted baseline (report-only).              |
+| `attack-regression`                    | Run a prompt-attack regression pack and gate on the fail-policy verdict.                    |
+| `probe-trends`                         | Show adversarial probe pass/fail trends by category from eval history.                      |
+| `list [--category <c>] [--enabled]`    | List available policies.                                                                    |
+| `explain <policy-id>`                  | Explain a specific policy.                                                                  |
+| `diff <base> <head>`                   | Show policy differences.                                                                    |
+| `validate [path]`                      | Validate a policy pack (`pack.yaml`, metadata, structure, tests).                           |
+| `install [pack-id] [--list] [--force]` | Install a bundled starter pack into `.anvil/policies/`.                                     |
+| `show [pack-id]`                       | Show a bundled starter pack without installing it.                                          |
+| `test [path] [--list-files]`           | Run pack or free-form `*_test.rego` tests (non-zero on failure); `--list-files` lists only. |
 
 Gate evaluation uses the regorus engine in-process; the Go `opa` binary is
 reference-only for `opa test` parity. See `docs/guides/policy-validation.md`.

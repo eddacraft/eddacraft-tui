@@ -319,8 +319,8 @@ pub fn policy_steps() -> Vec<TutorialStep> {
         ),
         step_with_verify(
             "Test the Policy",
-            "Before enforcing a policy, confirm anvil can discover it. `anvil policy test` walks `.anvil/policies/` and reports the Rego test files it finds. Test execution is not yet wired up in the Rust CLI — for now, run `opa test .anvil/policies` directly to exercise Rego logic.",
-            "Run: anvil policy test to list your Rego test files.",
+            "Before enforcing a policy, confirm anvil can exercise it. `anvil policy test` runs pack and free-form `*_test.rego` files under `.anvil/policies/` through the in-process policy engine and exits non-zero when any test fails.",
+            "Run: anvil policy test to execute your Rego tests.",
             "anvil policy test",
             CommandEffect::ReadOnly,
             Verify::ExitCode(0),
