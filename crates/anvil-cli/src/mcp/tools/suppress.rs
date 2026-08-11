@@ -240,8 +240,9 @@ fn insert_suppression_comment(
 
     // Open a hardened read+write handle to read the current contents and to
     // probe writability (a read-only target must fail before any write). The
-    // replacement itself is path-based (temp + rename); O_NOFOLLOW on this
-    // open still rejects a final-component symlink at check time.
+    // replacement itself is path-based (temp + rename). On Unix the open
+    // uses O_NOFOLLOW to reject a final-component symlink at check time;
+    // Windows has no portable O_NOFOLLOW equivalent here.
     let mut handle = open_contained_rw_handle(path, workspace_path)?;
     let mut content = String::new();
     handle
@@ -269,8 +270,8 @@ fn insert_suppression_comment(
     // Drop the open handle before rename. On Windows an open destination
     // blocks `persist`; on every platform the replacement is path-based
     // (POSIX rename replaces a symlink at the destination rather than
-    // following it). The earlier `open_contained_rw_handle` still probes
-    // writability and rejects a final-component symlink via O_NOFOLLOW.
+    // following it). The earlier open still probes writability; on Unix it
+    // also rejects a final-component symlink via O_NOFOLLOW.
     drop(handle);
     // Write via temp-file + rename so a failed write cannot leave the
     // original truncated or partially rewritten (data-loss on
@@ -319,7 +320,17 @@ fn replace_file_contents_atomic(path: &Path, new_content: &[u8]) -> Result<(), S
     // the backup — never delete the original until the replacement is durable.
     #[cfg(windows)]
     {
-        let backup = dir.join(format!(".anvil-suppress-backup-{}", std::process::id()));
+        // Include the target file name so concurrent suppress ops on different
+        // files in the same directory cannot collide on a pid-only backup path.
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("target");
+        let backup = dir.join(format!(
+            ".anvil-suppress-backup-{}-{}",
+            std::process::id(),
+            file_name
+        ));
         match fs::rename(path, &backup) {
             Ok(()) => {}
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
