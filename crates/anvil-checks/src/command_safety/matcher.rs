@@ -141,11 +141,12 @@ fn is_path_in_temp_dir(path: &str, context: Option<&MatcherContext>) -> bool {
 }
 
 /// True when an argument still contains shell expansion syntax that we refuse
-/// to resolve. Command substitutions and parameter expansions can evaluate to
-/// protected targets (e.g. `$(printf /)` → `/`), so matching treats them as
-/// potential hits against argument patterns rather than allowing them.
+/// to resolve. Command substitutions, parameter expansions, and special/positional
+/// parameters can evaluate to protected targets (e.g. `$(printf /)` → `/`), so
+/// matching treats them as potential hits against argument patterns rather than
+/// allowing them.
 #[must_use]
-pub fn contains_unresolved_shell_expansion(argument: &str) -> bool {
+pub(crate) fn contains_unresolved_shell_expansion(argument: &str) -> bool {
     if argument.contains("$(") || argument.contains('`') || argument.contains("${") {
         return true;
     }
@@ -154,7 +155,16 @@ pub fn contains_unresolved_shell_expansion(argument: &str) -> bool {
     while index < bytes.len() {
         if bytes[index] == b'$' && index + 1 < bytes.len() {
             let next = bytes[index + 1];
+            // Named parameters: $HOME, $_foo
             if next.is_ascii_alphabetic() || next == b'_' {
+                return true;
+            }
+            // Positional parameters: $0-$9 and multi-digit $12
+            if next.is_ascii_digit() {
+                return true;
+            }
+            // Special parameters: $@ $* $# $? $- $$ $! $0 already covered by digit
+            if matches!(next, b'@' | b'*' | b'#' | b'?' | b'-' | b'$' | b'!') {
                 return true;
             }
         }
@@ -642,8 +652,15 @@ mod tests {
         assert!(contains_unresolved_shell_expansion("`pwd`"));
         assert!(contains_unresolved_shell_expansion("${HOME}"));
         assert!(contains_unresolved_shell_expansion("$HOME"));
+        assert!(contains_unresolved_shell_expansion("$1"));
+        assert!(contains_unresolved_shell_expansion("$@"));
+        assert!(contains_unresolved_shell_expansion("$$"));
+        assert!(contains_unresolved_shell_expansion("$?"));
+        assert!(contains_unresolved_shell_expansion("$*"));
+        assert!(contains_unresolved_shell_expansion("$#"));
         assert!(!contains_unresolved_shell_expansion("/"));
         assert!(!contains_unresolved_shell_expansion("target"));
+        assert!(!contains_unresolved_shell_expansion("file$"));
     }
 
     #[test]
