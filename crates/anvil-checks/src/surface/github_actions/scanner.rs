@@ -237,9 +237,7 @@ fn flow_mapping_has_key(hay: &str, key: &str) -> bool {
 /// produce false positives (e.g. `with: { uses: … }` is not a top-level `uses`).
 fn flow_map_top_level_value<'a>(hay: &'a str, key: &str) -> Option<&'a str> {
     let bytes = hay.as_bytes();
-    let Some(open) = hay.find('{') else {
-        return None;
-    };
+    let open = hay.find('{')?;
     let mut i = open;
     let mut depth: i32 = 0;
     let mut in_single = false;
