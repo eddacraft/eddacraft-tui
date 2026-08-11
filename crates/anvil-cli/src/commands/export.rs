@@ -137,21 +137,23 @@ fn files_share_identity(source: &std::path::Path, output: &std::path::Path) -> b
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        if let (Ok(src_meta), Ok(out_meta)) = (std::fs::metadata(source), std::fs::metadata(output))
-        {
-            return src_meta.dev() == out_meta.dev() && src_meta.ino() == out_meta.ino();
+        match (std::fs::metadata(source), std::fs::metadata(output)) {
+            (Ok(src_meta), Ok(out_meta)) => {
+                src_meta.dev() == out_meta.dev() && src_meta.ino() == out_meta.ino()
+            }
+            _ => false,
         }
-        return false;
     }
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
-        if let (Ok(src_meta), Ok(out_meta)) = (std::fs::metadata(source), std::fs::metadata(output))
-        {
-            return src_meta.volume_serial_number() == out_meta.volume_serial_number()
-                && src_meta.file_index() == out_meta.file_index();
+        match (std::fs::metadata(source), std::fs::metadata(output)) {
+            (Ok(src_meta), Ok(out_meta)) => {
+                src_meta.volume_serial_number() == out_meta.volume_serial_number()
+                    && src_meta.file_index() == out_meta.file_index()
+            }
+            _ => false,
         }
-        return false;
     }
     #[cfg(not(any(unix, windows)))]
     {
