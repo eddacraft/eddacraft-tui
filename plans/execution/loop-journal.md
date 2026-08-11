@@ -774,7 +774,10 @@ never with feature work.
   unauthorised.
 - Plan changes: PR #3740 already landed the review-ready CIB state as
   `792842fc624d2060601903da5ffd1c7f88bbae5f`; CIB-305..314 remain In Progress
-  until each feature head is proven on `origin/main`.
+  until each rebase result is proven on `origin/main` by the resulting commit
+  or landed-tree-equivalence evidence. The `LANDING` tokens intentionally name
+  the pre-merge PR heads; GitHub may rewrite those commits during rebase merge.
 - Next: land PRs #3733..3739 serially with normal rebase merges, record each
-  resulting `MERGED` commit and ancestry proof, then reconcile the shared CIB
-  module once as Merged. Release evidence is still required for later states.
+  resulting `MERGED` commit plus integration ancestry or landed-tree-equivalence
+  proof, then reconcile the shared CIB module once as Merged. Release evidence
+  is still required for later states.
