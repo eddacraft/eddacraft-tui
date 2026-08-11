@@ -334,6 +334,30 @@ fn detects_dangerous_command_through_sudo() {
     assert_eq!(matched.unwrap().action, CommandAction::Block);
 }
 
+#[test]
+fn blocks_deeply_nested_env_wrappers_around_rm_rf_root() {
+    // CLAWP: nested recognised wrappers beyond MAX_UNWRAP_DEPTH must not
+    // fail open. Six `env` wrappers exceed the historical depth-5 limit and
+    // previously left the matcher comparing the residual `env` token, so the
+    // root-deletion rule never matched.
+    let context = CommandSafetyCheckContext {
+        plan: Some(plan_with(&["env env env env env env rm -rf /"])),
+        check_config: None,
+        workspace_root: Some("/home/dev/project".to_string()),
+    };
+    let result = run_command_safety_check(&context);
+
+    assert!(
+        !result.passed,
+        "six nested env wrappers around rm -rf / must not pass as allowed"
+    );
+    assert!(
+        result.summary.blocked >= 1,
+        "expected at least one blocked finding, got summary={:?}",
+        result.summary
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Compound command analysis
 // ---------------------------------------------------------------------------

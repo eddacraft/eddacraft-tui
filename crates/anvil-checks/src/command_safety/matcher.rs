@@ -287,6 +287,24 @@ pub fn analyse_command(
     rules: &[CommandRule],
     context: Option<&MatcherContext>,
 ) -> CommandAnalysisResult {
+    if parsed.unwrap_incomplete {
+        return CommandAnalysisResult {
+            command: command.to_string(),
+            parsed_command: parsed.clone(),
+            action: CommandAction::Block,
+            severity: CommandSeverity::Error,
+            reason: Some(
+                "Command wrapper nesting exceeded analysis depth; refusing to treat as safe"
+                    .to_string(),
+            ),
+            suggestion: Some(
+                "Reduce nested wrappers (env/sudo/bash/...) or rewrite the command so it can be analysed fully."
+                    .to_string(),
+            ),
+            references: None,
+            matched_rule: None,
+        };
+    }
     if let Some(matched_rule) = find_matching_rule(parsed, rules, context) {
         return CommandAnalysisResult {
             command: command.to_string(),

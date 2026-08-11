@@ -110,7 +110,8 @@ Wrapper detection supports:
 - `sudo`
 - `env`
 - `command`
-- Nested combinations (up to depth 5)
+- Nested combinations (up to depth 5; deeper nesting is treated as incomplete
+  analysis and blocked rather than allowed)
 
 ## Output Examples
 

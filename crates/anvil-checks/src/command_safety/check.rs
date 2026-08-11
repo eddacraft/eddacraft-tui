@@ -4,9 +4,9 @@ use crate::command_safety::matcher::{MatcherContext, find_matching_rule};
 use crate::command_safety::parser::CommandParser;
 use crate::command_safety::rules::{default_filesystem_rules, default_git_rules};
 use crate::command_safety::types::{
-    CommandAction, CommandAnalysisSummary, CommandRule, CommandRuleOverrideAction,
+    CommandAction, CommandAnalysisSummary, CommandCategory, CommandRule, CommandRuleOverrideAction,
     CommandSafetyCheckResult, CommandSafetyConfig, CommandSafetyDetails, CommandSafetyFinding,
-    CommandSafetyResolvedConfigInfo, ResolvedCommandSafetyConfig,
+    CommandSafetyResolvedConfigInfo, CommandSeverity, ResolvedCommandSafetyConfig,
     ResolvedCommandSafetyOutputConfig, ResolvedWorkingDirectoryConfig, ScriptChangeType,
     ScriptPlan, WorkingDirectoryConfig,
 };
@@ -413,10 +413,34 @@ fn analyse_command_sources(
     for source in command_sources {
         let compound = parser.parse_compound(&source.command);
         for parsed in compound.commands {
-            if parsed.command.is_empty() {
+            if parsed.command.is_empty() && !parsed.unwrap_incomplete {
                 continue;
             }
             aggregate.total_analysed += 1;
+
+            if parsed.unwrap_incomplete {
+                let finding = CommandSafetyFinding {
+                    command: if compound.is_compound {
+                        format!("{} (from: {})", parsed.raw, source.command)
+                    } else {
+                        parsed.raw.clone()
+                    },
+                    rule_id: "cmd-unwrap-incomplete".to_string(),
+                    category: CommandCategory::Shell,
+                    action: CommandAction::Block,
+                    severity: CommandSeverity::Error,
+                    reason: "Command wrapper nesting exceeded analysis depth; refusing to treat as safe"
+                        .to_string(),
+                    suggestion: Some(
+                        "Reduce nested wrappers (env/sudo/bash/...) or rewrite the command so it can be analysed fully."
+                            .to_string(),
+                    ),
+                    references: None,
+                    source: source.source.clone(),
+                };
+                aggregate.blocked.push(finding);
+                continue;
+            }
 
             let matched_rule = find_matching_rule(&parsed, &resolved.rules, Some(&match_context));
             let Some(rule) = matched_rule else {

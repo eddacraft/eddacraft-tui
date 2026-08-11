@@ -34,6 +34,7 @@ struct TokenisedWithOperators {
 struct UnwrapResult {
     unwrapped: String,
     wrappers: Vec<String>,
+    incomplete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -395,11 +396,30 @@ fn extract_privileged_command(tokens: &[String]) -> Option<Vec<String>> {
 }
 
 #[must_use]
+fn remaining_starts_with_recognised_wrapper(cmd: &str) -> bool {
+    let trimmed = cmd.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let tokens = tokenise(trimmed);
+    let Some(first) = tokens.first() else {
+        return false;
+    };
+    is_shell_wrapper(first)
+        || is_privileged_wrapper(first)
+        || is_env_wrapper(first)
+        || is_interpreter(first)
+}
+
+#[must_use]
 fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
     if depth >= MAX_UNWRAP_DEPTH {
         return UnwrapResult {
             unwrapped: cmd.to_string(),
             wrappers: Vec::new(),
+            // Fail closed when the residual still looks like a wrapper chain we
+            // stopped peeling early; residual real commands are complete.
+            incomplete: remaining_starts_with_recognised_wrapper(cmd),
         };
     }
 
@@ -408,6 +428,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         return UnwrapResult {
             unwrapped: cmd.to_string(),
             wrappers: Vec::new(),
+            incomplete: false,
         };
     }
 
@@ -416,6 +437,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         return UnwrapResult {
             unwrapped: cmd.to_string(),
             wrappers: Vec::new(),
+            incomplete: false,
         };
     };
 
@@ -428,6 +450,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         return UnwrapResult {
             unwrapped: inner.unwrapped,
             wrappers,
+            incomplete: inner.incomplete,
         };
     }
 
@@ -440,6 +463,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         return UnwrapResult {
             unwrapped: inner.unwrapped,
             wrappers,
+            incomplete: inner.incomplete,
         };
     }
 
@@ -452,6 +476,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         return UnwrapResult {
             unwrapped: inner.unwrapped,
             wrappers,
+            incomplete: inner.incomplete,
         };
     }
 
@@ -465,6 +490,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
             return UnwrapResult {
                 unwrapped: inner.unwrapped,
                 wrappers,
+                incomplete: inner.incomplete,
             };
         }
     }
@@ -472,6 +498,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
     UnwrapResult {
         unwrapped: trimmed.to_string(),
         wrappers: Vec::new(),
+        incomplete: false,
     }
 }
 
@@ -588,7 +615,12 @@ fn extract_subcommand(command: &str, rest: &[String]) -> Option<String> {
 }
 
 #[must_use]
-fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> ParsedCommand {
+fn parse_from_tokens(
+    tokens: &[String],
+    raw_cmd: &str,
+    wrappers: &[String],
+    unwrap_incomplete: bool,
+) -> ParsedCommand {
     if tokens.is_empty() {
         return ParsedCommand {
             raw: raw_cmd.to_string(),
@@ -598,6 +630,7 @@ fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> P
             args: Vec::new(),
             unwrapped: raw_cmd.to_string(),
             wrapper_chain: wrappers.to_vec(),
+            unwrap_incomplete,
         };
     }
 
@@ -615,6 +648,7 @@ fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> P
             args: Vec::new(),
             unwrapped: tokens.join(" "),
             wrapper_chain: wrappers.to_vec(),
+            unwrap_incomplete,
         };
     }
 
@@ -666,6 +700,7 @@ fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> P
         args: remaining_args,
         unwrapped: tokens.join(" "),
         wrapper_chain: wrappers.to_vec(),
+        unwrap_incomplete,
     }
 }
 
@@ -683,10 +718,11 @@ pub fn parse_command(cmd: &str) -> ParsedCommand {
             args: Vec::new(),
             unwrapped: unwrap.unwrapped,
             wrapper_chain: unwrap.wrappers,
+            unwrap_incomplete: unwrap.incomplete,
         };
     }
 
-    parse_from_tokens(&tokens, cmd, &unwrap.wrappers)
+    parse_from_tokens(&tokens, cmd, &unwrap.wrappers, unwrap.incomplete)
 }
 
 #[must_use]
@@ -743,7 +779,12 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                     if !sub.tokens.is_empty() {
                         let raw_sub = sub.tokens.join(" ");
                         let tokens = tokenise(&raw_sub);
-                        let parsed = parse_from_tokens(&tokens, &raw_sub, &unwrap.wrappers);
+                        let parsed = parse_from_tokens(
+                            &tokens,
+                            &raw_sub,
+                            &unwrap.wrappers,
+                            unwrap.incomplete,
+                        );
                         commands.push(parsed);
                     }
                     if let Some(op) = sub.operator {
@@ -788,7 +829,12 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                             .collect::<Vec<_>>()
                             .join(" ");
                         let tokens = tokenise(&inner_raw);
-                        let parsed = parse_from_tokens(&tokens, &inner_raw, &unwrap.wrappers);
+                        let parsed = parse_from_tokens(
+                            &tokens,
+                            &inner_raw,
+                            &unwrap.wrappers,
+                            unwrap.incomplete,
+                        );
                         commands.push(parsed);
                     }
                     if let Some(op) = sub.operator {
@@ -797,7 +843,8 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                 }
             } else {
                 let inner_tokens = tokenise(&unwrap.unwrapped);
-                let parsed = parse_from_tokens(&inner_tokens, &raw_sub, &unwrap.wrappers);
+                let parsed =
+                    parse_from_tokens(&inner_tokens, &raw_sub, &unwrap.wrappers, unwrap.incomplete);
                 commands.push(parsed);
             }
         }
@@ -1082,6 +1129,36 @@ mod tests {
     #[test]
     fn strips_leading_environment_assignments() {
         let parsed = parse_command("FOO=bar BAR=baz rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
+    }
+
+    #[test]
+    fn depth_limited_nested_env_marks_unwrap_incomplete() {
+        // Six nested env wrappers exceed MAX_UNWRAP_DEPTH (5) and must not
+        // report a residual wrapper as a complete parse.
+        let parsed = parse_command("env env env env env env rm -rf /");
+        assert!(
+            parsed.unwrap_incomplete || parsed.command == "rm",
+            "expected incomplete unwrap or full peel to rm; got command={:?} incomplete={}",
+            parsed.command,
+            parsed.unwrap_incomplete
+        );
+        if parsed.unwrap_incomplete {
+            // Residual must not be treated as a trusted complete analysis.
+            assert_ne!(
+                parsed.command, "rm",
+                "incomplete flag with command=rm would be inconsistent"
+            );
+        }
+    }
+
+    #[test]
+    fn five_nested_env_wrappers_still_fully_unwrap() {
+        // Depth budget allows five peels; this remains a complete analysis.
+        let parsed = parse_command("env env env env env rm -rf /");
+        assert!(!parsed.unwrap_incomplete);
         assert_eq!(parsed.command, "rm");
         assert_eq!(parsed.flags, vec!["-r", "-f"]);
         assert_eq!(parsed.args, vec!["/"]);

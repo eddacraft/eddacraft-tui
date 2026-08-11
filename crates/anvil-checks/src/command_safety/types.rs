@@ -88,6 +88,11 @@ pub struct ParsedCommand {
     pub unwrapped: String,
     #[serde(rename = "wrapperChain")]
     pub wrapper_chain: Vec<String>,
+    /// True when wrapper unwrapping stopped early (depth limit) while the
+    /// remaining command still looked like a recognised wrapper. Consumers
+    /// must treat this as incomplete analysis and fail closed.
+    #[serde(default, rename = "unwrapIncomplete")]
+    pub unwrap_incomplete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
