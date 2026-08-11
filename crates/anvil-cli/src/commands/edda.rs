@@ -22,7 +22,7 @@
 //! `memories`) keep working.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Duration, Utc};
@@ -421,8 +421,70 @@ fn load_index(storage_path: &Path) -> Result<MemoryIndex> {
         .with_context(|| format!("failed to parse {}", index_path.display()))
 }
 
+/// Resolve an index entry path under `storage_path` without allowing escape.
+///
+/// Index YAML is trusted only as a catalogue of relative memory files. Absolute
+/// paths, `..` components, and symlink targets that leave the Edda storage
+/// directory are rejected so `edda list` / `edda show` cannot be used as a
+/// confused deputy to read arbitrary YAML on disk.
+fn resolve_memory_path(storage_path: &Path, entry_path: &str) -> Result<PathBuf> {
+    let rel = Path::new(entry_path);
+    if rel.as_os_str().is_empty() {
+        bail!(
+            "Edda index path must be relative and stay under the storage directory: {entry_path:?}"
+        );
+    }
+    if rel.is_absolute() {
+        bail!(
+            "Edda index path must be relative and stay under the storage directory: {entry_path}"
+        );
+    }
+
+    let mut has_normal = false;
+    for component in rel.components() {
+        match component {
+            Component::Normal(_) => has_normal = true,
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                bail!(
+                    "Edda index path must be relative and stay under the storage directory: {entry_path}"
+                );
+            }
+        }
+    }
+    if !has_normal {
+        bail!(
+            "Edda index path must be relative and stay under the storage directory: {entry_path}"
+        );
+    }
+
+    let candidate = storage_path.join(rel);
+    let storage_canon = dunce::canonicalize(storage_path).with_context(|| {
+        format!(
+            "failed to resolve Edda storage directory {}",
+            storage_path.display()
+        )
+    })?;
+
+    // When the target exists (including via symlink), re-check after resolution
+    // so a symlink under storage cannot point outside the Edda root.
+    if candidate.exists() {
+        let target_canon = dunce::canonicalize(&candidate).with_context(|| {
+            format!("failed to resolve Edda memory path {}", candidate.display())
+        })?;
+        if target_canon.strip_prefix(&storage_canon).is_err() {
+            bail!(
+                "Edda index path must be relative and stay under the storage directory: {entry_path}"
+            );
+        }
+        return Ok(target_canon);
+    }
+
+    Ok(candidate)
+}
+
 fn read_memory(storage_path: &Path, entry: &MemoryIndexEntry) -> Result<MemoryRecord> {
-    let path = storage_path.join(&entry.path);
+    let path = resolve_memory_path(storage_path, &entry.path)?;
     let raw =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
     serde_yaml::from_str::<MemoryRecord>(&raw)
@@ -850,6 +912,110 @@ evolution:
             .to_string();
 
         assert!(err.contains("Edda memory not found: missing"));
+    }
+
+    fn seed_escape_index(storage: &Path, id: &str, path: &str) {
+        fs::create_dir_all(storage).unwrap();
+        fs::write(
+            storage.join("index.yaml"),
+            format!(
+                r#"memories:
+  - id: {id}
+    type: decision
+    status: active
+    path: {path}
+    statement: should-not-load
+    confidence: high
+    tags: []
+    created_at: "2026-05-01T00:00:00Z"
+"#
+            ),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn show_memory_payload_rejects_parent_dir_escape() {
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = tmp.path().join(".anvil").join("edda");
+        let outside = tmp.path().join("secret.yaml");
+        fs::write(&outside, "id: leaked\nstatement: TOP_SECRET_PARENT\n").unwrap();
+        seed_escape_index(&storage, "escape-parent", "../../secret.yaml");
+
+        let err = show_memory_payload(&storage, "escape-parent")
+            .expect_err("parent-dir index path must be refused")
+            .to_string();
+
+        assert!(
+            err.contains("must be relative and stay under the storage directory"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            !err.contains("TOP_SECRET_PARENT"),
+            "error must not include outside file contents"
+        );
+    }
+
+    #[test]
+    fn show_memory_payload_rejects_absolute_path_escape() {
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = tmp.path().join(".anvil").join("edda");
+        let outside = tmp.path().join("secret.yaml");
+        fs::write(&outside, "id: leaked\nstatement: TOP_SECRET_ABS\n").unwrap();
+        seed_escape_index(&storage, "escape-abs", &outside.to_string_lossy());
+
+        let err = show_memory_payload(&storage, "escape-abs")
+            .expect_err("absolute index path must be refused")
+            .to_string();
+
+        assert!(
+            err.contains("must be relative and stay under the storage directory"),
+            "unexpected error: {err}"
+        );
+        assert!(!err.contains("TOP_SECRET_ABS"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn show_memory_payload_rejects_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = tmp.path().join(".anvil").join("edda");
+        fs::create_dir_all(storage.join("memories/decision")).unwrap();
+
+        let outside = tmp.path().join("secret.yaml");
+        fs::write(&outside, "id: leaked\nstatement: TOP_SECRET_SYMLINK\n").unwrap();
+
+        let link = storage.join("memories/decision/escape.yaml");
+        symlink(&outside, &link).unwrap();
+        seed_escape_index(&storage, "escape-link", "memories/decision/escape.yaml");
+
+        let err = show_memory_payload(&storage, "escape-link")
+            .expect_err("symlink escape must be refused")
+            .to_string();
+
+        assert!(
+            err.contains("must be relative and stay under the storage directory"),
+            "unexpected error: {err}"
+        );
+        assert!(!err.contains("TOP_SECRET_SYMLINK"));
+    }
+
+    #[test]
+    fn resolve_memory_path_accepts_normal_relative_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = tmp.path().join(".anvil").join("edda");
+        fs::create_dir_all(storage.join("memories/decision")).unwrap();
+        let memory = storage.join("memories/decision/ok.yaml");
+        fs::write(&memory, "id: ok\n").unwrap();
+
+        let resolved =
+            resolve_memory_path(&storage, "memories/decision/ok.yaml").expect("valid path");
+        assert_eq!(
+            dunce::canonicalize(&resolved).unwrap(),
+            dunce::canonicalize(&memory).unwrap()
+        );
     }
 
     #[test]
