@@ -344,7 +344,9 @@ mod tests {
             UnregisteredOutcome::Fenced { worktree: w, .. } => {
                 assert_eq!(w, &worktree);
             }
-            other => panic!("expected Fenced, got {other:?}"),
+            other @ UnregisteredOutcome::UnableToFence { .. } => {
+                panic!("expected Fenced, got {other:?}")
+            }
         }
         assert!(store.load().unwrap().is_fenced(&worktree));
     }
@@ -407,7 +409,9 @@ mod tests {
             UnregisteredOutcome::Fenced { worktree: w, .. } => {
                 assert_eq!(w, &worktree);
             }
-            other => panic!("expected Fenced, got {other:?}"),
+            other @ UnregisteredOutcome::UnableToFence { .. } => {
+                panic!("expected Fenced, got {other:?}")
+            }
         }
         assert!(store.load().unwrap().is_fenced(&worktree));
     }
