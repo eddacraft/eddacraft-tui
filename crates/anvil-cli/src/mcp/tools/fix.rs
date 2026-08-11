@@ -372,8 +372,7 @@ fn apply_fix(
     // The probe open is independently containment-checked; the rename
     // replaces the final path component without following a post-open
     // symlink swap (POSIX rename replaces a symlink at the destination).
-    let _write_probe = open_contained_rw_handle(path, workspace_path)?;
-    drop(_write_probe);
+    open_contained_rw_handle(path, workspace_path)?;
     replace_file_contents_atomic(path, new_content.as_bytes())?;
 
     Ok(json!({
