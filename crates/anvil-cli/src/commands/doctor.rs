@@ -478,7 +478,10 @@ fn check_anvil_dir_writable() -> DiagnosticCheck {
         std::process::id(),
         uuid::Uuid::new_v4().as_simple()
     ));
-    let writable = match std::fs::OpenOptions::new()
+    // Exclusive create proves write access. Cleanup failure is surfaced in
+    // `details` but does not flip the check to Fail: the directory accepted a
+    // create, which is the writability question this probe answers.
+    let (writable, details) = match std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&probe)
@@ -486,10 +489,18 @@ fn check_anvil_dir_writable() -> DiagnosticCheck {
         Ok(file) => {
             // Drop the handle before remove so Windows does not deny delete.
             drop(file);
-            let _ = std::fs::remove_file(&probe);
-            true
+            match std::fs::remove_file(&probe) {
+                Ok(()) => (true, None),
+                Err(err) => (
+                    true,
+                    Some(format!(
+                        "created probe {} but failed to remove it: {err}",
+                        probe.display()
+                    )),
+                ),
+            }
         }
-        Err(_) => false,
+        Err(_) => (false, None),
     };
 
     DiagnosticCheck {
@@ -505,7 +516,7 @@ fn check_anvil_dir_writable() -> DiagnosticCheck {
         } else {
             ".anvil/ is not writable".to_string()
         },
-        details: None,
+        details,
         auto_fixable: false,
         remediation: if writable {
             Remediation::default()
@@ -2271,10 +2282,12 @@ mod tests {
 
     #[test]
     fn anvil_dir_writable_skips_when_missing() {
-        if !Path::new(".anvil").is_dir() {
+        // Use the cwd guard so parallel doctor tests cannot observe a foreign
+        // `.anvil/` while this probe runs (or vice versa).
+        with_tempdir_as_cwd(|_| {
             let check = check_anvil_dir_writable();
             assert_eq!(check.status, CheckStatus::Skipped);
-        }
+        });
     }
 
     /// Regression: the writability probe must never open a pre-existing path
