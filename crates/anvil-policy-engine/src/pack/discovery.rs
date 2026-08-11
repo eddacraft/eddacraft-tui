@@ -672,10 +672,7 @@ mod tests {
         let ids: Vec<&str> = discovery.packs.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, ["legit"], "{discovery:?}");
         assert_eq!(discovery.rejected.len(), 1, "{discovery:?}");
-        assert_eq!(
-            discovery.rejected[0].reason,
-            RejectionReason::Unresolvable
-        );
+        assert_eq!(discovery.rejected[0].reason, RejectionReason::Unresolvable);
         assert!(
             discovery.rejected[0].path.ends_with("pack.yaml"),
             "{discovery:?}"
