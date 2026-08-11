@@ -23,7 +23,7 @@ pub enum SliceOmitReason {
     Budget,
     /// No snippet was available upstream.
     Unlocatable,
-    /// The per-session `(file, ByteRange)` byte ceiling was exhausted (CE-6).
+    /// The per-session per-file unique-coverage byte ceiling was exhausted (CE-6).
     ByteCeiling,
 }
 
@@ -73,33 +73,100 @@ impl SliceOmitReason {
     }
 }
 
-/// Per-session snippet byte ledger keyed on `(file, ByteRange)` identity (CE-6).
+/// Per-session snippet byte ledger (CE-6).
 ///
-/// Tracks cumulative bytes egressed per span position so overlapping-span calls
-/// cannot reassemble a whole file.
+/// Tracks **file-level** covered byte intervals so overlapping-span calls cannot
+/// reassemble a whole file. Only *newly exposed* position bytes are charged
+/// against the per-file session ceiling; fully covered spans re-admit free.
+/// Keys on position identity (`file` + [`ByteRange`]), never on text content.
 #[derive(Debug, Clone, Default)]
 pub struct SnippetByteLedger {
-    spent: std::collections::BTreeMap<(String, ByteRange), u32>,
+    /// Merged, non-overlapping covered intervals per file, ordered by `start`.
+    covered: std::collections::BTreeMap<String, Vec<ByteRange>>,
 }
 
-/// Hard per-span session byte ceiling (CE-6): independent of the per-call token
-/// budget.
+/// Hard per-file unique-coverage session byte ceiling (CE-6): independent of the
+/// per-call token budget. Historically named `…_PER_SPAN`; the cap is now
+/// enforced on unique file-byte coverage so overlapping spans share it.
 pub const MAX_SESSION_SNIPPET_BYTES_PER_SPAN: u32 = 16 * 1024;
 
 impl SnippetByteLedger {
-    /// Whether `span` in `file` can admit `bytes` more under the session ceiling.
-    #[must_use]
-    pub fn can_admit(&self, file: &str, span: ByteRange, bytes: u32) -> bool {
-        let key = (file.to_string(), span);
-        let used = self.spent.get(&key).copied().unwrap_or(0);
-        used.saturating_add(bytes) <= MAX_SESSION_SNIPPET_BYTES_PER_SPAN
+    /// Total unique bytes already covered for `file`.
+    fn covered_total(&self, file: &str) -> u32 {
+        self.covered.get(file).map_or(0, |ivs| {
+            ivs.iter()
+                .map(|iv| iv.len())
+                .fold(0u32, u32::saturating_add)
+        })
     }
 
-    /// Record `bytes` egressed for `span` in `file`.
-    pub fn record(&mut self, file: &str, span: ByteRange, bytes: u32) {
-        let key = (file.to_string(), span);
-        let entry = self.spent.entry(key).or_insert(0);
-        *entry = entry.saturating_add(bytes);
+    /// Bytes of `span` not already present in this file's covered intervals.
+    fn newly_exposed(&self, file: &str, span: ByteRange) -> u32 {
+        if span.is_empty() {
+            return 0;
+        }
+        let Some(intervals) = self.covered.get(file) else {
+            return span.len();
+        };
+        let mut remaining = span.len();
+        for iv in intervals {
+            if iv.end <= span.start {
+                continue;
+            }
+            if iv.start >= span.end {
+                break;
+            }
+            let overlap_start = span.start.max(iv.start);
+            let overlap_end = span.end.min(iv.end);
+            if overlap_start < overlap_end {
+                remaining = remaining.saturating_sub(overlap_end - overlap_start);
+            }
+        }
+        remaining
+    }
+
+    /// Whether admitting `span` in `file` would keep unique coverage under the
+    /// per-file session ceiling. `bytes` is retained for call-site compatibility
+    /// (emitted text length); when the span is empty the ledger falls back to
+    /// charging `bytes` against the file total.
+    #[must_use]
+    pub fn can_admit(&self, file: &str, span: ByteRange, bytes: u32) -> bool {
+        let charge = if span.is_empty() {
+            bytes
+        } else {
+            self.newly_exposed(file, span)
+        };
+        if charge == 0 {
+            return true;
+        }
+        self.covered_total(file).saturating_add(charge) <= MAX_SESSION_SNIPPET_BYTES_PER_SPAN
+    }
+
+    /// Record that `span` in `file` was egressed (merge into covered intervals).
+    /// `bytes` is retained for call-site compatibility; coverage is position-
+    /// based. When `span` is empty, a zero-length marker is not stored and the
+    /// call is a no-op for coverage (empty spans expose no file bytes).
+    pub fn record(&mut self, file: &str, span: ByteRange, _bytes: u32) {
+        if span.is_empty() {
+            return;
+        }
+        let intervals = self.covered.entry(file.to_string()).or_default();
+        // Insert `span` and merge overlapping / adjacent intervals.
+        intervals.push(span);
+        intervals.sort_by_key(|iv| iv.start);
+        let mut merged: Vec<ByteRange> = Vec::with_capacity(intervals.len());
+        for iv in intervals.drain(..) {
+            if let Some(last) = merged.last_mut() {
+                // Adjacent (end == next.start) merges so a tiling of small
+                // spans still exhausts the unique-coverage ceiling.
+                if iv.start <= last.end {
+                    last.end = last.end.max(iv.end);
+                    continue;
+                }
+            }
+            merged.push(iv);
+        }
+        *intervals = merged;
     }
 }
 
@@ -110,7 +177,8 @@ fn snippet_token_cost(snippet: &SnippetResult) -> u32 {
         .map_or(u32::MAX, |e| u32::try_from(e.tokens).unwrap_or(u32::MAX))
 }
 
-/// Bytes that count toward the per-span session ceiling (emitted text only).
+/// Bytes that count toward the session ceiling gate (emitted text only; a
+/// zero-cost snippet skips the ledger). Coverage itself is position-based.
 fn snippet_byte_cost(snippet: &SnippetResult) -> u32 {
     u32::try_from(snippet.text.as_ref().map_or(0, String::len)).unwrap_or(u32::MAX)
 }
@@ -252,17 +320,36 @@ mod tests {
         );
     }
 
+    fn snippet_at(file: &str, start: u32, end: u32, text: &str) -> SnippetResult {
+        SnippetResult {
+            file: file.into(),
+            span: ByteRange { start, end },
+            language: "typescript".into(),
+            stale: false,
+            text: Some(text.to_string()),
+            truncated: false,
+            omitted_bytes: 0,
+            redacted_secrets: 0,
+        }
+    }
+
     #[test]
-    fn byte_ledger_blocks_overlapping_span_reassembly() {
-        let text = "x".repeat(100);
-        let snippet = snippet_with_text(&text);
+    fn byte_ledger_blocks_new_span_after_file_ceiling() {
+        // Exhaust the per-file unique-coverage ceiling with a full 16 KiB span.
         let mut ledger = SnippetByteLedger::default();
+        let full = MAX_SESSION_SNIPPET_BYTES_PER_SPAN;
         ledger.record(
-            &snippet.file,
-            snippet.span,
-            MAX_SESSION_SNIPPET_BYTES_PER_SPAN,
+            "f.ts",
+            ByteRange {
+                start: 0,
+                end: full,
+            },
+            full,
         );
 
+        // A disjoint span past the ceiling must be refused (new exposure).
+        let text = "x".repeat(100);
+        let snippet = snippet_at("f.ts", full, full + 100, &text);
         let cands = vec![SliceCandidate {
             identity: id("blocked", 0),
             distance: 0,
@@ -272,6 +359,98 @@ mod tests {
         assert!(s.snippets.is_empty());
         assert_eq!(s.omitted[0].reason, SliceOmitReason::ByteCeiling);
         assert!(s.byte_ceiling_hit);
+    }
+
+    #[test]
+    fn byte_ledger_blocks_overlapping_span_reassembly() {
+        // Distinct but overlapping ranges must share the per-file coverage budget
+        // so sliding-window requests cannot reassemble a whole file (CE-6).
+        let mut ledger = SnippetByteLedger::default();
+        let half = MAX_SESSION_SNIPPET_BYTES_PER_SPAN / 2;
+        let full = MAX_SESSION_SNIPPET_BYTES_PER_SPAN;
+
+        // First call: admit [0, full).
+        let text_a = "a".repeat(full as usize);
+        let snip_a = snippet_at("big.ts", 0, full, &text_a);
+        let cands_a = vec![SliceCandidate {
+            identity: id("a", 0),
+            distance: 0,
+            snippet: Some(snip_a),
+        }];
+        let s_a = slice_under_budget(cands_a, 100_000, Some(&mut ledger));
+        assert_eq!(s_a.snippets.len(), 1, "first full span must admit");
+        assert!(!s_a.byte_ceiling_hit);
+
+        // Second call: overlapping [half, half+full) exposes half new bytes
+        // which would push unique coverage past the per-file ceiling.
+        let text_b = "b".repeat(full as usize);
+        let snip_b = snippet_at("big.ts", half, half + full, &text_b);
+        let cands_b = vec![SliceCandidate {
+            identity: id("b", 0),
+            distance: 0,
+            snippet: Some(snip_b),
+        }];
+        let s_b = slice_under_budget(cands_b, 100_000, Some(&mut ledger));
+        assert!(
+            s_b.snippets.is_empty(),
+            "overlapping span must not admit after file ceiling"
+        );
+        assert_eq!(s_b.omitted[0].reason, SliceOmitReason::ByteCeiling);
+        assert!(s_b.byte_ceiling_hit);
+    }
+
+    #[test]
+    fn byte_ledger_allows_non_overlapping_spans_under_ceiling() {
+        let mut ledger = SnippetByteLedger::default();
+        let half = MAX_SESSION_SNIPPET_BYTES_PER_SPAN / 2;
+        let text = "x".repeat(half as usize);
+
+        let snip_a = snippet_at("f.ts", 0, half, &text);
+        let snip_b = snippet_at("f.ts", half, half * 2, &text);
+        let cands = vec![
+            SliceCandidate {
+                identity: id("a", 0),
+                distance: 0,
+                snippet: Some(snip_a),
+            },
+            SliceCandidate {
+                identity: id("b", 0),
+                distance: 1,
+                snippet: Some(snip_b),
+            },
+        ];
+        let s = slice_under_budget(cands, 100_000, Some(&mut ledger));
+        assert_eq!(s.snippets.len(), 2);
+        assert!(!s.byte_ceiling_hit);
+
+        // Third non-overlapping span exceeds the per-file ceiling.
+        let snip_c = snippet_at("f.ts", half * 2, half * 3, &text);
+        let cands_c = vec![SliceCandidate {
+            identity: id("c", 0),
+            distance: 0,
+            snippet: Some(snip_c),
+        }];
+        let s_c = slice_under_budget(cands_c, 100_000, Some(&mut ledger));
+        assert!(s_c.snippets.is_empty());
+        assert_eq!(s_c.omitted[0].reason, SliceOmitReason::ByteCeiling);
+    }
+
+    #[test]
+    fn byte_ledger_readmits_fully_covered_span() {
+        // Re-requesting an already-covered span exposes no new file bytes.
+        let mut ledger = SnippetByteLedger::default();
+        let text = "hello";
+        let snip = snippet_at("f.ts", 0, 5, text);
+        ledger.record("f.ts", snip.span, 5);
+
+        let cands = vec![SliceCandidate {
+            identity: id("again", 0),
+            distance: 0,
+            snippet: Some(snip),
+        }];
+        let s = slice_under_budget(cands, 10_000, Some(&mut ledger));
+        assert_eq!(s.snippets.len(), 1);
+        assert!(!s.byte_ceiling_hit);
     }
 
     #[test]
