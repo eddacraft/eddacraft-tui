@@ -436,8 +436,12 @@ pub async fn run(
     // into a Tokio channel the select loop can await. Dropping the
     // producer side ends the bridge loop and yields `None` here so we
     // flush and exit; dropping the async side stops the bridge early.
+    //
+    // Spawn failure is non-fatal: without a bridge the loop cannot
+    // consume events, so flush any already-buffered work and return
+    // rather than panicking the daemon (matches `spawn_reaper`).
     let (fwd_tx, mut fwd_rx) = tokio::sync::mpsc::unbounded_channel();
-    std::thread::Builder::new()
+    if let Err(err) = std::thread::Builder::new()
         .name("anvil-watcher-bridge".into())
         .spawn(move || {
             while let Ok(batch) = rx.recv() {
@@ -446,7 +450,15 @@ pub async fn run(
                 }
             }
         })
-        .expect("spawn anvil-watcher-bridge thread");
+    {
+        tracing::warn!(
+            target: "anvil_intercept::watcher",
+            error = %err,
+            "failed to spawn anvil-watcher-bridge thread; returning without consuming events"
+        );
+        let _ = integration.flush_all(Instant::now());
+        return;
+    }
 
     loop {
         tokio::select! {
