@@ -1,0 +1,18 @@
+#requires -Version 5.1
+<#
+.SYNOPSIS
+  Anvil Windows install entrypoint for https://install.eddacraft.ai/windows
+
+.DESCRIPTION
+  Stable short URL used by emails and docs:
+    irm https://install.eddacraft.ai/windows | iex
+
+  This script always fetches and runs the latest official installer from
+  GitHub Releases (same asset the install landing page recommends).
+#>
+$ErrorActionPreference = 'Stop'
+
+$InstallerUrl = 'https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1'
+
+Write-Host "anvil :: installing from $InstallerUrl" -ForegroundColor DarkYellow
+Invoke-RestMethod -Uri $InstallerUrl -UseBasicParsing | Invoke-Expression
