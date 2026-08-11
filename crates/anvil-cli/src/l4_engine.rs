@@ -606,11 +606,11 @@ fn resolve_blob_oids(
     sha: &str,
     paths: &[&str],
 ) -> Result<Vec<Option<String>>, EngineUnavailableReason> {
+    // 64 paths per invocation is well under ARG_MAX even for long paths.
+    const CHUNK: usize = 64;
     // Path bytes → oid. Use Vec<u8> keys so lossy UTF-8 paths still
     // round-trip against ls-tree's raw path field.
     let mut by_path: HashMap<Vec<u8>, String> = HashMap::with_capacity(paths.len());
-    // 64 paths per invocation is well under ARG_MAX even for long paths.
-    const CHUNK: usize = 64;
     for chunk in paths.chunks(CHUNK) {
         let mut cmd = Command::new("git");
         cmd.arg("-C")
