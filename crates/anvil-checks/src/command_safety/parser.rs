@@ -402,7 +402,12 @@ fn remaining_starts_with_recognised_wrapper(cmd: &str) -> bool {
         return false;
     }
     let tokens = tokenise(trimmed);
-    let Some(first) = tokens.first() else {
+    // Skip shell-style assignments so residual forms like `FOO=1 env rm ...`
+    // still count as incomplete wrapper analysis at the depth limit.
+    let Some(first) = tokens
+        .iter()
+        .find(|token| !is_environment_assignment(token))
+    else {
         return false;
     };
     is_shell_wrapper(first)
@@ -1162,5 +1167,17 @@ mod tests {
         assert_eq!(parsed.command, "rm");
         assert_eq!(parsed.flags, vec!["-r", "-f"]);
         assert_eq!(parsed.args, vec!["/"]);
+    }
+
+    #[test]
+    fn depth_limit_with_assignment_prefixed_residual_is_incomplete() {
+        // After five peels the residual is `FOO=1 env rm -rf /`. The incomplete
+        // detector must look past the assignment to the residual wrapper.
+        let parsed = parse_command("env env env env env FOO=1 env rm -rf /");
+        assert!(
+            parsed.unwrap_incomplete,
+            "assignment-prefixed residual wrapper must be incomplete; command={:?}",
+            parsed.command
+        );
     }
 }

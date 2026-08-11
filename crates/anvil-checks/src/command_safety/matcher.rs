@@ -1,8 +1,8 @@
 use regex::Regex;
 
 use crate::command_safety::types::{
-    CommandAction, CommandAnalysisResult, CommandRule, CommandSafetyConfig, CommandSeverity,
-    ParsedCommand, WorkingDirectoryCondition, WorkingDirectoryConfig,
+    CommandAction, CommandAnalysisResult, CommandCategory, CommandRule, CommandSafetyConfig,
+    CommandSeverity, ParsedCommand, WorkingDirectoryCondition, WorkingDirectoryConfig,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -288,21 +288,33 @@ pub fn analyse_command(
     context: Option<&MatcherContext>,
 ) -> CommandAnalysisResult {
     if parsed.unwrap_incomplete {
-        return CommandAnalysisResult {
-            command: command.to_string(),
-            parsed_command: parsed.clone(),
+        let incomplete_rule = CommandRule {
+            id: "cmd-unwrap-incomplete".to_string(),
+            category: CommandCategory::Shell,
+            command: parsed.command.clone(),
+            subcommand: None,
+            flags: None,
+            args: None,
             action: CommandAction::Block,
             severity: CommandSeverity::Error,
-            reason: Some(
-                "Command wrapper nesting exceeded analysis depth; refusing to treat as safe"
-                    .to_string(),
-            ),
+            reason: "Command wrapper nesting exceeded analysis depth; refusing to treat as safe"
+                .to_string(),
             suggestion: Some(
                 "Reduce nested wrappers (env/sudo/bash/...) or rewrite the command so it can be analysed fully."
                     .to_string(),
             ),
             references: None,
-            matched_rule: None,
+            conditions: None,
+        };
+        return CommandAnalysisResult {
+            command: command.to_string(),
+            parsed_command: parsed.clone(),
+            action: incomplete_rule.action,
+            severity: incomplete_rule.severity,
+            reason: Some(incomplete_rule.reason.clone()),
+            suggestion: incomplete_rule.suggestion.clone(),
+            references: None,
+            matched_rule: Some(incomplete_rule),
         };
     }
     if let Some(matched_rule) = find_matching_rule(parsed, rules, context) {
