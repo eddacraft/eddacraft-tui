@@ -100,8 +100,12 @@ fn default_version() -> u32 {
 /// home can be resolved — callers fail closed (no consent / cannot enable).
 #[must_use]
 pub fn consent_state_dir() -> Option<PathBuf> {
+    // Reuse the daemon's ANVIL_HOME normalisation so whitespace-only values
+    // are treated as unset (and relatives absolutised) consistently with
+    // socket/PID/graph-cache roots — never a cwd-relative footgun into the
+    // worktree.
     consent_state_dir_from(
-        non_empty_env("ANVIL_HOME"),
+        crate::anvil_home_prefix(),
         non_empty_env("XDG_STATE_HOME"),
         non_empty_env("HOME").or_else(|| non_empty_env("USERPROFILE")),
     )
@@ -467,6 +471,27 @@ mod tests {
             let err = read_snippet_consent(dir.path()).unwrap_err();
             assert!(matches!(err, EgressConsentError::WorkspaceMismatch { .. }));
         });
+    }
+
+    #[test]
+    fn whitespace_only_anvil_home_is_treated_as_unset() {
+        // Mirrors `anvil_home_prefix_from`: a whitespace-only ANVIL_HOME must
+        // not plant consent under a cwd-relative path inside a worktree.
+        temp_env::with_vars(
+            [
+                ("ANVIL_HOME", Some("   ")),
+                ("XDG_STATE_HOME", None::<&str>),
+                ("HOME", None),
+                ("USERPROFILE", None),
+            ],
+            || {
+                assert_eq!(
+                    consent_state_dir(),
+                    None,
+                    "whitespace-only ANVIL_HOME must not resolve a consent dir"
+                );
+            },
+        );
     }
 
     #[test]

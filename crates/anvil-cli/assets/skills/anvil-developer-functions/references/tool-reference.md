@@ -133,9 +133,10 @@ anvil gctx egress disable    # revert to identity-only
 ```
 
 `enable` records consent under the operator-owned state directory
-(`$ANVIL_HOME/gctx-egress/` or `$XDG_STATE_HOME/anvil/gctx-egress/`, keyed by
-workspace path; pass `--yes` to acknowledge non-interactively). Consent is never
-taken from a repository-controlled worktree file. Consent is per-workspace.
+(`$ANVIL_HOME/gctx-egress/`, else `$XDG_STATE_HOME/anvil/gctx-egress/`, else
+`~/.local/state/anvil/gctx-egress/`, keyed by workspace path; pass `--yes` to
+acknowledge non-interactively). Consent is never taken from a
+repository-controlled worktree file. Consent is per-workspace.
 
 `ANVIL_GCTX_EGRESS` is a process-scoped override, re-read on every call:
 
