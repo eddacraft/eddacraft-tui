@@ -113,6 +113,126 @@ fn line_pattern_matches<'p>(
     line_matches
 }
 
+/// Attribute a history finding to the current commit/file path.
+fn history_file_label(current_file: &str, commit_hash: &str) -> String {
+    if current_file == "git-history:unknown" {
+        format!("git-history:{commit_hash}")
+    } else {
+        current_file.to_string()
+    }
+}
+
+/// Tag an on-disk pattern name with the history suffix used by this scanner.
+fn history_pattern_name(name: &str) -> String {
+    format!("{name} (in git history)")
+}
+
+/// Scan one added history line: lockfile URL-cred only, skip denylisted
+/// extensions, otherwise full patterns (with CIB-063 dedup).
+fn findings_for_added_line(
+    line_content: &str,
+    current_file: &str,
+    commit_hash: &str,
+    config: &SecretCheckConfig,
+    custom_patterns: &[CompiledPattern],
+    matcher: &PatternMatcher,
+) -> Vec<SecretFinding> {
+    let history_file = history_file_label(current_file, commit_hash);
+
+    // Recognised dependency lockfiles: URL-credential-only (GH #2584), same
+    // restricted surface as the on-disk scanner. Do this before the
+    // skip_extensions denylist so `Cargo.lock` / `yarn.lock` are not dropped
+    // solely because they end with `.lock`.
+    if crate::filter::is_lockfile(Path::new(current_file)) {
+        // Per-line scan: one history added-line at a time. Cap is generous —
+        // a single line rarely holds many credential URLs.
+        return scan_lockfile_url_credentials(line_content, &history_file, 32)
+            .into_iter()
+            .map(|finding| SecretFinding {
+                file: finding.file,
+                line: 0,
+                finding_type: FindingType::Pattern,
+                pattern_name: history_pattern_name(&finding.pattern_name),
+                redacted_match: finding.redacted_match,
+                redacted_line: finding.redacted_line,
+                match_start: None,
+                match_end: None,
+                token_shape: None,
+            })
+            .collect();
+    }
+
+    // Mirror on-disk `should_skip_file` for non-lockfile paths (including
+    // bespoke `*.lock` that are not dependency lockfile basenames). Binary
+    // and minified extensions are still pathspec-excluded above; `.lock` is
+    // filtered here after the lockfile branch.
+    if config
+        .skip_extensions
+        .iter()
+        .any(|extension| current_file.ends_with(extension.as_str()))
+    {
+        return Vec::new();
+    }
+
+    let line_matches = line_pattern_matches(line_content, custom_patterns, matcher);
+    let mut findings = Vec::new();
+    for (pattern, range) in &line_matches {
+        // CIB-063: mirror the on-disk scanner's cross-pattern dedup —
+        // see `suppressed_by_high_confidence_overlap`.
+        if suppressed_by_high_confidence_overlap(pattern, range, &line_matches) {
+            continue;
+        }
+        let matched_value = &line_content[range.clone()];
+        findings.push(SecretFinding {
+            file: history_file.clone(),
+            line: 0,
+            finding_type: FindingType::Pattern,
+            pattern_name: history_pattern_name(&pattern.name),
+            redacted_match: matcher.redact_secret(matched_value),
+            redacted_line: matcher.redact_line(line_content.trim()),
+            match_start: None,
+            match_end: None,
+            token_shape: None,
+        });
+    }
+    findings
+}
+
+/// Update commit/file tracking from a non-added `git log -p` meta line.
+/// Returns `true` when the line was a header and should not be scanned.
+fn apply_history_meta_line(
+    line: &str,
+    commit_hash: &mut String,
+    current_file: &mut String,
+) -> bool {
+    if let Some(rest) = line.strip_prefix("commit ") {
+        *commit_hash = rest.chars().take(8).collect::<String>();
+        *current_file = format!("git-history:{commit_hash}");
+        return true;
+    }
+
+    if let Some(rest) = line.strip_prefix("diff --git ") {
+        let parts = rest.split_whitespace().collect::<Vec<_>>();
+        if parts.len() >= 2 {
+            let raw_path = parts[1].strip_prefix("b/").unwrap_or(parts[1]);
+            *current_file = raw_path.to_string();
+        }
+        return true;
+    }
+
+    // The `+++ b/<path>` header carries the unambiguous post-image path and,
+    // unlike splitting the `diff --git` line on whitespace, survives paths
+    // containing spaces. `--diff-filter=AM` guarantees a real `b/` side.
+    // Git appends a single tab terminator to the header path when it
+    // contains spaces; strip just that one tab (not real trailing space).
+    if let Some(path) = line.strip_prefix("+++ b/") {
+        *current_file = path.strip_suffix('\t').unwrap_or(path).to_string();
+        return true;
+    }
+
+    false
+}
+
 pub fn scan_git_history(
     workspace_root: &str,
     config: &SecretCheckConfig,
@@ -164,28 +284,7 @@ pub fn scan_git_history(
     let mut current_file = String::from("git-history:unknown");
 
     for line in stdout.lines() {
-        if let Some(rest) = line.strip_prefix("commit ") {
-            commit_hash = rest.chars().take(8).collect::<String>();
-            current_file = format!("git-history:{commit_hash}");
-            continue;
-        }
-
-        if let Some(rest) = line.strip_prefix("diff --git ") {
-            let parts = rest.split_whitespace().collect::<Vec<_>>();
-            if parts.len() >= 2 {
-                let raw_path = parts[1].strip_prefix("b/").unwrap_or(parts[1]);
-                current_file = raw_path.to_string();
-            }
-            continue;
-        }
-
-        // The `+++ b/<path>` header carries the unambiguous post-image path and,
-        // unlike splitting the `diff --git` line on whitespace, survives paths
-        // containing spaces. `--diff-filter=AM` guarantees a real `b/` side.
-        // Git appends a single tab terminator to the header path when it
-        // contains spaces; strip just that one tab (not real trailing space).
-        if let Some(path) = line.strip_prefix("+++ b/") {
-            current_file = path.strip_suffix('\t').unwrap_or(path).to_string();
+        if apply_history_meta_line(line, &mut commit_hash, &mut current_file) {
             continue;
         }
 
@@ -203,68 +302,14 @@ pub fn scan_git_history(
             continue;
         }
 
-        let history_file = if current_file == "git-history:unknown" {
-            format!("git-history:{commit_hash}")
-        } else {
-            current_file.clone()
-        };
-
-        // Recognised dependency lockfiles: URL-credential-only (GH #2584),
-        // same restricted surface as the on-disk scanner. Do this before the
-        // skip_extensions denylist so `Cargo.lock` / `yarn.lock` are not
-        // dropped solely because they end with `.lock`.
-        if crate::filter::is_lockfile(Path::new(&current_file)) {
-            // Per-line scan: one history added-line at a time. Cap is generous
-            // — a single line rarely holds many credential URLs.
-            for finding in scan_lockfile_url_credentials(line_content, &history_file, 32) {
-                findings.push(SecretFinding {
-                    file: finding.file,
-                    line: 0,
-                    finding_type: FindingType::Pattern,
-                    pattern_name: format!("{} (in git history)", finding.pattern_name),
-                    redacted_match: finding.redacted_match,
-                    redacted_line: finding.redacted_line,
-                    match_start: None,
-                    match_end: None,
-                    token_shape: None,
-                });
-            }
-            continue;
-        }
-
-        // Mirror on-disk `should_skip_file` for non-lockfile paths (including
-        // bespoke `*.lock` that are not dependency lockfile basenames). Binary
-        // and minified extensions are still pathspec-excluded above; `.lock`
-        // is filtered here after the lockfile branch.
-        if config
-            .skip_extensions
-            .iter()
-            .any(|extension| current_file.ends_with(extension.as_str()))
-        {
-            continue;
-        }
-
-        let line_matches = line_pattern_matches(line_content, &custom_patterns, &matcher);
-
-        for (pattern, range) in &line_matches {
-            // CIB-063: mirror the on-disk scanner's cross-pattern dedup —
-            // see `suppressed_by_high_confidence_overlap`.
-            if suppressed_by_high_confidence_overlap(pattern, range, &line_matches) {
-                continue;
-            }
-            let matched_value = &line_content[range.clone()];
-            findings.push(SecretFinding {
-                file: history_file.clone(),
-                line: 0,
-                finding_type: FindingType::Pattern,
-                pattern_name: format!("{} (in git history)", pattern.name),
-                redacted_match: matcher.redact_secret(matched_value),
-                redacted_line: matcher.redact_line(line_content.trim()),
-                match_start: None,
-                match_end: None,
-                token_shape: None,
-            });
-        }
+        findings.extend(findings_for_added_line(
+            line_content,
+            &current_file,
+            &commit_hash,
+            config,
+            &custom_patterns,
+            &matcher,
+        ));
     }
 
     Ok(GitScanOutput {
