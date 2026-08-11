@@ -1,10 +1,13 @@
 use std::io;
+use std::path::Path;
 use std::process::Command;
 
 use crate::secret::patterns::{
     CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
 };
-use crate::secret::scanner::suppressed_by_high_confidence_overlap;
+use crate::secret::scanner::{
+    scan_lockfile_url_credentials, suppressed_by_high_confidence_overlap,
+};
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
 /// Output of a git-history secret scan.
@@ -37,6 +40,11 @@ fn is_safe_extension(extension: &str) -> bool {
 /// `.` positive pathspec with `:(exclude)` entries for each safe
 /// `skip_extensions` value (mirrors the on-disk denylist). Unsafe entries are
 /// skipped with a warning so they can't narrow the scan scope.
+///
+/// `.lock` is intentionally **not** pathspec-excluded: recognised dependency
+/// lockfiles (`Cargo.lock`, `yarn.lock`, …) must reach the restricted
+/// URL-credential pass (GH #2584 parity for history). Non-lockfile `*.lock`
+/// paths are filtered in the line loop, matching on-disk `should_skip_file`.
 fn build_log_args(depth_flag: String, skip_extensions: &[String]) -> Vec<String> {
     let mut args = vec![
         "log".to_string(),
@@ -48,6 +56,11 @@ fn build_log_args(depth_flag: String, skip_extensions: &[String]) -> Vec<String>
         ".".to_string(),
     ];
     for extension in skip_extensions {
+        // Handle `.lock` in the line loop so recognised lockfiles still appear
+        // in `git log` output; a pathspec exclude would drop them entirely.
+        if extension == ".lock" {
+            continue;
+        }
         if is_safe_extension(extension) {
             // Git pathspec globs match across `/`, so `*<ext>` excludes the
             // extension in any directory — the same suffix match the on-disk
@@ -189,6 +202,48 @@ pub fn scan_git_history(
             lines_skipped_oversize += 1;
             continue;
         }
+
+        let history_file = if current_file == "git-history:unknown" {
+            format!("git-history:{commit_hash}")
+        } else {
+            current_file.clone()
+        };
+
+        // Recognised dependency lockfiles: URL-credential-only (GH #2584),
+        // same restricted surface as the on-disk scanner. Do this before the
+        // skip_extensions denylist so `Cargo.lock` / `yarn.lock` are not
+        // dropped solely because they end with `.lock`.
+        if crate::filter::is_lockfile(Path::new(&current_file)) {
+            // Per-line scan: one history added-line at a time. Cap is generous
+            // — a single line rarely holds many credential URLs.
+            for finding in scan_lockfile_url_credentials(line_content, &history_file, 32) {
+                findings.push(SecretFinding {
+                    file: finding.file,
+                    line: 0,
+                    finding_type: FindingType::Pattern,
+                    pattern_name: format!("{} (in git history)", finding.pattern_name),
+                    redacted_match: finding.redacted_match,
+                    redacted_line: finding.redacted_line,
+                    match_start: None,
+                    match_end: None,
+                    token_shape: None,
+                });
+            }
+            continue;
+        }
+
+        // Mirror on-disk `should_skip_file` for non-lockfile paths (including
+        // bespoke `*.lock` that are not dependency lockfile basenames). Binary
+        // and minified extensions are still pathspec-excluded above; `.lock`
+        // is filtered here after the lockfile branch.
+        if config
+            .skip_extensions
+            .iter()
+            .any(|extension| current_file.ends_with(extension.as_str()))
+        {
+            continue;
+        }
+
         let line_matches = line_pattern_matches(line_content, &custom_patterns, &matcher);
 
         for (pattern, range) in &line_matches {
@@ -199,11 +254,7 @@ pub fn scan_git_history(
             }
             let matched_value = &line_content[range.clone()];
             findings.push(SecretFinding {
-                file: if current_file == "git-history:unknown" {
-                    format!("git-history:{commit_hash}")
-                } else {
-                    current_file.clone()
-                },
+                file: history_file.clone(),
                 line: 0,
                 finding_type: FindingType::Pattern,
                 pattern_name: format!("{} (in git history)", pattern.name),
@@ -365,9 +416,69 @@ mod tests {
     }
 
     #[test]
+    fn history_scans_lockfile_url_credentials_not_integrity_hashes() {
+        // Parity with on-disk GH #2584: recognised lockfiles must reach the
+        // history scan, and only the restricted URL-credential rule may fire
+        // — not full patterns / entropy against integrity hashes.
+        let repo = temp_repo();
+        commit_file(
+            &repo,
+            "package-lock.json",
+            "{\n  \"integrity\": \"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\",\n  \
+             \"resolved\": \"https://deployer:s3cr3tT0ken@npm.private.example/left-pad/-/left-pad-1.3.0.tgz\"\n}\n",
+        );
+
+        let findings = scan(&repo);
+        assert_eq!(
+            findings.len(),
+            1,
+            "exactly the URL credential must surface from history: {findings:?}"
+        );
+        assert!(
+            findings[0].file.ends_with("package-lock.json"),
+            "finding must attribute the lockfile: {findings:?}"
+        );
+        assert_eq!(
+            findings[0].pattern_name, "Credential URL (in git history)",
+            "history findings keep the git-history suffix"
+        );
+        assert!(
+            !findings[0].redacted_line.contains("s3cr3tT0ken"),
+            "credential must be redacted"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn history_scans_dot_lock_lockfile_url_credentials() {
+        // Cargo.lock ends with `.lock` (default skip_extensions entry). The
+        // pathspec exclusion must not drop recognised lockfiles from history.
+        let repo = temp_repo();
+        commit_file(
+            &repo,
+            "Cargo.lock",
+            "source = \"https://ci:ght_lockfiletoken@private.crates.example/index\"\n",
+        );
+
+        let findings = scan(&repo);
+        assert!(
+            findings.iter().any(|f| {
+                f.file.ends_with("Cargo.lock")
+                    && f.pattern_name == "Credential URL (in git history)"
+            }),
+            "Cargo.lock URL credential must surface from history: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
     fn excludes_skip_extension_files() {
         // A secret committed only into a skip-list extension (`.lock`) must not
         // surface — the git pathspec exclusion mirrors on-disk `should_skip_file`.
+        // Recognised dependency lockfiles are handled separately (URL-cred only);
+        // a bespoke `deps.lock` is not a lockfile basename and stays excluded.
         let repo = temp_repo();
         commit_file(&repo, "deps.lock", &format!("token = {AWS_KEY}\n"));
 
