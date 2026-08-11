@@ -5,3 +5,10 @@
 # no name provided: .deepsec") and breaks every `nx build` on Vercel.
 # Excluding it keeps deepsec out of the Nx graph entirely.
 .deepsec
+
+# Benchmark fixtures are scan/eval inputs, not workspace projects. They are
+# not pnpm workspace members, so Nx infers a node for them (via the eslint
+# plugin) with no resolvable name and fails project-graph processing on
+# Vercel with the same "no name provided" error as above — which breaks every
+# `nx build`, including the docs apps.
+benchmarks/fixtures
