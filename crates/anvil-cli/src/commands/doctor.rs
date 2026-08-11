@@ -470,11 +470,27 @@ fn check_anvil_dir_writable() -> DiagnosticCheck {
         };
     }
 
-    let probe = dir.join(".write-test");
-    let writable = std::fs::write(&probe, "").is_ok();
-    if writable {
-        let _ = std::fs::remove_file(&probe);
-    }
+    // Exclusive create of a uniquely named probe. Never open an existing path
+    // (including a hostile symlink at a predictable fixed name) for a
+    // truncating write — that would erase arbitrary user-writable targets.
+    let probe = dir.join(format!(
+        ".write-test-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4().as_simple()
+    ));
+    let writable = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&probe)
+    {
+        Ok(file) => {
+            // Drop the handle before remove so Windows does not deny delete.
+            drop(file);
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    };
 
     DiagnosticCheck {
         name: "anvil-dir-writable".to_string(),
@@ -2259,6 +2275,57 @@ mod tests {
             let check = check_anvil_dir_writable();
             assert_eq!(check.status, CheckStatus::Skipped);
         }
+    }
+
+    /// Regression: the writability probe must never open a pre-existing path
+    /// for a truncating write. A fixed probe name combined with `fs::write`
+    /// would follow a hostile symlink at `.anvil/.write-test` and empty its
+    /// target (Clawpatch fnd_sig-feat-cli-command-ff8c453ff8-_7459c9cae4).
+    #[test]
+    #[cfg(unix)]
+    fn anvil_dir_writable_probe_does_not_truncate_symlink_target() {
+        with_tempdir_as_cwd(|root| {
+            std::fs::create_dir(".anvil").expect("create .anvil");
+            let sentinel = root.join("sentinel.txt");
+            std::fs::write(&sentinel, b"preserve-me").expect("write sentinel");
+            std::os::unix::fs::symlink(&sentinel, Path::new(".anvil/.write-test"))
+                .expect("plant hostile probe symlink");
+
+            let check = check_anvil_dir_writable();
+            assert_eq!(
+                check.status,
+                CheckStatus::Pass,
+                "directory is writable; probe must still Pass: {check:?}"
+            );
+            assert_eq!(
+                std::fs::read(&sentinel).expect("read sentinel"),
+                b"preserve-me",
+                "sentinel must be unchanged after doctor writability probe"
+            );
+            // Foreign path at the legacy fixed name must not be removed.
+            assert!(
+                std::fs::symlink_metadata(".anvil/.write-test").is_ok(),
+                "pre-existing .write-test path must be left alone"
+            );
+        });
+    }
+
+    #[test]
+    fn anvil_dir_writable_passes_and_removes_own_probe() {
+        with_tempdir_as_cwd(|_| {
+            std::fs::create_dir(".anvil").expect("create .anvil");
+            let check = check_anvil_dir_writable();
+            assert_eq!(check.status, CheckStatus::Pass);
+            let leftovers: Vec<_> = std::fs::read_dir(".anvil")
+                .expect("read .anvil")
+                .filter_map(std::result::Result::ok)
+                .filter(|e| e.file_name().to_string_lossy().starts_with(".write-test"))
+                .collect();
+            assert!(
+                leftovers.is_empty(),
+                "probe path(s) must be removed after check: {leftovers:?}"
+            );
+        });
     }
 
     #[test]
