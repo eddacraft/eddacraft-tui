@@ -137,19 +137,23 @@ fn findings_for_added_line(
     custom_patterns: &[CompiledPattern],
     matcher: &PatternMatcher,
 ) -> Vec<SecretFinding> {
-    let history_file = history_file_label(current_file, commit_hash);
-
     // Recognised dependency lockfiles: URL-credential-only (GH #2584), same
     // restricted surface as the on-disk scanner. Do this before the
     // skip_extensions denylist so `Cargo.lock` / `yarn.lock` are not dropped
     // solely because they end with `.lock`.
     if crate::filter::is_lockfile(Path::new(current_file)) {
         // Per-line scan: one history added-line at a time. Cap is generous —
-        // a single line rarely holds many credential URLs.
-        return scan_lockfile_url_credentials(line_content, &history_file, 32)
+        // a single line rarely holds many credential URLs. Attribute only when
+        // a credential is present — avoid per-line alloc on clean lockfiles.
+        let raw = scan_lockfile_url_credentials(line_content, current_file, 32);
+        if raw.is_empty() {
+            return Vec::new();
+        }
+        let history_file = history_file_label(current_file, commit_hash);
+        return raw
             .into_iter()
             .map(|finding| SecretFinding {
-                file: finding.file,
+                file: history_file.clone(),
                 line: 0,
                 finding_type: FindingType::Pattern,
                 pattern_name: history_pattern_name(&finding.pattern_name),
@@ -175,6 +179,11 @@ fn findings_for_added_line(
     }
 
     let line_matches = line_pattern_matches(line_content, custom_patterns, matcher);
+    if line_matches.is_empty() {
+        return Vec::new();
+    }
+    // Build the attribution string only once a match exists.
+    let history_file = history_file_label(current_file, commit_hash);
     let mut findings = Vec::new();
     for (pattern, range) in &line_matches {
         // CIB-063: mirror the on-disk scanner's cross-pattern dedup —
