@@ -412,11 +412,10 @@ enum CoalescedBatch {
 /// the time path stays deterministic.
 ///
 /// `rx` is a `std::sync::mpsc::Receiver` because the kernel watcher
-/// produces on a `std::sync` channel — a tokio-side translation
-/// would mean another thread, and the daemon's existing pattern is
-/// to keep the `notify` thread separate from tokio. The blocking
-/// `recv_timeout` runs inside `spawn_blocking` so the tokio reactor
-/// is not stalled.
+/// produces on a `std::sync` channel. The receiver is `!Sync`, so this
+/// loop owns it via a dedicated bridge thread that forwards batches
+/// into a Tokio unbounded channel. The async select consumes that
+/// channel without blocking the reactor.
 pub async fn run(
     integration: WatcherIntegration,
     rx: std::sync::mpsc::Receiver<WatcherChangeBatch>,
@@ -433,6 +432,22 @@ pub async fn run(
     let mut next_tick = tokio::time::interval(tick_interval);
     next_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
+    // Bridge the std mpsc receiver (kernel / notify producer thread)
+    // into a Tokio channel the select loop can await. Dropping the
+    // producer side ends the bridge loop and yields `None` here so we
+    // flush and exit; dropping the async side stops the bridge early.
+    let (fwd_tx, mut fwd_rx) = tokio::sync::mpsc::unbounded_channel();
+    std::thread::Builder::new()
+        .name("anvil-watcher-bridge".into())
+        .spawn(move || {
+            while let Ok(batch) = rx.recv() {
+                if fwd_tx.send(batch).is_err() {
+                    break;
+                }
+            }
+        })
+        .expect("spawn anvil-watcher-bridge thread");
+
     loop {
         tokio::select! {
             biased;
@@ -440,7 +455,7 @@ pub async fn run(
             _ = next_tick.tick() => {
                 let _ = integration.flush_due(Instant::now(), coalesce_window);
             }
-            batch = recv_blocking(&rx) => {
+            batch = fwd_rx.recv() => {
                 if let Some(batch) = batch {
                     let _ = integration.ingest_at(batch, Instant::now());
                 } else {
@@ -455,29 +470,14 @@ pub async fn run(
     let _ = integration.flush_all(Instant::now());
 }
 
-async fn recv_blocking(
-    _rx: &std::sync::mpsc::Receiver<WatcherChangeBatch>,
-) -> Option<WatcherChangeBatch> {
-    // The receiver is `!Sync`; we cannot move it into `spawn_blocking`
-    // by reference. The production wiring will use a dedicated bridge
-    // thread that forwards into a `tokio::sync::mpsc` — INTD-004 does
-    // not bind to one transport here. For now this helper exists so
-    // [`run`] compiles; the daemon's binding code (the call site that
-    // owns the receiver) is responsible for its own bridging.
-    //
-    // This function intentionally pends forever so `run` is usable
-    // when the operator hasn't wired a watcher: the loop still ticks
-    // and flushes any pending unit-test injections.
-    std::future::pending().await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
 
     use crate::enforcement::default_rule_registry;
-    use anvil_intercept_rules::RuleRegistry;
+    use anvil_intercept_rules::{InterceptRule, RuleDecision, RuleInput, RuleRegistry};
     use tempfile::TempDir;
 
     fn setup_pipeline_empty() -> Arc<EnforcementPipeline> {
@@ -908,6 +908,162 @@ mod tests {
             cache.rate_limited_invalidations(),
             9,
             "remaining 9 calls must coalesce into the rate-limited counter"
+        );
+    }
+
+    /// Recording rule used by `run_*` tests to observe that the async
+    /// loop actually delivered a batch into the enforcement pipeline.
+    struct RunRecordingRule {
+        seen: Arc<Mutex<Vec<PathBuf>>>,
+    }
+
+    impl InterceptRule for RunRecordingRule {
+        fn rule_id(&self) -> &str {
+            "run-recording"
+        }
+
+        fn needs_content(&self) -> bool {
+            false
+        }
+
+        fn evaluate(&self, input: &RuleInput<'_>) -> RuleDecision {
+            self.seen
+                .lock()
+                .expect("seen lock")
+                .push(input.path.to_path_buf());
+            RuleDecision::Allow
+        }
+    }
+
+    async fn wait_until(mut pred: impl FnMut() -> bool, timeout: Duration) -> bool {
+        let deadline = tokio::time::Instant::now() + timeout;
+        while tokio::time::Instant::now() < deadline {
+            if pred() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        pred()
+    }
+
+    /// Regression: `run` must consume std-mpsc batches and route an
+    /// attributed change through the enforcement pipeline. Guards the
+    /// former forever-pending `recv_blocking` stub.
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_delivers_attributed_batch_to_enforcement() {
+        let registry = Arc::new(SessionRegistry::new());
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&SessionId::new("sess-run"), wt.path(), None, now)
+            .expect("register");
+        let file = wt.path().join("src.rs");
+        std::fs::write(&file, b"hello").expect("write fixture");
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut rules = RuleRegistry::new();
+        rules
+            .register(Box::new(RunRecordingRule {
+                seen: Arc::clone(&seen),
+            }))
+            .expect("register recording rule");
+        let pipeline = Arc::new(EnforcementPipeline::new(rules));
+
+        let integration = WatcherIntegration::with_config(
+            Arc::clone(&registry),
+            pipeline,
+            Arc::new(NoopUnregisteredHandler),
+            WatcherIntegrationConfig {
+                coalesce_window: Duration::from_millis(20),
+            },
+        );
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (shutdown, token) = crate::Shutdown::new();
+        let join = tokio::spawn(async move {
+            run(integration, rx, token).await;
+        });
+
+        tx.send(WatcherChangeBatch {
+            changes: vec![change(file.clone(), ChangeKind::Modified)],
+            received_at: Instant::now(),
+        })
+        .expect("send batch");
+
+        let delivered = wait_until(
+            || !seen.lock().expect("seen lock").is_empty(),
+            Duration::from_secs(2),
+        )
+        .await;
+        assert!(
+            delivered,
+            "enforcement rule must observe the attributed path via run()"
+        );
+        let observed = seen.lock().expect("seen lock").clone();
+        assert_eq!(observed, vec![file]);
+
+        shutdown.trigger();
+        tokio::time::timeout(Duration::from_secs(2), join)
+            .await
+            .expect("run should exit after shutdown")
+            .expect("run task");
+    }
+
+    /// Regression: dropping the producer side must flush buffered
+    /// batches (even inside the coalesce window) and return from `run`.
+    #[tokio::test(flavor = "current_thread")]
+    async fn run_sender_drop_flushes_pending_and_exits() {
+        let registry = Arc::new(SessionRegistry::new());
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&SessionId::new("sess-drop"), wt.path(), None, now)
+            .expect("register");
+        let file = wt.path().join("late.rs");
+        std::fs::write(&file, b"x").expect("write fixture");
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let mut rules = RuleRegistry::new();
+        rules
+            .register(Box::new(RunRecordingRule {
+                seen: Arc::clone(&seen),
+            }))
+            .expect("register recording rule");
+        let pipeline = Arc::new(EnforcementPipeline::new(rules));
+
+        // Long window so only flush_all-on-EOF can deliver before exit.
+        let integration = WatcherIntegration::with_config(
+            Arc::clone(&registry),
+            pipeline,
+            Arc::new(NoopUnregisteredHandler),
+            WatcherIntegrationConfig {
+                coalesce_window: Duration::from_secs(30),
+            },
+        );
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (_shutdown, token) = crate::Shutdown::new();
+        let join = tokio::spawn(async move {
+            run(integration, rx, token).await;
+        });
+
+        tx.send(WatcherChangeBatch {
+            changes: vec![change(file.clone(), ChangeKind::Modified)],
+            received_at: Instant::now(),
+        })
+        .expect("send batch");
+        drop(tx);
+
+        tokio::time::timeout(Duration::from_secs(2), join)
+            .await
+            .expect("run must exit after sender drop")
+            .expect("run task");
+
+        let observed = seen.lock().expect("seen lock").clone();
+        assert_eq!(
+            observed,
+            vec![file],
+            "pending batch must flush through enforcement on sender drop"
         );
     }
 }
