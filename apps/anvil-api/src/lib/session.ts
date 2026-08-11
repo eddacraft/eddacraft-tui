@@ -53,11 +53,13 @@ export interface MintSessionResult {
  * user's current scopes, sign a licence with the given identity, and issue a
  * rotating refresh token.
  *
- * This is the shared tail of every interactive auth path (`/auth/github/callback`,
- * `/auth/otp/verify`, the device-code activation, and `/session/refresh`). The
- * caller owns user lookup, the active-status gate, audit logging, and — for the
- * GitHub paths — revoking the upstream GitHub token; this helper owns only the
- * scope→claim→sign→refresh-token tail so those paths stay byte-identical.
+ * This is the shared tail of every **interactive** auth path (`/auth/github/callback`,
+ * `/auth/otp/verify`, GitHub device poll, and legacy device-code activation).
+ * Session refresh uses `mintRotatedSession` instead and does **not** stamp
+ * BACT login fields. The caller owns user lookup, the active-status gate,
+ * audit logging, and — for the GitHub paths — revoking the upstream GitHub
+ * token; this helper owns only the scope→claim→sign→refresh-token tail (plus
+ * optional login stamps when `loginMethod` is set).
  */
 export async function mintSession(
   sql: NeonClient,
