@@ -57,8 +57,17 @@ impl PendingSave {
     /// intact. The result is complete file content suitable for writing to disk.
     #[must_use]
     pub fn apply_to(&self, original: &str) -> String {
+        // Split on `\n` only (not `str::lines`) so a preceding `\r` is kept on
+        // each line. Re-joining with `\n` therefore preserves CRLF files
+        // byte-for-byte outside the replaced window.
         let trailing_newline = !original.is_empty() && original.ends_with('\n');
-        let lines: Vec<&str> = original.lines().collect();
+        let lines: Vec<&str> = if original.is_empty() {
+            Vec::new()
+        } else if trailing_newline {
+            original[..original.len() - 1].split('\n').collect()
+        } else {
+            original.split('\n').collect()
+        };
 
         let start = self.start_line.saturating_sub(1).min(lines.len());
         let end = start
@@ -67,9 +76,16 @@ impl PendingSave {
 
         let replacement: Vec<&str> = if self.content.is_empty() {
             Vec::new()
+        } else if self.content.ends_with('\n') {
+            // Match EditorState::content() join: a trailing `\n` is an extra
+            // empty line, so keep the empty segment via split on the body.
+            let body = &self.content[..self.content.len() - 1];
+            if body.is_empty() {
+                vec![""]
+            } else {
+                body.split('\n').collect()
+            }
         } else {
-            // `split` keeps a trailing empty segment when content ends with \n,
-            // matching EditorState::content() join behaviour.
             self.content.split('\n').collect()
         };
 
@@ -1021,6 +1037,29 @@ suffix_b
         state.handle_key(Action::Select); // save without edits
         let save = state.take_pending_save().expect("save");
         assert_eq!(save.apply_to(original), original);
+    }
+
+    #[test]
+    fn pending_save_apply_to_preserves_crlf_outside_window() {
+        // Untouched regions must keep their CR bytes; only the edited window
+        // is rewritten with the editor's LF-joined content.
+        let original =
+            "prefix_a\r\nprefix_b\r\nwindow_1\r\nwindow_2\r\nwindow_3\r\nsuffix_a\r\nsuffix_b\r\n";
+        let save = PendingSave {
+            start_line: 3,
+            original_line_count: 3,
+            content: "window_1\nwindow_2_SAFE\nwindow_3".to_string(),
+        };
+        let applied = save.apply_to(original);
+        assert!(
+            applied.starts_with("prefix_a\r\nprefix_b\r\n"),
+            "CRLF prefix preserved: {applied:?}"
+        );
+        assert!(
+            applied.ends_with("suffix_a\r\nsuffix_b\r\n"),
+            "CRLF suffix preserved: {applied:?}"
+        );
+        assert!(applied.contains("window_2_SAFE"));
     }
 
     // ── Full flow: external edit ────────────────────────────────────────
