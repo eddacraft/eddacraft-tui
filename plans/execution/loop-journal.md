@@ -747,3 +747,34 @@ never with feature work.
   scope, while CIB-232 is already integrated.
 - Next: release evidence may advance CIB-252 later; do not mark it Released or
   Complete from merge evidence alone.
+
+## Cycle — 2026-08-11 (CIB-305..314 landing fence)
+
+- Items: CIB-305 through CIB-314 from the verified Clawpatch remediation wave.
+- Landing tokens:
+  - CIB-305 / CIB-311: `LANDING(dfca8f4ea282d0e6fe6c0d705341649df3da8076)`
+    via PR #3733.
+  - CIB-306: `LANDING(48193286d12a0a6c8958934340b94627d7c13ccd)`
+    via PR #3734.
+  - CIB-307: `LANDING(581daca13eccefb8a83041c3a09755cace6dbf9c)`
+    via PR #3735.
+  - CIB-308 / CIB-309 / CIB-310:
+    `LANDING(7204e933aff8ce79a5faf18e8059d58d4bceed3b)` via PR #3736.
+  - CIB-312: `LANDING(f229fe8d48b1e60ca58b6086cf3faa2c5774e96b)`
+    via PR #3737.
+  - CIB-313: `LANDING(10a4dbde634f1ec70ab54a60aa057add84722faf)`
+    via PR #3738.
+  - CIB-314: `LANDING(23ae30bbca13eb0d5e8efd3e5c7623a0820d37f7)`
+    via PR #3739.
+- Validation: each PR is open, non-draft, based on `main`, terminal green, and
+  has zero unresolved review threads. Council session `council-f805deae`
+  converged with PASS; post-review repairs were independently re-verified.
+- Authority: operator authorised normal rebase merge on green. Administrator
+  merge, policy bypass, review dismissal, and release-state advancement remain
+  unauthorised.
+- Plan changes: PR #3740 already landed the review-ready CIB state as
+  `792842fc624d2060601903da5ffd1c7f88bbae5f`; CIB-305..314 remain In Progress
+  until each feature head is proven on `origin/main`.
+- Next: land PRs #3733..3739 serially with normal rebase merges, record each
+  resulting `MERGED` commit and ancestry proof, then reconcile the shared CIB
+  module once as Merged. Release evidence is still required for later states.
