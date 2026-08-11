@@ -443,9 +443,12 @@ fn resolve_memory_path(storage_path: &Path, entry_path: &str) -> Result<PathBuf>
     let mut has_normal = false;
     for component in rel.components() {
         match component {
+            // Strict normal-only segments: reject `.`, `..`, roots, and prefixes.
             Component::Normal(_) => has_normal = true,
-            Component::CurDir => {}
-            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+            Component::CurDir
+            | Component::ParentDir
+            | Component::RootDir
+            | Component::Prefix(_) => {
                 bail!(
                     "Edda index path must be relative and stay under the storage directory: {entry_path}"
                 );
@@ -1015,6 +1018,21 @@ evolution:
         assert_eq!(
             dunce::canonicalize(&resolved).unwrap(),
             dunce::canonicalize(&memory).unwrap()
+        );
+    }
+
+    #[test]
+    fn resolve_memory_path_rejects_curdir_component() {
+        let tmp = tempfile::tempdir().unwrap();
+        let storage = tmp.path().join(".anvil").join("edda");
+        fs::create_dir_all(&storage).unwrap();
+
+        let err = resolve_memory_path(&storage, "./memories/decision/ok.yaml")
+            .expect_err("`.` components must be refused")
+            .to_string();
+        assert!(
+            err.contains("must be relative and stay under the storage directory"),
+            "unexpected error: {err}"
         );
     }
 
