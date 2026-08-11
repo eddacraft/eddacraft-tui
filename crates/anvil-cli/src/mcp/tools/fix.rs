@@ -3,7 +3,7 @@
 //! In-process line transforms; no heuristic rewrites.
 
 use std::fs::{self, OpenOptions};
-use std::io::{Read as _, Seek as _, Write as _};
+use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
@@ -365,20 +365,16 @@ fn apply_fix(
 
     lines[line_idx].clone_from(&after);
     let new_content = lines.join("\n");
-    // A change is required: open a hardened read+write handle now and write
-    // through it. A read-only target correctly errors here — we genuinely
-    // cannot apply the fix. This second open is independently containment-
-    // checked, so the TOCTOU invariant holds across the read→write boundary.
-    let mut write_handle = open_contained_rw_handle(path, workspace_path)?;
-    write_handle
-        .rewind()
-        .map_err(|err| format!("filePath write failed: {err}"))?;
-    write_handle
-        .set_len(0)
-        .map_err(|err| format!("filePath write failed: {err}"))?;
-    write_handle
-        .write_all(new_content.as_bytes())
-        .map_err(|err| format!("filePath write failed: {err}"))?;
+    // A change is required: probe a hardened read+write open first so a
+    // read-only target still errors before we touch the bytes. Then write
+    // via temp-file + rename so a failed write cannot leave the original
+    // truncated or partially rewritten (data-loss on ENOSPC/quota/I/O).
+    // The probe open is independently containment-checked; the rename
+    // replaces the final path component without following a post-open
+    // symlink swap (POSIX rename replaces a symlink at the destination).
+    let _write_probe = open_contained_rw_handle(path, workspace_path)?;
+    drop(_write_probe);
+    replace_file_contents_atomic(path, new_content.as_bytes())?;
 
     Ok(json!({
         "fixed": true,
@@ -392,6 +388,49 @@ fn apply_fix(
         "backend": "local",
         "daemonStatus": "not-wired"
     }))
+}
+
+/// Replace `path` with `new_content` without ever truncating the original
+/// first. Content is written to a sibling temporary file, flushed, then
+/// renamed over the destination. On any failure before a successful
+/// rename the original file is left byte-for-byte unchanged.
+fn replace_file_contents_atomic(path: &Path, new_content: &[u8]) -> Result<(), String> {
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+
+    let mut tmp = tempfile::Builder::new()
+        .prefix(".anvil-fix-")
+        .tempfile_in(dir)
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+
+    tmp.write_all(new_content)
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+    tmp.flush()
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+
+    // Preserve the original mode/ACL-ish permissions when the destination
+    // already exists. A fresh tempfile may otherwise land with restrictive
+    // default perms (e.g. 0o600) that would silently tighten source files.
+    if let Ok(meta) = fs::metadata(path) {
+        let _ = tmp.as_file().set_permissions(meta.permissions());
+    }
+
+    // On Windows, TempPath::persist uses rename which fails if the
+    // destination already exists. Remove first (best-effort atomicity).
+    #[cfg(windows)]
+    {
+        if let Err(err) = fs::remove_file(path)
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(format!("filePath write failed: {err}"));
+        }
+    }
+
+    tmp.persist(path)
+        .map_err(|err| format!("filePath write failed: {}", err.error))?;
+    Ok(())
 }
 
 struct AcquiredLock {
@@ -785,6 +824,124 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&victim).expect("victim readable"),
             "DO NOT OVERWRITE"
+        );
+    }
+
+    #[test]
+    fn atomic_replace_success_updates_content() {
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let path = write_fixture(workspace.path(), "src/a.ts", "original\n");
+        replace_file_contents_atomic(&path, b"replacement\n").expect("atomic replace succeeds");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("file readable"),
+            "replacement\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_replace_failure_preserves_original_bytes() {
+        // Simulate a write failure after the target already exists (e.g. the
+        // directory cannot accept a new tempfile because it is not writable).
+        // The original must remain byte-for-byte unchanged — the truncate-
+        // then-write path would have already wiped it.
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let dir = workspace.path().join("src");
+        std::fs::create_dir_all(&dir).expect("src dir");
+        let path = dir.join("a.ts");
+        let original = "const x: any = 1; // preserve me\n";
+        std::fs::write(&path, original).expect("fixture written");
+
+        // Drop write bit on the parent so tempfile_in fails. Opening the file
+        // itself for write would still succeed (file remains mode 0644).
+        let mut dir_perms = std::fs::metadata(&dir).expect("dir meta").permissions();
+        dir_perms.set_mode(0o555);
+        std::fs::set_permissions(&dir, dir_perms).expect("chmod dir 555");
+
+        let err = replace_file_contents_atomic(&path, b"should not land\n")
+            .expect_err("write into non-writable parent must fail");
+        assert!(
+            err.contains("filePath write failed"),
+            "unexpected error: {err}"
+        );
+
+        // Restore dir perms before asserts/cleanup so we can read and so
+        // TempDir Drop can remove the tree.
+        let mut restore = std::fs::metadata(&dir).expect("dir meta").permissions();
+        restore.set_mode(0o755);
+        std::fs::set_permissions(&dir, restore).expect("chmod dir 755");
+
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("file readable"),
+            original,
+            "failed atomic replace must not truncate or partially rewrite the target"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_replace_preserves_existing_permissions() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let path = write_fixture(workspace.path(), "src/a.ts", "before\n");
+        let mut perms = std::fs::metadata(&path).expect("metadata").permissions();
+        perms.set_mode(0o640);
+        std::fs::set_permissions(&path, perms).expect("chmod 640");
+
+        replace_file_contents_atomic(&path, b"after\n").expect("atomic replace succeeds");
+        let mode = std::fs::metadata(&path)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(
+            mode, 0o640,
+            "replacement must keep original mode, got {mode:o}"
+        );
+        assert_eq!(std::fs::read_to_string(&path).expect("readable"), "after\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn apply_fix_failure_path_does_not_mutate_source() {
+        // Parent of the target is not writable, so the pre-fix lock (and any
+        // subsequent tempfile create) fails before mutation. Complements
+        // `atomic_replace_failure_preserves_original_bytes`, which covers the
+        // write-helper failure mode after the target already exists.
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let original = "const x: any = 1;\n";
+        let file = write_fixture(workspace.path(), "src/a.ts", original);
+        let parent = file.parent().expect("parent");
+
+        let mut dir_perms = std::fs::metadata(parent).expect("dir meta").permissions();
+        dir_perms.set_mode(0o555);
+        std::fs::set_permissions(parent, dir_perms).expect("chmod parent 555");
+
+        let result = call(&json!({
+            "filePath": "src/a.ts",
+            "warningId": "AP-003",
+            "line": 1,
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+
+        let mut restore = std::fs::metadata(parent).expect("dir meta").permissions();
+        restore.set_mode(0o755);
+        std::fs::set_permissions(parent, restore).expect("chmod parent 755");
+
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("file readable"),
+            original,
+            "failed fix must not leave the source truncated or partially rewritten"
         );
     }
 }
