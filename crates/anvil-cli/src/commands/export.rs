@@ -132,23 +132,42 @@ fn resolve_path_for_identity(path: &std::path::Path) -> std::path::PathBuf {
     normalized
 }
 
-/// True when both paths refer to the same file (device+inode on Unix when both
-/// exist; otherwise normalised absolute paths).
+/// True when both existing paths refer to the same underlying file.
+fn files_share_identity(source: &std::path::Path, output: &std::path::Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let (Ok(src_meta), Ok(out_meta)) = (std::fs::metadata(source), std::fs::metadata(output))
+        {
+            return src_meta.dev() == out_meta.dev() && src_meta.ino() == out_meta.ino();
+        }
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if let (Ok(src_meta), Ok(out_meta)) = (std::fs::metadata(source), std::fs::metadata(output))
+        {
+            return src_meta.volume_serial_number() == out_meta.volume_serial_number()
+                && src_meta.file_index() == out_meta.file_index();
+        }
+        return false;
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (source, output);
+        false
+    }
+}
+
+/// True when both paths refer to the same file (file identity when both exist;
+/// otherwise normalised absolute paths).
 fn output_targets_source(source: &str, output: &str) -> bool {
     let source_path = std::path::Path::new(source);
     let output_path = std::path::Path::new(output);
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if let (Ok(src_meta), Ok(out_meta)) = (
-            std::fs::metadata(source_path),
-            std::fs::metadata(output_path),
-        ) && src_meta.dev() == out_meta.dev()
-            && src_meta.ino() == out_meta.ino()
-        {
-            return true;
-        }
+    if files_share_identity(source_path, output_path) {
+        return true;
     }
 
     resolve_path_for_identity(source_path) == resolve_path_for_identity(output_path)
@@ -187,7 +206,7 @@ fn export_plan(
     // plan — conversion must never clobber the only input file.
     if output_targets_source(source, &output_path) {
         bail!(
-            "refusing to overwrite source: output path resolves to the same file as source ({source})"
+            "refusing to overwrite source: output path '{output_path}' resolves to the same file as source '{source}'"
         );
     }
 
