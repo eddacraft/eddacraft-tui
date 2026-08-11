@@ -735,4 +735,54 @@ mod tests {
         assert_eq!(result.summary.blocked, 1);
         assert!(result.blocked[0].command.contains("git push --force"));
     }
+
+    #[test]
+    fn blocks_rm_rf_root_via_absolute_executable_path() {
+        let context = CommandSafetyCheckContext {
+            plan: Some(plan_with_commands(&["/bin/rm -rf /"])),
+            check_config: None,
+            workspace_root: Some("/home/aneki/project".to_string()),
+        };
+        let result = run_command_safety_check(&context);
+        assert!(
+            !result.passed,
+            "absolute path form must not evade rm-rf-root"
+        );
+        assert_eq!(result.summary.blocked, 1);
+        assert_eq!(result.blocked[0].rule_id, "rm-rf-root");
+    }
+
+    #[test]
+    fn blocks_rm_rf_root_via_shell_command_substitution_target() {
+        // Shell resolves "$(printf /)" to "/"; lexical safety must not allow it.
+        let context = CommandSafetyCheckContext {
+            plan: Some(plan_with_commands(&[r#"bash -c 'rm -rf "$(printf /)"'"#])),
+            check_config: None,
+            workspace_root: Some("/home/aneki/project".to_string()),
+        };
+        let result = run_command_safety_check(&context);
+        assert!(
+            !result.passed,
+            "command-substitution root target must not be allowed; summary={:?}",
+            result.summary
+        );
+        assert!(
+            result.summary.blocked >= 1,
+            "expected at least one blocked finding; got {:?}",
+            result.blocked
+        );
+    }
+
+    #[test]
+    fn blocks_rm_rf_root_via_path_form_shell_wrapper() {
+        let context = CommandSafetyCheckContext {
+            plan: Some(plan_with_commands(&[r#"/bin/bash -c "rm -rf /""#])),
+            check_config: None,
+            workspace_root: Some("/home/aneki/project".to_string()),
+        };
+        let result = run_command_safety_check(&context);
+        assert!(!result.passed);
+        assert_eq!(result.summary.blocked, 1);
+        assert_eq!(result.blocked[0].rule_id, "rm-rf-root");
+    }
 }

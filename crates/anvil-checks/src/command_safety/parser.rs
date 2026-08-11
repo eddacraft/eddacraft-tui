@@ -47,22 +47,45 @@ pub struct CompoundCommandResult {
 
 #[must_use]
 fn is_shell_wrapper(cmd: &str) -> bool {
-    SHELL_WRAPPERS.contains(&cmd)
+    SHELL_WRAPPERS.contains(&normalise_command_name(cmd).as_str())
 }
 
 #[must_use]
 fn is_privileged_wrapper(cmd: &str) -> bool {
-    PRIVILEGED_WRAPPERS.contains(&cmd)
+    PRIVILEGED_WRAPPERS.contains(&normalise_command_name(cmd).as_str())
 }
 
 #[must_use]
 fn is_env_wrapper(cmd: &str) -> bool {
-    ENV_WRAPPERS.contains(&cmd)
+    ENV_WRAPPERS.contains(&normalise_command_name(cmd).as_str())
 }
 
 #[must_use]
 fn is_interpreter(cmd: &str) -> bool {
-    INTERPRETER_COMMANDS.contains(&cmd)
+    INTERPRETER_COMMANDS.contains(&normalise_command_name(cmd).as_str())
+}
+
+/// Reduce an executable token to its basename for wrapper recognition and rule
+/// matching. Path forms such as `/bin/rm` and `./rm` both become `rm`. Bare
+/// names are left unchanged. Degenerate path-only tokens (e.g. `/`) are kept.
+#[must_use]
+fn normalise_command_name(token: &str) -> String {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if !trimmed.contains('/') && !trimmed.contains('\\') {
+        return trimmed.to_string();
+    }
+    let stripped = trimmed.trim_end_matches(['/', '\\']);
+    if stripped.is_empty() {
+        return trimmed.to_string();
+    }
+    stripped
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(stripped)
+        .to_string()
 }
 
 #[must_use]
@@ -326,7 +349,8 @@ fn extract_interpreter_commands(tokens: &[String], interpreter: Option<&str>) ->
         .filter_map(|p| Regex::new(p).ok())
         .collect();
 
-    if interpreter.is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&cmd))
+    if interpreter
+        .is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&normalise_command_name(cmd).as_str()))
         && let Ok(re) = Regex::new(r"\$\(\s*(.*?)\s*\)")
     {
         patterns.push(re);
@@ -450,7 +474,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         && let Some(inner_cmd) = extract_shell_wrapper_arg(&tokens)
     {
         let inner = unwrap_command(&inner_cmd, depth + 1);
-        let mut wrappers = vec![first_token.clone()];
+        let mut wrappers = vec![normalise_command_name(first_token)];
         wrappers.extend(inner.wrappers);
         return UnwrapResult {
             unwrapped: inner.unwrapped,
@@ -463,7 +487,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         && let Some(remaining) = extract_privileged_command(&tokens)
     {
         let inner = unwrap_command(&remaining.join(" "), depth + 1);
-        let mut wrappers = vec![first_token.clone()];
+        let mut wrappers = vec![normalise_command_name(first_token)];
         wrappers.extend(inner.wrappers);
         return UnwrapResult {
             unwrapped: inner.unwrapped,
@@ -476,7 +500,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         && let Some(remaining) = extract_env_command(&tokens)
     {
         let inner = unwrap_command(&remaining.join(" "), depth + 1);
-        let mut wrappers = vec![first_token.clone()];
+        let mut wrappers = vec![normalise_command_name(first_token)];
         wrappers.extend(inner.wrappers);
         return UnwrapResult {
             unwrapped: inner.unwrapped,
@@ -490,7 +514,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         if !inner_cmds.is_empty() {
             let joined = inner_cmds.join(" && ");
             let inner = unwrap_command(&joined, depth + 1);
-            let mut wrappers = vec![first_token.clone()];
+            let mut wrappers = vec![normalise_command_name(first_token)];
             wrappers.extend(inner.wrappers);
             return UnwrapResult {
                 unwrapped: inner.unwrapped,
@@ -657,7 +681,7 @@ fn parse_from_tokens(
         };
     }
 
-    let command = tokens[command_index].clone();
+    let command = normalise_command_name(&tokens[command_index]);
     let rest = tokens[command_index + 1..].to_vec();
     let (flags, _args) = split_at_separator(&rest);
     let subcommand = extract_subcommand(&command, &rest);
@@ -1179,5 +1203,38 @@ mod tests {
             "assignment-prefixed residual wrapper must be incomplete; command={:?}",
             parsed.command
         );
+    }
+
+    #[test]
+    fn normalises_absolute_executable_path_to_basename() {
+        let parsed = parse_command("/bin/rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
+    }
+
+    #[test]
+    fn normalises_usr_bin_path_and_relative_path_forms() {
+        assert_eq!(parse_command("/usr/bin/rm -rf /").command, "rm");
+        assert_eq!(parse_command("./rm -rf /").command, "rm");
+        assert_eq!(parse_command("../sbin/rm -rf /").command, "rm");
+    }
+
+    #[test]
+    fn unwraps_shell_wrapper_with_absolute_path() {
+        let parsed = parse_command(r#"/bin/bash -c "rm -rf /""#);
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
+        assert_eq!(parsed.wrapper_chain, vec!["bash"]);
+    }
+
+    #[test]
+    fn preserves_command_substitution_in_quoted_argument() {
+        // bash -c payload keeps the double-quoted substitution as a single arg.
+        let parsed = parse_command(r#"bash -c 'rm -rf "$(printf /)"'"#);
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["$(printf /)"]);
     }
 }

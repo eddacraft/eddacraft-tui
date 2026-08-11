@@ -140,6 +140,51 @@ fn is_path_in_temp_dir(path: &str, context: Option<&MatcherContext>) -> bool {
     is_temp_path(path, &temp_patterns)
 }
 
+/// True when an argument still contains shell expansion syntax that we refuse
+/// to resolve. Command substitutions and parameter expansions can evaluate to
+/// protected targets (e.g. `$(printf /)` → `/`), so matching treats them as
+/// potential hits against argument patterns rather than allowing them.
+#[must_use]
+pub fn contains_unresolved_shell_expansion(argument: &str) -> bool {
+    if argument.contains("$(") || argument.contains('`') || argument.contains("${") {
+        return true;
+    }
+    let bytes = argument.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'$' && index + 1 < bytes.len() {
+            let next = bytes[index + 1];
+            if next.is_ascii_alphabetic() || next == b'_' {
+                return true;
+            }
+        }
+        index += 1;
+    }
+    false
+}
+
+#[must_use]
+fn argument_matches_pattern(
+    argument: &str,
+    pattern: &Regex,
+    context: Option<&MatcherContext>,
+) -> bool {
+    if context
+        .and_then(|ctx| ctx.working_directory.as_ref())
+        .and_then(|config| config.allow_delete_in_cwd)
+        .is_some_and(|allow| allow)
+        && is_path_in_temp_dir(argument, context)
+    {
+        return false;
+    }
+    if pattern.is_match(argument) {
+        return true;
+    }
+    // Conservative fail-closed: unresolved expansions can resolve to any
+    // protected path the pattern would match if expanded.
+    contains_unresolved_shell_expansion(argument)
+}
+
 #[must_use]
 fn match_args(
     parsed: &ParsedCommand,
@@ -169,28 +214,12 @@ fn match_args(
         let Some(argument) = all_args.get(position) else {
             return false;
         };
-        if context
-            .and_then(|ctx| ctx.working_directory.as_ref())
-            .and_then(|config| config.allow_delete_in_cwd)
-            .is_some_and(|allow| allow)
-            && is_path_in_temp_dir(argument, context)
-        {
-            return false;
-        }
-        return pattern.is_match(argument);
+        return argument_matches_pattern(argument, &pattern, context);
     }
 
-    all_args.into_iter().any(|argument| {
-        if context
-            .and_then(|ctx| ctx.working_directory.as_ref())
-            .and_then(|config| config.allow_delete_in_cwd)
-            .is_some_and(|allow| allow)
-            && is_path_in_temp_dir(&argument, context)
-        {
-            return false;
-        }
-        pattern.is_match(&argument)
-    })
+    all_args
+        .into_iter()
+        .any(|argument| argument_matches_pattern(&argument, &pattern, context))
 }
 
 #[must_use]
@@ -425,8 +454,9 @@ impl From<&CommandSafetyConfig> for MatcherContext {
 #[cfg(test)]
 mod tests {
     use crate::command_safety::matcher::{
-        MatcherContext, analyse_command, calculate_specificity, find_matching_rule, is_home_path,
-        is_root_path, is_temp_path,
+        MatcherContext, analyse_command, calculate_specificity,
+        contains_unresolved_shell_expansion, find_matching_rule, is_home_path, is_root_path,
+        is_temp_path,
     };
     use crate::command_safety::parser::parse_command;
     use crate::command_safety::types::{
@@ -604,5 +634,43 @@ mod tests {
             "/tmp/cache",
             &["/tmp".to_string(), "/var/tmp".to_string()]
         ));
+    }
+
+    #[test]
+    fn contains_unresolved_shell_expansion_detects_command_substitution() {
+        assert!(contains_unresolved_shell_expansion("$(printf /)"));
+        assert!(contains_unresolved_shell_expansion("`pwd`"));
+        assert!(contains_unresolved_shell_expansion("${HOME}"));
+        assert!(contains_unresolved_shell_expansion("$HOME"));
+        assert!(!contains_unresolved_shell_expansion("/"));
+        assert!(!contains_unresolved_shell_expansion("target"));
+    }
+
+    #[test]
+    fn matches_rm_rf_root_when_target_is_command_substitution() {
+        let rule = CommandRule {
+            id: "rm-rf-root".to_string(),
+            category: CommandCategory::Filesystem,
+            command: "rm".to_string(),
+            subcommand: None,
+            flags: Some(CommandFlagConfig {
+                dangerous: Some(vec!["-r".to_string(), "-f".to_string()]),
+                ..CommandFlagConfig::default()
+            }),
+            args: Some(CommandArgConfig {
+                pattern: Some(r"^/$".to_string()),
+                position: None,
+            }),
+            action: CommandAction::Block,
+            severity: CommandSeverity::Error,
+            reason: "root".to_string(),
+            suggestion: None,
+            references: None,
+            conditions: None,
+        };
+        let parsed = parse_command(r#"rm -rf "$(printf /)""#);
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.args, vec!["$(printf /)"]);
+        assert!(find_matching_rule(&parsed, &[rule], None).is_some());
     }
 }
