@@ -15,4 +15,6 @@ $ErrorActionPreference = 'Stop'
 $InstallerUrl = 'https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1'
 
 Write-Host "anvil :: installing from $InstallerUrl" -ForegroundColor DarkYellow
-Invoke-RestMethod -Uri $InstallerUrl -UseBasicParsing | Invoke-Expression
+# Invoke-RestMethod has no -UseBasicParsing (that is Invoke-WebRequest only).
+# Windows PowerShell 5.1 rejects the unknown parameter and aborts the bootstrap.
+Invoke-RestMethod -Uri $InstallerUrl | Invoke-Expression
