@@ -156,25 +156,60 @@ fn emit_result(result: &TestResult, global: &GlobalArgs) -> Result<()> {
 }
 
 /// Resolve pack and free-form targets under `root` and execute every test.
+///
+/// When `root` is a policies directory that holds both packs and loose
+/// `*_test.rego` files, both are executed. Tests living inside a discovered
+/// pack directory are not free-form-evaluated (the pack runner owns them).
 fn execute_tests(root: &Path) -> Result<TestResult> {
     let pack_manifests = resolve_pack_manifests(root)?;
+    let pack_dirs: Vec<PathBuf> = pack_manifests
+        .iter()
+        .filter_map(|m| m.parent().map(Path::to_path_buf))
+        .collect();
+
+    let mut combined = TestRunReport::default();
 
     if !pack_manifests.is_empty() {
-        return run_pack_manifests(&pack_manifests);
+        let pack_report = run_pack_manifests_report(&pack_manifests)?;
+        combined.members.extend(pack_report.members);
     }
 
-    // Free-form directory or single file of `*_test.rego`.
-    run_freeform(root)
+    // Free-form: single file path, or loose tests outside pack directories.
+    let freeform_report = run_freeform_report(root, &pack_dirs)?;
+    combined.members.extend(freeform_report.members);
+
+    if combined.members.is_empty() && pack_manifests.is_empty() {
+        return Ok(TestResult {
+            passed: 0,
+            failed: 0,
+            skipped: 0,
+            tests: vec![],
+            warning: Some(format!(
+                "No pack manifests or `*_test.rego` files found under '{}'",
+                root.display()
+            )),
+            files: None,
+        });
+    }
+
+    Ok(report_to_test_result(&combined))
+}
+
+/// Whether `path` names a pack manifest file (any `.yaml` / `.yml`, or the
+/// canonical `pack.yaml`).
+fn is_manifest_file(path: &Path) -> bool {
+    if path.file_name().is_some_and(|n| n == MANIFEST_FILENAME) {
+        return true;
+    }
+    path.extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"))
 }
 
 /// Collect pack manifests: the path itself, or immediate child pack dirs.
 fn resolve_pack_manifests(root: &Path) -> Result<Vec<PathBuf>> {
     if root.is_file() {
-        // Explicit manifest file.
-        if root
-            .file_name()
-            .is_some_and(|n| n == MANIFEST_FILENAME || n.to_string_lossy().ends_with(".yaml"))
-        {
+        // Explicit manifest file (`.yaml` or `.yml`, matching `policy validate`).
+        if is_manifest_file(root) {
             return Ok(vec![root.to_path_buf()]);
         }
         // A single .rego file is free-form, not a pack.
@@ -204,7 +239,7 @@ fn resolve_pack_manifests(root: &Path) -> Result<Vec<PathBuf>> {
     Ok(manifests)
 }
 
-fn run_pack_manifests(manifests: &[PathBuf]) -> Result<TestResult> {
+fn run_pack_manifests_report(manifests: &[PathBuf]) -> Result<TestRunReport> {
     let mut combined = TestRunReport::default();
     for manifest_path in manifests {
         let base_dir = manifest_path
@@ -217,23 +252,22 @@ fn run_pack_manifests(manifests: &[PathBuf]) -> Result<TestResult> {
             .with_context(|| format!("running tests for pack {}", manifest_path.display()))?;
         combined.members.extend(report.members);
     }
-    Ok(report_to_test_result(&combined))
+    Ok(combined)
 }
 
-fn run_freeform(root: &Path) -> Result<TestResult> {
-    let test_files = discover_test_rego_files(root);
+/// True when `path` is inside (or equal to) any of `pack_dirs`.
+fn under_any_pack(path: &Path, pack_dirs: &[PathBuf]) -> bool {
+    pack_dirs.iter().any(|pack| path.starts_with(pack))
+}
+
+fn run_freeform_report(root: &Path, pack_dirs: &[PathBuf]) -> Result<TestRunReport> {
+    let mut test_files = discover_test_rego_files(root);
+    // Skip tests owned by a pack the pack runner already executes.
+    if !pack_dirs.is_empty() {
+        test_files.retain(|p| !under_any_pack(p, pack_dirs));
+    }
     if test_files.is_empty() {
-        return Ok(TestResult {
-            passed: 0,
-            failed: 0,
-            skipped: 0,
-            tests: vec![],
-            warning: Some(format!(
-                "No `*_test.rego` files found under '{}'",
-                root.display()
-            )),
-            files: None,
-        });
+        return Ok(TestRunReport::default());
     }
 
     // Prefer the pack runner when we can form policy/test pairs under a
@@ -285,9 +319,8 @@ fn run_freeform(root: &Path) -> Result<TestResult> {
             owner: "local".into(),
             policies: paired_policies,
         };
-        // Synthetic manifests are in-memory; skip validate that requires tags etc —
-        // metadata is complete via synthetic_metadata. run_pack_tests does not
-        // call validate().
+        // Synthetic manifests are in-memory; metadata is complete via
+        // synthetic_metadata. run_pack_tests does not call validate().
         let report = run_pack_tests(&manifest, &base_dir)
             .context("running free-form paired policy tests")?;
         members.extend(report.members);
@@ -297,8 +330,7 @@ fn run_freeform(root: &Path) -> Result<TestResult> {
         members.push(run_orphan_test_file(&orphan)?);
     }
 
-    let report = TestRunReport { members };
-    Ok(report_to_test_result(&report))
+    Ok(TestRunReport { members })
 }
 
 fn synthetic_metadata(id: &str) -> PolicyMetadata {
@@ -781,5 +813,67 @@ policies:
             &GlobalArgs::default(),
         )
         .expect("list-files is discovery-only");
+    }
+
+    #[test]
+    fn policy_test_policies_root_runs_packs_and_loose_tests() {
+        // Policies root with a child pack plus a loose failing free-form test.
+        let root = TempDir::new().expect("temp dir");
+        let pack_dir = root.path().join("anvil-baseline");
+        write(&pack_dir, "pack.yaml", MANIFEST);
+        write(&pack_dir, "policies/a.rego", POLICY);
+        write(
+            &pack_dir,
+            "policies/a_test.rego",
+            "package a_test\nimport rego.v1\n\ntest_allow if data.a.allow with input as {\"x\": 1}\n",
+        );
+        write(
+            root.path(),
+            "loose_test.rego",
+            "package loose_test\nimport rego.v1\n\ntest_loose_fails := false\n",
+        );
+
+        let err = run(
+            Some(root.path().to_str().expect("utf8 path")),
+            false,
+            &GlobalArgs::default(),
+        )
+        .expect_err("loose failing test must fail the root run");
+        assert!(err.is::<output::AlreadyReported>(), "got {err:?}");
+
+        let result = execute_tests(root.path()).expect("execute");
+        assert!(
+            result
+                .tests
+                .iter()
+                .any(|t| t.passed && t.name.contains("test_allow")),
+            "pack tests must still run: {result:?}"
+        );
+        assert!(
+            result
+                .tests
+                .iter()
+                .any(|t| !t.passed && t.name.contains("test_loose_fails")),
+            "loose free-form test must run: {result:?}"
+        );
+    }
+
+    #[test]
+    fn policy_test_yml_manifest_path_is_accepted() {
+        let dir = TempDir::new().expect("temp dir");
+        write(dir.path(), "pack.yml", MANIFEST);
+        write(dir.path(), "policies/a.rego", POLICY);
+        write(
+            dir.path(),
+            "policies/a_test.rego",
+            "package a_test\nimport rego.v1\n\ntest_allow if data.a.allow with input as {\"x\": 1}\n",
+        );
+        let manifest = dir.path().join("pack.yml");
+        run(
+            Some(manifest.to_str().expect("utf8 path")),
+            false,
+            &GlobalArgs::default(),
+        )
+        .expect(".yml pack manifest must execute");
     }
 }
