@@ -277,6 +277,13 @@ fn classify_dir(
     if !manifest_path.is_file() {
         return;
     }
+    // Fail-closed: pack.yaml must itself resolve within the policies root.
+    // A contained pack directory whose pack.yaml is a symlink to an external
+    // file must not be admitted — is_file() follows symlinks, so existence
+    // alone is not a containment proof.
+    if canonicalise_or_reject(canonical_policies, &manifest_path, rejected).is_none() {
+        return;
+    }
     let Some(id) = dir.file_name().and_then(|n| n.to_str()).map(str::to_owned) else {
         rejected.push(RejectedEntry {
             path: dir.to_path_buf(),
@@ -578,5 +585,49 @@ mod tests {
             discovery.rejected[0].reason,
             RejectionReason::ContainmentEscape
         );
+    }
+
+    // A contained pack directory whose pack.yaml is a symlink to an external
+    // valid manifest must be rejected — directory containment alone is not
+    // enough when the manifest itself escapes.
+    #[cfg(unix)]
+    #[test]
+    fn policy_pack_discovery_manifest_symlink_escape_rejected() {
+        let outside = TempDir::new().expect("outside");
+        let external_manifest = outside.path().join(MANIFEST_FILENAME);
+        std::fs::write(&external_manifest, valid_manifest("evil")).expect("outside manifest");
+
+        let ws = TempDir::new().expect("workspace");
+        // Legitimate sibling remains discoverable.
+        write_pack(ws.path(), "legit", &valid_manifest("legit"));
+
+        // Real in-policies pack dir whose pack.yaml is a symlink out.
+        let escape_dir = ws.path().join(POLICIES_SUBDIR).join("escape-manifest");
+        std::fs::create_dir_all(&escape_dir).expect("pack dir");
+        std::os::unix::fs::symlink(&external_manifest, escape_dir.join(MANIFEST_FILENAME))
+            .expect("manifest symlink");
+
+        let discovery = discover_packs(ws.path()).expect("discover");
+        let ids: Vec<&str> = discovery.packs.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["legit"],
+            "escaping manifest must not be admitted as a pack: {discovery:?}"
+        );
+        assert_eq!(discovery.rejected.len(), 1, "{discovery:?}");
+        assert_eq!(
+            discovery.rejected[0].reason,
+            RejectionReason::ContainmentEscape
+        );
+        assert!(
+            discovery.rejected[0].path.ends_with("pack.yaml"),
+            "{discovery:?}"
+        );
+
+        // discover_and_load must never load the external manifest either.
+        let loaded = discover_and_load(ws.path()).expect("discover_and_load");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].pack.id, "legit");
+        assert!(loaded[0].manifest.is_ok());
     }
 }
