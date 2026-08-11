@@ -138,7 +138,7 @@ release rather than `main`.
 
 - **Intent:** Coverage is the ceiling on this whole model; 125 of 228 documents
   are currently invisible to it.
-- **Expected Outcome:** The 29 documents that carry governance metadata but no
+- **Expected Outcome:** The 30 documents that carry governance metadata but no
   review date or no resolvable upstream path are backfilled, and the
   "must cite at least one source path" rule in `check-asbuilt-paths.mjs` widens
   from As-built/Runbook to Guide, Policy, and Spec. The `uncheckable` count in
@@ -241,7 +241,12 @@ release rather than `main`.
 - Every public document declares an owner, an upstream, and the product version
   it was verified against.
 - A release cannot be declared ready while a public page's declared upstream
-  changed between the previous tag and the candidate without re-verification.
+  changed between **that page's own `verified_against` tag** and the candidate
+  without re-verification. The release's `previous_tag` is explicitly not the
+  anchor: a page that skipped the release in which its upstream changed would
+  produce an empty previous-tag diff and pass while stale (ADR-119 D6).
+- A public page whose `verified_against` is missing, or names a tag that does
+  not exist, fails the release check rather than passing it.
 - The `uncheckable` and directory-only counts are reported on every run, so
   coverage cannot be silently traded for a green result.
 

@@ -280,7 +280,7 @@ hook compatibility policy genuinely came into question.
   verification anchor for the first time, at zero cost to the rendered page.
 - **Positive:** the tag-cut blind spot behind #3676 is closed as a class rather
   than per generator.
-- **Negative:** an 84-item backlog becomes visible and needs owners. Baselining
+- **Negative:** an 86-item backlog becomes visible and needs owners. Baselining
   defers it; it does not remove it.
 - **Negative:** metadata authoring gets stricter. Documents with no file-level
   upstream stay unchecked until someone declares one.
@@ -293,7 +293,7 @@ hook compatibility policy genuinely came into question.
   which can pressure authors to bump the date without reading. `review`-class
   reporting exists partly to make a bumped-but-untouched date visible.
 - **Risks:** `git log` per upstream path costs wall-clock on a large corpus.
-  Measured acceptable at 227 documents with per-path caching; revisit if the
+  Measured acceptable at 228 documents with per-path caching; revisit if the
   corpus or the CI budget changes (`docs/policies/resource-budget.md`).
 - **Mitigations:** report-only first (already built), baseline the backlog,
   gate only the `owed` × file-level intersection, and keep the public-doc check
