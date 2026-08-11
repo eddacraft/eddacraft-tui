@@ -1,7 +1,7 @@
 //! `anvil_suppress` — insert a time-boxed inline suppression comment.
 
 use std::fs::{self, OpenOptions};
-use std::io::{Read as _, Seek as _, Write as _};
+use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use chrono::{Duration, Utc};
@@ -238,8 +238,10 @@ fn insert_suppression_comment(
     ));
     let _lock = AcquiredLock::acquire(&lock_path)?;
 
-    // Open ONCE and read + write through the same handle so a symlink swapped
-    // in after `canonicalise_inside_workspace` cannot redirect the write.
+    // Open a hardened read+write handle to read the current contents and to
+    // probe writability (a read-only target must fail before any write). The
+    // replacement itself is path-based (temp + rename); O_NOFOLLOW on this
+    // open still rejects a final-component symlink at check time.
     let mut handle = open_contained_rw_handle(path, workspace_path)?;
     let mut content = String::new();
     handle
@@ -264,17 +266,81 @@ fn insert_suppression_comment(
     lines.insert(line_idx, comment.clone());
 
     let new_content = lines.join("\n");
-    handle
-        .rewind()
-        .map_err(|err| format!("filePath write failed: {err}"))?;
-    handle
-        .set_len(0)
-        .map_err(|err| format!("filePath write failed: {err}"))?;
-    handle
-        .write_all(new_content.as_bytes())
-        .map_err(|err| format!("filePath write failed: {err}"))?;
+    // Drop the open handle before rename. On Windows an open destination
+    // blocks `persist`; on every platform the replacement is path-based
+    // (POSIX rename replaces a symlink at the destination rather than
+    // following it). The earlier `open_contained_rw_handle` still probes
+    // writability and rejects a final-component symlink via O_NOFOLLOW.
+    drop(handle);
+    // Write via temp-file + rename so a failed write cannot leave the
+    // original truncated or partially rewritten (data-loss on
+    // ENOSPC/quota/I/O).
+    replace_file_contents_atomic(path, new_content.as_bytes())?;
 
     Ok(SuppressOutcome { comment })
+}
+
+/// Replace `path` with `new_content` without ever truncating the original
+/// first. Content is written to a sibling temporary file, flushed/synced,
+/// then renamed over the destination. On any failure before a successful
+/// replace the original file is left byte-for-byte unchanged.
+fn replace_file_contents_atomic(path: &Path, new_content: &[u8]) -> Result<(), String> {
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+
+    let mut tmp = tempfile::Builder::new()
+        .prefix(".anvil-suppress-")
+        .tempfile_in(dir)
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+
+    tmp.write_all(new_content)
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+    tmp.flush()
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+    // Surface delayed ENOSPC/quota/I/O before we replace the destination.
+    // `flush` alone is not enough on many filesystems.
+    tmp.as_file()
+        .sync_all()
+        .map_err(|err| format!("filePath write failed: {err}"))?;
+
+    // Preserve the original mode/ACL-ish permissions when the destination
+    // already exists. A fresh tempfile may otherwise land with restrictive
+    // default perms (e.g. 0o600) that would silently tighten source files.
+    if let Ok(meta) = fs::metadata(path) {
+        tmp.as_file()
+            .set_permissions(meta.permissions())
+            .map_err(|err| format!("filePath write failed: {err}"))?;
+    }
+
+    // On Windows, `rename` fails if the destination already exists, so move
+    // the original aside first. If the new content cannot be installed, restore
+    // the backup — never delete the original until the replacement is durable.
+    #[cfg(windows)]
+    {
+        let backup = dir.join(format!(".anvil-suppress-backup-{}", std::process::id()));
+        match fs::rename(path, &backup) {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(format!("filePath write failed: {err}")),
+        }
+        if let Err(err) = tmp.persist(path) {
+            // Best-effort restore of the pre-replace content.
+            let _ = fs::rename(&backup, path);
+            let _ = fs::remove_file(&backup);
+            return Err(format!("filePath write failed: {}", err.error));
+        }
+        let _ = fs::remove_file(&backup);
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    {
+        tmp.persist(path)
+            .map_err(|err| format!("filePath write failed: {}", err.error))?;
+        Ok(())
+    }
 }
 
 struct AcquiredLock {
@@ -667,6 +733,125 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&victim).expect("victim readable"),
             "DO NOT OVERWRITE"
+        );
+    }
+
+    #[test]
+    fn atomic_replace_success_updates_content() {
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let path = write_fixture(workspace.path(), "src/a.ts", "original\n");
+        replace_file_contents_atomic(&path, b"replacement\n").expect("atomic replace succeeds");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("file readable"),
+            "replacement\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_replace_failure_preserves_original_bytes() {
+        // Simulate a write failure after the target already exists (e.g. the
+        // directory cannot accept a new tempfile because it is not writable).
+        // The original must remain byte-for-byte unchanged — the truncate-
+        // then-write path would have already wiped it.
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let dir = workspace.path().join("src");
+        std::fs::create_dir_all(&dir).expect("src dir");
+        let path = dir.join("a.ts");
+        let original = "const x: any = 1; // preserve me\n";
+        std::fs::write(&path, original).expect("fixture written");
+
+        // Drop write bit on the parent so tempfile_in fails. Opening the file
+        // itself for write would still succeed (file remains mode 0644).
+        let mut dir_perms = std::fs::metadata(&dir).expect("dir meta").permissions();
+        dir_perms.set_mode(0o555);
+        std::fs::set_permissions(&dir, dir_perms).expect("chmod dir 555");
+
+        let err = replace_file_contents_atomic(&path, b"should not land\n")
+            .expect_err("write into non-writable parent must fail");
+        assert!(
+            err.contains("filePath write failed"),
+            "unexpected error: {err}"
+        );
+
+        // Restore dir perms before asserts/cleanup so we can read and so
+        // TempDir Drop can remove the tree.
+        let mut restore = std::fs::metadata(&dir).expect("dir meta").permissions();
+        restore.set_mode(0o755);
+        std::fs::set_permissions(&dir, restore).expect("chmod dir 755");
+
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("file readable"),
+            original,
+            "failed atomic replace must not truncate or partially rewrite the target"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_replace_preserves_existing_permissions() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let path = write_fixture(workspace.path(), "src/a.ts", "before\n");
+        let mut perms = std::fs::metadata(&path).expect("metadata").permissions();
+        perms.set_mode(0o640);
+        std::fs::set_permissions(&path, perms).expect("chmod 640");
+
+        replace_file_contents_atomic(&path, b"after\n").expect("atomic replace succeeds");
+        let mode = std::fs::metadata(&path)
+            .expect("metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(
+            mode, 0o640,
+            "replacement must keep original mode, got {mode:o}"
+        );
+        assert_eq!(std::fs::read_to_string(&path).expect("readable"), "after\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn suppress_failure_path_does_not_mutate_source() {
+        // Parent of the target is not writable, so the pre-write lock (and any
+        // subsequent tempfile create) fails before mutation. Complements
+        // `atomic_replace_failure_preserves_original_bytes`, which covers the
+        // write-helper failure mode after the target already exists.
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let original = "const x: any = 1;\n";
+        let file = write_fixture(workspace.path(), "src/a.ts", original);
+        let parent = file.parent().expect("parent");
+
+        let mut dir_perms = std::fs::metadata(parent).expect("dir meta").permissions();
+        dir_perms.set_mode(0o555);
+        std::fs::set_permissions(parent, dir_perms).expect("chmod parent 555");
+
+        let result = call(&json!({
+            "filePath": "src/a.ts",
+            "warningId": "AP-003",
+            "line": 1,
+            "reason": "must not wipe source on write failure",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+
+        let mut restore = std::fs::metadata(parent).expect("dir meta").permissions();
+        restore.set_mode(0o755);
+        std::fs::set_permissions(parent, restore).expect("chmod parent 755");
+
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("file readable"),
+            original,
+            "failed suppress must not leave the source truncated or partially rewritten"
         );
     }
 }
