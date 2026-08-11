@@ -181,9 +181,9 @@ fn strip_comment(line: &str) -> &str {
 
 /// True when `trimmed` declares the `pull_request_target` trigger in a
 /// **structural** position — the key (`pull_request_target:`), a list item
-/// (`- pull_request_target`), or an `on:` scalar/flow-sequence value. This
-/// deliberately does NOT match the token inside an arbitrary string value
-/// (a `name:`/`run:`/`description:` that merely mentions it).
+/// (`- pull_request_target`), or an `on:` scalar/flow-sequence/flow-mapping
+/// value. This deliberately does NOT match the token inside an arbitrary
+/// string value (a `name:`/`run:`/`description:` that merely mentions it).
 fn is_pull_request_target_line(trimmed: &str) -> bool {
     const TOK: &str = "pull_request_target";
     // Key form: `pull_request_target:` (with or without an inline value).
@@ -201,11 +201,12 @@ fn is_pull_request_target_line(trimmed: &str) -> bool {
             return true;
         }
     }
-    // `on:` value forms: `on: pull_request_target` or `on: [.., pull_request_target]`.
+    // `on:` value forms: scalar, flow sequence, or flow mapping.
     if let Some(rest) = trimmed.strip_prefix("on:") {
         if rest.trim() == TOK {
             return true;
         }
+        // Flow sequence: `on: [push, pull_request_target]`.
         if rest.contains('[')
             && rest
                 .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
@@ -213,6 +214,33 @@ fn is_pull_request_target_line(trimmed: &str) -> bool {
         {
             return true;
         }
+        // Flow mapping: `on: { pull_request_target: {} }` — key form only.
+        if rest.contains('{') && flow_mapping_has_key(rest, TOK) {
+            return true;
+        }
+    }
+    false
+}
+
+/// True when `hay` contains `key` as a YAML mapping key (identifier followed
+/// by optional whitespace and `:`), with a non-identifier character before it
+/// so substrings like `not_pull_request_target:` do not match.
+fn flow_mapping_has_key(hay: &str, key: &str) -> bool {
+    let bytes = hay.as_bytes();
+    let mut start = 0;
+    while let Some(rel) = hay[start..].find(key) {
+        let abs = start + rel;
+        let before_ok = abs == 0 || {
+            let b = bytes[abs - 1];
+            !b.is_ascii_alphanumeric() && b != b'_'
+        };
+        if before_ok {
+            let after = hay[abs + key.len()..].trim_start();
+            if after.starts_with(':') {
+                return true;
+            }
+        }
+        start = abs + 1;
     }
     false
 }
@@ -244,12 +272,16 @@ fn next_runs_on_block(trimmed: &str, indent: usize, current: Option<usize>) -> O
 /// If `line` is a `uses:` step pinned to a mutable **branch** ref, return the
 /// ref. Returns `None` for SHA pins, version tags (`v1`, `v1.2.3`), local
 /// (`./…`) or docker (`docker://…`) actions, and non-`uses` lines.
+///
+/// Recognises block form (`uses:` / `- uses:`) and YAML flow-mapping steps
+/// such as `- { uses: actions/checkout@main }`.
 fn uses_branch_ref(line: &str) -> Option<&str> {
-    let rest = line.strip_prefix("uses:").or_else(|| {
-        line.strip_prefix("- uses:")
-            .or_else(|| line.strip_prefix("-uses:"))
-    })?;
-    let value = rest.trim().trim_matches(['"', '\'']);
+    let rest = line
+        .strip_prefix("uses:")
+        .or_else(|| line.strip_prefix("- uses:"))
+        .or_else(|| line.strip_prefix("-uses:"))
+        .or_else(|| uses_value_from_flow_mapping(line))?;
+    let value = take_flow_scalar(rest).trim_matches(['"', '\'']);
     if value.starts_with("./") || value.starts_with("docker://") {
         return None;
     }
@@ -258,6 +290,55 @@ fn uses_branch_ref(line: &str) -> Option<&str> {
         return None;
     }
     Some(reference)
+}
+
+/// Extract the value after a `uses:` key inside a YAML flow mapping, e.g.
+/// `- { uses: owner/repo@ref }` or `{ name: x, uses: owner/repo@ref }`.
+fn uses_value_from_flow_mapping(line: &str) -> Option<&str> {
+    let s = line.trim_start();
+    let s = match s.strip_prefix('-') {
+        Some(rest) => rest.trim_start(),
+        None => s,
+    };
+    if !s.starts_with('{') {
+        return None;
+    }
+    let bytes = s.as_bytes();
+    let mut start = 0;
+    while let Some(rel) = s[start..].find("uses:") {
+        let abs = start + rel;
+        let before_ok = abs == 0 || matches!(bytes[abs - 1], b'{' | b' ' | b'\t' | b',');
+        if before_ok {
+            return Some(&s[abs + "uses:".len()..]);
+        }
+        start = abs + 1;
+    }
+    None
+}
+
+/// Take a single YAML flow scalar from the start of `s`, stopping at an
+/// unquoted `,` or `}` so multi-key flow maps do not bleed into the value.
+fn take_flow_scalar(s: &str) -> &str {
+    let s = s.trim_start();
+    if s.is_empty() {
+        return s;
+    }
+    let bytes = s.as_bytes();
+    let quote = bytes[0];
+    if quote == b'"' || quote == b'\'' {
+        for i in 1..bytes.len() {
+            if bytes[i] == quote {
+                return &s[..=i];
+            }
+        }
+        return s;
+    }
+    for (i, &b) in bytes.iter().enumerate() {
+        if b == b',' || b == b'}' {
+            return s[..i].trim_end();
+        }
+    }
+    s.trim_end()
 }
 
 /// A 40- or 64-hex-char commit SHA (full or sha256-ish) is an immutable pin.
@@ -349,6 +430,32 @@ mod tests {
         );
         // Not a substring match: `pull_request` alone is fine.
         assert!(risks("on:\n  pull_request:\n").is_empty());
+    }
+
+    #[test]
+    fn flags_flow_mapping_pull_request_target_and_uses() {
+        // YAML flow mappings are valid GitHub Actions syntax and must not
+        // bypass SURFGHA-002 (clawpatch fnd_sig-feat-service-e706bccd06).
+        assert_eq!(
+            risks("on: { pull_request_target: {} }\n"),
+            vec![GhaRisk::PullRequestTarget]
+        );
+        assert_eq!(
+            risks("on: { push: null, pull_request_target: {} }\n"),
+            vec![GhaRisk::PullRequestTarget]
+        );
+        assert_eq!(
+            risks("      - { uses: actions/checkout@main }\n"),
+            vec![GhaRisk::UnpinnedActionRef]
+        );
+        assert_eq!(
+            risks("      - { name: Checkout, uses: actions/checkout@main }\n"),
+            vec![GhaRisk::UnpinnedActionRef]
+        );
+        // Pinned flow-mapping uses remain clean.
+        assert!(risks("      - { uses: actions/checkout@v4 }\n").is_empty());
+        // Substring key must not fire.
+        assert!(risks("on: { not_pull_request_target: {} }\n").is_empty());
     }
 
     #[test]
