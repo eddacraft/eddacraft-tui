@@ -274,14 +274,35 @@ fn classify_dir(
     // A pack owns its subtree; without a manifest at this level it is not a pack
     // and is not recursed into (nested packs are not a thing).
     let manifest_path = dir.join(MANIFEST_FILENAME);
-    if !manifest_path.is_file() {
-        return;
+    // Distinguish "no pack.yaml entry" from "entry present but unusable".
+    // `is_file()` follows symlinks and treats a dangling link as absent, which
+    // would silently skip cases the module reports as Unresolvable elsewhere.
+    match std::fs::symlink_metadata(&manifest_path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+        Err(_) => {
+            rejected.push(RejectedEntry {
+                path: manifest_path,
+                reason: RejectionReason::Unresolvable,
+            });
+            return;
+        }
+        // A directory named pack.yaml is not a manifest; ignore like other noise.
+        Ok(meta) if meta.is_dir() => return,
+        Ok(_) => {}
     }
     // Fail-closed: pack.yaml must itself resolve within the policies root.
-    // A contained pack directory whose pack.yaml is a symlink to an external
-    // file must not be admitted — is_file() follows symlinks, so existence
-    // alone is not a containment proof.
+    // Covers escaping symlinks (ContainmentEscape) and dangling / unreadable
+    // entries (Unresolvable). is_file() alone is not a containment proof.
     if canonicalise_or_reject(canonical_policies, &manifest_path, rejected).is_none() {
+        return;
+    }
+    // Resolved target must be a regular file (symlink-to-directory inside the
+    // policies root must not be admitted as a manifest).
+    if !manifest_path.is_file() {
+        rejected.push(RejectedEntry {
+            path: manifest_path,
+            reason: RejectionReason::Unresolvable,
+        });
         return;
     }
     let Some(id) = dir.file_name().and_then(|n| n.to_str()).map(str::to_owned) else {
@@ -629,5 +650,35 @@ mod tests {
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].pack.id, "legit");
         assert!(loaded[0].manifest.is_ok());
+    }
+
+    // A dangling pack.yaml symlink is Unresolvable (reported), not silently
+    // treated as "no manifest" — matching the module's broken-symlink contract.
+    #[cfg(unix)]
+    #[test]
+    fn policy_pack_discovery_dangling_manifest_symlink_is_unresolvable() {
+        let ws = TempDir::new().expect("workspace");
+        write_pack(ws.path(), "legit", &valid_manifest("legit"));
+
+        let dangling_dir = ws.path().join(POLICIES_SUBDIR).join("dangling-manifest");
+        std::fs::create_dir_all(&dangling_dir).expect("pack dir");
+        std::os::unix::fs::symlink(
+            dangling_dir.join("gone-pack.yaml"),
+            dangling_dir.join(MANIFEST_FILENAME),
+        )
+        .expect("dangling symlink");
+
+        let discovery = discover_packs(ws.path()).expect("discover");
+        let ids: Vec<&str> = discovery.packs.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, ["legit"], "{discovery:?}");
+        assert_eq!(discovery.rejected.len(), 1, "{discovery:?}");
+        assert_eq!(
+            discovery.rejected[0].reason,
+            RejectionReason::Unresolvable
+        );
+        assert!(
+            discovery.rejected[0].path.ends_with("pack.yaml"),
+            "{discovery:?}"
+        );
     }
 }
