@@ -30,23 +30,23 @@ pub fn is_acceptable_release_public_key(candidate: &str) -> bool {
 /// Human-readable reason a candidate is rejected, if any.
 pub fn release_public_key_rejection(candidate: Option<&str>) -> Option<&'static str> {
     match candidate {
-        None => Some(
-            "ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1 but ANVIL_RELEASE_PUBLIC_KEY is unset. \
-             Set vars.ANVIL_MINISIGN_PUBLIC_KEY before packaging — see docs/runbooks/release-signing.md.",
-        ),
+        None => Some(concat!(
+            "ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1 but ANVIL_RELEASE_PUBLIC_KEY is unset. ",
+            "Set vars.ANVIL_MINISIGN_PUBLIC_KEY before packaging — see docs/runbooks/release-signing.md.",
+        )),
         Some(key) => {
             let trimmed = key.trim();
             if trimmed.is_empty() {
-                Some(
-                    "ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1 but ANVIL_RELEASE_PUBLIC_KEY is empty. \
-                     Set vars.ANVIL_MINISIGN_PUBLIC_KEY before packaging — see docs/runbooks/release-signing.md.",
-                )
+                Some(concat!(
+                    "ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1 but ANVIL_RELEASE_PUBLIC_KEY is empty. ",
+                    "Set vars.ANVIL_MINISIGN_PUBLIC_KEY before packaging — see docs/runbooks/release-signing.md.",
+                ))
             } else if trimmed == DEV_PUBLIC_KEY {
-                Some(
-                    "ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1 but ANVIL_RELEASE_PUBLIC_KEY is still the \
-                     committed development fallback. Generate a real keypair before releasing \
-                     — see docs/runbooks/release-signing.md.",
-                )
+                Some(concat!(
+                    "ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1 but ANVIL_RELEASE_PUBLIC_KEY is still the ",
+                    "committed development fallback. Generate a real keypair before releasing — ",
+                    "see docs/runbooks/release-signing.md.",
+                ))
             } else {
                 None
             }

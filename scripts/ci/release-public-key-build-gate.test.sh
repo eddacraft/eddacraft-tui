@@ -14,14 +14,23 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 release_workflow="${repo_root}/.github/workflows/release.yml"
 build_rs="${repo_root}/crates/anvil-cli/build.rs"
 gate_rs="${repo_root}/crates/anvil-cli/build_support/release_public_key_gate.rs"
-dev_key="RWRbilgipcbv8egsndfKxcAxjJCTusQPh/IsOy6ROFDiqvz8QNCVZRZ5"
+fixture_pub_b64="${repo_root}/crates/anvil-cli/tests/fixtures/minisign/anvil-test.pub.b64"
 
-for required in "${release_workflow}" "${build_rs}" "${gate_rs}"; do
+for required in "${release_workflow}" "${build_rs}" "${gate_rs}" "${fixture_pub_b64}"; do
   if [ ! -f "${required}" ]; then
     echo "expected ${required} to exist" >&2
     exit 1
   fi
 done
+
+# Source of truth for the committed development public key (regenerate via
+# tests/fixtures/minisign/regenerate.sh). Keep shell contracts off hard-coded
+# literals so fixture rotation cannot silently desync this test.
+dev_key=$(tr -d '[:space:]' < "${fixture_pub_b64}")
+if [ -z "${dev_key}" ]; then
+  echo "expected ${fixture_pub_b64} to contain the development public key" >&2
+  exit 1
+fi
 
 assert_release_contains() {
   local expected="$1"

@@ -20,6 +20,9 @@ use release_public_key_gate::{
 fn main() {
     println!("cargo:rerun-if-env-changed=ANVIL_RELEASE_PUBLIC_KEY");
     println!("cargo:rerun-if-env-changed=ANVIL_REQUIRE_RELEASE_PUBLIC_KEY");
+    // Pure gate module is included via `#[path]`; declare the dependency so
+    // iterative edits to the support file re-run this script.
+    println!("cargo:rerun-if-changed=build_support/release_public_key_gate.rs");
 
     let require = std::env::var("ANVIL_REQUIRE_RELEASE_PUBLIC_KEY").ok();
     if !require_release_public_key_enabled(require.as_deref()) {
