@@ -205,6 +205,11 @@ jobs:
       # without it, every shipped binary would silently use the dev key
       # and bypass signature verification.
       ANVIL_RELEASE_PUBLIC_KEY: ${{ vars.ANVIL_MINISIGN_PUBLIC_KEY }}
+      # DISTRIB-001 hard packaging gate: `crates/anvil-cli/build.rs` panics
+      # when this is set and the public key is missing or still the
+      # committed development fallback. Defence in depth against a
+      # misconfigured release job that skips the shell preflight.
+      ANVIL_REQUIRE_RELEASE_PUBLIC_KEY: '1'
       # DASH-012: fail the build rather than ship an `anvil` whose only symptom
       # is that `anvil dashboard --web` serves no UI.
       ANVIL_DASHBOARD_REQUIRE_BUNDLE: '1'

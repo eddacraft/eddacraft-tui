@@ -73,8 +73,10 @@ In Settings → Secrets and variables → Actions → Variables, create:
 
 `release.yml`'s `build-local-artifacts` job already injects
 `ANVIL_RELEASE_PUBLIC_KEY: ${{ vars.ANVIL_MINISIGN_PUBLIC_KEY }}` into the build
-environment, and a preflight step **fails the release** if the variable is empty
-or still equals the committed dev fallback.
+environment, sets `ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1` so
+`crates/anvil-cli/build.rs` **fails the compile** if the key is missing or still
+the development fallback, and runs a shell preflight that fails the release for
+the same conditions.
 
 Provided steps 1–3 above are done before tagging, no further change is required.
 After tag and push, `option_env!("ANVIL_RELEASE_PUBLIC_KEY")` in

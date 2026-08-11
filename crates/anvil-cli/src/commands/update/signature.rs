@@ -17,11 +17,16 @@ use minisign_verify::{PublicKey, Signature};
 /// Trusted public key, embedded at compile time.
 ///
 /// Release builds in CI override this via the `ANVIL_RELEASE_PUBLIC_KEY`
-/// env var (set from the `ANVIL_MINISIGN_PUBLIC_KEY` repo variable). The
-/// development fallback is **not** safe for releases — the matching
+/// env var (set from the `ANVIL_MINISIGN_PUBLIC_KEY` repo variable).
+///
+/// The development fallback is **not** safe for releases — the matching
 /// private key is committed in `crates/anvil-cli/tests/fixtures/minisign/`
-/// for fixture generation only, and the release workflow refuses to
-/// sign when this fallback is in use (see ADR-045 §"Concrete commitments").
+/// for fixture generation only. Packaging refuses this fallback at two
+/// layers (see ADR-045 §"Concrete commitments"):
+/// 1. `crates/anvil-cli/build.rs` panics when
+///    `ANVIL_REQUIRE_RELEASE_PUBLIC_KEY=1` and the key is missing/dev.
+/// 2. `.github/workflows/release.yml` sets that flag and runs a shell
+///    preflight before `dist build`.
 const EMBEDDED_PUBLIC_KEY: &str = match option_env!("ANVIL_RELEASE_PUBLIC_KEY") {
     Some(k) => k,
     None => DEV_PUBLIC_KEY,
@@ -31,6 +36,10 @@ const EMBEDDED_PUBLIC_KEY: &str = match option_env!("ANVIL_RELEASE_PUBLIC_KEY") 
 /// `crates/anvil-cli/tests/fixtures/minisign/` and is used by the test
 /// suite to generate signatures. Production builds must override this via
 /// `ANVIL_RELEASE_PUBLIC_KEY` at compile time.
+///
+/// Keep this byte-identical to
+/// `build_support/release_public_key_gate.rs::DEV_PUBLIC_KEY` — the
+/// packaging gate rejects this exact string.
 const DEV_PUBLIC_KEY: &str = "RWRbilgipcbv8egsndfKxcAxjJCTusQPh/IsOy6ROFDiqvz8QNCVZRZ5";
 
 /// Returns true when the binary was built with the development public key
@@ -232,5 +241,22 @@ mod tests {
     fn is_using_dev_public_key_reports_truth() {
         // Test builds never set ANVIL_RELEASE_PUBLIC_KEY, so we expect true.
         assert!(is_using_dev_public_key());
+    }
+
+    #[test]
+    fn packaging_gate_dev_key_is_never_acceptable_release_key() {
+        // Mirrors build_support/release_public_key_gate.rs so a constant
+        // drift surfaces here even when the packaging gate is not enabled.
+        let is_acceptable = |candidate: &str| {
+            let trimmed = candidate.trim();
+            !trimmed.is_empty() && trimmed != DEV_PUBLIC_KEY
+        };
+        assert!(!is_acceptable(""));
+        assert!(!is_acceptable("   "));
+        assert!(!is_acceptable(DEV_PUBLIC_KEY));
+        assert!(!is_acceptable(&format!("  {DEV_PUBLIC_KEY}  ")));
+        assert!(is_acceptable(
+            "RWQccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        ));
     }
 }
