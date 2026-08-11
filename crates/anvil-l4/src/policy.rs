@@ -341,20 +341,23 @@ pub fn pin_cutoff_commit(path: &Path, cutoff: &str) -> Result<(), PolicyPinError
     let (mut staging, tmp_path) = open_exclusive_staging_file(parent, file_name)?;
     if let Err(e) = staging.write_all(&bytes).and_then(|()| staging.sync_all()) {
         drop(staging);
+        // Incomplete staging content is not recoverable; remove it.
         let _ = fs::remove_file(&tmp_path);
         return Err(e.into());
     }
-    // Drop before rename so Windows can replace an open destination.
+    // Close the staging handle before rename: Windows cannot rename a
+    // file that still has an open *source* handle.
     drop(staging);
-    if let Err(e) = (|| -> Result<(), PolicyPinError> {
-        refuse_if_symlink(path)?;
-        atomic_replace(&tmp_path, path)?;
-        Ok(())
-    })() {
-        // Best-effort cleanup of the exclusive staging file on failure.
+    if let Err(e) = refuse_if_symlink(path) {
+        // Destination was never replaced; staging is disposable.
         let _ = fs::remove_file(&tmp_path);
         return Err(e);
     }
+    // Do not delete the exclusive staging file if replace fails. On
+    // Windows, atomic_replace may have already removed the destination
+    // before a second rename fails — leaving the staging file is the
+    // only remaining good copy for operator recovery.
+    atomic_replace(&tmp_path, path)?;
     Ok(())
 }
 
