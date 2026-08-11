@@ -31,6 +31,27 @@ enforcement:
 }
 
 #[test]
+fn yaml_scalar_mode_off_secrets_is_rejected() {
+    // Scalar mode syntax (`secrets: off`) is a supported rule-mode form;
+    // hard-pin must refuse it the same way as object `mode: off`.
+    let yaml = "\
+enforcement:
+  rules:
+    secrets: off
+";
+    let v = parse_str(yaml, ConfigFormat::Yaml, Path::new("test.yaml")).unwrap();
+    let err = validate_hard_pinned_classes(&v).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            ValidationError::HardPinnedModeDisabled { ref class, ref mode, .. }
+                if class == "secrets" && mode.eq_ignore_ascii_case("off")
+        ),
+        "expected HardPinnedModeDisabled for yaml scalar off, got {err:?}"
+    );
+}
+
+#[test]
 fn json_disable_command_safety_is_rejected() {
     let json = r#"{"enforcement": {"rules": {"command-safety": {"enabled": false}}}}"#;
     let v = parse_str(json, ConfigFormat::Json, Path::new("test.json")).unwrap();

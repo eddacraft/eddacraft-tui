@@ -55,6 +55,9 @@ pub enum ValidationError {
 /// 3. `{ enforcement: { rules: { <class>: { mode: "disabled" | "off" | "none" } } } }`
 /// 4. `{ rules: { <class>: { enabled: false } } }` (legacy flat shape)
 /// 5. `{ rules: { <class>: false } }` (legacy flat shape)
+/// 6. `{ enforcement: { rules: { <class>: "disabled" | "off" | "none" } } }`
+///    (scalar mode syntax also accepted by `RuleMode::parse` / `apply_rule`)
+/// 7. `{ rules: { <class>: "disabled" | "off" | "none" } }` (legacy scalar)
 ///
 /// Anything else under a hard-pinned class is accepted as a tuning
 /// (severity, custom params, `mode: "warn"`/`"block"`, etc.). The
@@ -113,6 +116,18 @@ fn check_rules_object(
                 class: (*class).to_string(),
                 path: format!("{prefix}.{class}"),
             });
+        }
+        // Shape 6 / 7: `class: "disabled" | "off" | "none"` (scalar mode).
+        // Same normalisation as object `mode` and `RuleMode::parse`.
+        if let Some(raw) = entry.as_str() {
+            let normalised = raw.to_ascii_lowercase();
+            if matches!(normalised.as_str(), "disabled" | "off" | "none") {
+                return Err(ValidationError::HardPinnedModeDisabled {
+                    class: (*class).to_string(),
+                    mode: raw.to_string(),
+                    path: format!("{prefix}.{class}"),
+                });
+            }
         }
         if let Some(obj) = entry.as_object() {
             // Shape 1 / 4: `class: { enabled: false }`.
@@ -202,6 +217,74 @@ mod tests {
             err,
             ValidationError::HardPinnedModeDisabled { .. }
         ));
+    }
+
+    #[test]
+    fn rejects_scalar_mode_off_canonical() {
+        // Scalar `"secrets": "off"` is a supported RuleMode form; hard-pin
+        // must reject it the same way as `{ mode: "off" }`.
+        let v = json!({"enforcement": {"rules": {"secrets": "off"}}});
+        let err = validate_hard_pinned_classes(&v).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                ValidationError::HardPinnedModeDisabled {
+                    ref class,
+                    ref mode,
+                    ref path,
+                    ..
+                } if class == "secrets" && mode == "off" && path == "enforcement.rules.secrets"
+            ),
+            "expected HardPinnedModeDisabled for scalar off, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_scalar_mode_disabled_and_none_case_insensitive() {
+        for (class, mode) in [
+            ("secrets", "disabled"),
+            ("secrets", "DISABLED"),
+            ("command-safety", "none"),
+            ("command-safety", "Off"),
+        ] {
+            let v = json!({"enforcement": {"rules": {class: mode}}});
+            let err = validate_hard_pinned_classes(&v).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    ValidationError::HardPinnedModeDisabled {
+                        class: ref c,
+                        mode: ref m,
+                        ..
+                    } if c == class && m == mode
+                ),
+                "class={class} mode={mode}: expected HardPinnedModeDisabled, got {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_scalar_mode_off_legacy_flat_shape() {
+        let v = json!({"rules": {"command-safety": "off"}});
+        let err = validate_hard_pinned_classes(&v).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                ValidationError::HardPinnedModeDisabled {
+                    ref class,
+                    ref path,
+                    ..
+                } if class == "command-safety" && path == "rules.command-safety"
+            ),
+            "expected legacy scalar rejection, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn accepts_scalar_mode_warn_for_hard_pinned() {
+        // Softening to warn is tuning, not a disable.
+        let v = json!({"enforcement": {"rules": {"secrets": "warn"}}});
+        assert_eq!(validate_hard_pinned_classes(&v), Ok(()));
     }
 
     #[test]
