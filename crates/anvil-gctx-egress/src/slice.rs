@@ -86,9 +86,12 @@ pub struct SnippetByteLedger {
 }
 
 /// Hard per-file unique-coverage session byte ceiling (CE-6): independent of the
-/// per-call token budget. Historically named `…_PER_SPAN`; the cap is now
-/// enforced on unique file-byte coverage so overlapping spans share it.
-pub const MAX_SESSION_SNIPPET_BYTES_PER_SPAN: u32 = 16 * 1024;
+/// per-call token budget. Overlapping spans share this file-level allowance.
+pub const MAX_SESSION_SNIPPET_BYTES_PER_FILE: u32 = 16 * 1024;
+
+/// Historical alias of [`MAX_SESSION_SNIPPET_BYTES_PER_FILE`] (kept for call-site
+/// compatibility; the cap is enforced on per-file unique coverage, not per-span).
+pub const MAX_SESSION_SNIPPET_BYTES_PER_SPAN: u32 = MAX_SESSION_SNIPPET_BYTES_PER_FILE;
 
 impl SnippetByteLedger {
     /// Total unique bytes already covered for `file`.
@@ -125,16 +128,39 @@ impl SnippetByteLedger {
         remaining
     }
 
+    /// Position interval actually charged for an admission of `span` with
+    /// `bytes` of emitted text. Truncation keeps a leading slice of the span
+    /// (`project_snippet`); never charge more position bytes than were emitted.
+    fn charge_span(span: ByteRange, bytes: u32) -> ByteRange {
+        if span.is_empty() || bytes == 0 {
+            return ByteRange {
+                start: span.start,
+                end: span.start,
+            };
+        }
+        let cover_len = span.len().min(bytes);
+        ByteRange {
+            start: span.start,
+            end: span.start.saturating_add(cover_len),
+        }
+    }
+
     /// Whether admitting `span` in `file` would keep unique coverage under the
-    /// per-file session ceiling. `bytes` is retained for call-site compatibility
-    /// (emitted text length); when the span is empty the ledger falls back to
-    /// charging `bytes` against the file total.
+    /// per-file session ceiling. `bytes` is the emitted text length and caps how
+    /// much of `span` is charged (so truncated large symbols are not refused
+    /// solely for their full defining span).
     #[must_use]
     pub fn can_admit(&self, file: &str, span: ByteRange, bytes: u32) -> bool {
-        let charge = if span.is_empty() {
+        if bytes == 0 {
+            return true;
+        }
+        let charged = Self::charge_span(span, bytes);
+        let charge = if charged.is_empty() {
+            // Empty span with non-zero text: fall back to text length against
+            // the file total (no position coverage to merge).
             bytes
         } else {
-            self.newly_exposed(file, span)
+            self.newly_exposed(file, charged)
         };
         if charge == 0 {
             return true;
@@ -142,17 +168,17 @@ impl SnippetByteLedger {
         self.covered_total(file).saturating_add(charge) <= MAX_SESSION_SNIPPET_BYTES_PER_SPAN
     }
 
-    /// Record that `span` in `file` was egressed (merge into covered intervals).
-    /// `bytes` is retained for call-site compatibility; coverage is position-
-    /// based. When `span` is empty, a zero-length marker is not stored and the
-    /// call is a no-op for coverage (empty spans expose no file bytes).
-    pub fn record(&mut self, file: &str, span: ByteRange, _bytes: u32) {
-        if span.is_empty() {
+    /// Record that `span` in `file` was egressed (merge the emitted prefix into
+    /// covered intervals). `bytes` caps the charged coverage to the emitted
+    /// text length so truncation does not mark unexposed tail bytes as spent.
+    pub fn record(&mut self, file: &str, span: ByteRange, bytes: u32) {
+        let charged = Self::charge_span(span, bytes);
+        if charged.is_empty() {
             return;
         }
         let intervals = self.covered.entry(file.to_string()).or_default();
-        // Insert `span` and merge overlapping / adjacent intervals.
-        intervals.push(span);
+        // Insert `charged` and merge overlapping / adjacent intervals.
+        intervals.push(charged);
         intervals.sort_by_key(|iv| iv.start);
         let mut merged: Vec<ByteRange> = Vec::with_capacity(intervals.len());
         for iv in intervals.drain(..) {
@@ -433,6 +459,41 @@ mod tests {
         let s_c = slice_under_budget(cands_c, 100_000, Some(&mut ledger));
         assert!(s_c.snippets.is_empty());
         assert_eq!(s_c.omitted[0].reason, SliceOmitReason::ByteCeiling);
+    }
+
+    #[test]
+    fn byte_ledger_admits_truncated_prefix_of_oversized_span() {
+        // A symbol span larger than the ceiling must still admit when only a
+        // truncated prefix is emitted (matches project_snippet truncation).
+        let mut ledger = SnippetByteLedger::default();
+        let oversized_end = MAX_SESSION_SNIPPET_BYTES_PER_FILE * 2;
+        let emitted = MAX_SESSION_SNIPPET_BYTES_PER_FILE;
+        let text = "x".repeat(emitted as usize);
+        let snip = snippet_at("big.ts", 0, oversized_end, &text);
+        // snippet_at sets text length = emitted, span end = oversized.
+        assert_eq!(snip.span.end, oversized_end);
+        assert_eq!(snip.text.as_ref().map(String::len), Some(emitted as usize));
+
+        let cands = vec![SliceCandidate {
+            identity: id("big", 0),
+            distance: 0,
+            snippet: Some(snip),
+        }];
+        let s = slice_under_budget(cands, 200_000, Some(&mut ledger));
+        assert_eq!(s.snippets.len(), 1, "truncated oversized span must admit");
+        assert!(!s.byte_ceiling_hit);
+
+        // A further non-overlapping prefix past the emitted region is refused.
+        let more = "y".repeat(100);
+        let snip2 = snippet_at("big.ts", emitted, emitted + 100, &more);
+        let cands2 = vec![SliceCandidate {
+            identity: id("more", 0),
+            distance: 0,
+            snippet: Some(snip2),
+        }];
+        let s2 = slice_under_budget(cands2, 200_000, Some(&mut ledger));
+        assert!(s2.snippets.is_empty());
+        assert_eq!(s2.omitted[0].reason, SliceOmitReason::ByteCeiling);
     }
 
     #[test]
