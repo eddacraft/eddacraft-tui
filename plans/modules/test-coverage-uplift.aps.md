@@ -2,7 +2,7 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 25/26    |
+| TCOV | @eddacraft | In Progress | 26/26    |
 
 ## Progress (as of 2026-06-26)
 
@@ -11,11 +11,12 @@
   gates landed. New work item aligns the routine suite with CI and extends the
   committed history schema (`secret_scan_parallel`, `walk_discovery`,
   `hot_read`, `call_lift`, resource budgets). Status **In Progress**.
-- **TCOV-026 follow-up 2026-08-11.** The first full-suite comparison after the
-  rule catalogue expanded showed that antipattern timings were being compared
-  across different rule workloads and a TypeScript-heavy corpus. The active
-  follow-up adds language-labelled Rust-scanner cases, a balanced corpus v2,
-  and automatic catalogue fingerprints in committed history.
+- **TCOV-026 follow-up Merged 2026-08-11 via #3730.** The first full-suite
+  comparison after the rule catalogue expanded showed that antipattern timings
+  were being compared across different rule workloads and a TypeScript-heavy
+  corpus. The merged follow-up adds language-labelled Rust-scanner cases, a
+  balanced corpus v2, and automatic catalogue fingerprints in committed
+  history.
 
 ## Progress (as of 2026-06-20)
 
@@ -727,4 +728,5 @@ Change status to **Ready** when:
   antipattern_rust_scanner`; `cargo bench -p anvil-bench --bench
   antipattern_scan -- --test`.
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-11 via #3730 — required GitHub checks passed,
+  review threads were resolved, and rebase result `03d260dc2` is on `main`.
