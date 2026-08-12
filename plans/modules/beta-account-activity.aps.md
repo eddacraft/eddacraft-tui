@@ -395,7 +395,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-012: Optional refresh-token activity backfill
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** Low
 - **Confidence:** high
 - **Intent:** One-shot proxy so pre-stamp token users are not all “never
