@@ -290,7 +290,25 @@ fn check_policy_variants() -> DiagnosticCheck {
 /// is enforced. Warn naming the winner so a stale duplicate cannot
 /// silently shadow the file an operator is editing.
 fn check_policy_variants_in(root: &Path) -> DiagnosticCheck {
-    let variants = crate::policy_load::policy_variants(root);
+    let variants = match crate::policy_load::policy_variants(root) {
+        Ok(variants) => variants,
+        Err(e) => {
+            return DiagnosticCheck {
+                name: "policy-variants".to_string(),
+                category: "Configuration".to_string(),
+                status: CheckStatus::Warn,
+                message: "could not probe anvil/policy.*".to_string(),
+                details: Some(e.to_string()),
+                auto_fixable: false,
+                remediation: Remediation {
+                    summary: "Check filesystem permissions on anvil/ and retry `anvil doctor`."
+                        .to_string(),
+                    command: None,
+                    doc_url: None,
+                },
+            };
+        }
+    };
     let (status, message, details) = if variants.len() > 1 {
         let names: Vec<String> = variants
             .iter()

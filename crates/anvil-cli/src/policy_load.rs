@@ -46,13 +46,20 @@ pub(crate) fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
 /// [`anvil_config::DISCOVER_PRECEDENCE`] order — index 0 is the winner
 /// [`load_policy`] would pick. Used by `anvil doctor` to warn on
 /// ambiguous multi-variant repos.
-pub(crate) fn policy_variants(repo_root: &Path) -> Vec<std::path::PathBuf> {
+///
+/// Propagates stat errors (`try_exists`) instead of treating them as
+/// absent, matching `discover`'s loud posture — a permission-denied
+/// `anvil/` must not report as "no policy file".
+pub(crate) fn policy_variants(repo_root: &Path) -> std::io::Result<Vec<std::path::PathBuf>> {
     let dir = repo_root.join("anvil");
-    anvil_config::DISCOVER_PRECEDENCE
-        .iter()
-        .map(|format| dir.join(format!("policy.{}", format.extension())))
-        .filter(|path| path.exists())
-        .collect()
+    let mut present = Vec::new();
+    for format in &anvil_config::DISCOVER_PRECEDENCE {
+        let path = dir.join(format!("policy.{}", format.extension()));
+        if path.try_exists()? {
+            present.push(path);
+        }
+    }
+    Ok(present)
 }
 
 #[cfg(test)]
@@ -149,7 +156,7 @@ mod tests {
             ("policy.yaml", "a: 1\n"),
             ("policy.yml", "b: 2\n"),
         ]);
-        let variants = policy_variants(tmp.path());
+        let variants = policy_variants(tmp.path()).unwrap();
         let names: Vec<_> = variants
             .iter()
             .map(|p| p.file_name().unwrap().to_str().unwrap().to_string())
