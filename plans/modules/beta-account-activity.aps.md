@@ -7,7 +7,7 @@
 | ---- | ----- | -------- | ------ | -------- |
 | BACT | —     | High     | In Progress | 0/6      |
 
-**Last reviewed:** 2026-08-11 — operator accepted the two-pipe design: FLEET
+**Last reviewed:** 2026-08-12 — BACT-003..006 merged via PR #3782; FLEET
 stays anonymous population evidence (ADR-107); this module owns identity-bound
 customer-success signals (who logged in, who used allowlisted core features).
 
@@ -195,7 +195,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 
 ### BACT-003: Admin show/list login surface
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3782
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Operators can see login state without Neon SQL.
@@ -214,7 +214,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 
 ### BACT-004: Allowlisted account feature-touch store
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3782
 - **Priority:** High
 - **Confidence:** medium — final key set is OQ1.
 - **Intent:** Persist “this account used this core surface” without free-form
@@ -236,7 +236,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 
 ### BACT-005: Authenticated emission of feature-touch events
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3782
 - **Priority:** High
 - **Confidence:** medium — must not block command latency or leak when logged
   out.
@@ -258,7 +258,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 
 ### BACT-006: CS engagement filters and runbook
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3782
 - **Priority:** Medium
 - **Confidence:** high
 - **Intent:** Operators can list who needs help without hand-written SQL.
