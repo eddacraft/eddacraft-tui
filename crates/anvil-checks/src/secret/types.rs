@@ -205,4 +205,12 @@ pub struct SecretCheckResult {
     /// flag and why. `serde(default)` keeps the field backward-compatible.
     #[serde(default)]
     pub suppressions: Vec<Suppression>,
+    /// Failures while running the optional git-history secret scan. Present
+    /// only when `scan_git_history` was requested and the scan could not
+    /// complete (I/O, missing git, non-zero `git log`, …). A non-empty list
+    /// prevents a clean pass: requested history coverage that never ran must
+    /// not be reported as "No secrets detected". `serde(default)` keeps the
+    /// field backward-compatible with pre-fix wire consumers.
+    #[serde(default)]
+    pub history_scan_errors: Vec<String>,
 }

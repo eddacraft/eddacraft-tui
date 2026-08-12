@@ -78,21 +78,66 @@ pub fn run_secret_check(
     }
     let mut lines_skipped_oversize = lines_skipped_atomic.load(Ordering::Relaxed);
 
-    if config.scan_git_history {
-        let root = workspace_root.unwrap_or(".");
-        if let Ok(history) = scan_git_history(root, config) {
-            findings.extend(history.findings);
-            // Fold the history scan's oversize-line skips into the same total
-            // so a "0 findings" result isn't silently hiding skipped content.
-            lines_skipped_oversize += history.lines_skipped_oversize;
-            // history.pattern_errors are duplicates of the file-scan errors
-            // (same custom_patterns input compiled twice) — already captured.
-        }
-    }
+    let history_scan_errors = merge_git_history_scan(
+        config,
+        workspace_root,
+        &mut findings,
+        &mut lines_skipped_oversize,
+    );
 
     let findings = sort_findings(deduplicate_findings(findings));
     let suppressions = finalize_suppressions(suppressions);
-    let passed = findings.is_empty();
+    assemble_secret_check_result(
+        findings,
+        suppressions,
+        pattern_errors,
+        lines_skipped_oversize,
+        history_scan_errors,
+    )
+}
+
+/// Run the optional git-history pass, folding findings and skip counts into the
+/// on-disk totals. Returns actionable errors when requested coverage cannot run.
+fn merge_git_history_scan(
+    config: &SecretCheckConfig,
+    workspace_root: Option<&str>,
+    findings: &mut Vec<SecretFinding>,
+    lines_skipped_oversize: &mut usize,
+) -> Vec<String> {
+    if !config.scan_git_history {
+        return Vec::new();
+    }
+    let root = workspace_root.unwrap_or(".");
+    match scan_git_history(root, config) {
+        Ok(history) => {
+            findings.extend(history.findings);
+            // Fold the history scan's oversize-line skips into the same total
+            // so a "0 findings" result isn't silently hiding skipped content.
+            *lines_skipped_oversize += history.lines_skipped_oversize;
+            // history.pattern_errors are duplicates of the file-scan errors
+            // (same custom_patterns input compiled twice) — already captured.
+            Vec::new()
+        }
+        Err(err) => {
+            // Fail closed: requested history coverage that cannot run must
+            // not collapse into the ordinary clean-pass result.
+            vec![format!(
+                "Requested git history secret scan could not run: {err}"
+            )]
+        }
+    }
+}
+
+fn assemble_secret_check_result(
+    findings: Vec<SecretFinding>,
+    suppressions: Vec<Suppression>,
+    pattern_errors: Vec<String>,
+    lines_skipped_oversize: usize,
+    history_scan_errors: Vec<String>,
+) -> SecretCheckResult {
+    // History-scan failures block a clean pass even when no secret findings
+    // were produced — otherwise a broken scan looks identical to "clean".
+    let passed = findings.is_empty() && history_scan_errors.is_empty();
     let pattern_count = findings
         .iter()
         .filter(|finding| finding.finding_type == FindingType::Pattern)
@@ -101,25 +146,19 @@ pub fn run_secret_check(
         .iter()
         .filter(|finding| finding.finding_type == FindingType::Entropy)
         .count();
-    let score_usize = 100_usize.saturating_sub(findings.len().saturating_mul(10));
-    let score = u8::try_from(score_usize).unwrap_or(0);
-
-    let message = if passed {
-        "No secrets detected".to_string()
+    let score_usize = if !history_scan_errors.is_empty() && findings.is_empty() {
+        // Incomplete coverage is not a full score.
+        0
     } else {
-        let mut parts = Vec::new();
-        if pattern_count > 0 {
-            parts.push(format!("{pattern_count} pattern match(es)"));
-        }
-        if entropy_count > 0 {
-            parts.push(format!("{entropy_count} high-entropy string(s)"));
-        }
-        format!(
-            "Found {} potential secret(s): {}",
-            findings.len(),
-            parts.join(", ")
-        )
+        100_usize.saturating_sub(findings.len().saturating_mul(10))
     };
+    let score = u8::try_from(score_usize).unwrap_or(0);
+    let message = secret_check_message(
+        &findings,
+        pattern_count,
+        entropy_count,
+        &history_scan_errors,
+    );
 
     SecretCheckResult {
         passed,
@@ -129,6 +168,38 @@ pub fn run_secret_check(
         pattern_errors,
         lines_skipped_oversize,
         suppressions,
+        history_scan_errors,
+    }
+}
+
+fn secret_check_message(
+    findings: &[SecretFinding],
+    pattern_count: usize,
+    entropy_count: usize,
+    history_scan_errors: &[String],
+) -> String {
+    if !history_scan_errors.is_empty() && findings.is_empty() {
+        return history_scan_errors.join("; ");
+    }
+    if findings.is_empty() {
+        return "No secrets detected".to_string();
+    }
+    let mut parts = Vec::new();
+    if pattern_count > 0 {
+        parts.push(format!("{pattern_count} pattern match(es)"));
+    }
+    if entropy_count > 0 {
+        parts.push(format!("{entropy_count} high-entropy string(s)"));
+    }
+    let base = format!(
+        "Found {} potential secret(s): {}",
+        findings.len(),
+        parts.join(", ")
+    );
+    if history_scan_errors.is_empty() {
+        base
+    } else {
+        format!("{base}; {}", history_scan_errors.join("; "))
     }
 }
 
@@ -475,6 +546,77 @@ mod tests {
         );
         assert_eq!(result.findings.len(), 0);
 
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn history_scan_io_failure_is_not_a_clean_pass() {
+        // When history coverage is requested but the git scan cannot run
+        // (I/O / process failure), the result must not claim a clean pass.
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        let missing = format!(
+            "/nonexistent/anvil-history-scan-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos())
+        );
+        let result = run_secret_check(&[], &config, Some(&missing));
+
+        assert!(
+            !result.passed,
+            "failed history coverage must not report passed=true: {result:?}"
+        );
+        assert!(
+            !result.history_scan_errors.is_empty(),
+            "history_scan_errors must surface the failure: {result:?}"
+        );
+        assert!(
+            result.message.to_lowercase().contains("history")
+                || result
+                    .history_scan_errors
+                    .iter()
+                    .any(|e| e.to_lowercase().contains("history")),
+            "operator-facing signal must mention history: {result:?}"
+        );
+        assert_ne!(
+            result.message, "No secrets detected",
+            "must not use the clean-result message when history coverage failed"
+        );
+    }
+
+    #[test]
+    fn history_scan_disabled_does_not_error_on_bad_workspace() {
+        // History errors only apply when coverage was requested.
+        let config = SecretCheckConfig {
+            scan_git_history: false,
+            ..SecretCheckConfig::default()
+        };
+        let missing = "/nonexistent/anvil-history-scan-disabled";
+        let result = run_secret_check(&[], &config, Some(missing));
+        assert!(result.passed);
+        assert!(result.history_scan_errors.is_empty());
+        assert_eq!(result.message, "No secrets detected");
+    }
+
+    #[test]
+    fn non_git_workspace_with_history_enabled_is_still_a_clean_pass() {
+        // Not being a git repo is a successful empty history scan, not a failure.
+        let temp_dir = create_temp_dir("nongit-history");
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        let root = temp_dir.to_string_lossy().to_string();
+        let result = run_secret_check(&[], &config, Some(&root));
+        assert!(
+            result.passed,
+            "non-git workspace should not fail history coverage: {result:?}"
+        );
+        assert!(result.history_scan_errors.is_empty());
         let _ = fs::remove_dir_all(temp_dir);
     }
 }

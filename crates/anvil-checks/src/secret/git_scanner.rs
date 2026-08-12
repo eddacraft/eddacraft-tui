@@ -273,17 +273,24 @@ pub fn scan_git_history(
         .output()?;
 
     if !output.status.success() {
-        // Surface the failure: a silently-empty result is indistinguishable
-        // from a clean history, which would hide a scan that never ran.
-        eprintln!(
-            "warning: git history secret scan skipped (git exited non-zero): {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-        return Ok(GitScanOutput {
-            findings: Vec::new(),
-            pattern_errors,
-            lines_skipped_oversize: 0,
-        });
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr_trim = stderr.trim();
+        // An empty repository has no commits to scan — that is a successful
+        // empty history, not a coverage failure. Fail closed for every other
+        // non-zero exit so a broken scan cannot look clean.
+        if stderr_trim.contains("does not have any commits")
+            || stderr_trim.contains("bad default revision")
+            || stderr_trim.contains("unknown revision or path not in the working tree")
+        {
+            return Ok(GitScanOutput {
+                findings: Vec::new(),
+                pattern_errors,
+                lines_skipped_oversize: 0,
+            });
+        }
+        return Err(io::Error::other(format!(
+            "git history secret scan failed (git exited non-zero): {stderr_trim}"
+        )));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -619,6 +626,48 @@ mod tests {
             "malformed skip entry must not suppress scanning: {findings:?}"
         );
 
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn empty_repo_is_successful_empty_history() {
+        // A freshly initialised repo has no commits; that is empty coverage,
+        // not a scan failure.
+        let repo = temp_repo();
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        let output = scan_git_history(&repo.to_string_lossy(), &config)
+            .expect("empty repo must return Ok empty, not Err");
+        assert!(output.findings.is_empty());
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn non_zero_git_log_is_an_error_not_empty_ok() {
+        // A repo whose `git log` fails for a reason other than "no commits"
+        // must return Err so callers can fail closed instead of reporting a
+        // clean empty history.
+        let repo = temp_repo();
+        commit_file(&repo, "ok.py", "x = 1\n");
+        // Corrupt the object store so `git log -p` exits non-zero with a real
+        // failure (not the empty-repo "no commits" path).
+        let objects = repo.join(".git/objects");
+        let _ = std::fs::remove_dir_all(&objects);
+        std::fs::create_dir_all(&objects).expect("recreate objects dir");
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        let Err(err) = scan_git_history(&repo.to_string_lossy(), &config) else {
+            panic!("corrupted object store must not look like a clean empty scan");
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("git history secret scan failed") || msg.contains("non-zero"),
+            "error should identify the history-scan failure: {msg}"
+        );
         let _ = std::fs::remove_dir_all(&repo);
     }
 
