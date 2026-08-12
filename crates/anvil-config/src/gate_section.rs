@@ -5,8 +5,8 @@
 //! optional score thresholds, and gate-global configuration — while
 //! check *selection* stays the top-level `checks` list that gate runs
 //! already treat as authoritative. One truth per concern: a check is
-//! selected by membership in `checks` (or, when that list is absent,
-//! by having an entry in `gate.checks`); the section never carries a
+//! selected by membership in `checks` (or, when that list is absent or
+//! empty, by having an entry in `gate.checks`); the section never carries a
 //! second `enabled` flag that could disagree with the list.
 //!
 //! The schema is additive-tolerant: unknown keys inside `gate` are

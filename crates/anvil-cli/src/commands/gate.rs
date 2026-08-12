@@ -4308,8 +4308,11 @@ fn ai_guardrail_only_set() -> Result<std::collections::HashSet<&'static str>> {
 /// `.anvil.<ext>` (yaml/yml/json/toml) discovery and falling back to the
 /// legacy `.anvilrc` for projects that have not migrated yet.
 ///
-/// Returns `Ok(None)` when no config file is found, no `checks` field is
-/// present, or the list is empty. Parsing or shape errors are surfaced so
+/// Returns `Ok(None)` when no config file is found, or when neither a
+/// top-level `checks` list (absent/empty) nor a `gate.checks` table
+/// supplies a selection (UCFG-004: the gate section's keys are the
+/// fallback selection when the top-level list is absent or empty).
+/// Parsing or shape errors are surfaced so
 /// gate can fail clearly instead of silently acting on a malformed filter.
 ///
 /// `pub(crate)` so the planless `anvil check` dispatcher in `commands/check.rs`

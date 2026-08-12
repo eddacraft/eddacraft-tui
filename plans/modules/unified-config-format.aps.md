@@ -254,7 +254,12 @@ Change status to **Ready** when:
   `gate-config.json` (only fields absent from the main config; every folded
   key reported; folds that weaken enforcement relative to the effective
   config — disabled checks, lowered thresholds — require explicit
-  diff-and-confirm), then the stray file is a doctor warning
+  diff-and-confirm), then the stray file is a doctor warning. UCFG-004
+  verifier obligations: (a) folding a legacy `enabled: false` check MUST
+  also write a top-level `checks` list, else section-key presence would
+  select the disabled check on list-less configs; (b) extend
+  `validate_hard_pinned_classes` disable-attempt shapes once `gate-config`
+  writes the section
 - **Expected Outcome:** no code path writes `.anvil/gate-config.json`; the
   file the product ignores no longer exists on migrated repos; a stale
   weakened JSON cannot become live enforcement silently
@@ -389,7 +394,9 @@ Change status to **Ready** when:
 - **Intent:** config.md names exactly one canonical filename and the legacy
   fallback story; first-project, quickstart, agent-harness, using-anvil
   skill, and cli-surface runbook updated; gate-config "planning surface"
-  concession removed once UCFG-005 lands
+  concession removed once UCFG-005 lands; document that a malformed `gate`
+  section is now a loud error on both `anvil gate` and `anvil check`
+  (UCFG-004 shared-path consequence)
 - **Expected Outcome:** no doc presents five filenames as co-equal; no doc
   references `gate-config.json` as a live surface
 - **Validation:** `pnpm docs:check`; grep gates for retired paths in
