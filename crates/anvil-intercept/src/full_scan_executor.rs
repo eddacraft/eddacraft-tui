@@ -367,6 +367,13 @@ pub fn prepare_scan(
 // Eight tightly-related parameters; bundling them into a struct would add
 // ceremony without clarity for a single private helper.
 #[allow(clippy::too_many_arguments)]
+/// Outcome of [`run_segments`]: either the token of the last segment (ready to
+/// complete) or the token of the segment that hit the wall-clock budget.
+enum SegmentRun {
+    Finished { token: u64 },
+    TimedOut { token: u64 },
+}
+
 fn run_segments(
     ctx: &ScanContext,
     machine: &Arc<Mutex<AssuranceMachine>>,
@@ -377,12 +384,13 @@ fn run_segments(
     files: &[PathBuf],
     timed_out: &AtomicBool,
     deadline: Instant,
-) -> bool {
+) -> SegmentRun {
     let mut start = 0usize;
     loop {
         let cancel = ScanCancel::new();
         ctx.coordinator.register_cancel(key, cancel.clone());
-        with_locked_machine_trace(machine, root, |m| m.start_scan(now_rfc3339()));
+        let token =
+            with_locked_machine_trace(machine, root, |m| m.start_scan(now_rfc3339()));
 
         let outcome = run_chunked_scan(&files[start..], SCAN_CHUNK, &cancel, |path| {
             // CIB-095e: enforce the scan-timeout deadline inline (replacing the
@@ -413,14 +421,14 @@ fn run_segments(
                 // The watchdog fires the cancel on a timeout; distinguish it from
                 // an interactive preemption (which keeps deltas + continues).
                 if timed_out.load(Ordering::Acquire) {
-                    return false;
+                    return SegmentRun::TimedOut { token };
                 }
                 start += processed;
                 if start >= files.len() {
-                    return true;
+                    return SegmentRun::Finished { token };
                 }
             }
-            ScanOutcome::Completed => return true,
+            ScanOutcome::Completed => return SegmentRun::Finished { token },
         }
     }
 }
@@ -491,9 +499,11 @@ fn run_scan_loop(
             total_files: walk.total as u64,
         };
 
-        // Run the file list with cooperative-yield continuations. A `false`
-        // return means the watchdog tripped mid-pass → abort to ScanTimeout.
-        if !run_segments(
+        // Run the file list with cooperative-yield continuations. A
+        // `TimedOut` means the wall-clock budget tripped mid-pass → abort
+        // with the segment's scan token (so a late completion cannot later
+        // restore Clean).
+        let scan_token = match run_segments(
             ctx,
             machine,
             key,
@@ -504,15 +514,18 @@ fn run_scan_loop(
             timed_out,
             deadline,
         ) {
-            with_locked_machine_trace(machine, root, AssuranceMachine::scan_timeout);
-            tracing::warn!(
-                target: "anvil_intercept::full_scan",
-                workspace_root = %root.display(),
-                timeout_secs = SCAN_TIMEOUT.as_secs(),
-                "full scan exceeded its wall-clock budget; marked stale (scan-timeout)",
-            );
-            return;
-        }
+            SegmentRun::TimedOut { token } => {
+                with_locked_machine_trace(machine, root, |m| m.scan_timeout(token));
+                tracing::warn!(
+                    target: "anvil_intercept::full_scan",
+                    workspace_root = %root.display(),
+                    timeout_secs = SCAN_TIMEOUT.as_secs(),
+                    "full scan exceeded its wall-clock budget; marked stale (scan-timeout)",
+                );
+                return;
+            }
+            SegmentRun::Finished { token } => token,
+        };
 
         // DSV-030 reconcile: make the rebuild **disk-authoritative**. The walk
         // applied every file currently on disk; any file still in the warm graph
@@ -535,12 +548,13 @@ fn run_scan_loop(
         }
 
         // Terminal transition for this walk, under the lock (brief): the
-        // compare-and-clear of the dirty flag happens here (Decision 4).
+        // compare-and-clear of the dirty flag happens here (Decision 4). The
+        // scan token correlates this completion with the last start_scan.
         let completion = with_locked_machine_trace(machine, root, |m| {
             if truncated {
-                m.complete_scan_bounded(now_rfc3339(), coverage)
+                m.complete_scan_bounded(now_rfc3339(), coverage, scan_token)
             } else {
-                m.complete_scan(now_rfc3339())
+                m.complete_scan(now_rfc3339(), scan_token)
             }
         });
 
@@ -581,6 +595,16 @@ fn run_scan_loop(
                     m.request_full_scan(ScanPriority::Background);
                 });
                 walk = walk_gitignored(root, ctx.caps.max_walk_depth, ctx.caps.max_walk_files);
+            }
+            ScanCompletion::Ignored => {
+                // Token no longer active (timed out / superseded / restarted).
+                // Leave the machine as-is; do not re-queue from a straggler.
+                tracing::warn!(
+                    target: "anvil_intercept::full_scan",
+                    workspace_root = %root.display(),
+                    "full scan completion ignored (scan token no longer active)"
+                );
+                return;
             }
         }
     }
@@ -1027,10 +1051,10 @@ mod tests {
         {
             let mut m = lock(&machine);
             m.request_full_scan(ScanPriority::Background);
-            m.start_scan(now_rfc3339());
+            let token = m.start_scan(now_rfc3339());
             // A save lands mid-scan (origin: validate_paths).
             m.note_apply_delta();
-            let completion = m.complete_scan(now_rfc3339());
+            let completion = m.complete_scan(now_rfc3339(), token);
             assert_eq!(completion, ScanCompletion::Dirtied);
             assert_eq!(m.state(), AssuranceState::Stale);
             assert_eq!(m.reason(), Some(StaleReason::CrossFileResolutionNeeded));
@@ -1049,10 +1073,10 @@ mod tests {
         // apply path) during Running sets it just like a validate_paths save.
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan(now_rfc3339());
+        let token = m.start_scan(now_rfc3339());
         m.note_apply_delta(); // stands in for a non-validate_paths apply
         assert!(m.is_dirty_during_scan());
-        assert_eq!(m.complete_scan(now_rfc3339()), ScanCompletion::Dirtied);
+        assert_eq!(m.complete_scan(now_rfc3339(), token), ScanCompletion::Dirtied);
     }
 
     #[test]

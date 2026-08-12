@@ -152,6 +152,9 @@ pub enum ScanCompletion {
     /// is marked `Stale(CrossFileResolutionNeeded)` and the executor MUST
     /// re-queue a fresh scan. This is the phantom-`Clean` guard (Decision 4).
     Dirtied,
+    /// The completion did not match the active scan token (timed out, superseded
+    /// by a newer `start_scan`, or never started). The machine state is unchanged.
+    Ignored,
 }
 
 /// The per-worktree workspace-assurance state machine (DSV-005 Task 9,
@@ -192,6 +195,15 @@ pub struct AssuranceMachine {
     /// `Bounded`-completing scan. `Some` only while the state is `Bounded`;
     /// every other transition clears it.
     scan_coverage: Option<ScanCoverage>,
+    /// Monotonic scan identity. Bumped by every [`start_scan`](Self::start_scan).
+    /// Completions and timeouts must present the token they observed at start so
+    /// a late worker cannot settle a newer scan or restore a timed-out workspace
+    /// to `Clean`.
+    scan_seq: u64,
+    /// Token of the scan currently allowed to complete or time out. Cleared when
+    /// that scan finishes, times out, is abandoned on restart, or is superseded
+    /// by a fresh enqueue via [`request_full_scan`](Self::request_full_scan).
+    active_scan: Option<u64>,
 }
 
 impl AssuranceMachine {
@@ -207,6 +219,8 @@ impl AssuranceMachine {
             scan_started_at: None,
             dirty_during_scan: false,
             scan_coverage: None,
+            scan_seq: 0,
+            active_scan: None,
         }
     }
 
@@ -331,6 +345,9 @@ impl AssuranceMachine {
             self.scan_started_at = None;
             self.scan_coverage = None;
             self.dirty_during_scan = false;
+            // A fresh enqueue abandons any prior in-flight token so a straggler
+            // completion from the previous attempt cannot settle this queue.
+            self.active_scan = None;
         }
         priority
     }
@@ -340,11 +357,20 @@ impl AssuranceMachine {
     /// cooperative yield) re-enters `start_scan`, and a save that raced the
     /// already-processed portion must still be honoured at completion (DSV-045).
     /// A fresh enqueue clears the flag via [`request_full_scan`](Self::request_full_scan).
-    pub fn start_scan(&mut self, now: String) {
+    ///
+    /// Returns a scan token the caller must present to
+    /// [`complete_scan`](Self::complete_scan) / [`scan_timeout`](Self::scan_timeout).
+    /// Each call issues a new token, so a late completion from a prior segment or
+    /// timed-out attempt cannot settle a newer run.
+    pub fn start_scan(&mut self, now: String) -> u64 {
+        self.scan_seq = self.scan_seq.wrapping_add(1);
+        let token = self.scan_seq;
+        self.active_scan = Some(token);
         self.state = AssuranceState::Running;
         self.reason = None;
         self.scan_started_at = Some(now);
         self.scan_coverage = None;
+        token
     }
 
     /// A full-coverage scan completed (`now` = RFC 3339 completion). Reads-and-
@@ -352,8 +378,12 @@ impl AssuranceMachine {
     /// Decision 4): if a save raced the scan the workspace fails safe to
     /// `Stale(CrossFileResolutionNeeded)` ([`ScanCompletion::Dirtied`], the
     /// executor re-queues); otherwise it transitions to `Clean`.
-    pub fn complete_scan(&mut self, now: String) -> ScanCompletion {
-        self.finish_scan(now, None)
+    ///
+    /// `token` must be the value returned by the matching
+    /// [`start_scan`](Self::start_scan). A mismatched or already-settled token
+    /// yields [`ScanCompletion::Ignored`] and leaves the machine unchanged.
+    pub fn complete_scan(&mut self, now: String, token: u64) -> ScanCompletion {
+        self.finish_scan(now, None, token)
     }
 
     /// A scan completed but the worktree exceeded the post-gitignore walk cap:
@@ -362,14 +392,31 @@ impl AssuranceMachine {
     /// as [`complete_scan`](Self::complete_scan) applies — a raced save still
     /// wins (`Dirtied`), because a bounded-but-raced graph is no more
     /// trustworthy than a full-but-raced one.
-    pub fn complete_scan_bounded(&mut self, now: String, coverage: ScanCoverage) -> ScanCompletion {
-        self.finish_scan(now, Some(coverage))
+    pub fn complete_scan_bounded(
+        &mut self,
+        now: String,
+        coverage: ScanCoverage,
+        token: u64,
+    ) -> ScanCompletion {
+        self.finish_scan(now, Some(coverage), token)
     }
 
-    /// Shared terminal transition for both completion paths: compare-and-clear
-    /// the dirty flag, then settle to `Clean`/`Bounded` (or fail safe to
-    /// `Stale` on a raced save). `coverage` selects the terminal state.
-    fn finish_scan(&mut self, now: String, coverage: Option<ScanCoverage>) -> ScanCompletion {
+    /// Shared terminal transition for both completion paths: require a matching
+    /// active scan token, then compare-and-clear the dirty flag and settle to
+    /// `Clean`/`Bounded` (or fail safe to `Stale` on a raced save). `coverage`
+    /// selects the terminal state.
+    fn finish_scan(
+        &mut self,
+        now: String,
+        coverage: Option<ScanCoverage>,
+        token: u64,
+    ) -> ScanCompletion {
+        if self.active_scan != Some(token) {
+            // Timed out, superseded, or never the active scan — do not move the
+            // machine (in particular, do not restore a ScanTimeout to Clean).
+            return ScanCompletion::Ignored;
+        }
+        self.active_scan = None;
         let was_dirty = std::mem::take(&mut self.dirty_during_scan);
         self.scan_started_at = None;
         if was_dirty {
@@ -395,7 +442,14 @@ impl AssuranceMachine {
     }
 
     /// A scan exceeded its time budget ⇒ `Stale(ScanTimeout)`.
-    pub fn scan_timeout(&mut self) {
+    ///
+    /// `token` must match the active scan; a stale or superseded token is a
+    /// no-op so a timed-out straggler cannot overwrite a newer scan's state.
+    pub fn scan_timeout(&mut self, token: u64) {
+        if self.active_scan != Some(token) {
+            return;
+        }
+        self.active_scan = None;
         self.mark_stale(StaleReason::ScanTimeout);
     }
 
@@ -408,6 +462,9 @@ impl AssuranceMachine {
             self.state,
             AssuranceState::Pending | AssuranceState::Running
         ) {
+            // Abandon the in-flight token so a worker that survives the restart
+            // cannot complete into Clean over WarmStateEvicted.
+            self.active_scan = None;
             self.mark_stale(StaleReason::WarmStateEvicted);
         }
     }
@@ -598,14 +655,14 @@ mod tests {
         m.mark_stale(StaleReason::ImpactSetOverflow);
         assert_eq!(m.snapshot().reason, Some(StaleReason::ImpactSetOverflow));
 
-        m.start_scan("2026-06-03T00:00:00Z".to_string());
+        let token = m.start_scan("2026-06-03T00:00:00Z".to_string());
         assert_eq!(
             m.snapshot().reason,
             None,
             "a Running snapshot has no staleness reason"
         );
 
-        m.complete_scan("2026-06-03T00:00:01Z".to_string());
+        m.complete_scan("2026-06-03T00:00:01Z".to_string(), token);
         assert_eq!(
             m.snapshot().reason,
             None,
@@ -630,8 +687,8 @@ mod tests {
     fn full_scan_lifecycle_reaches_clean() {
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan("t0".to_string());
-        m.complete_scan("t1".to_string());
+        let token = m.start_scan("t0".to_string());
+        m.complete_scan("t1".to_string(), token);
         assert_eq!(m.state(), AssuranceState::Clean);
         assert_eq!(m.snapshot().last_full_scan.as_deref(), Some("t1"));
         assert_eq!(m.scan_started_at(), None);
@@ -647,8 +704,8 @@ mod tests {
 
         // Once clean (via a scan), a certified verdict keeps it clean...
         m.request_full_scan(ScanPriority::Interactive);
-        m.start_scan("t0".to_string());
-        m.complete_scan("t1".to_string());
+        let token = m.start_scan("t0".to_string());
+        m.complete_scan("t1".to_string(), token);
         m.record_verdict(true, None);
         assert_eq!(m.state(), AssuranceState::Clean);
 
@@ -662,8 +719,8 @@ mod tests {
     fn scan_timeout_to_stale() {
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Interactive);
-        m.start_scan("t0".to_string());
-        m.scan_timeout();
+        let token = m.start_scan("t0".to_string());
+        m.scan_timeout(token);
         assert_eq!(m.state(), AssuranceState::Stale);
         assert_eq!(m.reason(), Some(StaleReason::ScanTimeout));
         assert_eq!(m.scan_started_at(), None);
@@ -681,8 +738,8 @@ mod tests {
         // A restart does not disturb an already-settled Clean workspace.
         let mut clean = AssuranceMachine::new();
         clean.request_full_scan(ScanPriority::Interactive);
-        clean.start_scan("t0".to_string());
-        clean.complete_scan("t1".to_string());
+        let token = clean.start_scan("t0".to_string());
+        clean.complete_scan("t1".to_string(), token);
         clean.on_restart();
         assert_eq!(clean.state(), AssuranceState::Clean);
     }
@@ -712,10 +769,10 @@ mod tests {
     fn complete_scan_after_dirty_is_stale_not_clean_and_clears_flag() {
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan("t0".to_string());
+        let token = m.start_scan("t0".to_string());
         m.note_apply_delta(); // a save raced the scan
 
-        let completion = m.complete_scan("t1".to_string());
+        let completion = m.complete_scan("t1".to_string(), token);
         assert_eq!(completion, ScanCompletion::Dirtied);
         assert_eq!(m.state(), AssuranceState::Stale);
         assert_eq!(m.reason(), Some(StaleReason::CrossFileResolutionNeeded));
@@ -733,8 +790,8 @@ mod tests {
     fn clean_completion_when_never_dirtied() {
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan("t0".to_string());
-        let completion = m.complete_scan("t1".to_string());
+        let token = m.start_scan("t0".to_string());
+        let completion = m.complete_scan("t1".to_string(), token);
         assert_eq!(completion, ScanCompletion::Clean);
         assert_eq!(m.state(), AssuranceState::Clean);
         assert_eq!(m.snapshot().last_full_scan.as_deref(), Some("t1"));
@@ -744,12 +801,12 @@ mod tests {
     fn bounded_completion_carries_coverage_and_no_reason() {
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan("t0".to_string());
+        let token = m.start_scan("t0".to_string());
         let coverage = ScanCoverage {
             scanned_files: 100,
             total_files: 250,
         };
-        let completion = m.complete_scan_bounded("t1".to_string(), coverage);
+        let completion = m.complete_scan_bounded("t1".to_string(), coverage, token);
         assert_eq!(completion, ScanCompletion::Bounded);
         assert_eq!(m.state(), AssuranceState::Bounded);
         let snap = m.snapshot();
@@ -762,7 +819,7 @@ mod tests {
     fn bounded_completion_after_dirty_still_fails_safe_to_stale() {
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan("t0".to_string());
+        let token = m.start_scan("t0".to_string());
         m.note_apply_delta();
         let completion = m.complete_scan_bounded(
             "t1".to_string(),
@@ -770,6 +827,7 @@ mod tests {
                 scanned_files: 100,
                 total_files: 250,
             },
+            token,
         );
         assert_eq!(completion, ScanCompletion::Dirtied);
         assert_eq!(m.state(), AssuranceState::Stale);
@@ -784,19 +842,20 @@ mod tests {
     fn scan_coverage_clears_on_a_later_clean_scan() {
         let mut m = AssuranceMachine::new();
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan("t0".to_string());
+        let token = m.start_scan("t0".to_string());
         m.complete_scan_bounded(
             "t1".to_string(),
             ScanCoverage {
                 scanned_files: 100,
                 total_files: 250,
             },
+            token,
         );
         assert!(m.scan_coverage().is_some());
         // A later full scan that completes clean drops the bounded coverage.
         m.request_full_scan(ScanPriority::Background);
-        m.start_scan("t2".to_string());
-        m.complete_scan("t3".to_string());
+        let token = m.start_scan("t2".to_string());
+        m.complete_scan("t3".to_string(), token);
         assert_eq!(m.state(), AssuranceState::Clean);
         assert_eq!(m.snapshot().scan_coverage, None);
     }
@@ -812,5 +871,102 @@ mod tests {
             snap.generation, 2,
             "generation bumps on warm-state turnover"
         );
+    }
+
+    // ---- Scan-token correlation (late complete after timeout) ----
+
+    #[test]
+    fn late_complete_after_timeout_stays_stale_scan_timeout() {
+        // Reproduction: start → timeout → complete must NOT restore Clean.
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Interactive);
+        let token = m.start_scan("t0".to_string());
+        m.scan_timeout(token);
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::ScanTimeout));
+
+        let completion = m.complete_scan("t1".to_string(), token);
+        assert_eq!(
+            completion,
+            ScanCompletion::Ignored,
+            "timed-out scan completion must be ignored"
+        );
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(
+            m.reason(),
+            Some(StaleReason::ScanTimeout),
+            "must remain Stale(ScanTimeout), not Clean"
+        );
+        assert_eq!(
+            m.snapshot().last_full_scan,
+            None,
+            "a timed-out scan must not advance last_full_scan"
+        );
+    }
+
+    #[test]
+    fn late_bounded_complete_after_timeout_is_ignored() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Background);
+        let token = m.start_scan("t0".to_string());
+        m.scan_timeout(token);
+        let completion = m.complete_scan_bounded(
+            "t1".to_string(),
+            ScanCoverage {
+                scanned_files: 1,
+                total_files: 2,
+            },
+            token,
+        );
+        assert_eq!(completion, ScanCompletion::Ignored);
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::ScanTimeout));
+        assert_eq!(m.snapshot().scan_coverage, None);
+    }
+
+    #[test]
+    fn old_completion_cannot_settle_a_newer_running_scan() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Interactive);
+        let old = m.start_scan("t0".to_string());
+        m.scan_timeout(old);
+        assert_eq!(m.reason(), Some(StaleReason::ScanTimeout));
+
+        // A subsequent scan starts after the timeout.
+        m.request_full_scan(ScanPriority::Interactive);
+        let newer = m.start_scan("t1".to_string());
+        assert_eq!(m.state(), AssuranceState::Running);
+        assert_ne!(old, newer, "each start_scan issues a fresh token");
+
+        // The timed-out worker's late completion must not settle the new scan.
+        let completion = m.complete_scan("t2".to_string(), old);
+        assert_eq!(completion, ScanCompletion::Ignored);
+        assert_eq!(
+            m.state(),
+            AssuranceState::Running,
+            "newer scan must remain Running"
+        );
+
+        // The matching completion still settles Clean.
+        let completion = m.complete_scan("t3".to_string(), newer);
+        assert_eq!(completion, ScanCompletion::Clean);
+        assert_eq!(m.state(), AssuranceState::Clean);
+    }
+
+    #[test]
+    fn stale_timeout_token_is_a_noop() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Interactive);
+        let first = m.start_scan("t0".to_string());
+        let second = m.start_scan("t1".to_string()); // continuation / re-arm
+        assert_ne!(first, second);
+
+        // Timeout for the superseded segment must not mark the active scan stale.
+        m.scan_timeout(first);
+        assert_eq!(m.state(), AssuranceState::Running);
+
+        m.scan_timeout(second);
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::ScanTimeout));
     }
 }
