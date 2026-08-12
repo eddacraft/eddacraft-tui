@@ -20,6 +20,21 @@ which moved under `plans/archive/` when DOCGOV was archived, and two PocketFlow
 references claim `packages/kindling-adapter-pocketflow/`, which has never existed
 in this tree. Both corrected.
 
+**Limitation found by dogfooding, and it will bite -005 harder.** The gate
+treats *any* commit to a declared upstream as invalidating, including a change
+to that upstream's own governance metadata. This pull request tripped its own
+gate that way: it added `docs/architecture/dev-acceleration-benchmark-spec.md`
+as a declared upstream of the DEVACC evidence note and, in the same change,
+edited only that spec's Upstream cell. Nothing the evidence note depends on
+moved, but the check cannot tell a metadata edit from a substantive one.
+Resolved here by verifying and re-dating the one affected document.
+
+DOCFRESH-005 edits frontmatter on 91 public documents, so the same effect will
+cascade much wider there. Worth deciding before -005 starts whether the check
+should ignore commits that touch only an upstream's metadata block — noting the
+"metadata-only" test is itself fragile, which is why it is recorded rather than
+implemented on the fly here.
+
 **Coverage has a real ceiling.** Sixteen documents — vision, strategy, internal
 briefs, third-party references — have no in-repo upstream that could be cited.
 They are baselined rather than given invented paths, so they stay countable as
