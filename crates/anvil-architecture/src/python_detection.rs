@@ -425,7 +425,7 @@ fn tokenize_py(text: &str) -> Vec<PyTok> {
 /// pruned dirs). Capping each read keeps a single hostile or generated giant
 /// file from forcing unbounded allocation during ordinary detection. Files over
 /// the cap are skipped (best-effort detection; no error is reported).
-pub(crate) const PYTHON_SOURCE_MAX_BYTES: u64 = 1024 * 1024;
+const PYTHON_SOURCE_MAX_BYTES: u64 = 1024 * 1024;
 
 fn collect_main_guards(workspace_root: &Path, out: &mut Vec<(u8, EntryPoint)>) {
     collect_main_guards_with_cap(workspace_root, PYTHON_SOURCE_MAX_BYTES, out);
