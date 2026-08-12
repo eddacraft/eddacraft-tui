@@ -321,7 +321,8 @@ mod tests {
         std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
             .expect("chmod target");
 
-        let status = Command::new("sh").arg(&runtime_path)
+        let status = Command::new("sh")
+            .arg(&runtime_path)
             .arg(target_name)
             .status()
             .expect("run runtime");
@@ -356,7 +357,8 @@ mod tests {
         std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
             .expect("chmod target");
 
-        let status = Command::new("sh").arg(&runtime_path)
+        let status = Command::new("sh")
+            .arg(&runtime_path)
             .arg(target_name)
             .status()
             .expect("run runtime");
@@ -381,7 +383,8 @@ mod tests {
         std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
             .expect("chmod runtime");
 
-        let status = Command::new("sh").arg(&runtime_path)
+        let status = Command::new("sh")
+            .arg(&runtime_path)
             .arg("does-not-exist")
             .status()
             .expect("run runtime");
@@ -424,7 +427,8 @@ mod tests {
         std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
             .expect("chmod target");
 
-        let status = Command::new("sh").arg(&runtime_path)
+        let status = Command::new("sh")
+            .arg(&runtime_path)
             .arg(target_name)
             .arg("COMMIT_MSG_PATH")
             .arg("extra")
