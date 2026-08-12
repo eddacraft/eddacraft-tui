@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crate::types::{DetectionConfidence, EntryPoint, EntryPointType};
-use crate::util::relative_slash;
+use crate::util::{read_to_string_capped, relative_slash};
 
 /// Detect Python entry points under `workspace_root`.
 ///
@@ -419,7 +419,19 @@ fn tokenize_py(text: &str) -> Vec<PyTok> {
 // `if __name__ == "__main__":` guard scan
 // =============================================================================
 
+/// Per-file read cap for `__main__` guard detection (1 MiB).
+///
+/// The main-guard walk may touch every `.py` file under the workspace (outside
+/// pruned dirs). Capping each read keeps a single hostile or generated giant
+/// file from forcing unbounded allocation during ordinary detection. Files over
+/// the cap are skipped (best-effort detection; no error is reported).
+pub(crate) const PYTHON_SOURCE_MAX_BYTES: u64 = 1024 * 1024;
+
 fn collect_main_guards(workspace_root: &Path, out: &mut Vec<(u8, EntryPoint)>) {
+    collect_main_guards_with_cap(workspace_root, PYTHON_SOURCE_MAX_BYTES, out);
+}
+
+fn collect_main_guards_with_cap(workspace_root: &Path, cap: u64, out: &mut Vec<(u8, EntryPoint)>) {
     let walker = ignore::WalkBuilder::new(workspace_root)
         .follow_links(false)
         .standard_filters(false)
@@ -441,7 +453,7 @@ fn collect_main_guards(workspace_root: &Path, out: &mut Vec<(u8, EntryPoint)>) {
         if path.extension().and_then(|e| e.to_str()) != Some("py") {
             continue;
         }
-        let Ok(content) = std::fs::read_to_string(path) else {
+        let Ok(content) = read_to_string_capped(path, cap) else {
             continue;
         };
         if !has_main_guard(&content) {
@@ -924,5 +936,57 @@ mod tests {
         );
         let entries = detect_python_entry_points(tmp.path());
         assert_eq!(paths(&entries), ["env/settings.py"]);
+    }
+
+    // --- Size-cap regressions (main-guard walk) --------------------------------
+
+    #[test]
+    fn oversize_python_source_is_skipped_during_main_guard_scan() {
+        // Cap-configurable helper: a small cap exercises the skip path without
+        // writing a multi-megabyte fixture. An over-cap file that carries a real
+        // guard must not become an entry point, while a within-cap neighbour is
+        // still detected.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let guard = "if __name__ == \"__main__\":\n    pass\n";
+        write(tmp.path(), "ok.py", guard);
+        // 64-byte cap; pad so the file exceeds it while still containing a guard.
+        let mut huge = String::from(guard);
+        huge.push_str(&"x".repeat(128));
+        write(tmp.path(), "huge.py", &huge);
+
+        let mut ranked = Vec::new();
+        collect_main_guards_with_cap(tmp.path(), 64, &mut ranked);
+        let entries: Vec<EntryPoint> = ranked.into_iter().map(|(_, ep)| ep).collect();
+        assert_eq!(
+            paths(&entries),
+            ["ok.py"],
+            "over-cap .py files must be skipped, not allocated; got {:?}",
+            paths(&entries)
+        );
+    }
+
+    #[test]
+    fn python_source_at_exact_cap_with_guard_is_still_detected() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let guard = "if __name__ == \"__main__\":\n    pass\n";
+        let cap = 64u64;
+        // Pad to exactly `cap` bytes (not one over) so the capped reader accepts it.
+        let mut body = String::from(guard);
+        let target = usize::try_from(cap).unwrap();
+        assert!(body.len() < target, "guard must fit under the test cap");
+        body.push_str(&"y".repeat(target - body.len()));
+        assert_eq!(body.len() as u64, cap);
+        write(tmp.path(), "exact.py", &body);
+
+        let mut ranked = Vec::new();
+        collect_main_guards_with_cap(tmp.path(), cap, &mut ranked);
+        let entries: Vec<EntryPoint> = ranked.into_iter().map(|(_, ep)| ep).collect();
+        assert_eq!(paths(&entries), ["exact.py"]);
+    }
+
+    #[test]
+    fn production_cap_is_one_mib() {
+        // Document the production constant so a silent shrink/expand is reviewable.
+        assert_eq!(PYTHON_SOURCE_MAX_BYTES, 1024 * 1024);
     }
 }
