@@ -295,13 +295,37 @@ impl Journal {
         // the no-follow create below does.
         ensure_within_root(&self.root, dir).map_err(anyhow::Error::from)?;
 
+        // Re-check which components are still missing immediately before create
+        // so concurrent creators are not recorded for rollback (and wrongly
+        // removed on install failure).
+        let mut to_create = Vec::new();
+        for candidate in pending.iter().rev() {
+            match std::fs::symlink_metadata(candidate) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    bail!(
+                        "refusing path through symlink {}: resolve the symlink and re-run",
+                        candidate.display()
+                    );
+                }
+                Ok(_) => {}
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                    to_create.push(candidate.clone());
+                }
+                Err(err) => {
+                    return Err(err).with_context(|| {
+                        format!("inspecting path component {}", candidate.display())
+                    });
+                }
+            }
+        }
+
         #[cfg(all(test, unix))]
         race_hook::fire(dir);
 
         crate::util::create_dir_all_nofollow(dir)
             .with_context(|| format!("creating directory {}", dir.display()))?;
 
-        for candidate in pending.iter().rev() {
+        for candidate in &to_create {
             if std::fs::symlink_metadata(candidate).is_ok_and(|m| m.file_type().is_dir()) {
                 self.created_dirs.push(candidate.clone());
             }
@@ -332,7 +356,9 @@ impl Journal {
                 // Journal the backup BEFORE attempting the overwrite: a write
                 // that fails part-way (disk full, permission flip) must still
                 // leave the journal able to restore the pre-install bytes.
-                let original = std::fs::read(abs)
+                // Read via O_NOFOLLOW so a leaf symlink-swap between the
+                // metadata check and the open cannot follow outside the root.
+                let original = read_existing_nofollow(abs)
                     .with_context(|| format!("reading existing {}", abs.display()))?;
                 self.restored.push((abs.to_path_buf(), original));
                 #[cfg(all(test, unix))]
@@ -358,6 +384,51 @@ impl Journal {
     }
 }
 
+/// Read an existing regular file without following a final-component symlink.
+///
+/// On Unix this opens with `O_NOFOLLOW` so a leaf symlink planted between a
+/// prior `symlink_metadata` check and the open is refused rather than followed.
+/// Non-Unix platforms re-check symlink metadata then use a normal read.
+fn read_existing_nofollow(path: &Path) -> Result<Vec<u8>> {
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW)
+            .open(path)
+            .map_err(|err| {
+                if err.raw_os_error() == Some(libc::ELOOP) {
+                    anyhow::anyhow!(
+                        "refusing to read through symlink {}: resolve the symlink and re-run",
+                        path.display()
+                    )
+                } else {
+                    anyhow::Error::from(err).context(format!(
+                        "opening {} without following symlinks",
+                        path.display()
+                    ))
+                }
+            })?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)
+            .with_context(|| format!("reading {}", path.display()))?;
+        Ok(buf)
+    }
+    #[cfg(not(unix))]
+    {
+        if std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
+            bail!(
+                "refusing to read through symlink {}: resolve the symlink and re-run",
+                path.display()
+            );
+        }
+        std::fs::read(path).with_context(|| format!("reading {}", path.display()))
+    }
+}
+
 /// Test-only hook fired after containment checks and immediately before a
 /// journal create/write. Used to simulate concurrent ancestor symlink swaps.
 /// Unix-only: the race simulation relies on POSIX symlink behaviour.
@@ -372,13 +443,24 @@ mod race_hook {
         static HOOK: RefCell<Option<RaceHook>> = const { RefCell::new(None) };
     }
 
-    pub fn set(hook: impl FnMut(&Path) + 'static) {
+    /// RAII guard that clears the thread-local hook on drop so panics cannot
+    /// leak a race hook into subsequent tests on the same worker thread.
+    pub struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            clear();
+        }
+    }
+
+    pub fn install(hook: impl FnMut(&Path) + 'static) -> Guard {
         HOOK.with(|cell| {
             *cell.borrow_mut() = Some(Box::new(hook));
         });
+        Guard
     }
 
-    pub fn clear() {
+    fn clear() {
         HOOK.with(|cell| {
             *cell.borrow_mut() = None;
         });
@@ -1146,7 +1228,7 @@ mod tests {
 
         let outside_path = outside.path().to_path_buf();
         let anvil_path = anvil.clone();
-        race_hook::set(move |path| {
+        let _hook_guard = race_hook::install(move |path| {
             // Fire once: when the journal is about to create under `.anvil`,
             // replace the real directory with an escaping symlink.
             if path.starts_with(&anvil_path)
@@ -1167,7 +1249,6 @@ mod tests {
             &baseline_files(),
             false,
         );
-        race_hook::clear();
 
         let err = result.expect_err("mid-install ancestor symlink swap must fail");
         let msg = format!("{err:#}");
