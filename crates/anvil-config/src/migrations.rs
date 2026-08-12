@@ -67,14 +67,75 @@ impl std::fmt::Debug for SchemaMigration {
     }
 }
 
+/// Legacy camelCase → canonical snake_case key pairs at the top level of
+/// the project config. ADR-120 pt 3: snake_case is the canonical key space
+/// across all formats; these are the keys the pre-UCFG-003 writers emitted
+/// in camelCase (`init.rs` YAML/JSON, `start.rs pre_write_anvil_config_format`).
+pub const LEGACY_CAMEL_KEYS: [(&str, &str); 2] = [
+    ("schemaVersion", "schema_version"),
+    ("planningDir", "planning_dir"),
+];
+
+/// Rename legacy camelCase keys to their canonical snake_case names, in
+/// place, returning the camelCase keys that were present (sorted).
+///
+/// Rules: a camelCase value moves to the snake_case slot only when the
+/// snake_case key is absent; when both exist the canonical snake_case
+/// value wins and the shadowed camelCase duplicate is dropped. Either way
+/// the camelCase key is removed and reported, so callers can render
+/// [`legacy_keys_deprecation_note`]. Non-objects are left untouched.
+///
+/// This is an explicit opt-in at typed boundaries and the transform body
+/// of the ADR-120 schema migration. It is deliberately **never** called by
+/// `parse_str` / `parse_file`: raw parses keep raw keys so
+/// [`crate::canonical_json_bytes`] consumers (rule-cache config SHA,
+/// capsule digests) see unchanged bytes for unchanged files.
+pub fn normalize_legacy_keys(config: &mut Value) -> Vec<String> {
+    let Some(obj) = config.as_object_mut() else {
+        return Vec::new();
+    };
+    let mut renamed: Vec<String> = Vec::new();
+    for (camel, snake) in LEGACY_CAMEL_KEYS {
+        if let Some(value) = obj.remove(camel) {
+            if !obj.contains_key(snake) {
+                obj.insert(snake.to_string(), value);
+            }
+            renamed.push(camel.to_string());
+        }
+    }
+    renamed.sort();
+    renamed
+}
+
+/// Render the operator-facing deprecation note for legacy camelCase keys
+/// found by [`normalize_legacy_keys`]. `None` when nothing was renamed.
+#[must_use]
+pub fn legacy_keys_deprecation_note(renamed: &[String]) -> Option<String> {
+    if renamed.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "deprecated camelCase config keys detected: {} — snake_case is canonical \
+         (ADR-120); run `anvil migrate schema` to rewrite the file",
+        renamed.join(", ")
+    ))
+}
+
 /// The production migration registry.
 ///
-/// Empty until a shipped anvil version changes the config schema (see the
-/// module docs). A future schema change appends its [`SchemaMigration`]
-/// here with the version that introduced it.
+/// A future schema change appends its [`SchemaMigration`] here with the
+/// version that introduced it (see the module docs).
 #[must_use]
 pub fn production_migrations() -> Vec<SchemaMigration> {
-    Vec::new()
+    vec![SchemaMigration {
+        description: "rename legacy camelCase config keys (schemaVersion, planningDir) \
+                      to canonical snake_case (ADR-120 / UCFG-003)"
+            .to_string(),
+        introduced_in: Version::parse("0.10.0-beta").expect("static version parses"),
+        apply: |v| {
+            normalize_legacy_keys(v);
+        },
+    }]
 }
 
 /// Select the migrations that apply when upgrading a config created by
@@ -177,17 +238,108 @@ mod tests {
         assert!(SchemaMigration::new("desc", "nope", |_| {}).is_err());
     }
 
+    // ---- UCFG-003: legacy camelCase key normalisation ----
+
     #[test]
-    fn production_registry_is_empty() {
-        // The honest current state: no shipped schema change.
-        assert!(production_migrations().is_empty());
+    fn normalize_renames_camel_keys_and_reports_them() {
+        let mut v = json!({
+            "schemaVersion": "1.0.0",
+            "planningDir": "plans",
+            "format": "yaml",
+            "checks": ["a"],
+        });
+        let renamed = normalize_legacy_keys(&mut v);
+        assert_eq!(renamed, vec!["planningDir", "schemaVersion"]);
+        assert_eq!(v["schema_version"], "1.0.0");
+        assert_eq!(v["planning_dir"], "plans");
+        assert!(v.get("schemaVersion").is_none());
+        assert!(v.get("planningDir").is_none());
+        // Untouched keys survive.
+        assert_eq!(v["format"], "yaml");
+        assert_eq!(v["checks"][0], "a");
     }
 
     #[test]
-    fn empty_registry_yields_empty_plan_for_any_delta() {
+    fn normalize_keeps_snake_value_when_both_present() {
+        // A mixed-key file keeps the canonical snake_case value; the
+        // shadowed camelCase duplicate is removed and still reported so
+        // the deprecation note names it.
+        let mut v = json!({
+            "schemaVersion": "camel",
+            "schema_version": "snake",
+        });
+        let renamed = normalize_legacy_keys(&mut v);
+        assert_eq!(renamed, vec!["schemaVersion"]);
+        assert_eq!(v["schema_version"], "snake");
+        assert!(v.get("schemaVersion").is_none());
+    }
+
+    #[test]
+    fn normalize_is_noop_on_snake_case_and_non_objects() {
+        let mut v = json!({"schema_version": "1.0.0", "planning_dir": "plans"});
+        assert!(normalize_legacy_keys(&mut v).is_empty());
+        assert_eq!(v["schema_version"], "1.0.0");
+
+        let mut arr = json!([1, 2]);
+        assert!(normalize_legacy_keys(&mut arr).is_empty());
+        assert_eq!(arr, json!([1, 2]));
+    }
+
+    #[test]
+    fn deprecation_note_names_keys_and_remedy() {
+        let note =
+            legacy_keys_deprecation_note(&["schemaVersion".to_string()]).expect("note expected");
+        assert!(note.contains("schemaVersion"), "got: {note}");
+        assert!(note.contains("anvil migrate schema"), "got: {note}");
+        assert!(legacy_keys_deprecation_note(&[]).is_none());
+    }
+
+    #[test]
+    fn production_registry_carries_the_casing_migration_for_the_beta_window() {
+        let registry = production_migrations();
+        let steps = plan_for_versions("0.9.4-beta", "0.10.0-beta", &registry).unwrap();
+        assert_eq!(steps.len(), 1, "expected the ADR-120 casing migration");
+
+        let mut v = json!({"schemaVersion": "1.0.0", "planningDir": "plans"});
+        apply_steps(&steps, &mut v);
+        assert_eq!(v["schema_version"], "1.0.0");
+        assert_eq!(v["planning_dir"], "plans");
+        assert!(v.get("schemaVersion").is_none());
+    }
+
+    #[test]
+    fn parse_does_not_normalise_keys_so_canonical_hashes_are_stable() {
+        // Hash-stability contract (ADR-120 pt 3 constraint): key
+        // normalisation is an explicit opt-in at typed boundaries, never
+        // inside `parse_*`, so `canonical_json_bytes` consumers (rule
+        // cache config SHA, capsule digests) see unchanged bytes for
+        // unchanged files.
+        let value = crate::parse_str(
+            "schemaVersion: \"1.0.0\"\n",
+            crate::ConfigFormat::Yaml,
+            std::path::Path::new(".anvil.yaml"),
+        )
+        .expect("fixture parses");
+        assert!(value.get("schemaVersion").is_some());
+        assert!(value.get("schema_version").is_none());
+        let bytes = crate::canonical_json_bytes(&value).expect("canonical bytes");
+        assert!(String::from_utf8(bytes).unwrap().contains("schemaVersion"));
+    }
+
+    #[test]
+    fn production_registry_holds_exactly_the_casing_migration() {
+        // The honest current state: one shipped schema change — the
+        // ADR-120 / UCFG-003 camelCase → snake_case key rename.
+        let reg = production_migrations();
+        assert_eq!(reg.len(), 1);
+        assert_eq!(reg[0].introduced_in, ver("0.10.0-beta"));
+    }
+
+    #[test]
+    fn registry_plan_spans_only_the_casing_migration_for_a_full_delta() {
         let reg = production_migrations();
         let plan = plan_for(&ver("0.1.0"), &ver("9.9.9"), &reg);
-        assert!(plan.is_empty());
+        assert_eq!(plan.len(), 1);
     }
 
     #[test]
