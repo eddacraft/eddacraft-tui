@@ -322,8 +322,18 @@ fn open_content_file(path: &Path) -> std::io::Result<Option<File>> {
 
 #[cfg(not(unix))]
 fn open_content_file(path: &Path) -> std::io::Result<Option<File>> {
-    // No portable non-blocking open flags here; still fstat the opened handle
-    // so the type check cannot be redirected by a post-open path swap.
+    // No portable non-blocking open flags here. Pre-skip leaf symlinks and
+    // non-regular paths via symlink_metadata so we match the Unix skip contract
+    // (Ok(None)) instead of turning a directory/reparse open into an interrupt.
+    // The subsequent fstat in open_for_content_read remains the type/size gate
+    // for the held handle after open.
+    let meta = std::fs::symlink_metadata(path)?;
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return Ok(None);
+    }
+    if meta.len() > CONTENT_SIZE_CAP_BYTES {
+        return Ok(None);
+    }
     Ok(Some(File::open(path)?))
 }
 
