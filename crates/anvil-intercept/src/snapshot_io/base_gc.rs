@@ -207,16 +207,17 @@ impl KeepSetResolver for GitMergeBaseResolver {
                 "@{upstream}",
             ],
         ) {
-            GitRun::Failed => return MergeBase::Unavailable,
             GitRun::Exited {
                 code: 0,
                 stdout: Some(up),
                 ..
             } => Some(up),
-            // Exit 0 with empty stdout is unexpected for this probe (git prints
-            // the upstream ref on success). Treat as uncertain so GC never drops
-            // a live refinement key on a silent/garbled success.
-            GitRun::Exited { code: 0, .. } => return MergeBase::Unavailable,
+            // Spawn/signal failure, or exit 0 with empty stdout (git prints the
+            // upstream ref on success — empty is unexpected/garbled). Both are
+            // uncertain: abort so GC never drops a live refinement key.
+            GitRun::Failed | GitRun::Exited { code: 0, .. } => {
+                return MergeBase::Unavailable;
+            }
             GitRun::Exited { stderr, .. } => {
                 if is_deterministic_no_upstream(&stderr) {
                     None
