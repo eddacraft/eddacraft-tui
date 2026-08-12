@@ -7,7 +7,9 @@ deepening the Rust mapper
 from a published release)  
 **Corpus:** `main` worktree at map/review time  
 **Predecessor:** `plans/reviews/2026-08-07-clawpatch-triage.md`  
-**Report:** `.clawpatch/reports/20260810T195659-92de45.md`
+**Report:** `.clawpatch/reports/20260810T195659-92de45.md` — **local only**,
+under the gitignored `.clawpatch/` state directory; not committed and not
+retrievable from this repository. This document is the durable record.
 
 ## Why this run
 
