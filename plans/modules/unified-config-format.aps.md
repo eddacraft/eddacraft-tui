@@ -308,7 +308,7 @@ Change status to **Ready** when:
 
 #### UCFG-007: `architecture` section resolution + migrate
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3835
 - **Intent:** `architecture` becomes a main-config section
   (`SectionOrSource<ArchitectureDefinition>`). Existing
   `.anvil/architecture.yaml` keeps working as a delegation target;
@@ -328,7 +328,7 @@ Change status to **Ready** when:
 
 #### UCFG-008: gate / watch / architecture commands read the resolved section
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** replace direct `.anvil/architecture.yaml` reads in `gate.rs`,
   `watch.rs`, and `architecture*.rs` with the resolved section (inline or
   delegated); ADR-102 command-surface semantics unchanged

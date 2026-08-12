@@ -763,7 +763,7 @@ fn gate_snapshot_parent_is_redirect(is_symlink: bool, _metadata: &std::fs::Metad
 fn config_gap_next_hint(name: &str) -> &'static str {
     match name {
         "architecture" => {
-            "Create .anvil/architecture.yaml — see docs/public/anvil/tutorials/architecture.md"
+            "Add an `architecture` section to your project config (or create .anvil/architecture.yaml) — see docs/public/anvil/tutorials/architecture.md"
         }
         "policy" => {
             "Create a .rego rule under .anvil/policies/ — see docs/public/anvil/tutorials/policies.md"
@@ -3346,27 +3346,28 @@ fn resolve_import(from_file: &str, specifier: &str) -> Option<String> {
 }
 
 fn run_check_architecture(project_root: &Path) -> CheckResult {
-    let config_path = project_root.join(".anvil/architecture.yaml");
-
-    if !config_path.exists() {
-        return CheckResult {
-            name: "architecture".to_string(),
-            passed: true,
-            score: 100.0,
-            message: "No architecture config found (.anvil/architecture.yaml). Skipping."
-                .to_string(),
-            requires_config: false,
-        };
-    }
-
-    let definition = match anvil_architecture::parse_architecture_definition(project_root) {
-        Ok(def) => def,
+    // UCFG-008: the resolved architecture (main-config section, inline
+    // or source-delegated, with the standalone yaml as legacy
+    // fallback) replaces the direct file read.
+    let definition = match crate::architecture_source::resolve_architecture(project_root) {
+        Ok(None) => {
+            return CheckResult {
+                name: "architecture".to_string(),
+                passed: true,
+                score: 100.0,
+                message: "No architecture config found (architecture section or \
+                          .anvil/architecture.yaml). Skipping."
+                    .to_string(),
+                requires_config: false,
+            };
+        }
+        Ok(Some((definition, _origin))) => definition,
         Err(e) => {
             return CheckResult {
                 name: "architecture".to_string(),
                 passed: false,
                 score: 0.0,
-                message: format!("Architecture validation failed: {e}"),
+                message: format!("Architecture validation failed: {e:#}"),
                 requires_config: false,
             };
         }
@@ -8555,6 +8556,62 @@ mod tests {
         .unwrap();
         let result = run_check_architecture(tmp.path());
         assert!(result.passed);
+    }
+
+    /// UCFG-008 both-topologies coverage: the check resolves the
+    /// main-config `architecture` section (inline) with no standalone
+    /// yaml present.
+    #[test]
+    fn architecture_inline_section_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  schema_version: \"0.1.0\"\n  layers:\n    core:\n      patterns: [\"src/core/**\"]\n      depends_on: []\n",
+        )
+        .unwrap();
+        let result = run_check_architecture(tmp.path());
+        assert!(result.passed, "{}", result.message);
+        assert!(
+            !result.message.contains("Skipping"),
+            "the check must actually run: {}",
+            result.message
+        );
+    }
+
+    /// UCFG-008 both-topologies coverage: source-delegated section.
+    #[test]
+    fn architecture_delegated_section_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            "schema_version: \"0.1.0\"\nlayers:\n  core:\n    patterns: [\"src/core/**\"]\n    depends_on: []\n",
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  source: \".anvil/architecture.yaml\"\n",
+        )
+        .unwrap();
+        let result = run_check_architecture(tmp.path());
+        assert!(result.passed, "{}", result.message);
+        assert!(!result.message.contains("Skipping"), "{}", result.message);
+    }
+
+    /// A delegation contract violation is a loud gate failure, not a
+    /// silent skip.
+    #[test]
+    fn architecture_bad_delegation_fails_loudly() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  source: \"../outside.yaml\"\n",
+        )
+        .unwrap();
+        let result = run_check_architecture(tmp.path());
+        assert!(!result.passed);
+        assert!(result.message.contains("traversal"), "{}", result.message);
     }
 
     #[test]

@@ -1842,11 +1842,34 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     print_warmup_cache_status(warmup_paths.as_ref(), output_mode);
     print_tui_startup_message(output_mode);
 
-    let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
-    let arch_config = if arch_config_path.exists() {
-        Some(arch_config_path)
-    } else {
-        None
+    // UCFG-008: watch the file the resolved architecture actually
+    // lives in — the delegated source target or the legacy standalone
+    // yaml. Inline sections live in the main config (no extra file to
+    // watch). A malformed config must not kill watch startup: warn and
+    // continue without architecture watching (gate runs report it).
+    let arch_config = match crate::architecture_source::resolve_architecture(&workspace_root) {
+        Ok(Some((_, crate::architecture_source::ArchitectureOrigin::LegacyFile(path)))) => {
+            Some(path)
+        }
+        Ok(Some((
+            _,
+            crate::architecture_source::ArchitectureOrigin::Section(
+                anvil_config::SectionProvenance::Delegated { path, .. },
+            ),
+        ))) => Some(path),
+        Ok(
+            Some((
+                _,
+                crate::architecture_source::ArchitectureOrigin::Section(
+                    anvil_config::SectionProvenance::Inline,
+                ),
+            ))
+            | None,
+        ) => None,
+        Err(e) => {
+            eprintln!("[watch] architecture config not watchable: {e:#}");
+            None
+        }
     };
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {

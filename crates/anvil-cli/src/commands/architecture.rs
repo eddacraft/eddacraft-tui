@@ -28,25 +28,29 @@ enum ArchitectureCommand {
     },
 }
 
-const ARCH_CONFIG_FILENAME: &str = "architecture.yaml";
-
-fn resolve_arch_config(file: Option<&str>) -> Result<PathBuf> {
+/// Load the definition the command operates on: an explicit `--file`
+/// path, or the project's resolved architecture (main-config section —
+/// inline or source-delegated — with the standalone
+/// `.anvil/architecture.yaml` as the legacy fallback).
+fn load_definition(file: Option<&str>) -> Result<anvil_architecture::ArchitectureDefinition> {
     if let Some(f) = file {
         let p = PathBuf::from(f);
         if !p.exists() {
             bail!("Architecture config not found: {f}");
         }
-        return Ok(p);
+        return anvil_architecture::parse_architecture_definition_file(&p)
+            .with_context(|| format!("parsing {}", p.display()));
     }
 
     let workspace = std::env::current_dir().context("getting current directory")?;
-    let path = workspace.join(".anvil").join(ARCH_CONFIG_FILENAME);
-    if !path.exists() {
-        bail!(
-            "No architecture.yaml found.\n  Create .anvil/architecture.yaml manually or see: anvil architecture --help"
-        );
+    match crate::architecture_source::resolve_architecture(&workspace)? {
+        Some((definition, _origin)) => Ok(definition),
+        None => bail!(
+            "No architecture config found.\n  Add an `architecture` section to your \
+             project config, or create .anvil/architecture.yaml — see: anvil \
+             architecture --help"
+        ),
     }
-    Ok(path)
 }
 
 #[derive(Debug, Serialize)]
@@ -74,18 +78,11 @@ struct ValidationResult {
     diagnostics: Vec<anvil_architecture::ArchitectureDefinitionDiagnostic>,
 }
 
-fn parse_architecture(path: &std::path::Path) -> Result<ArchDefinition> {
-    let definition = anvil_architecture::parse_architecture_definition_file(path)
-        .with_context(|| format!("parsing {}", path.display()))?;
-
-    Ok(ArchDefinition::from_definition(&definition))
-}
-
-fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
-    let definition = anvil_architecture::parse_architecture_definition_file(path)
-        .with_context(|| format!("parsing {}", path.display()))?;
-    let def = ArchDefinition::from_definition(&definition);
-    let diagnostics = anvil_architecture::diagnose_definition(&definition);
+fn validate_architecture(
+    definition: &anvil_architecture::ArchitectureDefinition,
+) -> ValidationResult {
+    let def = ArchDefinition::from_definition(definition);
+    let diagnostics = anvil_architecture::diagnose_definition(definition);
     let issues = diagnostics
         .iter()
         .filter(|d| d.is_error())
@@ -97,7 +94,7 @@ fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
         .map(|d| d.message.clone())
         .collect::<Vec<_>>();
 
-    Ok(ValidationResult {
+    ValidationResult {
         valid: issues.is_empty(),
         template: def.template,
         layers: def.layers.len(),
@@ -105,7 +102,7 @@ fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
         issues,
         warnings,
         diagnostics,
-    })
+    }
 }
 
 impl ArchDefinition {
@@ -131,8 +128,8 @@ impl ArchDefinition {
 pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         ArchitectureCommand::Validate { file } => {
-            let path = resolve_arch_config(file.as_deref())?;
-            let result = validate_architecture(&path)?;
+            let definition = load_definition(file.as_deref())?;
+            let result = validate_architecture(&definition);
 
             if global.json {
                 crate::output::json::print(&result)?;
@@ -165,8 +162,8 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
             }
         }
         ArchitectureCommand::Show { file } => {
-            let path = resolve_arch_config(file.as_deref())?;
-            let def = parse_architecture(&path)?;
+            let definition = load_definition(file.as_deref())?;
+            let def = ArchDefinition::from_definition(&definition);
 
             if global.json {
                 crate::output::json::print(&def)?;
@@ -232,20 +229,34 @@ mod tests {
         let _ = format!("{:?}", w.inner);
     }
 
-    #[test]
-    fn resolve_arch_config_explicit_file_found() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("arch.yaml");
-        std::fs::write(&file, "template: custom").unwrap();
-        let result = resolve_arch_config(Some(file.to_str().unwrap())).unwrap();
-        assert_eq!(result, file);
+    // Path-based wrappers keeping the pre-UCFG-008 test corpus
+    // exercising the same file-parse semantics `--file` uses.
+    fn parse_architecture(path: &std::path::Path) -> Result<ArchDefinition> {
+        let definition = anvil_architecture::parse_architecture_definition_file(path)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        Ok(ArchDefinition::from_definition(&definition))
+    }
+
+    fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
+        let definition = anvil_architecture::parse_architecture_definition_file(path)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        Ok(super::validate_architecture(&definition))
     }
 
     #[test]
-    fn resolve_arch_config_explicit_file_missing() {
+    fn load_definition_explicit_file_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(&file, "template: custom").unwrap();
+        let definition = load_definition(Some(file.to_str().unwrap())).unwrap();
+        assert_eq!(definition.template.to_string(), "custom");
+    }
+
+    #[test]
+    fn load_definition_explicit_file_missing() {
         let dir = tempfile::tempdir().unwrap();
         let missing_file = dir.path().join("arch.yaml");
-        let err = resolve_arch_config(Some(missing_file.to_str().unwrap())).unwrap_err();
+        let err = load_definition(Some(missing_file.to_str().unwrap())).unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 

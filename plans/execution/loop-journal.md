@@ -905,3 +905,17 @@ never with feature work.
   comment-loss note). Stacked on 005, de-stacked onto main post-merge.
 - Next: land UCFG-007 → UCFG-008 (consumer sweep); then 001 → 002,
   010, 011, 012.
+
+## Cycle — 2026-08-13 (UCFG drain, wave 2 cont.: UCFG-007 integrated)
+
+- UCFG-007 (architecture section resolution):
+  `MERGED(ac57ffe323ead748b18a2f551947c8a7e6d0b8bf, 2026-08-12T22:06:35Z)`
+  via PR #3835; ancestor check passed. Verifier pass-with-advisories
+  (doctor note delivered pre-land, not deferred). Six Copilot threads
+  fixed in one commit — incl. a real heredoc-artefact bug (literal
+  space runs in doctor strings) and a non-table-config data-loss
+  hazard hardened at all three write sites.
+- UCFG-008 (consumer sweep) In Progress on this branch: gate, watch,
+  and the architecture commands bind to architecture_source; dead_code
+  allow removed; both-topologies gate tests added.
+- Next: land UCFG-008; then 001 → 002, 010, 011, 012.
