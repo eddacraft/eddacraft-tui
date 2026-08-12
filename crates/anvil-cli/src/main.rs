@@ -1209,7 +1209,12 @@ fn dispatch_update_result<W: Write>(
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
     // BACT-005: detached account-activity worker (authenticated feature touch).
-    if std::env::var_os(account_activity::ACCOUNT_ACTIVITY_WORKER_ENV).is_some() {
+    // Only intercept when the env carries an allowlisted feature key — accidental
+    // presence of the variable must not skip normal CLI parsing (Copilot review).
+    if std::env::var(account_activity::ACCOUNT_ACTIVITY_WORKER_ENV)
+        .ok()
+        .is_some_and(|key| account_activity::is_account_feature_key(&key))
+    {
         account_activity::run_worker();
         return ExitCode::from(EXIT_OK);
     }
