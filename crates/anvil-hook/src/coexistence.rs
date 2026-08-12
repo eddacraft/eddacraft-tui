@@ -202,15 +202,26 @@ enum MarkerState {
 /// — which is what let a dangling begin marker swallow user content
 /// on the following uninstall. This counts both markers so unmatched
 /// and duplicated states are distinguishable from absent ones.
+///
+/// Every malformed shape refuses the write identically; the defect
+/// only picks the wording the operator sees. Duplicates are reported
+/// **before** unmatched so the most specific repair instruction wins:
+/// two begin markers and no end is a duplicate-begin problem, and
+/// saying "more than one begin marker" points at the real edit. The
+/// arm order below is therefore load-bearing for the message, not
+/// just for control flow.
 fn classify_markers(body: &str) -> MarkerState {
     let begins = body.match_indices(MARKER_BEGIN).count();
     let ends = body.match_indices(MARKER_END).count();
     match (begins, ends) {
         (0, 0) => MarkerState::Absent,
+        (b, _) if b > 1 => MarkerState::Malformed(MarkerDefect::DuplicateBegin),
+        (_, e) if e > 1 => MarkerState::Malformed(MarkerDefect::DuplicateEnd),
         (0, _) => MarkerState::Malformed(MarkerDefect::UnmatchedEnd),
         (_, 0) => MarkerState::Malformed(MarkerDefect::UnmatchedBegin),
-        (1, 1) => {
-            // Unwraps are sound: the counts above prove both exist.
+        _ => {
+            // Exactly one of each: the arms above exclude every other
+            // count, so both `find`s are sound.
             let begin = body.find(MARKER_BEGIN).unwrap();
             let end = body.find(MARKER_END).unwrap();
             if end < begin + MARKER_BEGIN.len() {
@@ -222,8 +233,6 @@ fn classify_markers(body: &str) -> MarkerState {
                 }
             }
         }
-        (b, _) if b > 1 => MarkerState::Malformed(MarkerDefect::DuplicateBegin),
-        _ => MarkerState::Malformed(MarkerDefect::DuplicateEnd),
     }
 }
 
@@ -755,6 +764,46 @@ mod tests {
                 ..
             },
         ));
+    }
+
+    /// Duplicate counts outrank unmatched ones, so the operator gets
+    /// the specific repair instruction. Two begin markers and no end
+    /// is a duplicate-begin problem; reporting it as "unmatched
+    /// begin" would point at the wrong edit.
+    #[test]
+    fn duplicate_markers_outrank_unmatched_in_the_reported_defect() {
+        let two_begins_no_end = format!("a\n{MARKER_BEGIN}\nb\n{MARKER_BEGIN}\nc\n");
+        assert_eq!(
+            classify_markers(&two_begins_no_end),
+            MarkerState::Malformed(MarkerDefect::DuplicateBegin),
+        );
+
+        let two_ends_no_begin = format!("a\n{MARKER_END}\nb\n{MARKER_END}\nc\n");
+        assert_eq!(
+            classify_markers(&two_ends_no_begin),
+            MarkerState::Malformed(MarkerDefect::DuplicateEnd),
+        );
+    }
+
+    /// Every malformed shape refuses regardless of which defect is
+    /// named — the defect is diagnostic wording, not policy.
+    #[test]
+    fn every_malformed_shape_refuses_the_write() {
+        let shapes = [
+            format!("{MARKER_BEGIN}\n"),
+            format!("{MARKER_END}\n"),
+            format!("{MARKER_BEGIN}\na\n{MARKER_BEGIN}\n"),
+            format!("{MARKER_END}\na\n{MARKER_END}\n"),
+            format!("{MARKER_END}\na\n{MARKER_BEGIN}\n"),
+        ];
+        for shape in shapes {
+            for block in ["managed-line", ""] {
+                assert!(
+                    apply(Some(&shape), &marker_file(block)).is_err(),
+                    "shape {shape:?} with block {block:?} must refuse",
+                );
+            }
+        }
     }
 
     /// A well-formed pair and a marker-free file must keep working —
