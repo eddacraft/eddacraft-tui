@@ -172,10 +172,10 @@ pub struct ScanBufferService {
     /// those `validation.roundtrip` and treats them as a separate
     /// dimension owned by the driver-side benchmarks.
     latency: LatencyAggregator,
-    /// MLP2-002: count of evaluations currently in flight. Bumped at
-    /// permit acquisition, decremented when the caller returns
-    /// (success, timeout, or worker failure). Observable via
-    /// [`Self::in_flight`] so the daemon's status surface and
+    /// MLP2-002: count of evaluations currently in flight. Bumped when
+    /// a worker is admitted and decremented when that worker finishes
+    /// (including stragglers whose caller already timed out). Observable
+    /// via [`Self::in_flight`] so the daemon's status surface and
     /// burst-coalescing telemetry can see how many evaluations a
     /// config write would have to wait out without disturbing.
     in_flight: Arc<AtomicUsize>,
@@ -204,8 +204,9 @@ impl ScanBufferService {
     }
 
     /// Build a service with a custom timeout. Reserved for tests that
-    /// need permit-release behaviour observable inside a few hundred
-    /// milliseconds; production callers stick with [`Self::new`].
+    /// need timeout / straggler-capacity behaviour observable inside a
+    /// few hundred milliseconds; production callers stick with
+    /// [`Self::new`].
     #[must_use]
     pub fn with_timeout(pipeline: EnforcementPipeline, timeout: Duration) -> Self {
         Self {
@@ -291,14 +292,15 @@ impl ScanBufferService {
         request: ScanBufferRequest,
         pinned_rules_sha: Option<String>,
     ) -> Result<ScanBufferResponse, ScanBufferError> {
-        // The permit is held by the *caller* for the lifetime of this
-        // future, NOT by the worker thread. If the caller times out,
-        // the permit is released here on return so a runaway rule
-        // cannot wedge the service into permanent `Busy`. The worker
-        // thread keeps running until its pipeline call finishes (sync
-        // rules cannot be cancelled mid-flight) and its result is
-        // discarded once the caller has dropped the receiver.
-        let _permit = self
+        // Capacity is bound to the *worker* lifetime, not the caller's
+        // await. Sync rules cannot be cancelled mid-flight; if a caller
+        // times out, the worker keeps running and must continue to
+        // occupy its concurrency slot. Releasing the permit on the
+        // TimedOut path would let repeated timeouts spawn an unbounded
+        // number of OS threads despite MAX_CONCURRENT_SCAN_BUFFERS.
+        // Under that failure mode the service correctly reports Busy
+        // until stragglers finish (or the process is restarted).
+        let permit = self
             .permits
             .clone()
             .try_acquire_owned()
@@ -307,11 +309,11 @@ impl ScanBufferService {
                 TryAcquireError::Closed => ScanBufferError::ServiceUnavailable,
             })?;
         // MLP2-002: bump the in-flight counter under an RAII guard so
-        // the count reflects active evaluations regardless of which
-        // exit path the call takes (success, timeout, worker
-        // failure). Held alongside the permit; both drop when the
-        // future returns.
-        let _inflight = InFlightGuard::new(Arc::clone(&self.in_flight));
+        // the count reflects live workers (including TimedOut
+        // stragglers). Moved into the worker alongside the permit;
+        // both drop when the worker finishes. If spawn fails, the
+        // closure is dropped without running and the guards release.
+        let inflight = InFlightGuard::new(Arc::clone(&self.in_flight));
         // INTD-011: capture the request mode before moving `request`
         // into the worker thread. Only `mode = midEdit` samples are
         // recorded — the latency aggregator is the daemon-side
@@ -324,6 +326,9 @@ impl ScanBufferService {
         std::thread::Builder::new()
             .name("anvil-scan-buffer".to_owned())
             .spawn(move || {
+                // Hold capacity for the full worker lifetime.
+                let _permit = permit;
+                let _inflight = inflight;
                 // ADR-031: `validation.service` boundary — start at
                 // "daemon has accepted a complete validation request"
                 // (the worker thread has been spawned with the parsed
@@ -376,9 +381,10 @@ impl ScanBufferService {
 }
 
 /// MLP2-002: RAII guard that increments the in-flight counter on
-/// construction and decrements on drop. Held next to the permit so
-/// the counter always reflects "evaluations holding a permit", even
-/// if the caller's future is cancelled mid-await.
+/// construction and decrements on drop. Held on the worker thread
+/// next to the semaphore permit so the counter always reflects
+/// "live workers holding capacity", including TimedOut stragglers
+/// whose caller has already returned.
 struct InFlightGuard {
     counter: Arc<AtomicUsize>,
 }
@@ -904,19 +910,23 @@ mod tests {
         );
     }
 
-    /// A runaway rule that outlives the caller's timeout MUST NOT
-    /// keep its semaphore permit. The permit is held by the caller's
-    /// future and dropped on return — including on `TimedOut` — so
-    /// `scan_buffer` cannot be wedged into permanent `Busy` by stuck
-    /// worker threads. The straggler thread keeps running until its
-    /// pipeline call completes; only the permit is freed.
+    /// Capacity stays with the worker for its full lifetime. A
+    /// `TimedOut` return therefore does NOT free a concurrency slot
+    /// while the straggler is still evaluating — subsequent
+    /// admissions see `Busy` until the worker completes. This stops
+    /// repeated timeouts from spawning unbounded OS threads.
     #[tokio::test]
-    async fn scan_buffer_releases_permit_when_caller_times_out() {
-        struct SleepingRule;
+    async fn scan_buffer_holds_capacity_for_timed_out_straggler_workers() {
+        use std::sync::atomic::AtomicBool;
 
-        impl InterceptRule for SleepingRule {
+        struct GateRule {
+            started: Arc<AtomicUsize>,
+            released: Arc<AtomicBool>,
+        }
+
+        impl InterceptRule for GateRule {
             fn rule_id(&self) -> &'static str {
-                "sleeping-rule"
+                "gate-straggler-rule"
             }
 
             fn needs_content(&self) -> bool {
@@ -933,18 +943,31 @@ mod tests {
                 _mode: &Mode,
                 _limit: usize,
             ) -> Vec<Diagnostic> {
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                self.started.fetch_add(1, Ordering::SeqCst);
+                // One-shot release flag (not a reusable Barrier): once
+                // released, later admissions proceed immediately so the
+                // recovery assertion can succeed without re-parking.
+                while !self.released.load(Ordering::SeqCst) {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
                 Vec::new()
             }
         }
 
-        let registry = RuleRegistry::with_rules(vec![Box::new(SleepingRule)]).expect("unique rule");
+        let started = Arc::new(AtomicUsize::new(0));
+        let released = Arc::new(AtomicBool::new(false));
+        let registry = RuleRegistry::with_rules(vec![Box::new(GateRule {
+            started: Arc::clone(&started),
+            released: Arc::clone(&released),
+        })])
+        .expect("unique rule");
         let service = ScanBufferService::with_timeout(
             EnforcementPipeline::new(registry),
             std::time::Duration::from_millis(50),
         );
 
-        // Saturate every permit with calls that will time out.
+        // Saturate every slot with calls that will time out while the
+        // worker remains parked behind the release flag.
         let mut tasks = Vec::with_capacity(MAX_CONCURRENT_SCAN_BUFFERS);
         for _ in 0..MAX_CONCURRENT_SCAN_BUFFERS {
             let svc = service.clone();
@@ -952,6 +975,18 @@ mod tests {
                 svc.scan_buffer(secret_request()).await
             }));
         }
+        for _ in 0..100 {
+            if started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert_eq!(
+            started.load(Ordering::SeqCst),
+            MAX_CONCURRENT_SCAN_BUFFERS,
+            "expected {MAX_CONCURRENT_SCAN_BUFFERS} workers to enter the rule before timeout",
+        );
+
         for task in tasks {
             let outcome = task.await.expect("join");
             assert!(
@@ -960,14 +995,44 @@ mod tests {
             );
         }
 
-        // After the timeouts fire, the permits must be available
-        // again. The next scan must reach the worker thread (and
-        // also time out), not be rejected as Busy.
-        let outcome = service.scan_buffer(secret_request()).await;
-        assert!(
-            matches!(outcome, Err(ScanBufferError::TimedOut)),
-            "permit must release on caller timeout; got {outcome:?}",
+        // While stragglers still hold capacity, further requests must
+        // fail fast as Busy and must NOT spawn additional workers.
+        let workers_after_timeout = started.load(Ordering::SeqCst);
+        for _ in 0..(MAX_CONCURRENT_SCAN_BUFFERS * 3) {
+            let outcome = service.scan_buffer(secret_request()).await;
+            assert!(
+                matches!(outcome, Err(ScanBufferError::Busy)),
+                "straggler workers must keep capacity occupied; got {outcome:?}",
+            );
+        }
+        assert_eq!(
+            started.load(Ordering::SeqCst),
+            workers_after_timeout,
+            "repeated timed-out admissions must not spawn extra workers",
         );
+        assert_eq!(
+            service.in_flight(),
+            MAX_CONCURRENT_SCAN_BUFFERS,
+            "in_flight must track live straggler workers after TimedOut",
+        );
+
+        // Release stragglers; capacity recovers for a fresh admission.
+        released.store(true, Ordering::SeqCst);
+        for _ in 0..100 {
+            if service.in_flight() == 0 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert_eq!(
+            service.in_flight(),
+            0,
+            "in_flight must clear once straggler workers finish",
+        );
+        service
+            .scan_buffer(secret_request())
+            .await
+            .expect("capacity recovers after stragglers finish");
     }
 
     /// MLP2-002: a pinned `rules_sha` survives the round-trip through
@@ -1165,12 +1230,11 @@ mod tests {
         assert_eq!(service.in_flight(), 0, "counter must clear after exit");
     }
 
-    /// MLP2-002 Council fix #C-032: `in_flight()` must return to 0
-    /// after a `TimedOut` exit path so the RAII guard's behaviour is
-    /// observable independently of the test that exercises it on the
-    /// success path.
+    /// MLP2-002: `in_flight()` tracks live workers. Immediately after
+    /// a `TimedOut` return the straggler still holds the slot; the
+    /// counter clears only when the worker finishes.
     #[tokio::test]
-    async fn scan_buffer_in_flight_clears_after_timed_out_exit() {
+    async fn scan_buffer_in_flight_clears_after_straggler_worker_finishes() {
         struct SlowRule;
         impl InterceptRule for SlowRule {
             fn rule_id(&self) -> &'static str {
@@ -1194,10 +1258,20 @@ mod tests {
             matches!(outcome, Err(ScanBufferError::TimedOut)),
             "expected TimedOut, got {outcome:?}"
         );
+        assert!(
+            service.in_flight() > 0,
+            "straggler worker must still hold in_flight after TimedOut"
+        );
+        for _ in 0..50 {
+            if service.in_flight() == 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
         assert_eq!(
             service.in_flight(),
             0,
-            "InFlightGuard must release the counter on the TimedOut path"
+            "InFlightGuard must release once the straggler worker finishes"
         );
     }
 }
