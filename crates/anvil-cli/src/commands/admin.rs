@@ -51,7 +51,7 @@ enum AdminCommand {
 
     /// List beta users by customer-success engagement filter (BACT-006)
     Users {
-        /// Engagement cohort: never_logged_in | idle | missing_feature
+        /// Engagement cohort: `never_logged_in` | `idle` | `missing_feature`
         #[arg(long, value_enum)]
         engagement: UsersEngagement,
 
@@ -59,7 +59,7 @@ enum AdminCommand {
         #[arg(long = "idle-days", default_value_t = 30, value_parser = clap::value_parser!(u32).range(1..=365))]
         idle_days: u32,
 
-        /// Feature key required when --engagement missing_feature
+        /// Feature key required when `--engagement missing_feature`
         #[arg(long, value_enum)]
         feature: Option<UsersFeature>,
 
