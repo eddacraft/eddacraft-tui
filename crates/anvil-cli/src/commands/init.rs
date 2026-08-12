@@ -46,8 +46,10 @@ pub(crate) struct GeneratedConfig {
 
 // Canonical snake_case key space (ADR-120 pt 3 / UCFG-003): serde's default
 // field-name serialisation is already snake_case, so no rename attribute.
-// Legacy camelCase files stay readable via `InitConfigView`'s tolerance and
-// `anvil_config::normalize_legacy_keys`.
+// Legacy camelCase files stay readable via `InitConfigView`'s camel-or-snake
+// tolerance; `anvil migrate schema` rewrites them to snake_case (via
+// `anvil_config::normalize_legacy_keys`, which is migration-only, not a
+// read-path transform).
 #[derive(Debug, Serialize)]
 pub(crate) struct AnvilConfig {
     pub(crate) schema_version: String,
