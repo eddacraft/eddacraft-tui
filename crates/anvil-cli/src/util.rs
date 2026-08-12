@@ -453,15 +453,18 @@ pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let leaf = path
-        .file_name()
-        .with_context(|| format!("write path has no file name: {}", path.display()))?;
+    if path.file_name().is_none() {
+        bail!("write path has no file name: {}", path.display());
+    }
 
     create_dir_all_nofollow(parent)
         .with_context(|| format!("creating directory {}", parent.display()))?;
 
     #[cfg(unix)]
     {
+        let leaf = path
+            .file_name()
+            .with_context(|| format!("write path has no file name: {}", path.display()))?;
         atomic_write_nofollow_unix(parent, leaf, data)
             .with_context(|| format!("writing {}", path.display()))
     }
