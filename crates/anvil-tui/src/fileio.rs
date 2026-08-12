@@ -94,7 +94,6 @@ fn open_regular_nofollow(path: &Path) -> io::Result<File> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, Instant};
 
     #[test]
     fn reads_small_files_and_caps_large_ones() {
@@ -148,6 +147,7 @@ mod tests {
     fn refuses_fifo_without_blocking() {
         // A FIFO swapped in for a regular file must not hang the reader.
         // O_NONBLOCK + is_file() fstat rejects it promptly.
+        use std::time::{Duration, Instant};
         let tmp = tempfile::tempdir().expect("tempdir");
         let fifo = tmp.path().join("state.json");
         let status = std::process::Command::new("mkfifo")
