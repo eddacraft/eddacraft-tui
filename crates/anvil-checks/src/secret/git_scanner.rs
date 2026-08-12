@@ -276,11 +276,11 @@ pub fn scan_git_history(
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stderr_trim = stderr.trim();
         // An empty repository has no commits to scan — that is a successful
-        // empty history, not a coverage failure. Fail closed for every other
-        // non-zero exit so a broken scan cannot look clean.
+        // empty history, not a coverage failure. Keep this allowlist narrow:
+        // broader messages like "unknown revision or path not in the working
+        // tree" also appear for real scan failures and must fail closed.
         if stderr_trim.contains("does not have any commits")
             || stderr_trim.contains("bad default revision")
-            || stderr_trim.contains("unknown revision or path not in the working tree")
         {
             return Ok(GitScanOutput {
                 findings: Vec::new(),

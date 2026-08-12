@@ -549,6 +549,21 @@ mod tests {
         let _ = fs::remove_dir_all(temp_dir);
     }
 
+    fn missing_workspace_path(label: &str) -> String {
+        // Cross-platform missing path: under temp_dir, never created, so
+        // `Command::current_dir` fails on Unix and Windows runners alike.
+        std::env::temp_dir()
+            .join(format!(
+                "anvil-history-scan-missing-{label}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_nanos())
+            ))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn history_scan_io_failure_is_not_a_clean_pass() {
         // When history coverage is requested but the git scan cannot run
@@ -557,18 +572,16 @@ mod tests {
             scan_git_history: true,
             ..SecretCheckConfig::default()
         };
-        let missing = format!(
-            "/nonexistent/anvil-history-scan-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| d.as_nanos())
-        );
+        let missing = missing_workspace_path("io-fail");
         let result = run_secret_check(&[], &config, Some(&missing));
 
         assert!(
             !result.passed,
             "failed history coverage must not report passed=true: {result:?}"
+        );
+        assert_eq!(
+            result.score, 0,
+            "incomplete history coverage must not keep a full score: {result:?}"
         );
         assert!(
             !result.history_scan_errors.is_empty(),
@@ -595,8 +608,8 @@ mod tests {
             scan_git_history: false,
             ..SecretCheckConfig::default()
         };
-        let missing = "/nonexistent/anvil-history-scan-disabled";
-        let result = run_secret_check(&[], &config, Some(missing));
+        let missing = missing_workspace_path("disabled");
+        let result = run_secret_check(&[], &config, Some(&missing));
         assert!(result.passed);
         assert!(result.history_scan_errors.is_empty());
         assert_eq!(result.message, "No secrets detected");
