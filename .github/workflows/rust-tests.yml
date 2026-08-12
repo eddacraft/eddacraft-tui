@@ -185,7 +185,7 @@ jobs:
       # Failure here MUST fail the workflow.
       - name: Install cargo-nextest
         if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
-        uses: taiki-e/install-action@67729d5c413db75907f0ad1e39bb04b9c868ff60 # v2.85.7
+        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: Run tests (nextest)
