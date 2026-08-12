@@ -2,8 +2,9 @@
 //! (UCFG-006, ADR-120 pt 5).
 //!
 //! A main-config section (e.g. `architecture`) is either **inline** —
-//! an ordinary table — or **delegated** via a single `source` key
-//! naming a workspace-relative file in any supported format:
+//! any non-delegating value, handed through for the caller to
+//! shape-check — or **delegated** via a table whose single `source`
+//! key names a workspace-relative file in any supported format:
 //!
 //! ```yaml
 //! architecture:
