@@ -1,5 +1,13 @@
 # Active Reviews
 
+| Type   | Authority | Owner  | Status | Freshness                                                                  |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-12 against `docs/guides/documentation-governance.md` |
+
+| Upstream                                  | Downstream            |
+| ----------------------------------------- | --------------------- |
+| `docs/guides/documentation-governance.md` | Review note discovery |
+
 This directory is for review notes that still have open follow-up work.
 
 Use `docs/reviews/` for:

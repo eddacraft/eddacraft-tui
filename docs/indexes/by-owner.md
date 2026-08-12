@@ -165,8 +165,11 @@
 | Document                                                                       | Path                                   | Type   | Authority     | Owner  | Status |
 | ------------------------------------------------------------------------------ | -------------------------------------- | ------ | ------------- | ------ | ------ |
 | [ADR Process](../../docs/guides/adr-process.md)                                | `docs/guides/adr-process.md`           | Guide  | Authoritative | DOCGOV | Live   |
+| [Active Reviews](../../docs/reviews/README.md)                                 | `docs/reviews/README.md`               | README | Advisory      | DOCGOV | Live   |
+| [Adapter Development Guide](../../docs/guides/adapters/README.md)              | `docs/guides/adapters/README.md`       | README | Advisory      | DOCGOV | Live   |
 | [Anvil Architecture](../../docs/architecture/overview.md)                      | `docs/architecture/overview.md`        | Guide  | Derived       | DOCGOV | Live   |
 | [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md` | Guide  | Authoritative | DOCGOV | Live   |
+| [Architecture Documentation](../../docs/architecture/README.md)                | `docs/architecture/README.md`          | README | Advisory      | DOCGOV | Live   |
 | [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)        | `docs/governance/tags-catalogue.md`    | Guide  | Authoritative | DOCGOV | Live   |
 | [Internal Engineering Documentation](../../docs/README.md)                     | `docs/README.md`                       | README | Advisory      | DOCGOV | Live   |
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)  | `docs/guides/release-doc-checklist.md` | Guide  | Advisory      | DOCGOV | Live   |

@@ -4,9 +4,9 @@
 | ----- | --------- | ------ | ------ | ------------------------------------------------ |
 | Guide | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
-| Upstream         | Downstream                                    |
-| ---------------- | --------------------------------------------- |
-| ADR-018, ADR-047 | OSS mirror policy, public repository guidance |
+| Upstream                                                                                                                          | Downstream                                    |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| ADR-018, ADR-047 `plans/decisions/018-product-ip-architecture.md`, `plans/decisions/047-eddacraft-tui-canonical-source-mirror.md` | OSS mirror policy, public repository guidance |
 
 eddacraft operates a closed-source product (the Anvil platform) with a
 deliberate, narrow open-source surface limited to three foundational

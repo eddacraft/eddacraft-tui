@@ -4,9 +4,9 @@
 | ----- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-12 against `plans/archive/execution/DOCGOV-005.steps.md` and `pnpm docs:check` v0.6.1-beta |
 
-| Upstream                                                                                   | Downstream                                                                                               |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `plans/modules/documentation-governance.aps.md`, `docs/guides/documentation-governance.md` | `scripts/docs/check-tags.mjs`, `scripts/docs/docs-check.mjs`, generated indexes, DOCGOV-008 cleanup pass |
+| Upstream                                                                                           | Downstream                                                                                               |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `plans/archive/modules/documentation-governance.aps.md`, `docs/guides/documentation-governance.md` | `scripts/docs/check-tags.mjs`, `scripts/docs/docs-check.mjs`, generated indexes, DOCGOV-008 cleanup pass |
 
 ## Purpose
 

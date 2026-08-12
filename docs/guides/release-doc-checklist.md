@@ -4,9 +4,9 @@
 | ----- | --------- | ------ | ------ | ------------------------------------------------------------------ |
 | Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-22 against DOCGOV-006 release-doc sync scope |
 
-| Upstream                                                                            | Downstream                                     |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `plans/modules/documentation-governance.aps.md`, `docs/runbooks/release-runbook.md` | Release operators, PR authors, `release` skill |
+| Upstream                                                                                    | Downstream                                     |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `plans/archive/modules/documentation-governance.aps.md`, `docs/runbooks/release-runbook.md` | Release operators, PR authors, `release` skill |
 
 Companion to the [release runbook](../runbooks/release-runbook.md). Use this
 checklist to ensure all documentation is updated before and after every release.

@@ -4,9 +4,9 @@
 | ----- | ------------- | ------------------ | ------ | ------------------------------------- |
 | Guide | Authoritative | USAGE, FLEET, BACT | Live   | Live as of 2026-08-11 (BACT two-pipe) |
 
-| Upstream                                                                                             | Downstream                                                                                                |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| ADR-035, ADR-041, ADR-019, ADR-107 (incl. 2026-08-11 BACT amendment), USAGE, FLEET, and BACT modules | Usage-analytics producers, fleet beacon, signed-in account activity, public telemetry docs, and reviewers |
+| Upstream                                                                                                                                                                                                                                                                                                                                  | Downstream                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| ADR-035, ADR-041, ADR-019, ADR-107 (incl. 2026-08-11 BACT amendment), USAGE, FLEET, and BACT modules `plans/decisions/035-three-pipe-observability-rule.md`, `plans/decisions/041-flag-snapshot-usage-join-contract.md`, `plans/decisions/019-flags-observability-alignment.md`, `plans/decisions/107-fleet-telemetry-consent-posture.md` | Usage-analytics producers, fleet beacon, signed-in account activity, public telemetry docs, and reviewers |
 
 > **Status:** Live as of 2026-08-11 (BACT two-pipe clarification; FLEET-006
 > beacon contract still as of 2026-07-16). This is the founder-confirmed privacy

@@ -4,9 +4,9 @@
 | ----- | --------- | ------ | ------ | ---------- |
 | Guide | Advisory  | DEVACC | Live   | 2026-08-11 |
 
-| Upstream                                                                                                                        | Downstream                                         |
-| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| [`dev-acceleration-benchmark-spec.md`](../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..010 (no live agent yet) | `plans/modules/dev-acceleration-benchmarks.aps.md` |
+| Upstream                                                                                                                                                                               | Downstream                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [`dev-acceleration-benchmark-spec.md`](../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..010 (no live agent yet) `docs/architecture/dev-acceleration-benchmark-spec.md` | `plans/modules/dev-acceleration-benchmarks.aps.md` |
 
 ## What this note covers (no headless-agent choice required)
 

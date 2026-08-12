@@ -1,5 +1,13 @@
 # Architecture Documentation
 
+| Type   | Authority | Owner  | Status | Freshness                                                                                           |
+| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-12 against `docs/guides/documentation-governance.md` and `docs/architecture/` |
+
+| Upstream                                                    | Downstream                      |
+| ----------------------------------------------------------- | ------------------------------- |
+| `docs/guides/documentation-governance.md`, `apps/docs-site` | Architecture document discovery |
+
 This directory holds Anvil's living architecture references: source-pinned
 as-built component maps, conceptual guides, and frozen or active design specs.
 The public-facing docs site is rendered from `apps/docs-site/`.

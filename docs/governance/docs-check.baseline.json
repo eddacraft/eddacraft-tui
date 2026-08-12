@@ -436,23 +436,79 @@
       "broken anchor \"#language--coverage\" — heading \"#language--coverage\" not found in current file"
     ]
   },
-  "asbuilt-paths": {},
+  "asbuilt-paths": {
+    "docs/architecture/edda-stack.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/architecture/references/pocketflow-capabilities.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/architecture/references/pocketflow-vendoring.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/architecture/system-spec.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/guides/eddacraft-autonomy-constitution.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/internal/realtime-feed-contract.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/internal/weave-feature-brief.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/reviews/kindling-performance-and-integration-assessment.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/strategy/borrow-adopt-candidates.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/strategy/competitor-tier2-tracking.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/testing/beta-user-test-scenarios.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/vision/anvil-scope-guard.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/vision/anvil-vision.md": ["as-built/runbook document must cite at least one source path"],
+    "docs/vision/aspirational-ultimate-feature.md": [
+      "as-built/runbook document must cite at least one source path"
+    ],
+    "docs/vision/constitutional-engineering.md": [
+      "as-built/runbook document must cite at least one source path"
+    ]
+  },
   "docs-owed": {
-    "docs/runbooks/intd-012-windows-evidence.md": [
-      "upstream moved since review: .github/workflows/rust.yml"
+    "docs/observability/namespace-registry.md": [
+      "upstream moved since review: plans/decisions/035-three-pipe-observability-rule.md"
     ],
     "docs/runbooks/main-first-cutover.md": [
       "upstream moved since review: .github/workflows/ci.yml"
     ],
+    "docs/runbooks/intd-012-windows-evidence.md": [
+      "upstream moved since review: .github/workflows/rust.yml"
+    ],
     "docs/runbooks/anvil-air-gapped.md": ["upstream moved since review: RELEASE-PLAN.md"],
     "docs/policies/editor-coexistence.md": [
       "upstream moved since review: crates/anvil-hook/src/coexistence.rs"
+    ],
+    "docs/governance/tags-catalogue.md": [
+      "upstream moved since review: plans/archive/modules/documentation-governance.aps.md"
     ],
     "docs/guides/anvil-rule-authoring.md": [
       "upstream moved since review: patterns/compiled/registry.json"
     ],
     "docs/guides/release-doc-checklist.md": [
       "upstream moved since review: docs/runbooks/release-runbook.md"
+    ],
+    "docs/runbooks/branch-reconciliation.md": [
+      "upstream moved since review: .github/workflows/ci.yml"
     ],
     "docs/runbooks/post-deploy-smoke-check.md": [
       "upstream moved since review: .github/workflows/release.yml"
@@ -476,11 +532,14 @@
     "docs/guides/edda-memory.md": [
       "upstream moved since review: crates/anvil-cli/src/commands/edda.rs"
     ],
+    "docs/runbooks/anvil-witness-chain.md": [
+      "upstream moved since review: plans/modules/multilayer-protection-v2.aps.md"
+    ],
     "docs/runbooks/rollback-bad-main.md": [
       "upstream moved since review: scripts/release/prepare.sh"
     ],
-    "docs/runbooks/branch-reconciliation.md": [
-      "upstream moved since review: .github/workflows/ci.yml"
+    "docs/guides/architecture-diagrams.md": [
+      "upstream moved since review: plans/archive/modules/documentation-governance.aps.md"
     ],
     "docs/guides/git-hook-compatibility.md": [
       "upstream moved since review: crates/anvil-cli/src/commands/hooks.rs"
@@ -520,8 +579,11 @@
       "upstream moved since review: scripts/release/preflight.sh"
     ],
     "docs/README.md": ["upstream moved since review: docs/guides/documentation-governance.md"],
-    "docs/governance/tags-catalogue.md": [
-      "upstream moved since review: docs/guides/documentation-governance.md"
+    "docs/surveys/pack-coverage-quickstart.md": [
+      "upstream moved since review: patterns/compiled/registry.json"
+    ],
+    "docs/surveys/pack-coverage-survey.md": [
+      "upstream moved since review: patterns/compiled/registry.json"
     ],
     "docs/guides/dependency-audit-posture.md": [
       "upstream moved since review: .github/workflows/security.yml"
@@ -529,20 +591,14 @@
     "docs/runbooks/vulnerability-response.md": [
       "upstream moved since review: .github/workflows/security.yml"
     ],
-    "docs/surveys/pack-coverage-quickstart.md": [
-      "upstream moved since review: patterns/compiled/registry.json"
-    ],
-    "docs/surveys/pack-coverage-survey.md": [
-      "upstream moved since review: patterns/compiled/registry.json"
-    ],
-    "docs/guides/architecture-diagrams.md": [
-      "upstream moved since review: docs/architecture/overview.md"
-    ],
     "docs/guides/supply-chain-policy.md": [
       "upstream moved since review: .github/workflows/rust.yml"
     ],
     "docs/architecture/quality-model.md": [
       "upstream moved since review: docs/architecture/overview.md"
+    ],
+    "docs/architecture/oss-surface.md": [
+      "upstream moved since review: plans/decisions/018-product-ip-architecture.md"
     ],
     "docs/architecture/references/entire-branch-sidecar.md": [
       "upstream moved since review: plans/archive/modules/graph-v2-foundation.aps.md"
@@ -553,13 +609,15 @@
     "docs/guides/opa-policy-testing.md": [
       "upstream moved since review: plans/modules/opa-agent-orchestration.aps.md"
     ],
+    "docs/guides/policy-exceptions.md": [
+      "upstream moved since review: crates/anvil-policy/src/exceptions.rs"
+    ],
     "docs/guides/policy-validation.md": [
       "upstream moved since review: plans/archive/modules/policy-pack-validation.aps.md"
     ],
     "docs/guides/custom-architecture-policies.md": [
       "upstream moved since review: docs/runbooks/cli-surface.md"
     ],
-    "docs/guides/testing.md": ["upstream moved since review: package.json"],
     "docs/reviews/cli-command-benchmark-tool-investigation.md": [
       "upstream moved since review: crates/anvil-cli/src/main.rs"
     ],
@@ -569,8 +627,14 @@
     "docs/architecture/overview.md": [
       "upstream moved since review: docs/architecture/mcp-shim-as-built.md"
     ],
-    "docs/guides/policy-exceptions.md": [
-      "upstream moved since review: crates/anvil-cli/src/commands/exception.rs"
+    "docs/architecture/jsts-release-surfaces.md": [
+      "upstream moved since review: plans/decisions/033-park-ide-mcp-retire-ts-scanner.md"
+    ],
+    "docs/architecture/dev-acceleration-benchmark-spec.md": [
+      "upstream moved since review: docs/guides/ai-context-delivery.md"
+    ],
+    "docs/runbooks/homebrew-publish.md": [
+      "upstream moved since review: plans/archive/modules/distribution-and-update.aps.md"
     ],
     "docs/runbooks/observability-triage.md": [
       "upstream moved since review: docs/observability/namespace-registry.md"

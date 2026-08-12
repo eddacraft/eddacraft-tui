@@ -1,5 +1,13 @@
 # Adapter Development Guide
 
+| Type   | Authority | Owner  | Status | Freshness                                                                  |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-12 against `docs/guides/documentation-governance.md` |
+
+| Upstream                                  | Downstream              |
+| ----------------------------------------- | ----------------------- |
+| `docs/guides/documentation-governance.md` | Adapter guide discovery |
+
 **Last Updated:** 2025-10-23
 
 ## Overview

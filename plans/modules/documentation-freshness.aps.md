@@ -7,7 +7,27 @@
 | --------- | ----- | -------- | ------ | -------- |
 | DOCFRESH  | —     | high     | In Progress | 0/8 |
 
-**Last reviewed:** 2026-08-12 — DOCFRESH-003 **In Progress**: the trigger moves
+**Last reviewed:** 2026-08-12 — DOCFRESH-004 **In Progress**. Coverage moves
+from **104 to 119** checkable documents (of 228). Composition of the gap was
+mis-stated in the item and is corrected there: no document was missing a review
+date. What actually blocked coverage was `Upstream` cells carrying prose or
+markdown-link labels instead of the backticked repository paths the parser
+recognises — `[label](../../plans/x.md)` is invisible to it.
+
+Two real defects fell out of widening `check-asbuilt-paths.mjs` to Guide, Policy
+and Spec: three documents still cite `plans/modules/documentation-governance.aps.md`,
+which moved under `plans/archive/` when DOCGOV was archived, and two PocketFlow
+references claim `packages/kindling-adapter-pocketflow/`, which has never existed
+in this tree. Both corrected.
+
+**Coverage has a real ceiling.** Sixteen documents — vision, strategy, internal
+briefs, third-party references — have no in-repo upstream that could be cited.
+They are baselined rather than given invented paths, so they stay countable as
+known gaps instead of being dressed up as covered. `docs-owed` known debt rises
+62 → 67 for the same reason: more documents visible means more staleness
+visible, not more staleness.
+
+**Earlier — 2026-08-12** — DOCFRESH-003 **Merged via PR #3800**: the trigger moved
 off `markdownlint-required` onto `code-changed`, which is the change that
 actually closes the structural gap. `source-changed` was the obvious candidate
 and is wrong — it resolves to format|lint|typecheck|unit-tests, which a
@@ -148,7 +168,7 @@ release rather than `main`.
 - **Confidence:** high
 - **Status:** Merged 2026-08-12 via PR #3795
 
-### DOCFRESH-003: Move the trigger from docs-changed to upstream-changed — In Progress
+### DOCFRESH-003: Move the trigger from docs-changed to upstream-changed — Merged
 
 - **Intent:** Close the structural gap — a code change that stales a document
   must run the check that notices.
@@ -165,17 +185,24 @@ release rather than `main`.
 - **Validation:** `pnpm test:ci-classify` plus a dry run of
   `node scripts/docs/check-docs-owed.mjs --since origin/main`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3800
 
-### DOCFRESH-004: Grow the checkable corpus — Ready
+### DOCFRESH-004: Grow the checkable corpus — In Progress
 
 - **Intent:** Coverage is the ceiling on this whole model; 125 of 228 documents
   are currently invisible to it.
-- **Expected Outcome:** The 30 documents that carry governance metadata but no
-  review date or no resolvable upstream path are backfilled, and the
-  "must cite at least one source path" rule in `check-asbuilt-paths.mjs` widens
-  from As-built/Runbook to Guide, Policy, and Spec. The `uncheckable` count in
-  the `docs-owed` summary falls and the reduction is recorded.
+- **Expected Outcome:** Documents carrying governance metadata but no resolvable
+  upstream path are backfilled, and the "must cite at least one source path"
+  rule in `check-asbuilt-paths.mjs` widens from As-built/Runbook to Guide,
+  Policy, and Spec. The `uncheckable` count in the `docs-owed` summary falls and
+  the reduction is recorded.
+- **Correction (2026-08-12):** this item was written against a wrong diagnosis.
+  It claimed 30 documents lacked "a review date or a resolvable upstream path";
+  the audit found **zero** missing review dates. The real composition was 3
+  READMEs with no governance table at all, 27 whose `Upstream` cell held prose
+  or markdown-link labels rather than the backticked repository paths the parser
+  recognises, and 2 citing a package that has never existed in this tree.
+  Delivered against the measured composition rather than the assumed one.
 - **Scope:** `docs/**/*.md` metadata tables, `scripts/docs/check-asbuilt-paths.mjs`
 - **Non-scope:** `docs/public/**` (DOCFRESH-005 owns that surface); document
   content
@@ -183,7 +210,7 @@ release rather than `main`.
 - **Validation:** `pnpm docs:check` green, and
   `node scripts/docs/check-docs-owed.mjs --json` shows a lower `uncheckable`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** In Progress
 
 ### DOCFRESH-005: Public-doc governance in frontmatter — Ready
 

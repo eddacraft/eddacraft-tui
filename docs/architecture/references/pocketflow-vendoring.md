@@ -4,9 +4,9 @@
 | ----- | --------- | ----- | ------ | ------------------------------------------------ |
 | Guide | Advisory  | KIND  | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
-| Upstream                                                                       | Downstream                              |
-| ------------------------------------------------------------------------------ | --------------------------------------- |
-| `packages/kindling-adapter-pocketflow/vendor/pocketflow/`, PocketFlow upstream | Kindling PocketFlow adapter maintenance |
+| Upstream                                                                                        | Downstream                              |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------- |
+| PocketFlow upstream (external project; the Kindling adapter is not vendored in this repository) | Kindling PocketFlow adapter maintenance |
 
 ## Overview
 

@@ -4,9 +4,9 @@
 | ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------- |
 | Guide | Authoritative | TRACE | Live   | Live as of 2026-04-30; metadata backfilled 2026-05-27 during DOCGOV-011 |
 
-| Upstream                  | Downstream                                    |
-| ------------------------- | --------------------------------------------- |
-| ADR-019, ADR-034, ADR-035 | Observability namespace authors and reviewers |
+| Upstream                                                                                                                                                                                                  | Downstream                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| ADR-019, ADR-034, ADR-035 `plans/decisions/019-flags-observability-alignment.md`, `plans/decisions/034-cross-cutting-modules-as-aps-primitive.md`, `plans/decisions/035-three-pipe-observability-rule.md` | Observability namespace authors and reviewers |
 
 > **Status:** Live as of 2026-04-30 (TRACE-001 landed). Records every
 > `anvil.<domain>.*` namespace contributed to the tracing pipe and which binary

@@ -4,9 +4,9 @@
 | ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------ |
 | Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-23 against `docs/architecture/overview.md` and current diagram drift |
 
-| Upstream                                                                                   | Downstream                                  |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `plans/modules/documentation-governance.aps.md`, `docs/guides/documentation-governance.md` | Architecture diagram reviews and PR hygiene |
+| Upstream                                                                                           | Downstream                                  |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `plans/archive/modules/documentation-governance.aps.md`, `docs/guides/documentation-governance.md` | Architecture diagram reviews and PR hygiene |
 
 This guide covers how architecture diagrams are managed, when to update them,
 and which tool to use.
