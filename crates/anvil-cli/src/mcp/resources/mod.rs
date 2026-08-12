@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 
 use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
 
+use anvil_gctx_types::MAX_PAGE_LIMIT;
 use anvil_intercept_proto::protocol::{
     ANVIL_GCTX_GRAPH_EDGES, ANVIL_GCTX_GRAPH_STATS, ANVIL_GCTX_SEARCH_SYMBOLS,
     GctxGraphEdgesRequest, GctxGraphEdgesResponse, GctxGraphStatsRequest, GctxGraphStatsResponse,
@@ -420,9 +421,22 @@ fn workspace_root() -> Result<String, ReadError> {
     Ok(canonical.to_string_lossy().into_owned())
 }
 
+/// Parse a `limit` query value and reject anything outside the advertised
+/// `1..=`[`MAX_PAGE_LIMIT`] page window **before** a daemon RPC is built.
+///
+/// The daemon also clamps (see `anvil_gctx_types` `effective_limit`), but the
+/// resource contract documents a hard cap of 200 — surface that as a client
+/// `BadRequest` so oversize requests never reach the daemon or consume egress.
 fn parse_limit(raw: &str) -> Result<u32, ReadError> {
-    raw.parse::<u32>()
-        .map_err(|_| ReadError::BadRequest(format!("invalid `limit` query value: {raw}")))
+    let limit = raw
+        .parse::<u32>()
+        .map_err(|_| ReadError::BadRequest(format!("invalid `limit` query value: {raw}")))?;
+    if !(1..=MAX_PAGE_LIMIT).contains(&limit) {
+        return Err(ReadError::BadRequest(format!(
+            "`limit` must be between 1 and {MAX_PAGE_LIMIT} (got {limit})"
+        )));
+    }
+    Ok(limit)
 }
 
 /// Split `graph://edges?file=a&cursor=b` into the base URI and decoded query

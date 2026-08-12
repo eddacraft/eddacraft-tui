@@ -75,6 +75,26 @@ fn parse_limit_rejects_non_numeric() {
 }
 
 #[test]
+fn parse_limit_enforces_advertised_page_bounds() {
+    // Resources advertise MAX_PAGE_LIMIT = 200; reject zero and oversize
+    // before any daemon RPC is constructed.
+    assert_eq!(parse_limit("200").expect("max page is allowed"), 200);
+    assert_eq!(parse_limit("1").expect("min page is allowed"), 1);
+    for raw in ["0", "201", "4294967295"] {
+        let err = parse_limit(raw).expect_err(&format!("limit={raw} must be BadRequest"));
+        assert!(
+            matches!(err, ReadError::BadRequest(_)),
+            "limit={raw}: {err:?}"
+        );
+        assert!(
+            err.reason().contains("limit"),
+            "limit={raw} reason should mention limit: {}",
+            err.reason()
+        );
+    }
+}
+
+#[test]
 fn file_filter_rejects_percent_encoding() {
     // ADV-5/CR-5: a `%` reaches the value (it is not a separator) and would
     // silently mis-map a path — reject it loudly.
