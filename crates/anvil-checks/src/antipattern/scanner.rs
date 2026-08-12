@@ -973,6 +973,10 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
 /// they are never merged into the process-global catalogue. Use this when the
 /// binding has already loaded a `CompiledRegistry` and must scan against that
 /// exact instance rather than re-resolving the registry path.
+///
+/// `ScanOptions` filtering runs *before* preparation so a large catalogue with
+/// an explicit `patterns` subset (or default enabled/non-opt-in selection)
+/// does not pay compile cost for rules that will not run.
 #[must_use]
 pub fn scan_artifact_with_patterns(
     artifact: &Artifact,
@@ -980,9 +984,30 @@ pub fn scan_artifact_with_patterns(
     patterns: &[AntiPattern],
 ) -> ScanResult {
     let scan_options = options.cloned().unwrap_or_default();
-    let prepared: Vec<PreparedPattern> = patterns.iter().cloned().map(prepare_pattern).collect();
-    let selected = select_prepared_patterns(&prepared, &scan_options);
-    scan_with_prepared(artifact, &selected)
+    let selected_patterns = select_antipatterns(patterns, &scan_options);
+    let prepared: Vec<PreparedPattern> =
+        selected_patterns.into_iter().map(prepare_pattern).collect();
+    let prepared_refs: Vec<&PreparedPattern> = prepared.iter().collect();
+    scan_with_prepared(artifact, &prepared_refs)
+}
+
+/// Apply [`ScanOptions`] to raw anti-patterns before regex preparation.
+fn select_antipatterns(patterns: &[AntiPattern], options: &ScanOptions) -> Vec<AntiPattern> {
+    if let Some(pattern_ids) = &options.patterns
+        && !pattern_ids.is_empty()
+    {
+        return patterns
+            .iter()
+            .filter(|p| pattern_ids.iter().any(|id| id == &p.id))
+            .cloned()
+            .collect();
+    }
+
+    patterns
+        .iter()
+        .filter(|p| p.enabled && (options.include_opt_in || !p.opt_in))
+        .cloned()
+        .collect()
 }
 
 /// Core scan loop shared by the global-catalogue and supplied-catalogue paths.
