@@ -24,9 +24,10 @@ use crate::symbol_graph::SymbolGraph;
 /// DependencyGraph)` is **owned** — a sibling worktree composing from the same
 /// base gets an independent pair.
 ///
-/// The result is deterministic and, for the ADR-105 §3 import contract, identical
-/// to a cold scan of the combined on-disk state (the GBASE-007 anchor). A clean
-/// worktree (empty fragment) composes to the base unchanged.
+/// The result is deterministic and identical to a cold scan of the combined
+/// on-disk state for reconstructable cross edges (`Imports`, `Reexports`, and
+/// `Calls` — the GBASE-007 anchor). A clean worktree (empty fragment) composes
+/// to the base unchanged.
 ///
 /// # Errors
 /// [`SnapshotLoadError::Corrupt`] if:
@@ -149,11 +150,12 @@ pub fn compose(
     re_resolve_reexports(&mut sym, &overlay_reexports);
     re_resolve_calls(&mut sym, &overlay_calls);
 
-    // 6. Re-establish each surviving-base → re-added-overlay import edge from the
-    //    plan (ADR-105 §3, "never trusted by a stale id"): resolve BOTH endpoints
+    // 6. Re-establish each surviving-base → re-added-overlay edge from the plan
+    //    (ADR-105 §3, "never trusted by a stale id"): resolve BOTH endpoints
     //    against the LIVE composed graph — the surviving base file's anchor and
-    //    the re-added file's NEW overlay symbol — never a persisted id. Imports
-    //    only (the reexport/call boundary is documented above).
+    //    the re-added file's NEW overlay symbol — never a persisted id. Covers
+    //    Imports (from the dep map) plus Reexports/Calls recovered from the base
+    //    symbol graph (the dep map is Imports-only).
     for directive in &plan.base_reresolve {
         let from = sym
             .symbols_in_file(&directive.from_file)

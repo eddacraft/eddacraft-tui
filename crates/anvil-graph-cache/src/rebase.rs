@@ -106,24 +106,23 @@ pub struct InvalidatedEdge {
     pub edge_type: EdgeType,
 }
 
-/// A cross-boundary import edge to **re-establish** after upserts (ADR-105 §3).
+/// A cross-boundary edge to **re-establish** after upserts (ADR-105 §3).
 ///
-/// A surviving base file `from_file` imported `to_file`, which the overlay
-/// tombstoned and re-added (a modified file). The edge is expressed at **file
-/// granularity** — deliberately *not* as ids — so composition re-resolves it
-/// against the live composed graph: `from_file`'s anchor to `to_file`'s **new**
+/// A surviving base file `from_file` held an edge into `to_file`, which the
+/// overlay tombstoned and re-added (a modified file). The edge is expressed at
+/// **file granularity** — deliberately *not* as ids — so composition re-resolves
+/// it against the live composed graph: `from_file`'s anchor to `to_file`'s **new**
 /// overlay symbol. Resolving from files, not stored ids, is the "never trusted by
 /// stale id" guarantee made concrete.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BaseReresolve {
-    /// The surviving base file whose import must be re-bound (its anchor is the
+    /// The surviving base file whose edge must be re-bound (its anchor is the
     /// edge source).
     pub from_file: String,
-    /// The tombstoned-and-re-added (modified) overlay file the import targets.
+    /// The tombstoned-and-re-added (modified) overlay file the edge targets.
     pub to_file: String,
-    /// The edge kind to re-establish (always [`EdgeType::Imports`] under the
-    /// ADR-105 §3 import contract; typed so the reexport/call extension has a
-    /// place to land).
+    /// The edge kind to re-establish (`Imports` from the dep map; `Reexports` /
+    /// `Calls` recovered from surviving base symbol edges into re-added files).
     pub edge_type: EdgeType,
 }
 
@@ -140,7 +139,8 @@ pub struct BaseReresolve {
 /// 3. [`invalidated_base_edges`](Self::invalidated_base_edges) — the base edges
 ///    the tombstones invalidate (stale ids that must not be trusted).
 /// 4. [`base_reresolve`](Self::base_reresolve) — the surviving-base → overlay
-///    import edges to re-establish from the persisted forward map.
+///    edges to re-establish (`Imports` from the dep map; `Reexports`/`Calls`
+///    from base symbol edges).
 ///
 /// Composition itself (mutating a materialised graph) is **out of scope** — this
 /// is the plan, not its application.
@@ -157,8 +157,9 @@ pub struct ComposePlan {
     /// Base edges invalidated by the tombstones (surviving-file → tombstoned-file),
     /// in the base's stale ids. Sorted; for GBASE-006 validation.
     pub invalidated_base_edges: Vec<InvalidatedEdge>,
-    /// Surviving-base → re-added-overlay import edges to re-establish, resolved
-    /// from the persisted file-dependency forward map. Sorted, de-duplicated.
+    /// Surviving-base → re-added-overlay edges to re-establish (`Imports` from
+    /// the file-dependency forward map; `Reexports`/`Calls` from base symbol
+    /// edges). Sorted, de-duplicated.
     pub base_reresolve: Vec<BaseReresolve>,
 }
 
@@ -211,7 +212,7 @@ pub fn plan_compose(
         .collect();
 
     let invalidated_base_edges = invalidated_base_edges(base_sym, &tomb_set);
-    let base_reresolve = base_reresolve(base_dep, &tomb_set, &readded);
+    let base_reresolve = base_reresolve(base_sym, base_dep, &tomb_set, &readded);
 
     ComposePlan {
         watermark,
@@ -254,15 +255,25 @@ fn invalidated_base_edges(
     edges
 }
 
-/// The surviving-base → re-added-overlay import edges to re-establish, derived
-/// from the persisted Imports-only file-dependency forward map (ADR-105 §3).
+/// Surviving-base → re-added-overlay edges to re-establish after the tombstone
+/// drops the base's resolved targets (ADR-105 §3).
 ///
-/// For each re-added (modified) file `M`, its base **dependents** (files that
-/// imported it) that are **not themselves tombstoned** need their import of `M`
-/// re-bound to `M`'s new overlay symbol. A dependent that *is* tombstoned is
-/// itself re-parsed as an upsert, so `update_file` re-lifts its import of `M`
-/// naturally — including it here would double the edge, so it is excluded.
+/// **Imports** come from the persisted Imports-only file-dependency forward map:
+/// for each re-added (modified) file `M`, its base **dependents** that are **not
+/// themselves tombstoned** need their import of `M` re-bound to `M`'s new overlay
+/// symbol. A dependent that *is* tombstoned is itself re-parsed as an upsert, so
+/// `update_file` re-lifts its import of `M` naturally — including it here would
+/// double the edge, so it is excluded.
+///
+/// **Reexports** and **Calls** are recovered from the base symbol graph: the dep
+/// map is Imports-only, so a surviving re-export or call into a re-added file is
+/// otherwise dropped when the tombstone removes the old target node. Walk each
+/// re-added file's incoming base edges and emit file-granularity directives for
+/// those two kinds (skipping tombstoned sources, which re-lift themselves).
+/// `Contains` / `References` are structural within a file's own lift and do not
+/// cross the surviving→re-added boundary this plan restores.
 fn base_reresolve(
+    base_sym: &SymbolGraph,
     base_dep: &DependencyGraph,
     tomb_set: &BTreeSet<&str>,
     readded: &BTreeSet<&str>,
@@ -280,6 +291,26 @@ fn base_reresolve(
                 edge_type: EdgeType::Imports,
             });
         }
+
+        // Recover non-import cross edges the Imports-only dep map cannot see.
+        for node in base_sym.symbols_in_file(to_file) {
+            for edge in base_sym.incoming_edges(node.id) {
+                if edge.edge_type != EdgeType::Reexports && edge.edge_type != EdgeType::Calls {
+                    continue;
+                }
+                let Some(from_node) = base_sym.get_symbol(edge.from) else {
+                    continue;
+                };
+                if tomb_set.contains(from_node.file.as_str()) {
+                    continue;
+                }
+                out.push(BaseReresolve {
+                    from_file: from_node.file.clone(),
+                    to_file: to_file.to_owned(),
+                    edge_type: edge.edge_type,
+                });
+            }
+        }
     }
     out.sort();
     out.dedup();
@@ -292,10 +323,11 @@ mod tests {
 
     use super::*;
     use anvil_kernel_types::{
-        EdgeType, ImportEdge, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel, Visibility,
+        EdgeType, ImportEdge, ReexportEdge, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel,
+        Visibility,
     };
 
-    use crate::incremental::{re_resolve_imports, update_file};
+    use crate::incremental::{re_resolve_imports, re_resolve_reexports, update_file};
     use crate::snapshot::SnapshotPayload;
 
     // ---- fixture builders -------------------------------------------------
@@ -320,8 +352,26 @@ mod tests {
         }
     }
 
+    fn reexport(from_file: &str, exported_name: &str, to_source: &str) -> ReexportEdge {
+        ReexportEdge {
+            from_file: from_file.to_owned(),
+            exported_name: exported_name.to_owned(),
+            to_source: to_source.to_owned(),
+            line: 0,
+        }
+    }
+
     /// A `FileSymbols` with the given raw parser ids and import specifiers.
     fn file_symbols(file: &str, symbols: &[(u64, &str)], imports: &[ImportEdge]) -> FileSymbols {
+        file_symbols_full(file, symbols, imports, &[])
+    }
+
+    fn file_symbols_full(
+        file: &str,
+        symbols: &[(u64, &str)],
+        imports: &[ImportEdge],
+        reexports: &[ReexportEdge],
+    ) -> FileSymbols {
         FileSymbols {
             file: file.to_owned(),
             symbols: symbols
@@ -329,7 +379,7 @@ mod tests {
                 .map(|(id, name)| sym(*id, name, file))
                 .collect(),
             imports: imports.to_vec(),
-            reexports: Vec::new(),
+            reexports: reexports.to_vec(),
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
@@ -663,6 +713,69 @@ mod tests {
             Some(stale_f2_id),
             "must never trust the stale base id"
         );
+    }
+
+    // ---- (c2) base re-export → overlay (never a stale id) ----------------
+
+    #[test]
+    fn base_reexport_reresolves_to_new_overlay_id_never_stale() {
+        // Surviving base reexporter.ts re-exports ./widget; overlay modifies widget.
+        let mut sym = SymbolGraph::new();
+        update_file(&mut sym, file_symbols("widget.ts", &[(1, "widget")], &[]));
+        update_file(
+            &mut sym,
+            file_symbols_full(
+                "reexporter.ts",
+                &[(2, "reexporter")],
+                &[],
+                &[reexport("reexporter.ts", "*", "./widget")],
+            ),
+        );
+        re_resolve_reexports(&mut sym, &[reexport("reexporter.ts", "*", "./widget")]);
+        let dep = derive_dep(&sym);
+        let payload = SnapshotPayload::from_graphs(&sym, &dep).expect("base payload");
+        let (base_sym, base_dep) = payload.into_graphs().expect("replay");
+        let watermark = base_sym.next_id();
+        let stale_widget_id = base_sym.symbols_in_file("widget.ts")[0].id;
+
+        let fragment = OverlayFragment {
+            upserts: vec![file_symbols("widget.ts", &[(1, "widget2")], &[])],
+            tombstones: vec!["widget.ts".to_owned()],
+            changed: crate::overlay::ChangedSet::default(),
+            coverage: crate::overlay::OverlayCoverage {
+                walked_files: 2,
+                total_files: 2,
+                skipped_unreadable: 0,
+            },
+        };
+        let plan = plan_compose(&base_sym, &base_dep, &fragment);
+        assert!(
+            plan.base_reresolve.iter().any(|d| {
+                d.from_file == "reexporter.ts"
+                    && d.to_file == "widget.ts"
+                    && d.edge_type == EdgeType::Reexports
+            }),
+            "plan must carry a Reexports base_reresolve; got {:?}",
+            plan.base_reresolve
+        );
+
+        let composed = apply_plan(base_sym, &plan);
+        let reexporter_id = composed.symbols_in_file("reexporter.ts")[0].id;
+        let new_widget_id = composed.symbols_in_file("widget.ts")[0].id;
+        assert!(new_widget_id >= watermark);
+        assert!(composed.get_symbol(stale_widget_id).is_none());
+
+        let edge_to = composed
+            .outgoing_edges(reexporter_id)
+            .iter()
+            .find(|e| e.edge_type == EdgeType::Reexports)
+            .map(|e| e.to);
+        assert_eq!(
+            edge_to,
+            Some(new_widget_id),
+            "surviving reexport must re-resolve to the new overlay id"
+        );
+        assert_ne!(edge_to, Some(stale_widget_id));
     }
 
     // ---- (d) mini-parity: composed == cold scan --------------------------

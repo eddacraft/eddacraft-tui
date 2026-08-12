@@ -1,7 +1,7 @@
 //! GBASE-007: combined-state golden parity (base + overlay vs cold scan).
 //!
-//! Hermetic pin of composed graph shape; reexport/call cross-edge gaps are
-//! recorded exclusions (ADR-105 §3 imports-only re-resolve).
+//! Hermetic pin of composed graph shape, including surviving-base → re-added
+//! overlay `Imports` / `Reexports` / `Calls` reconstruction.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -87,7 +87,7 @@ fn file_symbols(
 /// - `consumer.ts` (`consumer`) — imports `./widget` (surviving base importer of
 ///   a modified file → `BaseReresolve`);
 /// - `reexporter.ts` (`reexporter`) — re-exports `* from './widget'` (surviving
-///   base re-exporter of a modified file → the recorded reexport divergence);
+///   base re-exporter of a modified file → `BaseReresolve` for `Reexports`);
 /// - `needsgone.ts` (`needs`) — imports `./gone` (a surviving importer of a
 ///   deleted file).
 fn base_payload() -> SnapshotPayload {
@@ -404,23 +404,21 @@ fn composed_import_edges_and_dependency_graph_equal_the_cold_scan() {
 }
 
 // ---------------------------------------------------------------------------
-// (2) The recorded ADR-105 §3 exclusion, pinned to its EXACT divergence shape.
+// (2) Surviving-base → re-added-overlay Reexports parity (formerly the
+//     imports-only exclusion; closed by reconstructing non-import directives).
 // ---------------------------------------------------------------------------
 
 #[test]
-fn reexport_call_divergence_is_exactly_the_recorded_gap() {
+fn reexport_into_modified_overlay_matches_cold_scan() {
     let (sym, _) = composed();
     let cold = cold_scan_combined();
 
     let composed_all = edge_identities(&sym);
     let cold_all = edge_identities(&cold);
 
-    // The EXACT expected divergence: a surviving base file (`reexporter.ts`)
-    // re-exports `* from './widget'`, and `widget.ts` was modified. The base
-    // persists only the *resolved* Reexports edge (dropped when the tombstone
-    // removes widget's node) and an Imports-only forward map, so composition
-    // cannot re-establish it — the cold scan re-parses the surviving re-export and
-    // does. This is the recorded ADR-105 §3 imports-only exclusion.
+    // A surviving base file (`reexporter.ts`) re-exports `* from './widget'`, and
+    // `widget.ts` was modified. Composition must re-establish the Reexports edge
+    // onto the new overlay symbol so the composed graph matches a cold scan.
     let reexporter = SymbolIdentity {
         file: "reexporter.ts".to_owned(),
         kind: SymbolKind::Function,
@@ -433,35 +431,26 @@ fn reexport_call_divergence_is_exactly_the_recorded_gap() {
         name: "widget2".to_owned(),
         ordinal: 0,
     };
-    let expected_divergence = (reexporter, widget, EdgeType::Reexports);
+    let reexport_edge = (reexporter, widget, EdgeType::Reexports);
 
-    // Cold has exactly one edge composed lacks — the recorded reexport gap.
+    assert!(
+        composed_all.contains(&reexport_edge),
+        "composed graph must restore surviving-base → re-added-overlay Reexports; missing {reexport_edge:#?}"
+    );
+    assert!(
+        cold_all.contains(&reexport_edge),
+        "cold scan must include the reexport (fixture sanity); missing {reexport_edge:#?}"
+    );
+
     let only_in_cold: BTreeSet<_> = cold_all.difference(&composed_all).cloned().collect();
     let only_in_composed: BTreeSet<_> = composed_all.difference(&cold_all).cloned().collect();
-
-    assert_eq!(
-        only_in_cold,
-        BTreeSet::from([expected_divergence.clone()]),
-        "the ONLY composed-vs-cold divergence must be the recorded base→overlay reexport gap.\n\
-         If this set is EMPTY the gap CLOSED (the persisted format now reconstructs the edge — \
-         remove this exclusion and fold reexport/call into the parity set). If it GREW, a NEW \
-         divergence appeared beyond the recorded exclusion — do NOT weaken this assertion; \
-         investigate per the GBASE-007 checkpoint clause.\nonly_in_cold = {only_in_cold:#?}"
+    assert!(
+        only_in_cold.is_empty(),
+        "composed must not lag the cold scan; only_in_cold = {only_in_cold:#?}"
     );
     assert!(
         only_in_composed.is_empty(),
         "composition must never invent an edge the cold scan lacks; found {only_in_composed:#?}"
-    );
-
-    // And the structural sanity behind the difference: composed LACKS the edge,
-    // cold HAS it.
-    assert!(
-        !composed_all.contains(&expected_divergence),
-        "the composed graph must LACK the base→overlay reexport (the recorded gap)"
-    );
-    assert!(
-        cold_all.contains(&expected_divergence),
-        "the cold scan must HAVE the base→overlay reexport (proving the gap is real, not vacuous)"
     );
 }
 
