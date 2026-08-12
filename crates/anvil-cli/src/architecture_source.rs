@@ -13,6 +13,13 @@
 //!
 //! Consumers migrate in the follow-up command sweep; this module is
 //! the single resolution seam they bind to.
+//!
+//! `#![allow(dead_code)]` is intentional and temporary (the
+//! `config_view` / MLP2-041 incremental-migration precedent): the
+//! seam ships regression-protected now; `gate.rs`, `watch.rs`, and
+//! the architecture commands bind to it in the follow-up sweep item
+//! without coupling those changes to this one.
+#![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 
