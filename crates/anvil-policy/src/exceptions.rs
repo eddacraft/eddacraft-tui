@@ -308,32 +308,32 @@ impl ExceptionStore {
     /// Read-only: this never writes or migrates. Returns an empty
     /// [`StoreSource::Fresh`] store if neither file exists.
     pub fn load(workspace_root: &Path) -> Result<Self, ExceptionError> {
-        let tracked = workspace_root.join(EXCEPTIONS_FILE);
-        if tracked.exists() {
-            // EXCEPT-006 read-side guard: a hostile repository can
-            // *commit* a symlinked governance path (git tracks
-            // symlinks), redirecting gate reads to unreviewed content.
-            // Writes have refused this since EXCEPT-007; reads must
-            // match now that the store feeds gate verdicts.
-            refuse_symlinked_store_paths(workspace_root)?;
-            return Self::load_from(&tracked, StoreSource::Tracked);
+        // EXCEPT-006 / clawpatch TOCTOU: do not check-then-`File::open` on
+        // path strings. Open each governed component with no-follow
+        // semantics so a concurrent swap of a checked path for a
+        // symlink cannot redirect gate reads to unreviewed content.
+        match open_governed_store(workspace_root, GovernedStoreKind::Tracked) {
+            Ok(file) => return Self::load_from_file(file, StoreSource::Tracked),
+            Err(e) if is_not_found(&e) => {}
+            Err(e) => return Err(e),
         }
-        let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
-        if legacy.exists() {
-            refuse_symlinked_legacy_paths(workspace_root)?;
-            return Self::load_from(&legacy, StoreSource::Legacy);
+        match open_governed_store(workspace_root, GovernedStoreKind::Legacy) {
+            Ok(file) => return Self::load_from_file(file, StoreSource::Legacy),
+            Err(e) if is_not_found(&e) => {}
+            Err(e) => return Err(e),
         }
         Ok(Self::empty())
     }
 
-    /// Reads and parses a store from an explicit path, tagging its origin.
-    /// The read itself is bounded to [`MAX_STORE_BYTES`] + 1 (a
+    /// Reads and parses a store from an already-open file handle, tagging
+    /// its origin. The read is bounded to [`MAX_STORE_BYTES`] + 1 (a
     /// `Read::take` cap, not a check-then-read on file metadata, so a
     /// file growing between stat and read cannot bypass the bound) and
-    /// refuses oversized stores.
-    fn load_from(path: &Path, source: StoreSource) -> Result<Self, ExceptionError> {
+    /// refuses oversized stores. Callers must open through
+    /// [`open_governed_store`] (Unix: per-component `O_NOFOLLOW`) so the
+    /// open cannot be retargeted by a post-validation symlink swap.
+    fn load_from_file(file: std::fs::File, source: StoreSource) -> Result<Self, ExceptionError> {
         use std::io::Read;
-        let file = std::fs::File::open(path)?;
         let mut content = String::new();
         file.take(MAX_STORE_BYTES + 1)
             .read_to_string(&mut content)?;
@@ -434,7 +434,14 @@ impl ExceptionStore {
             if tracked.exists() {
                 return Ok(MigrateOutcome::NothingToDo);
             }
-            let mut store = Self::load_from(&legacy, StoreSource::Legacy)?;
+            // Re-open the legacy store under the flock with the same
+            // no-follow discipline as load — the pre-lock exists/guard
+            // check is not a substitute for a race-safe open.
+            let mut store = match open_governed_store(workspace_root, GovernedStoreKind::Legacy) {
+                Ok(file) => Self::load_from_file(file, StoreSource::Legacy)?,
+                Err(e) if is_not_found(&e) => return Ok(MigrateOutcome::NothingToDo),
+                Err(e) => return Err(e),
+            };
             // The explicit-migration path is the one place a legacy-origin
             // store may be promoted; re-tag before the tracked write.
             store.source = StoreSource::Tracked;
@@ -629,6 +636,134 @@ fn refuse_symlinked_legacy_paths(workspace_root: &Path) -> Result<(), ExceptionE
         }
     }
     Ok(())
+}
+
+/// Which on-disk exception store to open under a workspace root.
+#[derive(Clone, Copy)]
+enum GovernedStoreKind {
+    Tracked,
+    Legacy,
+}
+
+impl GovernedStoreKind {
+    fn components(self) -> &'static [&'static str] {
+        match self {
+            Self::Tracked => &["anvil", "exceptions", "store.json"],
+            Self::Legacy => &[".anvil", "exceptions.json"],
+        }
+    }
+
+    #[cfg(not(unix))]
+    fn relative_path(self) -> &'static str {
+        match self {
+            Self::Tracked => EXCEPTIONS_FILE,
+            Self::Legacy => LEGACY_EXCEPTIONS_FILE,
+        }
+    }
+}
+
+/// Whether an error is a missing path component / file (empty-store case).
+fn is_not_found(error: &ExceptionError) -> bool {
+    matches!(error, ExceptionError::Io(e) if e.kind() == std::io::ErrorKind::NotFound)
+}
+
+/// Open a governed exception store relative to `workspace_root` without
+/// following any path-component symlink.
+///
+/// On Unix this walks each component with `openat` + `O_NOFOLLOW` so a
+/// concurrent replacement of a checked path for a symlink cannot redirect
+/// the read after a path-string guard (TOCTOU). On non-Unix platforms the
+/// path-string symlink guard still runs, then a normal open (best-effort;
+/// same class as other non-Unix governance opens in this repo).
+fn open_governed_store(
+    workspace_root: &Path,
+    kind: GovernedStoreKind,
+) -> Result<std::fs::File, ExceptionError> {
+    #[cfg(unix)]
+    {
+        open_nofollow_components(workspace_root, kind.components())
+    }
+    #[cfg(not(unix))]
+    {
+        match kind {
+            GovernedStoreKind::Tracked => refuse_symlinked_store_paths(workspace_root)?,
+            GovernedStoreKind::Legacy => refuse_symlinked_legacy_paths(workspace_root)?,
+        }
+        std::fs::File::open(workspace_root.join(kind.relative_path())).map_err(ExceptionError::from)
+    }
+}
+
+/// Open `components` under `root` with per-hop no-follow semantics.
+///
+/// Intermediate components open as directories (`O_DIRECTORY |
+/// O_NOFOLLOW`); the leaf opens as a regular read (`O_RDONLY |
+/// O_NOFOLLOW`). A symlink at any hop surfaces as
+/// [`ExceptionError::SymlinkedPath`].
+///
+/// Uses `nix::fcntl::open`/`openat` so this crate stays under the
+/// workspace `forbid(unsafe_code)` lint (same pattern as gate-history
+/// and usage-sidecar opens in `anvil-cli`).
+#[cfg(unix)]
+fn open_nofollow_components(
+    root: &Path,
+    components: &[&str],
+) -> Result<std::fs::File, ExceptionError> {
+    use std::os::fd::AsFd;
+
+    use nix::fcntl::{OFlag, open, openat};
+    use nix::sys::stat::Mode;
+
+    if components.is_empty() {
+        return Err(ExceptionError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "governed store path has no components",
+        )));
+    }
+
+    // Workspace root is caller-supplied; open it as a directory fd that
+    // anchors every subsequent openat. We do not O_NOFOLLOW the root —
+    // the operator chose this workspace path intentionally.
+    let mut dir = open(
+        root,
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(std::io::Error::from)
+    .map_err(ExceptionError::from)?;
+
+    let mut built = root.to_path_buf();
+    for (index, component) in components.iter().enumerate() {
+        let is_last = index + 1 == components.len();
+        built.push(component);
+        let flags = if is_last {
+            OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC
+        } else {
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC
+        };
+        let next = match openat(dir.as_fd(), Path::new(component), flags, Mode::empty()) {
+            Ok(fd) => fd,
+            Err(nix::Error::ELOOP) => {
+                return Err(ExceptionError::SymlinkedPath { path: built });
+            }
+            // Intermediate symlink + O_DIRECTORY can surface as ENOTDIR
+            // when the link itself is not followed; re-check with
+            // no-follow metadata and map to SymlinkedPath.
+            Err(nix::Error::ENOTDIR) => {
+                if std::fs::symlink_metadata(&built).is_ok_and(|m| m.file_type().is_symlink()) {
+                    return Err(ExceptionError::SymlinkedPath { path: built });
+                }
+                return Err(ExceptionError::Io(std::io::Error::from(
+                    nix::Error::ENOTDIR,
+                )));
+            }
+            Err(err) => return Err(ExceptionError::Io(std::io::Error::from(err))),
+        };
+        if is_last {
+            return Ok(std::fs::File::from(next));
+        }
+        dir = next;
+    }
+    unreachable!("components non-empty; loop always returns on last hop")
 }
 
 /// Whether an error is the read-only-worktree class that write paths
@@ -1019,6 +1154,84 @@ mod tests {
             matches!(err, ExceptionError::SymlinkedPath { .. }),
             "{err:?}"
         );
+    }
+
+    /// Leaf symlink at the tracked store file must refuse — and must
+    /// never surface the external target's exceptions (the classic
+    /// check-then-open race: after a path-string guard, a concurrent
+    /// swap of store.json for a symlink would feed unreviewed content
+    /// into gate decisions if the open followed links).
+    #[cfg(unix)]
+    #[test]
+    fn load_refuses_symlinked_store_file_without_reading_target() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let outside = tmp.path().join("outside-store.json");
+        // External content with a grant that must never be applied.
+        std::fs::write(
+            &outside,
+            r#"{"exceptions":[{"policy_id":"AP-EVIL","file_pattern":"","reason":"smuggled","created_at":"2020-01-01T00:00:00Z"}]}"#,
+        )
+        .unwrap();
+        std::fs::create_dir_all(root.join("anvil/exceptions")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("anvil/exceptions/store.json")).unwrap();
+
+        let err = ExceptionStore::load(root).expect_err("symlinked store leaf must refuse");
+        assert!(
+            matches!(err, ExceptionError::SymlinkedPath { .. }),
+            "expected SymlinkedPath, got {err:?}"
+        );
+        // Defence-in-depth: if a future regression followed the link and
+        // returned Ok, the smuggled grant would appear here.
+        if let Ok(store) = ExceptionStore::load(root) {
+            assert!(
+                store.exceptions.is_empty(),
+                "must not load external symlink target content"
+            );
+        }
+    }
+
+    /// Intermediate-component no-follow: even when `store.json` is a
+    /// real file, a symlinked parent directory must not let load read
+    /// through to an external tree (openat + `O_NOFOLLOW` on the dir hop).
+    #[cfg(unix)]
+    #[test]
+    fn load_refuses_symlinked_anvil_dir_without_reading_target() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let outside = tmp.path().join("outside-tree");
+        std::fs::create_dir_all(outside.join("exceptions")).unwrap();
+        std::fs::write(
+            outside.join("exceptions/store.json"),
+            r#"{"exceptions":[{"policy_id":"AP-EVIL","file_pattern":"","reason":"smuggled","created_at":"2020-01-01T00:00:00Z"}]}"#,
+        )
+        .unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("anvil")).unwrap();
+
+        let err = ExceptionStore::load(root).expect_err("symlinked anvil/ must refuse");
+        assert!(
+            matches!(err, ExceptionError::SymlinkedPath { .. }),
+            "expected SymlinkedPath, got {err:?}"
+        );
+    }
+
+    /// Happy path still binds a real tracked store through the no-follow
+    /// ladder (regression guard for the openat wiring).
+    #[cfg(unix)]
+    #[test]
+    fn load_opens_real_tracked_store_via_nofollow_ladder() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("anvil/exceptions")).unwrap();
+        std::fs::write(
+            root.join("anvil/exceptions/store.json"),
+            r#"{"exceptions":[{"policy_id":"AP-001","file_pattern":"src/**","reason":"ok","created_at":"2020-01-01T00:00:00Z"}]}"#,
+        )
+        .unwrap();
+        let store = ExceptionStore::load(root).expect("real store must load");
+        assert_eq!(store.source(), StoreSource::Tracked);
+        assert_eq!(store.exceptions.len(), 1);
+        assert_eq!(store.exceptions[0].policy_id, "AP-001");
     }
 
     /// A store past [`MAX_STORE_BYTES`] refuses before allocating —

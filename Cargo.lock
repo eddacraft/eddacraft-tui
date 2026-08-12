@@ -1748,6 +1748,7 @@ dependencies = [
  "fs2",
  "glob",
  "hex",
+ "nix 0.31.3",
  "serde",
  "serde_json",
  "serde_yaml",

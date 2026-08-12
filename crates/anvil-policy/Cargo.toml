@@ -28,5 +28,11 @@ fs2 = "0.4"
 glob = "0.3"
 workspace-hack.workspace = true
 
+# Per-component O_NOFOLLOW open for exception-store loads (TOCTOU-safe
+# openat ladder on Unix). Non-Unix falls back to path-string guards.
+# `nix` keeps the workspace forbid(unsafe_code) lint honest.
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", default-features = false, features = ["fs"] }
+
 [lints]
 workspace = true
