@@ -4382,11 +4382,22 @@ fn finalise_checks_from_value(
 ) -> Result<Option<std::collections::HashSet<String>>> {
     let view = crate::config_view::GateConfigView::from_value(value)
         .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
-    if view.checks.is_empty() {
-        return Ok(None);
-    }
-    let canonical: std::collections::HashSet<String> = view
-        .checks
+    // UCFG-004 (ADR-120 pt 4): a malformed `gate` section is a loud
+    // config error even when selection comes from the top-level list.
+    let gate_section = anvil_config::GateSection::from_config_value(value)
+        .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+    let names: Vec<String> = if view.checks.is_empty() {
+        // Reconciliation rule: the top-level `checks` list is the
+        // selection truth; only when it is absent does selection
+        // derive from the gate section's per-check config keys.
+        match &gate_section {
+            Some(section) if !section.checks.is_empty() => section.check_names(),
+            _ => return Ok(None),
+        }
+    } else {
+        view.checks
+    };
+    let canonical: std::collections::HashSet<String> = names
         .into_iter()
         .map(|name| canonical_check_name(&name).unwrap_or(&name).to_string())
         .collect();
@@ -10497,6 +10508,56 @@ rules: []
     fn read_anvilrc_checks_none_when_missing() {
         let tmp = tempfile::TempDir::new().unwrap();
         assert!(read_anvilrc_checks(tmp.path()).unwrap().is_none());
+    }
+
+    // ---- UCFG-004: gate section reconciliation ----
+
+    /// Selection derives from `gate.checks` keys only when the
+    /// top-level `checks` list is absent.
+    #[test]
+    fn gate_section_supplies_selection_when_top_level_checks_absent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "gate:\n  checks:\n    secret-detection:\n      max_findings: 0\n    antipattern-scan: {}\n",
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert!(checks.contains("secret-detection"), "{checks:?}");
+        assert!(checks.contains("antipattern-scan"), "{checks:?}");
+    }
+
+    /// One truth rule: when both exist, the top-level `checks` list
+    /// wins — the gate section carries composition, not a second
+    /// enablement truth (ADR-120 pt 4).
+    #[test]
+    fn top_level_checks_wins_over_gate_section() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "checks:\n  - secret-detection\ngate:\n  checks:\n    antipattern-scan: {}\n",
+        )
+        .unwrap();
+        let checks = read_anvilrc_checks(tmp.path()).unwrap().unwrap();
+        assert!(checks.contains("secret-detection"));
+        assert!(
+            !checks.contains("antipattern-scan"),
+            "gate section must not add to an explicit top-level selection"
+        );
+    }
+
+    /// A malformed gate section is a loud config error, not a silent
+    /// empty selection.
+    #[test]
+    fn malformed_gate_section_errors_with_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "gate:\n  checks: [not-a-table]\n",
+        )
+        .unwrap();
+        let err = read_anvilrc_checks(tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("gate.checks"), "got: {err:#}");
     }
 
     #[test]

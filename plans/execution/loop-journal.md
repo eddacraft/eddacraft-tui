@@ -827,3 +827,33 @@ never with feature work.
   or publication action was used.
 - Next: obtain release or shipped evidence before advancing these items beyond
   Merged; do not mark them Released/Shipped or Complete from merge evidence.
+
+## Cycle — 2026-08-13 (UCFG drain, wave 1: UCFG-003 integrated, UCFG-009 in flight)
+
+- Mode: autonomous+merge, session-scoped operator grant (recorded in the run
+  checkpoint `ucfg-drain-2026-08-13`). Module UCFG Ready against
+  v0.10.0-beta (ADR-120 Accepted 2026-08-13, PR #3812).
+- UCFG-003 (snake_case canonical key space):
+  `MERGED(d5ce8823a727f3005f25a5433290b53f33904b5f, 2026-08-12T19:22:27Z)`
+  via PR #3824. Integration proof: `git merge-base --is-ancestor` against
+  `origin/main` passed post-fetch. Independent verify: pass-with-advisories
+  (5 minor; 2 fixed in-branch, 2 folded into UCFG-002's intent, 1 owned by
+  UCFG-011). Both Copilot threads resolved pre-merge (one doc fix, one
+  refuted with a compiled string-continuation proof).
+- UCFG-009 (unified policy discovery): review-ready as PR #3831,
+  auto-merge armed. Verifier round 1 found a BLOCKING capsule attestation
+  drift (POLICY_FILE_CANDIDATES kept yml-first after the enforcement flip)
+  — repaired by sharing the `discover` walk; round 2 pass.
+- Environment: local watch/daemon test binaries fail on inotify instance
+  exhaustion (124/128 held by external processes); proven environmental by
+  identical failure on an untouched branch. CI is the hermetic rerun.
+  Remedy needing operator: `sudo sysctl fs.inotify.max_user_instances=256`.
+- Bookkeeping owed: pre-existing anvil-l4 rustdoc intra-doc-link breaks
+  (policy.rs:245/292, dated 2026-05-15, no rustdoc gate on that crate) —
+  CI-log candidate, not attributable to this wave.
+- Plan changes: UCFG-003 Proposed→In Progress→Merged; UCFG-009
+  Proposed→In Progress; UCFG-002 intent gained the owned-write rewrite
+  clause + deprecation-note render path; UCFG-004 In Progress (this branch).
+- Authority: no admin merge, no bypass, no review dismissal.
+- Next: UCFG-004 land; then UCFG-005 (dep 004) and UCFG-006 (dep 003, now
+  unblocked) — 006 parallel-eligible.

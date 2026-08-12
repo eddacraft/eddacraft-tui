@@ -202,7 +202,7 @@ Change status to **Ready** when:
 
 #### UCFG-003: snake_case canonical key space
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3824
 - **Intent:** canonicalise keys to snake_case across yaml/json/toml in
   `anvil-config`; accept legacy camelCase on read via the migrations layer;
   owned writes emit snake_case only. This owns the actual divergent writer
@@ -231,7 +231,7 @@ Change status to **Ready** when:
 
 #### UCFG-004: `gate` section schema in the main config
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** define the `gate` section holding what `gate-config.json`
   carried (check enablement, `overall_score`, global config), reconciled with
   the `checks` key gate runs already read
