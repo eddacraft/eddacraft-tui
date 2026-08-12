@@ -62,9 +62,66 @@ pub fn verify_capsule_at(
 /// Read + schema-gate `manifest.json`. `Err` carries a human detail for
 /// the `error` verdict.
 fn read_manifest(capsule_dir: &Path) -> Result<CapsuleManifest, String> {
-    let bytes = std::fs::read(capsule_dir.join("manifest.json"))
-        .map_err(|e| format!("cannot read manifest.json: {e}"))?;
+    let bytes =
+        read_capsule_regular_file(&capsule_dir.join("manifest.json")).map_err(|e| match e {
+            CapsuleFileError::NotFound => "cannot read manifest.json: not found".to_string(),
+            CapsuleFileError::NonRegular { detail } | CapsuleFileError::Io { detail } => detail,
+        })?;
     CapsuleManifest::from_json_bytes(&bytes).map_err(|e| format!("invalid manifest.json: {e}"))
+}
+
+/// Failure modes for reading a capsule-resident evidence file without
+/// following a final-component symlink.
+#[derive(Debug)]
+enum CapsuleFileError {
+    /// Path is absent (missing evidence).
+    NotFound,
+    /// Symlink or other non-regular entry — package-boundary violation.
+    NonRegular { detail: String },
+    /// Tool/stat/read failure.
+    Io { detail: String },
+}
+
+/// Read a capsule-resident regular file without following a final-component
+/// symlink. Capsule evidence must be package-local; a symlinked basename
+/// would let mutable external state stand in for recorded digests
+/// (basename validation alone is not enough — `std::fs::read` follows).
+fn read_capsule_regular_file(path: &Path) -> Result<Vec<u8>, CapsuleFileError> {
+    let name = path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
+    let meta = match std::fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(CapsuleFileError::NotFound);
+        }
+        Err(e) => {
+            return Err(CapsuleFileError::Io {
+                detail: format!("cannot stat {name}: {e}"),
+            });
+        }
+    };
+    let ft = meta.file_type();
+    if ft.is_symlink() {
+        return Err(CapsuleFileError::NonRegular {
+            detail: format!("symlink refused: {name}"),
+        });
+    }
+    if !meta.is_file() {
+        return Err(CapsuleFileError::NonRegular {
+            detail: format!("non-regular capsule file: {name}"),
+        });
+    }
+    std::fs::read(path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            CapsuleFileError::NotFound
+        } else {
+            CapsuleFileError::Io {
+                detail: format!("cannot read {name}: {e}"),
+            }
+        }
+    })
 }
 
 /// Build a single [`CheckResult`] from a worst-of verdict + joined
@@ -102,22 +159,28 @@ fn check_manifest_digests(capsule_dir: &Path, manifest: &CapsuleManifest) -> Che
             details.push(format!("unsafe manifest path: {name}"));
             continue;
         }
-        match std::fs::read(capsule_dir.join(name)) {
+        match read_capsule_regular_file(&capsule_dir.join(name)) {
             Ok(bytes) => {
                 if &sha256_hex(&bytes) != recorded {
                     verdict = verdict.worst(Verdict::Block);
                     details.push(format!("digest mismatch: {name}"));
                 }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                // Recorded but absent: the evidence is gone. Missing
-                // evidence degrades, it does not pass (ADR-072 §4).
+            // Recorded but absent: the evidence is gone. Missing
+            // evidence degrades, it does not pass (ADR-072 §4).
+            Err(CapsuleFileError::NotFound) => {
                 verdict = verdict.worst(Verdict::Degraded);
                 details.push(format!("recorded file missing: {name}"));
             }
-            Err(e) => {
+            // Symlink / non-regular: package-boundary violation → block
+            // (same class as path traversal), not a soft miss.
+            Err(CapsuleFileError::NonRegular { detail }) => {
+                verdict = verdict.worst(Verdict::Block);
+                details.push(detail);
+            }
+            Err(CapsuleFileError::Io { detail }) => {
                 verdict = verdict.worst(Verdict::Error);
-                details.push(format!("cannot read {name}: {e}"));
+                details.push(detail);
             }
         }
     }
@@ -155,12 +218,28 @@ fn check_manifest_digests(capsule_dir: &Path, manifest: &CapsuleManifest) -> Che
 /// `witness-chain`: reuse `verify_chain_dag` over `witness.ndjson`.
 fn check_witness_chain(capsule_dir: &Path) -> CheckResult {
     let path = capsule_dir.join("witness.ndjson");
-    match path.try_exists() {
-        Ok(true) => {}
+    // Refuse a final-component symlink before handing the path to the
+    // witness verifier (which would otherwise open/follow it).
+    match std::fs::symlink_metadata(&path) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return result(
+                CHECK_WITNESS,
+                Verdict::Block,
+                vec!["symlink refused: witness.ndjson".to_string()],
+            );
+        }
+        Ok(meta) if !meta.is_file() => {
+            return result(
+                CHECK_WITNESS,
+                Verdict::Block,
+                vec!["non-regular capsule file: witness.ndjson".to_string()],
+            );
+        }
+        Ok(_) => {}
         // Absent is missing evidence; a stat error is a tool failure —
-        // `try_exists` (not `exists`) so we never launder one into the
-        // other (council: `exists` swallows I/O errors as `false`).
-        Ok(false) => {
+        // `symlink_metadata` (not `exists`) so we never launder one into
+        // the other (council: `exists` swallows I/O errors as `false`).
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             return result(
                 CHECK_WITNESS,
                 Verdict::Degraded,
@@ -283,21 +362,20 @@ fn check_exceptions(capsule_dir: &Path, repo_root: &Path, now: DateTime<Utc>) ->
         ExceptionStore, ExceptionVerdict, PolicyException, verify_exception_at,
     };
 
-    let bytes = match std::fs::read(capsule_dir.join("exceptions.json")) {
+    let bytes = match read_capsule_regular_file(&capsule_dir.join("exceptions.json")) {
         Ok(bytes) => bytes,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+        Err(CapsuleFileError::NotFound) => {
             return result(
                 CHECK_EXCEPTIONS,
                 Verdict::Degraded,
                 vec!["exceptions.json absent".to_string()],
             );
         }
-        Err(e) => {
-            return result(
-                CHECK_EXCEPTIONS,
-                Verdict::Error,
-                vec![format!("cannot read exceptions.json: {e}")],
-            );
+        Err(CapsuleFileError::NonRegular { detail }) => {
+            return result(CHECK_EXCEPTIONS, Verdict::Block, vec![detail]);
+        }
+        Err(CapsuleFileError::Io { detail }) => {
+            return result(CHECK_EXCEPTIONS, Verdict::Error, vec![detail]);
         }
     };
 
@@ -376,8 +454,11 @@ fn check_exceptions(capsule_dir: &Path, repo_root: &Path, now: DateTime<Utc>) ->
 
 /// Read + schema-gate the capsule's `commits.json`.
 fn read_capsule_commits(capsule_dir: &Path) -> Result<CommitsDocument, String> {
-    let bytes = std::fs::read(capsule_dir.join("commits.json"))
-        .map_err(|e| format!("cannot read commits.json: {e}"))?;
+    let bytes =
+        read_capsule_regular_file(&capsule_dir.join("commits.json")).map_err(|e| match e {
+            CapsuleFileError::NotFound => "cannot read commits.json: not found".to_string(),
+            CapsuleFileError::NonRegular { detail } | CapsuleFileError::Io { detail } => detail,
+        })?;
     CommitsDocument::from_json_bytes(&bytes).map_err(|e| format!("invalid commits.json: {e}"))
 }
 
@@ -385,8 +466,11 @@ fn read_capsule_commits(capsule_dir: &Path) -> Result<CommitsDocument, String> {
 /// so the re-collected digest pipeline matches the recorded one.
 fn read_capsule_identity(capsule_dir: &Path) -> Result<ToolIdentity, String> {
     use crate::collect_digests::RulesDigest;
-    let bytes = std::fs::read(capsule_dir.join("rules.json"))
-        .map_err(|e| format!("cannot read rules.json: {e}"))?;
+    let bytes =
+        read_capsule_regular_file(&capsule_dir.join("rules.json")).map_err(|e| match e {
+            CapsuleFileError::NotFound => "cannot read rules.json: not found".to_string(),
+            CapsuleFileError::NonRegular { detail } | CapsuleFileError::Io { detail } => detail,
+        })?;
     let rules =
         RulesDigest::from_json_bytes(&bytes).map_err(|e| format!("invalid rules.json: {e}"))?;
     Ok(ToolIdentity {
@@ -398,7 +482,7 @@ fn read_capsule_identity(capsule_dir: &Path) -> Result<ToolIdentity, String> {
 
 /// Whether `capsule_dir/name`'s bytes equal `expected` (a
 /// `Result<Vec<u8>, _>` from a `to_canonical_bytes` encoder). A read
-/// failure or an encode failure is treated as a non-match.
+/// failure, non-regular entry, or encode failure is treated as a non-match.
 fn bytes_match(
     capsule_dir: &Path,
     name: &str,
@@ -407,7 +491,7 @@ fn bytes_match(
     let Ok(expected) = expected else {
         return false;
     };
-    match std::fs::read(capsule_dir.join(name)) {
+    match read_capsule_regular_file(&capsule_dir.join(name)) {
         Ok(actual) => &actual == expected,
         Err(_) => false,
     }
@@ -923,6 +1007,53 @@ mod tests {
         let v = verify_capsule(&out, dir.path());
         let check = v.checks.iter().find(|c| c.name == CHECK_MANIFEST).unwrap();
         assert_eq!(check.verdict, Verdict::Block);
+    }
+
+    /// Manifest basename checks alone are insufficient: `std::fs::read`
+    /// follows a final-component symlink, so a hostile capsule can make
+    /// a listed evidence basename point outside `capsule_dir`. Digest
+    /// verification must refuse non-regular files before reading.
+    #[cfg(unix)]
+    #[test]
+    fn verify_blocks_on_symlinked_manifest_evidence_file() {
+        let (dir, base, head) = scratch_repo();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        // External target carries the same bytes as the recorded
+        // commits.json digest so a follow-the-link verifier would pass.
+        let original = std::fs::read(out.join("commits.json")).unwrap();
+        let external = stage.path().join("outside-commits.json");
+        std::fs::write(&external, &original).unwrap();
+
+        std::fs::remove_file(out.join("commits.json")).unwrap();
+        std::os::unix::fs::symlink(&external, out.join("commits.json")).unwrap();
+
+        let v = verify_capsule(&out, dir.path());
+        let manifest = v.checks.iter().find(|c| c.name == CHECK_MANIFEST).unwrap();
+        assert_eq!(
+            manifest.verdict,
+            Verdict::Block,
+            "symlinked evidence must block, not pass digest check: {:?}",
+            manifest.detail
+        );
+        let detail = manifest.detail.as_deref().unwrap_or("");
+        assert!(
+            detail.contains("symlink") || detail.contains("non-regular"),
+            "detail should name the symlink refusal: {detail}"
+        );
+        // Semantic digests-vs-repo must not silently consume the
+        // external target as a matching capsule file either.
+        let digests = v.checks.iter().find(|c| c.name == CHECK_DIGESTS).unwrap();
+        assert_ne!(
+            digests.verdict,
+            Verdict::Pass,
+            "digests-vs-repo must not pass over a symlinked commits.json: {:?}",
+            digests.detail
+        );
+        assert_eq!(v.verdict, Verdict::Block);
+        assert_eq!(v.verdict.exit_code(), 1);
     }
 
     #[test]
