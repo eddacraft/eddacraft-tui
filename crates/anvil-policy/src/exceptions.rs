@@ -749,12 +749,20 @@ fn open_nofollow_components(
             // Intermediate symlink + O_DIRECTORY can surface as ENOTDIR
             // when the link itself is not followed; re-check with
             // no-follow metadata and map to SymlinkedPath.
+            // A non-directory component (regular file where a dir is
+            // expected) previously made Path::exists() false and yielded
+            // an empty store — preserve that empty-store semantics by
+            // reporting NotFound rather than a hard I/O error.
             Err(nix::Error::ENOTDIR) => {
                 if std::fs::symlink_metadata(&built).is_ok_and(|m| m.file_type().is_symlink()) {
                     return Err(ExceptionError::SymlinkedPath { path: built });
                 }
-                return Err(ExceptionError::Io(std::io::Error::from(
-                    nix::Error::ENOTDIR,
+                return Err(ExceptionError::Io(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!(
+                        "governed path component is not a directory: {}",
+                        built.display()
+                    ),
                 )));
             }
             Err(err) => return Err(ExceptionError::Io(std::io::Error::from(err))),
@@ -1214,6 +1222,20 @@ mod tests {
             matches!(err, ExceptionError::SymlinkedPath { .. }),
             "expected SymlinkedPath, got {err:?}"
         );
+    }
+
+    /// A non-directory intermediate component must not hard-error: the
+    /// pre-ladder `Path::exists()` fast path treated this as missing and
+    /// returned an empty store (Copilot review on the openat change).
+    #[cfg(unix)]
+    #[test]
+    fn load_returns_empty_when_anvil_is_a_regular_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("anvil"), b"not a directory").unwrap();
+        let store = ExceptionStore::load(root).expect("non-dir anvil must be empty, not error");
+        assert!(store.exceptions.is_empty());
+        assert_eq!(store.source(), StoreSource::Fresh);
     }
 
     /// Happy path still binds a real tracked store through the no-follow
