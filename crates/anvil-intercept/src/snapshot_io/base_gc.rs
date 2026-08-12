@@ -128,8 +128,9 @@ pub trait KeepSetResolver: Send + Sync {
 /// | `rev-parse` ref exit 0            | ref resolves                              | resolved |
 /// | `rev-parse` ref non-zero, stderr matches a deterministic missing-ref / non-git-root shape | ref genuinely absent | missing (try next / uncovered) |
 /// | `rev-parse` ref non-zero, stderr **unmatched** | unexpected                    | **Unavailable → abort** |
-/// | `@{upstream}` exit 0             | branch tracks an upstream                 | refine |
-/// | `@{upstream}` any clean non-zero | branch tracks none (child falls back too) | skip refinement (deterministic) |
+/// | `@{upstream}` exit 0              | branch tracks an upstream                 | refine |
+/// | `@{upstream}` non-zero, stderr matches a deterministic no-upstream shape | branch tracks none | skip refinement (deterministic) |
+/// | `@{upstream}` non-zero, stderr **unmatched** | unexpected (I/O, object store, …) | **Unavailable → abort** |
 /// | any call: spawn failure / killed by signal | git could not run                | **Unavailable → abort** |
 pub struct GitMergeBaseResolver {
     /// The git binary to invoke — `"git"` in production; a test double swaps it to
@@ -190,11 +191,12 @@ impl KeepSetResolver for GitMergeBaseResolver {
         }
 
         // `@{upstream}` refinement, only when the branch actually tracks one
-        // (ADR-105 §6). `@{upstream}` resolution has simple semantics: exit 0 ⇒
-        // tracking; any *clean* non-zero ⇒ not tracking — a deterministic skip the
-        // build child performs identically (it falls back to the default-branch
-        // key), so skipping the refinement never under-retains. Only a spawn/signal
-        // failure is uncertainty.
+        // (ADR-105 §6). Exit 0 ⇒ tracking. A *deterministic* no-upstream shape
+        // (stderr matches [`is_deterministic_no_upstream`]) ⇒ skip refinement —
+        // the build child falls back to the default-branch key identically, so
+        // the keep-set stays correct. An **unmatched** non-zero exit (I/O error,
+        // object-store trouble, empty/garbled stderr) is uncertainty → Unavailable
+        // so the pass never reclaims a live base keyed only under the refinement.
         let upstream = match run_git(
             &self.git_bin,
             worktree,
@@ -211,7 +213,15 @@ impl KeepSetResolver for GitMergeBaseResolver {
                 stdout: Some(up),
                 ..
             } => Some(up),
-            GitRun::Exited { .. } => None,
+            // Exit 0 with empty stdout is not a tracked upstream in practice.
+            GitRun::Exited { code: 0, .. } => None,
+            GitRun::Exited { stderr, .. } => {
+                if is_deterministic_no_upstream(&stderr) {
+                    None
+                } else {
+                    return MergeBase::Unavailable;
+                }
+            }
         };
         if let Some(upstream) = upstream {
             match classify_merge_base(run_git(
@@ -411,6 +421,24 @@ fn is_deterministic_missing_ref(stderr: &str) -> bool {
         || s.contains("bad revision")
         || s.contains("needed a single revision")
         || s.contains("not a git repository")
+}
+
+/// Whether `stderr` matches a **deterministic** "this branch tracks no upstream"
+/// shape from `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`.
+///
+/// Matched shapes are the stable fatals git emits when the current HEAD has no
+/// configured upstream (or is detached and therefore cannot track one). An
+/// **unmatched** non-zero exit is classified as unexpected ([`MergeBase::Unavailable`]),
+/// never as "no upstream" — so a message drift or I/O fatal can only ever force
+/// an over-cautious keep-all GC pass, never reclaim a live upstream-keyed base.
+fn is_deterministic_no_upstream(stderr: &str) -> bool {
+    let s = stderr.to_ascii_lowercase();
+    // `fatal: no upstream configured for branch '…'`
+    s.contains("no upstream configured")
+        // `fatal: HEAD does not point to a branch` (detached HEAD)
+        || s.contains("does not point to a branch")
+        // Older / alternate phrasing still used in some git builds.
+        || s.contains("no upstream")
 }
 
 /// Classify a ref-resolving `git rev-parse` run (see [`is_deterministic_missing_ref`]).
@@ -1312,6 +1340,101 @@ mod tests {
         assert!(out.aborted_uncertain);
         assert_eq!(out.reclaimed, 0);
         assert!(base_exists(&dir, &orphan));
+    }
+
+    #[test]
+    fn real_run_git_fatal_upstream_resolution_is_unavailable_and_aborts() {
+        // Regression for clawpatch finding
+        // fnd_sig-feat-library-895b9882f0-dc8b_d96805a06d: a fatal non-zero
+        // `@{upstream}` probe (exit 128 + unmatched stderr, e.g. object-store
+        // I/O) must NOT be treated as "no upstream". The keep-set would otherwise
+        // drop the upstream-refined key and GC could reclaim a live base.
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *origin/HEAD*) echo origin/main; exit 0 ;; \
+               *merge-base*origin/main*) echo defaultsha; exit 0 ;; \
+               *@{upstream}*) echo 'fatal: unable to read tree; disk I/O error' >&2; exit 128 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitMergeBaseResolver::with_git_bin(bin);
+        let wt = PathBuf::from("/wt/upstream-io-error");
+        assert!(
+            matches!(resolver.merge_base(&wt), MergeBase::Unavailable),
+            "a fatal @{{upstream}} probe must classify Unavailable, not Resolved(default only)",
+        );
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        // Simulate a base keyed by the upstream refinement (what a live producer
+        // would have written under). With the buggy classification this orphan
+        // would be reclaimed; with the fix the pass must abort and keep it.
+        let upstream_keyed = sha('u');
+        write_base(&dir, &upstream_keyed);
+        let out = sweep_unreferenced_bases(&dir, &[wt], &resolver, &SystemClaimProcs);
+        assert!(
+            out.aborted_uncertain,
+            "fatal upstream-resolution must abort the GC pass"
+        );
+        assert_eq!(out.reclaimed, 0);
+        assert!(
+            base_exists(&dir, &upstream_keyed),
+            "fail-safe: fatal upstream error must never reclaim a live base",
+        );
+    }
+
+    #[test]
+    fn real_run_git_deterministic_no_upstream_skips_refinement_and_keeps_default() {
+        // The complementary case: a genuine "no upstream configured" fatal is a
+        // deterministic skip — the default-branch key alone is the keep-set, and
+        // the pass proceeds (no abort).
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *origin/HEAD*) echo origin/main; exit 0 ;; \
+               *merge-base*origin/main*) echo defaultsha; exit 0 ;; \
+               *@{upstream}*) echo \"fatal: no upstream configured for branch 'main'\" >&2; exit 128 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitMergeBaseResolver::with_git_bin(bin);
+        let wt = PathBuf::from("/wt/no-upstream");
+        match resolver.merge_base(&wt) {
+            MergeBase::Resolved(keys) => {
+                assert_eq!(keys, vec!["defaultsha".to_owned()]);
+            }
+            other => panic!("expected Resolved([defaultsha]), got {other:?}"),
+        }
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let default_keyed = "defaultsha".to_owned();
+        let orphan = sha('o');
+        // write_base uses 40-char hex stems; plant the default key via store.
+        store::write_sealed(&dir, &format!("{default_keyed}.base"), &base_bytes()).unwrap();
+        write_base(&dir, &orphan);
+        let out = sweep_unreferenced_bases(&dir, &[wt], &resolver, &SystemClaimProcs);
+        assert!(
+            !out.aborted_uncertain,
+            "deterministic no-upstream must not abort"
+        );
+        assert_eq!(out.kept, 1);
+        assert_eq!(out.reclaimed, 1);
+        assert!(base_exists(&dir, &default_keyed));
+        assert!(!base_exists(&dir, &orphan));
+    }
+
+    #[test]
+    fn is_deterministic_no_upstream_shapes() {
+        assert!(is_deterministic_no_upstream(
+            "fatal: no upstream configured for branch 'main'"
+        ));
+        assert!(is_deterministic_no_upstream(
+            "fatal: HEAD does not point to a branch"
+        ));
+        assert!(!is_deterministic_no_upstream(
+            "fatal: unable to read tree; disk I/O error"
+        ));
+        assert!(!is_deterministic_no_upstream(""));
     }
 
     // ---- GBASE-011: GC-failure health envelopes (ADR-090) ----
