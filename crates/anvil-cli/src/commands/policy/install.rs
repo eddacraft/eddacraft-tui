@@ -209,7 +209,9 @@ fn ensure_within_root(canonical_root: &Path, path: &Path) -> io::Result<()> {
 ///
 /// Holds the canonical workspace root so every write and directory creation can
 /// re-check containment as defence in depth (the caller has already checked the
-/// destination once, fail-fast, before the journal is used).
+/// destination once, fail-fast, before the journal is used). Directory creation
+/// and file writes use no-follow helpers so a concurrent ancestor symlink-swap
+/// cannot redirect installation outside the workspace after the path check.
 struct Journal {
     root: PathBuf,
     created_files: Vec<PathBuf>,
@@ -244,52 +246,150 @@ impl Journal {
     }
 
     /// Create `dir` and any missing ancestors, recording each newly-created
-    /// directory so rollback can remove them. Containment is re-checked before
-    /// each new directory is created so a race that swaps an ancestor for an
-    /// escaping symlink is still caught.
-    fn create_dirs(&mut self, dir: &Path) -> io::Result<()> {
-        if dir.exists() {
-            return Ok(());
+    /// directory so rollback can remove them.
+    ///
+    /// Uses [`crate::util::create_dir_all_nofollow`] so a concurrent swap of a
+    /// checked ancestor for an escaping symlink is refused at open/mkdir time
+    /// (`O_NOFOLLOW` on Unix) rather than only narrowed by a path re-check.
+    fn create_dirs(&mut self, dir: &Path) -> Result<()> {
+        match std::fs::symlink_metadata(dir) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                bail!(
+                    "refusing path through symlink {}: resolve the symlink and re-run",
+                    dir.display()
+                );
+            }
+            Ok(_) => return Ok(()),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(err)
+                    .with_context(|| format!("inspecting install directory {}", dir.display()));
+            }
         }
+
         let mut pending = Vec::new();
         let mut cursor = Some(dir);
         while let Some(candidate) = cursor {
-            if candidate.exists() {
-                break;
+            match std::fs::symlink_metadata(candidate) {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    bail!(
+                        "refusing path through symlink {}: resolve the symlink and re-run",
+                        candidate.display()
+                    );
+                }
+                Ok(_) => break,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                    pending.push(candidate.to_path_buf());
+                    cursor = candidate.parent();
+                }
+                Err(err) => {
+                    return Err(err).with_context(|| {
+                        format!("inspecting path component {}", candidate.display())
+                    });
+                }
             }
-            pending.push(candidate.to_path_buf());
-            cursor = candidate.parent();
         }
+
+        // Path containment (defence in depth): deepest existing ancestor must
+        // still resolve inside the workspace. This does not close TOCTOU alone;
+        // the no-follow create below does.
+        ensure_within_root(&self.root, dir).map_err(anyhow::Error::from)?;
+
+        #[cfg(test)]
+        race_hook::fire(dir);
+
+        crate::util::create_dir_all_nofollow(dir)
+            .with_context(|| format!("creating directory {}", dir.display()))?;
+
         for candidate in pending.iter().rev() {
-            ensure_within_root(&self.root, candidate)?;
-            std::fs::create_dir(candidate)?;
-            self.created_dirs.push(candidate.clone());
+            if std::fs::symlink_metadata(candidate)
+                .map(|m| m.file_type().is_dir())
+                .unwrap_or(false)
+            {
+                self.created_dirs.push(candidate.clone());
+            }
         }
         Ok(())
     }
 
     /// Write `contents` to `abs`, recording enough to undo it. An existing file
     /// is backed up before it is overwritten so rollback restores it exactly.
-    /// Containment is re-checked before the write (defence in depth).
-    fn write(&mut self, abs: &Path, contents: &[u8]) -> io::Result<()> {
+    ///
+    /// Containment is re-checked, then the payload is written via
+    /// [`crate::util::atomic_write_nofollow`] so parent-directory symlink swaps
+    /// cannot redirect the write outside the workspace.
+    fn write(&mut self, abs: &Path, contents: &[u8]) -> Result<()> {
         if let Some(parent) = abs.parent() {
             self.create_dirs(parent)?;
         }
-        ensure_within_root(&self.root, abs)?;
-        if abs.exists() {
-            // Journal the backup BEFORE attempting the overwrite: a write
-            // that fails part-way (disk full, permission flip) must still
-            // leave the journal able to restore the pre-install bytes.
-            let original = std::fs::read(abs)?;
-            self.restored.push((abs.to_path_buf(), original));
-            std::fs::write(abs, contents)?;
-        } else {
-            // Same ordering for creations: journal first, so a partial
-            // write is still removed by rollback.
-            self.created_files.push(abs.to_path_buf());
-            std::fs::write(abs, contents)?;
+        ensure_within_root(&self.root, abs).map_err(anyhow::Error::from)?;
+
+        match std::fs::symlink_metadata(abs) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                bail!(
+                    "refusing to write through symlink {}: resolve the symlink and re-run",
+                    abs.display()
+                );
+            }
+            Ok(_) => {
+                // Journal the backup BEFORE attempting the overwrite: a write
+                // that fails part-way (disk full, permission flip) must still
+                // leave the journal able to restore the pre-install bytes.
+                let original = std::fs::read(abs)
+                    .with_context(|| format!("reading existing {}", abs.display()))?;
+                self.restored.push((abs.to_path_buf(), original));
+                #[cfg(test)]
+                race_hook::fire(abs);
+                crate::util::atomic_write_nofollow(abs, contents)
+                    .with_context(|| format!("writing {}", abs.display()))?;
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                // Same ordering for creations: journal first, so a partial
+                // write is still removed by rollback.
+                self.created_files.push(abs.to_path_buf());
+                #[cfg(test)]
+                race_hook::fire(abs);
+                crate::util::atomic_write_nofollow(abs, contents)
+                    .with_context(|| format!("writing {}", abs.display()))?;
+            }
+            Err(err) => {
+                return Err(err)
+                    .with_context(|| format!("inspecting install target {}", abs.display()));
+            }
         }
         Ok(())
+    }
+}
+
+/// Test-only hook fired after containment checks and immediately before a
+/// journal create/write. Used to simulate concurrent ancestor symlink swaps.
+#[cfg(test)]
+mod race_hook {
+    use std::cell::RefCell;
+    use std::path::Path;
+
+    thread_local! {
+        static HOOK: RefCell<Option<Box<dyn FnMut(&Path)>>> = const { RefCell::new(None) };
+    }
+
+    pub fn set(hook: impl FnMut(&Path) + 'static) {
+        HOOK.with(|cell| {
+            *cell.borrow_mut() = Some(Box::new(hook));
+        });
+    }
+
+    pub fn clear() {
+        HOOK.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+    }
+
+    pub fn fire(path: &Path) {
+        HOOK.with(|cell| {
+            if let Some(ref mut hook) = *cell.borrow_mut() {
+                hook(path);
+            }
+        });
     }
 }
 
@@ -988,7 +1088,7 @@ mod tests {
         .expect_err("an escaping .anvil symlink must be refused");
         let msg = format!("{err:#}");
         assert!(
-            msg.contains("containment") || msg.contains("outside"),
+            msg.contains("containment") || msg.contains("outside") || msg.contains("symlink"),
             "{msg}"
         );
         // The external directory the link points at is untouched — nothing was
@@ -996,6 +1096,92 @@ mod tests {
         assert!(
             !outside.path().join("policies").exists(),
             "external dir must be untouched"
+        );
+    }
+
+    /// Nested policies directory already swapped for an outside symlink must
+    /// refuse install without writing through the link.
+    #[cfg(unix)]
+    #[test]
+    fn policy_install_refuses_symlinked_policies_ancestor() {
+        let ws = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside dir");
+        let anvil = ws.path().join(".anvil");
+        std::fs::create_dir_all(&anvil).expect("create .anvil");
+        std::os::unix::fs::symlink(outside.path(), anvil.join("policies")).expect("symlink");
+
+        let version = ANVIL_BASELINE.manifest().unwrap().version;
+        let err = install_pack_files(
+            ws.path(),
+            "anvil-baseline",
+            &version,
+            &baseline_files(),
+            false,
+        )
+        .expect_err("symlinked policies ancestor must be refused");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink") || msg.contains("containment") || msg.contains("outside"),
+            "{msg}"
+        );
+        assert!(
+            std::fs::read_dir(outside.path())
+                .expect("read outside")
+                .next()
+                .is_none(),
+            "must not create files outside the workspace"
+        );
+    }
+
+    /// Simulate the TOCTOU window: containment passes against a real `.anvil`,
+    /// then an ancestor is swapped for an outside symlink immediately before
+    /// the create/write. Install must fail without writing outside.
+    #[cfg(unix)]
+    #[test]
+    fn policy_install_refuses_mid_install_ancestor_symlink_swap() {
+        let ws = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside dir");
+        let anvil = ws.path().join(".anvil");
+        std::fs::create_dir_all(&anvil).expect("create real .anvil");
+
+        let outside_path = outside.path().to_path_buf();
+        let anvil_path = anvil.clone();
+        race_hook::set(move |path| {
+            // Fire once: when the journal is about to create under `.anvil`,
+            // replace the real directory with an escaping symlink.
+            if path.starts_with(&anvil_path)
+                && anvil_path
+                    .symlink_metadata()
+                    .map(|m| !m.file_type().is_symlink())
+                    .unwrap_or(false)
+            {
+                let _ = std::fs::remove_dir_all(&anvil_path);
+                let _ = std::os::unix::fs::symlink(&outside_path, &anvil_path);
+            }
+        });
+
+        let version = ANVIL_BASELINE.manifest().unwrap().version;
+        let result = install_pack_files(
+            ws.path(),
+            "anvil-baseline",
+            &version,
+            &baseline_files(),
+            false,
+        );
+        race_hook::clear();
+
+        let err = result.expect_err("mid-install ancestor symlink swap must fail");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink") || msg.contains("containment") || msg.contains("outside"),
+            "{msg}"
+        );
+        assert!(
+            std::fs::read_dir(outside.path())
+                .expect("read outside")
+                .next()
+                .is_none(),
+            "must not create files outside the workspace through the swapped symlink"
         );
     }
 
