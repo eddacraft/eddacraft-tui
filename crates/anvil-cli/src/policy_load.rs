@@ -59,8 +59,7 @@ pub(crate) fn policy_variants(repo_root: &Path) -> Vec<std::path::PathBuf> {
 mod tests {
     use super::*;
 
-    const YAML_BODY: &str =
-        "branches:\n  - pattern: PATTERN\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n";
+    const YAML_BODY: &str = "branches:\n  - pattern: PATTERN\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n";
 
     fn repo_with(files: &[(&str, &str)]) -> tempfile::TempDir {
         let tmp = tempfile::TempDir::new().unwrap();

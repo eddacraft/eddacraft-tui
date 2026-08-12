@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 
 use anvil_hook::is_hex_sha;
 use anvil_l4::{
-    BlockKind, CommitDecision, EngineUnavailableReason, OnWarn, Severity,
-    ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
+    BlockKind, CommitDecision, EngineUnavailableReason, OnWarn, Severity, ValidationDiagnostic,
+    ValidationEngine, ValidationVerdict, request_for,
 };
 use anvil_witness::{verify_chain_dag, witness_paths};
 use anyhow::{Context, Result};

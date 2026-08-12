@@ -22,7 +22,6 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use anvil_baseline::load as load_baseline;
-use anvil_config::ConfigFormat;
 use anvil_hook::{
     BOOTSTRAP_RECOVERY_VALIDATION_AT, BlockReason, BootstrapPlan, ErrorClass, MergeWitnessPlan,
     PanicReport, PushKind, PushRef, RewritePair, SuppressionKey, SuppressionLog, Verdict,
@@ -1821,6 +1820,7 @@ fn build_rewrite_witness_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_config::ConfigFormat;
     use std::path::PathBuf;
     use tempfile::TempDir;
 
