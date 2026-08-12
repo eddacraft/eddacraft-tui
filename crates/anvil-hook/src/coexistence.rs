@@ -20,6 +20,11 @@ pub struct CoexistenceFile {
     pub initial_content: String,
     pub block: String,
     pub executable: bool,
+    /// When true, Anvil owns the whole file. Install writes
+    /// `initial_content` as the complete body (no marker region);
+    /// uninstall deletes the file (`apply` returns empty).
+    /// Marker-block files set this to `false`.
+    pub fully_owned: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,16 +63,25 @@ pub fn plan_uninstall(
     let mut plan = plan_install(framework, kinds)?;
     for f in &mut plan.files {
         f.block.clear();
+        if f.fully_owned {
+            // Fully-owned managed files delete by emptying content.
+            f.initial_content.clear();
+        }
     }
     Ok(plan)
 }
 
 /// Apply a [`CoexistenceFile`] to a host file's current content.
 ///
-/// `existing = Some(bytes)` — host file exists; merge.
+/// `existing = Some(bytes)` — host file exists; merge or replace.
 /// `existing = None` — host file does not exist; seed with
 /// `initial_content` then insert the managed block. An empty
 /// `block` removes the Anvil-managed region (uninstall path).
+///
+/// **Fully-owned files** ([`CoexistenceFile::fully_owned`]): install
+/// writes `initial_content` as the complete file body (no markers).
+/// Uninstall (empty `initial_content` after [`plan_uninstall`])
+/// returns empty so the CLI can delete the path.
 ///
 /// **Round-trip contract.** Install→uninstall returns the input
 /// to its **canonical** byte form: trailing whitespace before the
@@ -76,9 +90,15 @@ pub fn plan_uninstall(
 /// canonical form (the common case: text files ending in exactly
 /// one `\n`) round-trips byte-exact. The
 /// `install_then_uninstall_preserves_user_content_*` tests pin
-/// both the byte-exact and canonical cases.
+/// both the byte-exact and canonical cases. Fully-owned managed
+/// files round-trip to empty (deleted) on uninstall.
 #[must_use]
 pub fn apply(existing: Option<&str>, file: &CoexistenceFile) -> String {
+    if file.fully_owned {
+        // Whole-file ownership: install/refresh writes initial_content;
+        // uninstall clears it and yields empty (delete).
+        return file.initial_content.clone();
+    }
     if existing.is_none() && file.block.is_empty() {
         return String::new();
     }
@@ -171,6 +191,7 @@ fn husky_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
             initial_content: HUSKY_INITIAL_HEADER.to_string(),
             block: husky_block(*k),
             executable: true,
+            fully_owned: false,
         })
         .collect()
 }
@@ -202,12 +223,14 @@ fn lefthook_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
         initial_content: lefthook_managed_initial(kinds),
         block: String::new(),
         executable: false,
+        fully_owned: true,
     };
     let host = CoexistenceFile {
         relative_path: "lefthook.yml".to_string(),
         initial_content: LEFTHOOK_HOST_INITIAL.to_string(),
         block: LEFTHOOK_HOST_BLOCK.to_string(),
         executable: false,
+        fully_owned: false,
     };
     vec![managed, host]
 }
@@ -234,12 +257,14 @@ fn pre_commit_framework_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
         initial_content: pre_commit_managed_initial(kinds),
         block: String::new(),
         executable: false,
+        fully_owned: true,
     };
     let host = CoexistenceFile {
         relative_path: ".pre-commit-config.yaml".to_string(),
         initial_content: PRE_COMMIT_HOST_INITIAL.to_string(),
         block: PRE_COMMIT_HOST_BLOCK.to_string(),
         executable: false,
+        fully_owned: false,
     };
     vec![managed, host]
 }
@@ -402,9 +427,21 @@ mod tests {
             assert_eq!(install.files.len(), uninstall.files.len());
             for (i, u) in install.files.iter().zip(&uninstall.files) {
                 assert_eq!(i.relative_path, u.relative_path);
-                assert_eq!(i.initial_content, u.initial_content);
                 assert_eq!(i.executable, u.executable);
+                assert_eq!(i.fully_owned, u.fully_owned);
                 assert!(u.block.is_empty());
+                if i.fully_owned {
+                    // Fully-owned managed file: uninstall clears content
+                    // so `apply` returns empty (delete).
+                    assert!(
+                        u.initial_content.is_empty(),
+                        "fully-owned uninstall must clear initial_content for {}",
+                        i.relative_path
+                    );
+                } else {
+                    // Marker-block file: only the block is cleared.
+                    assert_eq!(i.initial_content, u.initial_content);
+                }
             }
         }
     }
@@ -425,6 +462,7 @@ mod tests {
             initial_content: "#!/usr/bin/env sh\n".into(),
             block: "anvil hook pre-commit \"$@\"".into(),
             executable: true,
+            fully_owned: false,
         };
         let out = apply(None, &file);
         assert!(out.starts_with("#!/usr/bin/env sh\n"));
@@ -441,6 +479,7 @@ mod tests {
             initial_content: "fallback\n".into(),
             block: "managed-line".into(),
             executable: true,
+            fully_owned: false,
         };
         let existing = "#!/usr/bin/env sh\necho user-hook\n";
         let out = apply(Some(existing), &file);
@@ -457,6 +496,7 @@ mod tests {
             initial_content: String::new(),
             block: "new-content".into(),
             executable: false,
+            fully_owned: false,
         };
         let existing = format!("top\n\n{MARKER_BEGIN}\nold-content\n{MARKER_END}\nbottom\n");
         let out = apply(Some(&existing), &file);
@@ -473,6 +513,7 @@ mod tests {
             initial_content: String::new(),
             block: String::new(),
             executable: false,
+            fully_owned: false,
         };
         let existing = format!("top\n\n{MARKER_BEGIN}\nmanaged\n{MARKER_END}\nbottom\n");
         let out = apply(Some(&existing), &file);
@@ -491,6 +532,7 @@ mod tests {
             initial_content: String::new(),
             block: String::new(),
             executable: false,
+            fully_owned: false,
         };
         let existing = "unrelated content\n";
         let out = apply(Some(existing), &file);
@@ -504,8 +546,60 @@ mod tests {
             initial_content: "ignored".into(),
             block: String::new(),
             executable: false,
+            fully_owned: false,
         };
         assert_eq!(apply(None, &file), "");
+    }
+
+    #[test]
+    fn apply_creates_fully_owned_managed_lefthook_and_pre_commit_files() {
+        // Regression: empty-block managed files previously returned ""
+        // from `apply(None, …)`, so `.anvil-lefthook.yml` and
+        // `.anvil-pre-commit-config.local.yaml` were never created.
+        for fw in [HookFramework::Lefthook, HookFramework::PreCommitFramework] {
+            let plan = plan_install(fw, ALL_HOOKS).unwrap();
+            let managed = &plan.files[0];
+            assert!(
+                managed.fully_owned,
+                "{fw:?} managed file must be fully_owned"
+            );
+            assert!(
+                managed.block.is_empty(),
+                "{fw:?} managed file uses empty block (content in initial_content)"
+            );
+            assert!(
+                !managed.initial_content.is_empty(),
+                "{fw:?} managed file must ship non-empty initial_content"
+            );
+            let out = apply(None, managed);
+            assert_eq!(
+                out, managed.initial_content,
+                "{fw:?} apply(None) must emit the generated managed config"
+            );
+            for k in ALL_HOOKS {
+                assert!(
+                    out.contains(&format!("anvil hook {}", k.subcommand())),
+                    "{fw:?} managed output missing hook {}",
+                    k.subcommand()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fully_owned_managed_install_then_uninstall_deletes_file() {
+        for fw in [HookFramework::Lefthook, HookFramework::PreCommitFramework] {
+            let install = plan_install(fw, ALL_HOOKS).unwrap();
+            let uninstall = plan_uninstall(fw, ALL_HOOKS).unwrap();
+            let managed_install = &install.files[0];
+            let managed_uninstall = &uninstall.files[0];
+            assert!(managed_install.fully_owned);
+            assert!(managed_uninstall.fully_owned);
+            let installed = apply(None, managed_install);
+            assert!(!installed.is_empty(), "{fw:?} install must create content");
+            let removed = apply(Some(&installed), managed_uninstall);
+            assert_eq!(removed, "", "{fw:?} uninstall must delete fully-owned file");
+        }
     }
 
     #[test]
@@ -540,6 +634,7 @@ mod tests {
             initial_content: "user-config:\n  thing: 1\n".into(),
             block: "managed-snippet".into(),
             executable: false,
+            fully_owned: false,
         };
         let uninstall_file = CoexistenceFile {
             block: String::new(),
@@ -565,6 +660,7 @@ mod tests {
             initial_content: String::new(),
             block: "managed".into(),
             executable: false,
+            fully_owned: false,
         };
         let uninstall_file = CoexistenceFile {
             block: String::new(),
@@ -584,6 +680,7 @@ mod tests {
             initial_content: "user-config:\n  thing: 1\n".into(),
             block: "managed-snippet".into(),
             executable: false,
+            fully_owned: false,
         };
         let uninstall_file = CoexistenceFile {
             block: String::new(),
@@ -606,6 +703,7 @@ mod tests {
             initial_content: String::new(),
             block: "extends:\n  - .anvil-lefthook.yml".into(),
             executable: false,
+            fully_owned: false,
         };
         let uninstall_file = CoexistenceFile {
             block: String::new(),
