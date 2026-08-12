@@ -252,10 +252,25 @@ jobs:
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
           needs.detect-changes.outputs.code-changed == 'true'
         env:
-          # Empty on `push`, where the step falls back to the previous commit.
-          DOCS_OWED_BASE: ${{ github.event.pull_request.base.sha }}
+          # Set on `pull_request` only.
+          DOCS_OWED_PR_BASE: ${{ github.event.pull_request.base.sha }}
+          # Set on `push` only. Preferred over HEAD~1 because a push can carry
+          # several commits (a rebase-merge to `main` typically does), and HEAD~1
+          # would silently scope the check to the last one and under-report what
+          # the earlier commits owe.
+          DOCS_OWED_PUSH_BASE: ${{ github.event.before }}
         run: |
-          base="${DOCS_OWED_BASE:-$(git rev-parse HEAD~1)}"
+          base="${DOCS_OWED_PR_BASE:-${DOCS_OWED_PUSH_BASE:-}}"
+          # `github.event.before` is all-zeros for a branch's first push, and can
+          # point at a commit that no longer exists after a force-push. Either
+          # way the diff would fail, so fall back to the previous commit — a
+          # narrower base under-reports, which is the safe direction for a gate.
+          if [ -z "${base}" ] ||
+             [ "${base}" = "0000000000000000000000000000000000000000" ] ||
+             ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "Base '${base:-<unset>}' unusable; falling back to HEAD~1"
+            base="$(git rev-parse HEAD~1)"
+          fi
           echo "Comparing declared upstreams against ${base}"
           node scripts/docs/check-docs-owed.mjs --since "${base}" --fail-on-owed
 
