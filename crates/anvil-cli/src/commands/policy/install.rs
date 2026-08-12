@@ -295,7 +295,7 @@ impl Journal {
         // the no-follow create below does.
         ensure_within_root(&self.root, dir).map_err(anyhow::Error::from)?;
 
-        #[cfg(test)]
+        #[cfg(all(test, unix))]
         race_hook::fire(dir);
 
         crate::util::create_dir_all_nofollow(dir)
@@ -335,7 +335,7 @@ impl Journal {
                 let original = std::fs::read(abs)
                     .with_context(|| format!("reading existing {}", abs.display()))?;
                 self.restored.push((abs.to_path_buf(), original));
-                #[cfg(test)]
+                #[cfg(all(test, unix))]
                 race_hook::fire(abs);
                 crate::util::atomic_write_nofollow(abs, contents)
                     .with_context(|| format!("writing {}", abs.display()))?;
@@ -344,7 +344,7 @@ impl Journal {
                 // Same ordering for creations: journal first, so a partial
                 // write is still removed by rollback.
                 self.created_files.push(abs.to_path_buf());
-                #[cfg(test)]
+                #[cfg(all(test, unix))]
                 race_hook::fire(abs);
                 crate::util::atomic_write_nofollow(abs, contents)
                     .with_context(|| format!("writing {}", abs.display()))?;
@@ -360,7 +360,8 @@ impl Journal {
 
 /// Test-only hook fired after containment checks and immediately before a
 /// journal create/write. Used to simulate concurrent ancestor symlink swaps.
-#[cfg(test)]
+/// Unix-only: the race simulation relies on POSIX symlink behaviour.
+#[cfg(all(test, unix))]
 mod race_hook {
     use std::cell::RefCell;
     use std::path::Path;
