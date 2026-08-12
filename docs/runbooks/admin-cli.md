@@ -571,9 +571,14 @@ on the **existing hourly Vercel Cron sweep**, `GET /cron/cleanup`
 telemetry-beacon rollup and expired-token cleanup (`vercel.json`:
 `{ "path": "/api/v1/cron/cleanup", "schedule": "0 * * * *" }`). Every hourly run
 recomputes the trailing **7** completed UTC days (per `plan`, plus a reserved
-`__all__` total row) and **upserts** each `(day, plan)` row — never increments —
-so re-running the same day any number of times never double-counts, and a short
-outage self-heals on the next run.
+`__all__` total row) and **upserts** each `(day, plan)` row.
+
+The rollup is **error-isolated** from the other six cleanup steps on that route:
+if it throws (e.g. a transient DB error), the sweep still responds `200` with
+the cleanup counts intact, and the failure is reported as
+`activityRollup: { error: <message> }` in the response body instead of
+`{ days, rows }` — a rollup failure never masks successful cleanup or makes
+Vercel Cron treat the whole hourly run as failed.
 
 **Grain and retention.** One row per completed UTC day × plan (today only
 `beta`, plus the `__all__` total). Kept **indefinitely** — volume is trivial (at
@@ -581,18 +586,31 @@ most a handful of rows per day), and unlike FLEET's raw `telemetry_beacons`
 there is no per-event table behind this rollup to prune; the rollup itself _is_
 the retained aggregate.
 
-**Honest limitation — late rollup undercounts.** `last_activity_at` is a
-_latest-pointer_ column, not an activity log. A day's count is computed at
-rollup time from whichever accounts currently show `last_activity_at` falling on
-that UTC day. If a day is rolled up **late** — after an account's
-`last_activity_at` has already advanced past it (the account was active again on
-a later day before the job ever saw the earlier day) — that earlier day's count
-can no longer see the account and **undercounts**. The 7-day trailing window
-means a Vercel Cron outage shorter than a week self-heals; an outage or backfill
-gap longer than that, or an account whose next activity lands inside the window
-before the earlier day is ever rolled up, does not recover the lost evidence.
-Treat `activity_rollup_daily` as directional recent history, not an exact audit
-log.
+**Best-observation upsert — stored counts never decrease.** The write is
+`SET active_accounts = GREATEST(stored, newly-observed)`, not a plain overwrite.
+`last_activity_at` only ever _advances_, so a later re-roll of an
+already-written day can only observe the same or a **smaller** set of accounts
+still pointing at that day (accounts active again since have moved their pointer
+past it). A plain overwrite would let that later, smaller recount shrink an
+already-correct earlier snapshot every single hour; GREATEST instead keeps each
+day's best-ever observation. Re-running the same day any number of times still
+never double-counts (it's a max, not a sum), and a short outage still self-heals
+on the next run.
+
+**Honest limitation — a day's first rollup can still undercount if it's late.**
+`last_activity_at` is a _latest-pointer_ column, not an activity log. A day's
+count is only as good as whichever accounts show `last_activity_at` falling on
+that UTC day **the first time the job ever looks**. If a day's _first_ rollup
+happens late — after an account's `last_activity_at` has already advanced past
+it (the account was active again on a later day before the job ever saw the
+earlier day) — that account is invisible to every rollup from then on, and
+GREATEST has nothing to raise the stored value from. The 7-day trailing window
+means a Vercel Cron outage shorter than a week self-heals (every day still gets
+its first look in time); an outage or backfill gap longer than that does not
+recover the lost evidence. Treat `activity_rollup_daily` as **accounts observed
+active that day**, not an exact audit log — the GREATEST upsert guarantees the
+stored value never falls below the best snapshot ever taken, but cannot
+manufacture a snapshot that was never taken.
 
 **Reading history.** `GET /admin/activity?history=true` (optional
 `&historyDays=N`, default **14**, max **90**) attaches a `history` block —
