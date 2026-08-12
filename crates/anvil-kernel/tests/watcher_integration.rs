@@ -189,3 +189,40 @@ fn failure_guidance_generic_falls_back_to_retry_and_report() {
         "generic copy should suggest reporting: {msg}"
     );
 }
+
+/// Dropping [`anvil_kernel::watcher::WatcherHandle`] must stop the worker
+/// thread. Regression for clawpatch finding fnd_sig-feat-library-5bfb5d92c1-eb45_23fef2890c:
+/// the worker previously held a strong `Arc` of the OS watcher, so drop of the
+/// handle left the thread and inotify watches alive indefinitely.
+///
+/// The handle's `Drop` joins the worker after releasing the watcher. If the
+/// worker still self-retains the watcher, that join hangs and this test fails
+/// via timeout. The batch receiver is retained so only handle drop — not
+/// receiver disconnect — can stop the worker.
+#[test]
+fn dropping_handle_stops_worker_promptly() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = WatcherConfig {
+        root: dir.path().to_path_buf(),
+        debounce_window: Duration::from_millis(10),
+        max_pending: 100,
+        tick_interval: Duration::from_millis(5),
+        filter: None,
+    };
+
+    let (handle, _rx, _diag) = start_watcher(&config, None).unwrap();
+    // Brief warm-up so the OS watcher and worker are fully running.
+    std::thread::sleep(Duration::from_millis(50));
+
+    let (done_tx, done_rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        drop(handle);
+        let _ = done_tx.send(());
+    });
+
+    let result = done_rx.recv_timeout(Duration::from_secs(2));
+    assert!(
+        result.is_ok(),
+        "dropping WatcherHandle must release the OS watcher and join the worker thread promptly; hang indicates the worker still holds a strong Arc of RecommendedWatcher"
+    );
+}

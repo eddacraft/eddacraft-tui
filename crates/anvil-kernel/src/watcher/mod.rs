@@ -5,6 +5,7 @@ pub mod pattern;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, mpsc};
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -223,10 +224,29 @@ fn watch_directories(
 }
 
 /// Handle returned by [`start_watcher`] — keeps the OS watcher alive.
-/// The `Arc<Mutex>` is shared with the event-processing thread so it can
-/// register newly created directories at runtime. Drop to stop watching.
+///
+/// The event-processing thread holds only a [`std::sync::Weak`] reference to
+/// the same `Arc<Mutex<RecommendedWatcher>>`, so it can register newly created
+/// directories at runtime without self-retaining the watcher after this handle
+/// is dropped. Dropping the handle releases the OS watcher (disconnecting the
+/// raw event channel) and joins the worker thread.
 pub struct WatcherHandle {
-    _watcher: Arc<Mutex<RecommendedWatcher>>,
+    watcher: Option<Arc<Mutex<RecommendedWatcher>>>,
+    worker: Option<JoinHandle<()>>,
+}
+
+impl Drop for WatcherHandle {
+    fn drop(&mut self) {
+        // Drop the strong Arc first so the worker's Weak cannot upgrade and the
+        // notify callback (holding the raw event sender) is released. That
+        // disconnects the worker's receive loop.
+        self.watcher.take();
+        if let Some(worker) = self.worker.take() {
+            // The worker exits promptly after the channel disconnects. Joining
+            // keeps lifecycle deterministic for callers and tests.
+            let _ = worker.join();
+        }
+    }
 }
 
 /// Starts watching the given directory and sends [`ChangeBatch`] events
@@ -265,16 +285,18 @@ pub fn start_watcher(
     let filter = config.filter.clone().unwrap_or_default();
     let diagnostics = watch_directories(&mut watcher, &config.root, &filter, progress)?;
 
-    // Wrap watcher so the processing thread can register new directories.
+    // Wrap watcher so the processing thread can register new directories via a
+    // Weak reference — a strong clone would self-retain the watcher after the
+    // returned handle is dropped, leaking the OS watches and worker thread.
     let watcher_arc = Arc::new(Mutex::new(watcher));
-    let watcher_for_thread = Arc::clone(&watcher_arc);
+    let watcher_for_thread = Arc::downgrade(&watcher_arc);
 
     let debounce_window = config.debounce_window;
     let max_pending = config.max_pending;
     let tick_interval = config.tick_interval;
     let thread_filter = filter.clone();
 
-    std::thread::spawn(move || {
+    let worker = std::thread::spawn(move || {
         let mut debouncer = Debouncer::new(debounce_window, max_pending);
 
         loop {
@@ -291,11 +313,14 @@ pub fn start_watcher(
                         // Register newly created directories for watching so
                         // files created inside them are picked up. Uses
                         // symlink_metadata to avoid following symlinks that
-                        // could point outside the project root.
+                        // could point outside the project root. Upgrade may
+                        // fail if the handle was dropped mid-event — treat as
+                        // shutdown and skip registration.
                         if kind == ChangeKind::Created
                             && path.symlink_metadata().is_ok_and(|m| m.is_dir())
                             && !thread_filter.should_ignore(&path)
-                            && let Ok(mut w) = watcher_for_thread.lock()
+                            && let Some(watcher) = watcher_for_thread.upgrade()
+                            && let Ok(mut w) = watcher.lock()
                         {
                             // Silently discard watch errors — the directory may
                             // have been deleted between the Create event and now
@@ -333,7 +358,8 @@ pub fn start_watcher(
     });
 
     let handle = WatcherHandle {
-        _watcher: watcher_arc,
+        watcher: Some(watcher_arc),
+        worker: Some(worker),
     };
 
     Ok((handle, batch_rx, diagnostics))
