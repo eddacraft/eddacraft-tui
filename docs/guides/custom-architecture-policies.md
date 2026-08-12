@@ -1,8 +1,8 @@
 # Custom Architecture Policies Guide
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                   |
-| ----- | --------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | ARCHCFG | Live   | Last reviewed 2026-07-06 against `anvil architecture --help`, `docs/runbooks/cli-surface.md`, and CLICT-001 |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                       |
+| ----- | --------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | ARCHCFG | Live   | Last reviewed 2026-08-13 against `anvil architecture --help`, `crates/anvil-cli/src/commands/architecture.rs`, and the UCFG-008 resolution seam |
 
 | Upstream                                                                                                                           | Downstream                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -16,9 +16,11 @@ Define and enforce your own architectural boundaries without writing any Rego.
 Boundary enforcement, live feedback, and export use other surfaces:
 
 ```bash
-# Create .anvil/architecture.yaml (edit manually or copy a template — see below)
+# Define architecture in your project config's `architecture` section
+# (inline or via `architecture.source`), or create the standalone
+# .anvil/architecture.yaml (edit manually or copy a template — see below)
 
-# Validate the definition file (YAML parse + depends_on reference checks)
+# Validate the resolved definition (parse + depends_on reference checks)
 anvil architecture validate
 
 # Full import-boundary enforcement
@@ -39,7 +41,13 @@ ARCHCFG-006..014 in
 
 ## Architecture Definition File
 
-Create `.anvil/architecture.yaml` in your project root:
+Since ADR-120 the definition's unified home is the `architecture` section of
+your project config (`.anvil.yaml`), either inline or delegated to a file via
+`architecture.source: ".anvil/architecture.yaml"`; the standalone
+`.anvil/architecture.yaml` keeps working as the legacy form, and
+`anvil migrate architecture --apply` writes the explicit source line for you.
+The examples below use the standalone-file spelling — the same keys work inline
+under `architecture:`. Create `.anvil/architecture.yaml` in your project root:
 
 ```yaml
 schema_version: '1.0'
@@ -558,21 +566,24 @@ baseline:
 ### Registered under `anvil architecture`
 
 ```bash
-anvil architecture validate    # Parse .anvil/architecture.yaml; basic ref checks
+anvil architecture validate    # Validate the resolved definition; basic ref checks
 anvil architecture show        # Print the active definition
+# Both resolve the config's `architecture` section first (inline or
+# source-delegated), then fall back to the standalone .anvil/architecture.yaml;
+# pass --file to operate on an explicit file instead.
 ```
 
 ### Substitute surfaces (same capability, different command)
 
-| Documented / planned capability | Use instead                                                  |
-| ------------------------------- | ------------------------------------------------------------ |
-| Initialise a definition         | Create `.anvil/architecture.yaml` manually (templates below) |
-| Check boundaries                | `anvil gate --only-checks import-boundaries`                 |
-| Watch boundaries continuously   | `anvil watch` (default `--action check`)                     |
-| Visualise the graph             | `anvil dashboard architecture` (TUI)                         |
-| Export architecture context     | `anvil export --format prompt-fragment` (agent context)      |
-| List / inspect impact           | `anvil architecture show`; gate output for violations        |
-| Debug configuration             | `anvil doctor`; gate verbose output                          |
+| Documented / planned capability | Use instead                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Initialise a definition         | Add an `architecture` section to your config, or create `.anvil/architecture.yaml` manually (templates below) |
+| Check boundaries                | `anvil gate --only-checks import-boundaries`                                                                  |
+| Watch boundaries continuously   | `anvil watch` (default `--action check`)                                                                      |
+| Visualise the graph             | `anvil dashboard architecture` (TUI)                                                                          |
+| Export architecture context     | `anvil export --format prompt-fragment` (agent context)                                                       |
+| List / inspect impact           | `anvil architecture show`; gate output for violations                                                         |
+| Debug configuration             | `anvil doctor`; gate verbose output                                                                           |
 
 ```bash
 anvil gate --only-checks import-boundaries
