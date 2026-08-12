@@ -38,6 +38,10 @@ pub enum MigrateCommand {
     /// config's `gate` section and top-level `checks` list, then
     /// remove the legacy file.
     GateConfig(GateConfigMigrateArgs),
+    /// Point the project config's `architecture` section at an
+    /// existing standalone `.anvil/architecture.yaml` via an explicit
+    /// `source` line.
+    Architecture(ArchitectureMigrateArgs),
 }
 
 #[derive(Debug, Args)]
@@ -80,6 +84,14 @@ pub struct GateConfigMigrateArgs {
 }
 
 #[derive(Debug, Args)]
+pub struct ArchitectureMigrateArgs {
+    /// Write the source line. The default is a dry-run preview that
+    /// changes nothing on disk.
+    #[arg(long)]
+    pub apply: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct SchemaArgs {
     /// Write the migrated config. The default is a dry-run preview that
     /// changes nothing on disk.
@@ -102,6 +114,7 @@ pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
             run_schema_in(schema_args, root, &anvil_config::production_migrations())
         }
         Some(MigrateCommand::GateConfig(gate_args)) => run_gate_config_in(gate_args, root),
+        Some(MigrateCommand::Architecture(arch_args)) => run_architecture_in(arch_args, root),
         None => {
             eprintln!(
                 "anvil: `anvil migrate` now has subcommands; running `format` for \
@@ -533,6 +546,68 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
         "Folded into {} and removed {}.",
         project.writable_path.display(),
         gc::LEGACY_GATE_CONFIG_REL
+    );
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// `anvil migrate architecture` — explicit source line (UCFG-007).
+// ---------------------------------------------------------------------------
+
+/// Write `architecture: { source: ".anvil/architecture.yaml" }` into
+/// the project config when a standalone legacy file exists and the
+/// config has no `architecture` section yet — nothing else in the
+/// file is touched. The standalone file stays where it is (it is the
+/// delegation target); consumers resolve it through the hardened
+/// delegation pipeline afterwards.
+pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -> Result<()> {
+    if !anvil_architecture::yaml_parser::architecture_yaml_exists(root) {
+        bail!(
+            "no standalone .anvil/architecture.yaml at {} (nothing to do)",
+            root.display()
+        );
+    }
+
+    let mut project = crate::commands::config::load_project_config(root)?;
+    if project
+        .value
+        .get("architecture")
+        .is_some_and(|v| !v.is_null())
+    {
+        bail!(
+            "{} already has an `architecture` section — nothing to migrate \
+             (remove the standalone file once the section is authoritative)",
+            project.label
+        );
+    }
+
+    let rel = ".anvil/architecture.yaml";
+    println!(
+        "Plan: add `architecture.source = \"{rel}\"` to {}.",
+        project.label
+    );
+    if !args.apply {
+        println!("Dry-run only; pass --apply to write.");
+        return Ok(());
+    }
+
+    // DISTRIB-006 (ADR-060): durable per-project mutation.
+    crate::install_root::ensure_project_write_allowed("migrate architecture")?;
+
+    if !project.value.is_object() {
+        project.value = serde_json::Value::Object(serde_json::Map::new());
+    }
+    project
+        .value
+        .as_object_mut()
+        .expect("normalised above")
+        .insert("architecture".into(), serde_json::json!({ "source": rel }));
+
+    let text = crate::commands::config::serialize_config(&project.value, project.writable_format)?;
+    crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
+    println!(
+        "Wrote architecture source line to {}.",
+        project.writable_path.display()
     );
     Ok(())
 }
@@ -994,5 +1069,65 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let err = run_gate_config_in(&gate_args(false, false), tmp.path()).unwrap_err();
         assert!(err.to_string().contains("nothing to do"), "{err}");
+    }
+
+    // ── `anvil migrate architecture` (UCFG-007) ─────────────────
+
+    fn arch_migrate_args(apply: bool) -> ArchitectureMigrateArgs {
+        ArchitectureMigrateArgs { apply }
+    }
+
+    #[test]
+    fn architecture_migrate_writes_only_the_source_line() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil/architecture.yaml"),
+            "schema_version: \"0.1.0\"\nlayers:\n  core:\n    patterns: [\"src/**\"]\n",
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "schema_version: \"1.0.0\"\nchecks: [lint]\n",
+        )
+        .unwrap();
+
+        // Dry-run writes nothing.
+        run_architecture_in(&arch_migrate_args(false), tmp.path()).unwrap();
+        let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
+        assert!(value.get("architecture").is_none());
+
+        run_architecture_in(&arch_migrate_args(true), tmp.path()).unwrap();
+        let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
+        assert_eq!(value["architecture"]["source"], ".anvil/architecture.yaml");
+        // Nothing else touched; standalone file kept (delegation target).
+        assert_eq!(value["schema_version"], "1.0.0");
+        assert_eq!(value["checks"][0], "lint");
+        assert!(tmp.path().join(".anvil/architecture.yaml").exists());
+    }
+
+    #[test]
+    fn architecture_migrate_refuses_when_section_exists_or_no_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let err = run_architecture_in(&arch_migrate_args(false), tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("nothing to do"), "{err}");
+
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil/architecture.yaml"),
+            "schema_version: \"0.1.0\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  layers: {}\n",
+        )
+        .unwrap();
+        let err = run_architecture_in(&arch_migrate_args(true), tmp.path()).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("already has an `architecture` section"),
+            "{err}"
+        );
     }
 }

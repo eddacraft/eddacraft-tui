@@ -114,8 +114,11 @@ pub fn write_architecture_yaml(
     Ok(())
 }
 
-/// Apply defaults (fill in missing options).
-fn apply_defaults(mut definition: ArchitectureDefinition) -> ArchitectureDefinition {
+/// Apply defaults (fill in missing options). Public so the unified
+/// config's `architecture` section path applies the same
+/// normalisation as this file parser — resolved definitions must be
+/// equal regardless of origin.
+pub fn apply_defaults(mut definition: ArchitectureDefinition) -> ArchitectureDefinition {
     if definition.options.is_none() {
         definition.options = Some(get_default_options());
     }

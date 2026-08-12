@@ -308,7 +308,7 @@ Change status to **Ready** when:
 
 #### UCFG-007: `architecture` section resolution + migrate
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** `architecture` becomes a main-config section
   (`SectionOrSource<ArchitectureDefinition>`). Existing
   `.anvil/architecture.yaml` keeps working as a delegation target;

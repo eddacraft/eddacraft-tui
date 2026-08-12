@@ -1,5 +1,6 @@
 mod account_activity;
 mod activation;
+mod architecture_source;
 mod auth;
 mod capacity;
 mod commands;
