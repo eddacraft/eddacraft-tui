@@ -1,490 +1,434 @@
 <!--
 APS Module: Unified Config Format
 =========================
-Consolidate .anvilrc, gate-config.json, and architecture.yaml into a
-single TOML file with generalised source delegation.
+Consolidate the project config surface on the shipped multi-format
+loader: one canonical filename, gate section folded in, architecture
+as a delegatable section, one discovery implementation.
 
 Scopes: UCFG (main)
+
+Rewritten 2026-08-12 under ADR-120. The original 2026-04 revision
+(TOML-only single .anvilrc, 18 items, ADR-016) was invalidated by
+MLP-011/MLP2-040 before any item started; no UCFG item from that
+revision was ever executed, so IDs are reallocated cleanly.
 -->
 
 # Unified Config Format
 
-| ID   | Owner | Status   | Progress |
-| ---- | ----- | -------- | -------- |
-| UCFG | —     | Proposed | 0/18     |
+| ID   | Owner | Priority | Status   | Progress |
+| ---- | ----- | -------- | -------- | -------- |
+| UCFG | —     | medium   | Proposed | 0/12     |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-08-12 — module rewritten against ADR-120 (Proposed),
+superseding the ADR-016 revision. Verified against current code: `anvil init`
+still writes `.anvilrc` (`init.rs:33`) while `start`/`config set` write
+`.anvil.<ext>`; gate runs ignore `.anvil/gate-config.json`; policy discovery is
+hand-rolled in `hook.rs` and `l4_validate.rs`. Council `council-0851e9cb`
+(standard pack, same day) findings folded in: start-vs-gate precedence split,
+`config set` legacy writer, policy yml→yaml flip made explicit, delegation
+containment hardened, fold confirmation, casing-writer ownership, TUI
+tutorial surface, ARCHCFG-007 sequencing.
+
+> **Activation gate.** UCFG promotes to **Ready** when (a) ADR-120 is
+> Accepted, and (b) the module is scheduled against a named release window.
+> SETCON reads what this module defines and SETPREF names it as the writer
+> contract; both stay anchored here.
 
 ## Purpose
 
-Consolidate Anvil's three configuration files (`.anvilrc`,
-`.anvil/gate-config.json`, `.anvil/architecture.yaml`) into a single `.anvilrc`
-in TOML format with snake_case keys throughout. Sections that grow large can be
-delegated to external TOML files via a `source` key.
+Give Anvil's project configuration one canonical filename, one key casing, one
+discovery/precedence implementation, and no config file the product silently
+ignores — by finishing the MLP-011/MLP2-040 direction rather than reversing
+it.
 
-**Why:** A Council review (council-09fc9567) found 4 critical and 7 major
-documentation errors caused directly by schema drift across three files with
-different formats, key casing, and versioning. AI agents — Anvil's primary
-audience — must correlate three files to understand configuration. All projects
-are greenfield; there are no existing users to migrate.
+**Why:** the drift ADR-016 diagnosed has worsened: five valid filenames for
+the main config, two commands seeding different ones, a `gate-config.json`
+that gate runs ignore, a separately-parsed `architecture.yaml`, and four
+independent precedence implementations. AI agents — Anvil's primary audience —
+must correlate all of them to understand configuration.
 
-**ADR:** [016-unified-config-format](../decisions/016-unified-config-format.md)
+**ADR:** [120-config-surface-consolidation](../decisions/120-config-surface-consolidation.md)
+(supersedes [016](../decisions/016-unified-config-format.md))
 
 ## In Scope
 
-- `SectionOrSource<T>` generic loader with source delegation
-- Unified `AnvilConfig` struct with `[project]`, `[gate]`, `[architecture]`
-  sections
-- `anvil init` generates single TOML `.anvilrc`
-- `anvil gate-config` reads/writes `[gate]` section in `.anvilrc`
-- `anvil architecture` reads/writes `[architecture]` section (inline or
-  delegated)
-- `anvil doctor` validates all 4 topologies (inline/delegated per section)
-- Updated documentation (config.md, first-project.md, agent-harness.md)
+- `anvil init` writes canonical `.anvil.<ext>`; `.anvilrc` demoted to legacy —
+  no command creates one (`config set` may still edit a discovered legacy file
+  in place; migration stays explicit)
+- Discover-first precedence made the single truth: `start.rs`'s legacy-first
+  probe reconciled to `gate.rs`'s discover-first behaviour
+- `anvil migrate` owns rename (`.anvilrc` → `.anvil.<ext>`) and
+  `gate-config.json` fold; `anvil doctor` detects dual-truth states
+- snake_case canonical key space across formats, camelCase accepted on read
+- `gate` section in the main config as the authoritative gate-composition
+  store; `anvil gate-config` re-pointed; `.anvil/gate-config.json` retired
+- `architecture` section with exclusive, one-level, path-safe source
+  delegation (`SectionOrSource<T>` in `crates/anvil-config`); existing
+  `.anvil/architecture.yaml` continues working as a delegation target
+- Policy discovery in `hook.rs` / `l4_validate.rs` unified onto
+  `anvil_config::discover` — with one deliberate, doctor-warned behaviour
+  change (`policy.yml`→`policy.yaml` precedence flip in dual-variant repos)
+- Docs, skill, runbook, MCP resource, and fixture sweeps to the canonical name
 
 ## Out of Scope
 
-- Migration tooling for legacy formats (no existing users)
-- Non-TOML format support for `.anvilrc`
-- New sections beyond `[project]`, `[gate]`, `[architecture]`
-- Changes to `.anvil/policies/` directory (OPA bundles stay separate)
+- Format changes (multi-format yaml-first stands; no TOML-only)
+- `workspace.yaml` daemon confinement (ADR-094 trust domain)
+- `anvil/exceptions/` store (ADR-100 committed authority)
+- `.anvil/suppressions.json`, baselines, dashboards, `gates.json` (state, not
+  config)
+- `flags/manifest.json` (FLAGCAT) and policy merge semantics (POLLC/ORGHIER)
+- New sections beyond `gate` and `architecture`
+- Removing legacy read fallbacks (deferred ≥1 minor release after migrate
+  ships)
 
 ## Interfaces
 
 **Depends on:**
 
-- `crates/anvil-architecture/` — ArchitectureDefinition types, template defaults
-- `crates/anvil-cli/src/util.rs` — workspace_root(), atomic_write()
+- `crates/anvil-config` — existing discover/parse/canonical/migrations layer
+  (MLP-011); gains `SectionOrSource<T>` and casing canonicalisation
+- `crates/anvil-architecture` — `ArchitectureDefinition` types and template
+  defaults (types reused; YAML file becomes a delegation target)
+- `crates/anvil-cli` — init, migrate, doctor, gate, gate-config, watch,
+  architecture, config, MCP resources
 
 **Exposes:**
 
-- `crates/anvil-config/` — new crate: `AnvilConfig`, `SectionOrSource<T>`,
-  `load_config()`, `save_config()`
-- Updated `anvil init`, `anvil gate-config`, `anvil doctor` commands
+- One canonical config filename + documented precedence for all consumers
+- `gate` and `architecture` section schemas in the main config
+- Delegation contract consumed by SETCON's resolver and SETPREF's writer
+
+**Coordinates with:**
+
+- [settings-truth-contract](./settings-truth-contract.aps.md) (SETCON) —
+  reads the file layout this module fixes
+- [settings-safe-preferences](./settings-safe-preferences.aps.md) (SETPREF) —
+  writer behaviour contract
+- ARCHCFG / ADR-102 — architecture authoring commands sit atop the resolved
+  section; command surface decisions stay with ADR-102. **Sequencing:**
+  ARCHCFG-007 (`anvil architecture init`, Ready) may ship before UCFG-007 —
+  its standalone `.anvil/architecture.yaml` scaffold stays valid as a
+  delegation target; once UCFG-007 lands, the scaffold switches to the
+  `architecture` section with an explicit `source` line (owned by UCFG-008's
+  command sweep)
 
 ## Constraints
 
-- TOML only — no JSON/YAML support for the root config file
-- snake_case everywhere — no format-dependent key casing
-- Source delegation is exclusive — no merge semantics between inline and
-  delegated content
-- Source delegation is one level deep — delegated files cannot themselves
-  delegate
-- `[project]` is always inline (contains root `schema_version`)
-- Atomic writes for all config mutations
-- `toml` crate already in the workspace; no new format dependencies
+- Deterministic; warnings over blocks (doctor/gate exit 0 on drift findings)
+- Atomic writes for all config mutations; no key-reordering churn beyond the
+  owning write
+- Delegation is exclusive (inline XOR source), one level deep,
+  workspace-relative; rejected: `../` traversal, absolute and Windows
+  drive/UNC paths, symlink escapes (canonicalised target must stay under the
+  workspace root), and self-reference. Delegated targets are read via
+  anvil-config's hardened bounded path (size cap, YAML alias rejection, depth
+  cap — ADR-046) regardless of format
+- No behaviour change for unmigrated repos beyond new warnings — except the
+  ADR-120 pt 6 policy precedence flip, which is deliberate and doctor-warned
+- Migrate folds only fields absent from the main config and reports every
+  folded key; folds that weaken enforcement relative to the effective config
+  require explicit diff-and-confirm (never resurrects stale
+  `gate-config.json` intent silently — a main config with no `gate` section
+  makes every JSON field "absent", which is exactly the confirm case)
 
 ## Ready Checklist
 
 Change status to **Ready** when:
 
-- [ ] ADR-016 approved
-- [ ] Work items reviewed and estimated
+- [ ] ADR-120 Accepted (ADR-016 marked Rejected with pointer)
+- [ ] Release window named
+- [ ] Work items reviewed against current `main`
 
 ---
 
 ## Work Items
 
-### Phase 1 — Config Crate and Loader
+### Phase 1 — Canonical Filename
 
-New `crates/anvil-config/` crate with the unified config type and
-`SectionOrSource<T>` delegation.
-
-#### UCFG-001: Scaffold anvil-config crate
+#### UCFG-001: init writes canonical `.anvil.<ext>`
 
 - **Status:** Proposed
-- **Intent:** Create `crates/anvil-config/` with `Cargo.toml`, workspace
-  registration, `lib.rs` stub. Dependencies: `serde`, `toml`, `thiserror`
-- **Expected Outcome:** `cargo check -p eddacraft-anvil-config` passes
-- **Validation:** Workspace builds cleanly with the new crate
-- **Files:** `Cargo.toml`, `crates/anvil-config/Cargo.toml`,
-  `crates/anvil-config/src/lib.rs`
-- **Confidence:** High
-- **Priority:** High
-- **Dependencies:** None
-
----
-
-#### UCFG-002: Define AnvilConfig struct
-
-- **Status:** Proposed
-- **Intent:** Define the unified `AnvilConfig` with `ProjectConfig`,
-  `GateConfig`, and architecture config. `[project]` section holds
-  `schema_version`, `planning_dir`, `format`, `checks`. `[gate]` holds
-  `overall_score`, `checks` (Vec of GateCheck), optional `global_config`.
-  `[architecture]` holds the full `ArchitectureDefinition` fields
-  (`schema_version`, `template`, `layers`, `bounded_contexts`, `rules`,
-  `options`)
-- **Expected Outcome:** All config types derive `Serialize + Deserialize` with
-  snake_case. Round-trip test: struct → TOML string → struct
-- **Validation:** `cargo test -p eddacraft-anvil-config` passes with round-trip tests
-- **Files:** `crates/anvil-config/src/types.rs`,
-  `crates/anvil-config/src/types.test.rs`
-- **Confidence:** High
-- **Priority:** High
-- **Dependencies:** UCFG-001
-
----
-
-#### UCFG-003: SectionOrSource<T> with custom deserializer
-
-- **Status:** Proposed
-- **Intent:** Implement `SectionOrSource<T>` enum (Inline(T) | Delegated(SourceRef))
-  with a custom serde deserializer that detects the `source` key and produces
-  clear error messages. Must handle: source-only (valid), inline-only (valid),
-  both present (error with actionable message), neither (falls back to T's
-  Default impl)
-- **Expected Outcome:** Custom deserializer produces clear errors:
-  `"[architecture] has both 'source' and inline keys"` instead of serde's
-  default untagged enum error
-- **Validation:** Tests for all 4 states (inline, delegated, both, empty) with
-  error message assertions
-- **Files:** `crates/anvil-config/src/delegation.rs`,
-  `crates/anvil-config/src/delegation.test.rs`
-- **Confidence:** Medium — custom deserializer complexity
-- **Priority:** High
-- **Dependencies:** UCFG-002
-
----
-
-#### UCFG-004: Config loader with source resolution
-
-- **Status:** Proposed
-- **Intent:** Implement `load_config(workspace: &Path) -> Result<AnvilConfig>`
-  that reads `.anvilrc`, parses TOML, resolves any `source` references (relative
-  to workspace root), validates one-level-deep constraint (delegated files
-  cannot themselves contain `source`), and returns the fully resolved config.
-  Also implement `save_config()` using atomic_write()
-- **Expected Outcome:** Loading a config with delegated `[architecture]` section
-  reads the external file and returns it as if it were inline. Saving preserves
-  delegation structure (does not flatten)
-- **Validation:** Tests with temp dirs: inline config, delegated config,
-  nested delegation (must error), missing source file (must error with path)
-- **Files:** `crates/anvil-config/src/loader.rs`,
-  `crates/anvil-config/src/loader.test.rs`
+- **Intent:** `anvil init` writes `.anvil.yaml` by default (ext follows the
+  chosen format); stops writing `.anvilrc`. TUI init surface labels updated
+  (it currently suppresses `.anvil.*` labels because init never writes them).
+  Depends on UCFG-003 so the first canonical file is snake_case from its
+  first write — never a camelCase `.anvil.yaml`
+- **Expected Outcome:** fresh `anvil init` produces a snake_case
+  `.anvil.<ext>` that every reader discovers first; no command creates a new
+  `.anvilrc`
+- **Validation:** init in a temp dir; `discover` finds the file and its keys
+  are snake_case; grep confirms no `.anvilrc` creation path remains
+- **Files:** `crates/anvil-cli/src/commands/init.rs`,
+  `crates/anvil-tui/src/surfaces/init/`
 - **Confidence:** High
 - **Priority:** High
 - **Dependencies:** UCFG-003
 
 ---
 
-#### UCFG-005: Template defaults for architecture section
+#### UCFG-002: migrate renames `.anvilrc`, doctor flags dual configs
 
 - **Status:** Proposed
-- **Intent:** Port the template default logic from
-  `crates/anvil-architecture/src/yaml_parser.rs` (`get_template_defaults`,
-  `merge_with_template`, `create_definition_from_template`) to work with the
-  TOML-based architecture section. Reuse the existing template enum and layer
-  definitions — the types are the same, only the serialisation format changes
-- **Expected Outcome:** `anvil init` with a template selection produces a
-  `.anvilrc` with pre-populated `[architecture.layers.*]` tables matching the
-  existing YAML template output
-- **Validation:** Test that each of the 9 templates produces valid TOML with
-  correct layer names and patterns
-- **Files:** `crates/anvil-config/src/templates.rs`,
-  `crates/anvil-config/src/templates.test.rs`
-- **Confidence:** High
-- **Priority:** Medium
-- **Dependencies:** UCFG-002
-
----
-
-### Phase 2 — Command Integration
-
-Wire the unified config into existing CLI commands, replacing per-command
-config loading.
-
-#### UCFG-006: Update anvil init
-
-- **Status:** Proposed
-- **Intent:** Replace `AnvilConfig` in `init.rs` with the unified config from
-  `anvil-config`. `anvil init` generates a single `.anvilrc` in TOML with
-  `[project]` and `[gate]` sections (architecture section added only if user
-  selects a template). Remove JSON/YAML format selection for the config file
-  itself (TOML only). Keep `format` field for plan file format
-- **Expected Outcome:** `anvil init` produces a valid unified `.anvilrc`.
-  Interactive mode still works (template selection, planning dir). The init
-  surface (TUI) is updated to remove config format choice
-- **Validation:** `anvil init` in a temp dir produces parseable TOML that
-  round-trips through `load_config()`
-- **Files:** `crates/anvil-cli/src/commands/init.rs`,
-  `crates/anvil-tui/src/surfaces/init/`
+- **Intent:** `anvil migrate` renames `.anvilrc` → `.anvil.<ext>` preserving
+  the embedded format (atomic). `anvil doctor` warns when both names exist,
+  or multiple `.anvil.<ext>` variants exist, naming which file wins.
+  Establish discover-first as the single precedence truth: reconcile
+  `start.rs existing_project_config_path` (today `.anvilrc`-first) to match
+  `gate.rs`'s discover-first resolution, flipping its pinning test; `config
+  set`'s writable-path keeps editing a discovered legacy `.anvilrc` in place
+  but never creates one
+- **Expected Outcome:** one migration command moves a legacy repo to the
+  canonical name; every code path answers the dual-config question the same
+  way; dual-truth states are visible, not silent
+- **Validation:** migrate round-trip per format; doctor warning text asserts
+  the winning path; dual-file fixture proves start/gate/config-set agree;
+  exit 0 throughout
+- **Files:** `crates/anvil-cli/src/commands/migrate.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/commands/config.rs`
 - **Confidence:** High
 - **Priority:** High
-- **Dependencies:** UCFG-004, UCFG-005
+- **Dependencies:** UCFG-001
 
 ---
 
-#### UCFG-007: Update anvil gate-config
+#### UCFG-003: snake_case canonical key space
 
 - **Status:** Proposed
-- **Intent:** Replace `gate_config.rs` config loading with reads/writes to the
-  `[gate]` section of `.anvilrc` via `anvil-config`. `--list`, `--enable`,
-  `--disable` operate on the unified file. Remove `.anvil/gate-config.json`
-  handling entirely
-- **Expected Outcome:** `anvil gate-config --list` reads from `.anvilrc`.
-  `--enable lint` / `--disable coverage` modify the `[gate]` section in place.
-  The `.anvil/gate-config.json` file is no longer read or written
-- **Validation:** Enable/disable round-trips: toggle a check, re-read, verify
-  state. TOML formatting is preserved (no reordering keys)
-- **Files:** `crates/anvil-cli/src/commands/gate_config.rs`
-- **Confidence:** Medium — TOML in-place editing may reorder keys
+- **Intent:** canonicalise keys to snake_case across yaml/json/toml in
+  `anvil-config`; accept legacy camelCase on read via the migrations layer;
+  owned writes emit snake_case only. This owns the actual divergent writer
+  functions — `init.rs` `yaml_serialise` (camelCase today) /
+  `toml_serialise`, and `start.rs pre_write_anvil_config_format` (camelCase
+  across all formats today) — and gives MLP2-041's
+  `InitConfigView::from_value` snake_case read tolerance before any writer
+  flips
+- **Expected Outcome:** identical logical config in any format parses to the
+  same canonical form; camelCase-era files still load; no writer in the tree
+  emits camelCase
+- **Validation:** cross-format equivalence tests incl. canonical-hash
+  stability; legacy-casing fixture loads with a deprecation note;
+  `InitConfigView` round-trip against snake_case output
+- **Files:** `crates/anvil-config/src/{canonical,migrations,parse}.rs`,
+  `crates/anvil-cli/src/commands/init.rs`,
+  `crates/anvil-cli/src/commands/start.rs`
+- **Confidence:** Medium — casing rules must not disturb canonical hashing
+  consumers
+- **Priority:** High
+- **Dependencies:** None
+
+---
+
+### Phase 2 — Retire gate-config.json
+
+#### UCFG-004: `gate` section schema in the main config
+
+- **Status:** Proposed
+- **Intent:** define the `gate` section holding what `gate-config.json`
+  carried (check enablement, `overall_score`, global config), reconciled with
+  the `checks` key gate runs already read
+- **Expected Outcome:** one schema answers "which checks run and how is the
+  gate composed"; round-trips in all formats
+- **Validation:** round-trip tests; gate check selection unchanged for
+  existing configs
+- **Files:** `crates/anvil-config/src/`, `crates/anvil-cli/src/commands/gate.rs`
+- **Confidence:** High
+- **Priority:** High
+- **Dependencies:** UCFG-003
+
+---
+
+#### UCFG-005: gate-config command re-pointed; legacy file folded
+
+- **Status:** Proposed
+- **Intent:** `anvil gate-config --list/--enable/--disable` reads/writes the
+  main-config `gate` section. `anvil migrate` folds a legacy
+  `gate-config.json` (only fields absent from the main config; every folded
+  key reported; folds that weaken enforcement relative to the effective
+  config — disabled checks, lowered thresholds — require explicit
+  diff-and-confirm), then the stray file is a doctor warning
+- **Expected Outcome:** no code path writes `.anvil/gate-config.json`; the
+  file the product ignores no longer exists on migrated repos; a stale
+  weakened JSON cannot become live enforcement silently
+- **Validation:** enable/disable round-trip via main config; fold test with
+  conflicting stale JSON proves main config wins; weakened-stale-JSON fixture
+  with no `gate` section in the main config proves the fold stops for
+  confirmation; grep zero writers
+- **Files:** `crates/anvil-cli/src/commands/gate_config.rs`,
+  `crates/anvil-cli/src/commands/{migrate,doctor}.rs`
+- **Confidence:** Medium — in-place section editing must not reorder
+  unrelated keys
 - **Priority:** High
 - **Dependencies:** UCFG-004
 
 ---
 
-#### UCFG-008: Update anvil gate
+### Phase 3 — Architecture as a Delegatable Section
+
+#### UCFG-006: `SectionOrSource<T>` in anvil-config
 
 - **Status:** Proposed
-- **Intent:** Replace the gate command's independent config loading
-  (`parse_architecture_definition`, inline gate check list) with a single
-  `load_config()` call at the top of `run()`. Architecture checks use the
-  resolved `[architecture]` section. Gate check enabled/disabled state comes
-  from `[gate]`. Profile overrides (dev/ci/production) apply to the loaded
-  config in memory
-- **Expected Outcome:** Gate command works identically to today but reads from
-  unified config. All 7 checks still function. Profile skipping still works
-- **Validation:** Existing gate tests pass with unified config files. Manual
-  test with all 3 profiles
-- **Files:** `crates/anvil-cli/src/commands/gate.rs`
-- **Confidence:** Medium — gate.rs is 1796 lines, many implicit config
-  assumptions
+- **Intent:** implement exclusive inline-XOR-source delegation with clear
+  errors (both present, neither, nested delegation, missing target, `../`
+  traversal, absolute or Windows drive/UNC path, symlink escaping the
+  workspace root after canonicalisation, self-reference back to the main
+  config), one level deep, workspace-relative, format-agnostic targets.
+  Delegated targets are read via `read_to_string_bounded` and parsed via
+  anvil-config's hardened path (size cap, YAML alias rejection, depth cap —
+  ADR-046); the legacy `yaml_parser` is never handed a delegated path
+- **Expected Outcome:** actionable error strings for every invalid topology;
+  no panic on any malformed input; alias-bomb and deep-nesting payloads in a
+  delegated target are rejected identically to the main config
+- **Validation:** unit tests for all topologies incl. `../`, absolute-path,
+  symlink-escape, and self-reference rejection; alias-bearing and
+  deeply-nested delegated-yaml fixtures; property/fuzz pass over the
+  delegation resolver
+- **Files:** `crates/anvil-config/src/delegation.rs`
+- **Confidence:** Medium — custom deserialisation across three formats
 - **Priority:** High
-- **Dependencies:** UCFG-004
+- **Dependencies:** UCFG-003
 
 ---
 
-#### UCFG-009: Update anvil watch
+#### UCFG-007: `architecture` section resolution + migrate
 
 - **Status:** Proposed
-- **Intent:** Replace the watch command's architecture.yaml existence check
-  with a `load_config()` call. If `[architecture]` is present (inline or
-  delegated), watch mode includes architecture file patterns. Watch still
-  monitors the `.anvilrc` file itself for config changes
-- **Expected Outcome:** Watch command detects architecture config regardless of
-  whether it's inline or delegated. Config file change triggers re-validation
-- **Validation:** Watch mode starts with unified config; architecture boundary
-  changes are detected
-- **Files:** `crates/anvil-cli/src/commands/watch.rs`
-- **Confidence:** High
-- **Priority:** Medium
-- **Dependencies:** UCFG-004
-
----
-
-#### UCFG-010: Update anvil architecture commands
-
-- **Status:** Proposed
-- **Intent:** Update `architecture.rs`, `architecture-validate.rs`, and any
-  other architecture commands to read from the unified config's
-  `[architecture]` section instead of `.anvil/architecture.yaml` directly.
-  `anvil architecture validate` must handle both inline and delegated configs.
-  `anvil architecture show` renders from the resolved config
-- **Expected Outcome:** All architecture commands work with unified config.
-  Delegated configs are resolved transparently
-- **Validation:** `anvil architecture validate` passes with inline config and
-  with `source = ".anvil/architecture.toml"` delegation
-- **Files:** `crates/anvil-cli/src/commands/architecture.rs`,
-  `crates/anvil-cli/src/commands/architecture-validate.rs`,
-  `crates/anvil-architecture/src/yaml_parser.rs` (deprecate or remove)
+- **Intent:** `architecture` becomes a main-config section
+  (`SectionOrSource<ArchitectureDefinition>`). Existing
+  `.anvil/architecture.yaml` keeps working as a delegation target;
+  `anvil migrate` writes the explicit `source` line; template defaults
+  reused from `anvil-architecture`
+- **Expected Outcome:** inline and delegated architecture resolve to the same
+  definition; unmigrated repos behave as before plus a doctor note
+- **Validation:** resolved-equality test inline vs delegated; migrate adds
+  `source` without touching other keys
+- **Files:** `crates/anvil-config/src/`, `crates/anvil-architecture/src/`,
+  `crates/anvil-cli/src/commands/migrate.rs`
 - **Confidence:** Medium
 - **Priority:** Medium
-- **Dependencies:** UCFG-004
+- **Dependencies:** UCFG-006
 
 ---
 
-#### UCFG-011: Update anvil doctor
+#### UCFG-008: gate / watch / architecture commands read the resolved section
 
 - **Status:** Proposed
-- **Intent:** Replace the existing config-exists and config-valid checks in
-  `doctor.rs` with unified config validation. Doctor should: (1) check
-  `.anvilrc` exists and is valid TOML, (2) validate all sections parse
-  correctly, (3) resolve and validate any `source` references, (4) check
-  architecture schema_version is "0.1.0", (5) validate layer dependency
-  references. Auto-fix: create minimal `.anvilrc` with `[project]` section
-- **Expected Outcome:** `anvil doctor` validates all 4 delegation topologies.
-  Reports clear errors for missing source files, invalid TOML, schema version
-  mismatches, and dangling layer references
-- **Validation:** Test all 4 topologies plus error cases (missing source file,
-  invalid TOML, wrong schema_version)
-- **Files:** `crates/anvil-cli/src/commands/doctor.rs`
+- **Intent:** replace direct `.anvil/architecture.yaml` reads in `gate.rs`,
+  `watch.rs`, and `architecture*.rs` with the resolved section (inline or
+  delegated); ADR-102 command-surface semantics unchanged
+- **Expected Outcome:** all architecture consumers work identically with
+  inline or delegated config; delegated file edits are watched
+- **Validation:** existing architecture/gate/watch tests pass against both
+  topologies
+- **Files:** `crates/anvil-cli/src/commands/{gate,watch,architecture}.rs`,
+  `crates/anvil-architecture/src/yaml_parser.rs`
+- **Confidence:** Medium — gate.rs carries implicit config assumptions
+- **Priority:** Medium
+- **Dependencies:** UCFG-007
+
+---
+
+### Phase 4 — One Discovery Layer, One Story
+
+#### UCFG-009: policy discovery via anvil_config::discover
+
+- **Status:** Proposed
+- **Intent:** replace the hand-rolled `anvil/policy.*` candidate lists in
+  `hook.rs` and `l4_validate.rs` with `anvil_config::discover`. One
+  deliberate behaviour change (ADR-120 pt 6): the hand-rolled lists are
+  yml-first (test-pinned by
+  `load_policy_prefers_yml_over_other_extensions`), `DISCOVER_PRECEDENCE` is
+  yaml-first — dual-variant repos flip winner; the pinning test flips with
+  the decision. `anvil doctor` warns when multiple `anvil/policy.<ext>`
+  variants exist, naming the winner. ADR-100 authority semantics untouched
+- **Expected Outcome:** one precedence implementation in the tree; identical
+  file chosen for every single-variant fixture; the dual yml+yaml case
+  resolves yaml-first with a doctor warning available
+- **Validation:** parity test over fixture matrices (each ext
+  present/absent) against old and new resolution, including the
+  both-yml-and-yaml case asserting the new winner; doctor multi-variant
+  warning test
+- **Files:** `crates/anvil-cli/src/commands/{hook,l4_validate}.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`
 - **Confidence:** High
 - **Priority:** Medium
-- **Dependencies:** UCFG-004
+- **Dependencies:** None
 
 ---
 
-### Phase 3 — Cleanup and Documentation
-
-Remove legacy config paths and update all documentation.
-
-#### UCFG-012: Remove legacy config loading
+#### UCFG-010: MCP resources, config summary, doctor on the unified surface
 
 - **Status:** Proposed
-- **Intent:** Delete all code paths that read `.anvil/gate-config.json` and
-  `.anvil/architecture.yaml`. Remove `yaml_serialise()` and `toml_serialise()`
-  from `init.rs`. Remove `GateConfig` and `GateCheck` structs from
-  `gate_config.rs` (now in `anvil-config`). Remove or deprecate
-  `yaml_parser.rs` in `anvil-architecture` (the YAML parsing is replaced by
-  TOML in `anvil-config`)
-- **Expected Outcome:** `grep -r "gate-config.json" crates/` returns zero
-  results. `grep -r "architecture.yaml" crates/` returns zero results (except
-  comments/docs). The `serde_yaml` dependency can be removed from
-  `anvil-architecture` if no other code uses it
-- **Validation:** `cargo check --workspace` passes. `cargo test --workspace`
-  passes. No references to old config file paths remain
-- **Files:** `crates/anvil-cli/src/commands/init.rs`,
-  `crates/anvil-cli/src/commands/gate_config.rs`,
-  `crates/anvil-architecture/src/yaml_parser.rs`,
-  `crates/anvil-architecture/Cargo.toml`
-- **Confidence:** Medium — may find unexpected consumers of old paths
+- **Intent:** `anvil://config`-class MCP resources, `config_summary`, and
+  doctor render the resolved unified config (canonical name, gate section,
+  resolved architecture, delegation provenance)
+- **Expected Outcome:** agents see one config surface with provenance; doctor
+  validates all delegation topologies
+- **Validation:** MCP resource snapshot tests for inline + delegated;
+  doctor topology matrix
+- **Files:** `crates/anvil-cli/src/mcp/resources/`,
+  `crates/anvil-cli/src/config_summary.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`
+- **Confidence:** High
 - **Priority:** Medium
-- **Dependencies:** UCFG-006, UCFG-007, UCFG-008, UCFG-009, UCFG-010, UCFG-011
+- **Dependencies:** UCFG-005, UCFG-007
 
 ---
 
-#### UCFG-013: Update public documentation
+#### UCFG-011: documentation sweep to one canonical name
 
 - **Status:** Proposed
-- **Intent:** Rewrite `docs/public/anvil/operations/config.md` to document the
-  unified TOML format exclusively. Update `first-project.md`,
-  `agent-harness.md`, `quickstart.md`, and any other docs that reference
-  `.anvil/gate-config.json` or `.anvil/architecture.yaml` as separate files.
-  Document the source delegation pattern with examples for both inline and
-  delegated configs
-- **Expected Outcome:** All public docs reference a single `.anvilrc` in TOML.
-  No references to `.anvil/gate-config.json` or `.anvil/architecture.yaml` as
-  user-facing config files (`.anvil/` may still be mentioned for cache/policies)
-- **Validation:** `grep -r "gate-config.json" docs/public/` returns zero.
-  `grep -r "architecture.yaml" docs/public/` returns zero (except in
-  delegation examples as a source target)
+- **Intent:** config.md names exactly one canonical filename and the legacy
+  fallback story; first-project, quickstart, agent-harness, using-anvil
+  skill, and cli-surface runbook updated; gate-config "planning surface"
+  concession removed once UCFG-005 lands
+- **Expected Outcome:** no doc presents five filenames as co-equal; no doc
+  references `gate-config.json` as a live surface
+- **Validation:** `pnpm docs:check`; grep gates for retired paths in
+  docs/public
 - **Files:** `docs/public/anvil/operations/config.md`,
-  `docs/public/anvil/first-project.md`,
+  `docs/public/anvil/{first-project,quickstart}.md`,
   `docs/public/anvil/guides/agent-harness.md`,
-  `docs/public/anvil/quickstart.md`,
-  `docs/public/anvil/tutorials/architecture.md`
+  `crates/anvil-cli/assets/skills/using-anvil/SKILL.md`,
+  `docs/runbooks/cli-surface.md`,
+  `crates/anvil-tui/src/surfaces/tutorial/{mod,paths}.rs` (interactive
+  tutorial copy + `Verify::FileExists(".anvil/architecture.yaml")` checks)
 - **Confidence:** High
 - **Priority:** Medium
-- **Dependencies:** UCFG-006 (need final init output to document accurately)
+- **Dependencies:** UCFG-002, UCFG-005, UCFG-008
 
 ---
 
-#### UCFG-014: Update MCP server config resources
+#### UCFG-012: fixture and CI sweep
 
 - **Status:** Proposed
-- **Intent:** Update the MCP server (`archive/anvil-mcp-server/`) to read from
-  the unified `.anvilrc` instead of three separate files. The
-  `anvil://config` resource should return the resolved unified config.
-  The `anvil://boundaries` resource should resolve architecture from the
-  unified config (handling delegation transparently)
-- **Expected Outcome:** MCP resources return correct data from unified config.
-  AI agents see a single config surface through MCP
-- **Validation:** MCP server starts, resources return expected data with both
-  inline and delegated architecture configs
-- **Files:** `archive/anvil-mcp-server/src/resources/`,
-  `archive/anvil-mcp-server/src/config/`
-- **Confidence:** Medium — MCP server is TypeScript, needs a TOML parser
-- **Priority:** Low
-- **Dependencies:** UCFG-004
-
----
-
-#### UCFG-015: Update VS Code extension config
-
-- **Status:** Proposed
-- **Intent:** Update the VS Code extension's config reading to parse `.anvilrc`
-  as TOML instead of the current JSON/YAML multi-format approach. The
-  `anvil.configPath` setting default remains `.anvilrc`
-- **Expected Outcome:** Extension reads unified TOML config, diagnostics work
-  with new format
-- **Validation:** Extension loads, inline diagnostics appear, no regressions
-- **Files:** VS Code extension source (`.vsix` build)
-- **Confidence:** Medium
-- **Priority:** Low
-- **Dependencies:** UCFG-004
-
----
-
-### Phase 4 — Hardening
-
-#### UCFG-016: Fuzz the config loader
-
-- **Status:** Proposed
-- **Intent:** Add `cargo-fuzz` targets for the config loader: malformed TOML,
-  oversized files, deeply nested tables, source paths with path traversal
-  (`../../etc/passwd`), UTF-8 edge cases. The loader must never panic and must
-  produce actionable error messages for all malformed inputs
-- **Expected Outcome:** Fuzz targets run for 10 minutes with no crashes.
-  Path traversal attempts are rejected with a clear error
-- **Validation:** `cargo fuzz run config_loader -- -max_total_time=600`
-  completes with zero crashes
-- **Files:** `crates/anvil-config/fuzz/`, `crates/anvil-config/fuzz/Cargo.toml`
+- **Intent:** convert test fixtures and CI steps referencing `.anvilrc`,
+  `gate-config.json`, or direct `architecture.yaml` reads to the canonical
+  surface (legacy-fallback fixtures kept deliberately and labelled)
+- **Expected Outcome:** CI green on all platforms with canonical fixtures;
+  remaining legacy references are intentional fallback coverage only
+- **Validation:** full workspace test run; grep audit distinguishing
+  intentional legacy fixtures from stragglers
+- **Files:** `.github/workflows/`, `crates/*/tests/`, fixture directories
 - **Confidence:** High
 - **Priority:** Low
-- **Dependencies:** UCFG-004
-
----
-
-#### UCFG-017: Config schema documentation in binary
-
-- **Status:** Proposed
-- **Intent:** Add `anvil config schema` command that prints the expected TOML
-  schema as annotated example output (like `cargo init` generates a commented
-  `Cargo.toml`). Include all sections with defaults, all fields with
-  descriptions, and delegation syntax examples
-- **Expected Outcome:** `anvil config schema` prints a complete, valid,
-  commented `.anvilrc` that users can pipe to a file
-- **Validation:** Output is valid TOML. Parsing the output through
-  `load_config()` succeeds
-- **Files:** `crates/anvil-cli/src/commands/config.rs`
-- **Confidence:** High
-- **Priority:** Low
-- **Dependencies:** UCFG-002
-
----
-
-#### UCFG-018: CI workflow updates
-
-- **Status:** Proposed
-- **Intent:** Update `.github/workflows/rust.yml` and `ci.yml` to use unified
-  config format in test fixtures and CI steps. Any CI steps that reference
-  `.anvil/gate-config.json` or `.anvil/architecture.yaml` must be updated.
-  Test fixture configs in `crates/*/tests/` and `crates/*/test-fixtures/`
-  must be converted to unified TOML
-- **Expected Outcome:** CI passes with unified config. No references to legacy
-  config paths in workflow files
-- **Validation:** CI green on all platforms (Linux, macOS, Windows)
-- **Files:** `.github/workflows/rust.yml`, `.github/workflows/ci.yml`,
-  test fixture directories
-- **Confidence:** High
-- **Priority:** Medium
-- **Dependencies:** UCFG-012
+- **Dependencies:** UCFG-005, UCFG-008
 
 ---
 
 ## Parallel Execution
 
 ```
-Phase 1 (foundation):
-  UCFG-001 → UCFG-002 → UCFG-003 → UCFG-004
-                  └──→ UCFG-005 (parallel with 003)
-
-Phase 2 (integration — all depend on UCFG-004, can run in parallel):
-  UCFG-006 ─┐
-  UCFG-007 ─┤
-  UCFG-008 ─┤
-  UCFG-009 ─┼──→ UCFG-012 (cleanup, after all phase 2)
-  UCFG-010 ─┤
-  UCFG-011 ─┘
-
-Phase 3 (docs + integrations — after phase 2):
-  UCFG-013 ─┐
-  UCFG-014 ─┼──→ done
-  UCFG-015 ─┘
-  UCFG-018 ─┘
-
-Phase 4 (hardening — after UCFG-004, can start early):
-  UCFG-016 (after UCFG-004)
-  UCFG-017 (after UCFG-002)
+Phase 1: UCFG-003 → UCFG-001 → UCFG-002
+Phase 2: UCFG-003 → UCFG-004 → UCFG-005
+Phase 3: UCFG-003 → UCFG-006 → UCFG-007 → UCFG-008
+Phase 4: UCFG-009 (anytime)
+         UCFG-010 (after 005+007)
+         UCFG-011 (after 002+005+008)
+         UCFG-012 (after 005+008)
 ```
+
+UCFG-003 is the root of every casing-bearing chain: the first canonical
+`.anvil.<ext>` file init produces must never carry camelCase keys.

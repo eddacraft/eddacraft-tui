@@ -1,8 +1,16 @@
 # ADR-016: Unified Configuration Format — Single TOML with Source Delegation
 
+> **Rejected 2026-08-12** before acceptance, in favour of
+> [ADR-120](120-config-surface-consolidation.md). Two premises were invalidated
+> by shipped work: MLP-011/MLP2-040 established a multi-format, yaml-first
+> config surface (reversing the TOML-only mandate), and the v0.9.0-beta release
+> ended the "no users to migrate" assumption. The problem statement and the
+> `SectionOrSource<T>` delegation idea carry forward into ADR-120 and the
+> rewritten UCFG module.
+
 ## Status
 
-Proposed
+Rejected
 
 ## Date
 
