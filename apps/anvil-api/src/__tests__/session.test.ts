@@ -5,6 +5,7 @@ vi.mock('../db/queries.js', () => ({
   insertRefreshToken: vi.fn(),
   consumeAndRotateRefreshToken: vi.fn(),
   stampUserLogin: vi.fn(),
+  stampUserActivity: vi.fn(),
 }));
 
 vi.mock('../lib/licence.js', () => ({
@@ -20,6 +21,7 @@ import {
   consumeAndRotateRefreshToken,
   findActiveScopesForUser,
   insertRefreshToken,
+  stampUserActivity,
   stampUserLogin,
 } from '../db/queries.js';
 import { signLicence, type LicenceClaims } from '../lib/licence.js';
@@ -38,6 +40,7 @@ beforeEach(() => {
   vi.mocked(hashToken).mockImplementation((t: string) => `hash:${t}`);
   vi.mocked(insertRefreshToken).mockResolvedValue(undefined as never);
   vi.mocked(stampUserLogin).mockResolvedValue(undefined);
+  vi.mocked(stampUserActivity).mockResolvedValue(undefined);
   vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({
     status: 'rotated',
     token: {
@@ -235,5 +238,30 @@ describe('mintRotatedSession login stamps (BACT-002)', () => {
       oldTokenId: 'rt-1',
     });
     expect(vi.mocked(stampUserLogin)).not.toHaveBeenCalled();
+  });
+});
+
+describe('mintRotatedSession activity stamps (BACT-008)', () => {
+  it('advances activity with kind refresh on a successful rotation', async () => {
+    await mintRotatedSession(sql, {
+      user,
+      identity: { provider: 'github', id: '42' },
+      familyId: 'family-1',
+      oldTokenId: 'rt-1',
+    });
+    expect(vi.mocked(stampUserActivity)).toHaveBeenCalledWith(sql, 'user-1', 'refresh');
+    expect(vi.mocked(stampUserLogin)).not.toHaveBeenCalled();
+  });
+
+  it('does not stamp activity when the atomic rotate fails', async () => {
+    vi.mocked(consumeAndRotateRefreshToken).mockResolvedValue({ status: 'failed' });
+
+    await mintRotatedSession(sql, {
+      user,
+      identity: { provider: 'github', id: '42' },
+      familyId: 'family-1',
+      oldTokenId: 'rt-1',
+    });
+    expect(vi.mocked(stampUserActivity)).not.toHaveBeenCalled();
   });
 });

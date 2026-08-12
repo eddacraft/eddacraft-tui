@@ -4,6 +4,7 @@ import {
   consumeAndRotateRefreshToken,
   findActiveScopesForUser,
   insertRefreshToken,
+  stampUserActivity,
   stampUserLogin,
   type LoginMethod,
 } from '../db/queries.js';
@@ -140,6 +141,12 @@ export async function mintRotatedSession(
   if (rotated.status !== 'rotated') {
     return { ok: false };
   }
+
+  // BACT-008 / ADR-121 decision 4: a successful refresh is account activity
+  // for token-era users who never re-run interactive login, but it is never
+  // a login — only `stampUserActivity` (kind `refresh`) runs here, never
+  // `stampUserLogin`.
+  await stampUserActivity(sql, user.id, 'refresh');
 
   const scopes = await findActiveScopesForUser(sql, user.id);
 

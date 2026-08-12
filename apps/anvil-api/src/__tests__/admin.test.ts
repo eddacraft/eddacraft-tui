@@ -373,6 +373,33 @@ describe('admin endpoints', () => {
       const res = await request('POST', '/admin/invite', { email: 'not-an-email' }, ADMIN_KEY);
       expect(res.status).toBe(400);
     });
+
+    it('leaves login and activity stamps untouched — plan defaults via the column DEFAULT (BACT-008)', async () => {
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request('POST', '/admin/invite', { email: 'alice@example.com' }, ADMIN_KEY);
+      expect(res.status).toBe(201);
+
+      const userInsertCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) => chunk.includes('INSERT INTO beta_users'))
+      );
+      expect(userInsertCall).toBeDefined();
+      const flat = JSON.stringify(userInsertCall);
+      // ADR-121: invite mints no session, so it must not fabricate login or
+      // activity — those columns are absent from the statement entirely and
+      // `plan` is left to the schema DEFAULT ('beta', the only legal value).
+      expect(flat).not.toContain('first_login_at');
+      expect(flat).not.toContain('last_login_at');
+      expect(flat).not.toContain('last_activity_at');
+      expect(flat).not.toContain('last_activity_kind');
+      expect(flat).not.toContain('plan');
+    });
   });
 
   describe('POST /admin/revoke', () => {
@@ -897,6 +924,35 @@ describe('admin endpoints', () => {
   });
 
   describe('POST /admin/approve', () => {
+    it('leaves login and activity stamps untouched — plan defaults via the column DEFAULT (BACT-008)', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+
+      const userInsertCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) => chunk.includes('INSERT INTO beta_users'))
+      );
+      expect(userInsertCall).toBeDefined();
+      const flat = JSON.stringify(userInsertCall);
+      expect(flat).not.toContain('first_login_at');
+      expect(flat).not.toContain('last_login_at');
+      expect(flat).not.toContain('last_activity_at');
+      expect(flat).not.toContain('last_activity_kind');
+      expect(flat).not.toContain('plan');
+    });
+
     it('single-email mode succeeds and returns approved entry', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       mockSql.transaction.mockResolvedValue([

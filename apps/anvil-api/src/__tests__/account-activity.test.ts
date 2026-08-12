@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   sql: vi.fn(),
   verifyLicence: vi.fn(),
   upsertAccountFeatureTouch: vi.fn(),
+  stampUserActivity: vi.fn(),
 }));
 
 vi.mock('../db/client.js', () => ({
@@ -20,6 +21,7 @@ vi.mock('../lib/licence.js', () => ({
 
 vi.mock('../db/queries.js', () => ({
   upsertAccountFeatureTouch: mocks.upsertAccountFeatureTouch,
+  stampUserActivity: mocks.stampUserActivity,
 }));
 
 const app = new Hono();
@@ -60,6 +62,7 @@ describe('POST /account/activity (BACT-005)', () => {
       last_seen_at: '2026-08-12T00:00:00.000Z',
       touch_count: 1,
     });
+    mocks.stampUserActivity.mockResolvedValue(undefined);
   });
 
   it('rejects missing auth', async () => {
@@ -112,5 +115,27 @@ describe('POST /account/activity (BACT-005)', () => {
     const res = await post({ features: ['watch', 'watch'] }, 'Bearer good');
     expect(res.status).toBe(202);
     expect(mocks.upsertAccountFeatureTouch).toHaveBeenCalledTimes(1);
+  });
+
+  it('advances last_activity_at with kind feature exactly once per accepted request (BACT-008)', async () => {
+    const res = await post({ features: ['watch', 'check'] }, 'Bearer good');
+    expect(res.status).toBe(202);
+    expect(mocks.stampUserActivity).toHaveBeenCalledTimes(1);
+    expect(mocks.stampUserActivity).toHaveBeenCalledWith(mocks.sql, 'user-1', 'feature');
+  });
+
+  it('does not stamp activity when auth is missing or invalid', async () => {
+    await post({ features: ['watch'] });
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+
+    mocks.verifyLicence.mockResolvedValue(null);
+    await post({ features: ['watch'] }, 'Bearer bad');
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+  });
+
+  it('does not stamp activity when the feature keys are rejected', async () => {
+    const res = await post({ features: ['watch', 'rm-rf'] }, 'Bearer good');
+    expect(res.status).toBe(400);
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
   });
 });

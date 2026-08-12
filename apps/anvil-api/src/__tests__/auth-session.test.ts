@@ -13,6 +13,7 @@ vi.mock('../db/queries.js', () => ({
   revokeRefreshFamilyAndAccessTokensForUser: vi.fn(),
   findUserById: vi.fn(),
   findActiveScopesForUser: vi.fn(),
+  stampUserActivity: vi.fn(),
 }));
 
 vi.mock('../lib/token.js', async (importOriginal) => {
@@ -29,6 +30,7 @@ import {
   findUserById,
   revokeRefreshFamilyAndAccessTokensForUser,
   findActiveScopesForUser,
+  stampUserActivity,
   type RefreshToken,
 } from '../db/queries.js';
 
@@ -62,6 +64,7 @@ beforeEach(() => {
   // don't have to know about the new scope-lookup call. Tests that care
   // about graded scopes set this explicitly.
   vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
+  vi.mocked(stampUserActivity).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -137,6 +140,20 @@ describe('POST /auth/session/refresh', () => {
       expiresAt: expect.any(Date),
     });
     expect(vi.mocked(revokeRefreshFamilyAndAccessTokensForUser)).not.toHaveBeenCalled();
+  });
+
+  it('advances last_activity_at with kind refresh, never a login stamp (BACT-008)', async () => {
+    vi.mocked(findRefreshTokenByHash).mockResolvedValue(makeToken());
+    vi.mocked(findUserById).mockResolvedValue(activeUser());
+
+    const res = await post({ refreshToken: 'raw-token' });
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(stampUserActivity)).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      'refresh'
+    );
   });
 
   it('hashes the inbound refresh token before lookup', async () => {

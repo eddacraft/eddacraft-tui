@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getClient } from '../db/client.js';
-import { upsertAccountFeatureTouch } from '../db/queries.js';
+import { stampUserActivity, upsertAccountFeatureTouch } from '../db/queries.js';
 import { verifyLicence } from '../lib/licence.js';
 import {
   ACCOUNT_FEATURE_KEYS,
@@ -89,6 +89,10 @@ accountActivity.post('/', async (c) => {
     for (const key of accepted) {
       await upsertAccountFeatureTouch(sql, claims.sub, key);
     }
+    // BACT-008 / ADR-121 decision 4: an accepted feature-touch is account
+    // activity — advance once per request regardless of how many allowlisted
+    // keys were accepted, never touching login stamps.
+    await stampUserActivity(sql, claims.sub, 'feature');
   } catch (err) {
     console.error('account activity upsert failed:', err);
     return c.json({ error: 'Failed to record activity' }, 500);
