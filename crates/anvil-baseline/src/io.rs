@@ -1,6 +1,7 @@
-use std::fs;
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anvil_witness::{
     GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, WriterError, verify_chain_dag,
@@ -60,9 +61,19 @@ pub fn load(repo_root: &Path) -> Result<Option<Baseline>, BaselineIoError> {
 /// TOCTOU-hardened: the symlink check fires before AND after
 /// `create_dir_all` so a racing process cannot swap the directory
 /// for a symlink between our pre-check and our write. The write
-/// itself is atomic — we serialise to a temporary sibling and
-/// rename into place, which prevents readers from observing a
-/// half-written file under crash or concurrent reload.
+/// itself is atomic — we stage into a uniquely named exclusive
+/// sibling and rename into place, which prevents readers from
+/// observing a half-written file under crash or concurrent reload.
+///
+/// The staging file is **not** a fixed `.baseline.json.tmp` sibling.
+/// A shared name lets two concurrent savers — two `anvil baseline`
+/// invocations, or a `--refresh` racing a partial-scan resume — clash
+/// on one staging path: the loser's rename fails with `NotFound`
+/// after the winner moved the shared temp away, or both interleave
+/// `write_all` into the same file and a corrupted mixture is renamed
+/// into `anvil/baseline.json`. That is a silent integrity failure in
+/// the file every downstream consumer (gate, L4, audit) treats as
+/// truth. Each save now stages into its own `create_new` file.
 pub fn save(repo_root: &Path, baseline: &Baseline) -> Result<(), BaselineIoError> {
     let parent = repo_root.join("anvil");
     refuse_if_symlink(&parent)?;
@@ -72,21 +83,61 @@ pub fn save(repo_root: &Path, baseline: &Baseline) -> Result<(), BaselineIoError
     let final_path = repo_root.join(BASELINE_PATH);
     refuse_if_symlink(&final_path)?;
 
-    let tmp_path = parent.join(".baseline.json.tmp");
-    // Refuse a pre-existing symlink at the temp path too. Otherwise a
-    // hostile worktree state could pre-create `.baseline.json.tmp` as
-    // a symlink pointing outside the repo, and our `File::create`
-    // would happily write through it (overwriting the target).
-    refuse_if_symlink(&tmp_path)?;
     let bytes = baseline.to_canonical_bytes()?;
-    {
-        let mut f = fs::File::create(&tmp_path)?;
-        f.write_all(&bytes)?;
-        f.sync_all()?;
+    let (mut staging, tmp_path) = open_exclusive_staging_file(&parent)?;
+    if let Err(e) = staging.write_all(&bytes).and_then(|()| staging.sync_all()) {
+        drop(staging);
+        let _ = fs::remove_file(&tmp_path);
+        return Err(e.into());
     }
-    refuse_if_symlink(&final_path)?;
-    atomic_replace(&tmp_path, &final_path)?;
+    // Drop before rename so Windows can replace an open destination.
+    drop(staging);
+    if let Err(e) = (|| -> Result<(), BaselineIoError> {
+        refuse_if_symlink(&final_path)?;
+        atomic_replace(&tmp_path, &final_path)?;
+        Ok(())
+    })() {
+        // Best-effort cleanup of the exclusive staging file on failure.
+        let _ = fs::remove_file(&tmp_path);
+        return Err(e);
+    }
     Ok(())
+}
+
+/// Create a uniquely named staging file inside `anvil/`.
+///
+/// Uses `OpenOptions::create_new` so the open is exclusive: on Unix
+/// this maps to `O_CREAT|O_EXCL`, which refuses to follow a
+/// pre-existing symlink and fails with `AlreadyExists` if the path is
+/// occupied. That closes both the fixed-name concurrent-clobber race
+/// and the check-then-create symlink window a shared
+/// `.baseline.json.tmp` path allowed.
+fn open_exclusive_staging_file(parent: &Path) -> Result<(File, PathBuf), BaselineIoError> {
+    let pid = std::process::id();
+    for attempt in 0u32..32 {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        // Mix pid, wall-clock nanos, and attempt so concurrent callers
+        // and same-nanosecond retries almost never collide; create_new
+        // still serialises any true collision safely.
+        let nonce =
+            nanos ^ (u128::from(pid) << 64) ^ (u128::from(attempt) << 48) ^ u128::from(attempt);
+        let tmp_path = parent.join(format!(".baseline.json.{pid}-{nonce}.tmp"));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
+        {
+            Ok(file) => return Ok((file, tmp_path)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Err(BaselineIoError::Io(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "exhausted exclusive temporary baseline file name attempts",
+    )))
 }
 
 /// MLP2-013: `validation_at` value recorded on the genesis line a
@@ -279,13 +330,33 @@ mod tests {
         assert!(bytes.ends_with(b"\n"), "canonical bytes end in newline");
     }
 
+    /// Names of leftover staging temps beside `anvil/baseline.json`.
+    /// Covers both the legacy fixed sibling and the unique
+    /// exclusive-staging pattern.
+    fn staging_leftovers(repo_root: &Path) -> Vec<String> {
+        fs::read_dir(repo_root.join("anvil"))
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| {
+                n.starts_with(".baseline.json.")
+                    && Path::new(n)
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("tmp"))
+            })
+            .collect()
+    }
+
     #[test]
     fn save_is_atomic_via_temp_then_rename() {
         let tmp = tempfile::tempdir().unwrap();
         save(tmp.path(), &sample()).unwrap();
-        // After save, the .tmp file must not linger.
-        let tmp_path = tmp.path().join("anvil").join(".baseline.json.tmp");
-        assert!(!tmp_path.exists());
+        // After save, neither the legacy fixed staging name nor any
+        // unique exclusive staging temp may linger.
+        let legacy = tmp.path().join("anvil").join(".baseline.json.tmp");
+        assert!(!legacy.exists(), "legacy temp file leaked: {legacy:?}");
+        let leftovers = staging_leftovers(tmp.path());
+        assert!(leftovers.is_empty(), "staging temps leaked: {leftovers:?}");
     }
 
     #[cfg(unix)]
@@ -341,25 +412,102 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn save_refuses_when_tmp_path_is_symlink_before_write() {
-        // A hostile worktree state could pre-create
-        // `.baseline.json.tmp` as a symlink pointing out of the
-        // repo; without the tmp-path refusal, `File::create` would
-        // happily write *through* the link.
+    fn save_does_not_follow_legacy_fixed_temp_sibling_symlink() {
+        // The historical fixed staging path (`.baseline.json.tmp`) is
+        // both a concurrent-clobber and a check-then-create TOCTOU
+        // hazard. Save must not use it at all: a pre-planted symlink
+        // there must neither be followed nor block the write.
         use std::os::unix::fs::symlink;
         let tmp = tempfile::tempdir().unwrap();
         fs::create_dir(tmp.path().join("anvil")).unwrap();
         let outside = tmp.path().join("outside.json");
-        symlink(
-            &outside,
-            tmp.path().join("anvil").join(".baseline.json.tmp"),
-        )
-        .unwrap();
-        let err = save(tmp.path(), &sample()).unwrap_err();
-        assert!(matches!(err, BaselineIoError::SymlinkRefusal { .. }));
-        // The outside file must NOT exist — the symlink shouldn't
-        // have been written through.
-        assert!(!outside.exists());
+        let legacy = tmp.path().join("anvil").join(".baseline.json.tmp");
+        symlink(&outside, &legacy).unwrap();
+
+        save(tmp.path(), &sample()).unwrap();
+
+        assert!(
+            !outside.exists(),
+            "legacy fixed temp symlink was written through"
+        );
+        let loaded = load(tmp.path()).unwrap().expect("baseline exists");
+        assert_eq!(loaded, sample());
+        assert!(
+            legacy.symlink_metadata().unwrap().file_type().is_symlink(),
+            "legacy plant should remain an untouched symlink",
+        );
+    }
+
+    /// A shared staging name breaks concurrent saves two ways: the
+    /// loser's `rename` hits `NotFound` because the winner already
+    /// moved the shared temp away, or two writers interleave into the
+    /// same file and a corrupted mixture is renamed into place. Both
+    /// are probabilistic per round, so the guard races repeatedly —
+    /// against the fixed-name implementation this trips within the
+    /// first rounds rather than passing by luck.
+    #[test]
+    fn save_concurrent_calls_do_not_share_staging_path() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+
+        const ROUNDS: usize = 25;
+        let cutoffs = ["aaaaaaaa", "bbbbbbbb", "cccccccc", "dddddddd"];
+
+        for round in 0..ROUNDS {
+            let tmp = tempfile::tempdir().unwrap();
+            let root: Arc<PathBuf> = Arc::new(tmp.path().to_path_buf());
+            let barrier = Arc::new(Barrier::new(cutoffs.len()));
+            let mut handles = Vec::new();
+            for cutoff in cutoffs {
+                let root = Arc::clone(&root);
+                let barrier = Arc::clone(&barrier);
+                handles.push(thread::spawn(move || {
+                    let mut b = sample();
+                    b.cutoff_commit = Some(cutoff.to_string());
+                    barrier.wait();
+                    save(root.as_ref(), &b)
+                }));
+            }
+            let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+            assert!(
+                results.iter().all(std::result::Result::is_ok),
+                "round {round}: concurrent save must not fail from shared staging clobber: \
+                 {results:?}",
+            );
+
+            // The surviving file must be one writer's complete
+            // baseline, not a byte-level mixture of several.
+            let loaded = load(root.as_ref())
+                .unwrap_or_else(|e| panic!("round {round}: baseline unreadable after race: {e}"))
+                .expect("baseline exists");
+            let cutoff = loaded.cutoff_commit.as_deref().unwrap();
+            assert!(
+                cutoffs.contains(&cutoff),
+                "round {round}: final cutoff should be one of the concurrent writers, got {cutoff}",
+            );
+            let leftovers = staging_leftovers(root.as_ref());
+            assert!(
+                leftovers.is_empty(),
+                "round {round}: staging temps leaked: {leftovers:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn open_exclusive_staging_file_returns_distinct_paths() {
+        let tmp = tempfile::tempdir().unwrap();
+        let parent = tmp.path();
+        let (f1, p1) = open_exclusive_staging_file(parent).unwrap();
+        drop(f1);
+        let (f2, p2) = open_exclusive_staging_file(parent).unwrap();
+        drop(f2);
+        assert_ne!(p1, p2, "exclusive staging paths must not collide");
+        fs::write(&p1, b"one").unwrap();
+        fs::write(&p2, b"two").unwrap();
+        assert_eq!(fs::read(&p1).unwrap(), b"one");
+        assert_eq!(fs::read(&p2).unwrap(), b"two");
+        let _ = fs::remove_file(&p1);
+        let _ = fs::remove_file(&p2);
     }
 
     #[cfg(unix)]
