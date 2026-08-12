@@ -244,7 +244,16 @@ impl Drop for WatcherHandle {
         if let Some(worker) = self.worker.take() {
             // The worker exits promptly after the channel disconnects. Joining
             // keeps lifecycle deterministic for callers and tests.
-            let _ = worker.join();
+            match worker.join() {
+                Ok(()) => {}
+                Err(panic_payload) => {
+                    // Surface worker panics for debugging, but never double-panic
+                    // if Drop is already running during unwind.
+                    if !std::thread::panicking() {
+                        std::panic::resume_unwind(panic_payload);
+                    }
+                }
+            }
         }
     }
 }
