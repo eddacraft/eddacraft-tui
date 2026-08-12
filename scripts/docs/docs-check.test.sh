@@ -1284,6 +1284,46 @@ else
   fail "advisory-only corpus must not fail the gate; got ${d2_status}"
 fi
 
+# Case G: diff-mode glob matching agrees with git's own pathspec.
+#
+# Corpus mode asks git (`git log -- <glob>`); diff mode matches changed paths in
+# JS. If those disagree, a glob upstream is reported in one mode and silently
+# missed in the other. Rather than assert a reading of git's globbing, this
+# derives the expectation from git itself: whatever `git ls-files -- <glob>`
+# matches is what the JS matcher must match.
+#
+# The non-obvious part, which the first implementation got wrong: in git's
+# DEFAULT pathspec `*` crosses `/`. Segment-aware globbing is `:(glob)` magic,
+# which this surface does not use.
+echo "case G: diff-mode glob matching agrees with git pathspec"
+g_root="${tmp_root}/glob"
+mkdir -p "${g_root}/scripts/release/_test"
+(
+  cd "${g_root}"
+  git init -q .
+  git config user.email t@example.com
+  git config user.name t
+  touch scripts/release/prepare.sh scripts/release/_test/prepare.test.sh
+  git add -A
+  git commit -qm "fixture: release scripts"
+) >/dev/null 2>&1
+
+# Both sides go through the same `sort`: JS and the shell disagree on where `_`
+# falls, and an ordering difference is not a matching difference.
+git_matches="$(cd "${g_root}" && git ls-files -- 'scripts/release/*' | sort | tr '\n' ' ')"
+all_files="$(cd "${g_root}" && git ls-files | tr '\n' ' ')"
+js_matches="$(node -e '
+  // Same construction as globPathspec() in check-docs-owed.mjs.
+  const re = new RegExp("^" + "scripts/release/*".replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*+/g, ".*") + "$");
+  const files = process.argv[1].trim().split(/\s+/).filter(Boolean);
+  console.log(files.filter((p) => re.test(p)).join("\n"));
+' "${all_files}" | sort | tr '\n' ' ')"
+if [[ "${git_matches}" == "${js_matches}" ]]; then
+  pass "glob matcher agrees with git ls-files, nested paths included"
+else
+  fail "glob matcher disagrees with git; git=[${git_matches}] js=[${js_matches}]"
+fi
+
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"
   exit 1

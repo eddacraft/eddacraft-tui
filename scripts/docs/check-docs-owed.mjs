@@ -182,21 +182,38 @@ function upstreamTouchedByDiff(upstream, changed) {
     return false;
   }
   if (upstream.kind === 'glob') {
-    // `*` matches within a path segment, `**` across segments — the same shape
-    // git applies to the pathspec used in corpus mode, so both modes agree on
-    // which files a glob upstream covers.
-    const pattern = new RegExp(
-      `^${upstream.path
-        .split('/')
-        .map((seg) =>
-          seg === '**' ? '.*' : seg.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')
-        )
-        .join('/')}$`
-    );
+    const pattern = globPathspec(upstream.path);
     for (const path of changed) if (pattern.test(path)) return true;
     return false;
   }
   return false;
+}
+
+const globCache = new Map();
+/**
+ * Mirror git's DEFAULT pathspec globbing — what corpus mode gets from
+ * `git log -- <glob>`. Both modes have to agree on what a glob covers, so this
+ * follows git rather than intuition, and git's default is not the segment-aware
+ * globbing most people expect:
+ *
+ *   `*` matches any characters INCLUDING `/`. Verified against this repository:
+ *   `git ls-files -- 'scripts/release/*'` returns 17 paths under
+ *   `scripts/release/_test/`, so a segment-bounded `[^/]*` under-reports.
+ *
+ *   `**` is therefore just two such wildcards and carries no special
+ *   zero-directory meaning: `packages/**` + `/package.json` does NOT match
+ *   `packages/package.json`, because the literal `/` before the basename must
+ *   still be present. Only `:(glob)` magic — which this surface does not use —
+ *   gives `**` the zero-segment behaviour. Confirmed with `git ls-files`
+ *   against a fixture containing all three depths.
+ */
+function globPathspec(glob) {
+  let re = globCache.get(glob);
+  if (!re) {
+    re = new RegExp(`^${glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*+/g, '.*')}$`);
+    globCache.set(glob, re);
+  }
+  return re;
 }
 
 /** Paths touched in the diff range, when running in diff mode. */
