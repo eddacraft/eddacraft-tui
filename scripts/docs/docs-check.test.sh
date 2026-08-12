@@ -549,6 +549,45 @@ if [[ "${status}" -ne 0 ]] \
 else
   fail "in-tree governance requirements not enforced (status ${status}); got: ${out}"
 fi
+# Only the governance keys are exempt from the leakage scan — frontmatter
+# title and description render into built HTML (page <title>, meta tags) and
+# stay under the newcomer trust contract.
+cat >"${gov_root}/docs/public/anvil/governed.md" <<'EOF'
+---
+id: governed
+title: Anvil internals
+description: See crates/anvil-cli/src/main.rs for details.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/main.rs
+verified_against: 0.9.4-beta
+---
+
+# Governed page
+EOF
+cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
+---
+id: index
+title: kindling overview
+description: External-upstream section page.
+owner: DOCSYNC
+public_unlisted: true
+---
+
+# kindling overview
+EOF
+set +e
+out="$(node "${public_script}" --root "${gov_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "product name must be lowercase" \
+  && echo "${out}" | grep -q "internal repository reference" \
+  && echo "${out}" | grep -qE "^\[public-docs\] summary: 2 errors, [0-9]+ files checked$"; then
+  pass "rendered frontmatter (title, description) stays scanned; governance keys stay exempt"
+else
+  fail "frontmatter leakage boundary wrong (status ${status}); got: ${out}"
+fi
 
 # Case 14 (DOCSYNC-028): release-tag reference generation handles every Clap
 # variant shape, ignores post-release source, and rejects hand-edited output.

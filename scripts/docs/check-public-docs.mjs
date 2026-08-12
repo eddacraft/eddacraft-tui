@@ -93,10 +93,13 @@ for (const file of files) {
   const lines = content.split(/\r?\n/);
   const publicPath = normalise(relative(REPO_ROOT, file));
 
-  // Frontmatter is never rendered, and governance keys legitimately name
-  // repository paths (ADR-119 D5) — the leakage patterns guard the rendered
-  // page only.
-  for (let index = frontmatterLineSpan(lines); index < lines.length; index += 1) {
+  // Governance keys legitimately name repository paths (ADR-119 D5) and are
+  // never rendered, so only their lines are exempt from the leakage scan.
+  // Other frontmatter (title, description) renders into built HTML and stays
+  // under the newcomer trust contract.
+  const exemptLines = governanceFrontmatterLines(lines);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (exemptLines.has(index)) continue;
     const line = lines[index];
     if (productNamePattern.test(line)) {
       add(publicPath, index + 1, 'product name must be lowercase: anvil, eddacraft, or kindling');
@@ -388,12 +391,27 @@ function parseFrontmatter(content) {
   return values;
 }
 
-function frontmatterLineSpan(lines) {
-  if (lines[0] !== '---') return 0;
+function governanceFrontmatterLines(lines) {
+  const exempt = new Set();
+  if (lines[0] !== '---') return exempt;
+  let inUpstreamList = false;
   for (let index = 1; index < lines.length; index += 1) {
-    if (lines[index] === '---') return index + 1;
+    const line = lines[index];
+    if (line === '---') return exempt;
+    if (inUpstreamList && /^\s+-\s/.test(line)) {
+      exempt.add(index);
+      continue;
+    }
+    inUpstreamList = false;
+    if (/^(?:owner|verified_against):/.test(line)) {
+      exempt.add(index);
+    } else if (/^upstream:/.test(line)) {
+      exempt.add(index);
+      inUpstreamList = true;
+    }
   }
-  return 0;
+  // Unterminated frontmatter: fail safe — scan everything.
+  return new Set();
 }
 
 function checkGovernance(publicFiles) {
