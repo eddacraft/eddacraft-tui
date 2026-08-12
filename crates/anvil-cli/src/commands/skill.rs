@@ -233,7 +233,7 @@ fn resolve_clients(
 
 fn preview_bundle(destination: &Path) -> Result<()> {
     ensure_safe_destination(destination)?;
-    if destination.exists() {
+    if path_exists_nofollow(destination)? {
         validate_managed_state(destination)?;
     }
     Ok(())
@@ -241,7 +241,7 @@ fn preview_bundle(destination: &Path) -> Result<()> {
 
 fn install_bundle(destination: &Path) -> Result<&'static str> {
     ensure_safe_destination(destination)?;
-    let current = if destination.exists() {
+    let current = if path_exists_nofollow(destination)? {
         Some(validate_managed_state(destination)?)
     } else {
         None
@@ -255,17 +255,17 @@ fn install_bundle(destination: &Path) -> Result<&'static str> {
         .parent()
         .context("managed skill destination has no parent directory")?;
     ensure_safe_destination(parent)?;
-    fs::create_dir_all(parent)
+    create_dir_all_nofollow(parent)
         .with_context(|| format!("creating {}", crate::display_path::shown(parent)))?;
-    let staging = tempfile::Builder::new()
-        .prefix(".anvil-skill-stage-")
-        .tempdir_in(parent)
-        .with_context(|| {
-            format!(
-                "staging managed skill beside {}",
-                crate::display_path::shown(destination)
-            )
-        })?;
+
+    // Hold a no-follow directory handle for the parent before staging so a
+    // concurrent symlink swap of a path component cannot redirect mkdir/write.
+    let mut staging = create_staging_dir(parent).with_context(|| {
+        format!(
+            "staging managed skill beside {}",
+            crate::display_path::shown(destination)
+        )
+    })?;
 
     write_staged_file(staging.path(), "SKILL.md", SKILL_MD)?;
     write_staged_file(
@@ -280,7 +280,12 @@ fn install_bundle(destination: &Path) -> Result<&'static str> {
         bail!("staged managed skill bundle failed integrity verification");
     }
 
+    // Revalidate the commit path under no-follow discipline immediately before
+    // the rename (closes the residual check-then-use window on the destination).
+    ensure_safe_destination(destination)?;
+    ensure_safe_destination(parent)?;
     replace_directory(staging.path(), destination)?;
+    staging.defuse();
     Ok(if current.is_some() {
         "updated"
     } else {
@@ -304,14 +309,20 @@ fn verify_bundle(destination: &Path) -> Result<()> {
 fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
     let manifest_path = destination.join(MANIFEST_NAME);
     ensure_safe_destination(&manifest_path)?;
-    if !manifest_path.exists() {
+    if !path_exists_nofollow(&manifest_path)? {
         bail!(
             "refusing to overwrite unmanaged skill directory {}; move it outside the skills directory tree or choose another scope",
             crate::display_path::shown(destination)
         );
     }
-    let raw = fs::read_to_string(&manifest_path)
+    let raw_bytes = read_regular_file_nofollow(&manifest_path)
         .with_context(|| format!("reading {}", crate::display_path::shown(&manifest_path)))?;
+    let raw = String::from_utf8(raw_bytes).with_context(|| {
+        format!(
+            "managed manifest {} is not valid UTF-8",
+            crate::display_path::shown(&manifest_path)
+        )
+    })?;
     let manifest: ManagedManifest = serde_json::from_str(&raw).with_context(|| {
         format!(
             "parsing managed manifest {}",
@@ -332,7 +343,7 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
         // keeps the path in the error message natively separated.
         let path = crate::display_path::join_relative(destination, relative);
         ensure_safe_destination(&path)?;
-        let bytes = fs::read(&path).with_context(|| {
+        let bytes = read_regular_file_nofollow(&path).with_context(|| {
             format!(
                 "managed skill file {} is missing or modified; refusing to overwrite",
                 crate::display_path::shown(&path)
@@ -379,6 +390,7 @@ fn validate_no_unmanaged_entries(
 
     let mut directories = vec![destination.to_path_buf()];
     while let Some(directory) = directories.pop() {
+        ensure_safe_destination(&directory)?;
         let entries = fs::read_dir(&directory).with_context(|| {
             format!(
                 "inspecting managed skill directory {}",
@@ -437,13 +449,13 @@ fn expected_manifest() -> ManagedManifest {
 }
 
 fn write_staged_file(destination: &Path, relative: &str, content: &str) -> Result<()> {
-    let path = crate::display_path::join_relative(destination, relative);
-    ensure_safe_destination(&path)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", crate::display_path::shown(parent)))?;
+    // Installer-controlled relatives are either MANIFEST_NAME or paths already
+    // known safe; still refuse traversal before joining.
+    if relative != MANIFEST_NAME && !skill_state::is_safe_relative_path(relative) {
+        bail!("refusing to write managed skill file with unsafe relative path `{relative}`");
     }
-    fs::write(&path, content.as_bytes()).with_context(|| {
+    let path = crate::display_path::join_relative(destination, relative);
+    write_regular_file_nofollow(&path, content.as_bytes()).with_context(|| {
         format!(
             "writing managed skill file {}",
             crate::display_path::shown(&path)
@@ -452,9 +464,21 @@ fn write_staged_file(destination: &Path, relative: &str, content: &str) -> Resul
 }
 
 fn replace_directory(staging: &Path, destination: &Path) -> Result<()> {
-    replace_directory_with(staging, destination, |from, to| fs::rename(from, to))
+    #[cfg(unix)]
+    {
+        replace_directory_nofollow(staging, destination)
+    }
+    #[cfg(not(unix))]
+    {
+        if let Some(parent) = destination.parent() {
+            ensure_safe_destination(parent)?;
+        }
+        ensure_safe_destination(staging)?;
+        replace_directory_with(staging, destination, |from, to| fs::rename(from, to))
+    }
 }
 
+#[cfg(any(test, not(unix)))]
 fn replace_directory_with(
     staging: &Path,
     destination: &Path,
@@ -516,6 +540,11 @@ fn replace_directory_with(
     Ok(())
 }
 
+/// Walk every path component with `symlink_metadata` and refuse symlinks.
+///
+/// This is an early advisory check used for clear error messages. Install and
+/// write paths must not rely on it alone: they use no-follow openat/mkdirat
+/// operations so a concurrent component swap cannot redirect the write.
 fn ensure_safe_destination(destination: &Path) -> Result<()> {
     let mut cursor = PathBuf::new();
     for component in destination.components() {
@@ -529,6 +558,629 @@ fn ensure_safe_destination(destination: &Path) -> Result<()> {
                 crate::display_path::shown(&cursor)
             );
         }
+    }
+    Ok(())
+}
+
+/// Create every missing directory component without following symlinks.
+fn create_dir_all_nofollow(path: &Path) -> Result<()> {
+    if path.as_os_str().is_empty() {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    {
+        create_dir_all_nofollow_unix(path)
+    }
+    #[cfg(not(unix))]
+    {
+        fs::create_dir_all(path)
+            .with_context(|| format!("creating {}", crate::display_path::shown(path)))?;
+        ensure_safe_destination(path)?;
+        Ok(())
+    }
+}
+
+/// Write a regular file without following a final-component symlink and without
+/// walking intermediate components through symlinks (Unix openat ladder).
+fn write_regular_file_nofollow(path: &Path, content: &[u8]) -> Result<()> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .context("managed skill file path has no file name")?;
+    create_dir_all_nofollow(parent)?;
+
+    #[cfg(unix)]
+    {
+        write_regular_file_nofollow_unix(parent, leaf, content)
+    }
+    #[cfg(not(unix))]
+    {
+        ensure_safe_destination(path)?;
+        fs::write(path, content).map_err(Into::into)
+    }
+}
+
+/// Read a regular file without following a final-component symlink.
+fn read_regular_file_nofollow(path: &Path) -> Result<Vec<u8>> {
+    #[cfg(unix)]
+    {
+        read_regular_file_nofollow_unix(path)
+    }
+    #[cfg(not(unix))]
+    {
+        ensure_safe_destination(path)?;
+        fs::read(path).map_err(Into::into)
+    }
+}
+
+/// Existence check that refuses symlink path components (and a symlink leaf).
+fn path_exists_nofollow(path: &Path) -> Result<bool> {
+    ensure_safe_destination(path)?;
+    match fs::symlink_metadata(path) {
+        Ok(meta) => {
+            if meta.file_type().is_symlink() {
+                bail!(
+                    "refusing to install managed skill through symlinked path {}",
+                    crate::display_path::shown(path)
+                );
+            }
+            Ok(true)
+        }
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(err) => {
+            Err(err).with_context(|| format!("inspecting {}", crate::display_path::shown(path)))
+        }
+    }
+}
+
+struct StagingDir {
+    path: PathBuf,
+    active: bool,
+}
+
+impl StagingDir {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn defuse(&mut self) {
+        self.active = false;
+    }
+}
+
+impl Drop for StagingDir {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
+fn create_staging_dir(parent: &Path) -> Result<StagingDir> {
+    create_dir_all_nofollow(parent)?;
+
+    #[cfg(unix)]
+    {
+        create_staging_dir_unix(parent)
+    }
+    #[cfg(not(unix))]
+    {
+        let staging = tempfile::Builder::new()
+            .prefix(".anvil-skill-stage-")
+            .tempdir_in(parent)
+            .with_context(|| {
+                format!(
+                    "staging managed skill under {}",
+                    crate::display_path::shown(parent)
+                )
+            })?;
+        let path = staging.keep();
+        ensure_safe_destination(&path)?;
+        Ok(StagingDir { path, active: true })
+    }
+}
+
+#[cfg(unix)]
+fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
+    use std::os::fd::{AsFd, OwnedFd};
+    use std::path::Component;
+
+    use nix::fcntl::{OFlag, open};
+    use nix::sys::stat::Mode;
+
+    let dir_flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_CLOEXEC;
+    let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
+
+    let mut components = path.components();
+    let mut dirfd: OwnedFd = match components.next() {
+        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
+            .map_err(|e| io::Error::from(e))
+            .with_context(|| format!("opening {}", crate::display_path::shown(Path::new("/"))))?,
+        Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
+            .map_err(|e| io::Error::from(e))
+            .with_context(|| "opening current directory")?,
+        Some(Component::Normal(name)) => {
+            open_or_mkdir_component(None, name, dir_flags, nofollow_dir_flags)?
+        }
+        Some(Component::Prefix(_)) => {
+            bail!(
+                "refusing managed skill path with Windows prefix {}",
+                crate::display_path::shown(path)
+            )
+        }
+        Some(Component::ParentDir) => {
+            bail!(
+                "refusing managed skill path with parent-dir component {}",
+                crate::display_path::shown(path)
+            )
+        }
+        None => return Ok(()),
+    };
+
+    for component in components {
+        match component {
+            Component::Normal(name) => {
+                dirfd = open_or_mkdir_component(
+                    Some(dirfd.as_fd()),
+                    name,
+                    nofollow_dir_flags,
+                    nofollow_dir_flags,
+                )?;
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                bail!(
+                    "refusing managed skill path with parent-dir component {}",
+                    crate::display_path::shown(path)
+                )
+            }
+            other => {
+                bail!(
+                    "refusing managed skill path with unsupported component {other:?} in {}",
+                    crate::display_path::shown(path)
+                )
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn open_or_mkdir_component(
+    parent: Option<std::os::fd::BorrowedFd<'_>>,
+    name: &std::ffi::OsStr,
+    open_flags_existing: nix::fcntl::OFlag,
+    open_flags_created: nix::fcntl::OFlag,
+) -> Result<std::os::fd::OwnedFd> {
+    use nix::errno::Errno;
+    use nix::fcntl::{OFlag, open, openat};
+    use nix::sys::stat::{Mode, mkdirat};
+
+    let try_open = |flags: OFlag| -> std::result::Result<std::os::fd::OwnedFd, Errno> {
+        match parent {
+            Some(dirfd) => openat(dirfd, name, flags, Mode::empty()),
+            None => open(Path::new(name), flags, Mode::empty()),
+        }
+    };
+
+    match try_open(open_flags_existing) {
+        Ok(fd) => Ok(fd),
+        Err(Errno::ENOENT) => {
+            match parent {
+                Some(dirfd) => mkdirat(dirfd, name, Mode::from_bits_truncate(0o755))
+                    .map_err(io::Error::from)
+                    .with_context(|| {
+                        format!(
+                            "creating directory component {}",
+                            crate::display_path::shown(Path::new(name))
+                        )
+                    })?,
+                None => {
+                    fs::create_dir(name).with_context(|| {
+                        format!(
+                            "creating directory component {}",
+                            crate::display_path::shown(Path::new(name))
+                        )
+                    })?;
+                }
+            }
+            try_open(open_flags_created)
+                .map_err(io::Error::from)
+                .with_context(|| {
+                    format!(
+                        "opening created directory component {}",
+                        crate::display_path::shown(Path::new(name))
+                    )
+                })
+        }
+        Err(err) if is_nofollow_symlink_err(err) => bail!(
+            "refusing to install managed skill through symlinked path {}",
+            crate::display_path::shown(Path::new(name))
+        ),
+        Err(err) => Err(io::Error::from(err)).with_context(|| {
+            format!(
+                "opening directory component {}",
+                crate::display_path::shown(Path::new(name))
+            )
+        }),
+    }
+}
+
+#[cfg(unix)]
+fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
+    use std::os::fd::{AsFd, OwnedFd};
+    use std::path::Component;
+
+    use nix::fcntl::{OFlag, open, openat};
+    use nix::sys::stat::Mode;
+
+    let dir_flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_CLOEXEC;
+    let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
+
+    let mut components = path.components();
+    let mut dirfd: OwnedFd = match components.next() {
+        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
+            .map_err(io::Error::from)
+            .with_context(|| format!("opening {}", crate::display_path::shown(Path::new("/"))))?,
+        Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
+            .map_err(io::Error::from)
+            .with_context(|| "opening current directory")?,
+        Some(Component::Normal(name)) => open(Path::new(name), nofollow_dir_flags, Mode::empty())
+            .map_err(|err| map_symlink_open_error(err, Path::new(name)))
+            .with_context(|| {
+                format!(
+                    "opening directory component {}",
+                    crate::display_path::shown(Path::new(name))
+                )
+            })?,
+        Some(Component::ParentDir) => {
+            bail!(
+                "refusing managed skill path with parent-dir component {}",
+                crate::display_path::shown(path)
+            )
+        }
+        Some(Component::Prefix(_)) => {
+            bail!(
+                "refusing managed skill path with Windows prefix {}",
+                crate::display_path::shown(path)
+            )
+        }
+        None => bail!("cannot open empty path as directory"),
+    };
+
+    for component in components {
+        match component {
+            Component::Normal(name) => {
+                dirfd = openat(dirfd.as_fd(), name, nofollow_dir_flags, Mode::empty())
+                    .map_err(|err| map_symlink_open_error(err, Path::new(name)))
+                    .with_context(|| {
+                        format!(
+                            "opening directory component {}",
+                            crate::display_path::shown(Path::new(name))
+                        )
+                    })?;
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                bail!(
+                    "refusing managed skill path with parent-dir component {}",
+                    crate::display_path::shown(path)
+                )
+            }
+            other => {
+                bail!(
+                    "refusing managed skill path with unsupported component {other:?} in {}",
+                    crate::display_path::shown(path)
+                )
+            }
+        }
+    }
+    Ok(dirfd)
+}
+
+#[cfg(unix)]
+fn map_symlink_open_error(err: nix::errno::Errno, component: &Path) -> anyhow::Error {
+    if is_nofollow_symlink_err(err) {
+        anyhow::anyhow!(
+            "refusing to install managed skill through symlinked path {}",
+            crate::display_path::shown(component)
+        )
+    } else {
+        anyhow::Error::from(io::Error::from(err))
+    }
+}
+
+#[cfg(unix)]
+fn is_nofollow_symlink_err(err: nix::errno::Errno) -> bool {
+    use nix::errno::Errno;
+    matches!(err, Errno::ELOOP | Errno::ENOTDIR)
+}
+
+#[cfg(unix)]
+fn write_regular_file_nofollow_unix(
+    parent: &Path,
+    leaf: &std::ffi::OsStr,
+    content: &[u8],
+) -> Result<()> {
+    use std::io::Write;
+    use std::os::fd::AsFd;
+
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::Mode;
+
+    let dirfd = open_dir_nofollow_unix(parent)?;
+    let flags =
+        OFlag::O_CREAT | OFlag::O_TRUNC | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = match openat(dirfd.as_fd(), leaf, flags, Mode::from_bits_truncate(0o644)) {
+        Ok(fd) => fd,
+        Err(err) if is_nofollow_symlink_err(err) => {
+            bail!(
+                "refusing to install managed skill through symlinked path {}",
+                crate::display_path::shown(Path::new(leaf))
+            )
+        }
+        Err(err) => {
+            return Err(io::Error::from(err)).with_context(|| {
+                format!(
+                    "opening managed skill file {}",
+                    crate::display_path::shown(Path::new(leaf))
+                )
+            });
+        }
+    };
+    let mut file = fs::File::from(fd);
+    file.write_all(content)?;
+    file.flush()?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn read_regular_file_nofollow_unix(path: &Path) -> Result<Vec<u8>> {
+    use std::io::Read;
+    use std::os::fd::AsFd;
+
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::{Mode, SFlag, fstat};
+
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .context("managed skill file path has no file name")?;
+    let dirfd = open_dir_nofollow_unix(parent)?;
+    let flags = OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = match openat(dirfd.as_fd(), leaf, flags, Mode::empty()) {
+        Ok(fd) => fd,
+        Err(err) if is_nofollow_symlink_err(err) => {
+            bail!(
+                "refusing to install managed skill through symlinked path {}",
+                crate::display_path::shown(path)
+            )
+        }
+        Err(err) => {
+            return Err(io::Error::from(err))
+                .with_context(|| format!("opening {}", crate::display_path::shown(path)));
+        }
+    };
+    let st = fstat(&fd).map_err(io::Error::from)?;
+    let kind = SFlag::from_bits_truncate(st.st_mode);
+    if !kind.contains(SFlag::S_IFREG) {
+        bail!(
+            "managed skill path {} is not a regular file",
+            crate::display_path::shown(path)
+        );
+    }
+    let mut file = fs::File::from(fd);
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
+
+#[cfg(unix)]
+fn create_staging_dir_unix(parent: &Path) -> Result<StagingDir> {
+    use std::os::fd::AsFd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use nix::errno::Errno;
+    use nix::sys::stat::{Mode, mkdirat};
+
+    let dirfd = open_dir_nofollow_unix(parent)?;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    for attempt in 0..32u32 {
+        let name = format!(
+            ".anvil-skill-stage-{}-{}-{attempt}",
+            std::process::id(),
+            nanos
+        );
+        match mkdirat(
+            dirfd.as_fd(),
+            name.as_str(),
+            Mode::from_bits_truncate(0o755),
+        ) {
+            Ok(()) => {
+                return Ok(StagingDir {
+                    path: parent.join(name),
+                    active: true,
+                });
+            }
+            Err(Errno::EEXIST) => continue,
+            Err(err) => {
+                return Err(io::Error::from(err)).with_context(|| {
+                    format!(
+                        "creating staging directory under {}",
+                        crate::display_path::shown(parent)
+                    )
+                });
+            }
+        }
+    }
+    bail!(
+        "could not allocate a unique staging directory under {}",
+        crate::display_path::shown(parent)
+    )
+}
+
+#[cfg(unix)]
+fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> {
+    use std::ffi::OsStr;
+    use std::os::fd::AsFd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use nix::errno::Errno;
+    use nix::fcntl::{AtFlags, OFlag, openat, renameat};
+    use nix::sys::stat::{Mode, SFlag, fstatat, mkdirat};
+
+    let parent = destination
+        .parent()
+        .context("managed skill destination has no parent directory")?;
+    let staging_parent = staging
+        .parent()
+        .context("staged skill bundle has no parent directory")?;
+    if staging_parent != parent {
+        bail!(
+            "staged skill bundle parent {} does not match destination parent {}",
+            crate::display_path::shown(staging_parent),
+            crate::display_path::shown(parent)
+        );
+    }
+    let staging_name = staging
+        .file_name()
+        .context("staged skill bundle has no file name")?;
+    let dest_name = destination
+        .file_name()
+        .context("managed skill destination has no file name")?;
+
+    // Pin the parent with O_NOFOLLOW so renames cannot be redirected through a
+    // swapped intermediate component.
+    let parent_fd = open_dir_nofollow_unix(parent)?;
+
+    let dest_exists = match fstatat(&parent_fd, dest_name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+        Ok(st) => {
+            let kind = SFlag::from_bits_truncate(st.st_mode);
+            if kind.contains(SFlag::S_IFLNK) {
+                bail!(
+                    "refusing to install managed skill through symlinked path {}",
+                    crate::display_path::shown(destination)
+                );
+            }
+            true
+        }
+        Err(Errno::ENOENT) => false,
+        Err(err) => {
+            return Err(io::Error::from(err)).with_context(|| {
+                format!("inspecting {}", crate::display_path::shown(destination))
+            });
+        }
+    };
+
+    if !dest_exists {
+        renameat(&parent_fd, staging_name, &parent_fd, dest_name)
+            .map_err(io::Error::from)
+            .with_context(|| {
+                format!(
+                    "committing staged skill bundle to {}",
+                    crate::display_path::shown(destination)
+                )
+            })?;
+        return Ok(());
+    }
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let mut backup_name = None;
+    for attempt in 0..32u32 {
+        let name = format!(
+            ".anvil-skill-backup-{}-{}-{attempt}",
+            std::process::id(),
+            nanos
+        );
+        match mkdirat(
+            parent_fd.as_fd(),
+            name.as_str(),
+            Mode::from_bits_truncate(0o755),
+        ) {
+            Ok(()) => {
+                backup_name = Some(name);
+                break;
+            }
+            Err(Errno::EEXIST) => continue,
+            Err(err) => {
+                return Err(io::Error::from(err)).with_context(|| {
+                    format!(
+                        "preparing rollback beside {}",
+                        crate::display_path::shown(destination)
+                    )
+                });
+            }
+        }
+    }
+    let backup_name = backup_name.with_context(|| {
+        format!(
+            "could not allocate rollback directory beside {}",
+            crate::display_path::shown(destination)
+        )
+    })?;
+    let backup_path = parent.join(&backup_name);
+    let backup_previous = OsStr::new("previous");
+
+    let backup_fd = openat(
+        parent_fd.as_fd(),
+        backup_name.as_str(),
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(io::Error::from)
+    .with_context(|| {
+        format!(
+            "opening rollback directory {}",
+            crate::display_path::shown(&backup_path)
+        )
+    })?;
+
+    renameat(&parent_fd, dest_name, &backup_fd, backup_previous)
+        .map_err(io::Error::from)
+        .with_context(|| {
+            format!(
+                "moving {} into rollback storage",
+                crate::display_path::shown(destination)
+            )
+        })?;
+
+    if let Err(commit_error) = renameat(&parent_fd, staging_name, &parent_fd, dest_name) {
+        if let Err(rollback_error) = renameat(&backup_fd, backup_previous, &parent_fd, dest_name) {
+            // Leave the backup directory in place for recovery.
+            bail!(
+                "committing staged skill bundle to {} failed: {}; rollback also failed: {}; the previous bundle is retained at {}",
+                crate::display_path::shown(destination),
+                io::Error::from(commit_error),
+                io::Error::from(rollback_error),
+                crate::display_path::shown(&backup_path.join("previous"))
+            );
+        }
+        let _ = fs::remove_dir_all(&backup_path);
+        return Err(io::Error::from(commit_error)).with_context(|| {
+            format!(
+                "committing staged skill bundle to {}; the previous bundle was restored",
+                crate::display_path::shown(destination)
+            )
+        });
+    }
+
+    if let Err(error) = fs::remove_dir_all(&backup_path) {
+        eprintln!(
+            "warning: installed the managed skill but could not remove its rollback directory: {error}"
+        );
     }
     Ok(())
 }
@@ -563,5 +1215,119 @@ mod tests {
             "previous"
         );
         assert_eq!(fs::read_to_string(staging.join("version")).unwrap(), "next");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn create_dir_all_nofollow_refuses_symlink_component_without_creating_outside() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let link = root.path().join("agents");
+        symlink(outside.path(), &link).unwrap();
+
+        let target = link.join("skills");
+        let error = create_dir_all_nofollow(&target).unwrap_err();
+        let message = error.to_string();
+        assert!(
+            message.contains("symlinked path") || message.contains("symlink"),
+            "unexpected error: {message}"
+        );
+        assert!(
+            !outside.path().join("skills").exists(),
+            "must not create directories on the far side of a symlink component"
+        );
+    }
+
+    #[cfg(unix)]
+    fn error_chain(error: &anyhow::Error) -> String {
+        format!("{error:#}")
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_regular_file_nofollow_refuses_symlink_leaf_without_writing_through() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let victim = outside.path().join("captured");
+        fs::write(&victim, b"safe").unwrap();
+
+        let stage = root.path().join("stage");
+        fs::create_dir(&stage).unwrap();
+        let link = stage.join("SKILL.md");
+        symlink(&victim, &link).unwrap();
+
+        let error = write_staged_file(&stage, "SKILL.md", "pwned").unwrap_err();
+        let message = error_chain(&error);
+        assert!(
+            message.contains("symlinked path")
+                || message.contains("symlink")
+                || message.contains("Too many levels of symbolic links"),
+            "unexpected error: {message}"
+        );
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "safe");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_regular_file_nofollow_refuses_symlink_parent_component() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let agents = root.path().join("agents");
+        symlink(outside.path(), &agents).unwrap();
+
+        let destination = agents.join("skills");
+        let error =
+            write_regular_file_nofollow(&destination.join("SKILL.md"), b"pwned").unwrap_err();
+        let message = error_chain(&error);
+        assert!(
+            message.contains("symlinked path") || message.contains("symlink"),
+            "unexpected error: {message}"
+        );
+        assert!(
+            !outside.path().join("skills").exists(),
+            "must not create files under a redirected symlink parent"
+        );
+        assert!(
+            !outside.path().join("skills/SKILL.md").exists(),
+            "must not write through a redirected symlink parent"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replace_directory_nofollow_refuses_symlink_parent() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        // Staging lives on the far side of the symlink so the path strings share
+        // a parent component; openat(O_NOFOLLOW) on that parent must refuse.
+        let parent_link = root.path().join("skills");
+        symlink(outside.path(), &parent_link).unwrap();
+        fs::create_dir(outside.path().join(".anvil-skill-stage-test")).unwrap();
+        fs::write(
+            outside.path().join(".anvil-skill-stage-test/SKILL.md"),
+            "next",
+        )
+        .unwrap();
+
+        let staging = parent_link.join(".anvil-skill-stage-test");
+        let destination = parent_link.join("anvil-developer-functions");
+        let error = replace_directory(&staging, &destination).unwrap_err();
+        let message = error_chain(&error);
+        assert!(
+            message.contains("symlinked path") || message.contains("symlink"),
+            "unexpected error: {message}"
+        );
+        assert!(
+            !outside.path().join("anvil-developer-functions").exists(),
+            "must not commit a skill bundle through a symlinked parent"
+        );
     }
 }
