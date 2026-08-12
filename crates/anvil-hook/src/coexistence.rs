@@ -176,8 +176,11 @@ fn husky_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
 }
 
 fn husky_block(k: HookKind) -> String {
+    // Match the plain shell template (ADR-038 §D-5): unavailable anvil is
+    // an explicit no-op (exit 0). Using `cmd && exec` alone propagates the
+    // non-zero `command -v` status and aborts the host Husky hook.
     format!(
-        "command -v anvil >/dev/null 2>&1 && exec anvil hook {} \"$@\"",
+        "command -v anvil >/dev/null 2>&1 || exit 0\nexec anvil hook {} \"$@\"",
         k.subcommand()
     )
 }
@@ -617,6 +620,89 @@ mod tests {
         assert!(block.contains("command -v anvil"));
         assert!(block.contains("exec anvil hook pre-commit"));
         assert!(block.contains("\"$@\""));
+        // Unavailable-binary path must be an explicit no-op, matching
+        // the plain shell template (ADR-038). `cmd && exec` alone exits
+        // non-zero when anvil is missing and aborts the host hook.
+        assert!(
+            block.contains("command -v anvil >/dev/null 2>&1 || exit 0"),
+            "husky block must no-op with exit 0 when anvil is absent; got: {block:?}"
+        );
+        // Do not swallow anvil's real exit status with a trailing `|| exit 0`
+        // after `&& exec` (that would turn every anvil failure into success).
+        assert!(
+            !block.contains("&& exec"),
+            "prefer guard-then-exec over `cmd && exec` for exit-status fidelity; got: {block:?}"
+        );
+    }
+
+    /// Build an applied Husky hook script and run it with a controlled PATH.
+    ///
+    /// Invoked via `sh` (not the shebang) so a restricted PATH that omits
+    /// `/usr/bin` cannot break `#!/usr/bin/env sh` before the anvil guard runs.
+    fn run_generated_husky_hook(path: &std::path::Path) -> std::process::ExitStatus {
+        let plan = plan_install(HookFramework::Husky, &[HookKind::PreCommit]).unwrap();
+        let contents = apply(None, &plan.files[0]);
+        let tmp = tempfile::tempdir().unwrap();
+        let hook = tmp.path().join("pre-commit");
+        std::fs::write(&hook, contents).unwrap();
+        // Controlled bin dir first so a fake `anvil` wins; append core
+        // system paths so the husky header's `dirname` still resolves.
+        // Absolute /bin/sh: cargo test runners sometimes expose a PATH that
+        // cannot resolve bare `sh`, which would fail spawn before the guard.
+        let path_value = format!("{}:/usr/bin:/bin", path.display());
+        std::process::Command::new("/bin/sh")
+            .arg(&hook)
+            .env("PATH", path_value)
+            .status()
+            .expect("spawn generated husky hook")
+    }
+
+    fn write_fake_anvil(bin_dir: &std::path::Path, exit_code: i32) {
+        std::fs::create_dir_all(bin_dir).unwrap();
+        let anvil = bin_dir.join("anvil");
+        std::fs::write(&anvil, format!("#!/bin/sh\nexit {exit_code}\n")).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&anvil).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&anvil, perms).unwrap();
+        }
+    }
+
+    #[test]
+    fn husky_hook_exits_zero_when_anvil_unavailable() {
+        // Regression: coexistence husky block used `cmd && exec` without
+        // `|| exit 0`, so missing anvil made the whole hook fail.
+        let empty = tempfile::tempdir().unwrap();
+        let status = run_generated_husky_hook(empty.path());
+        assert!(
+            status.success(),
+            "hook must exit 0 when anvil is not on PATH; got {status}"
+        );
+    }
+
+    #[test]
+    fn husky_hook_propagates_anvil_failure_exit_code() {
+        let bin = tempfile::tempdir().unwrap();
+        write_fake_anvil(bin.path(), 42);
+        let status = run_generated_husky_hook(bin.path());
+        assert_eq!(
+            status.code(),
+            Some(42),
+            "hook must propagate anvil's non-zero exit; got {status}"
+        );
+    }
+
+    #[test]
+    fn husky_hook_propagates_anvil_success_exit_code() {
+        let bin = tempfile::tempdir().unwrap();
+        write_fake_anvil(bin.path(), 0);
+        let status = run_generated_husky_hook(bin.path());
+        assert!(
+            status.success(),
+            "hook must propagate anvil exit 0; got {status}"
+        );
     }
 
     #[test]
