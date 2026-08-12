@@ -7,11 +7,11 @@
 | ------ | ----- | -------- | -------- | -------- |
 | SETCON | —     | medium   | Proposed | 0/11     |
 
-**Last reviewed:** 2026-08-06 — module created from the operator-supplied
+**Last reviewed:** 2026-08-13 — created 2026-08-06 from the operator-supplied
 `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 0). No ADR accepted yet; no release window claimed. Not competing
-with the active `v0.9.3-beta` honesty window.
+with the active release window (named in the index header).
 
 > **Activation gate.** SETCON promotes to **Ready** when (a) SETCON-001 is
 > accepted as an ADR fixing the terminology, runtime-state model and service
@@ -75,8 +75,8 @@ The governing invariant this module encodes (spec §1):
 **Depends on:**
 
 - `crates/anvil-config` — existing config load/resolve surface; the catalogue
-  and resolver are expected to live here or in a sibling crate (SETCON-002
-  design gate decides)
+  and resolver are expected to live here or in a sibling crate (the SETCON-001
+  ADR decides)
 - `crates/anvil-policy-engine` — policy evaluation used by the constraint layer
 - `crates/anvil-intercept`, `crates/anvil-kernel` — activation owners that must
   expose attestation for enforcement-critical controls

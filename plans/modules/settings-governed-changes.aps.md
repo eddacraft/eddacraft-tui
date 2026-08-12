@@ -7,7 +7,7 @@
 | ------ | ----- | -------- | ------ | -------- |
 | SETGOV | —     | low      | Draft  | 0/9      |
 
-**Last reviewed:** 2026-08-06 — module created from the operator-supplied
+**Last reviewed:** 2026-08-13 — created 2026-08-06 from the operator-supplied
 `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 3). Post-v0.1 work; deliberately Draft.
@@ -48,6 +48,8 @@ successful write is never reported as active enforcement.
 - Audit event store, `Audit` view, `anvil settings audit`, MCP audit read, and
   honest coverage/retention/gap reporting
 - Detection and recording of externally initiated configuration changes
+- Subsuming the pre-existing `anvil config set` writer into the governed path —
+  rule modes are Class C content; the SETPREF entry gate records the boundary
 
 ## Out of Scope
 

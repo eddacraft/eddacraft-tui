@@ -7,12 +7,24 @@
 | Source | Operator-supplied product specification, imported verbatim below |
 | APS | [SETCON](../modules/settings-truth-contract.aps.md), [SETINS](../modules/settings-inspect-surface.aps.md), [SETPREF](../modules/settings-safe-preferences.aps.md), [SETGOV](../modules/settings-governed-changes.aps.md), [SETNL](../modules/settings-nl-proposals.aps.md) |
 
-> **Planning note (2026-08-06).** This document is the imported product
-> specification, kept verbatim as the reference contract. The APS modules above
-> carry execution authority; where a module narrows or defers spec scope, the
-> module file states so explicitly. Design gates that this spec leaves open
-> (catalogue home crate, attestation transport, audit store reuse, global
-> exit-code registry) are filed as work items in SETCON, not decided here.
+> **Planning note (2026-08-06; deltas noted 2026-08-13).** This document is the
+> imported product specification, kept verbatim as the reference contract. The
+> APS modules above carry execution authority; where a module narrows or defers
+> spec scope, the module file states so explicitly. Design gates that this spec
+> leaves open are tracked in the modules: the catalogue home crate (SETCON-001
+> ADR) and the global exit-code registry (SETCON-009) as SETCON work items, the
+> attestation transport on the SETCON ready checklist, and audit-store reuse in
+> SETGOV-007.
+>
+> **Code-truth deltas (2026-08-13).** §7 and §23 name `anvil config validate`;
+> that subcommand does not exist — the current family
+> (`crates/anvil-cli/src/commands/config.rs`) is `show | set | convert`, and no
+> module plans a `config validate`. Read those clauses as "the existing
+> `anvil config` family remains supported". The spec also omits
+> `anvil config set`, an existing direct config writer (as are the `anvil init`
+> / `anvil start` bootstrap writes) that predates invariant 3's single-writer
+> rule; the SETPREF entry gate records the reconciliation boundary and SETGOV
+> subsumes `config set` into the governed path.
 
 ### Reference interaction captures
 

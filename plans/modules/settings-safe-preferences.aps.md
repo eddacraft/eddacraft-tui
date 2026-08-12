@@ -7,7 +7,7 @@
 | ------- | ----- | -------- | -------- | -------- |
 | SETPREF | —     | medium   | Proposed | 0/6      |
 
-**Last reviewed:** 2026-08-06 — module created from the operator-supplied
+**Last reviewed:** 2026-08-13 — created 2026-08-06 from the operator-supplied
 `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 2). Gated on SETCON and SETINS. Completing this module closes
@@ -15,8 +15,14 @@ spec §22 Slice 2). Gated on SETCON and SETINS. Completing this module closes
 
 > **Entry gate.** SETPREF starts only after the inspect surface ships. It is the
 > first module in the programme that writes configuration, and it introduces the
-> **only** write path: the authoritative settings service. Any other write route
-> discovered during this work is a defect, not an option.
+> settings service as the **only** write path for settings-surface mutations.
+> Two write routes already exist outside it: `anvil config set` (rewrites rule
+> modes in the project config) and the `anvil init` / `anvil start` bootstrap
+> writes. They are known, not newly discovered defects: bootstrap writes stay
+> out of this programme's scope, and `anvil config set` must route through (or
+> be subsumed by) the settings service no later than SETGOV, since rule modes
+> are Class C content. Any other write route discovered during this work is a
+> defect, not an option.
 
 ## Purpose
 

@@ -775,8 +775,9 @@ can show the gap between declared intent and what the running system proves it
 enforces.
 
 **Not a release claim.** No window, no NBI row, no ADR yet — this band is the
-programme shape only, and does not compete with the active `v0.9.3-beta` honesty
-window. Slices map one-to-one onto modules; `/settings` v0.1 = SETCON + SETINS +
+programme shape only, and does not compete with the active release window
+(named in the index header). Slices map one-to-one onto modules; `/settings`
+v0.1 = SETCON + SETINS +
 SETPREF (`Settings | Status | Sources` only — the `Audit` tab ships with SETGOV,
 never before, so the surface cannot imply history it has not observed).
 
