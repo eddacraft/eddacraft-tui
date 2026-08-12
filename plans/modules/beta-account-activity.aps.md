@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| BACT | —     | High     | In Progress | 0/6      |
+| BACT | —     | High     | Done | 6/6      |
 
 **Last reviewed:** 2026-08-12 — BACT-003..006 merged via PR #3782; FLEET
 stays anonymous population evidence (ADR-107); this module owns identity-bound
