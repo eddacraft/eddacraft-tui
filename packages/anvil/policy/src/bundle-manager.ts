@@ -251,6 +251,17 @@ export class BundleManager {
   }
 
   /**
+   * Whether a cache-entry path is safe to hand back as a trusted bundle
+   * directory: confined to the cache dir and matching the expected
+   * `cacheDir/<name>` location. A tampered index can pair a safe name with
+   * an out-of-cache path; downloadBundle must not return that path on the
+   * unexpired-cache or 304 success branches.
+   */
+  private isTrustedBundleCachePath(candidate: string, expectedBundleDir: string): boolean {
+    return this.isWithinCacheDir(candidate) && resolve(candidate) === resolve(expectedBundleDir);
+  }
+
+  /**
    * Add or update a bundle configuration
    */
   addBundle(config: BundleConfig): void {
@@ -306,8 +317,19 @@ export class BundleManager {
       await this.ensureCacheDir();
       const index = await this.loadIndex();
 
-      const existingEntry = index.entries[name];
+      let existingEntry: BundleCacheEntry | undefined = index.entries[name];
       const bundleDir = join(this.cacheDir, name);
+
+      // Drop a tampered index entry whose path escapes the cache or does not
+      // match the expected bundle directory so refresh paths redownload
+      // instead of returning an untrusted path.
+      if (existingEntry && !this.isTrustedBundleCachePath(existingEntry.path, bundleDir)) {
+        debug(`Bundle ${name} cache entry path is untrusted, ignoring: ${existingEntry.path}`);
+        delete index.entries[name];
+        this.indexDirty = true;
+        existingEntry = undefined;
+        await this.saveIndex();
+      }
 
       // Check if we have a valid cached bundle that hasn't expired
       if (existingEntry && existsSync(bundleDir)) {
@@ -317,7 +339,8 @@ export class BundleManager {
             name,
             success: true,
             updated: false,
-            path: existingEntry.path,
+            // Prefer the canonical cache location over the stored path.
+            path: bundleDir,
           };
         }
       }
@@ -344,8 +367,15 @@ export class BundleManager {
           config.auth
         );
 
-        // Handle 304 Not Modified
+        // Handle 304 Not Modified — only trust a path already validated above
+        // (existingEntry is cleared when the stored path escapes the cache).
         if (downloadResult.notModified && existingEntry) {
+          if (
+            !this.isTrustedBundleCachePath(existingEntry.path, bundleDir) ||
+            !existsSync(bundleDir)
+          ) {
+            throw new Error(`Bundle ${name} returned 304 but cache path is untrusted or missing`);
+          }
           // Update expiration time
           existingEntry.expires_at =
             Date.now() + (config.refresh_interval_ms || DEFAULT_REFRESH_INTERVAL_MS);
@@ -356,7 +386,7 @@ export class BundleManager {
             name,
             success: true,
             updated: false,
-            path: existingEntry.path,
+            path: bundleDir,
           };
         }
 
