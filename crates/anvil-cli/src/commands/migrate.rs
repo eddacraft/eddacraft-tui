@@ -337,20 +337,38 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
     let section = anvil_config::GateSection::from_config_value(&project.value)
         .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
     let (effective_now, has_explicit) = gc::effective_selection(&project.value, section.as_ref());
+    let has_top_level_list = project
+        .value
+        .get("checks")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|arr| !arr.is_empty());
 
     let mut folded: Vec<String> = Vec::new();
     let mut weakened: Vec<String> = Vec::new();
 
-    // Selection fold: only when the main config carries no explicit
-    // selection of its own ("only fields absent").
+    // Selection fold. Obligation (a) from the gate-section item: when
+    // the fold adds gate.checks keys, an explicit top-level list must
+    // exist so key presence can never resurrect a deselected check.
     let legacy_enabled: Vec<String> = legacy
         .checks
         .iter()
         .filter(|c| c.enabled)
         .map(|c| c.name.clone())
         .collect();
-    let fold_selection = !has_explicit;
-    if fold_selection {
+    let (fold_selection, selection_to_write) = if has_top_level_list {
+        // Explicit list present — selection untouched, list keeps winning.
+        (false, Vec::new())
+    } else if has_explicit {
+        // Section-driven selection: materialise the CURRENT effective
+        // selection (main config wins) so folded section keys stay
+        // composition-only.
+        folded.push(format!(
+            "checks (materialised from gate.checks keys: {})",
+            effective_now.join(", ")
+        ));
+        (true, effective_now.clone())
+    } else {
+        // No selection anywhere: the legacy enabled list becomes it.
         weakened = effective_now
             .iter()
             .filter(|name| !legacy_enabled.contains(name))
@@ -360,7 +378,8 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
             "checks (selection list: {})",
             legacy_enabled.join(", ")
         ));
-    }
+        (true, legacy_enabled.clone())
+    };
 
     // Composition fold into the gate section, absent fields only.
     let existing = section.unwrap_or_default();
@@ -420,6 +439,9 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
     for key in &folded {
         println!("  + {key}");
     }
+    // NOTE: thresholds join the weakening set the day a gate run
+    // consumes gate.thresholds (reserved today — ADR-120 pt 4 names
+    // "lowered thresholds" explicitly).
     if !weakened.is_empty() {
         println!(
             "  ! WEAKENS enforcement — currently-effective checks would be \
@@ -454,7 +476,7 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
         root_obj.insert(
             "checks".into(),
             serde_json::Value::Array(
-                legacy_enabled
+                selection_to_write
                     .iter()
                     .map(|s| serde_json::Value::String(s.clone()))
                     .collect(),
@@ -902,6 +924,41 @@ mod tests {
         // Per-check config folds under gate.checks.
         assert_eq!(value["gate"]["checks"]["lint"]["max_warnings"], 0);
         assert!(!tmp.path().join(".anvil/gate-config.json").exists());
+    }
+
+    /// UCFG-005 verifier blocking finding 1: on a section-driven
+    /// selection (gate.checks keys, no top-level list), the fold must
+    /// materialise the current effective selection as an explicit
+    /// top-level list before adding section keys — otherwise a
+    /// legacy-DISABLED check's folded config would select it.
+    #[test]
+    fn gate_fold_materialises_section_driven_selection() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "gate:\n  checks:\n    lint: {}\n",
+        )
+        .unwrap();
+        write_legacy(
+            tmp.path(),
+            r#"{"version":1,"checks":[{"name":"coverage","description":"","enabled":false,"config":{"minimum":50}}],"thresholds":{}}"#,
+        );
+        run_gate_config_in(&gate_args(true, false), tmp.path()).unwrap();
+        let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
+        // Explicit list materialised from the section keys.
+        let checks: Vec<&str> = value["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+        assert_eq!(checks, vec!["lint"]);
+        // Folded composition present but NOT selected.
+        assert_eq!(value["gate"]["checks"]["coverage"]["minimum"], 50);
+        assert!(
+            !checks.contains(&"coverage"),
+            "legacy-disabled check must not be resurrected by key presence"
+        );
     }
 
     #[test]

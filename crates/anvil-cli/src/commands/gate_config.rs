@@ -8,10 +8,13 @@
 //! read for state and never written; when one is present the command
 //! points at `anvil migrate gate-config` (and `anvil doctor` warns).
 //!
-//! `--disable` refuses checks whose rule class is hard-pinned
-//! (ADR-039 via `anvil_config::HARD_PINNED_CLASSES`) — the UCFG-004
-//! verifier obligation: a config-writing surface must not silently
-//! drop `secret-detection` / `command-safety` from the selection.
+//! `--disable` refuses checks whose rule class is hard-pinned per
+//! ADR-039 (local check→class map, drift-guarded by test against
+//! `anvil_config::HARD_PINNED_CLASSES`) — the UCFG-004 verifier
+//! obligation: a config-writing surface must not silently drop
+//! `secret-detection` / `command-safety` from the selection. The
+//! explicit `anvil migrate gate-config --accept-weakening` fold is
+//! the one sanctioned diff-and-confirm exception (ADR-120 pt 4).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -252,9 +255,9 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
             .find(|(name, _)| *name == canonical_name)
     {
         bail!(
-            "check \"{canonical_name}\" cannot be disabled — its rule class \
-             `{class}` is hard-pinned (ADR-039). Per-finding suppression via \
-             `@anvil-ignore` remains available."
+            "check \"{canonical_name}\" cannot be disabled via gate-config — its \
+             rule class `{class}` is hard-pinned (ADR-039). Per-finding \
+             suppression via `@anvil-ignore` remains available."
         );
     }
 
@@ -269,6 +272,18 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
         }
     } else {
         selected.retain(|s| s != &canonical_name);
+        // An empty `checks` list reads as absent (UCFG-004: absent or
+        // empty falls back to gate.checks keys or catalog defaults),
+        // so writing one would silently re-enable checks instead of
+        // disabling the last one. Refuse with the honest picture.
+        if selected.is_empty() {
+            bail!(
+                "disabling \"{canonical_name}\" would leave no selected checks — an \
+                 empty `checks` list falls back to the default selection, which \
+                 would NOT disable it. Keep at least one check selected, or remove \
+                 anvil's gate from your workflow instead."
+            );
+        }
     }
 
     // Materialise the selection as the explicit top-level list — the
@@ -513,6 +528,46 @@ mod tests {
         // The file is untouched by refused toggles.
         let value = read_yaml(dir.path());
         assert_eq!(value["checks"].as_array().unwrap().len(), 1);
+    }
+
+    /// Drift guard (verifier advisory): the local check→class map must
+    /// stay within the ADR-039 source of truth in anvil-config.
+    #[test]
+    fn hard_pinned_check_classes_match_anvil_config() {
+        for (_, class) in HARD_PINNED_CHECKS {
+            assert!(
+                anvil_config::HARD_PINNED_CLASSES.contains(class),
+                "class {class} not in anvil_config::HARD_PINNED_CLASSES"
+            );
+        }
+        assert_eq!(
+            HARD_PINNED_CHECKS.len(),
+            anvil_config::HARD_PINNED_CLASSES.len(),
+            "a new hard-pinned class needs a gate-config mapping"
+        );
+    }
+
+    /// UCFG-005 verifier blocking finding 2: a disable that would
+    /// empty the selection is refused — an empty list reads as absent
+    /// and would silently fall back to defaults / section keys.
+    #[test]
+    fn disable_emptying_selection_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        write_yaml(dir.path(), "checks:\n  - lint\n");
+        let err = run_toggle(dir.path(), "lint", false, OutputMode::Plain).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("no selected checks"), "{msg}");
+        // File untouched by the refusal.
+        let value = read_yaml(dir.path());
+        assert_eq!(value["checks"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn disable_emptying_section_driven_selection_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        write_yaml(dir.path(), "gate:\n  checks:\n    lint: {}\n");
+        let err = run_toggle(dir.path(), "lint", false, OutputMode::Plain).unwrap_err();
+        assert!(err.to_string().contains("no selected checks"), "{err}");
     }
 
     #[test]
