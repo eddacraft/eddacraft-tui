@@ -247,17 +247,53 @@ fn reexport_privileged_files(graph: &SymbolGraph) -> HashMap<String, BTreeSet<St
 
 /// Annotate trust levels on all symbols in the graph based on heuristics.
 ///
+/// Direct external/privileged reach is the **union** of:
+/// 1. the caller-provided `imports` slice (covers unit tests and cold paths
+///    that have not yet lifted `Imports` edges), and
+/// 2. resident `EdgeType::Imports` edges already in the graph (the same
+///    authority re-export privilege uses).
+///
+/// Relying on the slice alone is unsafe: a partial inventory (e.g. only the
+/// imports of a newly updated file) would reclassify every other resident
+/// symbol, declassifying unrelated privileged files. Graph-derived direct
+/// imports close that footgun while keeping the public signature stable.
+///
 /// This is a best-effort pass -- heuristics can be overridden by configuration.
 pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
-    let mut external_files: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    let mut privileged_files: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut external_files: HashSet<String> = HashSet::new();
+    let mut privileged_files: HashSet<String> = HashSet::new();
 
     for import in imports {
         if is_external_import(&import.to_source) {
-            external_files.insert(&import.from_file);
+            external_files.insert(import.from_file.clone());
         }
         if is_privileged_import(&import.to_source) {
-            privileged_files.insert(&import.from_file);
+            privileged_files.insert(import.from_file.clone());
+        }
+    }
+
+    // Resident Imports edges: synthetic external module nodes are keyed by
+    // `file == specifier` with `TrustLevel::External` (see `resolve_import`).
+    // Collect them so partial `imports` cannot drop privilege/external marks
+    // that the graph still carries.
+    for node in graph.inner().node_weights() {
+        for edge in graph.outgoing_edges(node.id) {
+            if edge.edge_type != EdgeType::Imports {
+                continue;
+            }
+            let Some(target) = graph.get_symbol(edge.to) else {
+                continue;
+            };
+            if target.kind != SymbolKind::Module || target.trust_level != TrustLevel::External {
+                continue;
+            }
+            // `target.file` is the package/specifier for synthetic externals.
+            if is_external_import(&target.file) {
+                external_files.insert(node.file.clone());
+            }
+            if is_privileged_import(&target.file) {
+                privileged_files.insert(node.file.clone());
+            }
         }
     }
 
@@ -295,17 +331,16 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
             continue;
         }
 
-        let trust = if privileged_files.contains(file.as_str())
-            || reexport_privileged.contains(file.as_str())
-        {
-            TrustLevel::Privileged
-        } else if visibility == Visibility::Public {
-            TrustLevel::Boundary
-        } else if external_files.contains(file.as_str()) {
-            TrustLevel::External
-        } else {
-            TrustLevel::Internal
-        };
+        let trust =
+            if privileged_files.contains(&file) || reexport_privileged.contains(file.as_str()) {
+                TrustLevel::Privileged
+            } else if visibility == Visibility::Public {
+                TrustLevel::Boundary
+            } else if external_files.contains(&file) {
+                TrustLevel::External
+            } else {
+                TrustLevel::Internal
+            };
 
         if let Some(node) = graph.get_symbol_mut(id) {
             node.trust_level = trust;
@@ -1366,6 +1401,65 @@ mod tests {
             g.get_symbol(1).unwrap().trust_level,
             TrustLevel::Privileged,
             "barrel re-exporting an intermediary that reaches node:fs stays Privileged",
+        );
+    }
+
+    #[test]
+    fn partial_imports_slice_does_not_declassify_unrelated_privileged_file() {
+        // fnd_sig-feat-library-5d338c4f1f-b156_a959aa14e6: annotate_trust must not
+        // reclassify an unrelated privileged file when the caller passes only a
+        // partial imports slice. Privilege from a resident Imports edge (the
+        // same path re-export privilege already takes) must survive re-annotation.
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "readFile", "a.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(make_symbol(2, "helper", "b.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(external_module(3, "node:fs")).unwrap();
+        // Lifted Imports edge as update_file / resolve_import would place.
+        g.add_edge(anvil_kernel_types::SymbolEdge {
+            from: 1,
+            to: 3,
+            edge_type: EdgeType::Imports,
+        })
+        .unwrap();
+
+        let full = vec![
+            ImportEdge {
+                from_file: "a.ts".to_string(),
+                to_source: "node:fs".to_string(),
+                line: 0,
+            },
+            ImportEdge {
+                from_file: "b.ts".to_string(),
+                to_source: "express".to_string(),
+                line: 0,
+            },
+        ];
+        annotate_trust(&mut g, &full);
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::Privileged,
+            "full import inventory classifies a.ts Privileged"
+        );
+
+        // Partial slice for only b.ts — a.ts must remain Privileged.
+        let partial = vec![ImportEdge {
+            from_file: "b.ts".to_string(),
+            to_source: "express".to_string(),
+            line: 0,
+        }];
+        annotate_trust(&mut g, &partial);
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::Privileged,
+            "partial imports must not declassify an unrelated file with a resident privileged Imports edge"
+        );
+        // b.ts stays Boundary (public API) — External loses to Public visibility.
+        assert_eq!(
+            g.get_symbol(2).unwrap().trust_level,
+            TrustLevel::Boundary,
+            "b.ts public symbol remains Boundary under partial re-annotation"
         );
     }
 
