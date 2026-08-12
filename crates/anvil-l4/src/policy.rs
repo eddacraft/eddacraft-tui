@@ -65,7 +65,11 @@ pub enum OnWarn {
 
 /// One per-branch rule. The first rule whose `pattern` matches the
 /// branch name wins (declaration order = priority).
+///
+/// Unknown keys are rejected: a typo such as `on_wran` must not silently
+/// fall through to the permissive default for `on_warn`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BranchRule {
     /// Glob pattern, e.g. `"main"`, `"dependabot/*"`, `"*"`.
     pub pattern: String,
@@ -88,7 +92,10 @@ fn default_on_warn() -> OnWarn {
 /// Baseline-adjacent metadata that drives `cutoff_commit` acceptance.
 /// The `cutoff_commit` itself is populated by `anvil baseline`
 /// (MLP-007); this crate only consumes it.
+///
+/// Closed schema — unknown baseline keys are parse errors.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BaselineSection {
     /// SHA of the commit at adoption time. Commits at or before
     /// this SHA in the first-parent ancestry are accepted without
@@ -98,7 +105,14 @@ pub struct BaselineSection {
 }
 
 /// Parsed `anvil/policy.yml` (or `.json` / `.toml`).
+///
+/// Closed schema: unknown top-level keys are configuration errors so
+/// typos cannot silently disable protection settings (for example a
+/// misspelled `required_anvil_version`). `pin_cutoff_commit` still
+/// preserves unknown keys at the raw `Value` layer so a pin rewrite
+/// does not drop future fields on disk.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Policy {
     /// Optional semver floor consumed by
     /// `anvil_rules::RequiredAnvilVersion`. Kept as `Option<String>`
@@ -596,6 +610,70 @@ branches:
         // ADR-037 §D-5 defaults: blocks reject, warns allow.
         assert_eq!(p.branches[0].on_block, OnBlock::Reject);
         assert_eq!(p.branches[0].on_warn, OnWarn::Allow);
+    }
+
+    #[test]
+    fn parse_rejects_unknown_branch_key() {
+        // Typos must not silently disable protection settings. A misspelled
+        // `on_warn` (here `on_wran`) would otherwise fall through to the
+        // permissive default `Allow`.
+        let yaml = r"
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+    on_wran: reject
+";
+        let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+        assert!(
+            matches!(err, PolicyParseError::Schema(_)),
+            "expected Schema error for unknown branch key, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("on_wran") || msg.contains("unknown field"),
+            "error should name the unknown field: {msg}"
+        );
+    }
+
+    #[test]
+    fn parse_rejects_unknown_root_key() {
+        // A misspelled `required_anvil_version` must not silently drop the
+        // version floor.
+        let yaml = r"
+required_anvil_versoin: '9.9.9'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+        assert!(
+            matches!(err, PolicyParseError::Schema(_)),
+            "expected Schema error for unknown root key, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("required_anvil_versoin") || msg.contains("unknown field"),
+            "error should name the unknown field: {msg}"
+        );
+    }
+
+    #[test]
+    fn parse_rejects_unknown_baseline_key() {
+        let yaml = r"
+baseline:
+  cutoff_committ: a3b2ea4e
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
+        let err = Policy::parse(yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+        assert!(
+            matches!(err, PolicyParseError::Schema(_)),
+            "expected Schema error for unknown baseline key, got {err:?}"
+        );
     }
 
     #[test]
