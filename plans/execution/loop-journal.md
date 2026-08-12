@@ -874,3 +874,17 @@ never with feature work.
 - Plan changes: UCFG-009/004 → Merged; UCFG-006 In Progress (this branch).
 - Authority: no admin merge, no bypass, no review dismissal.
 - Next: UCFG-006 land → UCFG-007; UCFG-005 (dep 004) parallel-eligible.
+
+## Cycle — 2026-08-13 (UCFG drain, wave 1 cont.: UCFG-006 integrated)
+
+- UCFG-006 (SectionOrSource delegation): MERGED via PR #3833 (ancestor
+  check passed post-fetch). Verifier pass-with-advisories — its
+  independent out-of-repo adversarial probe (incl. intermediate-directory
+  symlink escape) found zero panics/escapes; fuzz clause committed as a
+  seeded deterministic property test. One Copilot doc-precision thread
+  fixed pre-merge.
+- UCFG-005 in repair-verify: round 1 blocking (fold resurrection on
+  section-driven selections; empty-selection round-trip) — both repaired
+  with regression pins; round 2 in flight.
+- Next: land UCFG-005; UCFG-007 (dep 006, now unblocked) → 008; then
+  001 → 002, 010, 011, 012.
