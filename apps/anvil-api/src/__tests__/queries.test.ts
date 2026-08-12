@@ -6,6 +6,7 @@ import {
   insertOtpCodeIfUnderLimit,
   revokeRefreshFamilyAndAccessTokensForUser,
   stampUserLogin,
+  upsertAccountFeatureTouch,
 } from '../db/queries.js';
 
 function mockSql(result?: unknown): NeonClient {
@@ -32,6 +33,24 @@ describe('db queries', () => {
       expect(asText).toContain('github');
     });
   });
+  describe('upsertAccountFeatureTouch', () => {
+    it('upserts allowlisted feature keys (BACT-004)', async () => {
+      const row = {
+        user_id: 'user-1',
+        feature_key: 'watch',
+        first_seen_at: '2026-08-12T00:00:00.000Z',
+        last_seen_at: '2026-08-12T00:00:00.000Z',
+        touch_count: 1,
+      };
+      const sql = mockSql([row]);
+      await expect(upsertAccountFeatureTouch(sql, 'user-1', 'watch')).resolves.toEqual(row);
+      expect(sql).toHaveBeenCalledTimes(1);
+      const flat = JSON.stringify(vi.mocked(sql).mock.calls[0]);
+      expect(flat).toContain('user-1');
+      expect(flat).toContain('watch');
+    });
+  });
+
   describe('findActiveScopesForUser', () => {
     it('defaults to beta when the user has no active token rows', async () => {
       const sql = mockSql([{ active_token_count: 0, scopes: [] }]);

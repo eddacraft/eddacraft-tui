@@ -1587,6 +1587,187 @@ export interface TelemetryBeaconRecord {
   features: ReadonlyArray<{ key: string; count: number }>;
 }
 
+// ---------------------------------------------------------------------------
+// Account feature touches (BACT-004 / BACT-006)
+// ---------------------------------------------------------------------------
+
+const AccountFeatureTouchSchema = z.object({
+  user_id: IdSchema,
+  feature_key: z.enum(['watch', 'start', 'check', 'auth']),
+  first_seen_at: DateStringSchema,
+  last_seen_at: DateStringSchema,
+  touch_count: z.coerce.number().int().positive(),
+});
+
+export type AccountFeatureTouch = z.infer<typeof AccountFeatureTouchSchema>;
+
+/**
+ * Upsert an allowlisted feature touch for a user.
+ * first_seen_at stays on first insert; last_seen_at and touch_count advance.
+ */
+export async function upsertAccountFeatureTouch(
+  sql: NeonClient,
+  userId: string,
+  featureKey: 'watch' | 'start' | 'check' | 'auth'
+): Promise<AccountFeatureTouch> {
+  const r = rows(
+    await sql`
+    INSERT INTO account_feature_touches (user_id, feature_key)
+    VALUES (${userId}, ${featureKey})
+    ON CONFLICT (user_id, feature_key) DO UPDATE SET
+      last_seen_at = now(),
+      touch_count = account_feature_touches.touch_count + 1
+    RETURNING *
+  `
+  );
+  return AccountFeatureTouchSchema.parse(r[0]);
+}
+
+export async function findAccountFeatureTouchesForUser(
+  sql: NeonClient,
+  userId: string
+): Promise<AccountFeatureTouch[]> {
+  const r = rows(
+    await sql`
+    SELECT * FROM account_feature_touches
+    WHERE user_id = ${userId}
+    ORDER BY feature_key ASC
+  `
+  );
+  return z.array(AccountFeatureTouchSchema).parse(r);
+}
+
+export type EngagementFilter =
+  | { kind: 'never_logged_in' }
+  | { kind: 'idle'; idleDays: number }
+  | { kind: 'missing_feature'; featureKey: 'watch' | 'start' | 'check' | 'auth' };
+
+export interface EngagementUserRow {
+  id: string;
+  email: string;
+  name: string | null;
+  status: string;
+  first_login_at: string | null;
+  last_login_at: string | null;
+  last_login_method: 'github' | 'otp' | 'device' | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * List beta users matching a CS engagement filter (BACT-006).
+ * Excludes suspended/banned by default (status = active only).
+ */
+export async function findUsersByEngagement(
+  sql: NeonClient,
+  filter: EngagementFilter,
+  limit: number,
+  offset: number
+): Promise<{ total: number; items: EngagementUserRow[] }> {
+  let countRows: Record<string, unknown>[];
+  let itemRows: Record<string, unknown>[];
+
+  if (filter.kind === 'never_logged_in') {
+    countRows = rows(
+      await sql`
+      SELECT COUNT(*)::int AS total
+      FROM beta_users
+      WHERE status = 'active' AND first_login_at IS NULL
+    `
+    );
+    itemRows = rows(
+      await sql`
+      SELECT id, email, name, status, first_login_at, last_login_at, last_login_method,
+             created_at, updated_at
+      FROM beta_users
+      WHERE status = 'active' AND first_login_at IS NULL
+      ORDER BY created_at ASC
+      LIMIT ${limit} OFFSET ${offset}
+    `
+    );
+  } else if (filter.kind === 'idle') {
+    const days = filter.idleDays;
+    countRows = rows(
+      await sql`
+      SELECT COUNT(*)::int AS total
+      FROM beta_users
+      WHERE status = 'active'
+        AND last_login_at IS NOT NULL
+        AND last_login_at < now() - (${days} * interval '1 day')
+    `
+    );
+    itemRows = rows(
+      await sql`
+      SELECT id, email, name, status, first_login_at, last_login_at, last_login_method,
+             created_at, updated_at
+      FROM beta_users
+      WHERE status = 'active'
+        AND last_login_at IS NOT NULL
+        AND last_login_at < now() - (${days} * interval '1 day')
+      ORDER BY last_login_at ASC NULLS LAST
+      LIMIT ${limit} OFFSET ${offset}
+    `
+    );
+  } else {
+    const featureKey = filter.featureKey;
+    countRows = rows(
+      await sql`
+      SELECT COUNT(*)::int AS total
+      FROM beta_users u
+      WHERE u.status = 'active'
+        AND u.first_login_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM account_feature_touches t
+          WHERE t.user_id = u.id AND t.feature_key = ${featureKey}
+        )
+    `
+    );
+    itemRows = rows(
+      await sql`
+      SELECT u.id, u.email, u.name, u.status, u.first_login_at, u.last_login_at,
+             u.last_login_method, u.created_at, u.updated_at
+      FROM beta_users u
+      WHERE u.status = 'active'
+        AND u.first_login_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM account_feature_touches t
+          WHERE t.user_id = u.id AND t.feature_key = ${featureKey}
+        )
+      ORDER BY u.last_login_at DESC NULLS LAST
+      LIMIT ${limit} OFFSET ${offset}
+    `
+    );
+  }
+
+  const total = z.coerce.number().parse(countRows[0]?.['total'] ?? 0);
+  const EngagementUserSchema = z.object({
+    id: IdSchema,
+    email: z.string(),
+    name: z.string().nullable(),
+    status: z.string(),
+    first_login_at: z.union([DateStringSchema, z.null()]).optional(),
+    last_login_at: z.union([DateStringSchema, z.null()]).optional(),
+    last_login_method: z.union([z.enum(['github', 'otp', 'device']), z.null()]).optional(),
+    created_at: DateStringSchema,
+    updated_at: DateStringSchema,
+  });
+  const items = itemRows.map((row) => {
+    const parsed = EngagementUserSchema.parse(row);
+    return {
+      id: parsed.id,
+      email: parsed.email,
+      name: parsed.name,
+      status: parsed.status,
+      first_login_at: parsed.first_login_at ?? null,
+      last_login_at: parsed.last_login_at ?? null,
+      last_login_method: parsed.last_login_method ?? null,
+      created_at: parsed.created_at,
+      updated_at: parsed.updated_at,
+    } satisfies EngagementUserRow;
+  });
+  return { total, items };
+}
+
 /**
  * Store one beacon. Privacy invariants (ADR-107 §3), by construction:
  *
@@ -1600,6 +1781,7 @@ export interface TelemetryBeaconRecord {
  * data-modifying CTE), so a partial write cannot strand usage counts
  * without their beacon or vice versa.
  */
+
 export async function insertTelemetryBeacon(
   sql: NeonClient,
   beacon: TelemetryBeaconRecord

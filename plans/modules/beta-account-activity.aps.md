@@ -117,16 +117,13 @@ This module is the second pipe: **authenticated account activity only**.
 
 ## Open Questions
 
-- **OQ1 (feature allowlist):** Which closed set of keys is CS-critical for the
-  first ship? Default proposal: `watch`, `start`, `check`, `auth` (login itself
-  is already on login stamps). Resolve at BACT-004 without blocking BACT-002.
-- **OQ2 (consent copy):** Account activity is part of signed-in beta product
-  operation (server already knows the account). Confirm whether public privacy
-  docs need an explicit “signed-in usage we retain for support” sentence beyond
-  the two-pipe clarification. Resolve in BACT-001.
-- **OQ3 (idle definition):** Prefer `last_login_at` window (e.g. 30d) over
-  refresh-token age for new admin filters, while leaving EMAIL cohort SQL
-  stable until a deliberate follow-up. Resolve at BACT-006.
+- **OQ1 (feature allowlist):** **Resolved 2026-08-12** — first ship keys:
+  `watch`, `start`, `check`, `auth` (enforced server-side and in CLI emit).
+- **OQ2 (consent copy):** **Resolved in BACT-001** — two-pipe docs cover the
+  signed-in CS pipe; no extra public marketing SDK language.
+- **OQ3 (idle definition):** **Resolved 2026-08-12** — admin `users --engagement
+  idle` uses `last_login_at` with default **30 days**; EMAIL
+  `beta:active-*` refresh-token cohorts unchanged.
 
 ## Ready Checklist
 
@@ -198,7 +195,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 
 ### BACT-003: Admin show/list login surface
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Operators can see login state without Neon SQL.
@@ -210,13 +207,14 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 - **Non-scope:** Feature-touch columns (BACT-006); Resend engagement.
 - **Validation:** Admin API + CLI tests for show (and filter if shipped);
   human-readable and `--json` paths.
+- **Files:** `apps/anvil-api/src/routes/admin.ts`, `crates/anvil-cli/src/auth/client.rs`, `crates/anvil-cli/src/commands/admin.rs`, tests
 - **Dependencies:** BACT-002.
 - **changeType:** feature
 - **releaseIntent:** candidate
 
 ### BACT-004: Allowlisted account feature-touch store
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** medium — final key set is OQ1.
 - **Intent:** Persist “this account used this core surface” without free-form
@@ -230,6 +228,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 - **Non-scope:** Client emission (BACT-005); joining to FLEET install ids.
 - **Validation:** Schema/migration tests; reject/ignore unknown keys; upsert
   first/last semantics.
+- **Files:** `apps/anvil-api/src/db/migrations/020-account-feature-touches.sql`, `apps/anvil-api/src/db/schema.sql`, `apps/anvil-api/src/db/queries.ts`, `apps/anvil-api/src/lib/account-activity.ts`
 - **Dependencies:** BACT-002 recommended (accounts exist); OQ1 resolved in
   this item’s PR description.
 - **changeType:** feature
@@ -237,7 +236,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 
 ### BACT-005: Authenticated emission of feature-touch events
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** medium — must not block command latency or leak when logged
   out.
@@ -252,13 +251,14 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 - **Validation:** CLI/API tests for auth-required emit, unknown-key rejection,
   and non-blocking failure; latency-sensitive paths stay free of synchronous
   remote waits beyond existing auth patterns.
+- **Files:** `apps/anvil-api/src/routes/account-activity.ts`, `apps/anvil-api/src/index.ts`, `crates/anvil-cli/src/account_activity.rs`, `crates/anvil-cli/src/main.rs`
 - **Dependencies:** BACT-004.
 - **changeType:** feature
 - **releaseIntent:** candidate
 
 ### BACT-006: CS engagement filters and runbook
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** Medium
 - **Confidence:** high
 - **Intent:** Operators can list who needs help without hand-written SQL.
@@ -271,6 +271,7 @@ needs login fields; **BACT-004** can design the store while -002 lands;
 - **Non-scope:** Automated outreach emails; Resend webhooks.
 - **Validation:** Admin API/CLI tests for each filter; `docs/runbooks/admin-cli.md`
   (or beta-ops) updated; docs:check for touched docs.
+- **Files:** `apps/anvil-api/src/routes/admin.ts`, `apps/anvil-api/src/routes/admin-schemas.ts`, `crates/anvil-cli/src/commands/admin.rs`, `docs/runbooks/admin-cli.md`
 - **Dependencies:** BACT-003; BACT-004/-005 for the missing-feature filter.
 - **changeType:** feature
 - **releaseIntent:** candidate

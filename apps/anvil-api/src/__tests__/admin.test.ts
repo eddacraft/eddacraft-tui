@@ -35,6 +35,8 @@ vi.mock('../db/client.js', () => ({
 vi.mock('../db/queries.js', () => ({
   findUserByEmail: vi.fn(),
   findUserWithTokens: vi.fn(),
+  findAccountFeatureTouchesForUser: vi.fn().mockResolvedValue([]),
+  findUsersByEngagement: vi.fn().mockResolvedValue({ total: 0, items: [] }),
   insertAuditLog: vi.fn().mockResolvedValue({
     id: 'audit-1',
     action: '',
@@ -90,6 +92,8 @@ vi.mock('../lib/broadcast-audiences.js', async (importOriginal) => {
 import {
   findUserByEmail,
   findUserWithTokens,
+  findAccountFeatureTouchesForUser,
+  findUsersByEngagement,
   upsertWaitlistWithName,
   findWaitlistPaginated,
   findAuditEntries,
@@ -545,10 +549,52 @@ describe('admin endpoints', () => {
       expect(body.tokens[0].is_edict).toBe(true);
       // token_hash should not be exposed
       expect(body.tokens[0]).not.toHaveProperty('token_hash');
+      expect(body.featureTouches).toEqual([]);
       expect(vi.mocked(findUserWithTokens)).toHaveBeenCalledWith(
         expect.anything(),
         'alice@example.com'
       );
+    });
+
+    it('surfaces login stamps and feature touches (BACT-003/004)', async () => {
+      vi.mocked(findUserWithTokens).mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'alice@example.com',
+          name: 'Alice',
+          status: 'active',
+          notes: null,
+          first_login_at: '2026-08-01T10:00:00.000Z',
+          last_login_at: '2026-08-11T12:00:00.000Z',
+          last_login_method: 'github',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        tokens: [],
+      });
+      vi.mocked(findAccountFeatureTouchesForUser).mockResolvedValue([
+        {
+          user_id: 'user-1',
+          feature_key: 'watch',
+          first_seen_at: '2026-08-02T00:00:00.000Z',
+          last_seen_at: '2026-08-10T00:00:00.000Z',
+          touch_count: 3,
+        },
+      ]);
+
+      const res = await request('GET', '/admin/user/alice@example.com', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user.first_login_at).toBe('2026-08-01T10:00:00.000Z');
+      expect(body.user.last_login_method).toBe('github');
+      expect(body.featureTouches).toEqual([
+        {
+          feature_key: 'watch',
+          first_seen_at: '2026-08-02T00:00:00.000Z',
+          last_seen_at: '2026-08-10T00:00:00.000Z',
+          touch_count: 3,
+        },
+      ]);
     });
 
     it('returns 404 for unknown user', async () => {
@@ -1163,6 +1209,72 @@ describe('admin endpoints', () => {
           grantedScopes: [],
         },
         'shared'
+      );
+    });
+  });
+
+  describe('GET /admin/users (BACT-006)', () => {
+    it('lists never_logged_in cohort', async () => {
+      vi.mocked(findUsersByEngagement).mockResolvedValue({
+        total: 1,
+        items: [
+          {
+            id: 'user-1',
+            email: 'never@example.com',
+            name: null,
+            status: 'active',
+            first_login_at: null,
+            last_login_at: null,
+            last_login_method: null,
+            created_at: '2026-08-01T00:00:00.000Z',
+            updated_at: '2026-08-01T00:00:00.000Z',
+          },
+        ],
+      });
+
+      const res = await request(
+        'GET',
+        '/admin/users?engagement=never_logged_in&limit=10',
+        undefined,
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.engagement).toBe('never_logged_in');
+      expect(body.total).toBe(1);
+      expect(body.items[0].email).toBe('never@example.com');
+      expect(vi.mocked(findUsersByEngagement)).toHaveBeenCalledWith(
+        expect.anything(),
+        { kind: 'never_logged_in' },
+        10,
+        0
+      );
+    });
+
+    it('requires feature for missing_feature engagement', async () => {
+      const res = await request(
+        'GET',
+        '/admin/users?engagement=missing_feature',
+        undefined,
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('lists missing_feature cohort with feature param', async () => {
+      vi.mocked(findUsersByEngagement).mockResolvedValue({ total: 0, items: [] });
+      const res = await request(
+        'GET',
+        '/admin/users?engagement=missing_feature&feature=watch',
+        undefined,
+        ADMIN_KEY
+      );
+      expect(res.status).toBe(200);
+      expect(vi.mocked(findUsersByEngagement)).toHaveBeenCalledWith(
+        expect.anything(),
+        { kind: 'missing_feature', featureKey: 'watch' },
+        50,
+        0
       );
     });
   });

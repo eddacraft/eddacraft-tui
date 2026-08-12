@@ -25,6 +25,7 @@ mod policy_vocab;
 mod registration;
 mod services;
 mod telemetry;
+mod account_activity;
 #[cfg(test)]
 mod test_support;
 mod tui;
@@ -1207,6 +1208,12 @@ fn dispatch_update_result<W: Write>(
 
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
+    // BACT-005: detached account-activity worker (authenticated feature touch).
+    if std::env::var_os(account_activity::ACCOUNT_ACTIVITY_WORKER_ENV).is_some() {
+        account_activity::run_worker();
+        return ExitCode::from(EXIT_OK);
+    }
+
     // FLEET-003: the detached beacon worker bypasses CLI parsing and usage
     // recording entirely. It rechecks consent immediately before its bounded
     // network request and never writes to stdout/stderr.
@@ -1353,6 +1360,12 @@ fn main() -> ExitCode {
             println!("{envelope}");
         }
         return ExitCode::from(exit_code);
+    }
+
+    // BACT-005: fire-and-forget identity-bound feature touch for allowlisted
+    // core surfaces. Only runs after auth succeeded; never blocks the command.
+    if let Some(feature_key) = account_activity::feature_key_for_command(command_name) {
+        account_activity::spawn_feature_touch(feature_key);
     }
 
     // Update --check returns UpdateAvailable error when an update exists (exit 1).

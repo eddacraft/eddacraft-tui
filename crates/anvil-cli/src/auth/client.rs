@@ -165,6 +165,9 @@ pub struct FleetNotes {
 pub struct ShowUserResponse {
     pub user: ShowUser,
     pub tokens: Vec<ShowToken>,
+    /// BACT-004 feature touches; empty/default when talking to older servers.
+    #[serde(default)]
+    pub feature_touches: Vec<FeatureTouch>,
     pub recent_audit: Vec<AuditItem>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub audit_error: bool,
@@ -177,6 +180,50 @@ pub struct ShowUser {
     pub name: Option<String>,
     pub status: String,
     pub notes: Option<String>,
+    /// BACT-002/003: first interactive login; None / missing = never logged in.
+    #[serde(default)]
+    pub first_login_at: Option<String>,
+    #[serde(default)]
+    pub last_login_at: Option<String>,
+    #[serde(default)]
+    pub last_login_method: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct FeatureTouch {
+    pub feature_key: String,
+    pub first_seen_at: String,
+    pub last_seen_at: String,
+    #[serde(default)]
+    pub touch_count: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UsersEngagementResponse {
+    pub engagement: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idle_days: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feature: Option<String>,
+    pub total: u32,
+    pub items: Vec<EngagementUser>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct EngagementUser {
+    pub id: String,
+    pub email: String,
+    pub name: Option<String>,
+    pub status: String,
+    #[serde(default)]
+    pub first_login_at: Option<String>,
+    #[serde(default)]
+    pub last_login_at: Option<String>,
+    #[serde(default)]
+    pub last_login_method: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -439,6 +486,31 @@ impl AnvilClient {
         self.get(&format!("/admin/user/{}", encode_path_segment(email)))
             .await
     }
+
+    pub async fn list_users_engagement(
+        &self,
+        engagement: &str,
+        idle_days: Option<u32>,
+        feature: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<UsersEngagementResponse> {
+        let mut query = vec![("engagement", engagement.to_string())];
+        if let Some(days) = idle_days {
+            query.push(("idleDays", days.to_string()));
+        }
+        if let Some(feature) = feature {
+            query.push(("feature", feature.to_string()));
+        }
+        if let Some(limit) = limit {
+            query.push(("limit", limit.to_string()));
+        }
+        if let Some(offset) = offset {
+            query.push(("offset", offset.to_string()));
+        }
+        self.get_with_query("/admin/users", &query).await
+    }
+
 
     pub async fn get_fleet_overview(&self) -> Result<FleetOverviewResponse> {
         self.get("/admin/fleet").await

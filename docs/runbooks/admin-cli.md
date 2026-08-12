@@ -1,8 +1,8 @@
 # Admin CLI Operator Runbook
 
-| Type    | Authority     | Owner          | Status | Freshness                                                                               |
-| ------- | ------------- | -------------- | ------ | --------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CIB, FLEET-007 | Live   | Last reviewed 2026-07-26 against waitlist.approved_at list semantics and admin list CLI |
+| Type    | Authority     | Owner          | Status | Freshness                                                                                                 |
+| ------- | ------------- | -------------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB, FLEET-007 | Live   | Last reviewed 2026-08-12 against BACT-003/006 login stamps, feature touches, and users engagement filters |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -481,12 +481,43 @@ cohorts.
 
 ### `show <email>` — full profile for one email
 
-Prints the user row, any tokens, and the most recent audit entries.
+Prints the user row (including **login stamps** when present), allowlisted
+**feature touches**, tokens, and the most recent audit entries.
+
+Login fields (`first_login_at`, `last_login_at`, `last_login_method`) are set
+only after an interactive session mint (GitHub device, OTP, or legacy device).
+Invite/approve alone does **not** stamp login — human output shows
+`login: never logged in` when null.
+
+Feature touches are the BACT identity-bound allowlist (`watch`, `start`,
+`check`, `auth`). They are **not** FLEET beacons.
 
 ```bash
 anvil admin show alice@example.com
 anvil --json admin show alice@example.com
 ```
+
+### `users` — CS engagement cohorts (BACT-006)
+
+List **active** beta users (not waitlist) by engagement filter. Distinct from
+`admin list` (waitlist) and `admin fleet` (anonymous population).
+
+| `--engagement`    | Meaning                                                                      |
+| ----------------- | ---------------------------------------------------------------------------- |
+| `never_logged_in` | `first_login_at IS NULL`                                                     |
+| `idle`            | Has logged in, but `last_login_at` older than `--idle-days` (default **30**) |
+| `missing_feature` | Has logged in, but no touch row for `--feature`                              |
+
+```bash
+anvil admin users --engagement never_logged_in --limit 50
+anvil admin users --engagement idle --idle-days 30
+anvil admin users --engagement missing_feature --feature watch
+anvil --json admin users --engagement idle --idle-days 14 --limit 20
+```
+
+**EMAIL cohort note:** broadcast audiences `beta:active-recent` /
+`beta:active-idle` still resolve via refresh-token age until a deliberate
+follow-up migrates them. Prefer `admin users` login stamps for CS follow-up.
 
 ### `approve [email]` — approve one or a batch
 

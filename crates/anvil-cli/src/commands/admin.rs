@@ -12,7 +12,7 @@ use crate::GlobalArgs;
 use crate::auth::client::{
     ApiError, AuditResponse, EmailSendResponse, EmailUpdateResponse, FleetOverviewResponse,
     MigrationPreviewResponse, MigrationSendResponse, NameUpdateResponse, RevokeResponse,
-    ShowUserResponse, WaitlistResponse,
+    ShowUserResponse, UsersEngagementResponse, WaitlistResponse,
 };
 use crate::output::AuthRequired;
 
@@ -43,10 +43,33 @@ enum AdminCommand {
         offset: Option<u32>,
     },
 
-    /// Show a user, tokens, and recent audit entries
+    /// Show a user, tokens, login stamps, and feature touches
     Show {
         /// Email address to inspect
         email: String,
+    },
+
+    /// List beta users by customer-success engagement filter (BACT-006)
+    Users {
+        /// Engagement cohort: never_logged_in | idle | missing_feature
+        #[arg(long, value_enum)]
+        engagement: UsersEngagement,
+
+        /// Idle window in days (only for --engagement idle; default 30)
+        #[arg(long = "idle-days", default_value_t = 30, value_parser = clap::value_parser!(u32).range(1..=365))]
+        idle_days: u32,
+
+        /// Feature key required when --engagement missing_feature
+        #[arg(long, value_enum)]
+        feature: Option<UsersFeature>,
+
+        /// Maximum entries to return
+        #[arg(long, value_parser = clap::value_parser!(u32).range(1..=200))]
+        limit: Option<u32>,
+
+        /// Entries to skip
+        #[arg(long, value_parser = clap::value_parser!(u32).range(0..))]
+        offset: Option<u32>,
     },
 
     /// Show active installs, distributions, adoption, and retention cohorts
@@ -281,6 +304,23 @@ struct AdminAuthStatus {
     configured: bool,
     source: Option<String>,
     reference: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+#[clap(rename_all = "snake_case")]
+enum UsersEngagement {
+    NeverLoggedIn,
+    Idle,
+    MissingFeature,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+#[clap(rename_all = "snake_case")]
+enum UsersFeature {
+    Watch,
+    Start,
+    Check,
+    Auth,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -657,6 +697,24 @@ fn run_admin_auth(command: &AdminAuthCommand, global: &GlobalArgs) -> Result<()>
     Ok(())
 }
 
+
+fn users_engagement_value(v: UsersEngagement) -> &'static str {
+    match v {
+        UsersEngagement::NeverLoggedIn => "never_logged_in",
+        UsersEngagement::Idle => "idle",
+        UsersEngagement::MissingFeature => "missing_feature",
+    }
+}
+
+fn users_feature_value(v: UsersFeature) -> &'static str {
+    match v {
+        UsersFeature::Watch => "watch",
+        UsersFeature::Start => "start",
+        UsersFeature::Check => "check",
+        UsersFeature::Auth => "auth",
+    }
+}
+
 fn render_json<T: Serialize>(value: &T, json: bool) -> Result<bool> {
     if json {
         crate::output::json::print(value)?;
@@ -701,6 +759,31 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
             }
             if !render_json(&result, global.json)? {
                 print_user(&result);
+            }
+        }
+        AdminCommand::Users {
+            engagement,
+            idle_days,
+            feature,
+            limit,
+            offset,
+        } => {
+            if matches!(engagement, UsersEngagement::MissingFeature) && feature.is_none() {
+                bail!("--feature is required when --engagement missing_feature");
+            }
+            let result = rt.block_on(client.list_users_engagement(
+                users_engagement_value(*engagement),
+                if matches!(engagement, UsersEngagement::Idle) {
+                    Some(*idle_days)
+                } else {
+                    None
+                },
+                feature.map(users_feature_value),
+                *limit,
+                *offset,
+            ))?;
+            if !render_json(&result, global.json)? {
+                print_users_engagement(&result);
             }
         }
         AdminCommand::Fleet => {
@@ -987,6 +1070,30 @@ fn print_waitlist(result: &WaitlistResponse) {
     println!("\nShowing {} of {}", result.items.len(), result.total);
 }
 
+
+fn print_users_engagement(result: &UsersEngagementResponse) {
+    println!("USERS ({})", result.engagement);
+    if let Some(days) = result.idle_days {
+        println!("idle days: {days}");
+    }
+    if let Some(feature) = &result.feature {
+        println!("missing feature: {feature}");
+    }
+    println!("EMAIL\tNAME\tSTATUS\tFIRST LOGIN\tLAST LOGIN\tMETHOD");
+    for item in &result.items {
+        println!(
+            "{}\t{}\t{}\t{}\t{}\t{}",
+            item.email,
+            item.name.as_deref().unwrap_or("-"),
+            item.status,
+            item.first_login_at.as_deref().map_or("never", date_only),
+            item.last_login_at.as_deref().map_or("-", date_only),
+            item.last_login_method.as_deref().unwrap_or("-"),
+        );
+    }
+    println!("\nShowing {} of {}", result.items.len(), result.total);
+}
+
 fn print_user(result: &ShowUserResponse) {
     println!("USER");
     println!("----");
@@ -996,8 +1103,42 @@ fn print_user(result: &ShowUserResponse) {
     println!("id:         {}", result.user.id);
     println!("created:    {}", date_only(&result.user.created_at));
     println!("updated:    {}", date_only(&result.user.updated_at));
+    match result.user.first_login_at.as_deref() {
+        None => println!("login:      never logged in"),
+        Some(first) => {
+            println!("first login: {}", date_only(first));
+            println!(
+                "last login:  {}",
+                result
+                    .user
+                    .last_login_at
+                    .as_deref()
+                    .map_or("-", date_only)
+            );
+            println!(
+                "login method: {}",
+                result.user.last_login_method.as_deref().unwrap_or("-")
+            );
+        }
+    }
     if let Some(notes) = &result.user.notes {
         println!("notes:      {notes}");
+    }
+    println!("\nFEATURE TOUCHES");
+    println!("---------------");
+    if result.feature_touches.is_empty() {
+        println!("(none)");
+    } else {
+        println!("FEATURE\tFIRST\tLAST\tCOUNT");
+        for touch in &result.feature_touches {
+            println!(
+                "{}\t{}\t{}\t{}",
+                touch.feature_key,
+                date_only(&touch.first_seen_at),
+                date_only(&touch.last_seen_at),
+                touch.touch_count
+            );
+        }
     }
     println!("\nTOKENS");
     println!("------");
@@ -1561,6 +1702,59 @@ mod tests {
         let w = Wrapper::try_parse_from(["test", "show", "user@example.com"]).unwrap();
         match w.inner.command {
             AdminCommand::Show { email } => assert_eq!(email, "user@example.com"),
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn args_parses_users_never_logged_in() {
+        let w = Wrapper::try_parse_from([
+            "test",
+            "users",
+            "--engagement",
+            "never_logged_in",
+            "--limit",
+            "10",
+        ])
+        .unwrap();
+        match w.inner.command {
+            AdminCommand::Users {
+                engagement,
+                idle_days,
+                feature,
+                limit,
+                offset,
+            } => {
+                assert!(matches!(engagement, UsersEngagement::NeverLoggedIn));
+                assert_eq!(idle_days, 30);
+                assert!(feature.is_none());
+                assert_eq!(limit, Some(10));
+                assert_eq!(offset, None);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn args_parses_users_missing_feature() {
+        let w = Wrapper::try_parse_from([
+            "test",
+            "users",
+            "--engagement",
+            "missing_feature",
+            "--feature",
+            "watch",
+        ])
+        .unwrap();
+        match w.inner.command {
+            AdminCommand::Users {
+                engagement,
+                feature,
+                ..
+            } => {
+                assert!(matches!(engagement, UsersEngagement::MissingFeature));
+                assert!(matches!(feature, Some(UsersFeature::Watch)));
+            }
             other => panic!("unexpected command: {other:?}"),
         }
     }

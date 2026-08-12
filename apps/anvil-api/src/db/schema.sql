@@ -197,9 +197,25 @@ CREATE TABLE telemetry_daily_feature_usage (
   PRIMARY KEY (day, feature_key)
 );
 
+-- BACT-004: identity-bound allowlisted feature touches (not FLEET).
+CREATE TABLE account_feature_touches (
+  user_id       uuid NOT NULL REFERENCES beta_users(id) ON DELETE CASCADE,
+  feature_key   text NOT NULL
+                CHECK (feature_key IN ('watch', 'start', 'check', 'auth')),
+  first_seen_at timestamptz NOT NULL DEFAULT now(),
+  last_seen_at  timestamptz NOT NULL DEFAULT now(),
+  touch_count   bigint NOT NULL DEFAULT 1
+                CHECK (touch_count >= 1),
+  PRIMARY KEY (user_id, feature_key)
+);
+
 -- Indexes
 CREATE INDEX idx_beta_users_last_login_at
   ON beta_users (last_login_at DESC NULLS LAST);
+CREATE INDEX idx_account_feature_touches_feature_last_seen
+  ON account_feature_touches (feature_key, last_seen_at DESC);
+CREATE INDEX idx_account_feature_touches_last_seen
+  ON account_feature_touches (last_seen_at DESC);
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
 -- Mirrors migration 010-access-tokens-scope-index.sql so fresh-install

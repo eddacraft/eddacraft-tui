@@ -195,3 +195,26 @@ export type UserNameUpdateInput = z.infer<typeof userNameUpdateSchema>;
 export type EmailSendInput = z.infer<typeof emailSendSchema>;
 export type WaitlistListQuery = z.infer<typeof waitlistListQuerySchema>;
 export type AuditListQuery = z.infer<typeof auditListQuerySchema>;
+
+// BACT-006: CS engagement cohort listing over beta_users (not waitlist).
+export const USERS_ENGAGEMENT_FILTERS = ['never_logged_in', 'idle', 'missing_feature'] as const;
+
+export const usersEngagementQuerySchema = z
+  .object({
+    engagement: z.enum(USERS_ENGAGEMENT_FILTERS),
+    idleDays: z.coerce.number().int().finite().min(1).max(365).default(30),
+    feature: z.enum(['watch', 'start', 'check', 'auth']).optional(),
+    limit: z.coerce.number().int().finite().min(1).max(200).default(50),
+    offset: z.coerce.number().int().finite().min(0).default(0),
+  })
+  .superRefine((data, ctx) => {
+    if (data.engagement === 'missing_feature' && !data.feature) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'feature is required when engagement=missing_feature',
+        path: ['feature'],
+      });
+    }
+  });
+
+export type UsersEngagementQuery = z.infer<typeof usersEngagementQuerySchema>;

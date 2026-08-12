@@ -8,6 +8,8 @@ import { getClient, type NeonClient } from '../db/client.js';
 import {
   findUserByEmail,
   findUserWithTokens,
+  findAccountFeatureTouchesForUser,
+  findUsersByEngagement,
   insertAuditLog,
   upsertWaitlistWithName,
   findWaitlistEntryByEmail,
@@ -22,6 +24,7 @@ import {
   type AuthMethod,
   type BroadcastSnapshot,
   type SnapshotRecipient,
+  type EngagementFilter,
 } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite } from '../lib/email.js';
@@ -39,6 +42,7 @@ import {
   emailSendSchema,
   waitlistListQuerySchema,
   auditListQuerySchema,
+  usersEngagementQuerySchema,
 } from './admin-schemas.js';
 import {
   AUDIENCE_KEYS,
@@ -601,6 +605,14 @@ admin.get('/user/:email', async (c) => {
     console.error('findRecentAuditForEmail failed (non-fatal):', err);
   }
 
+  // BACT-003/004: feature touches are enrichment — degrade if lookup fails.
+  let featureTouches: Awaited<ReturnType<typeof findAccountFeatureTouchesForUser>> = [];
+  try {
+    featureTouches = await findAccountFeatureTouchesForUser(sql, result.user.id);
+  } catch (err) {
+    console.error('findAccountFeatureTouchesForUser failed (non-fatal):', err);
+  }
+
   return c.json({
     user: result.user,
     tokens: result.tokens.map((t) => ({
@@ -611,8 +623,51 @@ admin.get('/user/:email', async (c) => {
       revoked_at: t.revoked_at,
       created_at: t.created_at,
     })),
+    featureTouches: featureTouches.map((t) => ({
+      feature_key: t.feature_key,
+      first_seen_at: t.first_seen_at,
+      last_seen_at: t.last_seen_at,
+      touch_count: t.touch_count,
+    })),
     recentAudit,
     ...(auditError ? { auditError: true } : {}),
+  });
+});
+
+/**
+ * GET /admin/users
+ *
+ * BACT-006: list active beta users by CS engagement filter:
+ * never_logged_in | idle | missing_feature.
+ */
+admin.get('/users', zValidator('query', usersEngagementQuerySchema), async (c) => {
+  const q = c.req.valid('query');
+  debug('GET /admin/users', {
+    engagement: q.engagement,
+    idleDays: q.idleDays,
+    feature: q.feature,
+    limit: q.limit,
+    offset: q.offset,
+  });
+  const sql = getClient();
+
+  let filter: EngagementFilter;
+  if (q.engagement === 'never_logged_in') {
+    filter = { kind: 'never_logged_in' };
+  } else if (q.engagement === 'idle') {
+    filter = { kind: 'idle', idleDays: q.idleDays };
+  } else {
+    // schema refine guarantees feature when missing_feature
+    filter = { kind: 'missing_feature', featureKey: q.feature! };
+  }
+
+  const result = await findUsersByEngagement(sql, filter, q.limit, q.offset);
+  return c.json({
+    engagement: q.engagement,
+    idleDays: q.engagement === 'idle' ? q.idleDays : undefined,
+    feature: q.engagement === 'missing_feature' ? q.feature : undefined,
+    total: result.total,
+    items: result.items,
   });
 });
 
