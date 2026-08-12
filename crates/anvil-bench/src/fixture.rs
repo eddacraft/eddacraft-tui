@@ -152,42 +152,73 @@ impl Drop for SyntheticRepo {
 ///
 /// Files are distributed across a directory tree with deterministic structure
 /// seeded by `spec.seed`, using the language mix to determine file extensions.
+///
+/// Creates `base_dir/synthetic-repo` exclusively. If that path already exists,
+/// returns [`std::io::ErrorKind::AlreadyExists`] without modifying it, so
+/// [`SyntheticRepo`]'s drop cleanup cannot delete pre-existing content.
 pub fn generate_repo(spec: &RepoSpec, base_dir: &Path) -> std::io::Result<SyntheticRepo> {
     let root = base_dir.join("synthetic-repo");
-    fs::create_dir_all(&root)?;
-
-    let mut rng = StdRng::seed_from_u64(spec.seed);
-    let total_weight = spec.language_mix.total_weight();
-
-    for i in 0..spec.file_count {
-        let depth = if spec.max_depth == 0 {
-            0
-        } else {
-            rng.random_range(0..=spec.max_depth)
-        };
-
-        let mut dir = root.clone();
-        for d in 0..depth {
-            let segment = format!("d{d}_{}", i % (d + 3).max(1));
-            dir.push(segment);
+    // Ensure the parent exists, then create the leaf exclusively so we never
+    // claim ownership of a directory that already contained user data.
+    fs::create_dir_all(base_dir)?;
+    match fs::create_dir(&root) {
+        Ok(()) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "refusing to generate into existing directory: {}",
+                    root.display()
+                ),
+            ));
         }
-        fs::create_dir_all(&dir)?;
-
-        let roll = rng.random_range(0..total_weight);
-        let ext = spec.language_mix.extension_for(roll);
-
-        let name_suffix: String = (0..6).map(|_| rng.sample(Alphanumeric) as char).collect();
-        let filename = format!("file_{i}_{name_suffix}{ext}");
-
-        let content = generate_file_content(ext, spec.lines_per_file, i);
-        fs::write(dir.join(filename), content)?;
+        Err(err) => return Err(err),
     }
 
-    Ok(SyntheticRepo {
-        root,
-        file_count: spec.file_count,
-        own: true,
-    })
+    let generated = (|| -> std::io::Result<SyntheticRepo> {
+        let mut rng = StdRng::seed_from_u64(spec.seed);
+        let total_weight = spec.language_mix.total_weight();
+
+        for i in 0..spec.file_count {
+            let depth = if spec.max_depth == 0 {
+                0
+            } else {
+                rng.random_range(0..=spec.max_depth)
+            };
+
+            let mut dir = root.clone();
+            for d in 0..depth {
+                let segment = format!("d{d}_{}", i % (d + 3).max(1));
+                dir.push(segment);
+            }
+            fs::create_dir_all(&dir)?;
+
+            let roll = rng.random_range(0..total_weight);
+            let ext = spec.language_mix.extension_for(roll);
+
+            let name_suffix: String = (0..6).map(|_| rng.sample(Alphanumeric) as char).collect();
+            let filename = format!("file_{i}_{name_suffix}{ext}");
+
+            let content = generate_file_content(ext, spec.lines_per_file, i);
+            fs::write(dir.join(filename), content)?;
+        }
+
+        Ok(SyntheticRepo {
+            root: root.clone(),
+            file_count: spec.file_count,
+            own: true,
+        })
+    })();
+
+    match generated {
+        Ok(repo) => Ok(repo),
+        Err(err) => {
+            // We created the directory; remove the partial tree rather than
+            // leaving an orphan that a later call would refuse to reuse.
+            let _ = fs::remove_dir_all(&root);
+            Err(err)
+        }
+    }
 }
 
 fn generate_file_content(ext: &str, lines: usize, seed: usize) -> String {
@@ -436,6 +467,45 @@ mod tests {
         };
         assert!(path.exists(), "into_path should prevent cleanup");
         let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn rejects_preexisting_synthetic_repo_without_cleanup() {
+        let dir = tempfile::tempdir().unwrap();
+        let preexisting = dir.path().join("synthetic-repo");
+        fs::create_dir_all(&preexisting).unwrap();
+        let sentinel = preexisting.join("important.txt");
+        fs::write(&sentinel, "do-not-delete").unwrap();
+
+        let result = generate_repo(
+            &RepoSpec {
+                file_count: 3,
+                max_depth: 1,
+                lines_per_file: 5,
+                ..RepoSpec::default()
+            },
+            dir.path(),
+        );
+        let err = match result {
+            Ok(_repo) => panic!("must refuse an existing synthetic-repo directory"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+
+        assert_eq!(
+            fs::read_to_string(&sentinel).unwrap(),
+            "do-not-delete",
+            "sentinel must remain unmodified after rejected generation"
+        );
+
+        // Drop path is not exercised on Err, but a future regression that
+        // claimed ownership would still wipe the sentinel after this scope.
+        drop(preexisting);
+        assert_eq!(
+            fs::read_to_string(&sentinel).unwrap(),
+            "do-not-delete",
+            "pre-existing directory must not be cleaned up by generate_repo"
+        );
     }
 
     #[test]
