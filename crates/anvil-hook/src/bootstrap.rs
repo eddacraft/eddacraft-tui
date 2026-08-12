@@ -17,14 +17,37 @@ pub struct HuskyRuntime {
     pub executable: bool,
 }
 
+/// The hook kinds bootstrap covers. Husky entrypoints are generated
+/// for exactly these; keep in lockstep with the
+/// [`BootstrapPlan::InstallPlain`] list in [`build_bootstrap_plan`].
+const BOOTSTRAP_HOOK_KINDS: [HookKind; 5] = [
+    HookKind::PreCommit,
+    HookKind::PostCommit,
+    HookKind::PrePush,
+    HookKind::PostMerge,
+    HookKind::PostRewrite,
+];
+
 /// Generate the minimal Husky v9 runtime under `.husky/_/`.
 ///
 /// Husky v9's runtime layout is:
 ///
-/// - `.husky/_/h` — the per-hook bootstrap script that runs the
-///   matching `.husky/<hook>` file with the right env.
+/// - `.husky/_/<hook>` — the entrypoint Git actually executes. A
+///   Husky repo sets `core.hooksPath=.husky/_`, so Git runs
+///   `.husky/_/pre-commit`, **not** `.husky/pre-commit`. Each
+///   entrypoint forwards its own fixed hook name and the original
+///   Git arguments to `h`.
+/// - `.husky/_/h` — the shared runtime that runs the matching
+///   `.husky/<hook>` file with the right env.
 /// - `.husky/_/husky.sh` — kept as a no-op stub for backwards-
 ///   compat with v8 hook chains that may still source it.
+///
+/// Regenerating `h` alone is not enough. With `.husky/_/` wiped —
+/// the exact state this bootstrap path exists to repair — Git finds
+/// no `.husky/_/pre-commit` to execute, so the user's
+/// `.husky/pre-commit` never runs and no hook fires. Silently: an
+/// absent hook is not an error to Git. The entrypoints are what make
+/// the recovered runtime actually fire.
 ///
 /// We do NOT regenerate the hook scripts themselves (the user's
 /// `.husky/pre-commit`, etc.) — those carry the Anvil hook line
@@ -32,7 +55,7 @@ pub struct HuskyRuntime {
 /// shim that `pnpm install` would normally install via the
 /// `husky` package's postinstall.
 pub fn generate_husky_runtime() -> Vec<HuskyRuntime> {
-    vec![
+    let mut files = vec![
         HuskyRuntime {
             relative_path: ".husky/_/h".to_string(),
             contents: HUSKY_RUNTIME_H.to_string(),
@@ -43,7 +66,26 @@ pub fn generate_husky_runtime() -> Vec<HuskyRuntime> {
             contents: HUSKY_RUNTIME_HUSKY_SH.to_string(),
             executable: false,
         },
-    ]
+    ];
+    files.extend(BOOTSTRAP_HOOK_KINDS.into_iter().map(|k| HuskyRuntime {
+        relative_path: format!(".husky/_/{}", k.filename()),
+        contents: husky_entrypoint(k),
+        executable: true,
+    }));
+    files
+}
+
+/// The `.husky/_/<hook>` entrypoint Git executes.
+///
+/// Passes the hook name explicitly rather than deriving it from
+/// `$0`, so `h` keeps one documented calling convention
+/// (`h <hook-name> [git args…]`). `exec` hands the process over so
+/// the hook's exit status reaches Git unmodified.
+fn husky_entrypoint(kind: HookKind) -> String {
+    format!(
+        "#!/usr/bin/env sh\nexec \"$(dirname -- \"$0\")/h\" {} \"$@\"\n",
+        kind.filename()
+    )
 }
 
 // The runtime files below are taken from Husky v9's published
@@ -58,7 +100,15 @@ pub fn generate_husky_runtime() -> Vec<HuskyRuntime> {
 // block decisions and any failing user hook (see ADR-038 noise
 // discipline). `shift` drops the target selector (`$1`) so the hook
 // sees only the original git hook arguments.
-const HUSKY_RUNTIME_H: &str = "#!/usr/bin/env sh\n[ \"$HUSKY\" = \"0\" ] && exit 0\nh=\"$(dirname -- \"$0\")/$1\"\n[ -f \"$h\" ] && [ -x \"$h\" ] || exit 0\nshift\n\"$h\" \"$@\"\n";
+//
+// The target resolves to `.husky/<hook>` — the PARENT of the `_`
+// directory holding this script, not a sibling. `$0` here is
+// `.husky/_/h`, so we take dirname twice. A sibling lookup would
+// resolve to `.husky/_/<hook>`, which is the entrypoint that just
+// exec'd us: the runtime would re-enter itself until the process
+// died. It also matches Husky's real layout, where the user's hook
+// scripts live in `.husky/` and only the runtime lives in `.husky/_/`.
+const HUSKY_RUNTIME_H: &str = "#!/usr/bin/env sh\n[ \"$HUSKY\" = \"0\" ] && exit 0\nh=\"$(dirname -- \"$(dirname -- \"$0\")\")/$1\"\n[ -f \"$h\" ] && [ -x \"$h\" ] || exit 0\nshift\n\"$h\" \"$@\"\n";
 
 const HUSKY_RUNTIME_HUSKY_SH: &str =
     "# husky v8 back-compat stub; husky v9 uses .husky/_/h directly.\n";
@@ -139,9 +189,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn husky_runtime_includes_both_files() {
+    fn husky_runtime_includes_shared_runtime_files_and_entrypoints() {
         let files = generate_husky_runtime();
-        assert_eq!(files.len(), 2);
+        // `h` + `husky.sh` + one entrypoint per hook kind.
+        assert_eq!(files.len(), 2 + BOOTSTRAP_HOOK_KINDS.len());
         assert!(files.iter().any(|f| f.relative_path == ".husky/_/h"));
         assert!(files.iter().any(|f| f.relative_path == ".husky/_/husky.sh"));
     }
@@ -184,7 +235,7 @@ mod tests {
         let plan = build_bootstrap_plan(HookFramework::Husky);
         match plan {
             BootstrapPlan::HuskyRegenerate { files } => {
-                assert_eq!(files.len(), 2);
+                assert_eq!(files.len(), 2 + BOOTSTRAP_HOOK_KINDS.len());
             }
             other => panic!("expected HuskyRegenerate, got {other:?}"),
         }
@@ -294,38 +345,81 @@ mod tests {
         );
     }
 
+    /// Materialise the generated runtime into a repo-shaped tempdir:
+    /// `<root>/.husky/_/{h,husky.sh,<hook>…}`. Returns the root.
+    ///
+    /// The layout matters: `h` resolves its target relative to the
+    /// PARENT of its own directory, so a flat tempdir would not
+    /// exercise the real path resolution.
+    #[cfg(unix)]
+    fn materialise_runtime(root: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        for f in generate_husky_runtime() {
+            let path = root.join(&f.relative_path);
+            std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+            std::fs::write(&path, &f.contents).expect("write runtime file");
+            if f.executable {
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+                    .expect("chmod");
+            }
+        }
+    }
+
+    /// Write an executable user hook at `.husky/<name>`.
+    #[cfg(unix)]
+    fn write_user_hook(root: &std::path::Path, name: &str, body: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        let path = root.join(".husky").join(name);
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+        std::fs::write(&path, body).expect("write user hook");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    }
+
+    /// Run `.husky/_/<hook>` the way Git would, from the repo root.
+    #[cfg(unix)]
+    fn run_entrypoint(
+        root: &std::path::Path,
+        hook: &str,
+        args: &[&str],
+    ) -> std::process::ExitStatus {
+        std::process::Command::new("sh")
+            .arg(format!(".husky/_/{hook}"))
+            .args(args)
+            .current_dir(root)
+            .status()
+            .expect("run entrypoint")
+    }
+
+    #[test]
+    fn husky_runtime_generates_an_entrypoint_for_every_hook_kind() {
+        // Git executes `.husky/_/<hook>` (core.hooksPath=.husky/_).
+        // Without these, a wiped `.husky/_` leaves every hook dead.
+        let files = generate_husky_runtime();
+        for kind in BOOTSTRAP_HOOK_KINDS {
+            let path = format!(".husky/_/{}", kind.filename());
+            let entry = files
+                .iter()
+                .find(|f| f.relative_path == path)
+                .unwrap_or_else(|| panic!("missing entrypoint {path}"));
+            assert!(entry.executable, "{path} must be executable");
+            assert!(
+                entry.contents.contains(kind.filename()),
+                "{path} must forward its own hook name",
+            );
+            assert!(entry.contents.starts_with("#!/usr/bin/env sh"));
+        }
+    }
+
     /// Behavioural regression: execute the generated `h` against a
     /// failing target and require the runtime exit code to match.
     #[cfg(unix)]
     #[test]
     fn husky_h_runtime_propagates_failing_hook_exit_status() {
-        use std::os::unix::fs::PermissionsExt;
-        use std::process::Command;
-
         let dir = tempfile::tempdir().expect("tempdir");
-        let runtime_path = dir.path().join("h");
-        let target_name = "failing-hook";
-        let target_path = dir.path().join(target_name);
+        materialise_runtime(dir.path());
+        write_user_hook(dir.path(), "pre-commit", "#!/usr/bin/env sh\nexit 1\n");
 
-        let files = generate_husky_runtime();
-        let runtime = files
-            .iter()
-            .find(|f| f.relative_path == ".husky/_/h")
-            .expect("h runtime present");
-        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
-        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod runtime");
-
-        // Target under the same directory as the runtime, named via $1.
-        std::fs::write(&target_path, "#!/usr/bin/env sh\nexit 1\n").expect("write target");
-        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod target");
-
-        let status = Command::new("sh")
-            .arg(&runtime_path)
-            .arg(target_name)
-            .status()
-            .expect("run runtime");
+        let status = run_entrypoint(dir.path(), "pre-commit", &[]);
         assert_eq!(
             status.code(),
             Some(1),
@@ -336,110 +430,134 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn husky_h_runtime_propagates_success_exit_status() {
-        use std::os::unix::fs::PermissionsExt;
-        use std::process::Command;
-
         let dir = tempfile::tempdir().expect("tempdir");
-        let runtime_path = dir.path().join("h");
-        let target_name = "ok-hook";
-        let target_path = dir.path().join(target_name);
+        materialise_runtime(dir.path());
+        write_user_hook(dir.path(), "pre-commit", "#!/usr/bin/env sh\nexit 0\n");
 
-        let files = generate_husky_runtime();
-        let runtime = files
-            .iter()
-            .find(|f| f.relative_path == ".husky/_/h")
-            .expect("h runtime present");
-        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
-        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod runtime");
-
-        std::fs::write(&target_path, "#!/usr/bin/env sh\nexit 0\n").expect("write target");
-        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod target");
-
-        let status = Command::new("sh")
-            .arg(&runtime_path)
-            .arg(target_name)
-            .status()
-            .expect("run runtime");
-        assert_eq!(status.code(), Some(0));
+        assert_eq!(
+            run_entrypoint(dir.path(), "pre-commit", &[]).code(),
+            Some(0)
+        );
     }
 
     #[cfg(unix)]
     #[test]
     fn husky_h_runtime_missing_target_is_noop() {
-        use std::os::unix::fs::PermissionsExt;
-        use std::process::Command;
-
         let dir = tempfile::tempdir().expect("tempdir");
-        let runtime_path = dir.path().join("h");
-
-        let files = generate_husky_runtime();
-        let runtime = files
-            .iter()
-            .find(|f| f.relative_path == ".husky/_/h")
-            .expect("h runtime present");
-        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
-        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod runtime");
-
-        let status = Command::new("sh")
-            .arg(&runtime_path)
-            .arg("does-not-exist")
-            .status()
-            .expect("run runtime");
+        materialise_runtime(dir.path());
+        // No `.husky/pre-commit` written at all.
         assert_eq!(
-            status.code(),
+            run_entrypoint(dir.path(), "pre-commit", &[]).code(),
             Some(0),
             "absent target must remain a no-op (Husky contract)"
         );
     }
 
-    /// The first positional arg selects the target; remaining args must
-    /// reach the hook unchanged (git's commit-msg path, pre-push refs, …).
+    /// The entrypoint supplies the hook name; git's own arguments must
+    /// reach the user hook unchanged (commit-msg path, pre-push refs, …).
     #[cfg(unix)]
     #[test]
     fn husky_h_runtime_shifts_target_selector_before_invocation() {
-        use std::os::unix::fs::PermissionsExt;
-        use std::process::Command;
-
         let dir = tempfile::tempdir().expect("tempdir");
-        let runtime_path = dir.path().join("h");
-        let target_name = "echo-args";
-        let target_path = dir.path().join(target_name);
+        materialise_runtime(dir.path());
         let out_path = dir.path().join("args.out");
-
-        let files = generate_husky_runtime();
-        let runtime = files
-            .iter()
-            .find(|f| f.relative_path == ".husky/_/h")
-            .expect("h runtime present");
-        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
-        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod runtime");
-
-        // Write each positional arg on its own line for easy assertion.
-        let script = format!(
-            "#!/usr/bin/env sh\nprintf '%s\\n' \"$@\" > '{}'\n",
-            out_path.display()
+        write_user_hook(
+            dir.path(),
+            "pre-commit",
+            &format!(
+                "#!/usr/bin/env sh\nprintf '%s\\n' \"$@\" > '{}'\n",
+                out_path.display()
+            ),
         );
-        std::fs::write(&target_path, script).expect("write target");
-        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
-            .expect("chmod target");
 
-        let status = Command::new("sh")
-            .arg(&runtime_path)
-            .arg(target_name)
-            .arg("COMMIT_MSG_PATH")
-            .arg("extra")
-            .status()
-            .expect("run runtime");
+        let status = run_entrypoint(dir.path(), "pre-commit", &["COMMIT_MSG_PATH", "extra"]);
         assert_eq!(status.code(), Some(0));
 
         let captured = std::fs::read_to_string(&out_path).expect("read args.out");
         assert_eq!(
             captured, "COMMIT_MSG_PATH\nextra\n",
             "target selector must not leak into hook args; got {captured:?}"
+        );
+    }
+
+    /// The runtime must not re-enter itself. `h` resolving its target
+    /// as a sibling would find `.husky/_/<hook>` — the entrypoint that
+    /// just exec'd it — and loop until the process died.
+    #[cfg(unix)]
+    #[test]
+    fn husky_entrypoint_does_not_recurse_into_the_runtime() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        materialise_runtime(dir.path());
+        let out_path = dir.path().join("ran.out");
+        write_user_hook(
+            dir.path(),
+            "pre-commit",
+            &format!("#!/usr/bin/env sh\necho ran >> '{}'\n", out_path.display()),
+        );
+
+        assert_eq!(
+            run_entrypoint(dir.path(), "pre-commit", &[]).code(),
+            Some(0)
+        );
+        let captured = std::fs::read_to_string(&out_path).expect("read ran.out");
+        assert_eq!(captured, "ran\n", "user hook must run exactly once");
+    }
+
+    /// End-to-end: a real Git repo whose `core.hooksPath` is
+    /// `.husky/_` with that directory wiped — the exact state
+    /// bootstrap repairs. After materialising the plan, `git commit`
+    /// must execute the user's `.husky/pre-commit`.
+    #[cfg(unix)]
+    #[test]
+    fn git_commit_runs_the_user_hook_after_bootstrap() {
+        use std::process::Command;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        let git = |args: &[&str]| {
+            let out = Command::new("git")
+                .args(args)
+                .current_dir(root)
+                .env("HOME", root)
+                .env("GIT_CONFIG_GLOBAL", root.join("gitconfig"))
+                .env("GIT_CONFIG_SYSTEM", "/dev/null")
+                .output()
+                .expect("run git");
+            (
+                out.status,
+                String::from_utf8_lossy(&out.stderr).into_owned(),
+            )
+        };
+
+        assert!(git(&["init", "--quiet"]).0.success());
+        assert!(git(&["config", "user.email", "t@example.com"]).0.success());
+        assert!(git(&["config", "user.name", "Test"]).0.success());
+        // The Husky contract: git looks for hooks in `.husky/_`.
+        assert!(git(&["config", "core.hooksPath", ".husky/_"]).0.success());
+
+        // The user's hook survives; only `.husky/_` was lost.
+        let sentinel = root.join("hook-ran");
+        write_user_hook(
+            root,
+            "pre-commit",
+            &format!("#!/usr/bin/env sh\necho fired > '{}'\n", sentinel.display()),
+        );
+        assert!(
+            !root.join(".husky/_").exists(),
+            "precondition: the runtime directory is missing",
+        );
+
+        // Bootstrap repairs it.
+        materialise_runtime(root);
+
+        std::fs::write(root.join("file.txt"), "x\n").expect("write file");
+        assert!(git(&["add", "file.txt"]).0.success());
+        let (status, stderr) = git(&["commit", "--quiet", "-m", "test"]);
+        assert!(status.success(), "commit failed: {stderr}");
+
+        assert!(
+            sentinel.exists(),
+            "git commit did not execute .husky/pre-commit after bootstrap",
         );
     }
 }
