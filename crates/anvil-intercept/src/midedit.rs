@@ -383,7 +383,7 @@ impl ScanBufferService {
 /// MLP2-002: RAII guard that increments the in-flight counter on
 /// construction and decrements on drop. Held on the worker thread
 /// next to the semaphore permit so the counter always reflects
-/// "live workers holding capacity", including TimedOut stragglers
+/// "live workers holding capacity", including `TimedOut` stragglers
 /// whose caller has already returned.
 struct InFlightGuard {
     counter: Arc<AtomicUsize>,
