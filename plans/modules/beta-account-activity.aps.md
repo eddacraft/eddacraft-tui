@@ -329,7 +329,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-008: Account `plan` + `last_activity_at` stamps
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Schema and write paths so every licensed use can update activity
