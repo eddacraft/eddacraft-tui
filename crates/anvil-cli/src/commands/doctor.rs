@@ -343,12 +343,15 @@ fn check_architecture_source_in(root: &Path) -> DiagnosticCheck {
     let (status, message) = match (section, legacy) {
         (true, true) => (
             CheckStatus::Warn,
-            "architecture section AND standalone .anvil/architecture.yaml both present —              the section wins; the standalone file is shadowed unless it is the section's              delegation target"
+            "architecture section AND standalone .anvil/architecture.yaml both present — \
+             the section wins; the standalone file is shadowed unless it is the \
+             section's delegation target"
                 .to_string(),
         ),
         (false, true) => (
             CheckStatus::Warn,
-            "standalone .anvil/architecture.yaml (legacy form) — still works; the              architecture section is the unified home"
+            "standalone .anvil/architecture.yaml (legacy form) — still works; the \
+             architecture section is the unified home"
                 .to_string(),
         ),
         (true, false) => (
@@ -360,6 +363,24 @@ fn check_architecture_source_in(root: &Path) -> DiagnosticCheck {
             "no architecture config (governance not opted in)".to_string(),
         ),
     };
+    // The migrate command only applies to legacy-only repos (it
+    // refuses when a section exists), so the remediation must not
+    // name it in the dual-truth state.
+    let remediation = if section {
+        Remediation {
+            summary: "Keep the standalone file only if the section delegates to it via \
+                      `architecture.source`; otherwise remove the shadowed file."
+                .to_string(),
+            command: None,
+            doc_url: None,
+        }
+    } else {
+        Remediation {
+            summary: "Point the section at the file explicitly.".to_string(),
+            command: Some("anvil migrate architecture --apply".to_string()),
+            doc_url: None,
+        }
+    };
     DiagnosticCheck {
         name: "architecture-source".to_string(),
         category: "Configuration".to_string(),
@@ -367,11 +388,7 @@ fn check_architecture_source_in(root: &Path) -> DiagnosticCheck {
         message,
         details: None,
         auto_fixable: false,
-        remediation: Remediation {
-            summary: "Point the section at the file explicitly, or fold it in.".to_string(),
-            command: Some("anvil migrate architecture --apply".to_string()),
-            doc_url: None,
-        },
+        remediation,
     }
 }
 

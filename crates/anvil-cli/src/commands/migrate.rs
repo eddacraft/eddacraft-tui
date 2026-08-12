@@ -492,11 +492,15 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
         );
     }
 
-    // Apply the patch to the parsed value.
-    if !project.value.is_object() {
-        project.value = serde_json::Value::Object(serde_json::Map::new());
-    }
-    let root_obj = project.value.as_object_mut().expect("normalised above");
+    // Apply the patch to the parsed value. A config that parses to a
+    // non-table top level must not be silently replaced (data loss).
+    let Some(root_obj) = project.value.as_object_mut() else {
+        bail!(
+            "{} does not parse to a table at the top level — fix the config \
+             before migrating",
+            project.label
+        );
+    };
     if fold_selection {
         root_obj.insert(
             "checks".into(),
@@ -556,10 +560,11 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
 
 /// Write `architecture: { source: ".anvil/architecture.yaml" }` into
 /// the project config when a standalone legacy file exists and the
-/// config has no `architecture` section yet — nothing else in the
-/// file is touched. The standalone file stays where it is (it is the
-/// delegation target); consumers resolve it through the hardened
-/// delegation pipeline afterwards.
+/// config has no `architecture` section yet. No other keys are added
+/// or removed; the file is re-serialised, so comments and quoting
+/// style are not preserved (the plan output says so). The standalone
+/// file stays where it is (it is the delegation target); consumers
+/// resolve it through the hardened delegation pipeline afterwards.
 pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -> Result<()> {
     if !anvil_architecture::yaml_parser::architecture_yaml_exists(root) {
         bail!(
@@ -575,8 +580,10 @@ pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -
         .is_some_and(|v| !v.is_null())
     {
         bail!(
-            "{} already has an `architecture` section — nothing to migrate \
-             (remove the standalone file once the section is authoritative)",
+            "{} already has an `architecture` section — nothing to migrate. \
+             If the section delegates to the standalone file via \
+             `architecture.source`, keep the file; otherwise remove it once \
+             the section is authoritative",
             project.label
         );
     }
@@ -595,14 +602,16 @@ pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -
     // DISTRIB-006 (ADR-060): durable per-project mutation.
     crate::install_root::ensure_project_write_allowed("migrate architecture")?;
 
-    if !project.value.is_object() {
-        project.value = serde_json::Value::Object(serde_json::Map::new());
-    }
-    project
-        .value
-        .as_object_mut()
-        .expect("normalised above")
-        .insert("architecture".into(), serde_json::json!({ "source": rel }));
+    // A config file that parses to a non-table top level must not be
+    // silently replaced — that would discard whatever the file held.
+    let Some(root_obj) = project.value.as_object_mut() else {
+        bail!(
+            "{} does not parse to a table at the top level — fix the config \
+             before migrating",
+            project.label
+        );
+    };
+    root_obj.insert("architecture".into(), serde_json::json!({ "source": rel }));
 
     let text = crate::commands::config::serialize_config(&project.value, project.writable_format)?;
     crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
@@ -1079,7 +1088,7 @@ mod tests {
     }
 
     #[test]
-    fn architecture_migrate_writes_only_the_source_line() {
+    fn architecture_migrate_adds_source_key_preserving_other_keys() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
         std::fs::write(

@@ -289,23 +289,24 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
     // Materialise the selection as the explicit top-level list — the
     // one truth the gate reads (and the UCFG-004 fold obligation: a
     // written selection is always an explicit list, so section-key
-    // presence can never resurrect a disabled check).
-    if !project.value.is_object() {
-        project.value = serde_json::Value::Object(serde_json::Map::new());
-    }
-    project
-        .value
-        .as_object_mut()
-        .expect("normalised above")
-        .insert(
-            "checks".to_string(),
-            serde_json::Value::Array(
-                selected
-                    .iter()
-                    .map(|s| serde_json::Value::String(s.clone()))
-                    .collect(),
-            ),
+    // presence can never resurrect a disabled check). A config that
+    // parses to a non-table top level must not be silently replaced.
+    let Some(root_obj) = project.value.as_object_mut() else {
+        bail!(
+            "{} does not parse to a table at the top level — fix the config \
+             before toggling checks",
+            project.label
         );
+    };
+    root_obj.insert(
+        "checks".to_string(),
+        serde_json::Value::Array(
+            selected
+                .iter()
+                .map(|s| serde_json::Value::String(s.clone()))
+                .collect(),
+        ),
+    );
 
     let text = serialize_config(&project.value, project.writable_format)?;
     crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
