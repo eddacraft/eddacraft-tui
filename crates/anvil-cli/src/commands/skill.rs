@@ -923,7 +923,6 @@ fn is_non_directory_component_err(err: nix::errno::Errno) -> bool {
     matches!(err, Errno::ENOTDIR)
 }
 
-
 #[cfg(unix)]
 fn write_regular_file_nofollow_unix(
     parent: &Path,
