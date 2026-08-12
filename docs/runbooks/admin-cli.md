@@ -1,12 +1,12 @@
 # Admin CLI Operator Runbook
 
-| Type    | Authority     | Owner                | Status | Freshness                                                                                                                                                         |
-| ------- | ------------- | -------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CIB, FLEET-007, BACT | Live   | Last reviewed 2026-08-13 against BACT-003/006 engagement filters, the BACT-007 plan/DAA/quiet vocabulary section, and the BACT-009 admin activity metrics surface |
+| Type    | Authority     | Owner                | Status | Freshness                                                                                                                                                                                             |
+| ------- | ------------- | -------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB, FLEET-007, BACT | Live   | Last reviewed 2026-08-13 against BACT-003/006 engagement filters, the BACT-007 plan/DAA/quiet vocabulary section, the BACT-009 admin activity metrics surface, and the BACT-011 daily activity rollup |
 
-| Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Downstream                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `crates/anvil-cli/src/commands/admin.rs`, `apps/anvil-api/src/middleware/admin-auth.ts`, `apps/anvil-api/src/lib/fleet-overview.ts`, `apps/anvil-api/src/lib/account-activity-metrics.ts`, `plans/modules/fleet-telemetry.aps.md#fleet-007-operator-fleet-view`, `plans/modules/continuous-improvement-backlog.aps.md#cib-004-simplify-admin-key-retrieval-with-credential-source-config`, `plans/archive/modules/admin-cli-hardening.aps.md`, GitHub issue #952 | Operator admin procedures; release/support handoff for admin key handling and fleet evidence |
+| Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli/src/commands/admin.rs`, `apps/anvil-api/src/middleware/admin-auth.ts`, `apps/anvil-api/src/lib/fleet-overview.ts`, `apps/anvil-api/src/lib/account-activity-metrics.ts`, `apps/anvil-api/src/lib/account-activity-rollup.ts`, `apps/anvil-api/src/routes/cron.ts`, `plans/modules/fleet-telemetry.aps.md#fleet-007-operator-fleet-view`, `plans/modules/continuous-improvement-backlog.aps.md#cib-004-simplify-admin-key-retrieval-with-credential-source-config`, `plans/archive/modules/admin-cli-hardening.aps.md`, GitHub issue #952 | Operator admin procedures; release/support handoff for admin key handling and fleet evidence |
 
 `anvil admin` is the Rust operator CLI surface that wraps Anvil's admin HTTP API
 (`/admin/*`). It is the supported way to approve waitlist signups, invite beta
@@ -554,6 +554,62 @@ Output:
   logged in, refreshed, or touched an allowlisted feature)
 - `quiet.count` — accounts with no activity ever, or activity strictly older
   than `--idle-days` (an account exactly `--idle-days` old is not yet quiet)
+
+### Daily historical-DAA rollup (BACT-011)
+
+`admin activity` (above) answers "how many accounts are active **right now**"
+from the live `last_activity_at` pointer. It cannot answer "how many accounts
+were active on day D" once accounts have gone quiet or become active again on a
+later day — that evidence is gone from `beta_users` the moment the pointer moves
+on. **BACT-011** adds a daily snapshot table, `activity_rollup_daily` (migration
+`022-account-activity-rollup-daily.sql`), for that historical question.
+
+**The job.** No new scheduling mechanism was introduced — the rollup piggybacks
+on the **existing hourly Vercel Cron sweep**, `GET /cron/cleanup`
+(`apps/anvil-api/src/routes/cron.ts`), the same
+`Bearer ${CRON_SECRET}`-protected, non-public route BACT-011 shares with
+telemetry-beacon rollup and expired-token cleanup (`vercel.json`:
+`{ "path": "/api/v1/cron/cleanup", "schedule": "0 * * * *" }`). Every hourly run
+recomputes the trailing **7** completed UTC days (per `plan`, plus a reserved
+`__all__` total row) and **upserts** each `(day, plan)` row — never increments —
+so re-running the same day any number of times never double-counts, and a short
+outage self-heals on the next run.
+
+**Grain and retention.** One row per completed UTC day × plan (today only
+`beta`, plus the `__all__` total). Kept **indefinitely** — volume is trivial (at
+most a handful of rows per day), and unlike FLEET's raw `telemetry_beacons`
+there is no per-event table behind this rollup to prune; the rollup itself _is_
+the retained aggregate.
+
+**Honest limitation — late rollup undercounts.** `last_activity_at` is a
+_latest-pointer_ column, not an activity log. A day's count is computed at
+rollup time from whichever accounts currently show `last_activity_at` falling on
+that UTC day. If a day is rolled up **late** — after an account's
+`last_activity_at` has already advanced past it (the account was active again on
+a later day before the job ever saw the earlier day) — that earlier day's count
+can no longer see the account and **undercounts**. The 7-day trailing window
+means a Vercel Cron outage shorter than a week self-heals; an outage or backfill
+gap longer than that, or an account whose next activity lands inside the window
+before the earlier day is ever rolled up, does not recover the lost evidence.
+Treat `activity_rollup_daily` as directional recent history, not an exact audit
+log.
+
+**Reading history.** `GET /admin/activity?history=true` (optional
+`&historyDays=N`, default **14**, max **90**) attaches a `history` block —
+`{ days, series: [{ day, plan, activeAccounts }, …] }`, most-recent day first —
+to the same envelope `admin activity` already returns. Add `plan=` to scope the
+series to one plan; omit it for the `__all__` cross-plan total series. Omitting
+`history` entirely leaves the BACT-009 response unchanged (no second query runs)
+— this is additive and backward tolerant.
+
+```bash
+anvil --json admin activity --plan beta   # existing BACT-009 window metrics
+# History is not yet wired to a CLI flag (deliberately deferred — the admin
+# API + this runbook satisfy BACT-011's read-path requirement). Operators
+# call the API directly for now:
+curl -H "Authorization: Bearer $ADMIN_KEY" \
+  "$ANVIL_API_URL/admin/activity?plan=beta&history=true&historyDays=30"
+```
 
 ### Plan, activity, and DAA vocabulary
 

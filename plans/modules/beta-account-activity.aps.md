@@ -376,7 +376,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-011: Daily account-activity rollup (historical DAA)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** Medium
 - **Confidence:** medium — scheduling surface (cron vs external) at execution.
 - **Intent:** Reconstruct “how many accounts were active on day D” after users
