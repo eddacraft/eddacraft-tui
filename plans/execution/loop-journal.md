@@ -857,3 +857,20 @@ never with feature work.
 - Authority: no admin merge, no bypass, no review dismissal.
 - Next: UCFG-004 land; then UCFG-005 (dep 004) and UCFG-006 (dep 003, now
   unblocked) — 006 parallel-eligible.
+
+## Cycle — 2026-08-13 (UCFG drain, wave 1 cont.: UCFG-009 + UCFG-004 integrated)
+
+- UCFG-009 (unified policy discovery):
+  `MERGED(dcc44fa28138dc7272947aeaf0d710305249f9af, 2026-08-12T20:35:30Z)`
+  via PR #3831; ancestor check passed post-fetch. Verifier round 1 blocking
+  (capsule attestation drift) repaired in-branch; round 2 pass. Copilot
+  threads: policy_variants stat-error swallow fixed (also verifier
+  advisory); temporary-lifetime-extension claim refuted.
+- UCFG-004 (gate section schema):
+  `MERGED(559d9c4223b98a72f9f50b594a4d2a92e126e0ad, 2026-08-12T20:27:12Z)`
+  via PR #3832; ancestor check passed. Verifier pass-with-advisories; all
+  four folded pre-push (incl. two UCFG-005 fold obligations pinned into the
+  module).
+- Plan changes: UCFG-009/004 → Merged; UCFG-006 In Progress (this branch).
+- Authority: no admin merge, no bypass, no review dismissal.
+- Next: UCFG-006 land → UCFG-007; UCFG-005 (dep 004) parallel-eligible.

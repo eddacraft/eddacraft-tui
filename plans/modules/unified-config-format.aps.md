@@ -231,7 +231,7 @@ Change status to **Ready** when:
 
 #### UCFG-004: `gate` section schema in the main config
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3832
 - **Intent:** define the `gate` section holding what `gate-config.json`
   carried (check enablement, `overall_score`, global config), reconciled with
   the `checks` key gate runs already read
@@ -280,7 +280,7 @@ Change status to **Ready** when:
 
 #### UCFG-006: `SectionOrSource<T>` in anvil-config
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** implement exclusive inline-XOR-source delegation with clear
   errors (both present, neither, nested delegation, missing target, `../`
   traversal, absolute or Windows drive/UNC path, symlink escaping the
@@ -345,7 +345,7 @@ Change status to **Ready** when:
 
 #### UCFG-009: policy discovery via anvil_config::discover
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3831
 - **Intent:** replace the hand-rolled `anvil/policy.*` candidate lists in
   `hook.rs` and `l4_validate.rs` with `anvil_config::discover`. One
   deliberate behaviour change (ADR-120 pt 6): the hand-rolled lists are

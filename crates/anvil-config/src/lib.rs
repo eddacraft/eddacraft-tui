@@ -4,6 +4,7 @@
 //! single merge model.
 
 mod canonical;
+mod delegation;
 mod discover;
 mod format;
 mod gate_section;
@@ -13,6 +14,7 @@ mod rule_modes;
 mod validation;
 
 pub use canonical::{CanonicalError, canonical_json_bytes};
+pub use delegation::{DelegationError, ResolvedSection, SectionProvenance, resolve_section};
 pub use discover::{DISCOVER_PRECEDENCE, DiscoveredConfig, discover};
 pub use format::ConfigFormat;
 pub use gate_section::{GateSection, GateSectionError};
