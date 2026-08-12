@@ -80,8 +80,8 @@ The governing invariant this module encodes (spec §1):
 - `crates/anvil-policy-engine` — policy evaluation used by the constraint layer
 - `crates/anvil-intercept`, `crates/anvil-kernel` — activation owners that must
   expose attestation for enforcement-critical controls
-- `crates/anvil-cli` — existing `anvil config show` / `validate` compatibility
-  surface and the global exit-code contract
+- `crates/anvil-cli` — existing `anvil config` (`show` / `set` / `convert`)
+  compatibility surface and the global exit-code contract
 
 **Exposes:**
 

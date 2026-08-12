@@ -794,8 +794,8 @@ discovery and file layout), [ORGHIER](./modules/org-policy-hierarchy.aps.md)
 (constraint inputs), [FLAGCAT](./modules/feature-flag-catalogue.aps.md) (flags
 are catalogue entries, not a second registry), and
 [ACTTUI](./modules/activation-tui.aps.md) (shared TUI posture and honesty copy
-pins). `anvil config show` / `validate` remain the low-level compatibility
-interface on the same resolver — nothing here deprecates them.
+pins). `anvil config` (`show` / `set` / `convert`) remains the low-level
+compatibility interface on the same resolver — nothing here deprecates it.
 
 ### Future
 

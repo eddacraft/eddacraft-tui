@@ -57,8 +57,8 @@ Audit tab would imply historical coverage Anvil cannot evidence.
   and `d` render as inspect-only or explain the controlling authority
 - Audit view and `anvil settings audit` (SETGOV)
 - Natural-language querying or mutation (SETNL)
-- Deprecating or changing `anvil config show` / `anvil config validate` — they
-  remain the low-level compatibility interface on the same resolver
+- Deprecating or changing `anvil config` (`show` / `set` / `convert`) — it
+  remains the low-level compatibility interface on the same resolver
 - New configurable behaviour; this module surfaces what exists
 
 ## Interfaces
