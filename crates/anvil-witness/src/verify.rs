@@ -88,6 +88,22 @@ pub enum VerifyError {
         line_number: usize,
         merge_at_seq: u64,
     },
+    /// First-line `cutoff_commit` does not match the genesis anchor
+    /// contract (ADR-037 §D-2 / MLP2-013): `GENESIS-BASELINED` requires
+    /// a non-empty cutoff; `GENESIS-FRESH` requires absence.
+    #[error(
+        "invalid baseline-anchor metadata at {path}:{line_number}: \
+         anchor {anchor} expects cutoff_commit {expected}, found {actual}"
+    )]
+    InvalidBaselineAnchorMetadata {
+        path: PathBuf,
+        line_number: usize,
+        anchor: String,
+        /// Human-readable expectation, e.g. `"present"` or `"absent"`.
+        expected: &'static str,
+        /// Human-readable actual state, e.g. `"present"` or `"absent"`.
+        actual: &'static str,
+    },
 }
 
 /// Summary returned by a successful [`verify_chain`] call.
@@ -281,6 +297,7 @@ fn check_linear_edge(
                 actual: line.prev_line_hash.clone(),
             }
         })?;
+        check_genesis_cutoff_contract(path, line_number, &a, line)?;
         state.anchor = Some(a);
         return Ok(());
     }
@@ -303,6 +320,40 @@ fn check_linear_edge(
         });
     }
     Ok(())
+}
+
+/// Enforce ADR-037 §D-2 / MLP2-013 pairing of genesis anchors with
+/// `cutoff_commit` on the first chain line only.
+///
+/// - `GENESIS-BASELINED` must carry a non-empty `cutoff_commit` (the
+///   baseline cut-over SHA lives on the line body, not the anchor string).
+/// - `GENESIS-FRESH` must omit `cutoff_commit` (greenfield has no cutoff).
+fn check_genesis_cutoff_contract(
+    path: &Path,
+    line_number: usize,
+    anchor: &GenesisAnchor,
+    line: &WitnessLine,
+) -> Result<(), VerifyError> {
+    let has_cutoff = line.cutoff_commit.as_ref().is_some_and(|s| !s.is_empty());
+    match anchor {
+        GenesisAnchor::Baselined if !has_cutoff => {
+            Err(VerifyError::InvalidBaselineAnchorMetadata {
+                path: path.to_path_buf(),
+                line_number,
+                anchor: anchor.anchor_string().to_string(),
+                expected: "present",
+                actual: "absent",
+            })
+        }
+        GenesisAnchor::Fresh if has_cutoff => Err(VerifyError::InvalidBaselineAnchorMetadata {
+            path: path.to_path_buf(),
+            line_number,
+            anchor: anchor.anchor_string().to_string(),
+            expected: "absent",
+            actual: "present",
+        }),
+        _ => Ok(()),
+    }
 }
 
 fn check_sequence(
@@ -616,6 +667,87 @@ mod tests {
         let report = verify_chain(&[writer.active_path().as_path()]).unwrap();
         assert_eq!(report.anchor, Some(GenesisAnchor::Fresh));
         assert_eq!(report.line_count, 1);
+    }
+
+    /// Regression: a `GENESIS-BASELINED` first line without `cutoff_commit`
+    /// must not verify. The baseline boundary is recorded on the line
+    /// body; accepting a missing cutoff reports a healthy chain that
+    /// never pinned the cut-over commit.
+    #[test]
+    fn verify_rejects_baselined_genesis_without_cutoff_commit() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("witness.ndjson");
+        let mut genesis = WitnessLine::genesis(
+            &GenesisAnchor::Baselined,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-05-13T00:00:00Z",
+            "baseline",
+            None,
+        );
+        // Builder allows None for callers that fill fields later; the
+        // verifier must still refuse the invalid pairing on disk.
+        assert!(genesis.cutoff_commit.is_none());
+        let mut bytes = genesis.to_canonical_bytes().unwrap();
+        bytes.push(b'\n');
+        fs::write(&path, bytes).unwrap();
+
+        let err = verify_chain_dag(&[path.as_path()]).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                VerifyError::InvalidBaselineAnchorMetadata {
+                    expected: "present",
+                    actual: "absent",
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
+        // Empty-string cutoff is not a present cutoff either.
+        genesis.cutoff_commit = Some(String::new());
+        let mut bytes = genesis.to_canonical_bytes().unwrap();
+        bytes.push(b'\n');
+        fs::write(&path, bytes).unwrap();
+        let err = verify_chain_dag(&[path.as_path()]).unwrap_err();
+        assert!(
+            matches!(err, VerifyError::InvalidBaselineAnchorMetadata { .. }),
+            "empty cutoff must also fail, got {err:?}"
+        );
+    }
+
+    /// Regression: a `GENESIS-FRESH` first line must not carry
+    /// `cutoff_commit`. Greenfield adoption has no baseline boundary;
+    /// a spurious cutoff would invent one.
+    #[test]
+    fn verify_rejects_fresh_genesis_with_cutoff_commit() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("witness.ndjson");
+        let mut genesis = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-05-13T00:00:00Z",
+            "pre-commit",
+            None,
+        );
+        genesis.cutoff_commit = Some("a3b2ea4ecafef00d".to_string());
+        let mut bytes = genesis.to_canonical_bytes().unwrap();
+        bytes.push(b'\n');
+        fs::write(&path, bytes).unwrap();
+
+        let err = verify_chain_dag(&[path.as_path()]).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                VerifyError::InvalidBaselineAnchorMetadata {
+                    expected: "absent",
+                    actual: "present",
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
     }
 
     #[test]
