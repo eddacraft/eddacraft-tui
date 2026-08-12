@@ -20,6 +20,8 @@
     "check:runtime-cjs": "node scripts/check-runtime-cjs.cjs",
     "migrate": "node scripts/migrate.mjs",
     "migrate:dry-run": "node scripts/migrate.mjs --dry-run",
+    "backfill:activity": "node scripts/backfill-activity.mjs",
+    "backfill:activity:apply": "node scripts/backfill-activity.mjs --apply",
     "dev": "npx wrangler dev src/index.ts"
   },
   "repository": {
