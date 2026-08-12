@@ -234,7 +234,7 @@ release rather than `main`.
 - **Confidence:** medium
 - **Status:** In Progress
 
-### DOCFRESH-005: Public-doc governance in frontmatter — Ready
+### DOCFRESH-005: Public-doc governance in frontmatter — In Progress
 
 - **Intent:** Give the 91 public documents an owner, a declared upstream, and a
   verification anchor without putting anything on the rendered page.
@@ -248,7 +248,12 @@ release rather than `main`.
 - **Dependencies:** DOCFRESH-001
 - **Validation:** `pnpm docs:public:check` and a docs-site build
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** In Progress — PR #3830 open (independently verified,
+  pass-with-advisories). Delivered with one recorded narrowing: the
+  external-upstream sections (`kindling`, `aps`, `edda-stack` — 41 pages)
+  carry owner-only governance because their sources are not in this tree;
+  the full-triple requirement for them is DOCFRESH-008's decision, and the
+  checker counts the exclusion visibly on every run.
 
 ### DOCFRESH-006: Verify public docs at the release boundary — Draft
 
