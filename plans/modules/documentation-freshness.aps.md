@@ -7,8 +7,23 @@
 | --------- | ----- | -------- | ------ | -------- |
 | DOCFRESH  | —     | high     | In Progress | 0/8 |
 
-**Last reviewed:** 2026-08-12 — DOCFRESH-001 **Merged via PR #3787**;
-DOCFRESH-002 **In Progress**. The D2 granularity split now lands: severity is
+**Last reviewed:** 2026-08-12 — DOCFRESH-003 **In Progress**: the trigger moves
+off `markdownlint-required` onto `code-changed`, which is the change that
+actually closes the structural gap. `source-changed` was the obvious candidate
+and is wrong — it resolves to format|lint|typecheck|unit-tests, which a
+Rust-only or workflow-only pull request never sets, and Rust-only is the
+motivating case. Diff-scoped with `--fail-on-owed`, so it can fail only for
+unbaselined gate-eligible findings that the commit itself caused (ADR-117 plus
+D2/D8).
+
+Dogfood note: this change edits `.github/workflows/ci.yml`, a declared upstream
+of `docs/guides/testing.md`, so the new gate fires on the very pull request that
+introduces it. Resolved the way the gate intends — the guide was read against the
+change (it documents test conventions rather than CI job structure, so no
+content change was needed) and its review date bumped.
+
+**Earlier — 2026-08-12** — DOCFRESH-001 **Merged via PR #3787**;
+DOCFRESH-002 **Merged via PR #3795**. The D2 granularity split landed: severity is
 the AND of confidence and granularity, so only an `owed` finding backed by a
 file-level upstream can reach ERROR. Glob upstreams are classified rather than
 discarded — the previous behaviour silently dropped the `scripts/release/*`
@@ -117,7 +132,7 @@ release rather than `main`.
 - **Confidence:** high
 - **Status:** Merged 2026-08-12 via PR #3787
 
-### DOCFRESH-002: Split findings by upstream granularity — In Progress
+### DOCFRESH-002: Split findings by upstream granularity — Merged
 
 - **Intent:** Ensure only claims precise enough to act on can ever turn a check
   red, per ADR-119 D2.
@@ -131,9 +146,9 @@ release rather than `main`.
 - **Validation:** `bash scripts/docs/docs-check.test.sh` — includes a
   directory-upstream fixture asserting WARN, never ERROR
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3795
 
-### DOCFRESH-003: Move the trigger from docs-changed to upstream-changed — Ready
+### DOCFRESH-003: Move the trigger from docs-changed to upstream-changed — In Progress
 
 - **Intent:** Close the structural gap — a code change that stales a document
   must run the check that notices.
@@ -150,7 +165,7 @@ release rather than `main`.
 - **Validation:** `pnpm test:ci-classify` plus a dry run of
   `node scripts/docs/check-docs-owed.mjs --since origin/main`
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** In Progress
 
 ### DOCFRESH-004: Grow the checkable corpus — Ready
 

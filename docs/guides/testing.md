@@ -1,8 +1,8 @@
 # Testing Best Practices
 
-| Type  | Authority     | Owner | Status | Freshness                                                                               |
-| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------- |
-| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-07-07 against `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                     |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-08-12 against `.github/workflows/ci.yml` (DOCFRESH-003 adds a Docs Lint step; this guide documents test conventions rather than CI job structure, so no content change was needed), `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
 
 | Upstream                                                                                                                                                                  | Downstream                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |

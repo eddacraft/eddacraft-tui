@@ -137,23 +137,32 @@ jobs:
       # step-conditional and do not execute. This eliminates the prior twin
       # `docs-lint-skip` job (same name) that produced success+skipped duplicates
       # under the ruleset. See CIB-038.
+      # DOCFRESH-003 adds `code-changed` to this exclusion list: the freshness
+      # step below runs on any non-docs change, so a run that executed it must
+      # not also announce that no docs checks ran.
       - name: Skip (filler) when no .md changes on PR
         if: |
           github.event_name == 'pull_request' &&
           needs.detect-changes.result == 'success' &&
           needs.detect-changes.outputs.markdownlint-required != 'true' &&
           needs.detect-changes.outputs.source-changed != 'true' &&
-          needs.detect-changes.outputs.script-fixtures-required != 'true'
+          needs.detect-changes.outputs.script-fixtures-required != 'true' &&
+          needs.detect-changes.outputs.code-changed != 'true'
         run: |
           echo "Skipped — no .md changes detected (CIB-038)"
           echo '::notice title=Docs Lint (filler)::Job concluded success without executing docs lint/format/docs:check/APS checks. Provides the single required "Docs Lint" conclusion for docs-only PRs so the main ruleset sees CLEAN (no success+skipped duplicate). Real work only on markdownlint-required paths.'
 
+      # `code-changed` joins the gate here for DOCFRESH-003. The documentation
+      # freshness check keys on *any* non-docs change, so the workspace has to
+      # exist for changes that no other Docs Lint step cares about — a Rust-only
+      # or workflow-only pull request, for instance.
       - name: Checkout repository
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
           needs.detect-changes.outputs.source-changed == 'true' ||
-          needs.detect-changes.outputs.script-fixtures-required == 'true'
+          needs.detect-changes.outputs.script-fixtures-required == 'true' ||
+          needs.detect-changes.outputs.code-changed == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -163,7 +172,8 @@ jobs:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
           needs.detect-changes.outputs.source-changed == 'true' ||
-          needs.detect-changes.outputs.script-fixtures-required == 'true'
+          needs.detect-changes.outputs.script-fixtures-required == 'true' ||
+          needs.detect-changes.outputs.code-changed == 'true'
         uses: ./.github/actions/setup-workspace
 
       - name: Run markdown lint
@@ -178,10 +188,14 @@ jobs:
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run format:check
 
+      # Also required by the DOCFRESH-003 step below, which parses governance
+      # metadata through this package on `code-changed` runs where no other
+      # docs step executes.
       - name: Build docs-meta package for docs:check
         if:
           needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true'
+          needs.detect-changes.outputs.markdownlint-required == 'true' ||
+          needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm -F @eddacraft/anvil-docs-meta build
 
       - name: Install the public-doc command truth binary
@@ -211,6 +225,39 @@ jobs:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run docs:check
+
+      # DOCFRESH-003 (ADR-119). The structural gap this closes: every heavy step
+      # above keys on `markdownlint-required`, so documentation was validated
+      # when documentation changed and staled when *code* changed. A pull request
+      # rewriting `crates/anvil-cli/src/commands/hooks.rs` — the declared
+      # upstream of `docs/guides/git-hook-compatibility.md` — ran no
+      # documentation check at all.
+      #
+      # Why `code-changed` and not `source-changed`: `source-changed` is
+      # format|lint|typecheck|unit-tests, which a Rust-only or workflow-only
+      # change never sets. That is precisely the case the check exists for.
+      #
+      # Diff-scoped on purpose (ADR-117): this reports only what THIS change
+      # owes, so it can fail only for something the commit did. The corpus
+      # backlog is not this step's business.
+      #
+      # `--fail-on-owed` restricts failure further, to unbaselined findings that
+      # are gate-eligible — `owed` AND backed by a file-level upstream (ADR-119
+      # D2/D8). A document already in the baseline stays absorbed when its
+      # upstream moves again, so only a document newly entering the owed set can
+      # turn this red.
+      - name: Check documentation owed by this change (DOCFRESH-003)
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true' ||
+          needs.detect-changes.outputs.code-changed == 'true'
+        env:
+          # Empty on `push`, where the step falls back to the previous commit.
+          DOCS_OWED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${DOCS_OWED_BASE:-$(git rev-parse HEAD~1)}"
+          echo "Comparing declared upstreams against ${base}"
+          node scripts/docs/check-docs-owed.mjs --since "${base}" --fail-on-owed
 
       - name: Report APS index count drift (CIB-022/025 advisory)
         if:
@@ -1196,5 +1243,3 @@ jobs:
             esac
           done
           exit "$failed"
-
-# noop
