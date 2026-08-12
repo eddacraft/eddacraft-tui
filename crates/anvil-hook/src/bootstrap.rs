@@ -52,7 +52,11 @@ pub fn generate_husky_runtime() -> Vec<HuskyRuntime> {
 // to get the matching version. This bootstrap path exists
 // because `pnpm install` hasn't been run yet, not because we
 // want to replace Husky.
-const HUSKY_RUNTIME_H: &str = "#!/usr/bin/env sh\n[ \"$HUSKY\" = \"0\" ] && exit 0\nh=\"$(dirname -- \"$0\")/$1\"\n[ -x \"$h\" ] && \"$h\" \"$@\" || true\n";
+// Preserve the target hook's exit status. Only treat a missing or
+// non-executable target as a no-op (Husky contract). Do not append
+// `|| true` after the invocation — that would swallow block decisions
+// and any failing user hook (see ADR-038 noise discipline).
+const HUSKY_RUNTIME_H: &str = "#!/usr/bin/env sh\n[ \"$HUSKY\" = \"0\" ] && exit 0\nh=\"$(dirname -- \"$0\")/$1\"\n[ -x \"$h\" ] || exit 0\n\"$h\" \"$@\"\n";
 
 const HUSKY_RUNTIME_HUSKY_SH: &str =
     "# husky v8 back-compat stub; husky v9 uses .husky/_/h directly.\n";
@@ -271,5 +275,118 @@ mod tests {
         // walk from the regular pre-commit / post-rewrite-recovery
         // sources. Stable wire-format; do not drift.
         assert_eq!(BOOTSTRAP_RECOVERY_VALIDATION_AT, "bootstrap-recovery");
+    }
+
+    #[test]
+    fn husky_h_does_not_contain_or_true_swallow() {
+        // ADR-038 / clawpatch: `|| true` after the target invocation
+        // would swallow block decisions and any failing user hook.
+        let files = generate_husky_runtime();
+        let h = files
+            .iter()
+            .find(|f| f.relative_path == ".husky/_/h")
+            .unwrap();
+        assert!(
+            !h.contents.contains("|| true"),
+            "generated husky runtime must not swallow hook failures with `|| true`"
+        );
+    }
+
+    /// Behavioural regression: execute the generated `h` against a
+    /// failing target and require the runtime exit code to match.
+    #[cfg(unix)]
+    #[test]
+    fn husky_h_runtime_propagates_failing_hook_exit_status() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime_path = dir.path().join("h");
+        let target_name = "failing-hook";
+        let target_path = dir.path().join(target_name);
+
+        let files = generate_husky_runtime();
+        let runtime = files
+            .iter()
+            .find(|f| f.relative_path == ".husky/_/h")
+            .expect("h runtime present");
+        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
+        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod runtime");
+
+        // Target under the same directory as the runtime, named via $1.
+        std::fs::write(&target_path, "#!/usr/bin/env sh\nexit 1\n").expect("write target");
+        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod target");
+
+        let status = Command::new(&runtime_path)
+            .arg(target_name)
+            .status()
+            .expect("run runtime");
+        assert_eq!(
+            status.code(),
+            Some(1),
+            "runtime must propagate the failing hook's exit status, got {status:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn husky_h_runtime_propagates_success_exit_status() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime_path = dir.path().join("h");
+        let target_name = "ok-hook";
+        let target_path = dir.path().join(target_name);
+
+        let files = generate_husky_runtime();
+        let runtime = files
+            .iter()
+            .find(|f| f.relative_path == ".husky/_/h")
+            .expect("h runtime present");
+        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
+        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod runtime");
+
+        std::fs::write(&target_path, "#!/usr/bin/env sh\nexit 0\n").expect("write target");
+        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod target");
+
+        let status = Command::new(&runtime_path)
+            .arg(target_name)
+            .status()
+            .expect("run runtime");
+        assert_eq!(status.code(), Some(0));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn husky_h_runtime_missing_target_is_noop() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime_path = dir.path().join("h");
+
+        let files = generate_husky_runtime();
+        let runtime = files
+            .iter()
+            .find(|f| f.relative_path == ".husky/_/h")
+            .expect("h runtime present");
+        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
+        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod runtime");
+
+        let status = Command::new(&runtime_path)
+            .arg("does-not-exist")
+            .status()
+            .expect("run runtime");
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "absent target must remain a no-op (Husky contract)"
+        );
     }
 }
