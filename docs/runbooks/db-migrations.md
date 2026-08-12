@@ -202,3 +202,5 @@ runner so the schema change and `_migrations` row are written together.
 - Module: `plans/modules/v050-release-followups.aps.md` §V050F-014
 - Smoke check: `docs/runbooks/post-deploy-smoke-check.md`
 - DB operations: `docs/runbooks/neon-db-operations.md`
+- A related one-shot data script (not a schema migration) using the same runner
+  shape: `docs/runbooks/account-activity-backfill.md` (BACT-012)

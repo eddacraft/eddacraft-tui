@@ -995,3 +995,5 @@ logs request/response metadata in the Vercel logs for 7 days.
 - Waitlist email operations: `docs/runbooks/waitlist-email-operations.md`
 - Release announcement email: `docs/runbooks/release-announcement-email.md`
 - Observability triage: `docs/runbooks/observability-triage.md`
+- One-shot `last_activity_at` refresh-token backfill (BACT-012):
+  `docs/runbooks/account-activity-backfill.md`

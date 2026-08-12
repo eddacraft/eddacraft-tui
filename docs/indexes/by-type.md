@@ -116,6 +116,7 @@
 
 | Document                                                                                                           | Path                                                | Type    | Authority     | Owner                | Status |
 | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- | ------- | ------------- | -------------------- | ------ |
+| [Account Activity Backfill Runbook (BACT-012)](../../docs/runbooks/account-activity-backfill.md)                   | `docs/runbooks/account-activity-backfill.md`        | Runbook | Authoritative | @aneki               | Live   |
 | [Acknowledgements Starter Kit Release — Operator Runbook](../../docs/runbooks/acknowledgements-starter-release.md) | `docs/runbooks/acknowledgements-starter-release.md` | Runbook | Authoritative | @aneki               | Live   |
 | [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                                     | `docs/runbooks/admin-cli.md`                        | Runbook | Authoritative | CIB, FLEET-007, BACT | Live   |
 | [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                                               | `docs/runbooks/anvil-adoption.md`                   | Runbook | Authoritative | @aneki               | Live   |
