@@ -697,7 +697,6 @@ fn run_admin_auth(command: &AdminAuthCommand, global: &GlobalArgs) -> Result<()>
     Ok(())
 }
 
-
 fn users_engagement_value(v: UsersEngagement) -> &'static str {
     match v {
         UsersEngagement::NeverLoggedIn => "never_logged_in",
@@ -1070,7 +1069,6 @@ fn print_waitlist(result: &WaitlistResponse) {
     println!("\nShowing {} of {}", result.items.len(), result.total);
 }
 
-
 fn print_users_engagement(result: &UsersEngagementResponse) {
     println!("USERS ({})", result.engagement);
     if let Some(days) = result.idle_days {
@@ -1109,11 +1107,7 @@ fn print_user(result: &ShowUserResponse) {
             println!("first login: {}", date_only(first));
             println!(
                 "last login:  {}",
-                result
-                    .user
-                    .last_login_at
-                    .as_deref()
-                    .map_or("-", date_only)
+                result.user.last_login_at.as_deref().map_or("-", date_only)
             );
             println!(
                 "login method: {}",

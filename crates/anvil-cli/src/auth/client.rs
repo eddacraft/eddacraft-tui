@@ -511,7 +511,6 @@ impl AnvilClient {
         self.get_with_query("/admin/users", &query).await
     }
 
-
     pub async fn get_fleet_overview(&self) -> Result<FleetOverviewResponse> {
         self.get("/admin/fleet").await
     }

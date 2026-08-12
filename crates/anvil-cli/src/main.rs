@@ -1,3 +1,4 @@
+mod account_activity;
 mod activation;
 mod auth;
 mod capacity;
@@ -25,7 +26,6 @@ mod policy_vocab;
 mod registration;
 mod services;
 mod telemetry;
-mod account_activity;
 #[cfg(test)]
 mod test_support;
 mod tui;
