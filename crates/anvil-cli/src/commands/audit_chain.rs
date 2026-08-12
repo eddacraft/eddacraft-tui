@@ -1110,8 +1110,7 @@ mod tests {
         // bare flag, and shell assignment) so a partial regression still fails.
         let run_script = t
             .split_once("name: Run L5 audit")
-            .map(|(_, rest)| rest)
-            .unwrap_or(t);
+            .map_or(t, |(_, rest)| rest);
         let forbidden = [
             "--branch \"${{ github.event.inputs",
             "--branch ${{ github.event.inputs",
