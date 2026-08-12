@@ -1675,10 +1675,11 @@ mod tests {
         );
     }
 
-    /// Regression: an in-memory PolicyException with an unsupported
-    /// non-empty schema_version must not be accepted by `add`, and must
-    /// not be persistable via `save` (otherwise the next load fails with
-    /// Parse and the tracked store is left unreadable).
+    /// Regression: an in-memory [`PolicyException`] with an unsupported
+    /// non-empty `schema_version` must not be accepted by [`ExceptionStore::add`],
+    /// and must not be persistable via [`ExceptionStore::save`] (otherwise the
+    /// next load fails with [`ExceptionError::Parse`] and the tracked store is
+    /// left unreadable).
     #[test]
     fn store_add_rejects_unsupported_schema_version() {
         let mut store = ExceptionStore::empty();
