@@ -15,6 +15,7 @@ const cronMocks = vi.hoisted(() => ({
   cleanupExpiredRefreshTokens: vi.fn(),
   cleanupExpiredBroadcastSnapshots: vi.fn(),
   rollupAndPurgeExpiredTelemetryBeacons: vi.fn(),
+  rollupAccountActivity: vi.fn(),
 }));
 
 function mockSql(): NeonClient {
@@ -129,6 +130,7 @@ describe('cron cleanup — telemetry retention sweep', () => {
     cronMocks.cleanupExpiredRefreshTokens.mockResolvedValue(0);
     cronMocks.cleanupExpiredBroadcastSnapshots.mockResolvedValue(0);
     cronMocks.rollupAndPurgeExpiredTelemetryBeacons.mockResolvedValue(7);
+    cronMocks.rollupAccountActivity.mockResolvedValue([]);
     cronMocks.getClient.mockReturnValue({} as NeonClient);
   });
 
@@ -141,6 +143,7 @@ describe('cron cleanup — telemetry retention sweep', () => {
       cleanupExpiredOtpCodes: cronMocks.cleanupExpiredOtpCodes,
       cleanupExpiredRefreshTokens: cronMocks.cleanupExpiredRefreshTokens,
       rollupAndPurgeExpiredTelemetryBeacons: cronMocks.rollupAndPurgeExpiredTelemetryBeacons,
+      rollupAccountActivity: cronMocks.rollupAccountActivity,
     }));
     const { cron } = await import('../routes/cron.js');
     vi.doUnmock('../db/client.js');

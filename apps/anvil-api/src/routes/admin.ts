@@ -21,6 +21,7 @@ import {
   consumeBroadcastSnapshot,
   findBroadcastSnapshot,
   findActiveScopesForUser,
+  findAccountActivityRollupHistory,
   type AuthMethod,
   type BroadcastSnapshot,
   type SnapshotRecipient,
@@ -116,14 +117,29 @@ admin.get('/fleet', async (c) => {
  * optional `plan` filter, and never-active / quiet cohort counts. Reports
  * accounts, never installs — distinct from the anonymous FLEET population
  * evidence at `GET /admin/fleet` above, which this route does not touch.
+ *
+ * BACT-011 (ADR-121 OQ-A): `?history=true` additionally attaches a
+ * `history` block — the recent daily-rollup series from
+ * `activity_rollup_daily` (migration 022), scoped to `plan` when given, or
+ * the all-plan total series otherwise. Backward tolerant: omitting
+ * `history` leaves the BACT-009 response shape byte-for-byte unchanged (no
+ * second query even runs). This is recent *history*, not a live count — see
+ * `lib/account-activity-rollup.ts` for the late-rollup undercount caveat.
  */
 admin.get('/activity', zValidator('query', accountActivityQuerySchema), async (c) => {
-  const { plan, idleDays } = c.req.valid('query');
-  debug('GET /admin/activity', { plan, idleDays });
+  const { plan, idleDays, history, historyDays } = c.req.valid('query');
+  debug('GET /admin/activity', { plan, idleDays, history, historyDays });
   const sql = getClient();
   const rows = await findAccountActivityRows(sql, plan ?? null);
   const result = buildAccountActivityOverview(rows, { idleDays, plan: plan ?? null });
-  return c.json(result);
+  if (!history) {
+    return c.json(result);
+  }
+  const series = await findAccountActivityRollupHistory(sql, {
+    plan: plan ?? null,
+    days: historyDays,
+  });
+  return c.json({ ...result, history: { days: historyDays, series } });
 });
 
 /**

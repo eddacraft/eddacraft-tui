@@ -8,9 +8,11 @@ import {
   cleanupExpiredOtpCodes,
   cleanupExpiredRefreshTokens,
   rollupAndPurgeExpiredTelemetryBeacons,
+  rollupAccountActivity,
 } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
 import { getTelemetryRetentionDays } from '../lib/telemetry-retention.js';
+import { DEFAULT_ROLLUP_LOOKBACK_DAYS, completedUtcDays } from '../lib/account-activity-rollup.js';
 
 const debug = createDebugger('api');
 
@@ -19,7 +21,9 @@ const cron = new Hono();
 /**
  * GET /cron/cleanup
  *
- * Purge expired device codes, OTP codes, and refresh tokens.
+ * Purge expired device codes, OTP codes, and refresh tokens. Also rolls up
+ * the trailing window of completed-UTC-day account-activity counts
+ * (BACT-011, ADR-121 OQ-A) — see `lib/account-activity-rollup.ts`.
  * Retains codes for 1 hour after expiry to allow for clock skew and
  * debugging before cleanup. Revoked refresh tokens are kept for 7 days
  * for audit purposes. Runs hourly via Vercel Cron.
@@ -57,6 +61,14 @@ cron.get('/cleanup', async (c) => {
     sql,
     getTelemetryRetentionDays()
   );
+  // BACT-011 (ADR-121 OQ-A): daily historical-DAA rollup piggybacks on this
+  // existing hourly sweep rather than a new scheduling mechanism. Recomputes
+  // a small trailing window of completed UTC days on every run (upsert —
+  // idempotent, never double-counts) so a short outage self-heals; a day
+  // left un-rolled longer than the window is subject to the late-rollup
+  // undercount documented in lib/account-activity-rollup.ts.
+  const rollupDays = completedUtcDays(new Date(), DEFAULT_ROLLUP_LOOKBACK_DAYS);
+  const activityRollupRows = await rollupAccountActivity(sql, rollupDays);
 
   debug('cleanup complete', {
     deviceCodes: deviceCount,
@@ -65,6 +77,8 @@ cron.get('/cleanup', async (c) => {
     refreshTokens: refreshCount,
     broadcastSnapshots: broadcastSnapshotCount,
     telemetryBeacons: telemetryBeaconCount,
+    activityRollupDays: rollupDays.length,
+    activityRollupRows: activityRollupRows.length,
   });
 
   return c.json({
@@ -75,6 +89,10 @@ cron.get('/cleanup', async (c) => {
       refreshTokens: refreshCount,
       broadcastSnapshots: broadcastSnapshotCount,
       telemetryBeacons: telemetryBeaconCount,
+    },
+    activityRollup: {
+      days: rollupDays.length,
+      rows: activityRollupRows.length,
     },
   });
 });

@@ -3,6 +3,8 @@ import type { NeonClient } from './client.js';
 import { hashToken } from '../lib/token.js';
 import type { GitHubIdentity } from '../lib/github-user.js';
 import { validateTelemetryRetentionDays } from '../lib/telemetry-retention.js';
+import { ACCOUNT_PLANS } from '../lib/account-activity.js';
+import { ROLLUP_TOTAL_PLAN_KEY } from '../lib/account-activity-rollup.js';
 
 const IdSchema = z.union([z.string(), z.number(), z.bigint()]).transform((v) => String(v));
 
@@ -1888,6 +1890,104 @@ export async function rollupAndPurgeExpiredTelemetryBeacons(
   ]);
   const purged = (txResult as unknown[][])[2] ?? [];
   return purged.length;
+}
+
+// ---------------------------------------------------------------------------
+// Account activity daily rollup (BACT-011, ADR-121 OQ-A)
+// ---------------------------------------------------------------------------
+
+export interface AccountActivityRollupRow {
+  day: string;
+  plan: string;
+  activeAccounts: number;
+}
+
+/**
+ * Recompute and upsert distinct active-account counts for each requested
+ * completed UTC day, per `plan` plus the `ROLLUP_TOTAL_PLAN_KEY` all-plan
+ * total (BACT-011, ADR-121 OQ-A). Each (day, plan) row is written by
+ * `ON CONFLICT ... DO UPDATE` (overwrite, never increment), so calling this
+ * again for a day already rolled up is idempotent and never double-counts.
+ *
+ * `days` should come from `completedUtcDays` (lib/account-activity-rollup.ts)
+ * — never the current, still-open UTC day. The UTC boundary is applied
+ * in-query (`AT TIME ZONE 'UTC'`) rather than relying on the Postgres
+ * session timezone, so the day a row lands in does not depend on
+ * connection-level configuration.
+ *
+ * See `lib/account-activity-rollup.ts` for why a day rolled up late (after
+ * an account's `last_activity_at` has moved past it) undercounts that day.
+ */
+export async function rollupAccountActivity(
+  sql: NeonClient,
+  days: string[]
+): Promise<AccountActivityRollupRow[]> {
+  if (days.length === 0) return [];
+  const plans = [...ACCOUNT_PLANS];
+  const result = await sql`
+    WITH days AS (
+      SELECT unnest(${days}::date[]) AS day
+    ),
+    plans AS (
+      SELECT unnest(${plans}::text[]) AS plan
+    ),
+    day_plan_counts AS (
+      SELECT d.day, p.plan, COUNT(DISTINCT u.id) AS cnt
+      FROM days d
+      CROSS JOIN plans p
+      LEFT JOIN beta_users u
+        ON u.plan = p.plan
+       AND u.status = 'active'
+       AND (u.last_activity_at AT TIME ZONE 'UTC')::date = d.day
+      GROUP BY d.day, p.plan
+    ),
+    totals AS (
+      SELECT day, ${ROLLUP_TOTAL_PLAN_KEY}::text AS plan, SUM(cnt)::int AS cnt
+      FROM day_plan_counts
+      GROUP BY day
+    ),
+    combined AS (
+      SELECT day, plan, cnt FROM day_plan_counts
+      UNION ALL
+      SELECT day, plan, cnt FROM totals
+    )
+    INSERT INTO activity_rollup_daily (day, plan, active_accounts, computed_at)
+    SELECT day, plan, cnt, now() FROM combined
+    ON CONFLICT (day, plan) DO UPDATE
+      SET active_accounts = EXCLUDED.active_accounts,
+          computed_at = EXCLUDED.computed_at
+    RETURNING day::text AS day, plan, active_accounts
+  `;
+  return (result as Record<string, unknown>[]).map((row) => ({
+    day: String(row['day']),
+    plan: String(row['plan']),
+    activeAccounts: Number(row['active_accounts']),
+  }));
+}
+
+/**
+ * Read recent rollup history for the admin read path (`GET /admin/activity
+ * ?history=true`). Defaults to the reserved all-plan total series
+ * (`ROLLUP_TOTAL_PLAN_KEY`); pass `plan` to read one plan's series instead.
+ * Most-recent day first, bounded to `days` rows.
+ */
+export async function findAccountActivityRollupHistory(
+  sql: NeonClient,
+  options: { plan: string | null; days: number }
+): Promise<AccountActivityRollupRow[]> {
+  const planKey = options.plan ?? ROLLUP_TOTAL_PLAN_KEY;
+  const result = await sql`
+    SELECT day::text AS day, plan, active_accounts
+    FROM activity_rollup_daily
+    WHERE plan = ${planKey}
+    ORDER BY day DESC
+    LIMIT ${options.days}
+  `;
+  return (result as Record<string, unknown>[]).map((row) => ({
+    day: String(row['day']),
+    plan: String(row['plan']),
+    activeAccounts: Number(row['active_accounts']),
+  }));
 }
 
 // ---------------------------------------------------------------------------

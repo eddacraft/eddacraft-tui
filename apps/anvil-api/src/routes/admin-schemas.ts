@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { API_SCOPE_NAMES, type ApiScopeName } from '../lib/feature-flags.js';
 import { ACCOUNT_PLANS, DEFAULT_IDLE_DAYS } from '../lib/account-activity.js';
+import { DEFAULT_HISTORY_DAYS, MAX_HISTORY_DAYS } from '../lib/account-activity-rollup.js';
 
 // Derived from the api.scope.* flag manifest in ../lib/feature-flags.ts —
 // the manifest is the single source of truth for valid scope names.
@@ -224,9 +225,30 @@ export type UsersEngagementQuery = z.infer<typeof usersEngagementQuerySchema>;
 // optional plan filter, quiet-cohort window. `plan` is the closed catalogue
 // set (today only `beta`) — an unrecognised value fails validation rather
 // than silently matching zero accounts.
+//
+// BACT-011 (ADR-121 OQ-A): `history=true` additionally attaches a recent
+// daily-rollup series (`activity_rollup_daily`) bounded by `historyDays`
+// (default 14, ceiling `MAX_HISTORY_DAYS` days) — see
+// `lib/account-activity-rollup.ts` for the late-rollup undercount caveat
+// that reading this history does not paper over.
 export const accountActivityQuerySchema = z.object({
   plan: z.enum(ACCOUNT_PLANS).optional(),
   idleDays: z.coerce.number().int().finite().min(1).max(365).default(DEFAULT_IDLE_DAYS),
+  // Deliberately not `z.coerce.boolean()` — that coerces the literal string
+  // "false" to `true` (`Boolean("false") === true`), which would make
+  // `?history=false` silently turn history ON. Query values are strings, so
+  // only the two spellings that mean something are accepted.
+  history: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
+  historyDays: z.coerce
+    .number()
+    .int()
+    .finite()
+    .min(1)
+    .max(MAX_HISTORY_DAYS)
+    .default(DEFAULT_HISTORY_DAYS),
 });
 
 export type AccountActivityQuery = z.infer<typeof accountActivityQuerySchema>;

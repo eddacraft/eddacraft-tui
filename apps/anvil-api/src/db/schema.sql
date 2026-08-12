@@ -222,6 +222,22 @@ CREATE TABLE account_feature_touches (
   PRIMARY KEY (user_id, feature_key)
 );
 
+-- BACT-011 (ADR-121, OQ-A): daily historical DAA rollup. See migration
+-- 022-account-activity-rollup-daily.sql for the full grain/retention/
+-- late-rollup-undercount rationale. `plan` is either a `beta_users.plan`
+-- value or the reserved '__all__' total sentinel. Retained indefinitely
+-- (trivial per-day volume; no raw table behind it to prune).
+CREATE TABLE activity_rollup_daily (
+  day             date NOT NULL,
+  plan            text NOT NULL,
+  active_accounts int  NOT NULL CHECK (active_accounts >= 0),
+  computed_at     timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (day, plan)
+);
+
+CREATE INDEX idx_activity_rollup_daily_plan_day
+  ON activity_rollup_daily (plan, day DESC);
+
 -- Indexes
 CREATE INDEX idx_beta_users_last_login_at
   ON beta_users (last_login_at DESC NULLS LAST);
