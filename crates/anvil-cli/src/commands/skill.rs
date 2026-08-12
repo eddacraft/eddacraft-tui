@@ -707,7 +707,8 @@ fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
             .map_err(io::Error::from)
             .with_context(|| "opening current directory")?,
         Some(Component::Normal(name)) => {
-            open_or_mkdir_component(None, name, dir_flags, nofollow_dir_flags)?
+            // Relative first component must not follow a symlink either.
+            open_or_mkdir_component(None, name, nofollow_dir_flags, nofollow_dir_flags)?
         }
         Some(Component::Prefix(_)) => {
             bail!(
@@ -804,6 +805,10 @@ fn open_or_mkdir_component(
             "refusing to install managed skill through symlinked path {}",
             crate::display_path::shown(Path::new(name))
         ),
+        Err(err) if is_non_directory_component_err(err) => bail!(
+            "refusing managed skill path component that is not a real directory (symlink or non-directory) {}",
+            crate::display_path::shown(Path::new(name))
+        ),
         Err(err) => Err(io::Error::from(err)).with_context(|| {
             format!(
                 "opening directory component {}",
@@ -887,21 +892,37 @@ fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
 
 #[cfg(unix)]
 fn map_symlink_open_error(err: nix::errno::Errno, component: &Path) -> anyhow::Error {
-    if is_nofollow_symlink_err(err) {
-        anyhow::anyhow!(
+    use nix::errno::Errno;
+    match err {
+        // With O_DIRECTORY|O_NOFOLLOW, a symlink may surface as ELOOP or
+        // ENOTDIR depending on platform; a regular file is ENOTDIR.
+        Errno::ELOOP => anyhow::anyhow!(
             "refusing to install managed skill through symlinked path {}",
             crate::display_path::shown(component)
-        )
-    } else {
-        anyhow::Error::from(io::Error::from(err))
+        ),
+        Errno::ENOTDIR => anyhow::anyhow!(
+            "refusing managed skill path component that is not a real directory (symlink or non-directory) {}",
+            crate::display_path::shown(component)
+        ),
+        other => anyhow::Error::from(io::Error::from(other)),
     }
 }
 
 #[cfg(unix)]
 fn is_nofollow_symlink_err(err: nix::errno::Errno) -> bool {
     use nix::errno::Errno;
-    matches!(err, Errno::ELOOP | Errno::ENOTDIR)
+    // Final-component O_NOFOLLOW open of a symlink typically returns ELOOP.
+    matches!(err, Errno::ELOOP)
 }
+
+#[cfg(unix)]
+fn is_non_directory_component_err(err: nix::errno::Errno) -> bool {
+    use nix::errno::Errno;
+    // O_DIRECTORY|O_NOFOLLOW on a symlink often returns ENOTDIR on Linux; a
+    // regular-file component returns ENOTDIR as well. Both are refusals.
+    matches!(err, Errno::ENOTDIR)
+}
+
 
 #[cfg(unix)]
 fn write_regular_file_nofollow_unix(
@@ -1259,7 +1280,9 @@ mod tests {
         let error = create_dir_all_nofollow(&target).unwrap_err();
         let message = error.to_string();
         assert!(
-            message.contains("symlinked path") || message.contains("symlink"),
+            message.contains("symlinked path")
+                || message.contains("symlink")
+                || message.contains("not a real directory"),
             "unexpected error: {message}"
         );
         assert!(
@@ -1314,7 +1337,9 @@ mod tests {
             write_regular_file_nofollow(&destination.join("SKILL.md"), b"pwned").unwrap_err();
         let message = error_chain(&error);
         assert!(
-            message.contains("symlinked path") || message.contains("symlink"),
+            message.contains("symlinked path")
+                || message.contains("symlink")
+                || message.contains("not a real directory"),
             "unexpected error: {message}"
         );
         assert!(
@@ -1350,7 +1375,9 @@ mod tests {
         let error = replace_directory(&staging, &destination).unwrap_err();
         let message = error_chain(&error);
         assert!(
-            message.contains("symlinked path") || message.contains("symlink"),
+            message.contains("symlinked path")
+                || message.contains("symlink")
+                || message.contains("not a real directory"),
             "unexpected error: {message}"
         );
         assert!(
