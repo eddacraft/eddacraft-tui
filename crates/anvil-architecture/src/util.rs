@@ -72,11 +72,17 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), std::io::E
 
 #[cfg(windows)]
 fn unique_attempt_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    // Pair wall-clock nanos with a process-local counter so concurrent or
+    // same-tick attempts cannot collide on a coarse SystemTime resolution.
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
-    format!("{}-{nanos}", std::process::id())
+    format!("{}-{nanos}-{seq}", std::process::id())
 }
 
 /// Install `tmp` over `dest` without permanently discarding the previous
