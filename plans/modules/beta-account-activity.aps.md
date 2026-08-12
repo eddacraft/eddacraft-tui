@@ -355,7 +355,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-009: Admin user activity metrics surface
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Operators see DAA/WAA/MAA and quiet users without Neon SQL and
