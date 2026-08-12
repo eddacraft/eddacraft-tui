@@ -332,8 +332,9 @@ Change status to **Ready** when:
 - **Intent:** replace direct `.anvil/architecture.yaml` reads in `gate.rs`,
   `watch.rs`, and `architecture*.rs` with the resolved section (inline or
   delegated); ADR-102 command-surface semantics unchanged
-- **Expected Outcome:** all architecture consumers work identically with
-  inline or delegated config; delegated file edits are watched
+- **Expected Outcome:** gate and the architecture commands work identically
+  with inline or delegated config; watch parity (delegated/inline
+  enforcement + edit re-validation) deferred to UCFG-013
 - **Validation:** existing architecture/gate/watch tests pass against both
   topologies. UCFG-006 verifier note discharged: the delegation resolver
   stat-guards non-regular targets (FIFO/device/dir) before any open.
@@ -460,6 +461,28 @@ Change status to **Ready** when:
   `crates/anvil-kernel/src/policy/config.rs`,
   `crates/anvil-kernel/src/watch.rs`
 - **Confidence:** Medium — kernel API surface decision
+- **Priority:** Medium
+- **Dependencies:** UCFG-008
+
+---
+
+#### UCFG-014: descriptor-bound guard in the shared bounded reader
+
+- **Status:** Proposed
+- **Intent:** move the non-regular-file guard into
+  `anvil_config::read_to_string_bounded` itself using the
+  open-nonblocking + fstat-the-held-descriptor pattern (cf. c0aed53f6):
+  closes the pre-existing FIFO-as-main-config hang (reachable from
+  gate/config/doctor on origin/main and, since UCFG-008, the
+  architecture commands) and the stat-then-open TOCTOU residue in the
+  delegation guard
+- **Expected Outcome:** no config path anywhere can block a command on
+  open; the delegation-layer stat guard becomes defence-in-depth
+- **Validation:** unix FIFO fixtures for the main config and delegated
+  targets; non-blocking time bound asserted
+- **Files:** `crates/anvil-config/src/parse.rs`,
+  `crates/anvil-config/src/delegation.rs`
+- **Confidence:** Medium — cfg(unix) descriptor semantics
 - **Priority:** Medium
 - **Dependencies:** UCFG-008
 
