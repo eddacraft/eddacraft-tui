@@ -280,7 +280,7 @@ Change status to **Ready** when:
 
 #### UCFG-006: `SectionOrSource<T>` in anvil-config
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3833
 - **Intent:** implement exclusive inline-XOR-source delegation with clear
   errors (both present, neither, nested delegation, missing target, `../`
   traversal, absolute or Windows drive/UNC path, symlink escaping the
