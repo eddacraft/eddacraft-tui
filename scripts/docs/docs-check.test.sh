@@ -1124,15 +1124,26 @@ fi
 
 # Case B: --fail-on-owed is the opt-in that proves the gate works before it is
 # switched on. Without it the same corpus exits 0; with it, exit 1.
+# Guarded on the corpus actually having owed findings. Asserting exit 1
+# unconditionally would turn this green test red the day the backlog is burned
+# down — at which point exit 0 is the *correct* answer for an empty corpus.
 echo "case B: docs-owed --fail-on-owed opts into failure"
-set +e
-(cd "${repo_root}" && node "${owed_script}" --no-baseline --limit 0 --fail-on-owed >/dev/null 2>&1)
-gated=$?
-set -e
-if [[ "${gated}" -eq 1 ]]; then
-  pass "--fail-on-owed exits 1 on unbaselined owed findings"
+owed_now="$(cd "${repo_root}" && node "${owed_script}" --no-baseline --limit 0 2>/dev/null |
+  sed -n 's/^\[docs-owed\] summary \[corpus\]: \([0-9]*\) owed,.*/\1/p')"
+if [[ -z "${owed_now}" ]]; then
+  fail "could not read owed count from docs-owed summary"
+elif [[ "${owed_now}" -eq 0 ]]; then
+  pass "skipped: corpus has 0 owed findings, so exit 0 is correct for --fail-on-owed"
 else
-  fail "--fail-on-owed expected exit 1; got ${gated}"
+  set +e
+  (cd "${repo_root}" && node "${owed_script}" --no-baseline --limit 0 --fail-on-owed >/dev/null 2>&1)
+  gated=$?
+  set -e
+  if [[ "${gated}" -eq 1 ]]; then
+    pass "--fail-on-owed exits 1 on unbaselined owed findings"
+  else
+    fail "--fail-on-owed expected exit 1 with ${owed_now} owed; got ${gated}"
+  fi
 fi
 
 # Case C: the ratchet holds. The baseline matches findings by exact message, so
@@ -1145,10 +1156,20 @@ if ! (cd "${repo_root}" && node "${owed_script}" --no-baseline --json >"${json_o
   fail "docs-owed --json did not run"
 elif ! node -e '
     const j = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
-    if (!j.findings.length) { console.error("no findings to check"); process.exit(1); }
+    // An empty corpus is a pass, not a failure: there is nothing that could
+    // carry a volatile fingerprint. Asserting findings exist would make this
+    // case a time bomb once the backlog is cleared.
     const dated = j.findings.filter((f) => /\d{4}-\d{2}-\d{2}/.test(f.message));
     if (dated.length) {
       console.error("volatile message: " + dated[0].message);
+      process.exit(1);
+    }
+    // Every moved upstream must be an absorption candidate, or a document with
+    // several upstreams drifts out of its own baseline entry when the
+    // newest-moved path changes.
+    const short = j.findings.filter((f) => (f.fingerprints || []).length !== f.movedUpstream.length);
+    if (short.length) {
+      console.error("fingerprint/movedUpstream mismatch: " + short[0].file);
       process.exit(1);
     }
   ' "${json_out}"; then

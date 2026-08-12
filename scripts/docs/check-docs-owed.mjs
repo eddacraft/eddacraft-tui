@@ -149,6 +149,18 @@ try {
  * reported (advisory, but never hidden) and breaking the coverage counts.
  * Directories therefore match on path prefix.
  */
+/**
+ * The baseline fingerprint for one moved upstream.
+ *
+ * Single source of truth for the string the baseline matches on, so the
+ * reported `message` and the absorption candidates can never drift apart.
+ * Deliberately carries no date and no count: the baseline matches by exact
+ * string, so anything volatile in here silently breaks the ratchet.
+ */
+function fingerprintFor(upstreamPath) {
+  return `upstream moved since review: ${upstreamPath}`;
+}
+
 function upstreamTouchedByDiff(upstreamPath, changed) {
   if (changed.has(upstreamPath)) return true;
   const prefix = `${upstreamPath}/`;
@@ -324,6 +336,10 @@ for (const relFile of files) {
     docLastCommit: docCommit?.date ?? null,
     daysBehind: Math.round((Date.parse(newest.commit.date) - Date.parse(reviewedOn)) / 86_400_000),
     movedUpstream: moved.map((m) => `${m.path}@${m.commit.date}`),
+    // Every upstream that could legitimately name this finding, newest first.
+    // Baseline absorption matches on ANY of them, not just the current newest
+    // — see the absorption loop for why.
+    fingerprints: moved.map((m) => fingerprintFor(m.path)),
     // STABLE fingerprint — deliberately carries no date and no count.
     //
     // The baseline matches findings by exact message string, so anything
@@ -333,7 +349,7 @@ for (const relFile of files) {
     // unrelated pull request. Naming the implicated upstream is the part worth
     // pinning; the dates are reporting detail and are rendered from the
     // structured fields below instead.
-    message: `upstream moved since review: ${newest.path}`,
+    message: fingerprintFor(newest.path),
     detail:
       `${newest.path} committed ${newest.commit.date}, ` +
       `document last reviewed ${reviewedOn}` +
@@ -345,9 +361,22 @@ for (const relFile of files) {
 // Absorbed findings are downgraded rather than dropped: the ratchet is meant to
 // stop the known backlog failing the build, not to make it invisible. Same
 // shape as every other baselineable surface (see check-asbuilt-paths.mjs).
+//
+// Absorption matches ANY of the document's moved upstreams, not only the one
+// currently reported. `message` names the newest-moved path, and which path is
+// newest changes as different upstreams take commits — so a document declaring
+// several upstreams would drift out of its own baseline entry the first time
+// the ordering changed, and the absorbed backlog would resurface as fresh
+// errors on an unrelated pull request. The unit being ratcheted is the
+// *document's* known staleness, not one particular edge of it.
+//
+// A genuinely new upstream starting to move therefore does not un-absorb the
+// finding. That is deliberate: the document is already in the backlog, and one
+// more stale edge does not make it newly stale. The finding clears when someone
+// re-reviews the document and bumps its date, which removes it entirely.
 for (const finding of findings) {
-  const fingerprints = baseline[finding.file];
-  if (Array.isArray(fingerprints) && fingerprints.includes(finding.message)) {
+  const absorbed = baseline[finding.file];
+  if (Array.isArray(absorbed) && finding.fingerprints.some((f) => absorbed.includes(f))) {
     finding.severity = 'WARN';
     finding.baselined = true;
     finding.message = `[baselined] ${finding.message}`;
