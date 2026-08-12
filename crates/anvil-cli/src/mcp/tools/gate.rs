@@ -229,35 +229,62 @@ fn wait_with_timeout(
         .stderr(Stdio::piped())
         .spawn()?;
 
+    // Drain stdout/stderr on dedicated threads while the child runs. Waiting
+    // for exit *before* reading either pipe deadlocks once the child fills an
+    // OS pipe buffer (~64 KiB): the child blocks in write(2) and never exits,
+    // so the parent only ever reports a timeout. Cap each stream during the
+    // drain so a flood cannot OOM the MCP host.
+    let mut stdout_handle = child
+        .stdout
+        .take()
+        .expect("stdout is piped above; taken once");
+    let mut stderr_handle = child
+        .stderr
+        .take()
+        .expect("stderr is piped above; taken once");
+    let stdout_reader =
+        std::thread::spawn(move || read_capped_stream(&mut stdout_handle, stream_cap));
+    let stderr_reader =
+        std::thread::spawn(move || read_capped_stream(&mut stderr_handle, stream_cap));
+
     let started = Instant::now();
-    loop {
+    let status = loop {
         if let Some(status) = child.try_wait()? {
-            let stdout = read_capped(child.stdout.take(), stream_cap)?;
-            let stderr = read_capped(child.stderr.take(), stream_cap)?;
-            return Ok(std::process::Output {
-                status,
-                stdout,
-                stderr,
-            });
+            break status;
         }
         if started.elapsed() >= timeout {
             let _ = child.kill();
             let _ = child.wait();
+            // Child death closes the write ends and unblocks the readers.
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
             return Err(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
                 "anvil gate subprocess exceeded the MCP timeout",
             ));
         }
         std::thread::sleep(Duration::from_millis(25));
-    }
+    };
+
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| std::io::Error::other("stdout reader thread panicked"))??;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| std::io::Error::other("stderr reader thread panicked"))??;
+
+    Ok(std::process::Output {
+        status,
+        stdout,
+        stderr,
+    })
 }
 
-fn read_capped<R: std::io::Read>(handle: Option<R>, cap: usize) -> std::io::Result<Vec<u8>> {
+/// Read up to `cap` bytes from `handle`. If the stream exceeds the cap, keep
+/// draining (discard) so a full pipe cannot wedge the writer, then error.
+fn read_capped_stream<R: std::io::Read>(handle: &mut R, cap: usize) -> std::io::Result<Vec<u8>> {
     use std::io::Read;
 
-    let Some(mut handle) = handle else {
-        return Ok(Vec::new());
-    };
     let mut buffer = Vec::new();
     // `cap + 1` lets us distinguish "exactly at cap" from "overflowed".
     let cap_plus_one = cap.saturating_add(1) as u64;
@@ -266,6 +293,10 @@ fn read_capped<R: std::io::Read>(handle: Option<R>, cap: usize) -> std::io::Resu
         .take(cap_plus_one)
         .read_to_end(&mut buffer)?;
     if read > cap {
+        // Discard the remainder so the child is not stuck writing into a
+        // full OS pipe after we stop accumulating.
+        let mut sink = std::io::sink();
+        let _ = std::io::copy(handle, &mut sink);
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("anvil gate output exceeded {cap} byte cap"),
@@ -444,6 +475,96 @@ mod tests {
         assert_eq!(
             payload["error"],
             "targetFiles[0] resolves outside workspaceRoot"
+        );
+    }
+
+    /// Regression for the full-gate pipe deadlock: if the parent waited for
+    /// exit before draining either pipe, a child that wrote more than an OS
+    /// pipe buffer (~64 KiB) would block in write(2) and never exit, so the
+    /// parent would only ever report a timeout.
+    #[cfg(unix)]
+    #[test]
+    fn wait_with_timeout_drains_stdout_beyond_pipe_buffer() {
+        // 256 KiB >> typical 64 KiB pipe capacity.
+        let mut cmd = Command::new("dd");
+        cmd.args(["if=/dev/zero", "bs=1024", "count=256", "status=none"]);
+
+        let started = Instant::now();
+        let output = wait_with_timeout(cmd, Duration::from_secs(5), FULL_GATE_STREAM_CAP)
+            .expect("large stdout must not deadlock or time out");
+        assert!(
+            output.status.success(),
+            "dd should exit 0, got {:?}",
+            output.status
+        );
+        assert_eq!(output.stdout.len(), 256 * 1024);
+        assert!(
+            started.elapsed() < Duration::from_secs(4),
+            "concurrent drain must finish well under the timeout"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_with_timeout_drains_stderr_beyond_pipe_buffer() {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "dd if=/dev/zero bs=1024 count=256 status=none >&2"]);
+
+        let started = Instant::now();
+        let output = wait_with_timeout(cmd, Duration::from_secs(5), FULL_GATE_STREAM_CAP)
+            .expect("large stderr must not deadlock or time out");
+        assert!(output.status.success());
+        assert_eq!(output.stderr.len(), 256 * 1024);
+        assert!(started.elapsed() < Duration::from_secs(4));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_with_timeout_drains_both_streams_beyond_pipe_buffer() {
+        let mut cmd = Command::new("python3");
+        cmd.args([
+            "-c",
+            "import sys; sys.stdout.buffer.write(b'x'*262144); \
+             sys.stderr.buffer.write(b'y'*262144)",
+        ]);
+
+        let output = wait_with_timeout(cmd, Duration::from_secs(5), FULL_GATE_STREAM_CAP)
+            .expect("dual large streams must not deadlock");
+        assert!(output.status.success());
+        assert_eq!(output.stdout.len(), 262_144);
+        assert_eq!(output.stderr.len(), 262_144);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_with_timeout_enforces_stream_cap_without_deadlock() {
+        // Child writes well over a tiny cap; the reader must still drain so
+        // the process can exit, then surface InvalidData.
+        let mut cmd = Command::new("dd");
+        cmd.args(["if=/dev/zero", "bs=1024", "count=128", "status=none"]);
+
+        let err = wait_with_timeout(cmd, Duration::from_secs(5), 1024)
+            .expect_err("output over cap must error");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(
+            err.to_string().contains("exceeded 1024 byte cap"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_with_timeout_kills_hung_child() {
+        let mut cmd = Command::new("sleep");
+        cmd.arg("30");
+
+        let started = Instant::now();
+        let err = wait_with_timeout(cmd, Duration::from_millis(300), FULL_GATE_STREAM_CAP)
+            .expect_err("hung child must time out");
+        assert_eq!(err.kind(), std::io::ErrorKind::TimedOut);
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "timeout path must not hang joining readers"
         );
     }
 }
