@@ -1095,16 +1095,19 @@ mod tests {
         let service_clone = service.clone();
         let handle = tokio::spawn(async move { service_clone.scan_buffer(secret_request()).await });
 
-        // Spin until we observe the counter increment — the worker
-        // thread may not have started before the await returns, so
-        // poll without sleeping.
+        // Wait until the counter observes the held permit. Pure
+        // `yield_now` polling is racy under heavy CI multi-thread
+        // scheduling (sibling test below documents the same lesson):
+        // the spawned scan_buffer task may not run within a fixed
+        // yield budget. Sleep briefly so the runtime can schedule it.
         let mut observed = 0;
-        for _ in 0..200 {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+        while tokio::time::Instant::now() < deadline {
             observed = service.in_flight();
             if observed == 1 {
                 break;
             }
-            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(1)).await;
         }
         assert_eq!(observed, 1, "in-flight must observe the held permit");
 
