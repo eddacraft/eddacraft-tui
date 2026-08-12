@@ -123,7 +123,12 @@ await Promise.all(
         severity: 'ERROR',
         file: relFile,
         line: parsed.sourceLineNumber ?? 1,
-        message: 'as-built/runbook document must cite at least one source path',
+        // Names the type rather than a fixed pair: DOCFRESH-004 widened
+        // VALIDATED_TYPES beyond As-built/Runbook, and a message that still
+        // said "as-built/runbook" would misreport every Guide, Policy and Spec
+        // finding. Changing this text invalidates existing baseline
+        // fingerprints, so the baseline is regenerated alongside it.
+        message: `${parsed.metadata.type} document must cite at least one source path`,
       });
       return;
     }

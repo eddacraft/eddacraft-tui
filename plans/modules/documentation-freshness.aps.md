@@ -8,7 +8,7 @@
 | DOCFRESH  | —     | high     | In Progress | 0/8 |
 
 **Last reviewed:** 2026-08-12 — DOCFRESH-004 **In Progress**. Coverage moves
-from **104 to 119** checkable documents (of 228). Composition of the gap was
+from **104 to 118** checkable documents (of 228). Composition of the gap was
 mis-stated in the item and is corrected there: no document was missing a review
 date. What actually blocked coverage was `Upstream` cells carrying prose or
 markdown-link labels instead of the backticked repository paths the parser
@@ -38,9 +38,16 @@ implemented on the fly here.
 **Coverage has a real ceiling.** Sixteen documents — vision, strategy, internal
 briefs, third-party references — have no in-repo upstream that could be cited.
 They are baselined rather than given invented paths, so they stay countable as
-known gaps instead of being dressed up as covered. `docs-owed` known debt rises
-62 → 67 for the same reason: more documents visible means more staleness
-visible, not more staleness.
+known gaps instead of being dressed up as covered (`asbuilt-paths` baseline
+0 → 16).
+
+**Editing a document flatters its own numbers, and that is worth knowing.** The
+`docs-owed` baseline *falls* 62 → 58 here, which looks like debt being paid and
+is not. A document committed after its upstream moved is reclassified `owed` →
+`review` (advisory) by design, and this change touches 25 documents — so the
+gating count drops mechanically, without anyone having reviewed the content.
+The `review` class rises 12 → 21 in step. Any mass corpus edit will do this;
+read the pair together, never the gating count alone.
 
 **Earlier — 2026-08-12** — DOCFRESH-003 **Merged via PR #3800**: the trigger moved
 off `markdownlint-required` onto `code-changed`, which is the change that

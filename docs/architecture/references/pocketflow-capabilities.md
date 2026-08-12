@@ -4,13 +4,14 @@
 | ----- | --------- | ----- | ------ | ------------------------------------------------ |
 | Guide | Advisory  | KIND  | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
-| Upstream                                                                                        | Downstream                            |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------- |
-| PocketFlow upstream (external project; the Kindling adapter is not vendored in this repository) | Kindling workflow capability guidance |
+| Upstream                                                                                                                                                 | Downstream                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| PocketFlow upstream (external project) and the Kindling repository, where the adapter is vendored; paths below are Kindling-relative, not anvil-relative | Kindling workflow capability guidance |
 
 This document describes what PocketFlow enables beyond core Kindling
 functionality. PocketFlow is vendored at
-`packages/kindling-adapter-pocketflow/vendor/pocketflow/`.
+`packages/kindling-adapter-pocketflow/vendor/pocketflow/` in the Kindling
+repository.
 
 ## What is PocketFlow?
 

@@ -4,9 +4,9 @@
 | ----- | --------- | ----- | ------ | ------------------------------------------------ |
 | Guide | Advisory  | KIND  | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
-| Upstream                                                                                        | Downstream                              |
-| ----------------------------------------------------------------------------------------------- | --------------------------------------- |
-| PocketFlow upstream (external project; the Kindling adapter is not vendored in this repository) | Kindling PocketFlow adapter maintenance |
+| Upstream                                                                                                                                                 | Downstream                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| PocketFlow upstream (external project) and the Kindling repository, where the adapter is vendored; paths below are Kindling-relative, not anvil-relative | Kindling PocketFlow adapter maintenance |
 
 ## Overview
 
@@ -42,6 +42,7 @@ license:
 
 ## Vendored Location
 
+In the **Kindling repository** (not this one):
 `packages/kindling-adapter-pocketflow/vendor/pocketflow/`
 
 ## Update Procedure
@@ -56,8 +57,8 @@ license:
 ## Attribution
 
 PocketFlow is used under the MIT license. The license notice is preserved in the
-vendored copy at `packages/kindling-adapter-pocketflow/vendor/pocketflow/` and
-documented here for transparency.
+vendored copy at `packages/kindling-adapter-pocketflow/vendor/pocketflow/` in
+the Kindling repository and documented here for transparency.
 
 ```
 MIT License

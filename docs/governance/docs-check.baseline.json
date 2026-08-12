@@ -437,57 +437,44 @@
     ]
   },
   "asbuilt-paths": {
-    "docs/architecture/edda-stack.md": [
-      "as-built/runbook document must cite at least one source path"
-    ],
+    "docs/architecture/edda-stack.md": ["Spec document must cite at least one source path"],
     "docs/architecture/references/pocketflow-capabilities.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
     "docs/architecture/references/pocketflow-vendoring.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
-    "docs/architecture/system-spec.md": [
-      "as-built/runbook document must cite at least one source path"
-    ],
+    "docs/architecture/system-spec.md": ["Spec document must cite at least one source path"],
     "docs/guides/eddacraft-autonomy-constitution.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
-    "docs/internal/realtime-feed-contract.md": [
-      "as-built/runbook document must cite at least one source path"
-    ],
-    "docs/internal/weave-feature-brief.md": [
-      "as-built/runbook document must cite at least one source path"
-    ],
+    "docs/internal/realtime-feed-contract.md": ["Spec document must cite at least one source path"],
+    "docs/internal/weave-feature-brief.md": ["Spec document must cite at least one source path"],
     "docs/reviews/kindling-performance-and-integration-assessment.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
     "docs/strategy/borrow-adopt-candidates.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
     "docs/strategy/competitor-tier2-tracking.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
     "docs/testing/beta-user-test-scenarios.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
     "docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
-    "docs/vision/anvil-scope-guard.md": [
-      "as-built/runbook document must cite at least one source path"
-    ],
-    "docs/vision/anvil-vision.md": ["as-built/runbook document must cite at least one source path"],
+    "docs/vision/anvil-scope-guard.md": ["Guide document must cite at least one source path"],
+    "docs/vision/anvil-vision.md": ["Guide document must cite at least one source path"],
     "docs/vision/aspirational-ultimate-feature.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ],
     "docs/vision/constitutional-engineering.md": [
-      "as-built/runbook document must cite at least one source path"
+      "Guide document must cite at least one source path"
     ]
   },
   "docs-owed": {
-    "docs/observability/namespace-registry.md": [
-      "upstream moved since review: plans/decisions/035-three-pipe-observability-rule.md"
-    ],
     "docs/runbooks/main-first-cutover.md": [
       "upstream moved since review: .github/workflows/ci.yml"
     ],
@@ -498,14 +485,8 @@
     "docs/policies/editor-coexistence.md": [
       "upstream moved since review: crates/anvil-hook/src/coexistence.rs"
     ],
-    "docs/governance/tags-catalogue.md": [
-      "upstream moved since review: plans/archive/modules/documentation-governance.aps.md"
-    ],
     "docs/guides/anvil-rule-authoring.md": [
       "upstream moved since review: patterns/compiled/registry.json"
-    ],
-    "docs/guides/release-doc-checklist.md": [
-      "upstream moved since review: docs/runbooks/release-runbook.md"
     ],
     "docs/runbooks/branch-reconciliation.md": [
       "upstream moved since review: .github/workflows/ci.yml"
@@ -520,6 +501,12 @@
       "upstream moved since review: .github/workflows/release.yml"
     ],
     "docs/guides/adr-process.md": ["upstream moved since review: plans/decisions/DECISION-LOG.md"],
+    "docs/runbooks/eddacraft-tui-release.md": [
+      "upstream moved since review: docs/policies/eddacraft-tui-mirror.md"
+    ],
+    "docs/runbooks/observability-triage.md": [
+      "upstream moved since review: docs/observability/namespace-registry.md"
+    ],
     "docs/guides/cli-output-streams.md": [
       "upstream moved since review: crates/anvil-kernel-types/src/diagnostics.rs"
     ],
@@ -532,14 +519,8 @@
     "docs/guides/edda-memory.md": [
       "upstream moved since review: crates/anvil-cli/src/commands/edda.rs"
     ],
-    "docs/runbooks/anvil-witness-chain.md": [
-      "upstream moved since review: plans/modules/multilayer-protection-v2.aps.md"
-    ],
     "docs/runbooks/rollback-bad-main.md": [
       "upstream moved since review: scripts/release/prepare.sh"
-    ],
-    "docs/guides/architecture-diagrams.md": [
-      "upstream moved since review: plans/archive/modules/documentation-governance.aps.md"
     ],
     "docs/guides/git-hook-compatibility.md": [
       "upstream moved since review: crates/anvil-cli/src/commands/hooks.rs"
@@ -561,9 +542,6 @@
     ],
     "docs/runbooks/rollback-bad-candidate-artefact.md": [
       "upstream moved since review: .github/workflows/release-readiness.yml"
-    ],
-    "docs/runbooks/eddacraft-tui-release.md": [
-      "upstream moved since review: docs/policies/eddacraft-tui-mirror.md"
     ],
     "docs/runbooks/sarif-code-scanning-upload.md": [
       "upstream moved since review: crates/anvil-sarif/src/lib.rs"
@@ -597,9 +575,6 @@
     "docs/architecture/quality-model.md": [
       "upstream moved since review: docs/architecture/overview.md"
     ],
-    "docs/architecture/oss-surface.md": [
-      "upstream moved since review: plans/decisions/018-product-ip-architecture.md"
-    ],
     "docs/architecture/references/entire-branch-sidecar.md": [
       "upstream moved since review: plans/archive/modules/graph-v2-foundation.aps.md"
     ],
@@ -626,18 +601,6 @@
     "docs/guides/repository-operations.md": ["upstream moved since review: AGENTS.md"],
     "docs/architecture/overview.md": [
       "upstream moved since review: docs/architecture/mcp-shim-as-built.md"
-    ],
-    "docs/architecture/jsts-release-surfaces.md": [
-      "upstream moved since review: plans/decisions/033-park-ide-mcp-retire-ts-scanner.md"
-    ],
-    "docs/architecture/dev-acceleration-benchmark-spec.md": [
-      "upstream moved since review: docs/guides/ai-context-delivery.md"
-    ],
-    "docs/runbooks/homebrew-publish.md": [
-      "upstream moved since review: plans/archive/modules/distribution-and-update.aps.md"
-    ],
-    "docs/runbooks/observability-triage.md": [
-      "upstream moved since review: docs/observability/namespace-registry.md"
     ],
     "docs/runbooks/cli-surface.md": ["upstream moved since review: crates/anvil-cli/src/main.rs"],
     "docs/guides/agent-surface-inventory.md": ["upstream moved since review: AGENTS.md"],
