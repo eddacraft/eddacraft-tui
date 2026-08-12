@@ -175,7 +175,10 @@ Change status to **Ready** when:
 - **Intent:** `anvil migrate` renames `.anvilrc` → `.anvil.<ext>` preserving
   the embedded format (atomic). `anvil doctor` warns when both names exist,
   or multiple `.anvil.<ext>` variants exist, naming which file wins.
-  Establish discover-first as the single precedence truth: reconcile
+  UCFG-001 verifier deferral: doctor's multi-variant warning must also
+  cover the forced-init stale-variant edge (a forced non-yaml init
+  beside an existing `.anvil.yaml` leaves the stale yaml winning
+  discovery). Establish discover-first as the single precedence truth: reconcile
   `start.rs existing_project_config_path` (today `.anvilrc`-first) to match
   `gate.rs`'s discover-first resolution, flipping its pinning test; `config
   set`'s writable-path keeps editing a discovered legacy `.anvilrc` in place

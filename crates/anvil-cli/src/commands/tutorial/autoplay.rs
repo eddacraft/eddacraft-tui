@@ -51,7 +51,7 @@ fn strip_excerpt_columns(warnings: &mut [Warning]) {
 ///
 /// **Analysis is deliberately narrower**, and sharing the renderer does not
 /// change that. Against the same file `anvil check` additionally runs the AST
-/// tier (`anvil_checks_ast::scan_paths`), applies `.anvilrc` exclude globs and
+/// tier (`anvil_checks_ast::scan_paths`), applies project-config exclude globs and
 /// generated-path filtering, and may print a trailing blocking-threshold banner
 /// when findings meet the configured threshold. None of those run here. That is
 /// fine for a pinned single-file fixture whose findings are asserted by test,
@@ -61,7 +61,7 @@ pub(crate) fn in_process_check_runner() -> AutoplayRunner {
     std::sync::Arc::new(|target: &Path| {
         let started = std::time::Instant::now();
         let file = target.to_string_lossy().into_owned();
-        // The sandbox root owns the `.anvilrc` the demo scaffolds.
+        // The sandbox root owns the `.anvil.json` the demo scaffolds.
         let workspace_root = target
             .parent()
             .and_then(Path::parent)
@@ -138,7 +138,7 @@ impl AutoplaySandbox {
             std::fs::create_dir(directory.path().join(relative))
                 .context("failed to create tutorial autoplay environment directory")?;
         }
-        std::fs::write(directory.path().join(".anvilrc"), ANVIL_CONFIG)
+        std::fs::write(directory.path().join(".anvil.json"), ANVIL_CONFIG)
             .context("failed to scaffold tutorial autoplay config")?;
         std::fs::write(directory.path().join("src/app.ts"), APP_SOURCE)
             .context("failed to scaffold tutorial autoplay source")?;
@@ -184,7 +184,7 @@ mod tests {
     use super::AutoplaySandbox;
 
     fn fixture_contents(sandbox: &AutoplaySandbox) -> Vec<(String, String)> {
-        [".anvilrc", "src/app.ts"]
+        [".anvil.json", "src/app.ts"]
             .into_iter()
             .map(|relative| {
                 let content = std::fs::read_to_string(sandbox.root().join(relative))

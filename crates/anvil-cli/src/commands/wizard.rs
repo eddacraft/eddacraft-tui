@@ -127,9 +127,18 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
     // UCFG-001 / ADR-120 pt 1: the wizard scaffolds the canonical
     // config; no command creates a new `.anvilrc`.
     let config_path = project_dir.join(".anvil.json");
-    if config_path.exists() || project_dir.join(".anvilrc").exists() {
+    let existing = [
+        ".anvil.yaml",
+        ".anvil.yml",
+        ".anvil.json",
+        ".anvil.toml",
+        ".anvilrc",
+    ]
+    .iter()
+    .find(|n| project_dir.join(n).exists());
+    if let Some(existing) = existing {
         anyhow::bail!(
-            "a project config already exists in {name} — use `anvil init --force` to overwrite"
+            "{existing} already exists in {name} — use `anvil init --force` to overwrite"
         );
     }
 

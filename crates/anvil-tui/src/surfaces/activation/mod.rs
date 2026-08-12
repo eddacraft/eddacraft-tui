@@ -661,7 +661,7 @@ mod tests {
                 ConsentItem::new(
                     "project",
                     "Project configuration",
-                    "Create .anvilrc",
+                    "Create .anvil.yaml",
                     ConsentKind::Project,
                 )
                 .repo_scoped(),
