@@ -4,19 +4,24 @@
 | ---- | ---------- | ----------- | -------- |
 | TCOV | @eddacraft | In Progress | 26/26    |
 
+## Progress (as of 2026-08-11)
+
+- **TCOV-026 follow-up Merged 2026-08-11 via #3730.** The first full-suite
+  comparison after the rule catalogue expanded showed that antipattern timings
+  were being compared across different rule workloads and a TypeScript-heavy
+  corpus. The merged follow-up adds language-labelled Rust-scanner cases, a
+  balanced corpus v2, and automatic catalogue fingerprints in committed
+  history. That closes the last open TCOV item at 26/26; the module stays
+  **In Progress** pending release evidence, per the index note.
+
 ## Progress (as of 2026-06-26)
 
 - **TCOV-026 filed 2026-06-26.** Benchmark contract drift: `pnpm bench`,
   `bench.yml`, and `benchmarks/history/` schema diverged after GCALL/GV2-025
   gates landed. New work item aligns the routine suite with CI and extends the
   committed history schema (`secret_scan_parallel`, `walk_discovery`,
-  `hot_read`, `call_lift`, resource budgets). Status **In Progress**.
-- **TCOV-026 follow-up Merged 2026-08-11 via #3730.** The first full-suite
-  comparison after the rule catalogue expanded showed that antipattern timings
-  were being compared across different rule workloads and a TypeScript-heavy
-  corpus. The merged follow-up adds language-labelled Rust-scanner cases, a
-  balanced corpus v2, and automatic catalogue fingerprints in committed
-  history.
+  `hot_read`, `call_lift`, resource budgets). Filed **In Progress**; Merged
+  2026-08-11 via #3730 — see the 2026-08-11 entry above.
 
 ## Progress (as of 2026-06-20)
 
