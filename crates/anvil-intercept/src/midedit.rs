@@ -326,9 +326,13 @@ impl ScanBufferService {
         std::thread::Builder::new()
             .name("anvil-scan-buffer".to_owned())
             .spawn(move || {
-                // Hold capacity for the full worker lifetime.
-                let _permit = permit;
-                let _inflight = inflight;
+                // Hold capacity for the full worker lifetime. Named
+                // bindings (not `let _ = ...`) live until the end of
+                // this scope; the explicit `drop` below pins that
+                // lifetime past the pipeline call and oneshot send so
+                // NLL cannot shrink it earlier.
+                let permit = permit;
+                let inflight = inflight;
                 // ADR-031: `validation.service` boundary — start at
                 // "daemon has accepted a complete validation request"
                 // (the worker thread has been spawned with the parsed
@@ -350,6 +354,7 @@ impl ScanBufferService {
                 // call MUST NOT poison the aggregator with the
                 // worker's straggler duration).
                 let _ = sender.send((result, elapsed));
+                drop((permit, inflight));
             })
             .map_err(|err| ScanBufferError::WorkerFailed(err.to_string()))?;
 
