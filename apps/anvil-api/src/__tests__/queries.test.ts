@@ -5,6 +5,7 @@ import {
   findActiveScopesForUser,
   insertOtpCodeIfUnderLimit,
   revokeRefreshFamilyAndAccessTokensForUser,
+  stampUserActivity,
   stampUserLogin,
   upsertAccountFeatureTouch,
 } from '../db/queries.js';
@@ -31,6 +32,49 @@ describe('db queries', () => {
       const asText = JSON.stringify(flat);
       expect(asText).toContain('user-1');
       expect(asText).toContain('github');
+    });
+
+    it('also advances last_activity_at with kind login (BACT-008)', async () => {
+      const sql = mockSql([]);
+      await stampUserLogin(sql, 'user-1', 'otp');
+      expect(sql).toHaveBeenCalledTimes(1);
+      const call = vi.mocked(sql).mock.calls[0];
+      const strings = call?.[0] as unknown as string[];
+      const asSql = strings.join('?');
+      expect(asSql).toContain('last_activity_at');
+      expect(asSql).toContain('last_activity_kind');
+      const flat = call?.flatMap((part) => (Array.isArray(part) ? part : [part]));
+      const asText = JSON.stringify(flat);
+      expect(asText).toContain('login');
+    });
+  });
+
+  describe('stampUserActivity', () => {
+    it('advances last_activity_at with the given kind, never touching login fields (BACT-008)', async () => {
+      const sql = mockSql([]);
+      await expect(stampUserActivity(sql, 'user-1', 'refresh')).resolves.toBeUndefined();
+      expect(sql).toHaveBeenCalledTimes(1);
+      const call = vi.mocked(sql).mock.calls[0];
+      const strings = call?.[0] as unknown as string[];
+      const asSql = strings.join('?');
+      expect(asSql).toContain('last_activity_at');
+      expect(asSql).toContain('last_activity_kind');
+      expect(asSql).not.toContain('first_login_at');
+      expect(asSql).not.toContain('last_login_at');
+      expect(asSql).not.toContain('last_login_method');
+      const flat = call?.flatMap((part) => (Array.isArray(part) ? part : [part]));
+      const asText = JSON.stringify(flat);
+      expect(asText).toContain('user-1');
+      expect(asText).toContain('refresh');
+    });
+
+    it('accepts kind feature for authenticated feature-touch accepts', async () => {
+      const sql = mockSql([]);
+      await stampUserActivity(sql, 'user-2', 'feature');
+      const flat = vi
+        .mocked(sql)
+        .mock.calls[0]?.flatMap((part) => (Array.isArray(part) ? part : [part]));
+      expect(JSON.stringify(flat)).toContain('feature');
     });
   });
   describe('upsertAccountFeatureTouch', () => {

@@ -45,6 +45,12 @@ const BetaUserSchema = z.object({
   first_login_at: z.union([DateStringSchema, z.null()]).optional(),
   last_login_at: z.union([DateStringSchema, z.null()]).optional(),
   last_login_method: z.union([z.enum(['github', 'otp', 'device']), z.null()]).optional(),
+  // BACT-008 (ADR-121): durable plan name + account activity. `.optional()`
+  // for the same fixture-tolerance reason as `github_id` above — real rows
+  // always carry `plan` post-021 (column DEFAULT 'beta').
+  plan: z.string().optional(),
+  last_activity_at: z.union([DateStringSchema, z.null()]).optional(),
+  last_activity_kind: z.union([z.enum(['login', 'refresh', 'feature']), z.null()]).optional(),
   created_at: DateStringSchema,
   updated_at: DateStringSchema,
 });
@@ -91,10 +97,14 @@ function rows(result: unknown): Record<string, unknown>[] {
 /** Closed set of interactive login methods stamped by BACT-002. */
 export type LoginMethod = 'github' | 'otp' | 'device';
 
+/** Closed set of `last_activity_kind` values (ADR-121 / BACT-008). */
+export type ActivityKind = 'login' | 'refresh' | 'feature';
+
 /**
- * Record an interactive login for a beta user (BACT-002).
- *
- * Sets `first_login_at` only when still null; always refreshes
+ * Record an interactive login for a beta user (BACT-002), and — since an
+ * interactive mint is always account activity (ADR-121 decision 4) — advance
+ * `last_activity_at` / `last_activity_kind = 'login'` in the same statement
+ * (BACT-008). Sets `first_login_at` only when still null; always refreshes
  * `last_login_at` and `last_login_method`. Invite/approve token mint must
  * not call this — only real session mint paths.
  */
@@ -109,6 +119,30 @@ export async function stampUserLogin(
       first_login_at = COALESCE(first_login_at, now()),
       last_login_at = now(),
       last_login_method = ${method},
+      last_activity_at = now(),
+      last_activity_kind = ${'login'},
+      updated_at = now()
+    WHERE id = ${userId}
+  `;
+}
+
+/**
+ * Advance account activity only (BACT-008 / ADR-121 decision 4): session
+ * refresh and authenticated feature-touch accept both count as activity
+ * without faking an interactive login. Never touches `first_login_at`,
+ * `last_login_at`, or `last_login_method` — callers that completed a real
+ * interactive mint must use `stampUserLogin` instead, which stamps both.
+ */
+export async function stampUserActivity(
+  sql: NeonClient,
+  userId: string,
+  kind: Exclude<ActivityKind, 'login'>
+): Promise<void> {
+  await sql`
+    UPDATE beta_users
+    SET
+      last_activity_at = now(),
+      last_activity_kind = ${kind},
       updated_at = now()
     WHERE id = ${userId}
   `;

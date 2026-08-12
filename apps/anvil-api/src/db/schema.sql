@@ -24,6 +24,19 @@ CREATE TABLE beta_users (
                        last_login_method IS NULL
                        OR last_login_method IN ('github', 'otp', 'device')
                      ),
+  -- BACT-008 (ADR-121): durable plan name (closed set; only 'beta' today,
+  -- maps to catalogue audience plan-beta) and account activity for DAA.
+  -- Interactive mint stamps login above *and* activity here (kind 'login');
+  -- session refresh and authenticated feature-touch advance activity only.
+  -- Invite/approve set plan via the column DEFAULT and never stamp either.
+  plan               text NOT NULL DEFAULT 'beta'
+                     CHECK (plan IN ('beta')),
+  last_activity_at   timestamptz,
+  last_activity_kind text
+                     CHECK (
+                       last_activity_kind IS NULL
+                       OR last_activity_kind IN ('login', 'refresh', 'feature')
+                     ),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -212,6 +225,8 @@ CREATE TABLE account_feature_touches (
 -- Indexes
 CREATE INDEX idx_beta_users_last_login_at
   ON beta_users (last_login_at DESC NULLS LAST);
+CREATE INDEX idx_beta_users_last_activity_at
+  ON beta_users (last_activity_at DESC NULLS LAST);
 CREATE INDEX idx_account_feature_touches_feature_last_seen
   ON account_feature_touches (feature_key, last_seen_at DESC);
 CREATE INDEX idx_account_feature_touches_last_seen
