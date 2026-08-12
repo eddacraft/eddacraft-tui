@@ -919,3 +919,20 @@ never with feature work.
   and the architecture commands bind to architecture_source; dead_code
   allow removed; both-topologies gate tests added.
 - Next: land UCFG-008; then 001 → 002, 010, 011, 012.
+
+## Cycle — 2026-08-13 (UCFG drain, wave 2 cont.: UCFG-008 integrated)
+
+- UCFG-008 (consumer sweep):
+  `MERGED(97ff5aeee67678cc17d43507aa247b2c2bfa2312, 2026-08-12T23:10:11Z)`
+  via PR #3836; ancestor check passed. Verifier round 1 BLOCKING ×3
+  (FIFO hang of the gate — pinned note ignored; watch startup crash on
+  delegated configs via the kernel two-schema split; kernel-schema
+  legacy repos losing watch enforcement) — all repaired; round 2 pass
+  with live probes. New Proposed items: UCFG-013 (watch/kernel
+  mapping), UCFG-014 (descriptor-bound reader guard). DOCFRESH gating
+  owed cleared by reviewing docs/guides/custom-architecture-policies.md
+  in-branch.
+- UCFG-001 In Progress (this branch): init writes canonical
+  .anvil.<ext>; --force replaces a legacy .anvilrc; TUI labels +
+  snapshots flipped; status profile reader made discover-first.
+- Next: land UCFG-001 → UCFG-002; then 010, 011, 012.

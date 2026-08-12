@@ -97,14 +97,13 @@ impl ConfigFormat {
     pub const ALL: [Self; 3] = [Self::Yaml, Self::Json, Self::Toml];
 
     pub fn label(self) -> &'static str {
-        // The wizard always writes a single `.anvilrc` file; the chosen format
-        // is the serialisation used inside it. Name the real file rather than
-        // promising `.anvil.yaml`/`.json`/`.toml` files that are never written
-        // (CIB-171).
+        // Since ADR-120 the wizard writes the canonical `.anvil.<ext>`
+        // file — the extension names the format. Name the real file
+        // (CIB-171 honesty rule; the filename changed with UCFG-001).
         match self {
-            Self::Yaml => "YAML (.anvilrc) (default)",
-            Self::Json => "JSON (.anvilrc)",
-            Self::Toml => "TOML (.anvilrc)",
+            Self::Yaml => "YAML (.anvil.yaml) (default)",
+            Self::Json => "JSON (.anvil.json)",
+            Self::Toml => "TOML (.anvil.toml)",
         }
     }
 }
@@ -385,22 +384,25 @@ mod tests {
         ]
     }
 
-    // CIB-171: the wizard always writes a single `.anvilrc` file (the chosen
-    // format is the serialisation inside it), so the format labels must not
-    // promise `.anvil.yaml`/`.json`/`.toml` files that are never written.
+    // CIB-171 honesty rule, post-UCFG-001: the wizard writes the
+    // canonical `.anvil.<ext>` file, so each format label must name
+    // exactly the file that format produces — never the legacy
+    // `.anvilrc`.
     #[test]
     fn config_format_labels_name_the_written_file() {
-        for fmt in ConfigFormat::ALL {
+        for (fmt, expected) in [
+            (ConfigFormat::Yaml, ".anvil.yaml"),
+            (ConfigFormat::Json, ".anvil.json"),
+            (ConfigFormat::Toml, ".anvil.toml"),
+        ] {
             let label = fmt.label();
             assert!(
-                label.contains(".anvilrc"),
-                "format label must name the written `.anvilrc` file, got: {label}",
+                label.contains(expected),
+                "format label must name {expected}, got: {label}",
             );
             assert!(
-                !label.contains(".anvil.yaml")
-                    && !label.contains(".anvil.json")
-                    && !label.contains(".anvil.toml"),
-                "format label must not promise a per-format filename, got: {label}",
+                !label.contains(".anvilrc"),
+                "format label must not name the legacy file, got: {label}",
             );
         }
         assert!(ConfigFormat::Yaml.label().contains("default"));

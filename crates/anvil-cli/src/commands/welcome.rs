@@ -483,7 +483,7 @@ fn run_guided_init(
                     .config_path
                     .file_name()
                     .and_then(std::ffi::OsStr::to_str)
-                    .unwrap_or(crate::commands::init::CONFIG_FILE_NAME)
+                    .unwrap_or(".anvil.yaml")
                     .to_string();
                 let summary = onboarding::InitCompleteSummary {
                     config_path,

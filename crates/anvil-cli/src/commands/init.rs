@@ -25,20 +25,33 @@ pub struct InitArgs {
 /// Schema version for generated `.anvilrc` files.
 const SCHEMA_VERSION: &str = "1.0.0";
 
-/// The single config filename anvil writes, regardless of the chosen
-/// serialisation format (the format is stored inside the file, not in its
-/// name). Callers that report the written file to the user derive their copy
-/// from this so the summary can never drift from what was actually created
-/// (CIB-171).
-pub(crate) const CONFIG_FILE_NAME: &str = ".anvilrc";
+/// The legacy config filename. Never written since UCFG-001 / ADR-120
+/// pt 1 — kept for detection, refusal copy, and `--force` replacement
+/// of a legacy file. `anvil migrate format` remains the explicit
+/// conversion path for existing repos.
+pub(crate) const LEGACY_CONFIG_FILE_NAME: &str = ".anvilrc";
+
+/// The canonical config filename for a chosen format (ADR-120 pt 1):
+/// `.anvil.<ext>`, extension naming the format. Callers that report
+/// the written file derive it from [`GeneratedConfig::config_path`]
+/// so summaries can never drift from what was created (CIB-171).
+pub(crate) fn canonical_config_file_name(format: &str) -> String {
+    let ext = match format {
+        "yml" => "yml",
+        "json" => "json",
+        "toml" => "toml",
+        _ => "yaml",
+    };
+    format!(".anvil.{ext}")
+}
 
 /// Outcome of writing a fresh anvil config. Exposes the path actually written
 /// so callers (e.g. the welcome landing summary) can name the real file rather
 /// than a hardcoded literal (CIB-171).
 #[derive(Debug, Clone)]
 pub(crate) struct GeneratedConfig {
-    /// The config file that was written — always `CONFIG_FILE_NAME` under the
-    /// init root.
+    /// The config file that was written — the canonical `.anvil.<ext>`
+    /// for the chosen format, under the init root.
     pub config_path: PathBuf,
     /// Whether `.gitignore` was updated with anvil's entries.
     pub gitignore_updated: bool,
@@ -122,13 +135,20 @@ pub(crate) fn run_in(
     // exists. Remove the empty stub so the upcoming create proceeds cleanly
     // — the only information it could possibly hold is "nothing".
     if !args.force {
-        let config_path = root.join(".anvilrc");
-        if let Ok(meta) = fs::metadata(&config_path)
-            && meta.is_file()
-            && meta.len() == 0
-        {
-            fs::remove_file(&config_path)
-                .with_context(|| format!("failed to remove empty {}", config_path.display()))?;
+        for name in [
+            LEGACY_CONFIG_FILE_NAME.to_string(),
+            canonical_config_file_name("yaml"),
+            canonical_config_file_name("json"),
+            canonical_config_file_name("toml"),
+        ] {
+            let config_path = root.join(&name);
+            if let Ok(meta) = fs::metadata(&config_path)
+                && meta.is_file()
+                && meta.len() == 0
+            {
+                fs::remove_file(&config_path)
+                    .with_context(|| format!("failed to remove empty {}", config_path.display()))?;
+            }
         }
     }
 
@@ -179,12 +199,7 @@ fn run_tui(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Resu
     };
 
     let generated = generate_config_with_force(&config, &init_root, force)?;
-    print_success(
-        &config.planning_dir,
-        &checks,
-        invocation,
-        generated.gitignore_updated,
-    );
+    print_success(&generated, &config.planning_dir, &checks, invocation);
     print_capacity_recommendation(&init_root);
     print_post_init_analysis(&init_root);
     Ok(())
@@ -193,12 +208,7 @@ fn run_tui(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Resu
 fn run_plain(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Result<()> {
     let config = AnvilConfig::default();
     let generated = generate_config_with_force(&config, root, force)?;
-    print_success(
-        &config.planning_dir,
-        &config.checks,
-        invocation,
-        generated.gitignore_updated,
-    );
+    print_success(&generated, &config.planning_dir, &config.checks, invocation);
     print_capacity_recommendation(root);
     print_post_init_analysis(root);
     Ok(())
@@ -371,11 +381,23 @@ pub(crate) fn generate_config_with_force(
     // "directory missing" error if a caller passes a freshly-picked path.
     fs::create_dir_all(root)
         .with_context(|| format!("failed to create directory {}", root.display()))?;
-    let path = root.join(CONFIG_FILE_NAME);
+    let file_name = canonical_config_file_name(&config.format);
+    let path = root.join(&file_name);
     if force {
-        crate::util::atomic_write(&path, content.as_bytes()).context("failed to write .anvilrc")?;
+        crate::util::atomic_write(&path, content.as_bytes())
+            .with_context(|| format!("failed to write {file_name}"))?;
+        // `--force` replaces the project config: a legacy `.anvilrc`
+        // left beside the new canonical file would create the exact
+        // dual-truth state doctor warns about, seeded by our own tool.
+        let legacy = root.join(LEGACY_CONFIG_FILE_NAME);
+        if legacy.is_file() {
+            fs::remove_file(&legacy)
+                .with_context(|| format!("failed to remove legacy {LEGACY_CONFIG_FILE_NAME}"))?;
+            eprintln!("anvil: removed legacy {LEGACY_CONFIG_FILE_NAME} (replaced by {file_name})");
+        }
     } else {
-        crate::util::write_new(&path, content.as_bytes()).context("failed to write .anvilrc")?;
+        crate::util::write_new(&path, content.as_bytes())
+            .with_context(|| format!("failed to write {file_name}"))?;
     }
 
     fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
@@ -495,14 +517,25 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
 }
 
 fn print_success(
+    generated: &GeneratedConfig,
     planning_dir: &str,
     checks: &[String],
     invocation: InitInvocation,
-    gitignore_updated: bool,
 ) {
+    let config_file = generated
+        .config_path
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or(".anvil.yaml");
     print!(
         "{}",
-        success_message(planning_dir, checks, invocation, gitignore_updated)
+        success_message(
+            config_file,
+            planning_dir,
+            checks,
+            invocation,
+            generated.gitignore_updated
+        )
     );
 }
 
@@ -515,6 +548,7 @@ fn print_success(
 /// CIB-263: when init mutated `.gitignore`, name that path in the summary so
 /// the blast radius is honest (Config/Plans/Checks alone under-reported it).
 fn success_message(
+    config_file: &str,
     planning_dir: &str,
     checks: &[String],
     invocation: InitInvocation,
@@ -524,7 +558,7 @@ fn success_message(
     let mut out = String::new();
     let _ = writeln!(out);
     let _ = writeln!(out, "anvil initialised successfully.");
-    let _ = writeln!(out, "  Config:    {CONFIG_FILE_NAME}");
+    let _ = writeln!(out, "  Config:    {config_file}");
     let _ = writeln!(out, "  Plans:     {planning_dir}/");
     let _ = writeln!(out, "  Checks:    {}", checks.join(", "));
     if gitignore_updated {
@@ -632,6 +666,7 @@ mod tests {
     #[test]
     fn init_success_names_anvil_start_as_next_step() {
         let msg = success_message(
+            ".anvil.yaml",
             "plans",
             &["secret-detection".to_string()],
             InitInvocation::Standalone,
@@ -654,6 +689,7 @@ mod tests {
     #[test]
     fn init_from_start_suppresses_anvil_start_next_step() {
         let msg = success_message(
+            ".anvil.yaml",
             "plans",
             &["secret-detection".to_string()],
             InitInvocation::FromStart,
@@ -680,8 +716,20 @@ mod tests {
     #[test]
     fn standalone_and_from_start_differ_only_by_next_step_line() {
         let checks = ["secret-detection".to_string()];
-        let standalone = success_message("plans", &checks, InitInvocation::Standalone, true);
-        let from_start = success_message("plans", &checks, InitInvocation::FromStart, true);
+        let standalone = success_message(
+            ".anvil.yaml",
+            "plans",
+            &checks,
+            InitInvocation::Standalone,
+            true,
+        );
+        let from_start = success_message(
+            ".anvil.yaml",
+            "plans",
+            &checks,
+            InitInvocation::FromStart,
+            true,
+        );
         assert!(
             standalone.starts_with(&from_start),
             "standalone output is the FromStart output plus a trailing next-step block:\n\
@@ -695,6 +743,7 @@ mod tests {
     #[test]
     fn success_message_lists_gitignore_when_updated() {
         let msg = success_message(
+            ".anvil.yaml",
             "plans",
             &["secret-detection".to_string()],
             InitInvocation::Standalone,
@@ -715,6 +764,7 @@ mod tests {
     #[test]
     fn success_message_omits_gitignore_when_unchanged() {
         let msg = success_message(
+            ".anvil.yaml",
             "plans",
             &["secret-detection".to_string()],
             InitInvocation::Standalone,
@@ -739,6 +789,7 @@ mod tests {
             "fresh repo with partial .gitignore must report an update"
         );
         let msg = success_message(
+            ".anvil.yaml",
             "plans",
             &AnvilConfig::default().checks,
             InitInvocation::Standalone,
@@ -852,18 +903,21 @@ mod tests {
     }
 
     #[test]
-    fn creates_anvilrc_and_anvil_dir() {
+    fn creates_canonical_config_and_anvil_dir() {
         let dir = tempfile::tempdir().unwrap();
 
         let result = run_plain(dir.path(), false, InitInvocation::Standalone);
 
         assert!(result.is_ok());
-        assert!(dir.path().join(".anvilrc").exists());
+        // UCFG-001 / ADR-120 pt 1: the canonical file is written; no
+        // command creates a new `.anvilrc`.
+        assert!(dir.path().join(".anvil.yaml").exists());
+        assert!(!dir.path().join(".anvilrc").exists());
         assert!(dir.path().join(".anvil").is_dir());
         assert!(dir.path().join(".anvil/cache").is_dir());
         assert!(dir.path().join("plans").is_dir());
 
-        let content = fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
+        let content = fs::read_to_string(dir.path().join(".anvil.yaml")).unwrap();
         // Default format is YAML in the canonical snake_case key space
         // (ADR-120 / UCFG-003), so check as text.
         assert!(content.contains("schema_version: \"1.0.0\""));
@@ -889,10 +943,10 @@ mod tests {
 
         let generated = generate_config(&config, dir.path()).expect("generate");
 
-        assert_eq!(generated.config_path, dir.path().join(CONFIG_FILE_NAME));
+        assert_eq!(generated.config_path, dir.path().join(".anvil.yaml"));
         assert_eq!(
             generated.config_path.file_name().and_then(|n| n.to_str()),
-            Some(CONFIG_FILE_NAME),
+            Some(".anvil.yaml"),
         );
         assert!(generated.config_path.exists());
     }
@@ -943,7 +997,7 @@ planningDir: plans
     }
 
     #[test]
-    fn force_overwrites_existing_anvilrc() {
+    fn force_replaces_legacy_anvilrc_with_canonical_file() {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join(".anvilrc"), r#"{"old": true}"#).unwrap();
 
@@ -952,7 +1006,10 @@ planningDir: plans
         let result = run_in(&args, &global, dir.path(), InitInvocation::Standalone);
         assert!(result.is_ok());
 
-        let content = fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
+        // The canonical file replaces the legacy one — leaving both
+        // would seed the dual-truth state doctor warns about.
+        assert!(!dir.path().join(".anvilrc").exists());
+        let content = fs::read_to_string(dir.path().join(".anvil.yaml")).unwrap();
         assert!(content.contains("schema_version"));
         assert!(content.contains("1.0.0"));
         assert!(!content.contains("old"));

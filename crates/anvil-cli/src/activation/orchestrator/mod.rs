@@ -1026,7 +1026,7 @@ fn add_tui_config_offer(
 ) {
     let id = "project:init-config".to_string();
     let target = config_format.map_or_else(
-        || root.join(".anvilrc"),
+        || root.join(".anvil.yaml"),
         |format| root.join(format!(".anvil.{}", format.extension())),
     );
     let description = config_format.map_or_else(
@@ -1336,7 +1336,7 @@ fn run_with_home_and_registration_outcome<'a>(
     // `--touch-project-state`, activation runs in a read-only posture — it still
     // verifies, installs MCP entries into the candidate's own home, and produces
     // a diagnostic, but it does NOT seed durable per-project state into the real
-    // repo (`.anvilrc`, `anvil/project-id`, `.gitattributes`, GitHub workflows,
+    // repo (`.anvil.yaml`, `anvil/project-id`, `.gitattributes`, GitHub workflows,
     // baseline). These are state the production binary reads; an unreleased
     // candidate must not write them silently. On an already-activated repo every
     // one of these is a write-if-absent no-op anyway, so the gate only changes
@@ -1353,7 +1353,7 @@ fn run_with_home_and_registration_outcome<'a>(
         );
     }
 
-    // Step 1 — write `.anvilrc` if absent.
+    // Step 1 — write the project config if absent.
     activation_run.start(ActivationStep::InitialProbe);
     let initial = verify_with_home(root, home);
     activation_run.complete(ActivationStep::InitialProbe);
@@ -2392,6 +2392,7 @@ verdict: completed"
             "TUI mode must not silently auto-install Claude MCP while consent widgets are deferred",
         );
         assert!(!dir.path().join(".anvilrc").exists());
+        assert!(!dir.path().join(".anvil.yaml").exists());
         assert!(!dir.path().join("anvil/project-id").exists());
         assert!(!dir.path().join(".gitattributes").exists());
         assert!(!dir.path().join(".anvil/baseline.json").exists());
@@ -3075,8 +3076,8 @@ verdict: completed"
         let (diag, _report) = run_in_isolated(dir.path(), home.path(), &global);
 
         assert!(
-            dir.path().join(".anvilrc").exists(),
-            "orchestrator should write .anvilrc on a fresh repo"
+            dir.path().join(".anvil.yaml").exists(),
+            "orchestrator should write the canonical config on a fresh repo"
         );
         assert!(matches!(diag.config, ConfigStatus::Valid));
     }
@@ -3231,7 +3232,7 @@ verdict: completed"
 
         // Run the same `.gitattributes` writer the orchestrator runs.
         // Going through the full `run_with_home` would also write
-        // `.anvilrc`, `anvil/project-id`, `.anvil/baseline.json`, etc.,
+        // `.anvil.yaml`, `anvil/project-id`, `.anvil/baseline.json`, etc.,
         // which we'd then have to stage; the union-merge property is a
         // property of the `.gitattributes` content only, so we call the
         // narrow writer directly.
@@ -3445,7 +3446,7 @@ verdict: completed"
 
         // Run once to write config + install.
         run_in_isolated(dir.path(), home.path(), &global);
-        let mtime_before = std::fs::metadata(dir.path().join(".anvilrc"))
+        let mtime_before = std::fs::metadata(dir.path().join(".anvil.yaml"))
             .unwrap()
             .modified()
             .unwrap();
@@ -3455,14 +3456,14 @@ verdict: completed"
         // with one-second mtime granularity (e.g. HFS+).
         std::thread::sleep(std::time::Duration::from_millis(1100));
         run_in_isolated(dir.path(), home.path(), &global);
-        let mtime_after = std::fs::metadata(dir.path().join(".anvilrc"))
+        let mtime_after = std::fs::metadata(dir.path().join(".anvil.yaml"))
             .unwrap()
             .modified()
             .unwrap();
 
         assert_eq!(
             mtime_before, mtime_after,
-            "orchestrator must not rewrite .anvilrc on idempotent re-run"
+            "orchestrator must not rewrite the config on idempotent re-run"
         );
     }
 

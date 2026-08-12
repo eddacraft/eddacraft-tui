@@ -150,7 +150,7 @@ Change status to **Ready** when:
 
 #### UCFG-001: init writes canonical `.anvil.<ext>`
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** `anvil init` writes `.anvil.yaml` by default (ext follows the
   chosen format); stops writing `.anvilrc`. TUI init surface labels updated
   (it currently suppresses `.anvil.*` labels because init never writes them).
@@ -328,7 +328,7 @@ Change status to **Ready** when:
 
 #### UCFG-008: gate / watch / architecture commands read the resolved section
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3836
 - **Intent:** replace direct `.anvil/architecture.yaml` reads in `gate.rs`,
   `watch.rs`, and `architecture*.rs` with the resolved section (inline or
   delegated); ADR-102 command-surface semantics unchanged

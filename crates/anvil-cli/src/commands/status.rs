@@ -292,15 +292,27 @@ fn list_config_hook_commands_safe(root: &Path, event: &str) -> Vec<String> {
     list_config_hook_commands(root, event).unwrap_or_default()
 }
 
-/// Read `.anvilrc` for profile configuration.
+/// Read the project config (canonical `.anvil.<ext>` first, legacy
+/// `.anvilrc` fallback — UCFG-001) for profile configuration.
 fn gather_profile(root: &Path) -> ProfileInfo {
-    let rc_path = root.join(".anvilrc");
+    let (rc_path, label) = match anvil_config::discover(root, ".anvil") {
+        Ok(Some(discovered)) => {
+            let label = discovered
+                .path
+                .file_name()
+                .and_then(std::ffi::OsStr::to_str)
+                .unwrap_or(".anvil.yaml")
+                .to_string();
+            (discovered.path, label)
+        }
+        _ => (root.join(".anvilrc"), ".anvilrc".to_string()),
+    };
 
     let Ok(contents) = std::fs::read_to_string(&rc_path) else {
         return ProfileInfo {
             name: "(no config)".to_string(),
             checks: vec![],
-            path: ".anvilrc".to_string(),
+            path: label.clone(),
         };
     };
 
@@ -329,14 +341,14 @@ fn gather_profile(root: &Path) -> ProfileInfo {
         return ProfileInfo {
             name: "(invalid config)".to_string(),
             checks: vec![],
-            path: ".anvilrc".to_string(),
+            path: label.clone(),
         };
     };
 
     ProfileInfo {
         name: "default".to_string(),
         checks,
-        path: ".anvilrc".to_string(),
+        path: label,
     }
 }
 

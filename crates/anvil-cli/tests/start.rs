@@ -429,6 +429,7 @@ fn start_tui_pty_enters_and_restores_the_alternate_screen() {
 fn assert_no_tui_project_writes(root: &Path) {
     for relative in [
         ".anvilrc",
+        ".anvil.yaml",
         "anvil/project-id",
         ".gitattributes",
         ".anvil/baseline.json",
@@ -519,7 +520,7 @@ fn start_tui_selected_apply_writes_only_selection_then_reaches_verdict() {
         "post-consent verdict was not rendered:\n{}",
         result.transcript
     );
-    assert!(dir.path().join(".anvilrc").exists());
+    assert!(dir.path().join(".anvil.yaml").exists());
     assert!(!dir.path().join("anvil/project-id").exists());
     assert!(!dir.path().join(".gitattributes").exists());
     assert!(!dir.path().join(".anvil/baseline.json").exists());
@@ -530,15 +531,15 @@ fn start_tui_selected_apply_writes_only_selection_then_reaches_verdict() {
 #[test]
 fn start_on_fresh_repo_runs_init_and_lands_ready_restart_required() {
     // The composed flow's headline outcome on an empty HOME: init
-    // writes `.anvilrc`, the MCP install step writes Cursor + Claude
+    // writes `.anvil.yaml`, the MCP install step writes Cursor + Claude
     // Code entries into HOME, and the diagnostic ends at
     // `ready_restart_required` (the user must restart their editor
     // for the entries to attach).
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     assert!(
-        !dir.path().join(".anvilrc").exists(),
-        "pre-condition: fresh temp repo has no .anvilrc"
+        !dir.path().join(".anvil.yaml").exists(),
+        "pre-condition: fresh temp repo has no config"
     );
 
     let out = run_start_with_home(dir.path(), home.path(), &[]);
@@ -548,10 +549,10 @@ fn start_on_fresh_repo_runs_init_and_lands_ready_restart_required() {
         String::from_utf8_lossy(&out.stderr)
     );
 
-    // Init ran — the only stable proof is .anvilrc on disk.
+    // Init ran — the only stable proof is the canonical config on disk.
     assert!(
-        dir.path().join(".anvilrc").exists(),
-        ".anvilrc must exist after `anvil start` on a fresh repo"
+        dir.path().join(".anvil.yaml").exists(),
+        ".anvil.yaml must exist after `anvil start` on a fresh repo"
     );
 
     // Install ran — Cursor + Claude Code entries written into HOME.
@@ -616,8 +617,8 @@ fn start_without_detected_editor_does_not_write_mcp_config() {
 
     // The spine still activated.
     assert!(
-        dir.path().join(".anvilrc").exists(),
-        ".anvilrc must exist after `anvil start` even with no editor detected"
+        dir.path().join(".anvil.yaml").exists(),
+        ".anvil.yaml must exist after `anvil start` even with no editor detected"
     );
     // But no MCP config was written for an editor the user does not have.
     assert!(
@@ -845,7 +846,7 @@ fn start_idempotent_rerun_skips_init_and_install() {
 
     let cursor_path = home.path().join(".cursor/mcp.json");
     let claude_path = home.path().join(".claude.json");
-    let anvilrc = dir.path().join(".anvilrc");
+    let anvilrc = dir.path().join(".anvil.yaml");
 
     let mtime_anvilrc_before = std::fs::metadata(&anvilrc).unwrap().modified().unwrap();
     let mtime_cursor_before = std::fs::metadata(&cursor_path).unwrap().modified().unwrap();

@@ -1,6 +1,6 @@
 
 anvil initialised successfully.
-  Config:    .anvilrc
+  Config:    .anvil.yaml
   Plans:     plans/
   Checks:    secret-detection, import-boundaries, antipattern-scan
   Gitignore: .gitignore
@@ -30,7 +30,7 @@ ACTIVATION
     Cursor: installed at <HOME>/.cursor/mcp.json (fresh)
     Claude Code: installed at <HOME>/.claude.json (fresh)
   rule modes: public-api-expansion=warn, new-dependency-introduction=warn, cross-layer-violation=warn, privilege-expansion=warn
-  rule source: .anvilrc
+  rule source: .anvil.yaml
   daemon: not started (--no-daemon); save-time validation uses the scoped fallback.
   worktree: project config may be written here; run `git init` (then re-run `anvil start`) or `anvil workspace register <path>` before protection can attach.
 
