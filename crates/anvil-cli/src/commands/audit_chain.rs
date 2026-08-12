@@ -1105,15 +1105,29 @@ mod tests {
     fn audit_workflow_template_uses_env_for_dispatch_inputs() {
         let t = audit_workflow_template();
 
-        // Forbid direct expression interpolation into shell for dispatch inputs.
-        assert!(
-            !t.contains("--branch \"${{ github.event.inputs"),
-            "branch must not be interpolated into shell; use env + shell var",
-        );
-        assert!(
-            !t.contains("--threshold \"${{ github.event.inputs"),
-            "threshold must not be interpolated into shell; use env + shell var",
-        );
+        // Forbid direct expression interpolation into the run script for
+        // dispatch inputs. Cover common reintroduction shapes (quoted flag,
+        // bare flag, and shell assignment) so a partial regression still fails.
+        let run_script = t
+            .split_once("name: Run L5 audit")
+            .map(|(_, rest)| rest)
+            .unwrap_or(t);
+        let forbidden = [
+            "--branch \"${{ github.event.inputs",
+            "--branch ${{ github.event.inputs",
+            "--threshold \"${{ github.event.inputs",
+            "--threshold ${{ github.event.inputs",
+            "branch=\"${{ github.event.inputs",
+            "branch='${{ github.event.inputs",
+            "threshold=\"${{ github.event.inputs",
+            "threshold='${{ github.event.inputs",
+        ];
+        for needle in forbidden {
+            assert!(
+                !run_script.contains(needle),
+                "dispatch input must not appear in run script as {needle}",
+            );
+        }
 
         // Positive contract: expressions land only in env:, then shell vars.
         assert!(

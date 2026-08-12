@@ -69,7 +69,8 @@ jobs:
             echo "::error::branch must be a simple git ref (letters, digits, . _ / -)"
             exit 1
           fi
-          if [[ ! "$threshold" =~ ^[0-9]+$ ]] || (( threshold > 10000 )); then
+          # 10# forces base-10 so leading zeros (e.g. 08) are not octal.
+          if [[ ! "$threshold" =~ ^[0-9]+$ ]] || (( 10#$threshold > 10000 )); then
             echo "::error::threshold must be an integer from 0 to 10000"
             exit 1
           fi
