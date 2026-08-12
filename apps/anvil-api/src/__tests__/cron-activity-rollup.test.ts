@@ -95,4 +95,44 @@ describe('GET /cron/cleanup — account activity rollup (BACT-011)', () => {
       else process.env['CRON_SECRET'] = originalCronSecret;
     }
   });
+
+  it('isolates a rollup failure: cleanup still 200s with its counts intact', async () => {
+    cronMocks.cleanupExpiredDeviceCodes.mockResolvedValue(3);
+    cronMocks.cleanupExpiredGithubDeviceSessions.mockResolvedValue(1);
+    cronMocks.cleanupExpiredOtpCodes.mockResolvedValue(2);
+    cronMocks.cleanupExpiredRefreshTokens.mockResolvedValue(5);
+    cronMocks.cleanupExpiredBroadcastSnapshots.mockResolvedValue(0);
+    cronMocks.rollupAndPurgeExpiredTelemetryBeacons.mockResolvedValue(9);
+    cronMocks.rollupAccountActivity.mockRejectedValue(new Error('connection reset'));
+
+    const app = await loadCronApp();
+    const originalCronSecret = process.env['CRON_SECRET'];
+    process.env['CRON_SECRET'] = 'cron-secret';
+    try {
+      const response = await app.request('/cron/cleanup', {
+        headers: { Authorization: 'Bearer cron-secret' },
+      });
+
+      // A rejected rollup must never 500 the whole sweep — it would mask the
+      // six successful cleanup steps and make Vercel Cron treat the run as
+      // failed.
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        cleaned: Record<string, number>;
+        activityRollup: { error: string };
+      };
+      expect(body.cleaned).toEqual({
+        deviceCodes: 3,
+        githubDeviceSessions: 1,
+        otpCodes: 2,
+        refreshTokens: 5,
+        broadcastSnapshots: 0,
+        telemetryBeacons: 9,
+      });
+      expect(body.activityRollup).toEqual({ error: 'connection reset' });
+    } finally {
+      if (originalCronSecret === undefined) delete process.env['CRON_SECRET'];
+      else process.env['CRON_SECRET'] = originalCronSecret;
+    }
+  });
 });

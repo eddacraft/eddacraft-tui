@@ -67,8 +67,22 @@ cron.get('/cleanup', async (c) => {
   // idempotent, never double-counts) so a short outage self-heals; a day
   // left un-rolled longer than the window is subject to the late-rollup
   // undercount documented in lib/account-activity-rollup.ts.
+  //
+  // Deliberately error-isolated from the six cleanup steps above: a rollup
+  // rejection must never 500 the whole sweep (that would mask successful
+  // cleanup and make Vercel Cron treat the whole run as failed). On failure
+  // we still return 200 with the cleanup counts intact and surface the
+  // failure in `activityRollup.error` instead.
   const rollupDays = completedUtcDays(new Date(), DEFAULT_ROLLUP_LOOKBACK_DAYS);
-  const activityRollupRows = await rollupAccountActivity(sql, rollupDays);
+  let activityRollup: { days: number; rows: number } | { error: string };
+  try {
+    const activityRollupRows = await rollupAccountActivity(sql, rollupDays);
+    activityRollup = { days: rollupDays.length, rows: activityRollupRows.length };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    debug('activity rollup failed (isolated from cleanup)', { error: message });
+    activityRollup = { error: message };
+  }
 
   debug('cleanup complete', {
     deviceCodes: deviceCount,
@@ -77,8 +91,7 @@ cron.get('/cleanup', async (c) => {
     refreshTokens: refreshCount,
     broadcastSnapshots: broadcastSnapshotCount,
     telemetryBeacons: telemetryBeaconCount,
-    activityRollupDays: rollupDays.length,
-    activityRollupRows: activityRollupRows.length,
+    activityRollup,
   });
 
   return c.json({
@@ -90,10 +103,7 @@ cron.get('/cleanup', async (c) => {
       broadcastSnapshots: broadcastSnapshotCount,
       telemetryBeacons: telemetryBeaconCount,
     },
-    activityRollup: {
-      days: rollupDays.length,
-      rows: activityRollupRows.length,
-    },
+    activityRollup,
   });
 });
 
