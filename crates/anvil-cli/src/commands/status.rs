@@ -317,8 +317,13 @@ fn gather_profile(root: &Path) -> ProfileInfo {
                     .collect()
             })
             .unwrap_or_default()
-    } else if contents.contains("schemaVersion:") || contents.contains("schema_version =") {
-        // Recognised YAML or TOML format — extract checks.
+    } else if contents.contains("schema_version:")
+        || contents.contains("schemaVersion:")
+        || contents.contains("schema_version =")
+        || contents.contains("schemaVersion =")
+    {
+        // Recognised YAML or TOML format — canonical snake_case (ADR-120)
+        // or a legacy camelCase writer's output — extract checks.
         parse_checks_from_text(&contents)
     } else {
         return ProfileInfo {
@@ -2076,6 +2081,37 @@ mod tests {
         // 2024-03-10 00:00:00 UTC = 1710028800
         let formatted = format_unix_timestamp(1_710_028_800);
         assert_eq!(formatted, "2024-03-10 00:00");
+    }
+
+    // --- gather_profile format sniffing ---
+
+    /// UCFG-003: init now writes canonical snake_case YAML; the sniff must
+    /// recognise it (and the legacy camelCase TOML that `start --format`
+    /// used to write) instead of reporting "(invalid config)".
+    #[test]
+    fn gather_profile_recognises_snake_case_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "schema_version: \"1.0.0\"\nplanning_dir: \"plans\"\nformat: \"yaml\"\nchecks:\n  - \"secret-detection\"\n",
+        )
+        .unwrap();
+        let profile = gather_profile(tmp.path());
+        assert_eq!(profile.name, "default");
+        assert_eq!(profile.checks, vec!["secret-detection"]);
+    }
+
+    #[test]
+    fn gather_profile_recognises_legacy_camel_toml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "schemaVersion = \"1.0.0\"\nchecks = [\"secret-detection\"]\n",
+        )
+        .unwrap();
+        let profile = gather_profile(tmp.path());
+        assert_eq!(profile.name, "default");
+        assert_eq!(profile.checks, vec!["secret-detection"]);
     }
 
     // --- parse_checks_from_text ---

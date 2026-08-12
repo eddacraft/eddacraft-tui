@@ -44,8 +44,11 @@ pub(crate) struct GeneratedConfig {
     pub gitignore_updated: bool,
 }
 
+// Canonical snake_case key space (ADR-120 pt 3 / UCFG-003): serde's default
+// field-name serialisation is already snake_case, so no rename attribute.
+// Legacy camelCase files stay readable via `InitConfigView`'s tolerance and
+// `anvil_config::normalize_legacy_keys`.
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct AnvilConfig {
     pub(crate) schema_version: String,
     pub(crate) planning_dir: String,
@@ -536,8 +539,8 @@ fn success_message(
 fn yaml_serialise(config: &AnvilConfig) -> String {
     use std::fmt::Write;
     let mut out = String::new();
-    let _ = writeln!(out, "schemaVersion: \"{}\"", config.schema_version);
-    let _ = writeln!(out, "planningDir: \"{}\"", config.planning_dir);
+    let _ = writeln!(out, "schema_version: \"{}\"", config.schema_version);
+    let _ = writeln!(out, "planning_dir: \"{}\"", config.planning_dir);
     let _ = writeln!(out, "format: \"{}\"", config.format);
     out.push_str("checks:\n");
     for check in &config.checks {
@@ -576,6 +579,51 @@ mod tests {
             no_tui: true,
             verbose: false,
             ..Default::default()
+        }
+    }
+
+    // ---- UCFG-003: owned writers emit canonical snake_case only ----
+
+    #[test]
+    fn yaml_serialise_emits_snake_case_keys() {
+        let out = yaml_serialise(&AnvilConfig::default());
+        assert!(out.contains("schema_version:"), "got:\n{out}");
+        assert!(out.contains("planning_dir:"), "got:\n{out}");
+        assert!(!out.contains("schemaVersion"), "got:\n{out}");
+        assert!(!out.contains("planningDir"), "got:\n{out}");
+    }
+
+    #[test]
+    fn json_serialise_emits_snake_case_keys() {
+        let out = serde_json::to_string_pretty(&AnvilConfig::default()).unwrap();
+        assert!(out.contains("\"schema_version\""), "got:\n{out}");
+        assert!(out.contains("\"planning_dir\""), "got:\n{out}");
+        assert!(!out.contains("schemaVersion"), "got:\n{out}");
+    }
+
+    /// Cross-format equivalence (UCFG-003 validation): each serialiser's
+    /// output parses back through the MLP-011 loader and reads identically
+    /// through MLP2-041's `InitConfigView`.
+    #[test]
+    fn all_formats_round_trip_through_init_config_view() {
+        let config = AnvilConfig::default();
+        let cases = [
+            (yaml_serialise(&config), anvil_config::ConfigFormat::Yaml),
+            (toml_serialise(&config), anvil_config::ConfigFormat::Toml),
+            (
+                serde_json::to_string_pretty(&config).unwrap(),
+                anvil_config::ConfigFormat::Json,
+            ),
+        ];
+        for (content, format) in cases {
+            let value =
+                anvil_config::parse_str(&content, format, std::path::Path::new("fixture"))
+                    .unwrap_or_else(|e| panic!("{format:?} parse failed: {e}\n{content}"));
+            let view = crate::config_view::InitConfigView::from_value(&value)
+                .unwrap_or_else(|e| panic!("{format:?} view failed: {e}\n{content}"));
+            assert_eq!(view.schema_version, config.schema_version, "{format:?}");
+            assert_eq!(view.planning_dir, config.planning_dir, "{format:?}");
+            assert_eq!(view.checks, config.checks, "{format:?}");
         }
     }
 
@@ -815,9 +863,10 @@ mod tests {
         assert!(dir.path().join("plans").is_dir());
 
         let content = fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
-        // Default format is YAML, so check as text.
-        assert!(content.contains("schemaVersion: \"1.0.0\""));
-        assert!(content.contains("planningDir: \"plans\""));
+        // Default format is YAML in the canonical snake_case key space
+        // (ADR-120 / UCFG-003), so check as text.
+        assert!(content.contains("schema_version: \"1.0.0\""));
+        assert!(content.contains("planning_dir: \"plans\""));
         assert!(content.contains("format: \"yaml\""));
         assert!(content.contains("- \"secret-detection\""));
         assert!(content.contains("- \"import-boundaries\""));
@@ -903,7 +952,7 @@ planningDir: plans
         assert!(result.is_ok());
 
         let content = fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
-        assert!(content.contains("schemaVersion"));
+        assert!(content.contains("schema_version"));
         assert!(content.contains("1.0.0"));
         assert!(!content.contains("old"));
     }

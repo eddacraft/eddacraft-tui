@@ -1830,9 +1830,9 @@ pub(crate) fn pre_write_anvil_config_format(
     // Build the default config value. Mirrors `init::AnvilConfig::default()`
     // shape (schema_version / planning_dir / format / checks) so a project
     // adopted via `--format` reads identically to one adopted via the
-    // legacy `.anvilrc` path. Keys are emitted in `schemaVersion` /
-    // `planningDir` camelCase across all formats so MLP2-041's
-    // `InitConfigView::from_value` reads them without snake-case fallback.
+    // legacy `.anvilrc` path. Keys are canonical snake_case across all
+    // formats (ADR-120 pt 3 / UCFG-003); MLP2-041's
+    // `InitConfigView::from_value` reads snake_case natively.
     let value = default_anvil_config_value(format);
     let serialised = serialise_to_format(&value, format)
         .with_context(|| format!("serialising default config as {}", format.extension()))?;
@@ -1853,8 +1853,8 @@ fn default_anvil_config_value(format: anvil_config::ConfigFormat) -> serde_json:
     // silently misroute the writer the moment a consumer migrates to
     // `InitConfigView::from_value`.
     serde_json::json!({
-        "schemaVersion": "1.0.0",
-        "planningDir": "plans",
+        "schema_version": "1.0.0",
+        "planning_dir": "plans",
         "format": format.extension(),
         "checks": crate::commands::defaults::default_check_names(),
     })
@@ -5312,7 +5312,7 @@ mod tests {
         let raw = std::fs::read_to_string(&path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert!(parsed.is_object());
-        assert_eq!(parsed["schemaVersion"], "1.0.0");
+        assert_eq!(parsed["schema_version"], "1.0.0");
         // Council MAJOR — embedded `format` field must match the file
         // extension, not be hard-coded to `"yaml"`.
         assert_eq!(parsed["format"], "json");
@@ -5327,10 +5327,9 @@ mod tests {
         assert!(path.is_file());
 
         let raw = std::fs::read_to_string(&path).unwrap();
-        // toml::to_string_pretty preserves camelCase keys from the JSON
-        // Value; pinning the line proves the writer didn't accidentally
-        // serialise the field name in a way that round-trips wrong.
-        assert!(raw.contains("schemaVersion = \"1.0.0\""), "got:\n{raw}");
+        // Pinning the line proves the writer emits the canonical
+        // snake_case key (ADR-120 pt 3 / UCFG-003) and round-trips right.
+        assert!(raw.contains("schema_version = \"1.0.0\""), "got:\n{raw}");
         // Council MAJOR — embedded `format` field must match the file
         // extension.
         assert!(raw.contains("format = \"toml\""), "got:\n{raw}");

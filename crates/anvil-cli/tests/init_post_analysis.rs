@@ -206,10 +206,11 @@ fn init_json_mode_skips_post_analysis() {
         !stdout.contains("First scan"),
         "JSON mode should not emit the human analysis section, got:\n{stdout}",
     );
-    // Sanity: JSON output is still a valid config document.
+    // Sanity: JSON output is still a valid config document, in the
+    // canonical snake_case key space (ADR-120 / UCFG-003).
     let parsed: serde_json::Value =
         serde_json::from_str(&stdout).expect("JSON mode stdout must parse as JSON");
-    assert!(parsed.get("schemaVersion").is_some());
+    assert!(parsed.get("schema_version").is_some());
 }
 
 #[test]
