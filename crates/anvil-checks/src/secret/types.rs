@@ -42,6 +42,48 @@ const fn default_max_line_bytes() -> usize {
     4096
 }
 
+/// Is `extension` usable as a `skip_extensions` entry: a dotted suffix of
+/// ASCII alphanumerics and `. _ + -`.
+///
+/// Every skip path must agree on this, because every skip path narrows what
+/// the secret scan covers. An **empty** entry is the dangerous case:
+/// `str::ends_with("")` is true for every string, so a single `""` in
+/// `skip_extensions` skips every non-lockfile file on disk and drops every
+/// history line — while the check still reports "No secrets detected" and
+/// passes. Rejecting whitespace and pathspec-magic characters (`:`, `(`,
+/// `*`, `\`, …) additionally stops operator config from rewriting the git
+/// pathspec that `build_log_args` constructs.
+pub fn is_usable_skip_extension(extension: &str) -> bool {
+    extension.len() > 1
+        && extension.starts_with('.')
+        && extension
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '-'))
+}
+
+/// Split `skip_extensions` into the entries that may narrow the scan and a
+/// human-readable warning per rejected entry.
+///
+/// Invalid entries are reported rather than silently honoured: narrowing
+/// coverage on the strength of a malformed config value is exactly the
+/// false-clean this guards against.
+pub fn partition_skip_extensions(skip_extensions: &[String]) -> (Vec<&str>, Vec<String>) {
+    let mut usable = Vec::with_capacity(skip_extensions.len());
+    let mut warnings = Vec::new();
+    for extension in skip_extensions {
+        if is_usable_skip_extension(extension) {
+            usable.push(extension.as_str());
+        } else {
+            warnings.push(format!(
+                "secret scan: ignoring invalid `skip_extensions` entry {extension:?} \
+                 (expected a dotted suffix like \".min.js\"); it would have narrowed \
+                 or disabled scanning"
+            ));
+        }
+    }
+    (usable, warnings)
+}
+
 impl Default for SecretCheckConfig {
     fn default() -> Self {
         Self {

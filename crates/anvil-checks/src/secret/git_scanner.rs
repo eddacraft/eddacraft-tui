@@ -8,7 +8,9 @@ use crate::secret::patterns::{
 use crate::secret::scanner::{
     scan_lockfile_url_credentials, suppressed_by_high_confidence_overlap,
 };
-use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
+use crate::secret::types::{
+    FindingType, SecretCheckConfig, SecretFinding, is_usable_skip_extension,
+};
 
 /// Output of a git-history secret scan.
 ///
@@ -22,18 +24,6 @@ pub struct GitScanOutput {
     pub findings: Vec<SecretFinding>,
     pub pattern_errors: Vec<String>,
     pub lines_skipped_oversize: usize,
-}
-
-/// A `skip_extensions` value safe to embed in a git `:(exclude)` pathspec: a
-/// dotted suffix of ASCII alphanumerics and `. _ + -`. Rejects whitespace and
-/// pathspec-magic characters (`:`, `(`, `*`, `\`, …) so operator config can't
-/// alter the scan scope.
-fn is_safe_extension(extension: &str) -> bool {
-    extension.len() > 1
-        && extension.starts_with('.')
-        && extension
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '+' | '-'))
 }
 
 /// Build the `git log -p` argument vector: depth + added/modified filter + a
@@ -61,7 +51,7 @@ fn build_log_args(depth_flag: String, skip_extensions: &[String]) -> Vec<String>
         if extension == ".lock" {
             continue;
         }
-        if is_safe_extension(extension) {
+        if is_usable_skip_extension(extension) {
             // Git pathspec globs match across `/`, so `*<ext>` excludes the
             // extension in any directory — the same suffix match the on-disk
             // `should_skip_file` (`file.ends_with(extension)`) applies.
@@ -170,9 +160,17 @@ fn findings_for_added_line(
     // bespoke `*.lock` that are not dependency lockfile basenames). Binary
     // and minified extensions are still pathspec-excluded above; `.lock` is
     // filtered here after the lockfile branch.
+    //
+    // Validity-filtered for the same reason as the on-disk path: an empty
+    // entry matches every path via `ends_with("")` and would drop every
+    // history line while the scan still reported clean. `build_log_args`
+    // already refuses such entries when building the pathspec; this loop
+    // must agree, or the two halves of the history scan disagree about what
+    // is covered.
     if config
         .skip_extensions
         .iter()
+        .filter(|extension| is_usable_skip_extension(extension))
         .any(|extension| current_file.ends_with(extension.as_str()))
     {
         return Vec::new();
@@ -624,6 +622,32 @@ mod tests {
         assert!(
             findings.iter().any(|f| f.file.ends_with("app.py")),
             "malformed skip entry must not suppress scanning: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn empty_skip_extension_does_not_disable_history_scanning() {
+        // An empty entry slips past the pathspec guard (rejected there and
+        // merely warned about) but `ends_with("")` is true for every path,
+        // so the line loop used to drop every history line — a clean history
+        // scan over nothing. The line loop must apply the same validity
+        // filter the pathspec builder does.
+        let repo = temp_repo();
+        commit_file(&repo, "app.py", &format!("k = \"{AWS_KEY}\"\n"));
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            skip_extensions: vec![String::new()],
+            ..SecretCheckConfig::default()
+        };
+
+        let findings = scan_git_history(&repo.to_string_lossy(), &config)
+            .expect("scan returns Ok")
+            .findings;
+        assert!(
+            findings.iter().any(|f| f.file.ends_with("app.py")),
+            "empty skip entry must not suppress history scanning: {findings:?}"
         );
 
         let _ = std::fs::remove_dir_all(&repo);

@@ -10,6 +10,7 @@ use crate::secret::patterns::compile_custom_patterns;
 use crate::secret::scanner::scan_content_with_compiled_patterns;
 use crate::secret::types::{
     FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding, Suppression,
+    partition_skip_extensions,
 };
 
 /// Maximum file size to scan (1 MiB). Files of this size or larger are
@@ -29,8 +30,17 @@ pub fn run_secret_check(
     // shared across rayon workers; `pattern_errors` is reported via
     // `SecretCheckResult.pattern_errors` so a misconfigured custom
     // pattern surfaces at the boundary that owns config.
-    let (compiled_custom_patterns, pattern_errors) =
+    let (compiled_custom_patterns, mut pattern_errors) =
         compile_custom_patterns(&config.custom_patterns);
+
+    // A `skip_extensions` entry only narrows the scan if it is a well-formed
+    // dotted suffix. An empty entry would match every path (`ends_with("")`)
+    // and silently disable non-lockfile scanning while still reporting a
+    // clean pass, so invalid entries are dropped and surfaced through the
+    // same channel as a misconfigured custom pattern.
+    let (skip_extensions, skip_extension_warnings) =
+        partition_skip_extensions(&config.skip_extensions);
+    pattern_errors.extend(skip_extension_warnings);
 
     // SCAN-001: read + scan each candidate file in parallel on the rayon
     // pool, mirroring the welcome-screen discovery shape. Per-file panics
@@ -41,7 +51,7 @@ pub fn run_secret_check(
     let per_file: Vec<(Vec<SecretFinding>, Vec<Suppression>)> = files
         .par_iter()
         .filter_map(|file| {
-            if should_skip_file(file, config) {
+            if should_skip_file(file, &skip_extensions) {
                 return None;
             }
             if file_exceeds_size_limit(file) {
@@ -228,7 +238,10 @@ fn finalize_suppressions(mut suppressions: Vec<Suppression>) -> Vec<Suppression>
     suppressions
 }
 
-fn should_skip_file(file: &str, config: &SecretCheckConfig) -> bool {
+/// `skip_extensions` must already be validated by
+/// [`partition_skip_extensions`] — an unvalidated empty entry would make
+/// this return `true` for every path.
+fn should_skip_file(file: &str, skip_extensions: &[&str]) -> bool {
     // Lockfiles are NOT skipped: they get a restricted URL-credential-only scan
     // in `scan_content_with_compiled_patterns` (GH #2584). Returning `false`
     // here forces them past the `.lock` entry in `skip_extensions`, so
@@ -243,8 +256,7 @@ fn should_skip_file(file: &str, config: &SecretCheckConfig) -> bool {
     if crate::filter::is_lockfile(Path::new(file)) {
         return false;
     }
-    config
-        .skip_extensions
+    skip_extensions
         .iter()
         .any(|extension| file.ends_with(extension))
 }
@@ -330,6 +342,106 @@ mod tests {
         let path = base.join(unique);
         let _ = fs::create_dir_all(&path);
         path
+    }
+
+    /// The false-clean this guards against: `str::ends_with("")` is true
+    /// for every path, so an empty `skip_extensions` entry made
+    /// `should_skip_file` skip every non-lockfile file. The scan then
+    /// reported "No secrets detected", score 100, passed — with nothing
+    /// scanned at all.
+    #[test]
+    fn empty_skip_extension_does_not_disable_scanning() {
+        let temp_dir = create_temp_dir("empty-skip-ext");
+        let file = temp_dir.join("secret.ts");
+        assert!(fs::write(&file, "api_key='abcdEFGH1234567890'\n").is_ok());
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        let config = SecretCheckConfig {
+            skip_extensions: vec![String::new()],
+            ..SecretCheckConfig::default()
+        };
+        let result = run_secret_check(&files, &config, None);
+
+        assert_eq!(
+            result.findings.len(),
+            1,
+            "an empty skip extension must not disable scanning; got {:?}",
+            result.findings,
+        );
+        assert!(!result.passed);
+        assert!(
+            result
+                .pattern_errors
+                .iter()
+                .any(|e| e.contains("skip_extensions")),
+            "invalid config must be surfaced, got {:?}",
+            result.pattern_errors,
+        );
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    /// Pathspec-magic and undotted values are equally unusable: they would
+    /// narrow coverage on a malformed value.
+    #[test]
+    fn invalid_skip_extensions_are_ignored_and_reported() {
+        let temp_dir = create_temp_dir("invalid-skip-ext");
+        let file = temp_dir.join("secret.ts");
+        assert!(fs::write(&file, "api_key='abcdEFGH1234567890'\n").is_ok());
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        for bad in ["", ".", "ts", ":(exclude)*.ts", ".t s"] {
+            let config = SecretCheckConfig {
+                skip_extensions: vec![bad.to_string()],
+                ..SecretCheckConfig::default()
+            };
+            let result = run_secret_check(&files, &config, None);
+            assert_eq!(
+                result.findings.len(),
+                1,
+                "skip_extensions {bad:?} must not narrow the scan",
+            );
+            assert!(
+                result
+                    .pattern_errors
+                    .iter()
+                    .any(|e| e.contains("skip_extensions")),
+                "skip_extensions {bad:?} must be reported",
+            );
+        }
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    /// The valid case must keep working — the validation must not turn the
+    /// denylist off wholesale.
+    #[test]
+    fn valid_skip_extension_still_skips_and_is_not_reported() {
+        let temp_dir = create_temp_dir("valid-skip-ext");
+        let file = temp_dir.join("bundle.min.js");
+        assert!(fs::write(&file, "api_key='abcdEFGH1234567890'\n").is_ok());
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert!(
+            result.findings.is_empty(),
+            "`.min.js` must still be skipped, got {:?}",
+            result.findings,
+        );
+        assert!(
+            !result
+                .pattern_errors
+                .iter()
+                .any(|e| e.contains("skip_extensions")),
+            "the default denylist must not be reported as invalid, got {:?}",
+            result.pattern_errors,
+        );
+
+        let _ = fs::remove_dir_all(temp_dir);
     }
 
     #[test]
