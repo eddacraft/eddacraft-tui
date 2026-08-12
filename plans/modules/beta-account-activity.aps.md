@@ -307,7 +307,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-007: Phase-2 vocabulary and operator docs
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Durable operator/agent language: users + plan, DAI vs DAA,

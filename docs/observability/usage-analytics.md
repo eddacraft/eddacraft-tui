@@ -1,8 +1,8 @@
 # Usage Analytics Privacy Contract
 
-| Type  | Authority     | Owner              | Status | Freshness                                                                             |
-| ----- | ------------- | ------------------ | ------ | ------------------------------------------------------------------------------------- |
-| Guide | Authoritative | USAGE, FLEET, BACT | Live   | Live as of 2026-08-12 (ADR-121 plan/DAA pointers; two-pipe contract still 2026-08-11) |
+| Type  | Authority     | Owner              | Status | Freshness                                                                                            |
+| ----- | ------------- | ------------------ | ------ | ---------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | USAGE, FLEET, BACT | Live   | Live as of 2026-08-13 (BACT-007 DAI/DAA pointer to admin-cli.md; two-pipe contract still 2026-08-11) |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                      | Downstream                                                                                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -36,9 +36,14 @@ This guide distinguishes **three** separate stories:
   bookkeeping for customer success on authenticated accounts (login stamps on
   interactive session mint; allowlisted per-account feature touch; phase 2 adds
   account **`plan`**, **`last_activity_at`**, and **DAA** — daily active
-  _accounts_, not installs). It answers “did _this_ user log in / stay active /
-  use a core surface?” and must **not** re-identify fleet `install_id` values or
-  put email on the anonymous beacon. See
+  _accounts_, not installs, distinct from FLEET **DAI** — daily active
+  _installs_). Never treat FLEET DAI as a customer login count. It answers “did
+  _this_ user log in / stay active / use a core surface?” and must **not**
+  re-identify fleet `install_id` values or put email on the anonymous beacon.
+  Operator vocabulary for `plan`, `last_activity_at`, DAI vs DAA, and “quiet”
+  (activity-idle) vs “never (interactively) logged in” is documented in
+  [admin-cli.md](../runbooks/admin-cli.md#plan-activity-and-daa-vocabulary-phase-2).
+  See also
   [beta-account-activity](../../plans/modules/beta-account-activity.aps.md),
   [account plan / activity / entitlements](../guides/account-plan-activity-and-entitlements.md),
   [ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md),

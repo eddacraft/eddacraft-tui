@@ -1,8 +1,8 @@
 # Admin CLI Operator Runbook
 
-| Type    | Authority     | Owner                | Status | Freshness                                                                                                    |
-| ------- | ------------- | -------------------- | ------ | ------------------------------------------------------------------------------------------------------------ |
-| Runbook | Authoritative | CIB, FLEET-007, BACT | Live   | Last reviewed 2026-08-12 against BACT-003/006 engagement filters and the ADR-121 plan/DAA vocabulary pointer |
+| Type    | Authority     | Owner                | Status | Freshness                                                                                                           |
+| ------- | ------------- | -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB, FLEET-007, BACT | Live   | Last reviewed 2026-08-13 against BACT-003/006 engagement filters and the BACT-007 plan/DAA/quiet vocabulary section |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -515,14 +515,65 @@ anvil admin users --engagement missing_feature --feature watch
 anvil --json admin users --engagement idle --idle-days 14 --limit 20
 ```
 
-**Plan / DAA vocabulary (phase 2):** do not treat FLEET DAI as “how many
-customers logged in.” Account **plan**, **DAA** (`last_activity_at`), and
-flag-backed entitlements are defined in
-[account plan, activity, and entitlements](../guides/account-plan-activity-and-entitlements.md)
-and
-[ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md).
-Admin activity metrics surface lands under BACT-009 (`anvil admin activity` or
-documented equivalent).
+### Plan, activity, and DAA vocabulary (phase 2)
+
+Phase 2
+([ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md),
+[design spec](../../plans/specs/2026-08-12-account-plan-activity-entitlements.md),
+BACT-007..013) adds an account-level vocabulary that `show` and `users` do not
+fully expose yet. This section pins the target language now so operators and
+agents use consistent terms before the schema (BACT-008) and metrics surface
+(BACT-009) ship — table entries below are marked accordingly.
+
+**`plan`** — every account carries a durable plan name. Today the only value is
+**`beta`**, mapping to feature-flag catalogue audience `plan-beta`. `plan` is a
+separate axis from account `status` (lifecycle: `active` / `pending` /
+`suspended` / `banned`) and from token `scopes` (capability grants gated by
+`api.scope.*` flags). Target once BACT-008 ships: `anvil admin show <email>` and
+`anvil --json admin show <email>` surface `plan` alongside login stamps.
+
+**`last_activity_at`** — a single durable “did this account do anything lately”
+stamp, distinct from the login stamps `show` already prints:
+
+| Action                                                                      | Advances `last_activity_at`? | Advances login stamps?                                         |
+| --------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------- |
+| Interactive session mint (GitHub, GitHub device, OTP, legacy device)        | Yes                          | Yes (`first_login_at` / `last_login_at` / `last_login_method`) |
+| Successful session refresh                                                  | Yes                          | No                                                             |
+| Authenticated allowlisted feature-touch (`watch`, `start`, `check`, `auth`) | Yes                          | No                                                             |
+| Invite / approve                                                            | No                           | No                                                             |
+
+Invite/approve alone never counts as activity or login — an admitted account
+that has not completed interactive login still shows `last_activity_at: null`
+and `login: never logged in`. Target once BACT-008 ships: `last_activity_at`
+(and optional `last_activity_kind`) on the account row and in `show` output.
+
+**DAI vs DAA** — do not conflate these two labels:
+
+| Label   | Full name               | Counts                                                          | Source                                                                        |
+| ------- | ----------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **DAI** | Daily active _installs_ | Anonymous FLEET beacons (`install_id`)                          | `anvil admin fleet` (live today)                                              |
+| **DAA** | Daily active _accounts_ | Named, authenticated accounts with `last_activity_at` in-window | Target once BACT-009 ships: `anvil admin activity` (or documented equivalent) |
+
+FLEET DAI is directional population evidence and carries no identity (ADR-107).
+DAA is identity-bound and answers “how many customers used the product,” never
+the reverse. Never report FLEET DAI as a customer login count, and never join a
+FLEET `install_id` to an account.
+
+**“Quiet” vs “never (interactively) logged in”** — two idle definitions coexist
+during phase 2:
+
+- **Never (interactively) logged in** — today's
+  `admin users --engagement never_logged_in` (`first_login_at IS NULL`). Says
+  nothing about token-only refresh or feature-touch use.
+- **Login-idle** — today's `admin users --engagement idle` (`last_login_at`
+  older than `--idle-days`, default 30). Also blind to
+  refresh/feature-touch-only accounts.
+- **Quiet (activity-idle)** — the phase-2 replacement, covering login, refresh,
+  and feature-touch via `last_activity_at`. Target once BACT-009 ships: prefer
+  this over login-idle for CS “who has gone quiet” queries.
+
+Full vocabulary, entitlement model, and evaluation-context wiring:
+[account plan, activity, and entitlements](../guides/account-plan-activity-and-entitlements.md).
 
 **EMAIL cohort note:** broadcast audiences `beta:active-recent` /
 `beta:active-idle` still resolve via refresh-token age until a deliberate
