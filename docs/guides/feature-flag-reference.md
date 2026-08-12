@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner   | Status | Freshness                                                                                                                                    |
 | ----- | ------------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-05-25 against `packages/anvil/contracts/src/schemas/feature-flags.schema.ts` and `docs/guides/feature-flag-governance.md` |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-13 against `packages/anvil/contracts/src/schemas/feature-flags.schema.ts` and `docs/guides/feature-flag-governance.md` |
 
 | Upstream                                                                                                                                                                                             | Downstream                                                               |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -380,6 +380,12 @@ set status to `retiring`, then `retired`, then delete.
   ],
 }
 ```
+
+For commercial or cohort access, prefer targeting **plan-axis audiences**
+(`plan-beta`, `plan-pro`, …) over ad-hoc attribute conditions; the account's
+durable `plan` is the evaluation-context attribute those audiences describe. See
+the account-entitlements note in `feature-flag-governance.md` and
+[ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md).
 
 ### Kill switch — emergency disable
 
