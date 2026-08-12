@@ -92,10 +92,10 @@ pub enum VerifyError {
     /// contract (ADR-037 §D-2 / MLP2-013): `GENESIS-BASELINED` requires
     /// a non-empty cutoff; `GENESIS-FRESH` requires absence.
     #[error(
-        "invalid baseline-anchor metadata at {path}:{line_number}: \
+        "invalid genesis-anchor metadata at {path}:{line_number}: \
          anchor {anchor} expects cutoff_commit {expected}, found {actual}"
     )]
-    InvalidBaselineAnchorMetadata {
+    InvalidGenesisAnchorMetadata {
         path: PathBuf,
         line_number: usize,
         anchor: String,
@@ -336,16 +336,14 @@ fn check_genesis_cutoff_contract(
 ) -> Result<(), VerifyError> {
     let has_cutoff = line.cutoff_commit.as_ref().is_some_and(|s| !s.is_empty());
     match anchor {
-        GenesisAnchor::Baselined if !has_cutoff => {
-            Err(VerifyError::InvalidBaselineAnchorMetadata {
-                path: path.to_path_buf(),
-                line_number,
-                anchor: anchor.anchor_string().to_string(),
-                expected: "present",
-                actual: "absent",
-            })
-        }
-        GenesisAnchor::Fresh if has_cutoff => Err(VerifyError::InvalidBaselineAnchorMetadata {
+        GenesisAnchor::Baselined if !has_cutoff => Err(VerifyError::InvalidGenesisAnchorMetadata {
+            path: path.to_path_buf(),
+            line_number,
+            anchor: anchor.anchor_string().to_string(),
+            expected: "present",
+            actual: "absent",
+        }),
+        GenesisAnchor::Fresh if has_cutoff => Err(VerifyError::InvalidGenesisAnchorMetadata {
             path: path.to_path_buf(),
             line_number,
             anchor: anchor.anchor_string().to_string(),
@@ -696,7 +694,7 @@ mod tests {
         assert!(
             matches!(
                 err,
-                VerifyError::InvalidBaselineAnchorMetadata {
+                VerifyError::InvalidGenesisAnchorMetadata {
                     expected: "present",
                     actual: "absent",
                     ..
@@ -711,7 +709,7 @@ mod tests {
         fs::write(&path, bytes).unwrap();
         let err = verify_chain_dag(&[path.as_path()]).unwrap_err();
         assert!(
-            matches!(err, VerifyError::InvalidBaselineAnchorMetadata { .. }),
+            matches!(err, VerifyError::InvalidGenesisAnchorMetadata { .. }),
             "empty cutoff must also fail, got {err:?}"
         );
     }
@@ -740,7 +738,7 @@ mod tests {
         assert!(
             matches!(
                 err,
-                VerifyError::InvalidBaselineAnchorMetadata {
+                VerifyError::InvalidGenesisAnchorMetadata {
                     expected: "absent",
                     actual: "present",
                     ..
