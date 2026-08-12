@@ -8,8 +8,8 @@ pub mod types;
 
 pub use registry_loader::{
     CompiledPattern, CompiledRegistry, Detection, FamilyEntry, LoadRegistryOptions,
-    LoadRegistryResult, compiled_to_antipattern, get_pattern_from_registry,
-    load_compiled_registry, load_registry_patterns, patterns_from_registry, reset_registry_cache,
+    LoadRegistryResult, compiled_to_antipattern, get_pattern_from_registry, load_compiled_registry,
+    load_registry_patterns, patterns_from_registry, reset_registry_cache,
 };
 
 pub use check::run_antipattern_check;

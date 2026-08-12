@@ -2509,10 +2509,7 @@ mod tests {
         };
         let via_custom = scan_artifact_with_patterns(&artifact, None, &[custom]);
         assert!(
-            via_custom
-                .warnings
-                .iter()
-                .all(|w| w.id == "TEST-ONLY-001"),
+            via_custom.warnings.iter().all(|w| w.id == "TEST-ONLY-001"),
             "only the supplied pattern may fire; got {:?}",
             via_custom.warnings
         );
@@ -2520,6 +2517,9 @@ mod tests {
             !via_custom.warnings.is_empty(),
             "supplied pattern must still match"
         );
-        assert_eq!(via_custom.patterns_checked, vec!["TEST-ONLY-001".to_string()]);
+        assert_eq!(
+            via_custom.patterns_checked,
+            vec!["TEST-ONLY-001".to_string()]
+        );
     }
 }
