@@ -4,6 +4,7 @@ title: Signal Capture (Kindling)
 description:
   Capture development observations with enough context for later reuse.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # Signal Capture (Kindling)

@@ -4,6 +4,12 @@ title: When to use anvil
 description:
   Decide whether anvil fits your project, workflow, and current language
   coverage.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/welcome.rs
+  - crates/anvil-kernel/src/parser/languages.rs
+  - crates/anvil-cli/src/main.rs
+verified_against: 0.9.0-beta
 ---
 
 # When to use anvil

@@ -2,6 +2,12 @@
 id: agent-harness
 title: Protect AI-assisted writes
 description: Connect a supported AI client to local pre-write validation.
+owner: MCPX
+upstream:
+  - crates/anvil-cli/src/commands/mcp_installer.rs
+  - crates/anvil-cli/src/activation/agent_registry.rs
+  - crates/anvil-cli/src/commands/start.rs
+verified_against: 0.9.0-beta
 ---
 
 # Protect AI-assisted writes

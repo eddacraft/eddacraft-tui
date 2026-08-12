@@ -3,6 +3,7 @@ id: opencode
 title: OpenCode Adapter
 description: Capture observations from OpenCode development sessions.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # OpenCode Adapter

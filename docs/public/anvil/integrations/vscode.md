@@ -4,6 +4,12 @@ title: Use Visual Studio Code
 description:
   Use terminal, save-time, and optional MCP workflows for anvil from Visual
   Studio Code.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/activation/agent_registry.rs
+  - crates/anvil-cli/src/commands/watch.rs
+  - crates/anvil-cli/src/commands/start.rs
+verified_against: 0.9.0-beta
 ---
 
 # Use Visual Studio Code

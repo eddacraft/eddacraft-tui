@@ -3,6 +3,11 @@ id: changelog
 title: Current release notes
 description:
   Current anvil beta changes and links to the complete release archive.
+owner: DOCSYNC
+upstream:
+  - CHANGELOG.md
+  - RELEASE-PLAN.md
+verified_against: 0.9.4-beta
 ---
 
 # Current release notes

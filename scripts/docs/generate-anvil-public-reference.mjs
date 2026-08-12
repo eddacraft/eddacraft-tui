@@ -413,8 +413,28 @@ function renderSupport(languages, targets, ruleExtensions, clients) {
 }
 
 function generatedHeader(id, title, description) {
+  // Governance frontmatter (ADR-119 D5 / DOCFRESH-005): each generated page
+  // declares the generator inputs it renders plus the generator itself, and
+  // is verified against the release its content is generated from.
+  const governance = {
+    'cli-reference': { owner: 'CLICT', sources: [inputs.cli, inputs.start] },
+    'rule-reference': { owner: 'DOCSYNC', sources: [inputs.registry] },
+    'support-reference': {
+      owner: 'DOCSYNC',
+      sources: [inputs.languages, inputs.dist, inputs.clients, inputs.registry],
+    },
+  }[id];
+  const lines = [`id: ${id}`, `title: ${title}`, `description: ${description}`];
+  if (governance) {
+    lines.push(`owner: ${governance.owner}`, 'upstream:');
+    for (const source of governance.sources) {
+      lines.push(`  - ${relative(ROOT, source).split('\\').join('/')}`);
+    }
+    lines.push('  - scripts/docs/generate-anvil-public-reference.mjs');
+    if (release) lines.push(`verified_against: ${release}`);
+  }
   return (
-    `---\nid: ${id}\ntitle: ${title}\ndescription: ${description}\n---\n\n` +
+    `---\n${lines.join('\n')}\n---\n\n` +
     `<!-- Generated from shipped product sources. Do not edit by hand. -->\n\n`
   );
 }

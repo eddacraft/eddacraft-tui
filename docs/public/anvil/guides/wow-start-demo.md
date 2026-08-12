@@ -4,6 +4,12 @@ title: First-value demo
 description:
   This older demo is consolidated into the canonical quickstart and tutorial.
 public_unlisted: true
+owner: DOCSYNC
+upstream:
+  - docs/public/anvil/quickstart.md
+  - docs/public/anvil/first-gate.md
+  - docs/public/anvil/beta-testing-guide.md
+verified_against: 0.9.0-beta
 ---
 
 # First-value demo

@@ -4,6 +4,7 @@ title: Capsules
 description:
   Bounded groups of observations with an intent and an open/close lifecycle.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # Capsules

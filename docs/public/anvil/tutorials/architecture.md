@@ -4,6 +4,12 @@ title: Architecture tutorial
 description:
   Model an existing layered project and prove that dependency direction is
   validated.
+owner: ARCHCFG
+upstream:
+  - crates/anvil-cli/src/commands/architecture.rs
+  - crates/anvil-architecture/src/validator.rs
+  - crates/anvil-cli/src/commands/gate.rs
+verified_against: 0.9.0-beta
 ---
 
 # Architecture tutorial

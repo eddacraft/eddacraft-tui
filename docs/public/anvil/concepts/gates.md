@@ -2,6 +2,11 @@
 id: gates
 title: Checks, findings, and gates
 description: Understand the three result layers used by anvil.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/gate.rs
+  - crates/anvil-cli/src/commands/check.rs
+verified_against: 0.9.0-beta
 ---
 
 # Checks, findings, and gates

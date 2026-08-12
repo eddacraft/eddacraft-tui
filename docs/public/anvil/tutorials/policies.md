@@ -2,6 +2,13 @@
 id: policies
 title: Policy tutorial
 description: Inspect, install, validate, test, and gate a bundled policy pack.
+owner: CPACKS
+upstream:
+  - crates/anvil-cli/src/commands/policy/install.rs
+  - crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline
+  - crates/anvil-cli/src/commands/policy/validate.rs
+  - crates/anvil-cli/src/commands/policy/test_run.rs
+verified_against: 0.9.0-beta
 ---
 
 # Policy tutorial

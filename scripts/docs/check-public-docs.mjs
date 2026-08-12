@@ -19,9 +19,15 @@ const REPO_ROOT = flagValue('--root')
   : fileURLToPath(new URL('../..', import.meta.url));
 const JSON_OUTPUT = argv.includes('--json');
 const SKIP_GENERATED = argv.includes('--skip-generated');
+const PUBLIC_ROOT = resolve(REPO_ROOT, 'docs/public');
 const ANVIL_ROOT = resolve(REPO_ROOT, 'docs/public/anvil');
 const BETA_ROOT = resolve(REPO_ROOT, 'docs/public/beta');
 const APS_ROOT = resolve(REPO_ROOT, 'docs/public/aps');
+// Sections whose product sources live in this repository declare the full
+// governance triple (owner, upstream, verified_against). Sections whose
+// sources are out of tree carry owner-only governance until DOCFRESH-008
+// decides their verification model; they are counted visibly, never silently.
+const EXTERNAL_UPSTREAM_SECTIONS = new Set(['kindling', 'aps', 'edda-stack']);
 const ANVIL_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/anvil.ts');
 const APS_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/aps.ts');
 const SITE_SHELL_PATHS = [
@@ -87,7 +93,10 @@ for (const file of files) {
   const lines = content.split(/\r?\n/);
   const publicPath = normalise(relative(REPO_ROOT, file));
 
-  for (let index = 0; index < lines.length; index += 1) {
+  // Frontmatter is never rendered, and governance keys legitimately name
+  // repository paths (ADR-119 D5) — the leakage patterns guard the rendered
+  // page only.
+  for (let index = frontmatterLineSpan(lines); index < lines.length; index += 1) {
     const line = lines[index];
     if (productNamePattern.test(line)) {
       add(publicPath, index + 1, 'product name must be lowercase: anvil, eddacraft, or kindling');
@@ -115,6 +124,10 @@ for (const file of files) {
   }
 }
 
+const governanceFiles = markdownFiles(PUBLIC_ROOT);
+const externalPending = checkGovernance(governanceFiles);
+const filesChecked = new Set([...files, ...governanceFiles]).size;
+
 checkNavigation();
 checkGeneratedReferences();
 
@@ -126,7 +139,7 @@ findings.sort((a, b) =>
 
 if (JSON_OUTPUT) {
   process.stdout.write(
-    `${JSON.stringify({ surface: 'public-docs', findings, summary: { errors: findings.length, filesChecked: files.length } }, null, 2)}\n`
+    `${JSON.stringify({ surface: 'public-docs', findings, summary: { errors: findings.length, filesChecked, externalPending } }, null, 2)}\n`
   );
 } else {
   for (const finding of findings) {
@@ -134,8 +147,13 @@ if (JSON_OUTPUT) {
       `[public-docs] ERROR: ${finding.file}:${finding.line} — ${finding.message}\n`
     );
   }
+  if (externalPending > 0) {
+    process.stdout.write(
+      `[public-docs] info: ${externalPending} external-upstream page(s) carry owner-only governance pending DOCFRESH-008\n`
+    );
+  }
   process.stdout.write(
-    `[public-docs] summary: ${findings.length} errors, ${files.length} files checked\n`
+    `[public-docs] summary: ${findings.length} errors, ${filesChecked} files checked\n`
   );
 }
 
@@ -347,11 +365,88 @@ function parseFrontmatter(content) {
   const end = content.indexOf('\n---', 4);
   if (end < 0) return {};
   const values = {};
+  let listKey;
   for (const line of content.slice(4, end).split(/\r?\n/)) {
+    const item = /^\s+-\s+(.*?)\s*$/.exec(line);
+    if (item && listKey !== undefined) {
+      values[listKey].push(item[1].replace(/^['"]|['"]$/g, ''));
+      continue;
+    }
     const match = /^([a-zA-Z0-9_-]+):\s*(.*?)\s*$/.exec(line);
-    if (match) values[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+    if (match) {
+      if (match[2] === '') {
+        listKey = match[1];
+        values[listKey] = [];
+      } else {
+        listKey = undefined;
+        values[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+      }
+    } else {
+      listKey = undefined;
+    }
   }
   return values;
+}
+
+function frontmatterLineSpan(lines) {
+  if (lines[0] !== '---') return 0;
+  for (let index = 1; index < lines.length; index += 1) {
+    if (lines[index] === '---') return index + 1;
+  }
+  return 0;
+}
+
+function checkGovernance(publicFiles) {
+  let ownerOnlyExternal = 0;
+  for (const file of publicFiles) {
+    const publicPath = normalise(relative(REPO_ROOT, file));
+    const section = publicPath.split('/')[2];
+    const external = EXTERNAL_UPSTREAM_SECTIONS.has(section);
+    const frontmatter = parseFrontmatter(readFileSync(file, 'utf8'));
+
+    const owner = frontmatter.owner;
+    if (owner === undefined || owner === '') {
+      add(publicPath, 1, 'missing governance frontmatter: owner (uppercase module id)');
+    } else if (typeof owner !== 'string' || !/^[A-Z][A-Z0-9]{1,15}$/.test(owner)) {
+      add(publicPath, 1, `owner must be an uppercase module id: ${owner}`);
+    }
+
+    const upstream =
+      frontmatter.upstream === undefined || Array.isArray(frontmatter.upstream)
+        ? frontmatter.upstream
+        : [frontmatter.upstream];
+    if (upstream === undefined) {
+      if (external) ownerOnlyExternal += 1;
+      else add(publicPath, 1, 'missing governance frontmatter: upstream (declared source paths)');
+    } else if (upstream.length === 0) {
+      add(publicPath, 1, 'upstream must list at least one repository path');
+    } else {
+      for (const entry of upstream) {
+        if (entry.startsWith('/') || entry.split('/').includes('..')) {
+          add(publicPath, 1, `upstream must be a relative repository path: ${entry}`);
+        } else if (!existsSync(resolve(REPO_ROOT, entry))) {
+          add(publicPath, 1, `upstream path does not exist: ${entry}`);
+        }
+      }
+    }
+
+    const version = frontmatter.verified_against;
+    if (version === undefined) {
+      if (!external) {
+        add(publicPath, 1, 'missing governance frontmatter: verified_against (product version)');
+      }
+    } else if (
+      typeof version !== 'string' ||
+      !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.-]+)?$/.test(version)
+    ) {
+      add(
+        publicPath,
+        1,
+        `verified_against must be a bare product version like 0.9.4-beta: ${version}`
+      );
+    }
+  }
+  return ownerOnlyExternal;
 }
 
 function documentId(file, explicitId, root) {

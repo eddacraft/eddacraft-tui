@@ -2,6 +2,11 @@
 id: review-capsules
 title: Review capsules
 description: Package and verify governance evidence for a commit range.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/capsule.rs
+  - crates/anvil-capsule/src/lib.rs
+verified_against: 0.9.0-beta
 ---
 
 # Review capsules

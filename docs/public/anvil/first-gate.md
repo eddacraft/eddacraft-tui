@@ -5,6 +5,11 @@ description:
   Create a safe temporary finding, see anvil detect it, fix it, and confirm the
   clean result.
 sidebar_position: 3
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/check.rs
+  - patterns/compiled/registry.json
+verified_against: 0.9.0-beta
 ---
 
 # Ten-minute protection tutorial

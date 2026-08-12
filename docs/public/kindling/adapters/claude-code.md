@@ -3,6 +3,7 @@ id: claude-code
 title: Claude Code Adapter
 description: Automatic session memory and context injection for Claude Code.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # Claude Code Adapter

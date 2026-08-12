@@ -4,6 +4,7 @@ title: Validation, audit, and CI safety
 description:
   Understand what APS checks and when plan validation may execute commands.
 sidebar_position: 3
+owner: DOCSYNC
 ---
 
 # Validation, audit, and CI safety

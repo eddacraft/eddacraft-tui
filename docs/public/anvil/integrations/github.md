@@ -4,6 +4,13 @@ title: Add anvil to GitHub Actions
 description:
   Run a version-pinned anvil pull-request gate and optionally upload SARIF
   findings.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/gate.rs
+  - crates/anvil-cli/src/commands/check.rs
+  - crates/anvil-sarif/src/lib.rs
+  - install.sh
+verified_against: 0.9.4-beta
 ---
 
 # Add anvil to GitHub Actions

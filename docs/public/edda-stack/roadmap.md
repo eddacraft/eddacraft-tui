@@ -4,6 +4,7 @@ title: Capability Roadmap
 description:
   Planned evolution of capture, review, and canonical memory capabilities.
 sidebar_position: 3
+owner: DOCSYNC
 ---
 
 # Capability Roadmap

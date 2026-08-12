@@ -3,6 +3,7 @@ id: pocketflow
 title: PocketFlow Adapter
 description: Capture workflow node executions as Kindling observations.
 sidebar_position: 3
+owner: DOCSYNC
 ---
 
 # PocketFlow Adapter

@@ -2,6 +2,12 @@
 id: cli-reference
 title: CLI command reference
 description: Discover every public top-level anvil command.
+owner: CLICT
+upstream:
+  - crates/anvil-cli/src/main.rs
+  - crates/anvil-cli/src/commands/start.rs
+  - scripts/docs/generate-anvil-public-reference.mjs
+verified_against: 0.9.4-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->

@@ -2,6 +2,11 @@
 id: rule-reference
 title: Compiled pattern catalogue
 description: Look up source-pattern rules compiled into anvil.
+owner: DOCSYNC
+upstream:
+  - patterns/compiled/registry.json
+  - scripts/docs/generate-anvil-public-reference.mjs
+verified_against: 0.9.4-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->

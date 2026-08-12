@@ -2,6 +2,14 @@
 id: support-reference
 title: Supported platforms and languages
 description: Check where anvil runs and what it can parse.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-kernel/src/parser/languages.rs
+  - dist-workspace.toml
+  - crates/anvil-cli/src/activation/agent_registry.rs
+  - patterns/compiled/registry.json
+  - scripts/docs/generate-anvil-public-reference.mjs
+verified_against: 0.9.4-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->

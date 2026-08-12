@@ -294,12 +294,18 @@ fi
 # procedures while accepting a complete lowercase fixture.
 echo "case 13: public-doc boundary enforces the newcomer trust contract"
 public_root="${tmp_root}/public-docs-fixture"
-mkdir -p "${public_root}/docs/public/anvil/guides" "${public_root}/apps/docs-site/sidebars"
+mkdir -p "${public_root}/docs/public/anvil/guides" "${public_root}/apps/docs-site/sidebars" \
+  "${public_root}/crates/anvil-cli/src"
+printf 'fn main() {}\n' >"${public_root}/crates/anvil-cli/src/main.rs"
 cat >"${public_root}/docs/public/anvil/quickstart.md" <<'EOF'
 ---
 id: quickstart
 title: Install anvil
 description: Install anvil and verify the binary.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/main.rs
+verified_against: 0.9.4-beta
 ---
 
 # Install anvil
@@ -314,6 +320,10 @@ cat >"${public_root}/docs/public/anvil/guides/check-code.md" <<'EOF'
 id: check-code
 title: Check code
 description: Run an anvil check.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/main.rs
+verified_against: 0.9.4-beta
 ---
 
 # Check code
@@ -352,6 +362,10 @@ cat >"${public_root}/docs/public/anvil/guides/internal.md" <<'EOF'
 id: internal
 title: anvil internals
 description: Internal implementation notes.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/main.rs
+verified_against: 0.9.4-beta
 ---
 
 # anvil internals
@@ -429,6 +443,111 @@ if grep -qx "drift compare --help" "${args_file}" && ! grep -q -- "--help --help
   pass "existing help flags are probed without duplication"
 else
   fail "public command truth duplicated an existing help flag; got: $(tr '\n' ';' <"${args_file}")"
+fi
+
+# Case 13c (DOCFRESH-005): public pages carry governance frontmatter — owner
+# everywhere; upstream + verified_against for sections whose sources live in
+# this tree (anvil, start-here, beta); owner-only for external-upstream
+# sections (kindling, aps, edda-stack) pending DOCFRESH-008, counted visibly.
+echo "case 13c: public pages declare governance frontmatter"
+gov_root="${tmp_root}/public-governance-fixture"
+mkdir -p "${gov_root}/docs/public/anvil" "${gov_root}/docs/public/kindling" \
+  "${gov_root}/apps/docs-site/sidebars" "${gov_root}/crates/anvil-cli/src"
+printf 'fn main() {}\n' >"${gov_root}/crates/anvil-cli/src/main.rs"
+cat >"${gov_root}/apps/docs-site/sidebars/anvil.ts" <<'EOF'
+export default {
+  anvilSidebar: ['governed'],
+};
+EOF
+cat >"${gov_root}/docs/public/anvil/governed.md" <<'EOF'
+---
+id: governed
+title: Governed page
+description: A fully governed anvil page.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/main.rs
+verified_against: 0.9.4-beta
+---
+
+# Governed page
+EOF
+cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
+---
+id: index
+title: kindling overview
+description: External-upstream section page.
+owner: DOCSYNC
+public_unlisted: true
+---
+
+# kindling overview
+EOF
+set +e
+out="$(node "${public_script}" --root "${gov_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] \
+  && echo "${out}" | grep -qE "^\[public-docs\] summary: 0 errors, [0-9]+ files checked$" \
+  && echo "${out}" | grep -q "1 external-upstream page(s) carry owner-only governance pending DOCFRESH-008"; then
+  pass "full triple passes in-tree; owner-only passes external and is counted visibly"
+else
+  fail "governed fixture should pass with a visible external count (status ${status}); got: ${out}"
+fi
+cat >"${gov_root}/docs/public/anvil/governed.md" <<'EOF'
+---
+id: governed
+title: Governed page
+description: A fully governed anvil page.
+upstream:
+  - crates/anvil-cli/src/does-not-exist.rs
+verified_against: v0.9.4-beta
+---
+
+# Governed page
+EOF
+cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
+---
+id: index
+title: kindling overview
+description: External-upstream section page.
+public_unlisted: true
+---
+
+# kindling overview
+EOF
+set +e
+out="$(node "${public_script}" --root "${gov_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "missing governance frontmatter: owner" \
+  && echo "${out}" | grep -q "upstream path does not exist: crates/anvil-cli/src/does-not-exist.rs" \
+  && echo "${out}" | grep -q "verified_against must be a bare product version"; then
+  pass "missing owner, dead upstream path, and v-prefixed version fail together"
+else
+  fail "governance validation missed a defect (status ${status}); got: ${out}"
+fi
+cat >"${gov_root}/docs/public/anvil/governed.md" <<'EOF'
+---
+id: governed
+title: Governed page
+description: A fully governed anvil page.
+owner: DOCSYNC
+---
+
+# Governed page
+EOF
+set +e
+out="$(node "${public_script}" --root "${gov_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "missing governance frontmatter: upstream" \
+  && echo "${out}" | grep -q "missing governance frontmatter: verified_against"; then
+  pass "in-tree section page cannot omit upstream or verified_against"
+else
+  fail "in-tree governance requirements not enforced (status ${status}); got: ${out}"
 fi
 
 # Case 14 (DOCSYNC-028): release-tag reference generation handles every Clap
@@ -800,6 +919,7 @@ cat >"${aps_public_root}/docs/public/aps/getting-started.md" <<'EOF'
 id: getting-started
 title: Create your first APS plan
 description: Install APS and validate a first plan.
+owner: DOCSYNC
 ---
 
 # Create your first APS plan
@@ -811,6 +931,7 @@ cat >"${aps_public_root}/docs/public/aps/guides/agents.md" <<'EOF'
 id: agents
 title: Work with an AI agent
 description: Give an AI agent a bounded APS work item.
+owner: DOCSYNC
 ---
 
 # Work with an AI agent
@@ -836,6 +957,7 @@ cat >"${aps_public_root}/docs/public/aps/guides/internal.md" <<'EOF'
 id: internal
 title: APS internals
 description: Internal implementation notes.
+owner: DOCSYNC
 ---
 
 # APS internals

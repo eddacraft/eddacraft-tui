@@ -3,6 +3,12 @@ id: config
 title: Configuration reference
 description:
   Inspect, change, convert, and review anvil project configuration safely.
+owner: UCFG
+upstream:
+  - crates/anvil-config/src/discover.rs
+  - crates/anvil-config/src/format.rs
+  - crates/anvil-cli/src/commands/config.rs
+verified_against: 0.9.0-beta
 ---
 
 # Configuration reference

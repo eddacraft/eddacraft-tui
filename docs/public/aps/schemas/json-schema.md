@@ -3,6 +3,7 @@ id: json-schema
 title: Document format reference
 description: Look up required sections and fields for APS Markdown documents.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # Document format reference

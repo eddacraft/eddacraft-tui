@@ -4,6 +4,13 @@ title: Beta test brief
 description:
   Prove install, first value, activation, and recovery on the current anvil
   beta.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/start.rs
+  - crates/anvil-cli/src/commands/auth.rs
+  - crates/anvil-cli/src/commands/ensure.rs
+  - crates/anvil-cli/src/commands/version.rs
+verified_against: 0.9.4-beta
 ---
 
 # Beta test brief

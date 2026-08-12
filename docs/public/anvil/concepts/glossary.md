@@ -3,6 +3,11 @@ id: glossary
 title: Glossary
 description:
   Plain-language definitions for the terms used in the anvil documentation.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/activation/state.rs
+  - crates/anvil-cli/src/commands/ensure.rs
+verified_against: 0.9.0-beta
 ---
 
 # Glossary

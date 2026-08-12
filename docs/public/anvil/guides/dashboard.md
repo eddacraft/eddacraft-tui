@@ -2,6 +2,13 @@
 id: dashboard
 title: Browse local dashboards
 description: Open a read-only terminal dashboard over local anvil state.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/dashboard/mod.rs
+  - crates/anvil-cli/src/commands/dashboard/architecture.rs
+  - crates/anvil-cli/src/commands/dashboard/drift.rs
+  - crates/anvil-cli/src/commands/dashboard/suppressions.rs
+verified_against: 0.9.0-beta
 ---
 
 # Browse local dashboards

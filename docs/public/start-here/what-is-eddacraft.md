@@ -5,6 +5,10 @@ description:
   eddacraft is the umbrella organisation building tools for governed AI-assisted
   development.
 sidebar_position: 1
+owner: DOCSYNC
+upstream:
+  - README.md
+verified_against: 0.9.0-beta
 ---
 
 # What is eddacraft?

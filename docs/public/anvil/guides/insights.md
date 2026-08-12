@@ -4,6 +4,12 @@ title: Review local insights
 description:
   Review weekly activity, drift, and suppression health without sending source
   code.
+owner: INSIGHTS
+upstream:
+  - crates/anvil-cli/src/commands/insights.rs
+  - crates/anvil-cli/src/insights/mod.rs
+  - schemas/anvil-insights.v2.json
+verified_against: 0.9.0-beta
 ---
 
 # Review local insights

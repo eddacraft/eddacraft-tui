@@ -3,6 +3,7 @@ id: observations
 title: Observations
 description: The atomic, immutable unit of captured context in Kindling.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # Observations

@@ -3,6 +3,7 @@ id: cli
 title: CLI Reference
 description: Complete reference for the kindling command-line interface.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # CLI Reference

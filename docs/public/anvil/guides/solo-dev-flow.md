@@ -3,6 +3,13 @@ id: solo-dev-flow
 title: Solo developer workflow
 description:
   Add anvil to a personal project without creating unnecessary process.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/ensure.rs
+  - crates/anvil-cli/src/commands/watch.rs
+  - crates/anvil-cli/src/commands/check.rs
+  - crates/anvil-cli/src/commands/gate.rs
+verified_against: 0.9.0-beta
 ---
 
 # Solo developer workflow

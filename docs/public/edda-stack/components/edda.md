@@ -4,6 +4,7 @@ title: Canonical Memory (Edda)
 description:
   Maintain trusted, attributable, versioned memory for teams and agents.
 sidebar_position: 3
+owner: DOCSYNC
 ---
 
 # Canonical Memory (Edda)

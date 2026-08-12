@@ -3,6 +3,13 @@ id: choose-your-path
 title: Choose Your Path
 description: Quick routes to the documentation you need, based on your goals.
 sidebar_position: 2
+owner: DOCSYNC
+upstream:
+  - docs/public/anvil/overview.md
+  - docs/public/aps/overview.md
+  - docs/public/kindling/overview.md
+  - docs/public/edda-stack/overview.md
+verified_against: 0.9.0-beta
 ---
 
 # Choose Your Path

@@ -5,6 +5,7 @@ description:
   Local-first memory and continuity for AI-assisted development — capture,
   organise, and deterministically retrieve development context.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # Kindling

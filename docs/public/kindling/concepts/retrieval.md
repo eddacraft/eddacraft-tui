@@ -5,6 +5,7 @@ description:
   Deterministic, explainable three-tier retrieval — pins, current summary, and
   ranked hits.
 sidebar_position: 3
+owner: DOCSYNC
 ---
 
 # Retrieval

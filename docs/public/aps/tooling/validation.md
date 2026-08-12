@@ -3,6 +3,7 @@ id: validation
 title: CLI command reference
 description: Look up the public commands in the APS 0.6 native CLI.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # CLI command reference

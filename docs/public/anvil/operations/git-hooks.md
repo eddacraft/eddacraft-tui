@@ -3,6 +3,12 @@ id: git-hooks
 title: Add Git hooks
 description:
   Install, inspect, and remove anvil-managed pre-commit and pre-push checks.
+owner: GHOOK
+upstream:
+  - crates/anvil-cli/src/commands/hooks.rs
+  - crates/anvil-hook/src/lib.rs
+  - crates/anvil-hook/src/coexistence.rs
+verified_against: 0.9.0-beta
 ---
 
 # Add Git hooks

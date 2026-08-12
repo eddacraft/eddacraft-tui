@@ -3,6 +3,11 @@ id: rust-project
 title: Check a Rust project
 description:
   Run a first named-file and changed-file anvil check in a Rust project.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/check.rs
+  - crates/anvil-kernel/src/parser/languages.rs
+verified_against: 0.9.0-beta
 ---
 
 # Check a Rust project

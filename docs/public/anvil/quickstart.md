@@ -4,6 +4,13 @@ title: Install and get first value
 description:
   Install anvil, see a real result from your project, and turn protection on.
 sidebar_position: 2
+owner: DOCSYNC
+upstream:
+  - install.sh
+  - crates/anvil-cli/src/commands/welcome.rs
+  - crates/anvil-cli/src/commands/auth.rs
+  - crates/anvil-cli/src/commands/start.rs
+verified_against: 0.9.3-beta
 ---
 
 # Install and get first value

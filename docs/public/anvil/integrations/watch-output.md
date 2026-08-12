@@ -4,6 +4,11 @@ title: Watch output reference
 description:
   Interpret ready, file, finding, and recovery messages from save-time
   validation.
+owner: WOUT
+upstream:
+  - crates/anvil-kernel-types/src/watch_event.rs
+  - crates/anvil-cli/src/commands/watch.rs
+verified_against: 0.9.2-beta
 ---
 
 # Watch output reference

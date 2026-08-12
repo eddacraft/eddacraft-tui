@@ -3,6 +3,13 @@ id: mcp
 title: Model Context Protocol integration
 description:
   Understand and verify anvil's local connection to supported AI clients.
+owner: MCPX
+upstream:
+  - crates/anvil-cli/src/commands/mcp_installer.rs
+  - crates/anvil-cli/src/commands/mcp_config.rs
+  - crates/anvil-cli/src/activation/agent_registry.rs
+  - crates/anvil-cli/src/commands/start.rs
+verified_against: 0.9.4-beta
 ---
 
 # Model Context Protocol integration

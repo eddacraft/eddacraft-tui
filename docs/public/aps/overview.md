@@ -4,6 +4,7 @@ title: What APS does
 description:
   Understand how APS turns development intent into bounded, verifiable work.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # What APS does

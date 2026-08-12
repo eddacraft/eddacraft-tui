@@ -3,6 +3,7 @@ id: minimal-plan
 title: 'Example: one small module'
 description: A complete small APS plan with one executable work item.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # Example: one small module

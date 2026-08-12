@@ -4,6 +4,11 @@ title: Use save-time validation
 description:
   Run anvil as a foreground watcher and understand the save-time assurance
   level.
+owner: DSV
+upstream:
+  - crates/anvil-cli/src/commands/watch.rs
+  - crates/anvil-cli/src/commands/watch_save_time.rs
+verified_against: 0.9.0-beta
 ---
 
 # Use save-time validation

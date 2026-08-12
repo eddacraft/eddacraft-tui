@@ -4,6 +4,7 @@ title: Memory System Design Principles
 description:
   Principles for trustworthy, reusable development memory at team scale.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # Design Principles

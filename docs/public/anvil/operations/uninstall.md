@@ -4,6 +4,10 @@ title: Uninstall and clean up
 description:
   Preview and remove project or user-level anvil state without deleting
   unrelated files.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/uninstall.rs
+verified_against: 0.9.0-beta
 ---
 
 # Uninstall and clean up

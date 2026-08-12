@@ -4,6 +4,7 @@ title: Create and validate your first plan
 description:
   Install APS, create a small plan, and select its first ready work item.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # Create and validate your first plan

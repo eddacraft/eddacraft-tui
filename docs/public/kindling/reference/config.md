@@ -4,6 +4,7 @@ title: Configuration
 description:
   Environment variables, data locations, and how kindling resolves them.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # Configuration

@@ -5,6 +5,7 @@ description:
   Capture file saves and editor activity into kindling from VS Code, Cursor, or
   Windsurf.
 sidebar_position: 4
+owner: DOCSYNC
 ---
 
 # VS Code Adapter

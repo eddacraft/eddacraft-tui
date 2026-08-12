@@ -4,6 +4,7 @@ title: Formats
 description:
   JSON shapes for observations, capsules, and the export/import bundle.
 sidebar_position: 3
+owner: DOCSYNC
 ---
 
 # Formats

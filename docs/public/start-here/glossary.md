@@ -3,6 +3,14 @@ id: glossary
 title: Glossary
 description: Definitions of key terms used across eddacraft documentation.
 sidebar_position: 3
+owner: DOCSYNC
+upstream:
+  - README.md
+  - docs/public/anvil/overview.md
+  - docs/public/aps/overview.md
+  - docs/public/kindling/overview.md
+  - docs/public/edda-stack/overview.md
+verified_against: 0.9.0-beta
 ---
 
 # Glossary

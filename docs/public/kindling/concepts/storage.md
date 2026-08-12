@@ -4,6 +4,7 @@ title: Storage
 description:
   How and where Kindling stores memory — per-project SQLite with WAL and FTS5.
 sidebar_position: 4
+owner: DOCSYNC
 ---
 
 # Storage

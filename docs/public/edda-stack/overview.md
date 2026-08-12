@@ -4,6 +4,7 @@ title: Development Memory System Overview
 description:
   Capture signals, promote reusable knowledge, and preserve trusted decisions.
 sidebar_position: 1
+owner: DOCSYNC
 ---
 
 # Development Memory System

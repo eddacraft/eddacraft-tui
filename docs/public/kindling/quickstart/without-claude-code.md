@@ -5,6 +5,7 @@ description:
   Try kindling as a standalone local memory engine — demo data, search, browse,
   and manual capture with no IDE plugin required.
 sidebar_position: 0
+owner: DOCSYNC
 ---
 
 # Quickstart without Claude Code

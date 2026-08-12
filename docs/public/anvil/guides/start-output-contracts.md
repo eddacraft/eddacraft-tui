@@ -2,6 +2,12 @@
 id: start-output-contracts
 title: Activation states
 description: Look up every final state reported by anvil activation.
+owner: ACTTUI
+upstream:
+  - crates/anvil-cli/src/activation/state.rs
+  - crates/anvil-cli/src/activation/render.rs
+  - crates/anvil-cli/src/commands/start.rs
+verified_against: 0.9.0-beta
 ---
 
 # Activation states

@@ -4,6 +4,7 @@ title: Candidate Review (Ember)
 description:
   Review and refine high-signal observations before canonical promotion.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # Candidate Review (Ember)

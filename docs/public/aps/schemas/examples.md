@@ -3,6 +3,7 @@ id: examples
 title: Copyable format fragments
 description: Copy common APS fields and structures into an existing plan.
 sidebar_position: 3
+owner: DOCSYNC
 ---
 
 # Copyable format fragments

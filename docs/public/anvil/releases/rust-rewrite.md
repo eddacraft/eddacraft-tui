@@ -4,6 +4,11 @@ title: Native Rust migration
 description:
   Historical context for the move from the retired package runtime to the native
   anvil binary.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/migrate.rs
+  - dist-workspace.toml
+verified_against: 0.9.0-beta
 ---
 
 # Native Rust migration

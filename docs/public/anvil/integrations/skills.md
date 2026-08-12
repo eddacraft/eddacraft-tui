@@ -4,6 +4,11 @@ title: Agent skills
 description:
   Install and verify the managed anvil developer-functions skill in supported
   clients when your binary exposes it.
+owner: SKPKG
+upstream:
+  - crates/anvil-cli/src/commands/skill.rs
+  - crates/anvil-cli/src/commands/skill_state.rs
+verified_against: 0.9.2-beta
 ---
 
 # Agent skills

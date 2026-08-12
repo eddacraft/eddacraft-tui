@@ -4,6 +4,7 @@ title: Project files and ownership
 description:
   Know which APS files are generated, editable, optional, or temporary.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # Project files and ownership

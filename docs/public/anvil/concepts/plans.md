@@ -3,6 +3,12 @@ id: plans
 title: Plans and project checks
 description:
   Understand when anvil needs a plan and when it can check code without one.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/plan.rs
+  - crates/anvil-cli/src/commands/config.rs
+  - crates/anvil-cli/src/commands/check.rs
+verified_against: 0.9.0-beta
 ---
 
 # Plans and project checks

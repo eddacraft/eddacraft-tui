@@ -4,6 +4,7 @@ title: Enterprise Questions Answered
 description:
   Practical answers for teams evaluating trust, governance, and adoption risk.
 sidebar_position: 4
+owner: DOCSYNC
 ---
 
 # Enterprise Questions Answered

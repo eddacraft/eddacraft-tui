@@ -4,6 +4,13 @@ title: Upgrade anvil
 description:
   Upgrade anvil safely and verify configuration, authentication, and protection
   afterwards.
+owner: DISTRIB
+upstream:
+  - crates/anvil-cli/src/commands/update.rs
+  - crates/anvil-cli/src/commands/update/fetch.rs
+  - crates/anvil-cli/src/commands/version.rs
+  - dist-workspace.toml
+verified_against: 0.9.4-beta
 ---
 
 # Upgrade anvil

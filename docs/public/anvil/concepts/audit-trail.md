@@ -3,6 +3,12 @@ id: audit-trail
 title: Evidence and audit trails
 description:
   Understand the local evidence anvil records and how to review it safely.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/audit.rs
+  - crates/anvil-witness/src/lib.rs
+  - crates/anvil-cli/src/commands/capsule.rs
+verified_against: 0.9.0-beta
 ---
 
 # Evidence and audit trails

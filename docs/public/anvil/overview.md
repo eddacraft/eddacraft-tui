@@ -3,6 +3,10 @@ id: overview
 title: What anvil does
 description: Understand what anvil checks, when it runs, and where to begin.
 sidebar_position: 1
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/main.rs
+verified_against: 0.9.1-beta
 ---
 
 # What anvil does

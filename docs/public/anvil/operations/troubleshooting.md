@@ -4,6 +4,12 @@ title: Troubleshooting
 description:
   Diagnose installation, authentication, activation, watcher, and gate problems
   safely.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/doctor.rs
+  - crates/anvil-cli/src/commands/version.rs
+  - crates/anvil-cli/src/commands/status.rs
+verified_against: 0.9.4-beta
 ---
 
 # Troubleshooting

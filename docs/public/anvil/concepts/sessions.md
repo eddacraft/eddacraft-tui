@@ -3,6 +3,12 @@ id: sessions
 title: Local runs and retained state
 description:
   Understand what a command run records and how long-lived protection differs.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/watch.rs
+  - crates/anvil-cli/src/commands/intercept.rs
+  - crates/anvil-cli/src/commands/start.rs
+verified_against: 0.9.0-beta
 ---
 
 # Local runs and retained state

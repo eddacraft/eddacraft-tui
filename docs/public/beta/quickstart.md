@@ -3,6 +3,13 @@ id: quickstart
 title: anvil beta
 description:
   Start the anvil beta through the maintained setup path and current test brief.
+owner: DOCSYNC
+upstream:
+  - docs/public/anvil/quickstart.md
+  - docs/public/anvil/first-gate.md
+  - docs/public/anvil/beta-testing-guide.md
+  - docs/public/anvil/reference/support.md
+verified_against: 0.9.1-beta
 ---
 
 # anvil beta

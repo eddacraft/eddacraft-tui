@@ -4,6 +4,12 @@ title: Team workflow
 description:
   Roll anvil out with shared configuration, reviewable gates, and predictable
   recovery.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/gate.rs
+  - crates/anvil-cli/src/commands/config.rs
+  - crates/anvil-cli/src/commands/ensure.rs
+verified_against: 0.9.0-beta
 ---
 
 # Team workflow

@@ -5,6 +5,11 @@ description:
   This older profile guide now points to maintained gate and protection
   guidance.
 public_unlisted: true
+owner: DOCSYNC
+upstream:
+  - docs/public/anvil/concepts/gates.md
+  - docs/public/anvil/guides/agent-harness.md
+verified_against: 0.9.0-beta
 ---
 
 # AI guardrail profile

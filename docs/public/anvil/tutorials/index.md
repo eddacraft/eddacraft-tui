@@ -3,6 +3,14 @@ id: tutorials
 title: Tutorials
 description:
   Choose a guided anvil journey with a clear starting point and success check.
+owner: DOCSYNC
+upstream:
+  - docs/public/anvil/tutorials/architecture.md
+  - docs/public/anvil/tutorials/drift.md
+  - docs/public/anvil/tutorials/first-save-caught.md
+  - docs/public/anvil/tutorials/policies.md
+  - docs/public/anvil/tutorials/rust-project.md
+verified_against: 0.9.0-beta
 ---
 
 # Tutorials

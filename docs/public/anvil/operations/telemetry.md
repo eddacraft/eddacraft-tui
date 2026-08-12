@@ -4,6 +4,11 @@ title: Anonymous usage telemetry
 description:
   See exactly what anvil's narrow anonymous beacon can send and how to inspect,
   disable, or reset it.
+owner: FLEET
+upstream:
+  - crates/anvil-cli/src/telemetry.rs
+  - crates/anvil-cli/src/commands/telemetry.rs
+verified_against: 0.9.4-beta
 ---
 
 # Anonymous usage telemetry

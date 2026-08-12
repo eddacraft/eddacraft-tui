@@ -5,6 +5,7 @@ description:
   Matrix of supported kindling integrations — CLI, adapters, SDKs, and custom
   capture paths.
 sidebar_position: 5
+owner: DOCSYNC
 ---
 
 # Integrations

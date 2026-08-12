@@ -3,6 +3,12 @@ id: security
 title: Local data and security
 description:
   Understand what anvil reads, writes, stores, and sends over the network.
+owner: SEC
+upstream:
+  - crates/anvil-cli/src/commands/gctx.rs
+  - crates/anvil-cli/src/telemetry.rs
+  - crates/anvil-cli/src/commands/uninstall.rs
+verified_against: 0.9.1-beta
 ---
 
 # Local data and security

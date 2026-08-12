@@ -2,6 +2,10 @@
 id: drift
 title: Drift tutorial
 description: Capture two architecture snapshots and compare them.
+owner: DOCSYNC
+upstream:
+  - crates/anvil-cli/src/commands/drift.rs
+verified_against: 0.9.0-beta
 ---
 
 # Drift tutorial

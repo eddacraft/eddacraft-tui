@@ -5,6 +5,7 @@ description:
   Capture observations, group them into a capsule, and search your memory from
   the CLI.
 sidebar_position: 2
+owner: DOCSYNC
 ---
 
 # Your First Memory

@@ -3,6 +3,7 @@ id: crates
 title: Crates
 description: The published Rust crates and which one to depend on.
 sidebar_position: 4
+owner: DOCSYNC
 ---
 
 # Crates
