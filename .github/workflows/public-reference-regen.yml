@@ -142,10 +142,12 @@ jobs:
         run: |
           set -euo pipefail
           # Branch name is derived from the tag, so re-running for the same tag
-          # is idempotent rather than accumulating branches. `TAG_NAME` reaches
-          # the shell via env, never `${{ }}` interpolation into the script
-          # body: ref names permit `(`, `)` and backticks, so splicing one into
-          # `run:` would be a command-injection sink.
+          # is idempotent rather than accumulating branches. TAG_NAME reaches
+          # the shell via env — never splice an Actions expression into this
+          # run script (even inside a comment: a bare dollar-curly token pair is
+          # parsed before the shell sees the file and fails the whole workflow).
+          # Ref names permit parentheses and backticks, so interpolating one
+          # into run: would also be a command-injection sink.
           branch="chore/public-reference-regen-${TAG_NAME}"
           echo "branch=${branch}" >> "${GITHUB_OUTPUT}"
           git config user.name 'github-actions[bot]'
