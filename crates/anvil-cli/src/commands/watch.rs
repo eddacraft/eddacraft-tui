@@ -1842,34 +1842,21 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     print_warmup_cache_status(warmup_paths.as_ref(), output_mode);
     print_tui_startup_message(output_mode);
 
-    // UCFG-008: watch the file the resolved architecture actually
-    // lives in — the delegated source target or the legacy standalone
-    // yaml. Inline sections live in the main config (no extra file to
-    // watch). A malformed config must not kill watch startup: warn and
-    // continue without architecture watching (gate runs report it).
-    let arch_config = match crate::architecture_source::resolve_architecture(&workspace_root) {
-        Ok(Some((_, crate::architecture_source::ArchitectureOrigin::LegacyFile(path)))) => {
-            Some(path)
-        }
-        Ok(Some((
-            _,
-            crate::architecture_source::ArchitectureOrigin::Section(
-                anvil_config::SectionProvenance::Delegated { path, .. },
-            ),
-        ))) => Some(path),
-        Ok(
-            Some((
-                _,
-                crate::architecture_source::ArchitectureOrigin::Section(
-                    anvil_config::SectionProvenance::Inline,
-                ),
-            ))
-            | None,
-        ) => None,
-        Err(e) => {
-            eprintln!("[watch] architecture config not watchable: {e:#}");
-            None
-        }
+    // Watch-time architecture enforcement feeds the KERNEL, whose
+    // `ArchitectureConfig` schema (a `layers` LIST) is distinct from the
+    // `ArchitectureDefinition` (a `layers` MAP) that gate and the
+    // architecture commands resolve via `architecture_source`. The
+    // kernel therefore keeps its pre-UCFG-008 wiring: the standalone
+    // `.anvil/architecture.yaml` path when present. Feeding it a
+    // section-resolved (inline or delegated) Definition-schema file
+    // would fail its parser and kill watch at startup. Watch-time
+    // enforcement for section-based configs needs an in-process
+    // Definition→kernel mapping and is owned by a follow-up item.
+    let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
+    let arch_config = if arch_config_path.exists() {
+        Some(arch_config_path)
+    } else {
+        None
     };
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {

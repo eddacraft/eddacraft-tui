@@ -101,6 +101,12 @@ pub enum DelegationError {
     #[error("[{section}] delegated file {path:?} must contain a table at the top level")]
     DelegatedNotATable { section: String, path: String },
 
+    #[error(
+        "[{section}] source {path:?} is not a regular file — directories, FIFOs, \
+         and devices are rejected (a non-regular target could hang the read)"
+    )]
+    NotARegularFile { section: String, path: String },
+
     #[error("[{section}] reading source {path:?}: {detail}")]
     Io {
         section: String,
@@ -198,6 +204,22 @@ fn safe_source_path(
         && canonical == main_canonical
     {
         return Err(DelegationError::SelfReference {
+            section: section.to_string(),
+            path: rel.to_string(),
+        });
+    }
+    // UCFG-006/008 pinned note: a FIFO (or device) target would hang
+    // the bounded read on open. stat never opens, so guard here.
+    let file_type = canonical
+        .metadata()
+        .map_err(|e| DelegationError::Io {
+            section: section.to_string(),
+            path: rel.to_string(),
+            detail: e.to_string(),
+        })?
+        .file_type();
+    if !file_type.is_file() {
+        return Err(DelegationError::NotARegularFile {
             section: section.to_string(),
             path: rel.to_string(),
         });
@@ -580,6 +602,33 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A FIFO delegation target must be rejected by stat, never
+    /// opened — opening a FIFO with no writer blocks indefinitely,
+    /// which would hand repo content a way to hang the gate.
+    #[cfg(unix)]
+    #[test]
+    fn fifo_source_is_rejected_without_blocking() {
+        let f = Fixture::new();
+        let fifo = f.root().join("pipe.yaml");
+        let status = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo available on unix");
+        assert!(status.success());
+        let started = std::time::Instant::now();
+        let err = f
+            .resolve(&json!({"architecture": {"source": "pipe.yaml"}}))
+            .unwrap_err();
+        assert!(
+            matches!(err, DelegationError::NotARegularFile { .. }),
+            "{err}"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "rejection must not block"
+        );
     }
 
     /// Inline and delegated spellings of the same section resolve to

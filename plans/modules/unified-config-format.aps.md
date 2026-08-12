@@ -335,9 +335,14 @@ Change status to **Ready** when:
 - **Expected Outcome:** all architecture consumers work identically with
   inline or delegated config; delegated file edits are watched
 - **Validation:** existing architecture/gate/watch tests pass against both
-  topologies. UCFG-006 verifier note: `read_to_string_bounded` blocks on
-  FIFO targets (pre-existing class, cf. c0aed53f6) — add a file-type guard
-  when wiring real consumers
+  topologies. UCFG-006 verifier note discharged: the delegation resolver
+  stat-guards non-regular targets (FIFO/device/dir) before any open.
+  **Recorded narrowing (UCFG-008 verifier findings 2-3):** watch-time
+  enforcement feeds the KERNEL, whose `ArchitectureConfig` schema (layers
+  list) differs from `ArchitectureDefinition` (layers map) — watch keeps
+  its pre-change standalone-yaml wiring; section-based configs get no
+  watch-time architecture enforcement until UCFG-013 maps the resolved
+  definition into the kernel in-process
 - **Files:** `crates/anvil-cli/src/commands/{gate,watch,architecture}.rs`,
   `crates/anvil-architecture/src/yaml_parser.rs`
 - **Confidence:** Medium — gate.rs carries implicit config assumptions
@@ -433,6 +438,30 @@ Change status to **Ready** when:
 - **Confidence:** High
 - **Priority:** Low
 - **Dependencies:** UCFG-005, UCFG-008
+
+---
+
+#### UCFG-013: watch-time architecture enforcement for section configs
+
+- **Status:** Proposed
+- **Intent:** map the resolved `ArchitectureDefinition` (layers map) into
+  the kernel's `ArchitectureConfig` (layers list) in-process, so `anvil
+  watch` enforces architecture for inline and source-delegated sections —
+  today only the standalone kernel-schema `.anvil/architecture.yaml` is
+  wired (UCFG-008 recorded narrowing). Includes re-validation when the
+  watched form changes (main config edits for inline; delegated target
+  edits for source)
+- **Expected Outcome:** watch-time architecture enforcement works
+  identically across standalone, inline, and delegated forms; no
+  kernel-schema parse crash on any form
+- **Validation:** watch startup + enforcement tests across all three
+  topologies incl. the kernel-schema legacy file
+- **Files:** `crates/anvil-cli/src/commands/watch.rs`,
+  `crates/anvil-kernel/src/policy/config.rs`,
+  `crates/anvil-kernel/src/watch.rs`
+- **Confidence:** Medium — kernel API surface decision
+- **Priority:** Medium
+- **Dependencies:** UCFG-008
 
 ---
 

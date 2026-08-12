@@ -40,7 +40,8 @@ pub(crate) fn resolve_architecture(
     let project = crate::commands::config::load_project_config(root)?;
     let resolved =
         anvil_config::resolve_section(&project.value, "architecture", root, &project.writable_path)
-            .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+            .map_err(anyhow::Error::new)
+            .context("invalid config")?;
 
     if let Some(section) = resolved {
         let definition: ArchitectureDefinition = serde_json::from_value(section.value)
@@ -182,6 +183,8 @@ mod tests {
         )
         .unwrap();
         let err = resolve_architecture(tmp.path()).unwrap_err();
-        assert!(err.to_string().contains("traversal"), "got: {err:#}");
+        // The context is the top-level message; the delegation detail
+        // lives in the chain (rendered by consumers via `{:#}`).
+        assert!(format!("{err:#}").contains("traversal"), "got: {err:#}");
     }
 }

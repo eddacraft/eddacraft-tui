@@ -8599,6 +8599,23 @@ mod tests {
         assert!(!result.message.contains("Skipping"), "{}", result.message);
     }
 
+    /// A malformed MAIN config is a loud architecture-check failure
+    /// (the seam parses the whole config), not a silent skip — ADR-120
+    /// "no config the product silently ignores"; gate still exits 0
+    /// overall per ADR-002 warnings-over-blocks posture at the CI
+    /// boundary.
+    #[test]
+    fn architecture_malformed_main_config_fails_not_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "bad: [unclosed").unwrap();
+        let result = run_check_architecture(tmp.path());
+        assert!(!result.passed);
+        assert!(!result.message.contains("Skipping"), "{}", result.message);
+        // NOTE: the yaml cause text appears twice today because
+        // ParseError's Display embeds its source AND keeps the chain —
+        // a pre-existing anvil-config rendering wart, not this seam's.
+    }
+
     /// A delegation contract violation is a loud gate failure, not a
     /// silent skip.
     #[test]
