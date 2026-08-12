@@ -58,15 +58,16 @@ pub fn load_context(root: &Path) -> DataContext {
             continue;
         };
         // `read_dir`'s file_type does NOT follow symlinks. Require a regular
-        // file so a symlink (e.g. to `/dev/zero` — a 0-byte stat that would
-        // bypass the size cap and hang `read_to_string`, or to a secret outside
-        // the workspace) is skipped before we ever open it.
+        // file so a symlink (e.g. to `/dev/zero` or a secret outside the
+        // workspace) is skipped before we ever open it. This is a fast-path
+        // filter only — a concurrent swap after this check is closed by
+        // `read_capped`'s O_NOFOLLOW + fstat regular-file open.
         if !entry.file_type().is_ok_and(|t| t.is_file()) {
             continue;
         }
-        // Bounded read from a single handle: caps size and cannot hang on a
-        // device/FIFO swapped in after the `file_type` check (`Ok(None)` = over
-        // the cap; `Err` = unreadable/non-UTF-8). Skip either way.
+        // TOCTOU-resistant bounded read: open no-follow, fstat regular file,
+        // then cap the read (`Ok(None)` = over the cap; `Err` =
+        // unreadable/non-UTF-8/symlink/FIFO). Skip either way.
         let Ok(Some(text)) = crate::fileio::read_capped(&path, MAX_DATA_BYTES) else {
             continue;
         };
@@ -156,6 +157,38 @@ mod tests {
         assert!(
             ctx.resolve("link").is_none() && ctx.resolve("link.secret").is_none(),
             "symlinked entry must not be loaded"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fifo_json_entries_are_skipped_without_blocking() {
+        // A FIFO named like a data file must be skipped promptly — the loader
+        // must not block waiting for a writer (TOCTOU swap class).
+        use std::time::{Duration, Instant};
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let anvil = tmp.path().join(".anvil");
+        fs::create_dir_all(&anvil).expect("mkdir");
+        write(&anvil, "real.json", r#"{ "ok": true }"#);
+        let fifo = anvil.join("state.json");
+        let status = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("spawn mkfifo");
+        assert!(status.success(), "mkfifo failed: {status}");
+
+        let start = Instant::now();
+        let ctx = load_context(tmp.path());
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "load_context must not block on FIFO (elapsed {elapsed:?})"
+        );
+        assert_eq!(ctx.resolve("real.ok"), Some(&serde_json::json!(true)));
+        assert!(
+            ctx.resolve("state").is_none(),
+            "FIFO entry must not be loaded into context"
         );
     }
 }

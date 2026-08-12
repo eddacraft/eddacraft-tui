@@ -1844,6 +1844,7 @@ dependencies = [
  "eddacraft-anvil-kernel-types",
  "eddacraft-tui",
  "insta",
+ "libc",
  "ratatui",
  "serde_json",
  "temp-env",

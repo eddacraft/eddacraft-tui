@@ -24,6 +24,13 @@ unicode-width = "0.2"
 dunce = "1"
 workspace-hack.workspace = true
 
+
+# O_NOFOLLOW | O_NONBLOCK open for .anvil/ data-file reads (final-component
+# symlink/FIFO refusal without a lstat→open TOCTOU window). Unix-only;
+# non-Unix uses a best-effort symlink_metadata pre-check (see fileio.rs).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 insta = { workspace = true }
 eddacraft-tui = { workspace = true, features = ["test-utils"] }
