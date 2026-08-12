@@ -4,8 +4,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use anvil_checks::antipattern::{
     Artifact, ArtifactKind, CompiledRegistry, LoadRegistryOptions, ScanOptions,
-    compiled_to_antipattern, get_pattern as get_pattern_rust, load_compiled_registry,
-    scan_artifact as scan_artifact_rust, types::AntiPattern,
+    compiled_to_antipattern, get_pattern_from_registry, load_compiled_registry,
+    patterns_from_registry, scan_artifact_with_patterns, types::AntiPattern,
 };
 use anvil_rayon_init::init_global as init_rayon_pool;
 use napi::{Error, Result, Status};
@@ -107,7 +107,7 @@ fn default_patterns_from(reg: &CompiledRegistry) -> Vec<AntiPattern> {
 pub fn scan_artifact_json(artifact_json: String, options_json: Option<String>) -> Result<String> {
     // V050F-007: cap rayon's global pool at half available cores so the
     // editor host that loaded this binding does not get its UI thread
-    // starved by a `scan_artifact_rust` `par_iter`. Idempotent across
+    // starved by a scanner `par_iter`. Idempotent across
     // calls and across crates (kernel + checks share the same `Once`),
     // so the cost is one atomic load after the first call.
     init_rayon_pool();
@@ -154,8 +154,19 @@ pub fn scan_artifact_json(artifact_json: String, options_json: Option<String>) -
         // returns zero warnings — which looks like a passing scan and
         // silently disables enforcement. See council review C1
         // (2026-04-24).
-        let _registry = load_registry_or_err(&LoadRegistryOptions::default())?;
-        Ok(scan_artifact_rust(&artifact, options.as_ref()))
+        //
+        // Scan against the registry instance we just validated rather
+        // than re-resolving via the process catalogue. A second load
+        // can race with a concurrent overwrite and silently fall back
+        // to an empty catalogue after this preflight reported healthy
+        // (clawpatch fnd_sig-feat-library-5f9e6b4709-2d50_bf594a29b1).
+        let registry = load_registry_or_err(&LoadRegistryOptions::default())?;
+        let patterns = patterns_from_registry(&registry);
+        Ok(scan_artifact_with_patterns(
+            &artifact,
+            options.as_ref(),
+            &patterns,
+        ))
     }))
     .map_err(|payload| panic_to_error("scanner", &payload))??;
 
@@ -257,9 +268,12 @@ pub fn get_pattern_json(id: String) -> Result<Option<String>> {
         // `null` for every id, which is indistinguishable from "id not
         // found in a healthy registry" — a silent downgrade of the
         // consumer's error handling.
-        load_registry_or_err(&LoadRegistryOptions::default())?;
-
-        let Some(pattern) = get_pattern_rust(&id) else {
+        //
+        // Look the id up in the same registry instance the preflight
+        // validated — do not re-enter the process catalogue, which can
+        // silently empty after a concurrent registry replacement.
+        let registry = load_registry_or_err(&LoadRegistryOptions::default())?;
+        let Some(pattern) = get_pattern_from_registry(&registry, &id) else {
             return Ok(None);
         };
         serde_json::to_string(&pattern)

@@ -454,13 +454,38 @@ pub fn compiled_to_antipattern(cp: &CompiledPattern) -> Option<AntiPattern> {
 pub fn load_registry_patterns(opts: &LoadRegistryOptions) -> Vec<AntiPattern> {
     let result = load_compiled_registry(opts);
     match result.registry {
-        Some(reg) => reg
-            .patterns
-            .iter()
-            .filter_map(compiled_to_antipattern)
-            .collect(),
+        Some(reg) => patterns_from_registry(&reg),
         None => Vec::new(),
     }
+}
+
+/// Map every regex-backed pattern in an already-loaded registry.
+///
+/// Prefer this over calling `load_registry_patterns` again when the caller
+/// already holds a `CompiledRegistry` (for example after a hard-error load
+/// preflight). Re-resolving the path can race with a concurrent overwrite and
+/// silently fall back to an empty catalogue.
+#[must_use]
+pub fn patterns_from_registry(registry: &CompiledRegistry) -> Vec<AntiPattern> {
+    registry
+        .patterns
+        .iter()
+        .filter_map(compiled_to_antipattern)
+        .collect()
+}
+
+/// Look up a single pattern by id in an already-loaded registry.
+///
+/// Returns `None` when the id is absent or the entry is not regex-backed
+/// (AST-only detections are not yet mapped). Does not consult the process
+/// catalogue cache.
+#[must_use]
+pub fn get_pattern_from_registry(registry: &CompiledRegistry, id: &str) -> Option<AntiPattern> {
+    registry
+        .patterns
+        .iter()
+        .find(|pattern| pattern.id == id)
+        .and_then(compiled_to_antipattern)
 }
 
 // =============================================================================
@@ -832,6 +857,48 @@ mod tests {
     // The two unit tests above pin the embedded fallback's invariants
     // (parses, non-empty) and the override-missing warning path, which
     // together cover every behaviour the production resolver can reach.
+
+    #[test]
+    fn patterns_from_registry_maps_loaded_instance_without_reload() {
+        // Binding preflight holds a CompiledRegistry; helpers must map that
+        // instance rather than re-resolving (TOCTOU empty-catalogue risk).
+        let mut registry = CompiledRegistry {
+            schema_version: SUPPORTED_SCHEMA_VERSION,
+            compiled_at: "test".to_string(),
+            source_root: "test".to_string(),
+            patterns: vec![sample_compiled()],
+            prefixes: BTreeMap::new(),
+            families: Vec::new(),
+        };
+        let mapped = patterns_from_registry(&registry);
+        assert_eq!(mapped.len(), 1);
+        assert_eq!(mapped[0].id, "AP-001");
+
+        registry.patterns.clear();
+        assert!(
+            patterns_from_registry(&registry).is_empty(),
+            "empty supplied registry must map to empty catalogue"
+        );
+    }
+
+    #[test]
+    fn get_pattern_from_registry_looks_up_supplied_instance_only() {
+        let registry = CompiledRegistry {
+            schema_version: SUPPORTED_SCHEMA_VERSION,
+            compiled_at: "test".to_string(),
+            source_root: "test".to_string(),
+            patterns: vec![sample_compiled()],
+            prefixes: BTreeMap::new(),
+            families: Vec::new(),
+        };
+        let found = get_pattern_from_registry(&registry, "AP-001")
+            .expect("AP-001 must resolve from the supplied registry");
+        assert_eq!(found.id, "AP-001");
+        assert!(
+            get_pattern_from_registry(&registry, "DEFINITELY-MISSING").is_none(),
+            "unknown id must be None even when the process catalogue is non-empty"
+        );
+    }
 
     fn tempdir_for(suffix: &str) -> PathBuf {
         let mut dir = std::env::temp_dir();

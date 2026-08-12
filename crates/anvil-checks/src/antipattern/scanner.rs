@@ -136,22 +136,31 @@ pub struct CompileDiagnostic {
 static PREPARED_PATTERNS: LazyLock<Vec<PreparedPattern>> =
     LazyLock::new(|| all_patterns().into_iter().map(prepare_pattern).collect());
 
-fn prepared_patterns_for(options: &ScanOptions) -> Vec<&'static PreparedPattern> {
+/// Select the subset of prepared patterns that `ScanOptions` asks for.
+///
+/// Shared by the process-global catalogue path and the caller-supplied
+/// catalogue path so filter semantics stay identical.
+fn select_prepared_patterns<'a>(
+    prepared: &'a [PreparedPattern],
+    options: &ScanOptions,
+) -> Vec<&'a PreparedPattern> {
     if let Some(pattern_ids) = &options.patterns
         && !pattern_ids.is_empty()
     {
-        return PREPARED_PATTERNS
+        return prepared
             .iter()
-            .filter(|prepared| pattern_ids.iter().any(|id| id == &prepared.pattern.id))
+            .filter(|p| pattern_ids.iter().any(|id| id == &p.pattern.id))
             .collect();
     }
 
-    PREPARED_PATTERNS
+    prepared
         .iter()
-        .filter(|prepared| {
-            prepared.pattern.enabled && (options.include_opt_in || !prepared.pattern.opt_in)
-        })
+        .filter(|p| p.pattern.enabled && (options.include_opt_in || !p.pattern.opt_in))
         .collect()
+}
+
+fn prepared_patterns_for(options: &ScanOptions) -> Vec<&'static PreparedPattern> {
+    select_prepared_patterns(&PREPARED_PATTERNS, options)
 }
 
 fn matches_file_extension(file_path: &str, file_extensions: &[String]) -> bool {
@@ -945,10 +954,39 @@ fn pattern_runs_on_artifact(pattern: &AntiPattern, kind: ArtifactKind) -> bool {
 ///   - File-extension and allowlist filtering only applies to `source`
 ///     artifacts; for PR bodies / commit messages / agent output the
 ///     `reference` is not a path.
+///
+/// Uses the process-global prepared catalogue (loaded once from the default
+/// registry resolution path). Callers that have already hard-error-loaded a
+/// `CompiledRegistry` should prefer [`scan_artifact_with_patterns`] so a
+/// concurrent registry replacement cannot silently empty the catalogue after
+/// the preflight check succeeded.
 #[must_use]
 pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> ScanResult {
     let scan_options = options.cloned().unwrap_or_default();
     let prepared_patterns = prepared_patterns_for(&scan_options);
+    scan_with_prepared(artifact, &prepared_patterns)
+}
+
+/// Scan an artifact against a caller-supplied pattern list.
+///
+/// The supplied patterns are prepared (regex compiled) for this call only —
+/// they are never merged into the process-global catalogue. Use this when the
+/// binding has already loaded a `CompiledRegistry` and must scan against that
+/// exact instance rather than re-resolving the registry path.
+#[must_use]
+pub fn scan_artifact_with_patterns(
+    artifact: &Artifact,
+    options: Option<&ScanOptions>,
+    patterns: &[AntiPattern],
+) -> ScanResult {
+    let scan_options = options.cloned().unwrap_or_default();
+    let prepared: Vec<PreparedPattern> = patterns.iter().cloned().map(prepare_pattern).collect();
+    let selected = select_prepared_patterns(&prepared, &scan_options);
+    scan_with_prepared(artifact, &selected)
+}
+
+/// Core scan loop shared by the global-catalogue and supplied-catalogue paths.
+fn scan_with_prepared(artifact: &Artifact, prepared_patterns: &[&PreparedPattern]) -> ScanResult {
     let lines = artifact.content.split('\n').collect::<Vec<_>>();
     let is_source = artifact.kind == ArtifactKind::Source;
     // GH #1914: for code-construct rules (see `rule_is_code_scoped`), mask
@@ -971,7 +1009,7 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
     let masked_lines: std::cell::OnceCell<Vec<String>> = std::cell::OnceCell::new();
     let mut warnings = Vec::new();
 
-    for prepared in &prepared_patterns {
+    for prepared in prepared_patterns {
         if !pattern_runs_on_artifact(&prepared.pattern, artifact.kind) {
             continue;
         }
@@ -2408,5 +2446,80 @@ mod tests {
             }),
         );
         assert!(result.warnings.is_empty());
+    }
+
+    /// Clawpatch: registry health preflight must not be followed by a scan
+    /// that re-loads the process catalogue. An empty supplied list must
+    /// yield zero warnings even when the global catalogue would fire.
+    #[test]
+    fn scan_artifact_with_patterns_uses_supplied_catalogue_not_global() {
+        use super::{Artifact, scan_artifact, scan_artifact_with_patterns};
+        use crate::antipattern::types::{
+            AntiPattern, AntiPatternCategory, Confidence, WarningSeverity,
+        };
+
+        let content = "/* eslint-disable */\nconst x = 1;\n";
+        let artifact = Artifact {
+            kind: crate::antipattern::types::ArtifactKind::Source,
+            reference: "src/app.ts".to_string(),
+            content: content.to_string(),
+        };
+
+        // Global catalogue baseline: known-bad input must produce hits.
+        let via_global = scan_artifact(&artifact, None);
+        assert!(
+            !via_global.warnings.is_empty(),
+            "precondition: global catalogue must fire on broad eslint-disable"
+        );
+
+        // Empty supplied catalogue: must not fall back to the global set.
+        let empty = scan_artifact_with_patterns(&artifact, None, &[]);
+        assert!(
+            empty.warnings.is_empty(),
+            "empty supplied catalogue must not consult the process catalogue; got {:?}",
+            empty.warnings
+        );
+        assert!(
+            empty.patterns_checked.is_empty(),
+            "patterns_checked must reflect the supplied (empty) set"
+        );
+
+        // Single custom pattern: only that rule may fire.
+        let custom = AntiPattern {
+            id: "TEST-ONLY-001".to_string(),
+            name: "test marker".to_string(),
+            category: AntiPatternCategory::EscapeHatch,
+            severity: WarningSeverity::Warning,
+            confidence: Confidence::High,
+            regex: r"eslint-disable".to_string(),
+            title: "test marker".to_string(),
+            explanation: "test".to_string(),
+            suggestion: "test".to_string(),
+            nudge: None,
+            file_extensions: Some(vec![".ts".to_string()]),
+            all_file_types: false,
+            allowlist: Vec::new(),
+            threshold: None,
+            enabled: true,
+            opt_in: false,
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+            targets: Some(vec!["source".to_string()]),
+        };
+        let via_custom = scan_artifact_with_patterns(&artifact, None, &[custom]);
+        assert!(
+            via_custom
+                .warnings
+                .iter()
+                .all(|w| w.id == "TEST-ONLY-001"),
+            "only the supplied pattern may fire; got {:?}",
+            via_custom.warnings
+        );
+        assert!(
+            !via_custom.warnings.is_empty(),
+            "supplied pattern must still match"
+        );
+        assert_eq!(via_custom.patterns_checked, vec!["TEST-ONLY-001".to_string()]);
     }
 }
