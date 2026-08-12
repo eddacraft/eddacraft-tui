@@ -213,8 +213,10 @@ impl KeepSetResolver for GitMergeBaseResolver {
                 stdout: Some(up),
                 ..
             } => Some(up),
-            // Exit 0 with empty stdout is not a tracked upstream in practice.
-            GitRun::Exited { code: 0, .. } => None,
+            // Exit 0 with empty stdout is unexpected for this probe (git prints
+            // the upstream ref on success). Treat as uncertain so GC never drops
+            // a live refinement key on a silent/garbled success.
+            GitRun::Exited { code: 0, .. } => return MergeBase::Unavailable,
             GitRun::Exited { stderr, .. } => {
                 if is_deterministic_no_upstream(&stderr) {
                     None
@@ -1435,6 +1437,26 @@ mod tests {
             "fatal: unable to read tree; disk I/O error"
         ));
         assert!(!is_deterministic_no_upstream(""));
+    }
+
+    #[test]
+    fn real_run_git_upstream_exit0_empty_stdout_is_unavailable() {
+        // Review note: exit 0 with empty stdout is not a tracked upstream; treating
+        // it as "no upstream" would under-retain. Abort instead.
+        let (_g, bin) = fake_git(
+            "case \"$*\" in \
+               *origin/HEAD*) echo origin/main; exit 0 ;; \
+               *merge-base*origin/main*) echo defaultsha; exit 0 ;; \
+               *@{upstream}*) exit 0 ;; \
+               *) exit 0 ;; \
+             esac",
+        );
+        let resolver = GitMergeBaseResolver::with_git_bin(bin);
+        let wt = PathBuf::from("/wt/empty-upstream");
+        assert!(
+            matches!(resolver.merge_base(&wt), MergeBase::Unavailable),
+            "exit 0 + empty stdout must classify Unavailable",
+        );
     }
 
     // ---- GBASE-011: GC-failure health envelopes (ADR-090) ----
