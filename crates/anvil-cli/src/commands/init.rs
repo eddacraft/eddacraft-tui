@@ -616,9 +616,8 @@ mod tests {
             ),
         ];
         for (content, format) in cases {
-            let value =
-                anvil_config::parse_str(&content, format, std::path::Path::new("fixture"))
-                    .unwrap_or_else(|e| panic!("{format:?} parse failed: {e}\n{content}"));
+            let value = anvil_config::parse_str(&content, format, std::path::Path::new("fixture"))
+                .unwrap_or_else(|e| panic!("{format:?} parse failed: {e}\n{content}"));
             let view = crate::config_view::InitConfigView::from_value(&value)
                 .unwrap_or_else(|e| panic!("{format:?} view failed: {e}\n{content}"));
             assert_eq!(view.schema_version, config.schema_version, "{format:?}");
