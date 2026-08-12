@@ -53,7 +53,7 @@ const fn default_max_line_bytes() -> usize {
 /// passes. Rejecting whitespace and pathspec-magic characters (`:`, `(`,
 /// `*`, `\`, …) additionally stops operator config from rewriting the git
 /// pathspec that `build_log_args` constructs.
-pub fn is_usable_skip_extension(extension: &str) -> bool {
+pub(crate) fn is_usable_skip_extension(extension: &str) -> bool {
     extension.len() > 1
         && extension.starts_with('.')
         && extension
@@ -67,7 +67,7 @@ pub fn is_usable_skip_extension(extension: &str) -> bool {
 /// Invalid entries are reported rather than silently honoured: narrowing
 /// coverage on the strength of a malformed config value is exactly the
 /// false-clean this guards against.
-pub fn partition_skip_extensions(skip_extensions: &[String]) -> (Vec<&str>, Vec<String>) {
+pub(crate) fn partition_skip_extensions(skip_extensions: &[String]) -> (Vec<&str>, Vec<String>) {
     let mut usable = Vec::with_capacity(skip_extensions.len());
     let mut warnings = Vec::new();
     for extension in skip_extensions {
