@@ -23,7 +23,10 @@ async function signToken(
   options: { issuer?: string; audience?: string; subject?: string | null } = {}
 ): Promise<string> {
   const privateKey = await importPKCS8(TEST_PRIVATE_KEY_PEM, 'ES256');
-  let builder = new SignJWT(claims)
+  // Keep `sub` out of the constructor payload so `options.subject === null`
+  // truly omits the claim even when callers also pass `sub` in `claims`.
+  const { sub: claimsSub, ...payloadClaims } = claims;
+  let builder = new SignJWT(payloadClaims)
     .setProtectedHeader({ alg: 'ES256' })
     .setIssuedAt()
     .setExpirationTime(Math.floor(Date.now() / 1000) + expSeconds);
@@ -35,11 +38,11 @@ async function signToken(
   if (audience) builder = builder.setAudience(audience);
 
   if (options.subject === null) {
-    // deliberately omit sub
+    // deliberately omit sub (payloadClaims already stripped)
   } else if (options.subject !== undefined) {
     builder = builder.setSubject(options.subject);
-  } else if (typeof claims['sub'] === 'string') {
-    builder = builder.setSubject(claims['sub']);
+  } else if (typeof claimsSub === 'string') {
+    builder = builder.setSubject(claimsSub);
   }
 
   return builder.sign(privateKey);
