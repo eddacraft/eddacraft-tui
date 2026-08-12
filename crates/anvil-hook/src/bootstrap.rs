@@ -53,10 +53,12 @@ pub fn generate_husky_runtime() -> Vec<HuskyRuntime> {
 // because `pnpm install` hasn't been run yet, not because we
 // want to replace Husky.
 // Preserve the target hook's exit status. Only treat a missing or
-// non-executable target as a no-op (Husky contract). Do not append
-// `|| true` after the invocation — that would swallow block decisions
-// and any failing user hook (see ADR-038 noise discipline).
-const HUSKY_RUNTIME_H: &str = "#!/usr/bin/env sh\n[ \"$HUSKY\" = \"0\" ] && exit 0\nh=\"$(dirname -- \"$0\")/$1\"\n[ -x \"$h\" ] || exit 0\n\"$h\" \"$@\"\n";
+// non-executable regular-file target as a no-op (Husky contract). Do
+// not append `|| true` after the invocation — that would swallow
+// block decisions and any failing user hook (see ADR-038 noise
+// discipline). `shift` drops the target selector (`$1`) so the hook
+// sees only the original git hook arguments.
+const HUSKY_RUNTIME_H: &str = "#!/usr/bin/env sh\n[ \"$HUSKY\" = \"0\" ] && exit 0\nh=\"$(dirname -- \"$0\")/$1\"\n[ -f \"$h\" ] && [ -x \"$h\" ] || exit 0\nshift\n\"$h\" \"$@\"\n";
 
 const HUSKY_RUNTIME_HUSKY_SH: &str =
     "# husky v8 back-compat stub; husky v9 uses .husky/_/h directly.\n";
@@ -319,7 +321,7 @@ mod tests {
         std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
             .expect("chmod target");
 
-        let status = Command::new(&runtime_path)
+        let status = Command::new("sh").arg(&runtime_path)
             .arg(target_name)
             .status()
             .expect("run runtime");
@@ -354,7 +356,7 @@ mod tests {
         std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
             .expect("chmod target");
 
-        let status = Command::new(&runtime_path)
+        let status = Command::new("sh").arg(&runtime_path)
             .arg(target_name)
             .status()
             .expect("run runtime");
@@ -379,7 +381,7 @@ mod tests {
         std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
             .expect("chmod runtime");
 
-        let status = Command::new(&runtime_path)
+        let status = Command::new("sh").arg(&runtime_path)
             .arg("does-not-exist")
             .status()
             .expect("run runtime");
@@ -387,6 +389,53 @@ mod tests {
             status.code(),
             Some(0),
             "absent target must remain a no-op (Husky contract)"
+        );
+    }
+
+    /// The first positional arg selects the target; remaining args must
+    /// reach the hook unchanged (git's commit-msg path, pre-push refs, …).
+    #[cfg(unix)]
+    #[test]
+    fn husky_h_runtime_shifts_target_selector_before_invocation() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::Command;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime_path = dir.path().join("h");
+        let target_name = "echo-args";
+        let target_path = dir.path().join(target_name);
+        let out_path = dir.path().join("args.out");
+
+        let files = generate_husky_runtime();
+        let runtime = files
+            .iter()
+            .find(|f| f.relative_path == ".husky/_/h")
+            .expect("h runtime present");
+        std::fs::write(&runtime_path, &runtime.contents).expect("write runtime");
+        std::fs::set_permissions(&runtime_path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod runtime");
+
+        // Write each positional arg on its own line for easy assertion.
+        let script = format!(
+            "#!/usr/bin/env sh\nprintf '%s\\n' \"$@\" > '{}'\n",
+            out_path.display()
+        );
+        std::fs::write(&target_path, script).expect("write target");
+        std::fs::set_permissions(&target_path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod target");
+
+        let status = Command::new("sh").arg(&runtime_path)
+            .arg(target_name)
+            .arg("COMMIT_MSG_PATH")
+            .arg("extra")
+            .status()
+            .expect("run runtime");
+        assert_eq!(status.code(), Some(0));
+
+        let captured = std::fs::read_to_string(&out_path).expect("read args.out");
+        assert_eq!(
+            captured, "COMMIT_MSG_PATH\nextra\n",
+            "target selector must not leak into hook args; got {captured:?}"
         );
     }
 }
