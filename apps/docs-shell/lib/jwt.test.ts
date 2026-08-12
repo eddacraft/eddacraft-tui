@@ -13,16 +13,36 @@ VMjMeNt4PRYgGRjF0/1UL4WT8Z+hRANCAAQkEG89AGRY0oP2ZvompgyahpSDz579
 IJHYkuQeRvIOymU4a1n3B5WRo5moFj78Gm8j8JRSugyusu0JtksAAfUN
 -----END PRIVATE KEY-----`;
 
+/** Matches anvil-api signLicence issuer/audience (apps/anvil-api/src/lib/licence.ts). */
+const LICENCE_ISSUER = 'https://api.eddacraft.ai';
+const LICENCE_AUDIENCE = 'anvil-cli';
+
 async function signToken(
   claims: Record<string, unknown>,
-  expSeconds: number = 3600
+  expSeconds: number = 3600,
+  options: { issuer?: string; audience?: string; subject?: string | null } = {}
 ): Promise<string> {
   const privateKey = await importPKCS8(TEST_PRIVATE_KEY_PEM, 'ES256');
-  return new SignJWT(claims)
+  let builder = new SignJWT(claims)
     .setProtectedHeader({ alg: 'ES256' })
     .setIssuedAt()
-    .setExpirationTime(Math.floor(Date.now() / 1000) + expSeconds)
-    .sign(privateKey);
+    .setExpirationTime(Math.floor(Date.now() / 1000) + expSeconds);
+
+  const issuer = options.issuer === undefined ? LICENCE_ISSUER : options.issuer;
+  if (issuer) builder = builder.setIssuer(issuer);
+
+  const audience = options.audience === undefined ? LICENCE_AUDIENCE : options.audience;
+  if (audience) builder = builder.setAudience(audience);
+
+  if (options.subject === null) {
+    // deliberately omit sub
+  } else if (options.subject !== undefined) {
+    builder = builder.setSubject(options.subject);
+  } else if (typeof claims['sub'] === 'string') {
+    builder = builder.setSubject(claims['sub']);
+  }
+
+  return builder.sign(privateKey);
 }
 
 describe('verifyLicense', () => {
@@ -50,7 +70,7 @@ describe('verifyLicense', () => {
   });
 
   it('rejects an expired token', async () => {
-    const token = await signToken({ sub: 'user@example.com' }, -60);
+    const token = await signToken({ sub: 'user@example.com', tier: 'beta' }, -60);
     const result = await verifyLicense(token);
     expect(result.valid).toBe(false);
   });
@@ -62,6 +82,34 @@ describe('verifyLicense', () => {
 
   it('rejects a token signed with a different key', async () => {
     const token = 'eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJmb28ifQ.signature';
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects a signed token with unexpected issuer', async () => {
+    const token = await signToken({ sub: 'user@example.com', tier: 'beta' }, 3600, {
+      issuer: 'https://attacker.example.com',
+    });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects a signed token with unexpected audience', async () => {
+    const token = await signToken({ sub: 'user@example.com', tier: 'beta' }, 3600, {
+      audience: 'some-other-audience',
+    });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects a signed token missing subject', async () => {
+    const token = await signToken({ tier: 'beta' }, 3600, { subject: null });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects a signed token with empty subject', async () => {
+    const token = await signToken({ tier: 'beta' }, 3600, { subject: '' });
     const result = await verifyLicense(token);
     expect(result.valid).toBe(false);
   });

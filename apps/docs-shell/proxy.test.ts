@@ -24,11 +24,16 @@ async function signToken(
   claims: Record<string, unknown> = { sub: 'test@example.com', tier: 'beta' }
 ): Promise<string> {
   const privateKey = await importPKCS8(TEST_PRIVATE_KEY_PEM, 'ES256');
-  return new SignJWT(claims)
+  let builder = new SignJWT(claims)
     .setProtectedHeader({ alg: 'ES256' })
     .setIssuedAt()
     .setExpirationTime(Math.floor(Date.now() / 1000) + expSecondsFromNow)
-    .sign(privateKey);
+    .setIssuer('https://api.eddacraft.ai')
+    .setAudience('anvil-cli');
+  if (typeof claims['sub'] === 'string') {
+    builder = builder.setSubject(claims['sub']);
+  }
+  return builder.sign(privateKey);
 }
 
 function makeRequest(url: string, cookies: Record<string, string> = {}): Request {
