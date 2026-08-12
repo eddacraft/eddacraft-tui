@@ -138,8 +138,7 @@ mod tests {
         // Ensure we did not accidentally read the target through some path.
         // (If open followed, read would succeed with the secret body.)
         assert!(
-            err.kind() == io::ErrorKind::InvalidInput
-                || err.raw_os_error() == Some(libc::ELOOP),
+            err.kind() == io::ErrorKind::InvalidInput || err.raw_os_error() == Some(libc::ELOOP),
             "expected symlink refusal, got: {err:?}"
         );
     }
