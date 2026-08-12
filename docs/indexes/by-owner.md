@@ -78,6 +78,12 @@
 | --------------------------------------------------------------------------------------- | --------------------------------------------- | ----- | --------- | ------- | ------ |
 | [Custom Architecture Policies Guide](../../docs/guides/custom-architecture-policies.md) | `docs/guides/custom-architecture-policies.md` | Guide | Advisory  | ARCHCFG | Live   |
 
+## BACT
+
+| Document                                                                                                | Path                                                    | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Account plan, activity, and entitlements](../../docs/guides/account-plan-activity-and-entitlements.md) | `docs/guides/account-plan-activity-and-entitlements.md` | Guide | Authoritative | BACT  | Live   |
+
 ## BAUTH
 
 | Document                                                           | Path                                 | Type     | Authority | Owner | Status |
@@ -99,11 +105,11 @@
 | [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                          | `docs/guides/continuous-improvement-log.md` | Guide | Authoritative | CIB   | Live   |
 | [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md`       | Spec  | Authoritative | CIB   | Live   |
 
-## CIB, FLEET-007
+## CIB, FLEET-007, BACT
 
-| Document                                                       | Path                         | Type    | Authority     | Owner          | Status |
-| -------------------------------------------------------------- | ---------------------------- | ------- | ------------- | -------------- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md) | `docs/runbooks/admin-cli.md` | Runbook | Authoritative | CIB, FLEET-007 | Live   |
+| Document                                                       | Path                         | Type    | Authority     | Owner                | Status |
+| -------------------------------------------------------------- | ---------------------------- | ------- | ------------- | -------------------- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md) | `docs/runbooks/admin-cli.md` | Runbook | Authoritative | CIB, FLEET-007, BACT | Live   |
 
 ## CLAR
 

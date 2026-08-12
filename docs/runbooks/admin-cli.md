@@ -1,8 +1,8 @@
 # Admin CLI Operator Runbook
 
-| Type    | Authority     | Owner          | Status | Freshness                                                                                                 |
-| ------- | ------------- | -------------- | ------ | --------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CIB, FLEET-007 | Live   | Last reviewed 2026-08-12 against BACT-003/006 login stamps, feature touches, and users engagement filters |
+| Type    | Authority     | Owner                | Status | Freshness                                                                 |
+| ------- | ------------- | -------------------- | ------ | ------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB, FLEET-007, BACT | Live   | 2026-08-12 — BACT-003/006 engagement; ADR-121 plan/DAA vocabulary pointer |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -514,6 +514,15 @@ anvil admin users --engagement idle --idle-days 30
 anvil admin users --engagement missing_feature --feature watch
 anvil --json admin users --engagement idle --idle-days 14 --limit 20
 ```
+
+**Plan / DAA vocabulary (phase 2):** do not treat FLEET DAI as “how many
+customers logged in.” Account **plan**, **DAA** (`last_activity_at`), and
+flag-backed entitlements are defined in
+[account plan, activity, and entitlements](../guides/account-plan-activity-and-entitlements.md)
+and
+[ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md).
+Admin activity metrics surface lands under BACT-009 (`anvil admin activity` or
+documented equivalent).
 
 **EMAIL cohort note:** broadcast audiences `beta:active-recent` /
 `beta:active-idle` still resolve via refresh-token age until a deliberate

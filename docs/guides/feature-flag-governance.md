@@ -4,12 +4,20 @@
 | ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-05-25 against `plans/modules/feature-flag-catalogue.aps.md` and `crates/anvil-kernel-types/src/feature_flags.rs` |
 
-| Upstream                                                                                                                                                        | Downstream                                                                                    |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `plans/modules/feature-flag-catalogue.aps.md`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `crates/anvil-kernel-types/src/feature_flags.rs` | `AGENTS.md`, `docs/guides/feature-flag-reference.md`, `docs/guides/feature-flag-inventory.md` |
+| Upstream                                                                                                                                                        | Downstream                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `plans/modules/feature-flag-catalogue.aps.md`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `crates/anvil-kernel-types/src/feature_flags.rs` | `AGENTS.md`, `docs/guides/feature-flag-reference.md`, `docs/guides/feature-flag-inventory.md`, account plan/entitlements (BACT) |
 
 This guide defines the operational rules for creating, rolling out, promoting,
 disabling, and retiring feature flags in Anvil.
+
+**Account entitlements:** commercial / cohort access is modelled as catalogue
+flags of class `entitlement` targeted via plan-axis audiences (`plan-beta`, …).
+Account rows carry a durable `plan` name that evaluation context uses — see
+[ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md)
+and
+[account plan, activity, and entitlements](./account-plan-activity-and-entitlements.md).
+Do not invent free-form feature lists on the user row.
 
 ## Flag Lifecycle
 

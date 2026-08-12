@@ -1,12 +1,12 @@
 # Usage Analytics Privacy Contract
 
-| Type  | Authority     | Owner              | Status | Freshness                             |
-| ----- | ------------- | ------------------ | ------ | ------------------------------------- |
-| Guide | Authoritative | USAGE, FLEET, BACT | Live   | Live as of 2026-08-11 (BACT two-pipe) |
+| Type  | Authority     | Owner              | Status | Freshness                                                                  |
+| ----- | ------------- | ------------------ | ------ | -------------------------------------------------------------------------- |
+| Guide | Authoritative | USAGE, FLEET, BACT | Live   | 2026-08-12 — ADR-121 plan/DAA pointers; two-pipe contract still 2026-08-11 |
 
-| Upstream                                                                                                                                                                                                                                                                                                                                  | Downstream                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| ADR-035, ADR-041, ADR-019, ADR-107 (incl. 2026-08-11 BACT amendment), USAGE, FLEET, and BACT modules `plans/decisions/035-three-pipe-observability-rule.md`, `plans/decisions/041-flag-snapshot-usage-join-contract.md`, `plans/decisions/019-flags-observability-alignment.md`, `plans/decisions/107-fleet-telemetry-consent-posture.md` | Usage-analytics producers, fleet beacon, signed-in account activity, public telemetry docs, and reviewers |
+| Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                      | Downstream                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| ADR-035, ADR-041, ADR-019, ADR-107 (incl. 2026-08-11 BACT amendment), ADR-121 (account plan / DAA), USAGE, FLEET, and BACT modules `plans/decisions/035-three-pipe-observability-rule.md`, `plans/decisions/041-flag-snapshot-usage-join-contract.md`, `plans/decisions/019-flags-observability-alignment.md`, `plans/decisions/107-fleet-telemetry-consent-posture.md`, `plans/decisions/121-account-plan-activity-and-flag-entitlements.md` | Usage-analytics producers, fleet beacon, signed-in account activity, public telemetry docs, and reviewers |
 
 > **Status:** Live as of 2026-08-11 (BACT two-pipe clarification; FLEET-006
 > beacon contract still as of 2026-07-16). This is the founder-confirmed privacy
@@ -32,12 +32,16 @@ This guide distinguishes **three** separate stories:
   It does not upload Kindling rows and cannot contain command names, arguments,
   paths, repository names, hostnames, emails, findings, or file contents. It
   answers population questions only (“is anyone using this feature?”).
-- **Signed-in beta account activity (BACT)** is identity-bound server-side
+- **Signed-in account activity (BACT)** is identity-bound server-side
   bookkeeping for customer success on authenticated accounts (login stamps on
-  interactive session mint; later allowlisted per-account feature touch). It
-  answers “did _this_ beta user log in / use a core surface?” and must **not**
-  re-identify fleet `install_id` values or put email on the anonymous beacon.
-  See [beta-account-activity](../../plans/modules/beta-account-activity.aps.md)
+  interactive session mint; allowlisted per-account feature touch; phase 2 adds
+  account **`plan`**, **`last_activity_at`**, and **DAA** — daily active
+  _accounts_, not installs). It answers “did _this_ user log in / stay active /
+  use a core surface?” and must **not** re-identify fleet `install_id` values or
+  put email on the anonymous beacon. See
+  [beta-account-activity](../../plans/modules/beta-account-activity.aps.md),
+  [account plan / activity / entitlements](../guides/account-plan-activity-and-entitlements.md),
+  [ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md),
   and the 2026-08-11 amendment to ADR-107.
 
 ## Purpose
