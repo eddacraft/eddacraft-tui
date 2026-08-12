@@ -76,11 +76,17 @@ fn parse_limit_rejects_non_numeric() {
 
 #[test]
 fn parse_limit_enforces_advertised_page_bounds() {
-    // Resources advertise MAX_PAGE_LIMIT = 200; reject zero and oversize
-    // before any daemon RPC is constructed.
-    assert_eq!(parse_limit("200").expect("max page is allowed"), 200);
+    // Resources advertise MAX_PAGE_LIMIT; reject zero and oversize before
+    // any daemon RPC is constructed. Bounds are derived from the same
+    // authoritative constant the implementation uses.
+    let max = anvil_gctx_types::MAX_PAGE_LIMIT;
+    assert_eq!(
+        parse_limit(&max.to_string()).expect("max page is allowed"),
+        max
+    );
     assert_eq!(parse_limit("1").expect("min page is allowed"), 1);
-    for raw in ["0", "201", "4294967295"] {
+    let oversize = (max + 1).to_string();
+    for raw in ["0", oversize.as_str(), "4294967295"] {
         let err = parse_limit(raw).expect_err(&format!("limit={raw} must be BadRequest"));
         assert!(
             matches!(err, ReadError::BadRequest(_)),
