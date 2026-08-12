@@ -79,7 +79,7 @@ enum HookCommand {
     PreCommit(SilentArgs),
     /// L4 pre-push hook — walks the pushed commit range, verifies
     /// each commit's L3 witness, and applies per-branch policy from
-    /// `anvil/policy.yml`. Reads git's pre-push stdin contract
+    /// `anvil/policy.<ext>`. Reads git's pre-push stdin contract
     /// (`<local-ref> <local-sha> <remote-ref> <remote-sha>` per
     /// line).
     PrePush(SilentArgs),
@@ -299,8 +299,8 @@ fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
 /// - Chain integrity (`verify_chain`) is run once over the active +
 ///   archive stack; a broken chain blocks the push regardless of
 ///   policy ([`Verdict::Block`] with [`BlockReason::ChainBroken`]).
-/// - Per-branch policy is loaded from `anvil/policy.yml` (also
-///   `.yaml` / `.json` / `.toml`). When no policy file exists the
+/// - Per-branch policy is loaded from `anvil/policy.<ext>` (yaml-first:
+///   `.yaml` / `.yml` / `.json` / `.toml`). When no policy file exists the
 ///   hook is a no-op (the project hasn't opted into L4 enforcement).
 /// - `NeedsL4Validation` decisions route through MLP2-016's
 ///   [`anvil_l4::ValidationEngine`] trait. Production binds

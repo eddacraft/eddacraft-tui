@@ -104,7 +104,7 @@ pub struct BaselineSection {
     pub cutoff_commit: Option<String>,
 }
 
-/// Parsed `anvil/policy.yml` (or `.json` / `.toml`).
+/// Parsed `anvil/policy.<ext>` (yaml / yml / json / toml, yaml-first).
 ///
 /// Closed schema: unknown top-level keys are configuration errors so
 /// typos cannot silently disable protection settings (for example a
@@ -262,7 +262,7 @@ pub enum PolicyPinError {
     SymlinkRefusal { path: PathBuf },
 }
 
-/// MLP2-031: write `cutoff_commit` into an existing `anvil/policy.yml`
+/// MLP2-031: write `cutoff_commit` into an existing `anvil/policy.<ext>`
 /// (or `.json` / `.toml`), preserving every other top-level field and
 /// the existing format on disk.
 ///

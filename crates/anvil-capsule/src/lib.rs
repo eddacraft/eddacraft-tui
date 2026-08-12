@@ -29,8 +29,7 @@ pub use collect::{COMMITS_SCHEMA, CommitEntry, CommitsDocument, collect_commits}
 pub use collect_diagnostics::{CollectedDiagnostics, collect_diagnostics};
 pub use collect_digests::{
     BASELINE_DIGEST_SCHEMA, BaselineDigest, CollectedDigests, FileDigest, POLICY_DIGEST_SCHEMA,
-    POLICY_FILE_CANDIDATES, PolicyDigest, RULES_DIGEST_SCHEMA, RulesDigest, ToolIdentity,
-    collect_digests,
+    PolicyDigest, RULES_DIGEST_SCHEMA, RulesDigest, ToolIdentity, collect_digests,
 };
 pub use collect_exceptions::{CollectedExceptions, collect_exceptions};
 pub use collect_witness::{CollectedWitness, collect_witness};

@@ -20,19 +20,12 @@ pub const RULES_DIGEST_SCHEMA: &str = "anvil.rules-digest.v1";
 /// Schema identifier for `baseline.json`.
 pub const BASELINE_DIGEST_SCHEMA: &str = "anvil.baseline-digest.v1";
 
-/// The effective policy file candidates, **in the order the L4
-/// validator loads them** (`anvil-cli` `l4_validate::load_policy`):
-/// `.yml` before `.yaml`. This is deliberately *not*
-/// `anvil_config::DISCOVER_PRECEDENCE` (which prefers `.yaml`) —
-/// "effective policy" means the file L4 actually loads, so the
-/// capsule must resolve ties the same way the enforcement surface
-/// does.
-pub const POLICY_FILE_CANDIDATES: [&str; 4] = [
-    "anvil/policy.yml",
-    "anvil/policy.yaml",
-    "anvil/policy.json",
-    "anvil/policy.toml",
-];
+// "Effective policy" means the file L4 actually loads. Since
+// UCFG-009 / ADR-120 pt 6 the enforcement surface resolves
+// `anvil/policy.*` via `anvil_config::discover`, so the capsule uses
+// the same call (`collect_policy_file`) — one precedence
+// implementation, yaml-first per `DISCOVER_PRECEDENCE`, aligned by
+// construction rather than by a mirrored list.
 
 /// A governance source file and the digest of its canonical form.
 ///
@@ -229,35 +222,33 @@ pub fn collect_digests(
     })
 }
 
-/// Find and digest the effective `anvil/policy.*` file, honouring
-/// [`POLICY_FILE_CANDIDATES`] order. `Ok(None)` when no candidate
-/// exists.
+/// Find and digest the effective `anvil/policy.*` file via the same
+/// `anvil_config::discover` walk the enforcement surface uses
+/// (UCFG-009 / ADR-120 pt 6) — aligned by construction, yaml-first.
+/// `Ok(None)` when no candidate exists.
 ///
-/// Two deliberate notes against the L4 loader this mirrors:
+/// Notes against the L4 loader this shares a walk with:
 ///
-/// - `try_exists` (here) vs `exists` (L4): identical for files and
-///   for broken symlinks (both traverse links; both report a broken
-///   link as absent). The only divergence is a stat *error* (e.g.
-///   permission-denied on `anvil/`), which L4 silently treats as
-///   absent and the collector fails loudly — the safe direction for
-///   evidence production.
-/// - No symlink guard: matches `l4_validate::load_policy` and the
+/// - Stat errors (e.g. permission-denied on `anvil/`) fail loudly on
+///   both sides since UCFG-009 (`discover` uses `try_exists`) — the
+///   safe direction for evidence production.
+/// - No symlink guard: matches the shared `policy_load` path and the
 ///   witness writer, which also follow symlinks. The baseline path is
 ///   hardened separately inside `anvil_baseline::load`. Hardening
 ///   policy reads must move both this and the L4 loader together, or
 ///   the digest stops describing what enforcement loads.
 fn collect_policy_file(repo_root: &Path) -> Result<Option<FileDigest>, CapsuleError> {
-    for rel in POLICY_FILE_CANDIDATES {
-        let path = repo_root.join(rel);
-        let exists = path.try_exists().map_err(|e| CapsuleError::Collect {
-            path: rel.to_string(),
+    let discovered = anvil_config::discover(&repo_root.join("anvil"), "policy").map_err(|e| {
+        CapsuleError::Collect {
+            path: "anvil/policy.*".to_string(),
             detail: e.to_string(),
-        })?;
-        if exists {
-            return Ok(Some(digest_config_shaped_file(&path, rel)?));
         }
-    }
-    Ok(None)
+    })?;
+    let Some(found) = discovered else {
+        return Ok(None);
+    };
+    let rel = format!("anvil/policy.{}", found.format.extension());
+    Ok(Some(digest_config_shaped_file(&found.path, &rel)?))
 }
 
 /// Find and digest the discovered `.anvil.*` config — the same
@@ -505,10 +496,10 @@ mod tests {
         assert_eq!(yml_file.digest, json_file.digest);
     }
 
-    /// Tie-break order is the L4 loader's (`.yml` first), not
-    /// `anvil_config::DISCOVER_PRECEDENCE` (`.yaml` first): the
-    /// capsule must describe the policy file enforcement actually
-    /// loads.
+    /// Tie-break order is the L4 loader's, which since UCFG-009 /
+    /// ADR-120 pt 6 IS `anvil_config::DISCOVER_PRECEDENCE` (`.yaml`
+    /// first): the capsule must describe the policy file enforcement
+    /// actually loads, and both now share the same `discover` walk.
     #[test]
     fn policy_file_candidate_order_matches_l4_loader() {
         let dir = TempDir::new().unwrap();
@@ -523,7 +514,7 @@ mod tests {
         let collected = collect_digests(dir.path(), &tool()).unwrap();
         assert_eq!(
             collected.policy.policy_file.unwrap().path,
-            "anvil/policy.yml"
+            "anvil/policy.yaml"
         );
     }
 
@@ -807,9 +798,8 @@ mod tests {
     /// (`.yaml` beats `.yml`) — the same `discover` walk the witness
     /// writer performs, pinned here so a refactor away from
     /// `discover()` cannot silently change which file the capsule's
-    /// `config_sha` describes. (Deliberately the opposite tie-break to
-    /// the policy file, which follows the L4 loader — see
-    /// [`POLICY_FILE_CANDIDATES`].)
+    /// `config_sha` describes. (Since UCFG-009 the policy file uses the
+    /// same tie-break — one precedence implementation.)
     #[test]
     fn config_discovery_tie_break_matches_witness_writer() {
         let dir = TempDir::new().unwrap();

@@ -21,7 +21,7 @@ pub enum PushKind {
     /// v1 CLI walks `git rev-list <local_sha>` (full reachable
     /// history). A "branch-new-edges-only" walk via `--not --remotes`
     /// is a deferred follow-up — until then, operators with deep
-    /// histories should pin a `cutoff_commit` in `anvil/policy.yml`
+    /// histories should pin a `cutoff_commit` in `anvil/policy.<ext>`
     /// or set `OnNoWitness::Allow` on the relevant branch rule.
     Create,
     /// Branch deletion. `local_sha` is [`ZERO_SHA`]; nothing to
