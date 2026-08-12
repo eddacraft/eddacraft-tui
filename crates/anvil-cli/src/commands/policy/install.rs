@@ -302,10 +302,7 @@ impl Journal {
             .with_context(|| format!("creating directory {}", dir.display()))?;
 
         for candidate in pending.iter().rev() {
-            if std::fs::symlink_metadata(candidate)
-                .map(|m| m.file_type().is_dir())
-                .unwrap_or(false)
-            {
+            if std::fs::symlink_metadata(candidate).is_ok_and(|m| m.file_type().is_dir()) {
                 self.created_dirs.push(candidate.clone());
             }
         }
@@ -368,8 +365,10 @@ mod race_hook {
     use std::cell::RefCell;
     use std::path::Path;
 
+    type RaceHook = Box<dyn FnMut(&Path)>;
+
     thread_local! {
-        static HOOK: RefCell<Option<Box<dyn FnMut(&Path)>>> = const { RefCell::new(None) };
+        static HOOK: RefCell<Option<RaceHook>> = const { RefCell::new(None) };
     }
 
     pub fn set(hook: impl FnMut(&Path) + 'static) {
@@ -1152,8 +1151,7 @@ mod tests {
             if path.starts_with(&anvil_path)
                 && anvil_path
                     .symlink_metadata()
-                    .map(|m| !m.file_type().is_symlink())
-                    .unwrap_or(false)
+                    .is_ok_and(|m| !m.file_type().is_symlink())
             {
                 let _ = std::fs::remove_dir_all(&anvil_path);
                 let _ = std::os::unix::fs::symlink(&outside_path, &anvil_path);
