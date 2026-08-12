@@ -154,7 +154,7 @@ impl GateSection {
         }))
     }
 
-    /// The check names carried by the section, sorted (BTreeMap order).
+    /// The check names carried by the section, sorted (`BTreeMap` order).
     /// Selection input only when the top-level `checks` list is absent.
     #[must_use]
     pub fn check_names(&self) -> Vec<String> {
