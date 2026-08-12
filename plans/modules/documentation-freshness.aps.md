@@ -5,15 +5,20 @@
 
 | ID        | Owner | Priority | Status | Progress |
 | --------- | ----- | -------- | ------ | -------- |
-| DOCFRESH  | —     | high     | Draft  | 0/8      |
+| DOCFRESH  | —     | high     | In Progress | 0/8 |
 
-**Last reviewed:** 2026-08-11 — Module created to execute
+**Last reviewed:** 2026-08-12 — ADR-119 **Accepted** 2026-08-12, so the
+execution authority this module was waiting on now exists. The Draft hold
+recorded on 2026-08-11 is lifted: DOCFRESH-001 is **In Progress**, and
+-002/-003/-004/-005/-007 promote to **Ready**. DOCFRESH-006 stays Draft behind
+its -005 dependency, and DOCFRESH-008 stays Draft because it needs its own
+decision rather than execution.
+
+**Earlier — 2026-08-11** — Module created to execute
 [ADR-119](../decisions/119-documentation-freshness-from-declared-upstream.md).
-Every item stays **Draft** until ADR-119 is Accepted; the ADR is the execution
-authority for the gating posture, and promoting items before it lands would
-authorise a merge gate nobody has agreed to. DOCFRESH-001 is the exception
-candidate — the surface script already exists as a report-only prototype and
-gates nothing, so it can promote to Ready independently if the ADR stalls.
+Every item stayed Draft until the ADR was Accepted; the ADR is the execution
+authority for the gating posture, and promoting items before it landed would
+have authorised a merge gate nobody had agreed to.
 
 ## Purpose
 
@@ -24,10 +29,11 @@ sets only for the `docs` path class, so a pull request that rewrites Rust
 sources runs **zero** documentation checks. Documentation is validated when
 documentation changes, and staled when code changes.
 
-Measured by the report-only prototype `scripts/docs/check-docs-owed.mjs`:
+Measured by `pnpm docs:owed` at `24070b867` (2026-08-12) — a reading of a
+moving corpus, so re-run rather than trusting the figures:
 
 ```
-86 owed, 7 review, 103 checked, 30 uncheckable,
+83 owed, 10 review, 103 checked, 30 uncheckable,
 94 without governance metadata, of 228 documents
 ```
 
@@ -83,7 +89,7 @@ release rather than `main`.
 
 ## Work Items
 
-### DOCFRESH-001: Promote the docs-owed prototype to a governed surface — Draft
+### DOCFRESH-001: Promote the docs-owed prototype to a governed surface — In Progress
 
 - **Intent:** Make the existing report-only probe a first-class `docs:check`
   surface so its output is trustworthy before anything depends on it.
@@ -97,9 +103,9 @@ release rather than `main`.
 - **Non-scope:** Any CI trigger change; any gating behaviour
 - **Validation:** `pnpm docs:check` reports 11/11 surfaces passed
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** In Progress
 
-### DOCFRESH-002: Split findings by upstream granularity — Draft
+### DOCFRESH-002: Split findings by upstream granularity — Ready
 
 - **Intent:** Ensure only claims precise enough to act on can ever turn a check
   red, per ADR-119 D2.
@@ -113,15 +119,15 @@ release rather than `main`.
 - **Validation:** `bash scripts/docs/docs-check.test.sh` — includes a
   directory-upstream fixture asserting WARN, never ERROR
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Ready
 
-### DOCFRESH-003: Move the trigger from docs-changed to upstream-changed — Draft
+### DOCFRESH-003: Move the trigger from docs-changed to upstream-changed — Ready
 
 - **Intent:** Close the structural gap — a code change that stales a document
   must run the check that notices.
 - **Expected Outcome:** `docs-owed` runs in CI when source paths change, not
   only when `markdownlint-required` is set, using `--since` against the merge
-  base so it reports what *this* change owes. The existing 86 findings are
+  base so it reports what *this* change owes. The findings present at adoption are
   seeded into `docs/governance/docs-check.baseline.json` so only new violations
   surface. A Rust-only pull request that moves a declared file-level upstream
   produces a finding; one that does not, stays silent.
@@ -132,9 +138,9 @@ release rather than `main`.
 - **Validation:** `pnpm test:ci-classify` plus a dry run of
   `node scripts/docs/check-docs-owed.mjs --since origin/main`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Ready
 
-### DOCFRESH-004: Grow the checkable corpus — Draft
+### DOCFRESH-004: Grow the checkable corpus — Ready
 
 - **Intent:** Coverage is the ceiling on this whole model; 125 of 228 documents
   are currently invisible to it.
@@ -150,9 +156,9 @@ release rather than `main`.
 - **Validation:** `pnpm docs:check` green, and
   `node scripts/docs/check-docs-owed.mjs --json` shows a lower `uncheckable`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Ready
 
-### DOCFRESH-005: Public-doc governance in frontmatter — Draft
+### DOCFRESH-005: Public-doc governance in frontmatter — Ready
 
 - **Intent:** Give the 91 public documents an owner, a declared upstream, and a
   verification anchor without putting anything on the rendered page.
@@ -166,7 +172,7 @@ release rather than `main`.
 - **Dependencies:** DOCFRESH-001
 - **Validation:** `pnpm docs:public:check` and a docs-site build
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Ready
 
 ### DOCFRESH-006: Verify public docs at the release boundary — Draft
 
@@ -191,7 +197,7 @@ release rather than `main`.
 - **Confidence:** medium
 - **Status:** Draft
 
-### DOCFRESH-007: Keep the public command-probe pin current — Draft
+### DOCFRESH-007: Keep the public command-probe pin current — Ready
 
 - **Intent:** `docs:public:commands` is the strongest instrument in the system
   and its authority is only as good as the binary it probes.
@@ -205,7 +211,7 @@ release rather than `main`.
 - **Validation:** the new assertion fails when the pin and the newest changelog
   heading disagree
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Ready
 
 ### DOCFRESH-008: Decide the model for out-of-tree public sections — Draft
 

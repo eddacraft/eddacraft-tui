@@ -83,6 +83,7 @@
     "predocs:index:check": "pnpm -s -F @eddacraft/anvil-docs-meta build",
     "docs:index:check": "node scripts/docs/docs-index.mjs --check",
     "docs:check": "node scripts/docs/docs-check.mjs",
+    "docs:owed": "node scripts/docs/check-docs-owed.mjs",
     "docs:public:check": "node scripts/docs/check-public-docs.mjs",
     "docs:public:commands": "node scripts/docs/check-anvil-public-commands.mjs",
     "docs:public:aps-commands": "node scripts/docs/check-aps-public-commands.mjs",

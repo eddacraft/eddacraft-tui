@@ -1,8 +1,12 @@
 {
+  "metadata": {},
+  "tags": {
+    "plans/archive/modules/ink-to-ratatui-port.aps.md": [
+      "malformed tag \"overlaps with RATS-002 (watch dashboard) — this task ports the Ink\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")",
+      "malformed tag \"overlaps with RATS-003 (gate result viewer) — coordinate scope\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")"
+    ]
+  },
   "links": {
-    "docs/architecture/kernel-benchmarking-spec.md": [
-      "broken link \"../../plans/modules/rust-kernel.aps.md\" — target file does not exist"
-    ],
     "docs/archive/adapter-implementation-plan-old.md": [
       "broken anchor \"#current-implementation-status\" — heading \"#current-implementation-status\" not found in current file",
       "broken anchor \"#format-analysis\" — heading \"#format-analysis\" not found in current file",
@@ -128,152 +132,6 @@
     "docs/guides/worktree-policy.md": [
       "broken anchor \"branching-strategy.md#archive--pre-opmodel-012-compatibility-model\" — file exists but heading \"#archive--pre-opmodel-012-compatibility-model\" not found"
     ],
-    "docs/public/anvil/beta-testing-guide.md": [
-      "broken link \"/anvil/first-project\" — target file does not exist",
-      "broken link \"/anvil/quickstart\" — target file does not exist",
-      "broken link \"/anvil/releases/changelog\" — target file does not exist"
-    ],
-    "docs/public/anvil/concepts/audit-trail.md": [
-      "broken link \"/anvil/guides/solo-dev-flow\" — target file does not exist"
-    ],
-    "docs/public/anvil/concepts/gates.md": [
-      "broken link \"/anvil/first-gate\" — target file does not exist",
-      "broken link \"/anvil/quickstart\" — target file does not exist"
-    ],
-    "docs/public/anvil/concepts/plans.md": [
-      "broken link \"/aps/overview\" — target file does not exist"
-    ],
-    "docs/public/anvil/concepts/sessions.md": [
-      "broken link \"/anvil/concepts/audit-trail\" — target file does not exist"
-    ],
-    "docs/public/anvil/first-gate.md": [
-      "broken link \"/anvil/concepts/gates\" — target file does not exist",
-      "broken link \"/anvil/first-project\" — target file does not exist"
-    ],
-    "docs/public/anvil/first-project.md": [
-      "broken link \"/anvil/first-gate\" — target file does not exist",
-      "broken link \"/anvil/quickstart\" — target file does not exist",
-      "broken link \"/anvil/tutorials/architecture\" — target file does not exist",
-      "broken link \"/anvil/tutorials/drift\" — target file does not exist",
-      "broken link \"/anvil/tutorials/policies\" — target file does not exist"
-    ],
-    "docs/public/anvil/guides/agent-harness.md": [
-      "broken link \"/anvil/integrations/github\" — target file does not exist",
-      "broken link \"/anvil/integrations/mcp\" — target file does not exist",
-      "broken link \"/anvil/operations/git-hooks\" — target file does not exist"
-    ],
-    "docs/public/anvil/guides/ai-guardrail-demo.md": [
-      "broken link \"./wow-start-demo\" — target file does not exist",
-      "broken link \"/anvil/guides/agent-harness\" — target file does not exist",
-      "broken link \"/anvil/guides/ai-guardrail-profile\" — target file does not exist",
-      "broken link \"/anvil/integrations/mcp\" — target file does not exist",
-      "broken link \"/anvil/quickstart#install\" — target file does not exist",
-      "broken link \"/anvil/tutorials/architecture\" — target file does not exist"
-    ],
-    "docs/public/anvil/guides/solo-dev-flow.md": [
-      "broken link \"/anvil/guides/team-flow\" — target file does not exist",
-      "broken link \"/anvil/integrations/vscode\" — target file does not exist"
-    ],
-    "docs/public/anvil/guides/team-flow.md": [
-      "broken link \"/anvil/guides/agent-harness\" — target file does not exist"
-    ],
-    "docs/public/anvil/guides/wow-start-demo.md": [
-      "broken link \"./ai-guardrail-demo\" — target file does not exist",
-      "broken link \"./ai-guardrail-demo#resetting-between-scenarios\" — target file does not exist",
-      "broken link \"/anvil/beta-testing-guide\" — target file does not exist",
-      "broken link \"/anvil/integrations/mcp\" — target file does not exist",
-      "broken link \"/anvil/quickstart\" — target file does not exist"
-    ],
-    "docs/public/anvil/integrations/github.md": [
-      "broken link \"/anvil/integrations/vscode\" — target file does not exist"
-    ],
-    "docs/public/anvil/integrations/mcp.md": [
-      "broken link \"/anvil/operations/config\" — target file does not exist"
-    ],
-    "docs/public/anvil/integrations/vscode.md": [
-      "broken link \"/anvil/integrations/mcp\" — target file does not exist",
-      "broken link \"/anvil/integrations/mcp#manual-configuration\" — target file does not exist"
-    ],
-    "docs/public/anvil/operations/config.md": [
-      "broken link \"/anvil/operations/security\" — target file does not exist",
-      "broken link \"/anvil/tutorials/architecture\" — target file does not exist"
-    ],
-    "docs/public/anvil/operations/security.md": [
-      "broken link \"/anvil/operations/troubleshooting\" — target file does not exist"
-    ],
-    "docs/public/anvil/operations/troubleshooting.md": [
-      "broken link \"/anvil/operations/config\" — target file does not exist",
-      "broken link \"/anvil/operations/security\" — target file does not exist",
-      "broken link \"/anvil/releases/rust-rewrite\" — target file does not exist"
-    ],
-    "docs/public/anvil/overview.md": [
-      "broken link \"/anvil/beta-testing-guide\" — target file does not exist",
-      "broken link \"/anvil/concepts/gates\" — target file does not exist",
-      "broken link \"/anvil/quickstart\" — target file does not exist"
-    ],
-    "docs/public/anvil/quickstart.md": [
-      "broken link \"/anvil/beta-testing-guide\" — target file does not exist",
-      "broken link \"/anvil/concepts/gates\" — target file does not exist",
-      "broken link \"/anvil/first-project\" — target file does not exist",
-      "broken link \"/anvil/operations/config\" — target file does not exist",
-      "broken link \"/anvil/operations/troubleshooting\" — target file does not exist",
-      "broken link \"/anvil/tutorials/architecture\" — target file does not exist",
-      "broken link \"/anvil/tutorials/drift\" — target file does not exist",
-      "broken link \"/anvil/tutorials/policies\" — target file does not exist"
-    ],
-    "docs/public/anvil/releases/changelog.md": [
-      "broken link \"/anvil/releases/rust-rewrite\" — target file does not exist",
-      "broken link \"/anvil/releases/upgrade-notes\" — target file does not exist"
-    ],
-    "docs/public/anvil/releases/upgrade-notes.md": [
-      "broken link \"/anvil/operations/troubleshooting\" — target file does not exist",
-      "broken link \"/anvil/releases/changelog\" — target file does not exist",
-      "broken link \"/anvil/releases/rust-rewrite\" — target file does not exist"
-    ],
-    "docs/public/anvil/tutorials/architecture.md": [
-      "broken link \"/anvil/tutorials/drift\" — target file does not exist"
-    ],
-    "docs/public/anvil/tutorials/policies.md": [
-      "broken link \"/anvil/tutorials/architecture\" — target file does not exist"
-    ],
-    "docs/public/anvil/when-to-use.md": [
-      "broken link \"/anvil/quickstart\" — target file does not exist"
-    ],
-    "docs/public/aps/examples/minimal-plan.md": [
-      "broken link \"/aps/examples/multi-module\" — target file does not exist"
-    ],
-    "docs/public/aps/examples/multi-module.md": [
-      "broken link \"/aps/tooling/validation\" — target file does not exist"
-    ],
-    "docs/public/aps/overview.md": [
-      "broken link \"/aps/spec/taxonomy\" — target file does not exist"
-    ],
-    "docs/public/aps/schemas/examples.md": [
-      "broken link \"/aps/examples/minimal-plan\" — target file does not exist"
-    ],
-    "docs/public/aps/schemas/json-schema.md": [
-      "broken link \"/aps/schemas/examples\" — target file does not exist"
-    ],
-    "docs/public/aps/spec/determinism.md": [
-      "broken link \"/aps/schemas/json-schema\" — target file does not exist"
-    ],
-    "docs/public/aps/spec/file-layout.md": [
-      "broken link \"/aps/spec/determinism\" — target file does not exist"
-    ],
-    "docs/public/aps/spec/taxonomy.md": [
-      "broken link \"/aps/spec/file-layout\" — target file does not exist"
-    ],
-    "docs/public/aps/tooling/validation.md": [
-      "broken link \"/aps/overview\" — target file does not exist"
-    ],
-    "docs/public/beta/quickstart.md": [
-      "broken link \"/anvil/concepts/gates\" — target file does not exist",
-      "broken link \"/anvil/first-project\" — target file does not exist",
-      "broken link \"/anvil/guides/wow-start-demo\" — target file does not exist",
-      "broken link \"/anvil/operations/config\" — target file does not exist",
-      "broken link \"/anvil/tutorials\" — target file does not exist",
-      "broken link \"/anvil/tutorials/policies\" — target file does not exist"
-    ],
     "docs/public/edda-stack/components/edda.md": [
       "broken link \"/edda-stack/roadmap\" — target file does not exist"
     ],
@@ -323,12 +181,12 @@
       "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
       "broken link \"/kindling/adapters/vscode\" — target file does not exist"
     ],
+    "docs/public/kindling/adapters/pocketflow.md": [
+      "broken link \"/kindling/adapters/custom\" — target file does not exist"
+    ],
     "docs/public/kindling/adapters/vscode.md": [
       "broken link \"/kindling/adapters/custom\" — target file does not exist",
       "broken link \"/kindling/reference/integrations\" — target file does not exist"
-    ],
-    "docs/public/kindling/adapters/pocketflow.md": [
-      "broken link \"/kindling/adapters/custom\" — target file does not exist"
     ],
     "docs/public/kindling/concepts/capsules.md": [
       "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
@@ -419,15 +277,15 @@
       "broken link \"/kindling/adapters/custom\" — target file does not exist",
       "broken link \"/kindling/reference/cli\" — target file does not exist"
     ],
-    "docs/public/kindling/reference/integrations.md": [
-      "broken link \"/kindling/adapters/custom\" — target file does not exist",
-      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
-      "broken link \"/kindling/quickstart/without-claude-code\" — target file does not exist"
-    ],
     "docs/public/kindling/reference/formats.md": [
       "broken link \"/kindling/concepts/observations\" — target file does not exist",
       "broken link \"/kindling/concepts/observations#kinds\" — target file does not exist",
       "broken link \"/kindling/reference/cli#export\" — target file does not exist"
+    ],
+    "docs/public/kindling/reference/integrations.md": [
+      "broken link \"/kindling/adapters/custom\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/quickstart/without-claude-code\" — target file does not exist"
     ],
     "docs/public/start-here/choose-your-path.md": [
       "broken link \"/anvil/first-project\" — target file does not exist",
@@ -545,6 +403,9 @@
     "plans/archive/modules/tui-implementation.aps.md": [
       "broken anchor \"#44-testing--qa-8-hours\" — heading \"#44-testing--qa-8-hours\" not found in current file"
     ],
+    "plans/archive/modules/usage-analytics.aps.md": [
+      "broken anchor \"../../modules/feature-flag-catalogue.aps.md#flagcat-007\" — file exists but heading \"#flagcat-007\" not found"
+    ],
     "plans/completed-index.aps.md": [
       "broken link \"./decisions/011-opa-agent-orchestration.md\" — target file does not exist",
       "broken link \"./decisions/012-eval-harness-adoption.md\" — target file does not exist"
@@ -565,56 +426,216 @@
     "plans/decisions/029-suppression-parser-authority.md": [
       "broken link \"../modules/surface-env-files.aps.md\" — target file does not exist"
     ],
-    "plans/decisions/031-validation-latency-rubric.md": [
-      "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist"
-    ],
     "plans/decisions/033-park-ide-mcp-retire-ts-scanner.md": [
       "broken link \"../modules/anvil-ts-scanner-retirement.aps.md\" — target file does not exist",
-      "broken link \"../modules/rust-mcp-launch-shim.aps.md\" — target file does not exist",
-      "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist",
       "broken link \"../next-steps.md\" — target file does not exist"
     ],
     "plans/index.aps.md": [
       "broken anchor \"#auth--access\" — heading \"#auth--access\" not found in current file",
       "broken anchor \"#hardening--maintenance\" — heading \"#hardening--maintenance\" not found in current file",
       "broken anchor \"#language--coverage\" — heading \"#language--coverage\" not found in current file"
-    ],
-    "plans/modules/opa-enhancements.aps.md": [
-      "broken link \"./opa-architecture-integration.aps.md\" — target file does not exist"
-    ],
-    "plans/modules/realtime-ai-validation.aps.md": [
-      "broken link \"./launch-flow-readiness.aps.md\" — target file does not exist",
-      "broken link \"./rust-mcp-launch-shim.aps.md\" — target file does not exist",
-      "broken link \"./surface-drivers.aps.md\" — target file does not exist"
-    ],
-    "plans/archive/modules/usage-analytics.aps.md": [
-      "broken anchor \"../../modules/feature-flag-catalogue.aps.md#flagcat-007\" — file exists but heading \"#flagcat-007\" not found"
-    ],
-    "plans/specs/2026-04-24-adr-030-council-findings.md": [
-      "broken link \"../modules/anvil-ts-scanner-retirement.aps.md\" — target file does not exist",
-      "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist"
-    ],
-    "plans/specs/2026-04-26-rtai-demo-runbook.md": [
-      "broken anchor \"#feedback-to-rtai--intd--rmcp--drvr\" — heading \"#feedback-to-rtai--intd--rmcp--drvr\" not found in current file",
-      "broken anchor \"#latency-exceeds-budget\" — heading \"#latency-exceeds-budget\" not found in current file",
-      "broken anchor \"#owner--cadence\" — heading \"#owner--cadence\" not found in current file",
-      "broken link \"../modules/launch-flow-readiness.aps.md\" — target file does not exist",
-      "broken link \"../modules/rust-mcp-launch-shim.aps.md\" — target file does not exist",
-      "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist"
-    ],
-    "plans/specs/2026-05-04-launch-a1-execution.md": [
-      "broken link \"../modules/launch-flow-readiness.aps.md\" — target file does not exist"
-    ],
-    "plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md": [
-      "broken link \"../../modules/rust-mcp-launch-shim.aps.md\" — target file does not exist"
     ]
   },
-  "metadata": {},
-  "tags": {
-    "plans/archive/modules/ink-to-ratatui-port.aps.md": [
-      "malformed tag \"overlaps with RATS-002 (watch dashboard) — this task ports the Ink\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")",
-      "malformed tag \"overlaps with RATS-003 (gate result viewer) — coordinate scope\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")"
+  "asbuilt-paths": {},
+  "docs-owed": {
+    "docs/runbooks/intd-012-windows-evidence.md": [
+      "upstream moved since review: .github/workflows/rust.yml"
+    ],
+    "docs/runbooks/main-first-cutover.md": [
+      "upstream moved since review: .github/workflows/ci.yml"
+    ],
+    "docs/runbooks/anvil-air-gapped.md": ["upstream moved since review: RELEASE-PLAN.md"],
+    "docs/policies/editor-coexistence.md": [
+      "upstream moved since review: crates/anvil-hook/src/coexistence.rs"
+    ],
+    "docs/guides/anvil-rule-authoring.md": ["upstream moved since review: crates/anvil-checks/src"],
+    "docs/guides/release-doc-checklist.md": [
+      "upstream moved since review: docs/runbooks/release-runbook.md"
+    ],
+    "docs/runbooks/post-deploy-smoke-check.md": [
+      "upstream moved since review: .github/workflows/release.yml"
+    ],
+    "docs/runbooks/release-token-scope.md": [
+      "upstream moved since review: .github/workflows/release.yml"
+    ],
+    "docs/runbooks/rollback-bad-published-release.md": [
+      "upstream moved since review: .github/workflows/release.yml"
+    ],
+    "docs/guides/adr-process.md": ["upstream moved since review: plans/decisions/DECISION-LOG.md"],
+    "docs/guides/cli-output-streams.md": ["upstream moved since review: docs/public/anvil"],
+    "docs/guides/command-safety-configuration.md": [
+      "upstream moved since review: docs/guides/command-safety.md"
+    ],
+    "docs/guides/command-safety.md": [
+      "upstream moved since review: crates/anvil-checks/tests/command_safety_validation.rs"
+    ],
+    "docs/guides/edda-memory.md": [
+      "upstream moved since review: crates/anvil-cli/src/commands/edda.rs"
+    ],
+    "docs/runbooks/rollback-bad-main.md": [
+      "upstream moved since review: scripts/release/prepare.sh"
+    ],
+    "docs/runbooks/branch-reconciliation.md": [
+      "upstream moved since review: .github/workflows/ci.yml"
+    ],
+    "docs/guides/git-hook-compatibility.md": [
+      "upstream moved since review: crates/anvil-cli/src/commands/hooks.rs"
+    ],
+    "docs/guides/ember-candidates.md": [
+      "upstream moved since review: plans/modules/rust-cli-tier3.aps.md"
+    ],
+    "docs/guides/feature-flag-governance.md": [
+      "upstream moved since review: plans/modules/feature-flag-catalogue.aps.md"
+    ],
+    "docs/guides/feature-flag-inventory.md": [
+      "upstream moved since review: plans/modules/feature-flag-catalogue.aps.md"
+    ],
+    "docs/guides/feature-flag-reference.md": [
+      "upstream moved since review: plans/modules/feature-flag-catalogue.aps.md"
+    ],
+    "docs/policies/resource-budget.md": ["upstream moved since review: crates/anvil-bench"],
+    "docs/runbooks/rollback-bad-candidate-artefact.md": [
+      "upstream moved since review: .github/workflows/release-readiness.yml"
+    ],
+    "docs/runbooks/eddacraft-tui-release.md": [
+      "upstream moved since review: docs/policies/eddacraft-tui-mirror.md"
+    ],
+    "docs/runbooks/sarif-code-scanning-upload.md": [
+      "upstream moved since review: crates/anvil-sarif/src/lib.rs"
+    ],
+    "docs/guides/worktree-policy.md": [
+      "upstream moved since review: docs/guides/branching-strategy.md"
+    ],
+    "docs/architecture/adapter-packages-as-built.md": [
+      "upstream moved since review: crates/anvil-cli"
+    ],
+    "docs/architecture/capsule-as-built.md": ["upstream moved since review: crates/anvil-cli"],
+    "docs/runbooks/github-device-flow.md": [
+      "upstream moved since review: apps/anvil-api/src/routes/auth-github-device.ts"
+    ],
+    "docs/runbooks/db-migrations.md": ["upstream moved since review: .github/workflows/infra.yml"],
+    "docs/runbooks/emergency-hotfix.md": [
+      "upstream moved since review: scripts/release/preflight.sh"
+    ],
+    "docs/README.md": ["upstream moved since review: docs/guides/documentation-governance.md"],
+    "docs/governance/tags-catalogue.md": [
+      "upstream moved since review: docs/guides/documentation-governance.md"
+    ],
+    "docs/guides/dependency-audit-posture.md": [
+      "upstream moved since review: .github/workflows/security.yml"
+    ],
+    "docs/runbooks/vulnerability-response.md": [
+      "upstream moved since review: .github/workflows/security.yml"
+    ],
+    "docs/surveys/pack-coverage-quickstart.md": [
+      "upstream moved since review: crates/anvil-checks"
+    ],
+    "docs/surveys/pack-coverage-survey.md": ["upstream moved since review: crates/anvil-checks"],
+    "docs/guides/architecture-diagrams.md": [
+      "upstream moved since review: docs/architecture/overview.md"
+    ],
+    "docs/guides/supply-chain-policy.md": [
+      "upstream moved since review: .github/workflows/rust.yml"
+    ],
+    "docs/architecture/quality-model.md": [
+      "upstream moved since review: docs/architecture/overview.md"
+    ],
+    "docs/architecture/references/entire-branch-sidecar.md": [
+      "upstream moved since review: plans/archive/modules/graph-v2-foundation.aps.md"
+    ],
+    "docs/architecture/graph-context-delivery-spec.md": [
+      "upstream moved since review: crates/anvil-intercept-rules"
+    ],
+    "docs/architecture/cli-tui-runner-as-built.md": [
+      "upstream moved since review: crates/anvil-cli"
+    ],
+    "docs/architecture/tui-as-built.md": ["upstream moved since review: crates/anvil-tui"],
+    "docs/architecture/tutorial-as-built.md": ["upstream moved since review: crates/anvil-cli"],
+    "docs/architecture/widgets-as-built.md": ["upstream moved since review: crates/anvil-tui"],
+    "docs/architecture/api-as-built.md": ["upstream moved since review: apps/anvil-api"],
+    "docs/architecture/auth-as-built.md": [
+      "upstream moved since review: apps/anvil-api/src/routes/auth-github-device.ts"
+    ],
+    "docs/architecture/checks-as-built.md": ["upstream moved since review: crates/anvil-checks"],
+    "docs/architecture/intercept-as-built.md": [
+      "upstream moved since review: crates/anvil-intercept"
+    ],
+    "docs/guides/opa-policy-testing.md": [
+      "upstream moved since review: crates/anvil-policy-engine"
+    ],
+    "docs/guides/policy-validation.md": [
+      "upstream moved since review: crates/anvil-policy-engine/src/pack"
+    ],
+    "docs/guides/stack-migration.md": [
+      "upstream moved since review: packages/edda-stack/src/contracts"
+    ],
+    "docs/guides/custom-architecture-policies.md": [
+      "upstream moved since review: docs/runbooks/cli-surface.md"
+    ],
+    "docs/guides/testing.md": ["upstream moved since review: package.json"],
+    "docs/reviews/cli-command-benchmark-tool-investigation.md": [
+      "upstream moved since review: crates/anvil-cli"
+    ],
+    "docs/guides/README.md": ["upstream moved since review: docs/guides"],
+    "docs/architecture/driver-framework-as-built.md": [
+      "upstream moved since review: crates/anvil-intercept-win32"
+    ],
+    "docs/policies/release-cadence.md": ["upstream moved since review: plans/aps-rules.md"],
+    "docs/guides/documentation-governance.md": ["upstream moved since review: AGENTS.md"],
+    "docs/guides/repository-operations.md": ["upstream moved since review: AGENTS.md"],
+    "docs/architecture/overview.md": [
+      "upstream moved since review: docs/architecture/mcp-shim-as-built.md"
+    ],
+    "docs/guides/policy-exceptions.md": [
+      "upstream moved since review: crates/anvil-cli/src/commands/exception.rs"
+    ],
+    "docs/runbooks/observability-triage.md": [
+      "upstream moved since review: docs/observability/namespace-registry.md"
+    ],
+    "docs/runbooks/cli-surface.md": ["upstream moved since review: crates/anvil-cli/src/commands"],
+    "docs/observability/local-tracing.md": [
+      "upstream moved since review: crates/anvil-observability"
+    ],
+    "docs/strategy/beta-demo-script.md": ["upstream moved since review: docs/vision"],
+    "docs/guides/agent-surface-inventory.md": ["upstream moved since review: AGENTS.md"],
+    "docs/runbooks/admin-cli.md": [
+      "upstream moved since review: plans/modules/continuous-improvement-backlog.aps.md"
+    ],
+    "docs/runbooks/anvil-migrate.md": [
+      "upstream moved since review: plans/archive/modules/distribution-and-update.aps.md"
+    ],
+    "docs/architecture/activation-as-built.md": ["upstream moved since review: crates/anvil-cli"],
+    "docs/architecture/mcp-shim-as-built.md": [
+      "upstream moved since review: crates/anvil-intercept"
+    ],
+    "docs/architecture/rust-mcp-server-spec.md": [
+      "upstream moved since review: plans/modules/rust-mcp-full-port.aps.md"
+    ],
+    "docs/guides/local-dashboard.md": ["upstream moved since review: apps/dashboard"],
+    "docs/reviews/cli-command-truth-review.md": [
+      "upstream moved since review: crates/anvil-cli/src/commands"
+    ],
+    "docs/guides/continuous-improvement-log.md": [
+      "upstream moved since review: plans/modules/continuous-improvement-backlog.aps.md"
+    ],
+    "docs/guides/adapters/workflow-guide.md": [
+      "upstream moved since review: plans/modules/open-spec-adapter.aps.md"
+    ],
+    "docs/reviews/shipped-codebase-review-checklist.md": [
+      "upstream moved since review: crates/anvil-cli/src/mcp"
+    ],
+    "docs/runbooks/v0.7.0-beta-release-runbook.md": [
+      "upstream moved since review: RELEASE-PLAN.md"
+    ],
+    "docs/testing/benchmark-results.md": ["upstream moved since review: crates/anvil-bench"],
+    "docs/architecture/anvil-architecture-evolution.md": [
+      "upstream moved since review: docs/architecture/rust-kernel-spec.md"
+    ],
+    "docs/architecture/kernel-benchmarking-spec.md": [
+      "upstream moved since review: docs/architecture/rust-kernel-spec.md"
+    ],
+    "docs/architecture/rust-kernel-spec.md": [
+      "upstream moved since review: docs/architecture/anvil-architecture-evolution.md"
     ]
-  },
-  "asbuilt-paths": {}
+  }
 }

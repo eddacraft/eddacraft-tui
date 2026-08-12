@@ -73,7 +73,7 @@
 //     out; `asbuilt-paths` independently catches a path that stopped existing.
 
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve, isAbsolute, relative as relPath } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -90,6 +90,8 @@ const SKIPPED_STATUSES = new Set(['Archived']);
 const { values } = parseArgs({
   options: {
     root: { type: 'string' },
+    baseline: { type: 'string' },
+    'no-baseline': { type: 'boolean', default: false },
     json: { type: 'boolean', default: false },
     // Diff mode — the future gate shape. Only upstream paths modified in
     // `<ref>..HEAD` are considered, so the report answers "what does THIS change
@@ -105,6 +107,19 @@ const { values } = parseArgs({
 
 const root = resolve(values.root ?? process.cwd());
 const limit = values.limit ? Number.parseInt(values.limit, 10) : Infinity;
+const baselinePath = resolve(root, values.baseline ?? 'docs/governance/docs-check.baseline.json');
+
+let baseline = {};
+if (!values['no-baseline'] && existsSync(baselinePath)) {
+  try {
+    baseline = JSON.parse(readFileSync(baselinePath, 'utf8'))[SURFACE] ?? {};
+  } catch (err) {
+    // Matches the sibling surfaces: an unreadable baseline degrades to "absorb
+    // nothing" rather than failing the run, so a corrupt ratchet file surfaces
+    // as louder findings instead of a dead check.
+    process.stderr.write(`[${SURFACE}] failed to read baseline ${baselinePath}: ${err.message}\n`);
+  }
+}
 
 function git(args) {
   return execFileSync('git', args, {
@@ -309,21 +324,51 @@ for (const relFile of files) {
     docLastCommit: docCommit?.date ?? null,
     daysBehind: Math.round((Date.parse(newest.commit.date) - Date.parse(reviewedOn)) / 86_400_000),
     movedUpstream: moved.map((m) => `${m.path}@${m.commit.date}`),
-    message:
-      `upstream moved since review: ${newest.path} committed ${newest.commit.date}, ` +
+    // STABLE fingerprint — deliberately carries no date and no count.
+    //
+    // The baseline matches findings by exact message string, so anything
+    // volatile in here destroys the ratchet: embedding "committed 2026-08-10"
+    // would un-baseline a known finding the moment its upstream took one more
+    // commit, and the absorbed backlog would reappear as fresh errors on an
+    // unrelated pull request. Naming the implicated upstream is the part worth
+    // pinning; the dates are reporting detail and are rendered from the
+    // structured fields below instead.
+    message: `upstream moved since review: ${newest.path}`,
+    detail:
+      `${newest.path} committed ${newest.commit.date}, ` +
       `document last reviewed ${reviewedOn}` +
       (moved.length > 1 ? ` (+${moved.length - 1} more upstream path(s))` : '') +
       (documentTouchedSince ? `; document itself committed ${docCommit.date}` : ''),
   });
 }
 
+// Absorbed findings are downgraded rather than dropped: the ratchet is meant to
+// stop the known backlog failing the build, not to make it invisible. Same
+// shape as every other baselineable surface (see check-asbuilt-paths.mjs).
+for (const finding of findings) {
+  const fingerprints = baseline[finding.file];
+  if (Array.isArray(fingerprints) && fingerprints.includes(finding.message)) {
+    finding.severity = 'WARN';
+    finding.baselined = true;
+    finding.message = `[baselined] ${finding.message}`;
+  }
+}
+
 findings.sort((a, b) => b.daysBehind - a.daysBehind || a.file.localeCompare(b.file));
 
 const owed = findings.filter((f) => f.class === 'owed');
 const review = findings.filter((f) => f.class === 'review');
+const errors = findings.filter((f) => f.severity === 'ERROR').length;
+const warnings = findings.filter((f) => f.severity === 'WARN').length;
 const summary = {
+  // `errors` / `warnings` / `filesChecked` are the keys docs-check.mjs prints
+  // when regenerating the baseline; the rest is this surface's own reporting.
+  errors,
+  warnings,
+  filesChecked: checked,
   owed: owed.length,
   review: review.length,
+  baselined: findings.filter((f) => f.baselined).length,
   checked,
   uncheckable,
   skippedArchived: skipped,
@@ -337,7 +382,8 @@ if (values.json) {
 } else {
   for (const f of findings.slice(0, limit)) {
     process.stdout.write(
-      `[${SURFACE}] ${f.severity}: ${f.file}:${f.line} — ${f.message} [${f.daysBehind}d, ${f.type}, owner ${f.owner}]\n`
+      `[${SURFACE}] ${f.severity}: ${f.file}:${f.line} — ${f.message} — ${f.detail} ` +
+        `[${f.daysBehind}d, ${f.type}, owner ${f.owner}]\n`
     );
   }
   if (findings.length > limit) {
@@ -345,11 +391,26 @@ if (values.json) {
   }
   process.stdout.write(
     `[${SURFACE}] summary [${summary.mode}]: ${summary.owed} owed, ${summary.review} review, ` +
-      `${summary.checked} checked, ${summary.uncheckable} uncheckable ` +
+      `${summary.baselined} baselined, ${summary.checked} checked, ` +
+      `${summary.uncheckable} uncheckable ` +
       `(no review date or no resolvable upstream path), ` +
       `${summary.withoutGovernanceMetadata} without governance metadata, ` +
       `${summary.skippedArchived} archived, of ${summary.corpus} documents\n`
   );
 }
 
-process.exit(values['fail-on-owed'] && owed.length > 0 ? 1 : 0);
+// Registered but deliberately non-gating: this exits 0 even with unbaselined
+// ERROR findings, which is a departure from the sibling surfaces and is
+// temporary.
+//
+// It cannot gate yet without violating the ADR it implements. Severity is still
+// derived from the confidence class alone, so a finding backed only by a
+// directory upstream is an ERROR — and ADR-119 D2 says directory and glob
+// upstreams must never turn a check red. Gating before DOCFRESH-002 lands the
+// granularity split would enforce exactly the posture the ADR rejects.
+//
+// DOCFRESH-002 adds the split; DOCFRESH-003 moves the trigger and flips this to
+// the normal `errors > 0 ? 1 : 0` contract. `--fail-on-owed` exists so the gate
+// can be exercised before then without editing code.
+const gatingFailure = values['fail-on-owed'] && owed.some((f) => !f.baselined);
+process.exit(gatingFailure ? 1 : 0);

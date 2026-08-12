@@ -60,6 +60,17 @@ const DEFAULT_SURFACES = [
     baselineable: false,
   },
   { name: 'asbuilt-paths', script: 'scripts/docs/check-asbuilt-paths.mjs', baselineable: true },
+  {
+    // DOCFRESH-001 (ADR-119): reports documents whose declared `Upstream` moved
+    // since their `Last reviewed` date. Baselineable, but deliberately
+    // report-only for now — it exits 0 even with unbaselined errors until
+    // DOCFRESH-002 lands the file-versus-directory severity split, because
+    // gating sooner would fail on the directory upstreams ADR-119 D2 requires
+    // to stay advisory.
+    name: 'docs-owed',
+    script: 'scripts/docs/check-docs-owed.mjs',
+    baselineable: true,
+  },
   { name: 'release-plan', script: 'scripts/docs/check-release-plan.mjs', baselineable: false },
   {
     // Tombstone lint: retired product claims must not survive on other

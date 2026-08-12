@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted 2026-08-12 (owner). Reviewed on PR #3732, which corrected the D6
+anchor from the release's `previous_tag` to each page's own `verified_against`
+before acceptance.
 
 ## Date
 
@@ -28,19 +30,26 @@ not contradict" — and a freshness line carrying `Last reviewed YYYY-MM-DD`.
 
 ### Measured state
 
-A report-only probe (`scripts/docs/check-docs-owed.mjs`, branch
-`docs-owed-probe`) joins the declared upstream paths to `git log`:
+`scripts/docs/check-docs-owed.mjs` joins the declared upstream paths to
+`git log`. **Measured at `24070b867` (2026-08-12); reproduce with
+`pnpm docs:owed`:**
 
 ```
-86 owed, 7 review, 103 checked, 30 uncheckable,
+83 owed, 10 review, 103 checked, 30 uncheckable,
 94 without governance metadata, of 228 documents
 ```
 
+These figures are a reading of a moving corpus, not constants, which is why they
+carry a commit anchor: every merge to `main` can move a document between classes.
+The first measurement of this corpus, four days earlier, read 84/7 — the totals
+drift, the shape does not. Cite the anchor when quoting them, and re-run rather
+than trusting the number.
+
 `owed` means the upstream moved and the document has not been committed since —
 nobody has looked. `review` means the document was committed after its upstream
-moved, so it may already be reconciled with a stale date. The 86/7 split says
-this is overwhelmingly untouched documentation, not date-keeping noise. By type:
-44 Guides, 24 Runbooks, 14 As-built, 7 Specs.
+moved, so it may already be reconciled with a stale date. The split is heavily
+weighted to `owed`, which says this is overwhelmingly untouched documentation
+rather than date-keeping noise.
 
 Hand-verified example: `docs/guides/git-hook-compatibility.md` declares
 `crates/anvil-cli/src/commands/hooks.rs` upstream and was reviewed 2026-05-25.
@@ -135,8 +144,8 @@ A file-level upstream is a claim precise enough to act on. A directory-level
 upstream fires on any commit anywhere beneath it and cannot be acted on. The
 measured distribution makes this concrete: the two highest-frequency triggers in
 the corpus are `crates/anvil-cli` (7 findings) and `crates/anvil-checks` (6),
-both whole-crate references. Of the 86 owed findings, 50 cite file-level
-upstreams only, 20 cite directories only, and 16 are mixed.
+both whole-crate references. Of the 83 owed findings at that same anchor, 47
+cite file-level upstreams only, 20 cite directories only, and 16 are mixed.
 
 A mixed document gates on its file-level components and reports the rest. A
 directory-only document is never red.
@@ -145,7 +154,7 @@ directory-only document is never red.
 
 `owed` (the document has not been committed since its upstream moved) is
 gate-eligible. `review` (the document was committed after, so the date may
-simply be stale) is advisory date-hygiene. Measured 86 versus 7.
+simply be stale) is advisory date-hygiene. Measured 83 versus 10 at the anchor above.
 
 ### D4 — Same-day counts as reviewed
 
@@ -232,7 +241,7 @@ another review obligation. Generated documents cannot drift.
 
 ### D8 — Ratchet from a baseline, do not big-bang
 
-The existing 86 owed findings are baselined the way `links` already carries 130
+The owed findings present at adoption are baselined the way `links` already carries 130
 entries in `docs/governance/docs-check.baseline.json`. New violations gate from
 day one; the backlog burns down by owner. The surface is `baselineable: true` in
 `DEFAULT_SURFACES`.
@@ -280,7 +289,7 @@ hook compatibility policy genuinely came into question.
   verification anchor for the first time, at zero cost to the rendered page.
 - **Positive:** the tag-cut blind spot behind #3676 is closed as a class rather
   than per generator.
-- **Negative:** an 86-item backlog becomes visible and needs owners. Baselining
+- **Negative:** a backlog of roughly ninety findings becomes visible and needs owners. Baselining
   defers it; it does not remove it.
 - **Negative:** metadata authoring gets stricter. Documents with no file-level
   upstream stay unchecked until someone declares one.

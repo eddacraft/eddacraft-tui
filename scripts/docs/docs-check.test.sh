@@ -39,17 +39,17 @@ failures=0
 pass() { printf '  ok: %s\n' "$1"; }
 fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
 
-# Case 1: orchestrator surfaces the ten expected labels in summary order.
-echo "case 1: orchestrator emits all ten surface labels"
+# Case 1: orchestrator surfaces the eleven expected labels in summary order.
+echo "case 1: orchestrator emits all eleven surface labels"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-for surface in metadata tags links public-docs aps adr index-freshness asbuilt-paths release-plan retired-claims; do
+for surface in metadata tags links public-docs aps adr index-freshness asbuilt-paths docs-owed release-plan retired-claims; do
   if ! grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+${surface}$" <<<"${out}"; then
     fail "summary missing surface: ${surface}"
     break
   fi
 done
 if grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+retired-claims$" <<<"${out}"; then
-  pass "all ten surfaces present in summary"
+  pass "all eleven surfaces present in summary"
 fi
 
 # Case 2: index-freshness and asbuilt-paths real surfaces both run cleanly.
@@ -79,10 +79,10 @@ fi
 # Case 3: baseline absorbs current errors so the live repo passes.
 echo "case 3: baseline file absorbs current errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-if echo "${out}" | grep -qE "^\[docs-check\] 10/10 surfaces passed"; then
-  pass "live repo passes all ten surfaces under baseline"
+if echo "${out}" | grep -qE "^\[docs-check\] 11/11 surfaces passed"; then
+  pass "live repo passes all eleven surfaces under baseline"
 else
-  fail "live repo expected 10/10 passed; got tail: $(echo "${out}" | tail -3)"
+  fail "live repo expected 11/11 passed; got tail: $(echo "${out}" | tail -3)"
 fi
 
 # Case 4: --no-baseline reveals the baselined corpus errors. The metadata surface
@@ -1093,6 +1093,90 @@ elif echo "${out}" | grep -qE "^  FAIL[[:space:]]+release-plan$" && [[ "${status
   pass "orchestrator renders a missing governed doc as FAIL and exits 1"
 else
   fail "missing RELEASE-PLAN.md not rendered as FAIL (status ${status}); got: $(echo "${out}" | tail -6)"
+fi
+
+# --- docs-owed surface (DOCFRESH-001, ADR-119) -------------------------------
+#
+# These lock the three properties that make the surface safe to register but not
+# yet safe to gate. Each one guards a mistake that would be invisible in normal
+# output: a gate switched on too early, a ratchet that cannot hold, and an
+# unreadable corpus reported as a clean one.
+
+owed_script="${script_dir}/check-docs-owed.mjs"
+
+# Case A: report-only contract. The surface finds real errors in the live corpus
+# with --no-baseline, and must STILL exit 0. Gating cannot switch on before
+# DOCFRESH-002 lands the granularity split, because severity is currently
+# derived from the confidence class alone and would fail on the directory
+# upstreams ADR-119 D2 requires to stay advisory.
+echo "case A: docs-owed reports without gating"
+set +e
+out="$(cd "${repo_root}" && node "${owed_script}" --no-baseline --limit 0 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]]; then
+  fail "docs-owed must exit 0 while report-only; got ${status}"
+elif ! echo "${out}" | grep -qE "^\[docs-owed\] summary \[corpus\]: [0-9]+ owed, [0-9]+ review, [0-9]+ baselined, [0-9]+ checked,"; then
+  fail "docs-owed summary line shape changed; got: $(echo "${out}" | tail -2)"
+else
+  pass "docs-owed reports findings and exits 0 (report-only until DOCFRESH-002)"
+fi
+
+# Case B: --fail-on-owed is the opt-in that proves the gate works before it is
+# switched on. Without it the same corpus exits 0; with it, exit 1.
+echo "case B: docs-owed --fail-on-owed opts into failure"
+set +e
+(cd "${repo_root}" && node "${owed_script}" --no-baseline --limit 0 --fail-on-owed >/dev/null 2>&1)
+gated=$?
+set -e
+if [[ "${gated}" -eq 1 ]]; then
+  pass "--fail-on-owed exits 1 on unbaselined owed findings"
+else
+  fail "--fail-on-owed expected exit 1; got ${gated}"
+fi
+
+# Case C: the ratchet holds. The baseline matches findings by exact message, so
+# a message carrying a commit date would un-baseline itself the moment its
+# upstream took one more commit and the absorbed backlog would reappear as fresh
+# errors on an unrelated pull request. Assert no finding message contains a date.
+echo "case C: docs-owed fingerprints are date-free"
+json_out="${tmp_root}/docs-owed.json"
+if ! (cd "${repo_root}" && node "${owed_script}" --no-baseline --json >"${json_out}" 2>/dev/null); then
+  fail "docs-owed --json did not run"
+elif ! node -e '
+    const j = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+    if (!j.findings.length) { console.error("no findings to check"); process.exit(1); }
+    const dated = j.findings.filter((f) => /\d{4}-\d{2}-\d{2}/.test(f.message));
+    if (dated.length) {
+      console.error("volatile message: " + dated[0].message);
+      process.exit(1);
+    }
+  ' "${json_out}"; then
+  fail "docs-owed messages must not embed dates (baseline fingerprints must be stable)"
+else
+  pass "docs-owed finding messages carry no date"
+fi
+
+# Case D: an unreadable document is a tooling failure, not a clean corpus. Only
+# a metadata ParseError may be absorbed as "no governance metadata"; an I/O
+# error means the surface never read what it is about to report on.
+echo "case D: docs-owed exits 2 when it cannot read the corpus"
+unreadable="${repo_root}/docs/testing/benchmark-results.md"
+if [[ -r "${unreadable}" ]]; then
+  perms="$(stat -c '%a' "${unreadable}")"
+  chmod 000 "${unreadable}"
+  set +e
+  (cd "${repo_root}" && node "${owed_script}" --no-baseline >/dev/null 2>&1)
+  unread_status=$?
+  set -e
+  chmod "${perms}" "${unreadable}"
+  if [[ "${unread_status}" -eq 2 ]]; then
+    pass "unreadable governed doc exits 2 (tooling), not 0 (clean)"
+  else
+    fail "unreadable governed doc expected exit 2; got ${unread_status}"
+  fi
+else
+  pass "skipped: fixture doc not readable to begin with"
 fi
 
 if [[ "${failures}" -gt 0 ]]; then
