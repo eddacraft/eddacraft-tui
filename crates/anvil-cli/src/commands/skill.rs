@@ -698,10 +698,10 @@ fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
     let mut components = path.components();
     let mut dirfd: OwnedFd = match components.next() {
         Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
-            .map_err(|e| io::Error::from(e))
+            .map_err(io::Error::from)
             .with_context(|| format!("opening {}", crate::display_path::shown(Path::new("/"))))?,
         Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
-            .map_err(|e| io::Error::from(e))
+            .map_err(io::Error::from)
             .with_context(|| "opening current directory")?,
         Some(Component::Normal(name)) => {
             open_or_mkdir_component(None, name, dir_flags, nofollow_dir_flags)?
@@ -993,8 +993,7 @@ fn create_staging_dir_unix(parent: &Path) -> Result<StagingDir> {
     let dirfd = open_dir_nofollow_unix(parent)?;
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_nanos());
     for attempt in 0..32u32 {
         let name = format!(
             ".anvil-skill-stage-{}-{}-{attempt}",
@@ -1012,7 +1011,7 @@ fn create_staging_dir_unix(parent: &Path) -> Result<StagingDir> {
                     active: true,
                 });
             }
-            Err(Errno::EEXIST) => continue,
+            Err(Errno::EEXIST) => {}
             Err(err) => {
                 return Err(io::Error::from(err)).with_context(|| {
                     format!(
@@ -1031,13 +1030,7 @@ fn create_staging_dir_unix(parent: &Path) -> Result<StagingDir> {
 
 #[cfg(unix)]
 fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> {
-    use std::ffi::OsStr;
-    use std::os::fd::AsFd;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    use nix::errno::Errno;
-    use nix::fcntl::{AtFlags, OFlag, openat, renameat};
-    use nix::sys::stat::{Mode, SFlag, fstatat, mkdirat};
+    use nix::fcntl::renameat;
 
     let parent = destination
         .parent()
@@ -1062,27 +1055,7 @@ fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> 
     // Pin the parent with O_NOFOLLOW so renames cannot be redirected through a
     // swapped intermediate component.
     let parent_fd = open_dir_nofollow_unix(parent)?;
-
-    let dest_exists = match fstatat(&parent_fd, dest_name, AtFlags::AT_SYMLINK_NOFOLLOW) {
-        Ok(st) => {
-            let kind = SFlag::from_bits_truncate(st.st_mode);
-            if kind.contains(SFlag::S_IFLNK) {
-                bail!(
-                    "refusing to install managed skill through symlinked path {}",
-                    crate::display_path::shown(destination)
-                );
-            }
-            true
-        }
-        Err(Errno::ENOENT) => false,
-        Err(err) => {
-            return Err(io::Error::from(err)).with_context(|| {
-                format!("inspecting {}", crate::display_path::shown(destination))
-            });
-        }
-    };
-
-    if !dest_exists {
+    if !destination_exists_nofollow(&parent_fd, dest_name, destination)? {
         renameat(&parent_fd, staging_name, &parent_fd, dest_name)
             .map_err(io::Error::from)
             .with_context(|| {
@@ -1094,11 +1067,51 @@ fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> 
         return Ok(());
     }
 
+    commit_with_backup_nofollow(&parent_fd, parent, staging_name, dest_name, destination)
+}
+
+#[cfg(unix)]
+fn destination_exists_nofollow(
+    parent_fd: &std::os::fd::OwnedFd,
+    dest_name: &std::ffi::OsStr,
+    destination: &Path,
+) -> Result<bool> {
+    use nix::errno::Errno;
+    use nix::fcntl::AtFlags;
+    use nix::sys::stat::{SFlag, fstatat};
+
+    match fstatat(parent_fd, dest_name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+        Ok(st) => {
+            let kind = SFlag::from_bits_truncate(st.st_mode);
+            if kind.contains(SFlag::S_IFLNK) {
+                bail!(
+                    "refusing to install managed skill through symlinked path {}",
+                    crate::display_path::shown(destination)
+                );
+            }
+            Ok(true)
+        }
+        Err(Errno::ENOENT) => Ok(false),
+        Err(err) => Err(io::Error::from(err))
+            .with_context(|| format!("inspecting {}", crate::display_path::shown(destination))),
+    }
+}
+
+#[cfg(unix)]
+fn allocate_backup_dir(
+    parent_fd: &std::os::fd::OwnedFd,
+    parent: &Path,
+    destination: &Path,
+) -> Result<String> {
+    use std::os::fd::AsFd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use nix::errno::Errno;
+    use nix::sys::stat::{Mode, mkdirat};
+
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let mut backup_name = None;
+        .map_or(0, |d| d.as_nanos());
     for attempt in 0..32u32 {
         let name = format!(
             ".anvil-skill-backup-{}-{}-{attempt}",
@@ -1110,11 +1123,8 @@ fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> 
             name.as_str(),
             Mode::from_bits_truncate(0o755),
         ) {
-            Ok(()) => {
-                backup_name = Some(name);
-                break;
-            }
-            Err(Errno::EEXIST) => continue,
+            Ok(()) => return Ok(name),
+            Err(Errno::EEXIST) => {}
             Err(err) => {
                 return Err(io::Error::from(err)).with_context(|| {
                     format!(
@@ -1125,12 +1135,27 @@ fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> 
             }
         }
     }
-    let backup_name = backup_name.with_context(|| {
-        format!(
-            "could not allocate rollback directory beside {}",
-            crate::display_path::shown(destination)
-        )
-    })?;
+    bail!(
+        "could not allocate rollback directory beside {}",
+        crate::display_path::shown(parent)
+    )
+}
+
+#[cfg(unix)]
+fn commit_with_backup_nofollow(
+    parent_fd: &std::os::fd::OwnedFd,
+    parent: &Path,
+    staging_name: &std::ffi::OsStr,
+    dest_name: &std::ffi::OsStr,
+    destination: &Path,
+) -> Result<()> {
+    use std::ffi::OsStr;
+    use std::os::fd::AsFd;
+
+    use nix::fcntl::{OFlag, openat, renameat};
+    use nix::sys::stat::Mode;
+
+    let backup_name = allocate_backup_dir(parent_fd, parent, destination)?;
     let backup_path = parent.join(&backup_name);
     let backup_previous = OsStr::new("previous");
 
@@ -1148,7 +1173,7 @@ fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> 
         )
     })?;
 
-    renameat(&parent_fd, dest_name, &backup_fd, backup_previous)
+    renameat(parent_fd, dest_name, &backup_fd, backup_previous)
         .map_err(io::Error::from)
         .with_context(|| {
             format!(
@@ -1157,8 +1182,8 @@ fn replace_directory_nofollow(staging: &Path, destination: &Path) -> Result<()> 
             )
         })?;
 
-    if let Err(commit_error) = renameat(&parent_fd, staging_name, &parent_fd, dest_name) {
-        if let Err(rollback_error) = renameat(&backup_fd, backup_previous, &parent_fd, dest_name) {
+    if let Err(commit_error) = renameat(parent_fd, staging_name, parent_fd, dest_name) {
+        if let Err(rollback_error) = renameat(&backup_fd, backup_previous, parent_fd, dest_name) {
             // Leave the backup directory in place for recovery.
             bail!(
                 "committing staged skill bundle to {} failed: {}; rollback also failed: {}; the previous bundle is retained at {}",
