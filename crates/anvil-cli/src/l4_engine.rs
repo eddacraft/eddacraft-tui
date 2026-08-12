@@ -1400,7 +1400,7 @@ mod tests {
     fn save_exceptions(root: &Path, exceptions: Vec<PolicyException>) {
         let mut store = ExceptionStore::empty();
         for ex in exceptions {
-            store.add(ex);
+            store.add(ex).unwrap();
         }
         let outcome = store.save(root).expect("write tracked exception store");
         assert_eq!(outcome, WriteOutcome::Written);

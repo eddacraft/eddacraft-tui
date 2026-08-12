@@ -532,7 +532,7 @@ mod tests {
 
     fn save_store(root: &Path, policy_id: &str) {
         let mut store = anvil_policy::exceptions::ExceptionStore::empty();
-        store.add(grant(policy_id));
+        store.add(grant(policy_id)).unwrap();
         let outcome = store.save(root).unwrap();
         assert!(matches!(
             outcome,

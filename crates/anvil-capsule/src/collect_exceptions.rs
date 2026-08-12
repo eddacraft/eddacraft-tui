@@ -108,7 +108,7 @@ mod tests {
     fn save(root: &Path, grants: Vec<PolicyException>) {
         let mut store = ExceptionStore::empty();
         for g in grants {
-            store.add(g);
+            store.add(g).unwrap();
         }
         let outcome = store.save(root).expect("write tracked store");
         assert!(matches!(

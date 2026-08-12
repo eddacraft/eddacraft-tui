@@ -804,7 +804,7 @@ mod tests {
         let (dir, base, head) = scratch_repo();
         let now = Utc::now();
         let mut store = anvil_policy::exceptions::ExceptionStore::empty();
-        store.add(applied_exception(now));
+        store.add(applied_exception(now)).unwrap();
         let outcome = store.save(dir.path()).unwrap();
         assert!(matches!(
             outcome,
@@ -838,7 +838,7 @@ mod tests {
         let grant = applied_exception(now);
         let grant_id = grant.id.clone();
         let mut store = anvil_policy::exceptions::ExceptionStore::empty();
-        store.add(grant);
+        store.add(grant).unwrap();
         let outcome = store.save(dir.path()).unwrap();
         assert!(matches!(
             outcome,
@@ -915,7 +915,7 @@ mod tests {
         grant.owner = None;
         grant.created_by = None;
         let mut store = anvil_policy::exceptions::ExceptionStore::empty();
-        store.add(grant);
+        store.add(grant).unwrap();
         let outcome = store.save(dir.path()).unwrap();
         assert!(matches!(
             outcome,
@@ -962,7 +962,7 @@ mod tests {
         // The live tracked store must carry the grant too: verify
         // re-consults it, and a snapshot-only grant degrades.
         let mut store = anvil_policy::exceptions::ExceptionStore::empty();
-        store.add(applied_exception(now));
+        store.add(applied_exception(now)).unwrap();
         let _ = store.save(dir.path()).unwrap();
         let stage = tempfile::tempdir().unwrap();
         let out = out_dir(&stage);

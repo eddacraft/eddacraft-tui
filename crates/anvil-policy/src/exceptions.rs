@@ -196,6 +196,16 @@ pub enum ExceptionError {
         /// Size of the offending store file in bytes.
         size: u64,
     },
+    /// An in-memory exception carries a non-empty `schema_version` other
+    /// than the supported on-disk schema. Rejected by [`ExceptionStore::add`]
+    /// and by persistence so a save cannot leave an unreadable store.
+    #[error(
+        "unsupported exception schema_version '{version}'; expected '{EXCEPTION_SCHEMA_VERSION}'"
+    )]
+    UnsupportedSchemaVersion {
+        /// The rejected schema version string.
+        version: String,
+    },
 }
 
 /// Upper bound on a readable exception store file. Mirrors
@@ -459,7 +469,14 @@ impl ExceptionStore {
 
     /// Serialise and atomically write this store to the tracked path.
     /// Callers own refusal checks and locking.
+    ///
+    /// Validates every entry's `schema_version` before writing so a
+    /// direct mutation of the public [`Self::exceptions`] vector cannot
+    /// leave a tracked store that [`Self::load`] will refuse to parse.
     fn write_tracked(&self, workspace_root: &Path) -> Result<(), ExceptionError> {
+        for exception in &self.exceptions {
+            validate_exception_schema_version(&exception.schema_version)?;
+        }
         let path = workspace_root.join(EXCEPTIONS_FILE);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -522,9 +539,15 @@ impl ExceptionStore {
     }
 
     /// Adds a new exception.
-    pub fn add(&mut self, mut exception: PolicyException) {
+    ///
+    /// Fills empty schema/id defaults, then rejects unsupported non-empty
+    /// `schema_version` values so an unreadable store cannot be staged for
+    /// [`Self::save`].
+    pub fn add(&mut self, mut exception: PolicyException) -> Result<(), ExceptionError> {
         exception.ensure_schema_defaults();
+        validate_exception_schema_version(&exception.schema_version)?;
         self.exceptions.push(exception);
+        Ok(())
     }
 
     /// Removes all exceptions for the given policy ID.
@@ -583,6 +606,18 @@ impl PolicyException {
                 self.finding_hash.as_deref(),
             );
         }
+    }
+}
+
+/// Accept empty (pre-default) or the supported v1 token; reject anything else.
+/// Mirrors the deserialisation gate so in-memory construction cannot outrun it.
+fn validate_exception_schema_version(version: &str) -> Result<(), ExceptionError> {
+    if version.is_empty() || version == EXCEPTION_SCHEMA_VERSION {
+        Ok(())
+    } else {
+        Err(ExceptionError::UnsupportedSchemaVersion {
+            version: version.to_string(),
+        })
     }
 }
 
@@ -1640,6 +1675,91 @@ mod tests {
         );
     }
 
+    /// Regression: an in-memory PolicyException with an unsupported
+    /// non-empty schema_version must not be accepted by `add`, and must
+    /// not be persistable via `save` (otherwise the next load fails with
+    /// Parse and the tracked store is left unreadable).
+    #[test]
+    fn store_add_rejects_unsupported_schema_version() {
+        let mut store = ExceptionStore::empty();
+        let mut bad = make_exception("AP-001", "src/**");
+        bad.schema_version = "anvil.exception.v2".to_string();
+
+        let err = store
+            .add(bad)
+            .expect_err("unsupported schema must fail add");
+        assert!(
+            matches!(
+                err,
+                ExceptionError::UnsupportedSchemaVersion { ref version }
+                    if version == "anvil.exception.v2"
+            ),
+            "{err:?}"
+        );
+        assert!(
+            store.exceptions.is_empty(),
+            "failed add must not mutate store"
+        );
+    }
+
+    #[test]
+    fn store_save_rejects_unsupported_schema_without_writing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut store = ExceptionStore::empty();
+        // Valid entry first so a buggy save would overwrite a readable store.
+        store.add(make_exception("AP-001", "src/**")).unwrap();
+        assert_eq!(store.save(tmp.path()).unwrap(), WriteOutcome::Written);
+        let tracked = tmp.path().join(EXCEPTIONS_FILE);
+        let before = std::fs::read(&tracked).unwrap();
+
+        // Bypass add (public exceptions vec) with an unsupported version.
+        let mut bad = make_exception("AP-002", "src/**");
+        bad.schema_version = "anvil.exception.v2".to_string();
+        store.exceptions.push(bad);
+
+        let err = store
+            .save(tmp.path())
+            .expect_err("save must refuse unsupported schema");
+        assert!(
+            matches!(
+                err,
+                ExceptionError::UnsupportedSchemaVersion { ref version }
+                    if version == "anvil.exception.v2"
+            ),
+            "{err:?}"
+        );
+        let after = std::fs::read(&tracked).unwrap();
+        assert_eq!(
+            before, after,
+            "failed save must not change the tracked store"
+        );
+
+        let reloaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(reloaded.exceptions.len(), 1);
+        assert_eq!(reloaded.exceptions[0].policy_id, "AP-001");
+        assert_eq!(
+            reloaded.exceptions[0].schema_version,
+            EXCEPTION_SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn store_add_accepts_empty_schema_version_and_roundtrips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut store = ExceptionStore::empty();
+        let mut ex = make_exception("AP-001", "src/**");
+        ex.schema_version.clear();
+        store.add(ex).unwrap();
+        assert_eq!(store.exceptions[0].schema_version, EXCEPTION_SCHEMA_VERSION);
+        assert_eq!(store.save(tmp.path()).unwrap(), WriteOutcome::Written);
+        let loaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(loaded.exceptions.len(), 1);
+        assert_eq!(
+            loaded.exceptions[0].schema_version,
+            EXCEPTION_SCHEMA_VERSION
+        );
+    }
+
     #[test]
     fn exception_schema_keeps_flat_store_layout() {
         let store_json = serde_json::to_value(ExceptionStore {
@@ -1795,8 +1915,8 @@ mod tests {
     fn store_load_save_roundtrip() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut store = ExceptionStore::empty();
-        store.add(make_exception("AP-001", "src/**"));
-        store.add(make_exception("AP-003", ""));
+        store.add(make_exception("AP-001", "src/**")).unwrap();
+        store.add(make_exception("AP-003", "")).unwrap();
 
         assert_eq!(store.save(tmp.path()).unwrap(), WriteOutcome::Written);
         let loaded = ExceptionStore::load(tmp.path()).unwrap();
@@ -1814,9 +1934,9 @@ mod tests {
     #[test]
     fn store_remove_by_policy() {
         let mut store = ExceptionStore::empty();
-        store.add(make_exception("AP-001", ""));
-        store.add(make_exception("AP-002", ""));
-        store.add(make_exception("AP-001", "src/**"));
+        store.add(make_exception("AP-001", "")).unwrap();
+        store.add(make_exception("AP-002", "")).unwrap();
+        store.add(make_exception("AP-001", "src/**")).unwrap();
 
         store.remove_by_policy("AP-001");
         assert_eq!(store.exceptions.len(), 1);
@@ -1828,32 +1948,36 @@ mod tests {
         let mut store = ExceptionStore::empty();
         let now = Utc::now();
 
-        store.add(PolicyException {
-            schema_version: default_exception_schema_version(),
-            id: exception_id_from_parts("AP-001", "", now, None),
-            policy_id: "AP-001".to_string(),
-            file_pattern: String::new(),
-            finding_hash: None,
-            reason: "still valid".to_string(),
-            owner: None,
-            created_by: None,
-            created_at: now,
-            expires_at: Some(now + Duration::days(7)),
-            revoked: None,
-        });
-        store.add(PolicyException {
-            schema_version: default_exception_schema_version(),
-            id: exception_id_from_parts("AP-002", "", now - Duration::days(30), None),
-            policy_id: "AP-002".to_string(),
-            file_pattern: String::new(),
-            finding_hash: None,
-            reason: "expired".to_string(),
-            owner: None,
-            created_by: None,
-            created_at: now - Duration::days(30),
-            expires_at: Some(now - Duration::days(1)),
-            revoked: None,
-        });
+        store
+            .add(PolicyException {
+                schema_version: default_exception_schema_version(),
+                id: exception_id_from_parts("AP-001", "", now, None),
+                policy_id: "AP-001".to_string(),
+                file_pattern: String::new(),
+                finding_hash: None,
+                reason: "still valid".to_string(),
+                owner: None,
+                created_by: None,
+                created_at: now,
+                expires_at: Some(now + Duration::days(7)),
+                revoked: None,
+            })
+            .unwrap();
+        store
+            .add(PolicyException {
+                schema_version: default_exception_schema_version(),
+                id: exception_id_from_parts("AP-002", "", now - Duration::days(30), None),
+                policy_id: "AP-002".to_string(),
+                file_pattern: String::new(),
+                finding_hash: None,
+                reason: "expired".to_string(),
+                owner: None,
+                created_by: None,
+                created_at: now - Duration::days(30),
+                expires_at: Some(now - Duration::days(1)),
+                revoked: None,
+            })
+            .unwrap();
 
         let active = store.active_exceptions();
         assert_eq!(active.len(), 1);
@@ -1873,7 +1997,7 @@ mod tests {
     fn save_writes_tracked_path_not_legacy() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut store = ExceptionStore::empty();
-        store.add(make_exception("AP-001", "src/**"));
+        store.add(make_exception("AP-001", "src/**")).unwrap();
         assert_eq!(store.save(tmp.path()).unwrap(), WriteOutcome::Written);
 
         assert!(tmp.path().join("anvil/exceptions/store.json").exists());
@@ -1884,11 +2008,11 @@ mod tests {
     fn load_prefers_tracked_over_legacy() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut tracked = ExceptionStore::empty();
-        tracked.add(make_exception("AP-TRACKED", ""));
+        tracked.add(make_exception("AP-TRACKED", "")).unwrap();
         write_store_at(tmp.path(), "anvil/exceptions/store.json", &tracked);
 
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-LEGACY", ""));
+        legacy.add(make_exception("AP-LEGACY", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         let loaded = ExceptionStore::load(tmp.path()).unwrap();
@@ -1900,7 +2024,7 @@ mod tests {
     fn load_falls_back_to_legacy_when_tracked_absent() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-LEGACY", ""));
+        legacy.add(make_exception("AP-LEGACY", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         let loaded = ExceptionStore::load(tmp.path()).unwrap();
@@ -1912,7 +2036,7 @@ mod tests {
     fn migrate_copies_legacy_to_tracked_non_destructive() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-001", "src/**"));
+        legacy.add(make_exception("AP-001", "src/**")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         let migrated = ExceptionStore::migrate(tmp.path()).unwrap();
@@ -1939,7 +2063,7 @@ mod tests {
         );
 
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-001", ""));
+        legacy.add(make_exception("AP-001", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         // First migration moves the data.
@@ -1965,7 +2089,7 @@ mod tests {
         );
 
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-001", ""));
+        legacy.add(make_exception("AP-001", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
         assert_eq!(
             ExceptionStore::load(tmp.path()).unwrap().source(),
@@ -1986,7 +2110,7 @@ mod tests {
     fn save_refuses_legacy_origin_store() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-001", ""));
+        legacy.add(make_exception("AP-001", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         let loaded = ExceptionStore::load(tmp.path()).unwrap();
@@ -2000,7 +2124,7 @@ mod tests {
     fn migrate_then_reload_allows_save() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-001", ""));
+        legacy.add(make_exception("AP-001", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         assert_eq!(
@@ -2009,7 +2133,7 @@ mod tests {
         );
         let mut reloaded = ExceptionStore::load(tmp.path()).unwrap();
         assert_eq!(reloaded.source(), StoreSource::Tracked);
-        reloaded.add(make_exception("AP-002", ""));
+        reloaded.add(make_exception("AP-002", "")).unwrap();
         assert_eq!(reloaded.save(tmp.path()).unwrap(), WriteOutcome::Written);
     }
 
@@ -2017,12 +2141,12 @@ mod tests {
     fn update_applies_mutation_under_lock() {
         let tmp = tempfile::TempDir::new().unwrap();
         let outcome = ExceptionStore::update(tmp.path(), |store| {
-            store.add(make_exception("AP-001", ""));
+            store.add(make_exception("AP-001", "")).unwrap();
         })
         .unwrap();
         assert_eq!(outcome, WriteOutcome::Written);
         let outcome = ExceptionStore::update(tmp.path(), |store| {
-            store.add(make_exception("AP-002", ""));
+            store.add(make_exception("AP-002", "")).unwrap();
         })
         .unwrap();
         assert_eq!(outcome, WriteOutcome::Written);
@@ -2043,7 +2167,9 @@ mod tests {
                 let root = root.clone();
                 std::thread::spawn(move || {
                     ExceptionStore::update(&root, |store| {
-                        store.add(make_exception(&format!("AP-{i:03}"), ""));
+                        store
+                            .add(make_exception(&format!("AP-{i:03}"), ""))
+                            .unwrap();
                     })
                     .unwrap()
                 })
@@ -2060,11 +2186,11 @@ mod tests {
     fn update_refuses_unmigrated_legacy_store() {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-001", ""));
+        legacy.add(make_exception("AP-001", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         let err = ExceptionStore::update(tmp.path(), |store| {
-            store.add(make_exception("AP-002", ""));
+            store.add(make_exception("AP-002", "")).unwrap();
         })
         .unwrap_err();
         assert!(matches!(err, ExceptionError::LegacyOriginNotMigrated));
@@ -2138,7 +2264,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let tmp = tempfile::TempDir::new().unwrap();
         let mut tracked = ExceptionStore::empty();
-        tracked.add(make_exception("AP-001", ""));
+        tracked.add(make_exception("AP-001", "")).unwrap();
         write_store_at(tmp.path(), "anvil/exceptions/store.json", &tracked);
 
         let dir = tmp.path().join("anvil/exceptions");
@@ -2164,7 +2290,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let tmp = tempfile::TempDir::new().unwrap();
         let mut legacy = ExceptionStore::empty();
-        legacy.add(make_exception("AP-001", ""));
+        legacy.add(make_exception("AP-001", "")).unwrap();
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         let mut perms = std::fs::metadata(tmp.path()).unwrap().permissions();

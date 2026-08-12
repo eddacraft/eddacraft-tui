@@ -320,7 +320,10 @@ fn run_grant(root: &Path, request: GrantRequest) -> Result<GrantOutcome> {
     let mut id = String::new();
     let mut duplicate = false;
     let write = ExceptionStore::update(root, |store| {
-        store.add(exception.clone());
+        // Grant always constructs empty schema_version (filled to v1 by add).
+        store
+            .add(exception.clone())
+            .expect("grant constructs a supported schema_version");
         id = store
             .exceptions
             .last()
@@ -772,7 +775,7 @@ mod tests {
             revoked: None,
         };
         let outcome = ExceptionStore::update(tmp.path(), |store| {
-            store.add(first.clone());
+            store.add(first.clone()).unwrap();
             first.id = store.exceptions.last().unwrap().id.clone();
         })
         .unwrap();
