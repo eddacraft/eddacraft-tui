@@ -369,6 +369,18 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
         (true, effective_now.clone())
     } else {
         // No selection anywhere: the legacy enabled list becomes it.
+        // An empty enabled list cannot be expressed as a top-level
+        // `checks: []` (empty reads as absent and falls back to the
+        // defaults), so refuse rather than write a lie.
+        if legacy_enabled.is_empty() {
+            bail!(
+                "the legacy gate-config.json disables every check — an empty \
+                 `checks` list cannot express that (it reads as the default \
+                 selection). Re-enable at least one check with `anvil \
+                 gate-config --enable <check>` after folding composition, or \
+                 remove anvil's gate from your workflow instead."
+            );
+        }
         weakened = effective_now
             .iter()
             .filter(|name| !legacy_enabled.contains(name))
@@ -959,6 +971,22 @@ mod tests {
             !checks.contains(&"coverage"),
             "legacy-disabled check must not be resurrected by key presence"
         );
+    }
+
+    /// Copilot review: a legacy file with zero enabled checks cannot
+    /// fold into `checks: []` — empty reads as absent and resurrects
+    /// the default selection. Refused with guidance.
+    #[test]
+    fn gate_fold_all_disabled_legacy_is_refused() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_legacy(
+            tmp.path(),
+            r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":false}],"thresholds":{}}"#,
+        );
+        let err = run_gate_config_in(&gate_args(false, false), tmp.path()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("disables every check"), "{msg}");
+        assert!(tmp.path().join(".anvil/gate-config.json").exists());
     }
 
     #[test]
