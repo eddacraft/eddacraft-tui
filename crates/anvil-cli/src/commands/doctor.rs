@@ -115,6 +115,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_config_exists(),
         check_config_valid(),
         check_policy_variants(),
+        check_legacy_gate_config(),
         check_anvil_dir(),
         check_anvil_dir_writable(),
         check_plans_dir(),
@@ -277,6 +278,43 @@ fn check_config_exists_in(root: &Path) -> DiagnosticCheck {
                 command: None,
                 doc_url: None,
             },
+        },
+    }
+}
+
+fn check_legacy_gate_config() -> DiagnosticCheck {
+    check_legacy_gate_config_in(Path::new("."))
+}
+
+/// UCFG-005 / ADR-120 pt 4: `.anvil/gate-config.json` is retired —
+/// gate runs and `anvil gate-config` read the project config instead,
+/// so a stray legacy file is dead state that no longer matches what
+/// runs. Warn until it is folded.
+fn check_legacy_gate_config_in(root: &Path) -> DiagnosticCheck {
+    let stray = root.join(crate::commands::gate_config::LEGACY_GATE_CONFIG_REL);
+    let (status, message) = if stray.exists() {
+        (
+            CheckStatus::Warn,
+            "legacy .anvil/gate-config.json present — its contents are ignored by gate runs"
+                .to_string(),
+        )
+    } else {
+        (
+            CheckStatus::Pass,
+            "no legacy gate-config.json (retired surface)".to_string(),
+        )
+    };
+    DiagnosticCheck {
+        name: "legacy-gate-config".to_string(),
+        category: "Configuration".to_string(),
+        status,
+        message,
+        details: None,
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "Fold it into the project config and remove it.".to_string(),
+            command: Some("anvil migrate gate-config --apply".to_string()),
+            doc_url: None,
         },
     }
 }
@@ -2262,6 +2300,23 @@ mod tests {
             assert!(!check.remediation.summary.is_empty());
             assert!(check.auto_fixable);
         });
+    }
+
+    #[test]
+    fn legacy_gate_config_stray_warns_and_absent_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert_eq!(
+            check_legacy_gate_config_in(tmp.path()).status,
+            CheckStatus::Pass
+        );
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/gate-config.json"), "{}").unwrap();
+        let check = check_legacy_gate_config_in(tmp.path());
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil migrate gate-config --apply")
+        );
     }
 
     #[test]

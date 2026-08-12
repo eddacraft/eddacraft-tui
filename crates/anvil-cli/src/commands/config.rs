@@ -7,11 +7,11 @@ use serde_json::{Map, Value};
 
 use crate::GlobalArgs;
 
-struct ProjectConfig {
-    label: String,
-    value: Value,
-    writable_path: std::path::PathBuf,
-    writable_format: ConfigFormat,
+pub(crate) struct ProjectConfig {
+    pub(crate) label: String,
+    pub(crate) value: Value,
+    pub(crate) writable_path: std::path::PathBuf,
+    pub(crate) writable_format: ConfigFormat,
 }
 
 #[derive(Debug, Args)]
@@ -90,7 +90,7 @@ fn convert_config(root: &Path, format: &str) -> anyhow::Result<String> {
     serialize_config(&config.value, format)
 }
 
-fn load_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
+pub(crate) fn load_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
     if let Some(discovered) = discover(root, ".anvil")? {
         let value = parse_file(&discovered.path)?;
         let label = discovered
@@ -173,7 +173,7 @@ fn parse_output_format(raw: &str) -> anyhow::Result<ConfigFormat> {
     }
 }
 
-fn serialize_config(value: &Value, format: ConfigFormat) -> anyhow::Result<String> {
+pub(crate) fn serialize_config(value: &Value, format: ConfigFormat) -> anyhow::Result<String> {
     match format {
         ConfigFormat::Yaml | ConfigFormat::Yml => {
             serde_yaml::to_string(value).context("serialising config as yaml")

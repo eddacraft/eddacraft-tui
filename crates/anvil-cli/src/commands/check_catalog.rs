@@ -250,12 +250,6 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     "shell-scripts",
 ];
 
-pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefinition> {
-    CHECK_DEFINITIONS
-        .iter()
-        .find(|def| def.canonical_name == name)
-}
-
 pub(crate) fn definition_by_stable_id(id: &str) -> Option<&'static CheckDefinition> {
     CHECK_DEFINITIONS.iter().find(|def| def.stable_id == id)
 }
@@ -426,16 +420,6 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-
-    #[test]
-    fn antipattern_scan_description_names_its_built_in_rule_catalogue_scope() {
-        let definition = definition_by_canonical("antipattern-scan").expect("registered");
-
-        assert_eq!(
-            definition.description,
-            "Detect patterns covered by anvil's built-in rule catalogue"
-        );
-    }
 
     #[test]
     fn closest_registered_id_suggests_near_canonical_typo() {

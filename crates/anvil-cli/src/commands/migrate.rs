@@ -34,6 +34,10 @@ pub enum MigrateCommand {
     /// Reconcile an existing config's schema across anvil versions,
     /// applying any registered migration for the version delta.
     Schema(SchemaArgs),
+    /// Fold a legacy `.anvil/gate-config.json` into the project
+    /// config's `gate` section and top-level `checks` list, then
+    /// remove the legacy file.
+    GateConfig(GateConfigMigrateArgs),
 }
 
 #[derive(Debug, Args)]
@@ -62,6 +66,20 @@ impl Default for FormatArgs {
 }
 
 #[derive(Debug, Args)]
+pub struct GateConfigMigrateArgs {
+    /// Write the fold. The default is a dry-run preview that changes
+    /// nothing on disk.
+    #[arg(long)]
+    pub apply: bool,
+
+    /// Accept a fold that weakens enforcement (deselects checks that
+    /// are currently effective). Required with --apply when the legacy
+    /// file disables checks the project currently runs.
+    #[arg(long)]
+    pub accept_weakening: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct SchemaArgs {
     /// Write the migrated config. The default is a dry-run preview that
     /// changes nothing on disk.
@@ -83,6 +101,7 @@ pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
         Some(MigrateCommand::Schema(schema_args)) => {
             run_schema_in(schema_args, root, &anvil_config::production_migrations())
         }
+        Some(MigrateCommand::GateConfig(gate_args)) => run_gate_config_in(gate_args, root),
         None => {
             eprintln!(
                 "anvil: `anvil migrate` now has subcommands; running `format` for \
@@ -286,6 +305,200 @@ pub(crate) fn run_schema_in(
         "anvil: migrated {} ({origin} → {installed}, {} step(s) applied).",
         discovered.path.display(),
         steps.len()
+    );
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// `anvil migrate gate-config` — UCFG-005 fold of the retired JSON.
+// ---------------------------------------------------------------------------
+
+/// Fold `.anvil/gate-config.json` into the unified config: enabled
+/// checks become the explicit top-level `checks` list (only when the
+/// main config has no list of its own), and composition (version,
+/// thresholds, `global_config`, per-check config) folds into the `gate`
+/// section — **only fields absent from the main config**, every folded
+/// key reported. A fold that would deselect currently-effective checks
+/// weakens enforcement and requires `--accept-weakening` (ADR-120
+/// pt 4 diff-and-confirm). On `--apply` the legacy file is removed.
+#[allow(clippy::too_many_lines)] // Linear plan-then-apply; each phase is a distinct fold concern.
+pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> Result<()> {
+    use crate::commands::gate_config as gc;
+
+    let Some(legacy) = gc::load_legacy_gate_config(root)? else {
+        bail!(
+            "no legacy {} to fold at {} (nothing to do)",
+            gc::LEGACY_GATE_CONFIG_REL,
+            root.display()
+        );
+    };
+
+    let mut project = crate::commands::config::load_project_config(root)?;
+    let section = anvil_config::GateSection::from_config_value(&project.value)
+        .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+    let (effective_now, has_explicit) = gc::effective_selection(&project.value, section.as_ref());
+
+    let mut folded: Vec<String> = Vec::new();
+    let mut weakened: Vec<String> = Vec::new();
+
+    // Selection fold: only when the main config carries no explicit
+    // selection of its own ("only fields absent").
+    let legacy_enabled: Vec<String> = legacy
+        .checks
+        .iter()
+        .filter(|c| c.enabled)
+        .map(|c| c.name.clone())
+        .collect();
+    let fold_selection = !has_explicit;
+    if fold_selection {
+        weakened = effective_now
+            .iter()
+            .filter(|name| !legacy_enabled.contains(name))
+            .cloned()
+            .collect();
+        folded.push(format!(
+            "checks (selection list: {})",
+            legacy_enabled.join(", ")
+        ));
+    }
+
+    // Composition fold into the gate section, absent fields only.
+    let existing = section.unwrap_or_default();
+    let mut gate_patch: Vec<(String, serde_json::Value)> = Vec::new();
+    if existing.version.is_none() {
+        gate_patch.push(("version".into(), serde_json::json!(legacy.version)));
+        folded.push("gate.version".into());
+    }
+    let mut thresholds_patch = serde_json::Map::new();
+    for (name, score) in &legacy.thresholds {
+        if !existing.thresholds.contains_key(name) {
+            thresholds_patch.insert(name.clone(), serde_json::json!(score));
+            folded.push(format!("gate.thresholds.{name}"));
+        }
+    }
+    if let Some(global) = &legacy.global_config
+        && existing.global_config.is_none()
+        && !global.is_empty()
+    {
+        gate_patch.push((
+            "global_config".into(),
+            serde_json::to_value(global).expect("BTreeMap serialises"),
+        ));
+        folded.push("gate.global_config".into());
+    }
+    let mut checks_patch = serde_json::Map::new();
+    for check in &legacy.checks {
+        if let Some(config) = &check.config
+            && !config.is_empty()
+            && !existing.checks.contains_key(&check.name)
+        {
+            checks_patch.insert(
+                check.name.clone(),
+                serde_json::to_value(config).expect("BTreeMap serialises"),
+            );
+            folded.push(format!("gate.checks.{}", check.name));
+        }
+    }
+
+    if folded.is_empty() {
+        println!(
+            "Nothing to fold: every gate-config.json field is already present in {}.",
+            project.label
+        );
+        if args.apply {
+            std::fs::remove_file(root.join(gc::LEGACY_GATE_CONFIG_REL))?;
+            println!("Removed {}.", gc::LEGACY_GATE_CONFIG_REL);
+        }
+        return Ok(());
+    }
+
+    println!(
+        "Fold plan ({} -> {}):",
+        gc::LEGACY_GATE_CONFIG_REL,
+        project.label
+    );
+    for key in &folded {
+        println!("  + {key}");
+    }
+    if !weakened.is_empty() {
+        println!(
+            "  ! WEAKENS enforcement — currently-effective checks would be \
+             deselected: {}",
+            weakened.join(", ")
+        );
+    }
+
+    if !args.apply {
+        println!("Dry-run only; pass --apply to write.");
+        return Ok(());
+    }
+
+    // DISTRIB-006 (ADR-060): durable per-project mutation.
+    crate::install_root::ensure_project_write_allowed("migrate gate-config")?;
+
+    if !weakened.is_empty() && !args.accept_weakening {
+        bail!(
+            "fold would weaken enforcement (deselecting: {}) — re-run with \
+             --accept-weakening to confirm, or edit the selection afterwards \
+             with `anvil gate-config --enable <check>`",
+            weakened.join(", ")
+        );
+    }
+
+    // Apply the patch to the parsed value.
+    if !project.value.is_object() {
+        project.value = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let root_obj = project.value.as_object_mut().expect("normalised above");
+    if fold_selection {
+        root_obj.insert(
+            "checks".into(),
+            serde_json::Value::Array(
+                legacy_enabled
+                    .iter()
+                    .map(|s| serde_json::Value::String(s.clone()))
+                    .collect(),
+            ),
+        );
+    }
+    let gate = root_obj
+        .entry("gate")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !gate.is_object() {
+        *gate = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let gate_obj = gate.as_object_mut().expect("normalised above");
+    for (key, value) in gate_patch {
+        gate_obj.insert(key, value);
+    }
+    if !thresholds_patch.is_empty() {
+        let thresholds = gate_obj
+            .entry("thresholds")
+            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+        if let Some(table) = thresholds.as_object_mut() {
+            for (key, value) in thresholds_patch {
+                table.entry(key).or_insert(value);
+            }
+        }
+    }
+    if !checks_patch.is_empty() {
+        let checks = gate_obj
+            .entry("checks")
+            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+        if let Some(table) = checks.as_object_mut() {
+            for (key, value) in checks_patch {
+                table.entry(key).or_insert(value);
+            }
+        }
+    }
+
+    let text = crate::commands::config::serialize_config(&project.value, project.writable_format)?;
+    crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
+    std::fs::remove_file(root.join(gc::LEGACY_GATE_CONFIG_REL))?;
+    println!(
+        "Folded into {} and removed {}.",
+        project.writable_path.display(),
+        gc::LEGACY_GATE_CONFIG_REL
     );
     Ok(())
 }
@@ -604,5 +817,97 @@ mod tests {
             err.to_string().contains("comparing project version"),
             "got: {err}"
         );
+    }
+
+    // ── `anvil migrate gate-config` fold (UCFG-005) ─────────────
+
+    fn write_legacy(dir: &Path, body: &str) {
+        std::fs::create_dir_all(dir.join(".anvil")).unwrap();
+        std::fs::write(dir.join(".anvil/gate-config.json"), body).unwrap();
+    }
+
+    fn gate_args(apply: bool, accept: bool) -> GateConfigMigrateArgs {
+        GateConfigMigrateArgs {
+            apply,
+            accept_weakening: accept,
+        }
+    }
+
+    #[test]
+    fn gate_fold_dry_run_writes_nothing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_legacy(
+            tmp.path(),
+            r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":true}],"thresholds":{"overall_score":90}}"#,
+        );
+        run_gate_config_in(&gate_args(false, false), tmp.path()).unwrap();
+        assert!(tmp.path().join(".anvil/gate-config.json").exists());
+        assert!(!tmp.path().join(".anvil.yaml").exists());
+    }
+
+    #[test]
+    fn gate_fold_weakening_requires_confirmation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Legacy disables secret-detection (in the default effective
+        // selection) — folding the selection would weaken enforcement.
+        write_legacy(
+            tmp.path(),
+            r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":true},{"name":"secret-detection","description":"","enabled":false}],"thresholds":{}}"#,
+        );
+        let err = run_gate_config_in(&gate_args(true, false), tmp.path()).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("weaken"), "{msg}");
+        assert!(msg.contains("secret-detection"), "{msg}");
+        assert!(msg.contains("--accept-weakening"), "{msg}");
+        // Nothing changed on refusal.
+        assert!(tmp.path().join(".anvil/gate-config.json").exists());
+
+        run_gate_config_in(&gate_args(true, true), tmp.path()).unwrap();
+        let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
+        let checks: Vec<&str> = value["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+        assert_eq!(checks, vec!["lint"]);
+        assert!(!tmp.path().join(".anvil/gate-config.json").exists());
+    }
+
+    #[test]
+    fn gate_fold_respects_existing_selection_and_folds_absent_only() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "checks: [secret-detection]\ngate:\n  thresholds:\n    overall_score: 95\n",
+        )
+        .unwrap();
+        write_legacy(
+            tmp.path(),
+            r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":true,"config":{"max_warnings":0}}],"thresholds":{"overall_score":50,"minimum":10}}"#,
+        );
+        run_gate_config_in(&gate_args(true, false), tmp.path()).unwrap();
+        let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
+        // Explicit selection untouched (present, not absent).
+        let checks: Vec<&str> = value["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+        assert_eq!(checks, vec!["secret-detection"]);
+        // Existing threshold wins; absent one folds.
+        assert_eq!(value["gate"]["thresholds"]["overall_score"], 95);
+        assert_eq!(value["gate"]["thresholds"]["minimum"], 10);
+        // Per-check config folds under gate.checks.
+        assert_eq!(value["gate"]["checks"]["lint"]["max_warnings"], 0);
+        assert!(!tmp.path().join(".anvil/gate-config.json").exists());
+    }
+
+    #[test]
+    fn gate_fold_without_legacy_file_is_a_clear_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let err = run_gate_config_in(&gate_args(false, false), tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("nothing to do"), "{err}");
     }
 }
