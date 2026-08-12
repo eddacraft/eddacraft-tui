@@ -471,9 +471,8 @@ pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
     #[cfg(not(unix))]
     {
         refuse_symlink_path_components(path)?;
-        refuse_if_parent_is_symlink(path)?;
-        // Re-check immediately before the path-based atomic write so a late
-        // parent swap is still observed on platforms without openat.
+        // Immediate pre-write parent check: platforms without openat rely on
+        // this to refuse a redirected parent before tempfile creation.
         refuse_if_parent_is_symlink(path)?;
         atomic_write(path, data)
     }
@@ -530,15 +529,21 @@ fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
         match try_open(parent, name, nofollow_dir_flags) {
             Ok(fd) => Ok(fd),
             Err(Errno::ENOENT) => {
-                match parent {
+                // Concurrent creators are fine: if mkdir loses the race we
+                // re-open the winner instead of treating EEXIST as fatal.
+                let create_result = match parent {
                     Some(dirfd) => mkdirat(dirfd, name, Mode::from_bits_truncate(0o755))
-                        .map_err(std::io::Error::from)
-                        .with_context(|| {
+                        .map_err(std::io::Error::from),
+                    None => std::fs::create_dir(name),
+                };
+                match create_result {
+                    Ok(()) => {}
+                    Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(err) => {
+                        return Err(err).with_context(|| {
                             format!("creating directory component {}", Path::new(name).display())
-                        })?,
-                    None => std::fs::create_dir(name).with_context(|| {
-                        format!("creating directory component {}", Path::new(name).display())
-                    })?,
+                        });
+                    }
                 }
                 try_open(parent, name, nofollow_dir_flags)
                     .map_err(std::io::Error::from)
