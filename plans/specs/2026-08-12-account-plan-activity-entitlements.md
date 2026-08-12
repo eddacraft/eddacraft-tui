@@ -121,7 +121,7 @@ Optional: `last_activity_kind` closed enum `login | refresh | feature`.
 
 | Metric | Definition |
 | ------ | ---------- |
-| DAA | Active users with `last_activity_at::date = current_date` |
+| DAA | Trailing 24 h on `last_activity_at` (BACT-009 deviation, recorded 2026-08-13: implemented as a trailing window for consistency with WAA/MAA, not the calendar-day cut originally drafted here; FLEET DAI remains calendar-day — the runbook documents the difference and the surfaces are never compared directly) |
 | WAA / MAA | Trailing 7 / 30 days on `last_activity_at` |
 | Quiet | Active + (`last_activity_at` null or older than N days) |
 | By plan | Same filters + `plan = …` |
