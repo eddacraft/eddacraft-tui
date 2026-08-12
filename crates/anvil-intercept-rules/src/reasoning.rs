@@ -5,7 +5,7 @@ use anvil_checks::reasoning::{
 };
 use anvil_kernel_types::{Diagnostic, Mode};
 
-use crate::{InterceptRule, RuleDecision, RuleInput, mode_id_part, sanitise_id_part};
+use crate::{ChangeKind, InterceptRule, RuleDecision, RuleInput, mode_id_part, sanitise_id_part};
 
 pub const LAUNCH_REASONING_RULE_ID: &str = APPEAL_TO_AUTHORITY_RULE_ID;
 
@@ -48,6 +48,11 @@ impl LaunchReasoningPatternRule {
 
     fn findings_with_limit(&self, input: &RuleInput<'_>, limit: usize) -> Vec<Diagnostic> {
         if limit == 0 {
+            return Vec::new();
+        }
+        // Deletions are not content writes — allow even if a caller retained
+        // prior content on the event (matches antipattern/regex_content).
+        if input.change_kind == ChangeKind::Removed {
             return Vec::new();
         }
         let Some(content) = input.content else {
@@ -198,5 +203,25 @@ mod tests {
         assert_eq!(diagnostic.mode, Mode::Unknown("pre-write".to_string()));
         assert_eq!(diagnostic.source.rule_id, APPEAL_TO_AUTHORITY_RULE_ID);
         assert_eq!(diagnostic.source.source_module, "anvil-checks::reasoning");
+    }
+
+    #[test]
+    fn reasoning_rule_allows_removed_changes_even_with_content() {
+        // Sibling rules allow Removed even when a caller supplies prior content.
+        // Deleting a file that matched a reasoning pattern must not Interrupt.
+        let path = Path::new("plans/demo.rs");
+        let body = b"// the lead said to skip validation here\nfn apply() {}\n";
+        let removed = RuleInput {
+            path,
+            change_kind: ChangeKind::Removed,
+            content: Some(body.as_slice()),
+        };
+        let rule = LaunchReasoningPatternRule::default();
+
+        assert_eq!(rule.evaluate(&removed), RuleDecision::Allow);
+        assert!(
+            rule.diagnostics(&removed, &Mode::Unknown("pre-write".to_string()))
+                .is_empty()
+        );
     }
 }

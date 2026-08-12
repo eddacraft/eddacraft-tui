@@ -1,7 +1,7 @@
 use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content_with_limit};
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 
-use crate::{InterceptRule, RuleDecision, RuleInput, mode_id_part, sanitise_id_part};
+use crate::{ChangeKind, InterceptRule, RuleDecision, RuleInput, mode_id_part, sanitise_id_part};
 
 pub const SECRET_RULE_ID: &str = "secret-detection";
 
@@ -44,6 +44,11 @@ impl SecretDetectionRule {
 
     fn findings_with_limit(&self, input: &RuleInput<'_>, limit: usize) -> Vec<SecretFinding> {
         if limit == 0 {
+            return Vec::new();
+        }
+        // Deletions are not content writes — allow even if a caller retained
+        // prior content on the event (matches antipattern/regex_content).
+        if input.change_kind == ChangeKind::Removed {
             return Vec::new();
         }
         if self.should_skip_path(input) {
@@ -286,5 +291,26 @@ mod tests {
         assert_eq!(diagnostic.mode, Mode::Unknown("pre-write".to_string()));
         assert_eq!(diagnostic.source.rule_id, SECRET_RULE_ID);
         assert!(!diagnostic.summary.contains("abcdEFGH1234567890"));
+    }
+
+    #[test]
+    fn secret_rule_allows_removed_changes_even_with_content() {
+        // Sibling rules (antipattern, regex_content, path_deny) allow Removed
+        // even when a caller supplies prior content. Secret detection must not
+        // block a deletion of a file that previously held a secret.
+        let path = Path::new("src/auth/client.ts");
+        let body = b"const config = { api_key: 'abcdEFGH1234567890' };\n";
+        let removed = RuleInput {
+            path,
+            change_kind: ChangeKind::Removed,
+            content: Some(body.as_slice()),
+        };
+        let rule = SecretDetectionRule::default();
+
+        assert_eq!(rule.evaluate(&removed), RuleDecision::Allow);
+        assert!(
+            rule.diagnostics(&removed, &Mode::Unknown("pre-write".to_string()))
+                .is_empty()
+        );
     }
 }
