@@ -49,13 +49,16 @@ The managed block looks like:
 
 ```sh
 # >>> anvil-managed (do not edit) >>>
-command -v anvil >/dev/null 2>&1 && exec anvil hook pre-commit "$@"
+if command -v anvil >/dev/null 2>&1; then
+  anvil hook pre-commit "$@" || exit $?
+fi
 # <<< anvil-managed <<<
 ```
 
 The `command -v anvil` guard means the hook silently skips if `anvil` is not on
-PATH (e.g. a teammate who has not installed Anvil). `exec` replaces the shell
-process so no double-execution occurs.
+PATH (e.g. a teammate who has not installed Anvil). Anvil is invoked without
+`exec` so host commands after the marker still run when validation succeeds; a
+non-zero status exits immediately and blocks Git.
 
 On uninstall Anvil removes only the marker-bounded block. Surrounding user
 content is preserved byte-exact for canonical input (files ending with a single

@@ -309,12 +309,15 @@ fn husky_files(kinds: &[HookKind]) -> Vec<CoexistenceFile> {
 fn husky_block(k: HookKind) -> String {
     // Unavailable anvil must not abort the host Husky hook. Prefer a true
     // no-op (`if`/`fi`) over `|| exit 0` so user content after the managed
-    // marker region still runs. When anvil is present, `exec` propagates its
-    // exit status (same as the plain shell template's intent, ADR-038 §D-5).
+    // marker region still runs. When anvil is present, invoke it without
+    // `exec` so successful validation returns to this shell and host
+    // commands after the marker still run (coexistence contract). On
+    // non-zero status exit immediately so blocking semantics are kept.
     // Do not use `cmd && exec` — a missing binary makes that form exit
-    // non-zero and blocks Git.
+    // non-zero and blocks Git; and bare `exec` would skip post-marker host
+    // hooks even when anvil succeeds.
     format!(
-        "if command -v anvil >/dev/null 2>&1; then\n  exec anvil hook {} \"$@\"\nfi",
+        "if command -v anvil >/dev/null 2>&1; then\n  anvil hook {} \"$@\" || exit $?\nfi",
         k.subcommand()
     )
 }
@@ -982,12 +985,21 @@ mod tests {
     }
 
     #[test]
-    fn husky_block_uses_command_v_guard_and_exec() {
+    fn husky_block_uses_command_v_guard_without_exec() {
         let plan = plan_install(HookFramework::Husky, &[HookKind::PreCommit]).unwrap();
         let block = &plan.files[0].block;
         assert!(block.contains("command -v anvil"));
-        assert!(block.contains("exec anvil hook pre-commit"));
-        assert!(block.contains("\"$@\""));
+        assert!(block.contains("anvil hook pre-commit \"$@\""));
+        // Coexistence must not `exec` anvil: exec replaces the shell and
+        // skips host commands after the managed marker region.
+        assert!(
+            !block.contains("exec "),
+            "husky coexistence block must not exec anvil; got: {block:?}"
+        );
+        assert!(
+            block.contains("|| exit $?"),
+            "non-zero anvil status must abort the host hook; got: {block:?}"
+        );
         // Unavailable-binary path must be a true no-op (if/fi), not
         // `cmd && exec` (exits non-zero when missing) and not a bare
         // `|| exit 0` after the guard (would skip user content after the
@@ -1098,6 +1110,50 @@ mod tests {
         assert!(
             status.success(),
             "hook must propagate anvil exit 0; got {status}"
+        );
+    }
+
+    /// Regression: coexistence used `exec anvil …`, which replaced the shell
+    /// so host commands after the marker never ran when anvil was installed.
+    #[test]
+    #[cfg(unix)]
+    fn husky_hook_runs_post_marker_user_content_when_anvil_succeeds() {
+        let bin = tempfile::tempdir().unwrap();
+        write_fake_anvil(bin.path(), 0);
+        let stamp_dir = tempfile::tempdir().unwrap();
+        let stamp = stamp_dir.path().join("after-ran");
+        let tail = format!("touch '{}'\n", stamp.display());
+        let (_tmp, status) = run_generated_husky_hook(bin.path(), &tail);
+        assert!(
+            status.success(),
+            "hook must exit 0 when anvil succeeds; got {status}"
+        );
+        assert!(
+            stamp.is_file(),
+            "post-marker user content must run after successful anvil validation"
+        );
+    }
+
+    /// Companion to the success case: a failing anvil must still block the
+    /// host hook — post-marker commands must not run, and the exit code
+    /// must propagate.
+    #[test]
+    #[cfg(unix)]
+    fn husky_hook_skips_post_marker_user_content_when_anvil_fails() {
+        let bin = tempfile::tempdir().unwrap();
+        write_fake_anvil(bin.path(), 42);
+        let stamp_dir = tempfile::tempdir().unwrap();
+        let stamp = stamp_dir.path().join("after-ran");
+        let tail = format!("touch '{}'\n", stamp.display());
+        let (_tmp, status) = run_generated_husky_hook(bin.path(), &tail);
+        assert_eq!(
+            status.code(),
+            Some(42),
+            "hook must propagate anvil's non-zero exit; got {status}"
+        );
+        assert!(
+            !stamp.is_file(),
+            "post-marker user content must not run when anvil fails"
         );
     }
 
