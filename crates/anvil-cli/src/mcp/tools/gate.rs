@@ -266,12 +266,17 @@ fn wait_with_timeout(
         std::thread::sleep(Duration::from_millis(25));
     };
 
-    let stdout = stdout_reader
+    // Join both drain threads before propagating either stream error so a
+    // cap overflow / I/O failure on one side cannot leave the other reader
+    // detached (and still holding the pipe open).
+    let stdout_result = stdout_reader
         .join()
-        .map_err(|_| std::io::Error::other("stdout reader thread panicked"))??;
-    let stderr = stderr_reader
+        .map_err(|_| std::io::Error::other("stdout reader thread panicked"))?;
+    let stderr_result = stderr_reader
         .join()
-        .map_err(|_| std::io::Error::other("stderr reader thread panicked"))??;
+        .map_err(|_| std::io::Error::other("stderr reader thread panicked"))?;
+    let stdout = stdout_result?;
+    let stderr = stderr_result?;
 
     Ok(std::process::Output {
         status,
@@ -521,18 +526,22 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn wait_with_timeout_drains_both_streams_beyond_pipe_buffer() {
-        let mut cmd = Command::new("python3");
+        // Pure sh + dd so the regression does not depend on python3 being
+        // present in every Unix CI image. Background a stderr writer, then
+        // emit a full stdout buffer on the main shell.
+        let mut cmd = Command::new("sh");
         cmd.args([
             "-c",
-            "import sys; sys.stdout.buffer.write(b'x'*262144); \
-             sys.stderr.buffer.write(b'y'*262144)",
+            "dd if=/dev/zero bs=1024 count=256 status=none >&2 & \
+             dd if=/dev/zero bs=1024 count=256 status=none; \
+             wait",
         ]);
 
         let output = wait_with_timeout(cmd, Duration::from_secs(5), FULL_GATE_STREAM_CAP)
             .expect("dual large streams must not deadlock");
         assert!(output.status.success());
-        assert_eq!(output.stdout.len(), 262_144);
-        assert_eq!(output.stderr.len(), 262_144);
+        assert_eq!(output.stdout.len(), 256 * 1024);
+        assert_eq!(output.stderr.len(), 256 * 1024);
     }
 
     #[cfg(unix)]
