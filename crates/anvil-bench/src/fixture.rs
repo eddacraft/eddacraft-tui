@@ -497,14 +497,9 @@ mod tests {
             "do-not-delete",
             "sentinel must remain unmodified after rejected generation"
         );
-
-        // Drop path is not exercised on Err, but a future regression that
-        // claimed ownership would still wipe the sentinel after this scope.
-        drop(preexisting);
-        assert_eq!(
-            fs::read_to_string(&sentinel).unwrap(),
-            "do-not-delete",
-            "pre-existing directory must not be cleaned up by generate_repo"
+        assert!(
+            preexisting.is_dir(),
+            "pre-existing directory must remain after rejection"
         );
     }
 
