@@ -90,7 +90,8 @@ pub fn save(repo_root: &Path, baseline: &Baseline) -> Result<(), BaselineIoError
         let _ = fs::remove_file(&tmp_path);
         return Err(e.into());
     }
-    // Drop before rename so Windows can replace an open destination.
+    // Close the staging handle before rename: Windows cannot rename a
+    // file that still has an open *source* handle.
     drop(staging);
     if let Err(e) = (|| -> Result<(), BaselineIoError> {
         refuse_if_symlink(&final_path)?;
