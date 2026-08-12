@@ -1104,7 +1104,7 @@ fi
 
 owed_script="${script_dir}/check-docs-owed.mjs"
 
-# Case A: report-only contract. The surface finds real errors in the live corpus
+# Case A: report-only under docs:check. The surface finds real errors in the live corpus
 # with --no-baseline, and must STILL exit 0. Gating cannot switch on before
 # DOCFRESH-002 lands the granularity split, because severity is currently
 # derived from the confidence class alone and would fail on the directory
@@ -1116,10 +1116,10 @@ status=$?
 set -e
 if [[ "${status}" -ne 0 ]]; then
   fail "docs-owed must exit 0 while report-only; got ${status}"
-elif ! echo "${out}" | grep -qE "^\[docs-owed\] summary \[corpus\]: [0-9]+ owed, [0-9]+ review, [0-9]+ baselined, [0-9]+ checked,"; then
+elif ! echo "${out}" | grep -qE "^\[docs-owed\] summary \[corpus\]: [0-9]+ owed \([0-9]+ gating, [0-9]+ advisory by granularity\), [0-9]+ review, [0-9]+ baselined, [0-9]+ checked,"; then
   fail "docs-owed summary line shape changed; got: $(echo "${out}" | tail -2)"
 else
-  pass "docs-owed reports findings and exits 0 (report-only until DOCFRESH-002)"
+  pass "docs-owed reports findings and exits 0 (docs:check gating deferred to DOCFRESH-003)"
 fi
 
 # Case B: --fail-on-owed is the opt-in that proves the gate works before it is
@@ -1129,7 +1129,7 @@ fi
 # down — at which point exit 0 is the *correct* answer for an empty corpus.
 echo "case B: docs-owed --fail-on-owed opts into failure"
 owed_now="$(cd "${repo_root}" && node "${owed_script}" --no-baseline --limit 0 2>/dev/null |
-  sed -n 's/^\[docs-owed\] summary \[corpus\]: \([0-9]*\) owed,.*/\1/p')"
+  sed -n 's/^\[docs-owed\] summary \[corpus\]: \([0-9]*\) owed .*/\1/p')"
 if [[ -z "${owed_now}" ]]; then
   fail "could not read owed count from docs-owed summary"
 elif [[ "${owed_now}" -eq 0 ]]; then
@@ -1198,6 +1198,90 @@ if [[ -r "${unreadable}" ]]; then
   fi
 else
   pass "skipped: fixture doc not readable to begin with"
+fi
+
+# Case E: the ADR-119 D2 granularity split (DOCFRESH-002).
+#
+# A directory-only upstream must stay advisory no matter how far the review date
+# has slipped — that is the whole point of the split, and it is what stops the
+# gate firing on `crates/anvil-cli`. Built as a purpose-made fixture repo rather
+# than asserted against the live corpus, so the case keeps its meaning as the
+# backlog changes.
+echo "case E: directory upstreams stay advisory, file upstreams gate"
+d2_root="${tmp_root}/d2"
+mkdir -p "${d2_root}/docs/guides" "${d2_root}/crates/widget/src"
+(
+  cd "${d2_root}"
+  git init -q .
+  git config user.email t@example.com
+  git config user.name t
+  cat >docs/guides/dir-only.md <<'DOC'
+# Directory Only
+
+| Type  | Authority     | Owner | Status | Freshness                              |
+| ----- | ------------- | ----- | ------ | -------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2001-01-01 against `crates/widget` |
+
+| Upstream      | Downstream |
+| ------------- | ---------- |
+| `crates/widget` | none    |
+
+Body.
+DOC
+  cat >docs/guides/file-level.md <<'DOC'
+# File Level
+
+| Type  | Authority     | Owner | Status | Freshness                                             |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2001-01-01 against `crates/widget/src/thing.rs` |
+
+| Upstream              | Downstream |
+| --------------------- | ---------- |
+| `crates/widget/src/thing.rs` | none |
+
+Body.
+DOC
+  echo "pub const A: u8 = 1;" >crates/widget/src/thing.rs
+  git add -A
+  git commit -qm "fixture: docs and source"
+) >/dev/null 2>&1
+
+d2_json="${tmp_root}/d2.json"
+if ! (cd "${repo_root}" && node "${owed_script}" --root "${d2_root}" --no-baseline --json >"${d2_json}" 2>/dev/null); then
+  fail "docs-owed did not run against the D2 fixture"
+elif ! node -e '
+    const j = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+    const dir = j.findings.find((f) => f.file.endsWith("dir-only.md"));
+    const file = j.findings.find((f) => f.file.endsWith("file-level.md"));
+    if (!dir) { console.error("directory-upstream fixture produced no finding at all"); process.exit(1); }
+    if (!file) { console.error("file-upstream fixture produced no finding"); process.exit(1); }
+    if (dir.severity !== "WARN" || dir.posture !== "advisory-granularity") {
+      console.error("directory upstream must be advisory; got " + dir.severity + "/" + dir.posture);
+      process.exit(1);
+    }
+    if (file.severity !== "ERROR" || file.posture !== "gating") {
+      console.error("file upstream must gate; got " + file.severity + "/" + file.posture);
+      process.exit(1);
+    }
+  ' "${d2_json}"; then
+  fail "D2 granularity split not honoured"
+else
+  pass "directory upstream advisory (WARN), file upstream gating (ERROR), both reported"
+fi
+
+# Case F: an advisory-only corpus must not trip the gate. A directory upstream
+# that has moved is real staleness, but it can never turn the check red.
+echo "case F: advisory-only findings never fail the gate"
+rm -f "${d2_root}/docs/guides/file-level.md"
+(cd "${d2_root}" && git add -A && git commit -qm "drop the file-level doc") >/dev/null 2>&1
+set +e
+(cd "${repo_root}" && node "${owed_script}" --root "${d2_root}" --no-baseline --fail-on-owed >/dev/null 2>&1)
+d2_status=$?
+set -e
+if [[ "${d2_status}" -eq 0 ]]; then
+  pass "advisory-only corpus exits 0 under --fail-on-owed"
+else
+  fail "advisory-only corpus must not fail the gate; got ${d2_status}"
 fi
 
 if [[ "${failures}" -gt 0 ]]; then

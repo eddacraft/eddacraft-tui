@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Surface validator (REPORT-ONLY PROTOTYPE): documentation owed by a source change.
+// Surface validator: documentation owed by a source change.
 //
 // Every other docs surface answers "is this document internally well-formed?"
 // — metadata present, tags known, links resolve, cited paths exist. None of
@@ -18,7 +18,7 @@
 // `asbuilt-paths` already walks the same references, but only asks whether they
 // *resolve* — a path can exist, be rewritten from top to bottom, and still pass.
 //
-// WHY THIS IS NOT (YET) A GATE, AND WHAT SHAPE IT WOULD TAKE IF IT BECAME ONE
+// WHY THIS CAN GATE AT ALL, AND WHAT IT IS STILL WAITING ON
 //
 // ADR-117: a merge gate may only fail for something a commit did. A calendar
 // rule ("reviewed over 90 days ago") violates that outright — it goes red while
@@ -29,8 +29,12 @@
 // written against the diff (`--since <ref>`) as well as the whole corpus: the
 // gate shape is the diff mode, and the corpus mode is the backlog report.
 //
-// It is deliberately wired into nothing: not in DEFAULT_SURFACES, not in CI. It
-// exists to produce measured numbers to design against.
+// Registered in DEFAULT_SURFACES since DOCFRESH-001, so `pnpm docs:check` runs
+// it. It still exits 0 on unbaselined errors: DOCFRESH-003 owns moving the CI
+// trigger off `markdownlint-required` and flipping this to the usual
+// `errors > 0 ? 1 : 0` contract at the same time, so the gate turns on together
+// with the trigger that makes it meaningful. `--fail-on-owed` exercises the
+// gate before then.
 //
 // CONFIDENCE, AND WHY FINDINGS ARE SPLIT INTO TWO CLASSES
 //
@@ -45,15 +49,24 @@
 //   review    — upstream moved before the document's own last commit. Somebody
 //               may have already reconciled it and left the date behind.
 //
-// Only `owed` would be gate-eligible. `review` is a date-hygiene backlog.
+// Only `owed` is gate-eligible. `review` is a date-hygiene backlog.
 //
-// PROTOTYPE LIMITATION: severity here is derived from that confidence class
-// ALONE. The granularity split — file-level upstreams gate, directory and glob
-// upstreams stay advisory — is NOT applied, so an `owed` finding backed only by
-// a directory upstream still prints as ERROR. Directory upstreams are visible
-// and counted in both modes (see upstreamTouchedByDiff), which is what the
-// measurement needs; downgrading their severity is DOCFRESH-002's job. Read
-// diff mode as the gate's *scoping* shape, not as its finished verdict.
+// GRANULARITY IS THE SECOND AXIS (ADR-119 D2, DOCFRESH-002)
+//
+// Confidence says whether anyone has looked; granularity says whether the
+// declaration is precise enough to act on. Both must hold for a finding to
+// bind, so severity is the AND of them:
+//
+//   ERROR — `owed` AND at least one moved upstream resolves to a file.
+//   WARN  — everything else, in two distinguishable flavours recorded on
+//           `posture`: `advisory-confidence` (the document was committed after
+//           its upstream moved) and `advisory-granularity` (real staleness,
+//           declared only as a directory or glob, so nobody can act on it).
+//
+// A mixed document gates on its file-level components and reports the rest.
+// Advisory findings are never hidden — they are counted in the summary in both
+// modes — because an unreported dependency reads as "clean", which is the exact
+// failure this surface exists to stop.
 //
 // KNOWN LIMITS (do not let these be discovered as surprises later)
 //
@@ -73,7 +86,7 @@
 //     out; `asbuilt-paths` independently catches a path that stopped existing.
 
 import { readFile } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve, isAbsolute, relative as relPath } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -161,10 +174,28 @@ function fingerprintFor(upstreamPath) {
   return `upstream moved since review: ${upstreamPath}`;
 }
 
-function upstreamTouchedByDiff(upstreamPath, changed) {
-  if (changed.has(upstreamPath)) return true;
-  const prefix = `${upstreamPath}/`;
-  for (const path of changed) if (path.startsWith(prefix)) return true;
+function upstreamTouchedByDiff(upstream, changed) {
+  if (changed.has(upstream.path)) return true;
+  if (upstream.kind === 'directory') {
+    const prefix = `${upstream.path}/`;
+    for (const path of changed) if (path.startsWith(prefix)) return true;
+    return false;
+  }
+  if (upstream.kind === 'glob') {
+    // `*` matches within a path segment, `**` across segments — the same shape
+    // git applies to the pathspec used in corpus mode, so both modes agree on
+    // which files a glob upstream covers.
+    const pattern = new RegExp(
+      `^${upstream.path
+        .split('/')
+        .map((seg) =>
+          seg === '**' ? '.*' : seg.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*')
+        )
+        .join('/')}$`
+    );
+    for (const path of changed) if (pattern.test(path)) return true;
+    return false;
+  }
   return false;
 }
 
@@ -227,13 +258,28 @@ function lastCommit(path) {
 }
 
 /**
- * Reduce a metadata reference to a repository path, or null if it is not one.
+ * Reduce a metadata reference to a classified repository upstream, or null if it
+ * is not one.
  *
  * Upstream cells legitimately hold non-paths — document titles, skill names,
  * APS module IDs — and placeholder examples in angle brackets. Those are not
  * defects, they are simply not checkable here.
+ *
+ * The `kind` is what ADR-119 D2 binds on, so it is decided once, here:
+ *
+ *   file      — resolves to a blob. Precise enough to act on, so gate-eligible.
+ *   directory — resolves to a tree. Fires on any commit anywhere beneath it.
+ *   glob      — contains `*`. Same objection as a directory: the declaration
+ *               does not say which file mattered.
+ *
+ * Globs are classified rather than discarded. Dropping them (the previous
+ * behaviour) silently removed real declared dependencies from the corpus —
+ * `docs/runbooks/release-runbook.md` declares `scripts/release/*`, and that
+ * runbook was invisible to this surface as a result. Advisory and visible beats
+ * absent: an unreported dependency reads as "clean", which is the failure this
+ * whole surface exists to stop.
  */
-function toRepoPath(ref) {
+function toUpstream(ref) {
   if (!ref) return null;
   if (ref.includes('<') || ref.includes('>') || ref.includes('{')) return null;
   if (/^https?:/.test(ref)) return null;
@@ -242,13 +288,20 @@ function toRepoPath(ref) {
     .replace(/#.*$/, '')
     .replace(/:\d+(?:-\d+)?$/, '')
     .replace(/\/$/, '');
-  if (!normalised || normalised.includes('*')) return null;
+  if (!normalised) return null;
   if (!/[/.]/.test(normalised)) return null;
-  const abs = resolve(root, normalised);
+
+  // Keep the traversal guard ahead of any filesystem or git call.
+  const abs = resolve(root, normalised.replace(/\*/g, 'x'));
   const rel = relPath(root, abs);
   if (rel.startsWith('..') || isAbsolute(rel)) return null;
-  if (!existsSync(abs)) return null;
-  return normalised;
+
+  if (normalised.includes('*')) return { path: normalised, kind: 'glob' };
+  if (!existsSync(resolve(root, normalised))) return null;
+  return {
+    path: normalised,
+    kind: statSync(resolve(root, normalised)).isDirectory() ? 'directory' : 'file',
+  };
 }
 
 const findings = [];
@@ -289,23 +342,24 @@ for (const relFile of files) {
   // The upstream cell is the declared contract. Freshness anchors are included
   // because the convention explicitly invites "reviewed against <path>" there,
   // and a document that names its check anchor is making the same assertion.
-  const upstreamPaths = [
-    ...new Set(
-      parsed.sourceReferences
-        .filter((r) => r.context === 'upstream' || r.context === 'freshness')
-        .map((r) => toRepoPath(r.path))
-        .filter(Boolean)
-    ),
-  ];
+  const upstreams = [];
+  const seenPaths = new Set();
+  for (const ref of parsed.sourceReferences) {
+    if (ref.context !== 'upstream' && ref.context !== 'freshness') continue;
+    const upstream = toUpstream(ref.path);
+    if (!upstream || seenPaths.has(upstream.path)) continue;
+    seenPaths.add(upstream.path);
+    upstreams.push(upstream);
+  }
 
-  if (!reviewedOn || upstreamPaths.length === 0) {
+  if (!reviewedOn || upstreams.length === 0) {
     uncheckable += 1;
     continue;
   }
 
   const considered = changedPaths
-    ? upstreamPaths.filter((p) => upstreamTouchedByDiff(p, changedPaths))
-    : upstreamPaths;
+    ? upstreams.filter((u) => upstreamTouchedByDiff(u, changedPaths))
+    : upstreams;
   if (considered.length === 0) {
     if (!changedPaths) uncheckable += 1;
     continue;
@@ -313,7 +367,7 @@ for (const relFile of files) {
   checked += 1;
 
   const moved = considered
-    .map((path) => ({ path, commit: lastCommit(path) }))
+    .map((u) => ({ path: u.path, kind: u.kind, commit: lastCommit(u.path) }))
     .filter((u) => u.commit && u.commit.date > reviewedOn)
     .sort((a, b) => b.commit.ts - a.commit.ts);
 
@@ -325,9 +379,29 @@ for (const relFile of files) {
   // is specific to `reviewedOn` above, where no clock time exists.
   const documentTouchedSince = Boolean(docCommit && docCommit.ts > newest.commit.ts);
 
+  // ADR-119 D2. A file-level upstream is a claim precise enough to act on, so
+  // it can bind; a directory or glob fires on any commit anywhere beneath it and
+  // cannot be acted on, so it may only ever advise. A mixed document therefore
+  // gates on its file-level components and merely reports the rest — which is
+  // why this asks whether ANY moved upstream is a file, not whether the newest
+  // one is.
+  const movedFiles = moved.filter((u) => u.kind === 'file');
+  const gateEligible = !documentTouchedSince && movedFiles.length > 0;
+  // Name an actionable path when the finding can bind: pointing a would-be gate
+  // failure at `crates/anvil-cli` tells nobody what to review.
+  const primary = gateEligible ? movedFiles[0] : newest;
+
   findings.push({
-    severity: documentTouchedSince ? 'WARN' : 'ERROR',
+    severity: gateEligible ? 'ERROR' : 'WARN',
     class: documentTouchedSince ? 'review' : 'owed',
+    // Why this finding cannot bind, when it cannot. `advisory-granularity` is
+    // the D2 case: real staleness, but declared too coarsely to act on.
+    posture: gateEligible
+      ? 'gating'
+      : documentTouchedSince
+        ? 'advisory-confidence'
+        : 'advisory-granularity',
+    upstreamKinds: [...new Set(moved.map((u) => u.kind))].sort(),
     file: relFile,
     line: parsed.sourceLineNumber ?? 1,
     type: parsed.metadata.type,
@@ -349,12 +423,15 @@ for (const relFile of files) {
     // unrelated pull request. Naming the implicated upstream is the part worth
     // pinning; the dates are reporting detail and are rendered from the
     // structured fields below instead.
-    message: fingerprintFor(newest.path),
+    message: fingerprintFor(primary.path),
     detail:
-      `${newest.path} committed ${newest.commit.date}, ` +
+      `${primary.path} (${primary.kind}) committed ${primary.commit.date}, ` +
       `document last reviewed ${reviewedOn}` +
       (moved.length > 1 ? ` (+${moved.length - 1} more upstream path(s))` : '') +
-      (documentTouchedSince ? `; document itself committed ${docCommit.date}` : ''),
+      (documentTouchedSince ? `; document itself committed ${docCommit.date}` : '') +
+      (documentTouchedSince || gateEligible
+        ? ''
+        : `; advisory — only ${[...new Set(moved.map((u) => u.kind))].sort().join('/')} upstreams moved`),
   });
 }
 
@@ -397,6 +474,11 @@ const summary = {
   filesChecked: checked,
   owed: owed.length,
   review: review.length,
+  // D2 posture, reported so a shrinking gate-eligible count cannot be mistaken
+  // for a shrinking backlog — advisory findings are real staleness that simply
+  // cannot bind until the document declares a file-level upstream.
+  gating: findings.filter((f) => f.posture === 'gating').length,
+  advisoryGranularity: findings.filter((f) => f.posture === 'advisory-granularity').length,
   baselined: findings.filter((f) => f.baselined).length,
   checked,
   uncheckable,
@@ -419,7 +501,9 @@ if (values.json) {
     process.stdout.write(`[${SURFACE}] … ${findings.length - limit} more (raise --limit)\n`);
   }
   process.stdout.write(
-    `[${SURFACE}] summary [${summary.mode}]: ${summary.owed} owed, ${summary.review} review, ` +
+    `[${SURFACE}] summary [${summary.mode}]: ${summary.owed} owed ` +
+      `(${summary.gating} gating, ${summary.advisoryGranularity} advisory by granularity), ` +
+      `${summary.review} review, ` +
       `${summary.baselined} baselined, ${summary.checked} checked, ` +
       `${summary.uncheckable} uncheckable ` +
       `(no review date or no resolvable upstream path), ` +
@@ -428,18 +512,17 @@ if (values.json) {
   );
 }
 
-// Registered but deliberately non-gating: this exits 0 even with unbaselined
-// ERROR findings, which is a departure from the sibling surfaces and is
-// temporary.
+// Registered but deliberately non-gating under `docs:check`: this exits 0 even
+// with unbaselined ERROR findings. DOCFRESH-003 moves the CI trigger off
+// `markdownlint-required` and flips this to the usual
+// `errors > 0 ? 1 : 0` contract at the same time, so the gate turns on together
+// with the trigger that makes it meaningful.
 //
-// It cannot gate yet without violating the ADR it implements. Severity is still
-// derived from the confidence class alone, so a finding backed only by a
-// directory upstream is an ERROR — and ADR-119 D2 says directory and glob
-// upstreams must never turn a check red. Gating before DOCFRESH-002 lands the
-// granularity split would enforce exactly the posture the ADR rejects.
-//
-// DOCFRESH-002 adds the split; DOCFRESH-003 moves the trigger and flips this to
-// the normal `errors > 0 ? 1 : 0` contract. `--fail-on-owed` exists so the gate
-// can be exercised before then without editing code.
-const gatingFailure = values['fail-on-owed'] && owed.some((f) => !f.baselined);
+// What CAN fail, under `--fail-on-owed`, is an unbaselined finding that is
+// *gate-eligible* — ERROR severity, meaning `owed` AND backed by a file-level
+// upstream. Keying this on the `owed` class instead would fail on
+// directory-only findings, which ADR-119 D2 says must never turn a check red;
+// the D2 fixture in docs-check.test.sh pins exactly that.
+const gatingFailure =
+  values['fail-on-owed'] && findings.some((f) => f.severity === 'ERROR' && !f.baselined);
 process.exit(gatingFailure ? 1 : 0);

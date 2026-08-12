@@ -7,12 +7,24 @@
 | --------- | ----- | -------- | ------ | -------- |
 | DOCFRESH  | —     | high     | In Progress | 0/8 |
 
-**Last reviewed:** 2026-08-12 — ADR-119 **Accepted** 2026-08-12, so the
-execution authority this module was waiting on now exists. The Draft hold
-recorded on 2026-08-11 is lifted: DOCFRESH-001 is **In Progress**, and
--002/-003/-004/-005/-007 promote to **Ready**. DOCFRESH-006 stays Draft behind
-its -005 dependency, and DOCFRESH-008 stays Draft because it needs its own
-decision rather than execution.
+**Last reviewed:** 2026-08-12 — DOCFRESH-001 **Merged via PR #3787**;
+DOCFRESH-002 **In Progress**. The D2 granularity split now lands: severity is
+the AND of confidence and granularity, so only an `owed` finding backed by a
+file-level upstream can reach ERROR. Glob upstreams are classified rather than
+discarded — the previous behaviour silently dropped the `scripts/release/*`
+declaration on `docs/runbooks/release-runbook.md`, making a real dependency
+invisible. Measured at that split: 83 owed = **62 gating + 21 advisory by
+granularity**, plus 10 review. The baseline narrows from 83 entries to 62,
+because only gate-eligible findings need absorbing.
+
+Per-item counts are left to the periodic reconcile (ADR-053); this change does
+not bump the module header or the index `N/M`.
+
+**Earlier — 2026-08-12** — ADR-119 **Accepted**, so the execution authority this
+module was waiting on now exists. The Draft hold recorded on 2026-08-11 is
+lifted: -002/-003/-004/-005/-007 promoted to **Ready**. DOCFRESH-006 stays Draft
+behind its -005 dependency, and DOCFRESH-008 stays Draft because it needs its
+own decision rather than execution.
 
 **Earlier — 2026-08-11** — Module created to execute
 [ADR-119](../decisions/119-documentation-freshness-from-declared-upstream.md).
@@ -89,7 +101,7 @@ release rather than `main`.
 
 ## Work Items
 
-### DOCFRESH-001: Promote the docs-owed prototype to a governed surface — In Progress
+### DOCFRESH-001: Promote the docs-owed prototype to a governed surface — Merged
 
 - **Intent:** Make the existing report-only probe a first-class `docs:check`
   surface so its output is trustworthy before anything depends on it.
@@ -103,9 +115,9 @@ release rather than `main`.
 - **Non-scope:** Any CI trigger change; any gating behaviour
 - **Validation:** `pnpm docs:check` reports 11/11 surfaces passed
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3787
 
-### DOCFRESH-002: Split findings by upstream granularity — Ready
+### DOCFRESH-002: Split findings by upstream granularity — In Progress
 
 - **Intent:** Ensure only claims precise enough to act on can ever turn a check
   red, per ADR-119 D2.
@@ -119,7 +131,7 @@ release rather than `main`.
 - **Validation:** `bash scripts/docs/docs-check.test.sh` — includes a
   directory-upstream fixture asserting WARN, never ERROR
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
 
 ### DOCFRESH-003: Move the trigger from docs-changed to upstream-changed — Ready
 

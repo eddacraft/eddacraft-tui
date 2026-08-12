@@ -448,7 +448,9 @@
     "docs/policies/editor-coexistence.md": [
       "upstream moved since review: crates/anvil-hook/src/coexistence.rs"
     ],
-    "docs/guides/anvil-rule-authoring.md": ["upstream moved since review: crates/anvil-checks/src"],
+    "docs/guides/anvil-rule-authoring.md": [
+      "upstream moved since review: patterns/compiled/registry.json"
+    ],
     "docs/guides/release-doc-checklist.md": [
       "upstream moved since review: docs/runbooks/release-runbook.md"
     ],
@@ -462,7 +464,9 @@
       "upstream moved since review: .github/workflows/release.yml"
     ],
     "docs/guides/adr-process.md": ["upstream moved since review: plans/decisions/DECISION-LOG.md"],
-    "docs/guides/cli-output-streams.md": ["upstream moved since review: docs/public/anvil"],
+    "docs/guides/cli-output-streams.md": [
+      "upstream moved since review: crates/anvil-kernel-types/src/diagnostics.rs"
+    ],
     "docs/guides/command-safety-configuration.md": [
       "upstream moved since review: docs/guides/command-safety.md"
     ],
@@ -493,7 +497,9 @@
     "docs/guides/feature-flag-reference.md": [
       "upstream moved since review: plans/modules/feature-flag-catalogue.aps.md"
     ],
-    "docs/policies/resource-budget.md": ["upstream moved since review: crates/anvil-bench"],
+    "docs/policies/resource-budget.md": [
+      "upstream moved since review: .github/workflows/resource-budget.yml"
+    ],
     "docs/runbooks/rollback-bad-candidate-artefact.md": [
       "upstream moved since review: .github/workflows/release-readiness.yml"
     ],
@@ -506,12 +512,8 @@
     "docs/guides/worktree-policy.md": [
       "upstream moved since review: docs/guides/branching-strategy.md"
     ],
-    "docs/architecture/adapter-packages-as-built.md": [
-      "upstream moved since review: crates/anvil-cli"
-    ],
-    "docs/architecture/capsule-as-built.md": ["upstream moved since review: crates/anvil-cli"],
     "docs/runbooks/github-device-flow.md": [
-      "upstream moved since review: apps/anvil-api/src/routes/auth-github-device.ts"
+      "upstream moved since review: apps/anvil-api/src/index.ts"
     ],
     "docs/runbooks/db-migrations.md": ["upstream moved since review: .github/workflows/infra.yml"],
     "docs/runbooks/emergency-hotfix.md": [
@@ -528,9 +530,11 @@
       "upstream moved since review: .github/workflows/security.yml"
     ],
     "docs/surveys/pack-coverage-quickstart.md": [
-      "upstream moved since review: crates/anvil-checks"
+      "upstream moved since review: patterns/compiled/registry.json"
     ],
-    "docs/surveys/pack-coverage-survey.md": ["upstream moved since review: crates/anvil-checks"],
+    "docs/surveys/pack-coverage-survey.md": [
+      "upstream moved since review: patterns/compiled/registry.json"
+    ],
     "docs/guides/architecture-diagrams.md": [
       "upstream moved since review: docs/architecture/overview.md"
     ],
@@ -543,42 +547,21 @@
     "docs/architecture/references/entire-branch-sidecar.md": [
       "upstream moved since review: plans/archive/modules/graph-v2-foundation.aps.md"
     ],
-    "docs/architecture/graph-context-delivery-spec.md": [
-      "upstream moved since review: crates/anvil-intercept-rules"
-    ],
-    "docs/architecture/cli-tui-runner-as-built.md": [
-      "upstream moved since review: crates/anvil-cli"
-    ],
-    "docs/architecture/tui-as-built.md": ["upstream moved since review: crates/anvil-tui"],
-    "docs/architecture/tutorial-as-built.md": ["upstream moved since review: crates/anvil-cli"],
-    "docs/architecture/widgets-as-built.md": ["upstream moved since review: crates/anvil-tui"],
-    "docs/architecture/api-as-built.md": ["upstream moved since review: apps/anvil-api"],
     "docs/architecture/auth-as-built.md": [
-      "upstream moved since review: apps/anvil-api/src/routes/auth-github-device.ts"
-    ],
-    "docs/architecture/checks-as-built.md": ["upstream moved since review: crates/anvil-checks"],
-    "docs/architecture/intercept-as-built.md": [
-      "upstream moved since review: crates/anvil-intercept"
+      "upstream moved since review: apps/anvil-api/src/db/queries.ts"
     ],
     "docs/guides/opa-policy-testing.md": [
-      "upstream moved since review: crates/anvil-policy-engine"
+      "upstream moved since review: plans/modules/opa-agent-orchestration.aps.md"
     ],
     "docs/guides/policy-validation.md": [
-      "upstream moved since review: crates/anvil-policy-engine/src/pack"
-    ],
-    "docs/guides/stack-migration.md": [
-      "upstream moved since review: packages/edda-stack/src/contracts"
+      "upstream moved since review: plans/archive/modules/policy-pack-validation.aps.md"
     ],
     "docs/guides/custom-architecture-policies.md": [
       "upstream moved since review: docs/runbooks/cli-surface.md"
     ],
     "docs/guides/testing.md": ["upstream moved since review: package.json"],
     "docs/reviews/cli-command-benchmark-tool-investigation.md": [
-      "upstream moved since review: crates/anvil-cli"
-    ],
-    "docs/guides/README.md": ["upstream moved since review: docs/guides"],
-    "docs/architecture/driver-framework-as-built.md": [
-      "upstream moved since review: crates/anvil-intercept-win32"
+      "upstream moved since review: crates/anvil-cli/src/main.rs"
     ],
     "docs/policies/release-cadence.md": ["upstream moved since review: plans/aps-rules.md"],
     "docs/guides/documentation-governance.md": ["upstream moved since review: AGENTS.md"],
@@ -592,28 +575,16 @@
     "docs/runbooks/observability-triage.md": [
       "upstream moved since review: docs/observability/namespace-registry.md"
     ],
-    "docs/runbooks/cli-surface.md": ["upstream moved since review: crates/anvil-cli/src/commands"],
-    "docs/observability/local-tracing.md": [
-      "upstream moved since review: crates/anvil-observability"
-    ],
-    "docs/strategy/beta-demo-script.md": ["upstream moved since review: docs/vision"],
+    "docs/runbooks/cli-surface.md": ["upstream moved since review: crates/anvil-cli/src/main.rs"],
     "docs/guides/agent-surface-inventory.md": ["upstream moved since review: AGENTS.md"],
-    "docs/runbooks/admin-cli.md": [
-      "upstream moved since review: plans/modules/continuous-improvement-backlog.aps.md"
-    ],
     "docs/runbooks/anvil-migrate.md": [
       "upstream moved since review: plans/archive/modules/distribution-and-update.aps.md"
-    ],
-    "docs/architecture/activation-as-built.md": ["upstream moved since review: crates/anvil-cli"],
-    "docs/architecture/mcp-shim-as-built.md": [
-      "upstream moved since review: crates/anvil-intercept"
     ],
     "docs/architecture/rust-mcp-server-spec.md": [
       "upstream moved since review: plans/modules/rust-mcp-full-port.aps.md"
     ],
-    "docs/guides/local-dashboard.md": ["upstream moved since review: apps/dashboard"],
     "docs/reviews/cli-command-truth-review.md": [
-      "upstream moved since review: crates/anvil-cli/src/commands"
+      "upstream moved since review: docs/runbooks/cli-surface.md"
     ],
     "docs/guides/continuous-improvement-log.md": [
       "upstream moved since review: plans/modules/continuous-improvement-backlog.aps.md"
@@ -621,13 +592,9 @@
     "docs/guides/adapters/workflow-guide.md": [
       "upstream moved since review: plans/modules/open-spec-adapter.aps.md"
     ],
-    "docs/reviews/shipped-codebase-review-checklist.md": [
-      "upstream moved since review: crates/anvil-cli/src/mcp"
-    ],
     "docs/runbooks/v0.7.0-beta-release-runbook.md": [
       "upstream moved since review: RELEASE-PLAN.md"
     ],
-    "docs/testing/benchmark-results.md": ["upstream moved since review: crates/anvil-bench"],
     "docs/architecture/anvil-architecture-evolution.md": [
       "upstream moved since review: docs/architecture/rust-kernel-spec.md"
     ],
