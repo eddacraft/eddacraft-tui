@@ -26,6 +26,12 @@ sha2 = "0.11"
 hex = "0.4"
 workspace-hack.workspace = true
 
+# O_NOFOLLOW open for capsule evidence reads (final-component symlink
+# refusal without a lstat→open TOCTOU window). Unix-only; Windows uses
+# a symlink_metadata pre-check (see verify.rs).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 jsonschema = { workspace = true }

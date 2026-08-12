@@ -1425,6 +1425,7 @@ dependencies = [
  "eddacraft-anvil-witness",
  "hex",
  "jsonschema 0.49.6",
+ "libc",
  "serde",
  "serde_json",
  "sha2 0.11.0",

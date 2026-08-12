@@ -86,42 +86,99 @@ enum CapsuleFileError {
 /// symlink. Capsule evidence must be package-local; a symlinked basename
 /// would let mutable external state stand in for recorded digests
 /// (basename validation alone is not enough — `std::fs::read` follows).
+///
+/// On Unix the open uses `O_NOFOLLOW` so a concurrent swap of a regular
+/// file for a symlink cannot race between a metadata check and the
+/// read. On non-Unix platforms we fall back to `symlink_metadata` then
+/// `read` (best-effort; same class as other capsule path guards).
 fn read_capsule_regular_file(path: &Path) -> Result<Vec<u8>, CapsuleFileError> {
     let name = path.file_name().map_or_else(
         || path.display().to_string(),
         |n| n.to_string_lossy().into_owned(),
     );
-    let meta = match std::fs::symlink_metadata(path) {
-        Ok(meta) => meta,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Err(CapsuleFileError::NotFound);
-        }
-        Err(e) => {
-            return Err(CapsuleFileError::Io {
-                detail: format!("cannot stat {name}: {e}"),
+
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let mut file = match std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)
+        {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(CapsuleFileError::NotFound);
+            }
+            // `O_NOFOLLOW` on a final-component symlink surfaces as ELOOP.
+            Err(e) if e.raw_os_error() == Some(libc::ELOOP) => {
+                return Err(CapsuleFileError::NonRegular {
+                    detail: format!("symlink refused: {name}"),
+                });
+            }
+            Err(e) => {
+                return Err(CapsuleFileError::Io {
+                    detail: format!("cannot open {name}: {e}"),
+                });
+            }
+        };
+        // Metadata from the open fd (not a second path lookup).
+        let meta = file.metadata().map_err(|e| CapsuleFileError::Io {
+            detail: format!("cannot stat {name}: {e}"),
+        })?;
+        if !meta.is_file() {
+            return Err(CapsuleFileError::NonRegular {
+                detail: format!("non-regular capsule file: {name}"),
             });
         }
-    };
-    let ft = meta.file_type();
-    if ft.is_symlink() {
-        return Err(CapsuleFileError::NonRegular {
-            detail: format!("symlink refused: {name}"),
-        });
-    }
-    if !meta.is_file() {
-        return Err(CapsuleFileError::NonRegular {
-            detail: format!("non-regular capsule file: {name}"),
-        });
-    }
-    std::fs::read(path).map_err(|e| {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            CapsuleFileError::NotFound
-        } else {
-            CapsuleFileError::Io {
-                detail: format!("cannot read {name}: {e}"),
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                CapsuleFileError::NotFound
+            } else {
+                CapsuleFileError::Io {
+                    detail: format!("cannot read {name}: {e}"),
+                }
             }
+        })?;
+        Ok(bytes)
+    }
+
+    #[cfg(not(unix))]
+    {
+        let meta = match std::fs::symlink_metadata(path) {
+            Ok(meta) => meta,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(CapsuleFileError::NotFound);
+            }
+            Err(e) => {
+                return Err(CapsuleFileError::Io {
+                    detail: format!("cannot stat {name}: {e}"),
+                });
+            }
+        };
+        let ft = meta.file_type();
+        if ft.is_symlink() {
+            return Err(CapsuleFileError::NonRegular {
+                detail: format!("symlink refused: {name}"),
+            });
         }
-    })
+        if !meta.is_file() {
+            return Err(CapsuleFileError::NonRegular {
+                detail: format!("non-regular capsule file: {name}"),
+            });
+        }
+        std::fs::read(path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                CapsuleFileError::NotFound
+            } else {
+                CapsuleFileError::Io {
+                    detail: format!("cannot read {name}: {e}"),
+                }
+            }
+        })
+    }
 }
 
 /// Build a single [`CheckResult`] from a worst-of verdict + joined
@@ -218,43 +275,35 @@ fn check_manifest_digests(capsule_dir: &Path, manifest: &CapsuleManifest) -> Che
 /// `witness-chain`: reuse `verify_chain_dag` over `witness.ndjson`.
 fn check_witness_chain(capsule_dir: &Path) -> CheckResult {
     let path = capsule_dir.join("witness.ndjson");
-    // Refuse a final-component symlink before handing the path to the
-    // witness verifier (which would otherwise open/follow it).
-    match std::fs::symlink_metadata(&path) {
-        Ok(meta) if meta.file_type().is_symlink() => {
-            return result(
-                CHECK_WITNESS,
-                Verdict::Block,
-                vec!["symlink refused: witness.ndjson".to_string()],
-            );
-        }
-        Ok(meta) if !meta.is_file() => {
-            return result(
-                CHECK_WITNESS,
-                Verdict::Block,
-                vec!["non-regular capsule file: witness.ndjson".to_string()],
-            );
-        }
-        Ok(_) => {}
-        // Absent is missing evidence; a stat error is a tool failure —
-        // `symlink_metadata` (not `exists`) so we never launder one into
-        // the other (council: `exists` swallows I/O errors as `false`).
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+    // Read via the O_NOFOLLOW-backed helper so a symlinked witness file
+    // is refused before any digest/semantic consumption. Stage the
+    // verified bytes to a private temp file for `verify_chain_dag`
+    // (which only accepts paths and would otherwise re-open/follow).
+    let bytes = match read_capsule_regular_file(&path) {
+        Ok(bytes) => bytes,
+        Err(CapsuleFileError::NotFound) => {
             return result(
                 CHECK_WITNESS,
                 Verdict::Degraded,
                 vec!["witness.ndjson absent".to_string()],
             );
         }
-        Err(e) => {
-            return result(
-                CHECK_WITNESS,
-                Verdict::Error,
-                vec![format!("cannot stat witness.ndjson: {e}")],
-            );
+        Err(CapsuleFileError::NonRegular { detail }) => {
+            return result(CHECK_WITNESS, Verdict::Block, vec![detail]);
         }
-    }
-    match anvil_witness::verify_chain_dag(&[path.as_path()]) {
+        Err(CapsuleFileError::Io { detail }) => {
+            return result(CHECK_WITNESS, Verdict::Error, vec![detail]);
+        }
+    };
+
+    let stage = match stage_bytes_for_verify("witness", &bytes) {
+        Ok(stage) => stage,
+        Err(detail) => {
+            return result(CHECK_WITNESS, Verdict::Error, vec![detail]);
+        }
+    };
+    let staged_path = stage.path();
+    match anvil_witness::verify_chain_dag(&[staged_path]) {
         Ok(report) if report.line_count == 0 => result(
             CHECK_WITNESS,
             Verdict::Degraded,
@@ -280,6 +329,39 @@ fn check_witness_chain(capsule_dir: &Path) -> CheckResult {
             Verdict::Block,
             vec![format!("witness chain broken: {e}")],
         ),
+    }
+}
+
+/// Write `bytes` to a private temp file that is removed on drop, so a
+/// path-only verifier cannot be pointed at a symlinked capsule leaf.
+fn stage_bytes_for_verify(label: &str, bytes: &[u8]) -> Result<StagedVerifyFile, String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let mut path = std::env::temp_dir();
+    path.push(format!(
+        "anvil-capsule-{label}-{}-{nanos}.tmp",
+        std::process::id()
+    ));
+    std::fs::write(&path, bytes).map_err(|e| format!("cannot stage {label} for verify: {e}"))?;
+    Ok(StagedVerifyFile { path })
+}
+
+/// Temp path that is unlinked on drop.
+struct StagedVerifyFile {
+    path: std::path::PathBuf,
+}
+
+impl StagedVerifyFile {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for StagedVerifyFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
     }
 }
 
