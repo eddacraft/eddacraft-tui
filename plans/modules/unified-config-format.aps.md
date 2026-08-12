@@ -295,7 +295,10 @@ Change status to **Ready** when:
 - **Validation:** unit tests for all topologies incl. `../`, absolute-path,
   symlink-escape, and self-reference rejection; alias-bearing and
   deeply-nested delegated-yaml fixtures; property/fuzz pass over the
-  delegation resolver
+  delegation resolver (committed as a seeded deterministic generator —
+  no cargo-fuzz dependency). Recorded narrowing: the "neither" topology
+  (absent/empty section) resolves to `Ok(None)`/inline — presence
+  requirements are the consuming item's contract (UCFG-007)
 - **Files:** `crates/anvil-config/src/delegation.rs`
 - **Confidence:** Medium — custom deserialisation across three formats
 - **Priority:** High
@@ -332,7 +335,9 @@ Change status to **Ready** when:
 - **Expected Outcome:** all architecture consumers work identically with
   inline or delegated config; delegated file edits are watched
 - **Validation:** existing architecture/gate/watch tests pass against both
-  topologies
+  topologies. UCFG-006 verifier note: `read_to_string_bounded` blocks on
+  FIFO targets (pre-existing class, cf. c0aed53f6) — add a file-type guard
+  when wiring real consumers
 - **Files:** `crates/anvil-cli/src/commands/{gate,watch,architecture}.rs`,
   `crates/anvil-architecture/src/yaml_parser.rs`
 - **Confidence:** Medium — gate.rs carries implicit config assumptions

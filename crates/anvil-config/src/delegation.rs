@@ -534,6 +534,53 @@ mod tests {
         assert!(matches!(err, DelegationError::Io { .. }), "{err}");
     }
 
+    /// Deterministic property pass (UCFG-006 validation): a seeded
+    /// generator composes hostile source strings from traversal,
+    /// absolute, separator, and control-character fragments. The
+    /// resolver must never panic and must never resolve outside the
+    /// workspace — every outcome is an error or a contained path.
+    #[test]
+    fn property_pass_hostile_sources_never_panic_or_escape() {
+        let f = Fixture::new();
+        f.write("ok.yaml", "layers: {}\n");
+        let fragments = [
+            "..", ".", "", "/", "\\", "a", "ok", ".anvil", "yaml", "C:", "\u{0}", "..\\", "../",
+            "./", "//", "file:", "~", "*", "ok.yaml",
+        ];
+        // xorshift64 — deterministic, no new deps, seeds recorded.
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..2000 {
+            let parts = 1 + usize::try_from(next() % 5).unwrap();
+            let mut raw = String::new();
+            for i in 0..parts {
+                if i > 0 {
+                    raw.push(if next() % 2 == 0 { '/' } else { '\\' });
+                }
+                let pick = usize::try_from(next() % fragments.len() as u64).unwrap();
+                raw.push_str(fragments[pick]);
+            }
+            let config = json!({"architecture": {"source": raw}});
+            match f.resolve(&config) {
+                Err(_) | Ok(None) => {}
+                Ok(Some(resolved)) => {
+                    if let SectionProvenance::Delegated { path, .. } = &resolved.provenance {
+                        let root = f.root().canonicalize().unwrap();
+                        assert!(
+                            path.starts_with(&root),
+                            "escaped workspace: {raw:?} -> {path:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// Inline and delegated spellings of the same section resolve to
     /// the same value (UCFG-007's resolved-equality contract, pinned
     /// here at the resolver).
