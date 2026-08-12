@@ -588,13 +588,16 @@ fn write_regular_file_nofollow(path: &Path, content: &[u8]) -> Result<()> {
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let leaf = path
-        .file_name()
-        .context("managed skill file path has no file name")?;
+    if path.file_name().is_none() {
+        bail!("managed skill file path has no file name");
+    }
     create_dir_all_nofollow(parent)?;
 
     #[cfg(unix)]
     {
+        let leaf = path
+            .file_name()
+            .context("managed skill file path has no file name")?;
         write_regular_file_nofollow_unix(parent, leaf, content)
     }
     #[cfg(not(unix))]
