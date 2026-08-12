@@ -264,7 +264,7 @@ jobs:
 
       # Separate cache namespace from rust-tests — llvm-cov instrumentation
       # flags must not share artefact slots with the non-instrumented gate.
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           shared-key: rust-coverage
           save-if:
@@ -381,7 +381,7 @@ jobs:
       # Per-target cache: nightly runs on the default branch, so the saved
       # cache is restorable by the next nightly. Keeps the 10x-billed macOS
       # legs warm instead of cold-building the workspace every night.
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           shared-key: cross-${{ matrix.target }}
 

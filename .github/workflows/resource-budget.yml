@@ -65,7 +65,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_call' && inputs.ref || github.sha }}
           fetch-depth: 0
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           # CI-cost 2026-07: this job builds RELEASE-profile artefacts (the
           # anvil binary + benches below) but used to restore the debug
@@ -220,7 +220,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_call' && inputs.ref || github.sha }}
           fetch-depth: 0
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           # Restore the release-profile cache saved by the push/schedule leg
           # above (dispatch-only job, so it never saves its own).

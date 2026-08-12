@@ -49,7 +49,7 @@ jobs:
         # the GitHub-hosted runners; install explicitly so the rustup
         # shim resolves to a real binary.
         run: rustup component add rust-analyzer || true
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           # CI-cost 2026-07: this job builds a RELEASE-profile anvil binary
           # but used to restore the debug `rust-ci` cache — which never
