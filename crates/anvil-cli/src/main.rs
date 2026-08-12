@@ -19,6 +19,7 @@ mod kindling_daemon_sink;
 #[cfg(feature = "kindling-embedded-runtime")]
 mod kindling_runtime;
 mod l4_engine;
+mod policy_load;
 mod mcp;
 mod output;
 mod plan_dashboard;

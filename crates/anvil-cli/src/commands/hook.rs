@@ -843,36 +843,7 @@ fn collect_witnessed_shas(
     Ok(out)
 }
 
-/// Load `anvil/policy.yml` (or `.yaml` / `.json` / `.toml`).
-///
-/// Returns `Ok(None)` when no policy file exists — the caller treats
-/// that as "this project hasn't opted into L4 enforcement" and skips
-/// the pre-push checks entirely. Errors are propagated so the caller
-/// can degrade to `InternalError` per Serena rule.
-fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
-    let candidates: &[(&str, ConfigFormat)] = &[
-        ("anvil/policy.yml", ConfigFormat::Yaml),
-        ("anvil/policy.yaml", ConfigFormat::Yaml),
-        ("anvil/policy.json", ConfigFormat::Json),
-        ("anvil/policy.toml", ConfigFormat::Toml),
-    ];
-    for (rel, format) in candidates {
-        let path = repo_root.join(rel);
-        if path.exists() {
-            // MLP2-063: refuse oversized policy files before
-            // `read_to_string` allocates the body. The shared bounded
-            // loader caps each policy file at
-            // `anvil_config::MAX_CONFIG_FILE_BYTES` (1 MiB), matching
-            // the bound `.anvil.*` parsing already enforces.
-            let raw = anvil_config::read_to_string_bounded(&path)
-                .with_context(|| format!("read {}", path.display()))?;
-            let policy = Policy::parse(&raw, *format, &path)
-                .with_context(|| format!("parse {}", path.display()))?;
-            return Ok(Some(policy));
-        }
-    }
-    Ok(None)
-}
+use crate::policy_load::load_policy;
 
 /// Walk the pushed range via `git rev-list` and return commit SHAs in
 /// new→old order. For `PushKind::Update` the range is
@@ -2598,25 +2569,10 @@ mod tests {
         assert_eq!(p.branches[0].pattern, "main");
     }
 
-    #[test]
-    fn load_policy_prefers_yml_over_other_extensions() {
-        // If multiple files exist, .yml wins per the candidate order
-        // — documented precedence so an accidental .json doesn't
-        // shadow the .yml a user is editing.
-        let (_tmp, root) = make_test_repo();
-        fs::write(
-            root.join("anvil").join("policy.yml"),
-            "branches:\n  - pattern: yml-wins\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
-        )
-        .unwrap();
-        fs::write(
-            root.join("anvil").join("policy.json"),
-            r#"{"branches":[{"pattern":"json-loses","require":"l4_or_l3","on_no_witness":"validate_at_l4"}]}"#,
-        )
-        .unwrap();
-        let p = load_policy(&root).unwrap().unwrap();
-        assert_eq!(p.branches[0].pattern, "yml-wins");
-    }
+    // Precedence tests live with the shared implementation in
+    // `crate::policy_load::tests` (UCFG-009): yaml-first per
+    // DISCOVER_PRECEDENCE, including the deliberate ADR-120 pt 6
+    // yaml-beats-yml flip.
 
     #[test]
     fn short_sha_truncates_to_twelve_chars() {

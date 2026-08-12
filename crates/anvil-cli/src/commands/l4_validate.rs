@@ -4,10 +4,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use anvil_config::ConfigFormat;
 use anvil_hook::is_hex_sha;
 use anvil_l4::{
-    BlockKind, CommitDecision, EngineUnavailableReason, OnWarn, Policy, Severity,
+    BlockKind, CommitDecision, EngineUnavailableReason, OnWarn, Severity,
     ValidationDiagnostic, ValidationEngine, ValidationVerdict, request_for,
 };
 use anvil_witness::{verify_chain_dag, witness_paths};
@@ -271,30 +270,7 @@ fn read_project_id(repo_root: &Path) -> Option<String> {
         .map(|s| s.trim().to_owned())
 }
 
-/// Load `anvil/policy.{yml,yaml,json,toml}` if present.
-fn load_policy(repo_root: &Path) -> Result<Option<Policy>> {
-    let candidates: &[(&str, ConfigFormat)] = &[
-        ("anvil/policy.yml", ConfigFormat::Yaml),
-        ("anvil/policy.yaml", ConfigFormat::Yaml),
-        ("anvil/policy.json", ConfigFormat::Json),
-        ("anvil/policy.toml", ConfigFormat::Toml),
-    ];
-    for (rel, format) in candidates {
-        let path = repo_root.join(rel);
-        if path.exists() {
-            // MLP2-063: refuse oversized policy files before
-            // `read_to_string` allocates the body. Shares the bounded
-            // loader with the pre-push hook so both L4 surfaces honour
-            // `anvil_config::MAX_CONFIG_FILE_BYTES`.
-            let raw = anvil_config::read_to_string_bounded(&path)
-                .with_context(|| format!("read {}", path.display()))?;
-            let policy = Policy::parse(&raw, *format, &path)
-                .with_context(|| format!("parse {}", path.display()))?;
-            return Ok(Some(policy));
-        }
-    }
-    Ok(None)
-}
+use crate::policy_load::load_policy;
 
 /// MLP2-062: build the witness path list (archive segments first in
 /// lexicographic order, then `active.ndjson` if present) and run the

@@ -114,6 +114,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_git_repo(),
         check_config_exists(),
         check_config_valid(),
+        check_policy_variants(),
         check_anvil_dir(),
         check_anvil_dir_writable(),
         check_plans_dir(),
@@ -276,6 +277,60 @@ fn check_config_exists_in(root: &Path) -> DiagnosticCheck {
                 command: None,
                 doc_url: None,
             },
+        },
+    }
+}
+
+fn check_policy_variants() -> DiagnosticCheck {
+    check_policy_variants_in(Path::new("."))
+}
+
+/// UCFG-009 / ADR-120 pt 6: multiple `anvil/policy.<ext>` variants are an
+/// ambiguous state — only the first per `DISCOVER_PRECEDENCE` (yaml-first)
+/// is enforced. Warn naming the winner so a stale duplicate cannot
+/// silently shadow the file an operator is editing.
+fn check_policy_variants_in(root: &Path) -> DiagnosticCheck {
+    let variants = crate::policy_load::policy_variants(root);
+    let (status, message, details) = if variants.len() > 1 {
+        let names: Vec<String> = variants
+            .iter()
+            .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
+            .collect();
+        (
+            CheckStatus::Warn,
+            format!(
+                "multiple anvil policy files found; {} wins (yaml-first precedence)",
+                names[0]
+            ),
+            Some(format!(
+                "present: {} — remove the shadowed variant(s) so the enforced policy is unambiguous",
+                names.join(", ")
+            )),
+        )
+    } else {
+        (
+            CheckStatus::Pass,
+            match variants.first() {
+                Some(p) => format!(
+                    "{} is the single policy file",
+                    p.file_name().and_then(|n| n.to_str()).unwrap_or("policy")
+                ),
+                None => "no anvil/policy.* file (L4 enforcement not opted in)".to_string(),
+            },
+            None,
+        )
+    };
+    DiagnosticCheck {
+        name: "policy-variants".to_string(),
+        category: "Configuration".to_string(),
+        status,
+        message,
+        details,
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "Keep exactly one anvil/policy.<ext>; delete shadowed duplicates.".to_string(),
+            command: None,
+            doc_url: None,
         },
     }
 }
@@ -2189,6 +2244,41 @@ mod tests {
             assert!(!check.remediation.summary.is_empty());
             assert!(check.auto_fixable);
         });
+    }
+
+    #[test]
+    fn policy_variants_multi_warns_naming_yaml_winner() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("anvil")).unwrap();
+        std::fs::write(tmp.path().join("anvil/policy.yml"), "a: 1\n").unwrap();
+        std::fs::write(tmp.path().join("anvil/policy.yaml"), "a: 1\n").unwrap();
+        let check = check_policy_variants_in(tmp.path());
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check.message.contains("policy.yaml wins"),
+            "must name the yaml-first winner, got: {}",
+            check.message
+        );
+        assert!(
+            check
+                .details
+                .as_deref()
+                .is_some_and(|d| d.contains("policy.yml")),
+            "details must list the shadowed variant"
+        );
+    }
+
+    #[test]
+    fn policy_variants_single_or_absent_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let absent = check_policy_variants_in(tmp.path());
+        assert_eq!(absent.status, CheckStatus::Pass);
+
+        std::fs::create_dir_all(tmp.path().join("anvil")).unwrap();
+        std::fs::write(tmp.path().join("anvil/policy.yml"), "a: 1\n").unwrap();
+        let single = check_policy_variants_in(tmp.path());
+        assert_eq!(single.status, CheckStatus::Pass);
+        assert!(single.message.contains("policy.yml"));
     }
 
     #[test]

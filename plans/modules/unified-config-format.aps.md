@@ -345,7 +345,7 @@ Change status to **Ready** when:
 
 #### UCFG-009: policy discovery via anvil_config::discover
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** replace the hand-rolled `anvil/policy.*` candidate lists in
   `hook.rs` and `l4_validate.rs` with `anvil_config::discover`. One
   deliberate behaviour change (ADR-120 pt 6): the hand-rolled lists are
