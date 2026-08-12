@@ -104,6 +104,20 @@ pub enum VerifyError {
         /// Human-readable actual state, e.g. `"present"` or `"absent"`.
         actual: &'static str,
     },
+    /// A later line's `project_uuid` differs from the chain's first
+    /// walked identity. The witness chain is a single-project ledger
+    /// (ADR-036 / line docs): mid-stream identity switches must not
+    /// verify as healthy.
+    #[error(
+        "project identity mismatch at {path}:{line_number}: \
+         expected project_uuid {expected}, got {actual}"
+    )]
+    ProjectUuidMismatch {
+        path: PathBuf,
+        line_number: usize,
+        expected: String,
+        actual: String,
+    },
 }
 
 /// Summary returned by a successful [`verify_chain`] call.
@@ -183,13 +197,15 @@ impl From<&DagVerification> for ChainReport {
 ///
 /// Detects the same anomalies the legacy linear verifier did
 /// (`ChainBreak`, `SequenceGap`, `StrayGenesis`, `UnknownGenesis`)
-/// plus two new ones:
+/// plus:
 ///
 /// - [`VerifyError::OrphanMerge`] — a merge line cites a parent hash
 ///   that doesn't appear in any earlier line.
 /// - [`VerifyError::MergeParentArityMismatch`] — the merge line's
 ///   `parent_commits[]` and `prev_line_hashes[]` arrays disagree in
 ///   length.
+/// - [`VerifyError::ProjectUuidMismatch`] — a later line's
+///   `project_uuid` differs from the first walked line's identity.
 ///
 /// `prev_line_hashes[i] = None` is **not** an error: per
 /// [`crate::WitnessLine`] the writer records `None` when a parent
@@ -231,6 +247,9 @@ struct WalkState {
     // merge parent references against any earlier witness, not just
     // the running tip.
     index: HashMap<String, u64>,
+    /// `project_uuid` of the first walked line. Every subsequent line
+    /// must match; mid-chain identity switches are rejected.
+    project_uuid: Option<String>,
 }
 
 impl WalkState {
@@ -261,6 +280,7 @@ fn walk_line(
 
     check_linear_edge(state, path, line_number, &line)?;
     check_sequence(state, path, line_number, &line)?;
+    check_project_identity(state, path, line_number, &line)?;
     check_merge_edges(state, path, line_number, &line)?;
 
     // Re-canonicalise the parsed line and update the tip + index. We
@@ -320,6 +340,33 @@ fn check_linear_edge(
         });
     }
     Ok(())
+}
+
+/// Enforce a single `project_uuid` across the whole chain.
+///
+/// The first walked line pins the chain identity. Every later line
+/// must carry the same value; a correctly hash-linked mid-stream
+/// switch must not verify as healthy (witness is a single-project
+/// ledger per ADR-036 / `WitnessLine::project_uuid` docs).
+fn check_project_identity(
+    state: &mut WalkState,
+    path: &Path,
+    line_number: usize,
+    line: &WitnessLine,
+) -> Result<(), VerifyError> {
+    match &state.project_uuid {
+        None => {
+            state.project_uuid = Some(line.project_uuid.clone());
+            Ok(())
+        }
+        Some(expected) if expected == &line.project_uuid => Ok(()),
+        Some(expected) => Err(VerifyError::ProjectUuidMismatch {
+            path: path.to_path_buf(),
+            line_number,
+            expected: expected.clone(),
+            actual: line.project_uuid.clone(),
+        }),
+    }
 }
 
 /// Enforce ADR-037 §D-2 / MLP2-013 pairing of genesis anchors with
@@ -1028,5 +1075,55 @@ mod tests {
             }
             other => panic!("expected NonLinearChainInLegacyVerifier, got {other:?}"),
         }
+    }
+
+    /// Regression (clawpatch witness project-identity finding): a
+    /// hash-intact chain that switches `project_uuid` mid-stream must
+    /// not verify. The first walked line pins the chain identity.
+    #[test]
+    fn verify_chain_dag_rejects_project_uuid_switch_mid_chain() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("witness.ndjson");
+        let uuid_a = "01997e4a-1b2c-7345-8901-abcdef123456";
+        let uuid_b = "01997e4a-ffff-7345-8901-abcdef123456";
+
+        let l1 = line(1, GenesisAnchor::Fresh.anchor_string());
+        assert_eq!(l1.project_uuid, uuid_a);
+        let h1 = compute_line_hash(&l1.to_canonical_bytes().unwrap());
+
+        let mut l2 = line(2, &h1);
+        l2.project_uuid = uuid_b.to_string();
+
+        let mut bytes = l1.to_ndjson_line().unwrap();
+        bytes.extend_from_slice(&l2.to_ndjson_line().unwrap());
+        fs::write(&path, bytes).unwrap();
+
+        let err = verify_chain_dag(&[path.as_path()]).unwrap_err();
+        match err {
+            VerifyError::ProjectUuidMismatch {
+                line_number,
+                expected,
+                actual,
+                ..
+            } => {
+                assert_eq!(line_number, 2);
+                assert_eq!(expected, uuid_a);
+                assert_eq!(actual, uuid_b);
+            }
+            other => panic!("expected ProjectUuidMismatch, got {other:?}"),
+        }
+    }
+
+    /// Companion: a multi-line chain that keeps a constant
+    /// `project_uuid` still verifies (identity enforcement must not
+    /// break healthy chains).
+    #[test]
+    fn verify_chain_dag_accepts_constant_project_uuid() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        write_chain(&writer, 4);
+        let v = verify_chain_dag(&[writer.active_path().as_path()]).unwrap();
+        assert_eq!(v.line_count, 4);
+        assert_eq!(v.anchor, Some(GenesisAnchor::Fresh));
     }
 }
