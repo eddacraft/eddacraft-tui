@@ -49,6 +49,9 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), std::io::E
     // rename fails if the destination exists — use backup-then-replace so a
     // failed install can restore the previous content instead of deleting it
     // first (clawpatch: data-loss on persist failure).
+    // No `return`: once the other arm is cfg-stripped this block is the
+    // function's tail expression, so `return` here trips `needless_return`
+    // on a Windows build.
     #[cfg(windows)]
     {
         let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("file");
@@ -57,7 +60,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), std::io::E
         // Defuse TempPath cleanup so we own the staging path through the
         // backup-replace helper (which removes it on both success and failure).
         let staging = tmp_path.keep().map_err(|e| e.error)?;
-        return replace_existing_via_backup(&staging, path, &backup_path);
+        replace_existing_via_backup(&staging, path, &backup_path)
     }
 
     #[cfg(not(windows))]
