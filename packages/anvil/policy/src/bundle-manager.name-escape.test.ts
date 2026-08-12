@@ -194,8 +194,9 @@ describe('BundleManager — bundle name path escape (issue #1826)', () => {
     const result = await poisoned.downloadBundle('safe-name');
     // Must never hand the escaped path to callers as a trusted bundle dir.
     expect(result.path).not.toBe(outside);
-    if (result.success && result.path) {
-      expect(result.path === inside || result.path.startsWith(cacheDir + '/')).toBe(true);
+    if (result.success) {
+      // Canonical cacheDir/<name> after the confinement fix.
+      expect(result.path).toBe(inside);
     }
   });
 
@@ -265,8 +266,9 @@ describe('BundleManager — bundle name path escape (issue #1826)', () => {
 
       const result = await poisoned.downloadBundle('safe-304');
       expect(result.path).not.toBe(outside);
-      if (result.success && result.path) {
-        expect(result.path === inside || result.path.startsWith(cacheDir + '/')).toBe(true);
+      if (result.success) {
+        // Canonical cacheDir/<name> after the confinement fix.
+        expect(result.path).toBe(inside);
       }
     } finally {
       await new Promise<void>((resolve, reject) => {
