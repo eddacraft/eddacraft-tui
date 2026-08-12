@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
 use crate::auth::client::{
-    ApiError, AuditResponse, EmailSendResponse, EmailUpdateResponse, FleetOverviewResponse,
-    MigrationPreviewResponse, MigrationSendResponse, NameUpdateResponse, RevokeResponse,
-    ShowUserResponse, UsersEngagementResponse, WaitlistResponse,
+    AccountActivityResponse, ApiError, AuditResponse, EmailSendResponse, EmailUpdateResponse,
+    FleetOverviewResponse, MigrationPreviewResponse, MigrationSendResponse, NameUpdateResponse,
+    RevokeResponse, ShowUserResponse, UsersEngagementResponse, WaitlistResponse,
 };
 use crate::output::AuthRequired;
 
@@ -74,6 +74,20 @@ enum AdminCommand {
 
     /// Show active installs, distributions, adoption, and retention cohorts
     Fleet,
+
+    /// Show named-account DAA/WAA/MAA activity metrics (BACT-009)
+    ///
+    /// Reports accounts, never installs — distinct from `anvil admin fleet`,
+    /// which reports anonymous FLEET installs (DAI).
+    Activity {
+        /// Filter to one account plan (today only `beta`)
+        #[arg(long)]
+        plan: Option<String>,
+
+        /// Quiet-cohort window in days (default 30)
+        #[arg(long = "idle-days", value_parser = clap::value_parser!(u32).range(1..=365))]
+        idle_days: Option<u32>,
+    },
 
     /// Revoke all tokens for an email or one raw token
     Revoke {
@@ -791,6 +805,12 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
                 print_fleet_overview(&result);
             }
         }
+        AdminCommand::Activity { plan, idle_days } => {
+            let result = rt.block_on(client.get_account_activity(plan.as_deref(), *idle_days))?;
+            if !render_json(&result, global.json)? {
+                print_account_activity(&result);
+            }
+        }
         AdminCommand::Revoke { email, token, yes } => {
             let target = email.as_ref().map_or_else(
                 || "the supplied token".to_string(),
@@ -1099,6 +1119,7 @@ fn print_user(result: &ShowUserResponse) {
     println!("name:       {}", result.user.name.as_deref().unwrap_or("-"));
     println!("status:     {}", result.user.status);
     println!("id:         {}", result.user.id);
+    println!("plan:       {}", result.user.plan.as_deref().unwrap_or("-"));
     println!("created:    {}", date_only(&result.user.created_at));
     println!("updated:    {}", date_only(&result.user.updated_at));
     match result.user.first_login_at.as_deref() {
@@ -1114,6 +1135,22 @@ fn print_user(result: &ShowUserResponse) {
                 result.user.last_login_method.as_deref().unwrap_or("-")
             );
         }
+    }
+    // BACT-008/009 (ADR-121): last_activity_at is a distinct stamp from the
+    // login fields above — it also advances on session refresh and
+    // feature-touch, so it can be set even when login stamps show "never
+    // logged in" (token-era users).
+    match result.user.last_activity_at.as_deref() {
+        None => println!("last activity: none (never active)"),
+        Some(activity) => println!(
+            "last activity: {} ({})",
+            date_only(activity),
+            result
+                .user
+                .last_activity_kind
+                .as_deref()
+                .unwrap_or("unknown")
+        ),
     }
     if let Some(notes) = &result.user.notes {
         println!("notes:      {notes}");
@@ -1162,6 +1199,37 @@ fn print_user(result: &ShowUserResponse) {
 
 fn print_fleet_overview(result: &FleetOverviewResponse) {
     print!("{}", fleet_overview_text(result));
+}
+
+fn print_account_activity(result: &AccountActivityResponse) {
+    print!("{}", account_activity_text(result));
+}
+
+fn account_activity_text(result: &AccountActivityResponse) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "ACCOUNT ACTIVITY (as of {})", result.as_of);
+    let _ = writeln!(
+        out,
+        "plan filter: {}",
+        result.plan.as_deref().unwrap_or("all")
+    );
+    let _ = writeln!(out, "total accounts: {}", result.total_accounts);
+    let _ = writeln!(out, "\nACTIVE ACCOUNTS (DAA/WAA/MAA)");
+    let _ = writeln!(out, "  daily (DAA):   {}", result.active_accounts.daily);
+    let _ = writeln!(out, "  weekly (WAA):  {}", result.active_accounts.weekly);
+    let _ = writeln!(out, "  monthly (MAA): {}", result.active_accounts.monthly);
+    let _ = writeln!(out, "\nnever active: {}", result.never_active);
+    let _ = writeln!(
+        out,
+        "quiet (idle {} days): {}",
+        result.quiet.idle_days, result.quiet.count
+    );
+    let _ = writeln!(
+        out,
+        "\nUnit: {}\n{}\n{}",
+        result.notes.unit, result.notes.activity_definition, result.notes.comparison_note
+    );
+    out
 }
 
 fn fleet_overview_text(result: &FleetOverviewResponse) -> String {
@@ -1757,6 +1825,103 @@ mod tests {
     fn args_parses_fleet() {
         let w = Wrapper::try_parse_from(["test", "fleet"]).unwrap();
         assert!(matches!(w.inner.command, AdminCommand::Fleet));
+    }
+
+    #[test]
+    fn args_parses_activity_with_no_flags() {
+        let w = Wrapper::try_parse_from(["test", "activity"]).unwrap();
+        match w.inner.command {
+            AdminCommand::Activity { plan, idle_days } => {
+                assert_eq!(plan, None);
+                assert_eq!(idle_days, None);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn args_parses_activity_with_plan_and_idle_days() {
+        let w =
+            Wrapper::try_parse_from(["test", "activity", "--plan", "beta", "--idle-days", "14"])
+                .unwrap();
+        match w.inner.command {
+            AdminCommand::Activity { plan, idle_days } => {
+                assert_eq!(plan.as_deref(), Some("beta"));
+                assert_eq!(idle_days, Some(14));
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn args_rejects_activity_idle_days_outside_supported_range() {
+        let low = Wrapper::try_parse_from(["test", "activity", "--idle-days", "0"]).unwrap_err();
+        assert_ne!(low.exit_code(), 0);
+
+        let high = Wrapper::try_parse_from(["test", "activity", "--idle-days", "366"]).unwrap_err();
+        assert_ne!(high.exit_code(), 0);
+    }
+
+    fn account_activity_response() -> AccountActivityResponse {
+        AccountActivityResponse {
+            schema_version: "anvil.account-activity.v1".to_string(),
+            as_of: "2026-08-13T12:00:00.000Z".to_string(),
+            plan: Some("beta".to_string()),
+            total_accounts: 4,
+            active_accounts: crate::auth::client::AccountActivityWindow {
+                daily: 1,
+                weekly: 2,
+                monthly: 3,
+            },
+            never_active: 1,
+            quiet: crate::auth::client::AccountActivityQuiet {
+                idle_days: 30,
+                count: 2,
+            },
+            notes: crate::auth::client::AccountActivityNotes {
+                unit: "accounts".to_string(),
+                activity_definition: "last_activity_at set by login, refresh, or feature-touch"
+                    .to_string(),
+                comparison_note: "DAA is never comparable to FLEET DAI".to_string(),
+            },
+        }
+    }
+
+    #[test]
+    fn account_activity_human_output_labels_daa_waa_maa_and_plan_filter() {
+        let rendered = account_activity_text(&account_activity_response());
+
+        assert!(rendered.contains("ACCOUNT ACTIVITY (as of 2026-08-13T12:00:00.000Z)"));
+        assert!(rendered.contains("plan filter: beta"));
+        assert!(rendered.contains("total accounts: 4"));
+        assert!(rendered.contains("daily (DAA):   1"));
+        assert!(rendered.contains("weekly (WAA):  2"));
+        assert!(rendered.contains("monthly (MAA): 3"));
+        assert!(rendered.contains("never active: 1"));
+        assert!(rendered.contains("quiet (idle 30 days): 2"));
+        assert!(rendered.contains("Unit: accounts"));
+        assert!(rendered.contains("DAA is never comparable to FLEET DAI"));
+        // Labels must say accounts, never installs.
+        assert!(!rendered.to_lowercase().contains("install"));
+    }
+
+    #[test]
+    fn account_activity_human_output_shows_all_when_no_plan_filter() {
+        let mut response = account_activity_response();
+        response.plan = None;
+        let rendered = account_activity_text(&response);
+        assert!(rendered.contains("plan filter: all"));
+    }
+
+    #[test]
+    fn account_activity_response_serialises_stable_camel_case_contract() {
+        let value = serde_json::to_value(account_activity_response()).unwrap();
+        assert_eq!(value["schemaVersion"], "anvil.account-activity.v1");
+        assert_eq!(value["plan"], "beta");
+        assert_eq!(value["activeAccounts"]["daily"], 1);
+        assert_eq!(value["neverActive"], 1);
+        assert_eq!(value["quiet"]["idleDays"], 30);
+        assert_eq!(value["notes"]["unit"], "accounts");
     }
 
     #[test]

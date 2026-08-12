@@ -160,6 +160,48 @@ pub struct FleetNotes {
     pub data_quality: String,
 }
 
+/// BACT-009 (ADR-121): named-account activity metrics — DAA/WAA/MAA windows
+/// over `last_activity_at`, optional `plan` filter, never-active/quiet
+/// cohorts. Distinct from `FleetOverviewResponse` (anonymous installs);
+/// never sum or compare the two.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountActivityResponse {
+    pub schema_version: String,
+    pub as_of: String,
+    /// `None` = no plan filter applied (all plans). Always present in the
+    /// response body as an explicit `null` or string — this endpoint has no
+    /// pre-BACT-009 server shape to stay tolerant of.
+    pub plan: Option<String>,
+    pub total_accounts: u64,
+    pub active_accounts: AccountActivityWindow,
+    pub never_active: u64,
+    pub quiet: AccountActivityQuiet,
+    pub notes: AccountActivityNotes,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct AccountActivityWindow {
+    pub daily: u64,
+    pub weekly: u64,
+    pub monthly: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountActivityQuiet {
+    pub idle_days: u32,
+    pub count: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountActivityNotes {
+    pub unit: String,
+    pub activity_definition: String,
+    pub comparison_note: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ShowUserResponse {
@@ -187,6 +229,17 @@ pub struct ShowUser {
     pub last_login_at: Option<String>,
     #[serde(default)]
     pub last_login_method: Option<String>,
+    /// BACT-008/009 (ADR-121): durable account plan name (today only
+    /// `beta`). `None` when talking to a pre-BACT-008 server.
+    #[serde(default)]
+    pub plan: Option<String>,
+    /// BACT-008/009: last login, session-refresh, or feature-touch stamp.
+    /// `None` when talking to a pre-BACT-008 server, or for an account that
+    /// has never been active (invite/approve alone does not stamp this).
+    #[serde(default)]
+    pub last_activity_at: Option<String>,
+    #[serde(default)]
+    pub last_activity_kind: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -513,6 +566,24 @@ impl AnvilClient {
 
     pub async fn get_fleet_overview(&self) -> Result<FleetOverviewResponse> {
         self.get("/admin/fleet").await
+    }
+
+    /// BACT-009: named-account DAA/WAA/MAA window metrics, optional `plan`
+    /// filter, never-active/quiet cohorts. `idle_days` sets the quiet
+    /// window (server default 30 when omitted).
+    pub async fn get_account_activity(
+        &self,
+        plan: Option<&str>,
+        idle_days: Option<u32>,
+    ) -> Result<AccountActivityResponse> {
+        let mut query = Vec::new();
+        if let Some(plan) = plan {
+            query.push(("plan", plan.to_string()));
+        }
+        if let Some(days) = idle_days {
+            query.push(("idleDays", days.to_string()));
+        }
+        self.get_with_query("/admin/activity", &query).await
     }
 
     pub async fn revoke_email(&self, email: &str) -> Result<RevokeResponse> {
@@ -1229,6 +1300,153 @@ mod tests {
         let client = mock_client(&server.uri(), Some("admin-key"));
         let result = client.get_user("a+b@example.com").await.unwrap();
         assert_eq!(result.user.email, "a+b@example.com");
+    }
+
+    #[tokio::test]
+    async fn get_user_surfaces_plan_and_last_activity() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/v1/admin/user/alice%40example.com"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "user": {
+                    "id": "u1",
+                    "email": "alice@example.com",
+                    "name": null,
+                    "status": "active",
+                    "notes": null,
+                    "plan": "beta",
+                    "last_activity_at": "2026-08-12T09:00:00.000Z",
+                    "last_activity_kind": "refresh",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-02T00:00:00Z"
+                },
+                "tokens": [],
+                "recentAudit": []
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let result = client.get_user("alice@example.com").await.unwrap();
+        assert_eq!(result.user.plan.as_deref(), Some("beta"));
+        assert_eq!(
+            result.user.last_activity_at.as_deref(),
+            Some("2026-08-12T09:00:00.000Z")
+        );
+        assert_eq!(result.user.last_activity_kind.as_deref(), Some("refresh"));
+    }
+
+    #[tokio::test]
+    async fn get_user_tolerates_pre_bact_008_server_missing_plan_and_activity() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/api/v1/admin/user/alice%40example.com"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "user": {
+                    "id": "u1",
+                    "email": "alice@example.com",
+                    "name": null,
+                    "status": "active",
+                    "notes": null,
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-02T00:00:00Z"
+                },
+                "tokens": [],
+                "recentAudit": []
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let result = client.get_user("alice@example.com").await.unwrap();
+        assert_eq!(result.user.plan, None);
+        assert_eq!(result.user.last_activity_at, None);
+        assert_eq!(result.user.last_activity_kind, None);
+    }
+
+    #[tokio::test]
+    async fn get_account_activity_uses_admin_path_and_preserves_json_contract() {
+        let server = MockServer::start().await;
+        let body = serde_json::json!({
+            "schemaVersion": "anvil.account-activity.v1",
+            "asOf": "2026-08-13T12:00:00.000Z",
+            "plan": null,
+            "totalAccounts": 4,
+            "activeAccounts": { "daily": 1, "weekly": 2, "monthly": 3 },
+            "neverActive": 1,
+            "quiet": { "idleDays": 30, "count": 2 },
+            "notes": {
+                "unit": "accounts",
+                "activityDefinition": "last_activity_at set by login, refresh, or feature-touch",
+                "comparisonNote": "DAA is never comparable to FLEET DAI"
+            }
+        });
+
+        Mock::given(method("GET"))
+            .and(path("/api/v1/admin/activity"))
+            .and(header("authorization", "Bearer admin-key"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&body))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let result = client.get_account_activity(None, None).await.unwrap();
+
+        assert_eq!(result.schema_version, "anvil.account-activity.v1");
+        assert_eq!(result.total_accounts, 4);
+        assert_eq!(result.active_accounts.daily, 1);
+        assert_eq!(result.never_active, 1);
+        assert_eq!(result.quiet.count, 2);
+        assert_eq!(serde_json::to_value(result).unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn get_account_activity_sends_plan_and_idle_days_query_params() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/admin/activity"))
+            .and(query_param("plan", "beta"))
+            .and(query_param("idleDays", "14"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "schemaVersion": "anvil.account-activity.v1",
+                "asOf": "2026-08-13T12:00:00.000Z",
+                "plan": "beta",
+                "totalAccounts": 0,
+                "activeAccounts": { "daily": 0, "weekly": 0, "monthly": 0 },
+                "neverActive": 0,
+                "quiet": { "idleDays": 14, "count": 0 },
+                "notes": {
+                    "unit": "accounts",
+                    "activityDefinition": "x",
+                    "comparisonNote": "y"
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let result = client
+            .get_account_activity(Some("beta"), Some(14))
+            .await
+            .unwrap();
+        assert_eq!(result.plan.as_deref(), Some("beta"));
+        assert_eq!(result.quiet.idle_days, 14);
+    }
+
+    #[tokio::test]
+    async fn get_account_activity_maps_forbidden_to_auth_required() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/admin/activity"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("bad-key"));
+        let err = client.get_account_activity(None, None).await.unwrap_err();
+        assert!(err.is::<crate::output::AuthRequired>());
     }
 
     #[tokio::test]
