@@ -93,6 +93,84 @@ fn mcp_verify_refuses_a_config_symlinked_outside_the_selected_root() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("symlink outside selected root"));
 }
 
+/// Regression for parent-directory swap / symlink redirect on the MCP write
+/// path: a checked config parent replaced by an outside symlink must refuse
+/// without creating or modifying the external target.
+#[cfg(unix)]
+#[test]
+fn mcp_install_refuses_symlinked_parent_without_writing_outside() {
+    use std::os::unix::fs::symlink;
+
+    let outside = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    // Plant `.cursor` as a symlink to an outside directory before install.
+    // Models the post-validation parent swap (race) as a pre-write state the
+    // no-follow write primitive must still refuse closed.
+    symlink(outside.path(), root.path().join(".cursor")).unwrap();
+
+    let output = run_mcp(
+        root.path(),
+        &["install", "--client", "cursor", "--scope", "project"],
+    );
+
+    assert!(
+        !output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("symlink"),
+        "stderr should identify symlink refusal: {stderr}"
+    );
+    assert!(
+        fs::read_dir(outside.path()).unwrap().next().is_none(),
+        "must not create or modify files outside the selected root"
+    );
+    assert!(!root.path().join(".cursor/mcp.json").exists());
+}
+
+/// Hits the legacy `write_target_config` path (`--transport http`), which
+/// is separate from the registry installer used for stdio.
+#[cfg(unix)]
+#[test]
+fn mcp_config_http_write_refuses_symlinked_cursor_parent_without_writing_outside() {
+    use std::os::unix::fs::symlink;
+
+    let outside = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    symlink(outside.path(), root.path().join(".cursor")).unwrap();
+
+    let output = run(
+        root.path(),
+        &[
+            "--target",
+            "cursor",
+            "--transport",
+            "http",
+            "--write",
+            "--yes",
+        ],
+    );
+
+    assert!(
+        !output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("symlink"),
+        "stderr should identify symlink refusal: {stderr}"
+    );
+    assert!(
+        fs::read_dir(outside.path()).unwrap().next().is_none(),
+        "must not create or modify files outside the selected workspace"
+    );
+}
+
 #[cfg(unix)]
 fn run_mcp_from(cwd: &std::path::Path, extra: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(ANVIL_BIN);

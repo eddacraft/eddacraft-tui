@@ -7,7 +7,7 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Map, Value, json};
 
 use crate::activation::agent_registry::{AgentClientId, InstallScope, McpConfigKind};
-use crate::util::atomic_write;
+use crate::util::atomic_write_nofollow;
 
 const SERVER_NAME: &str = "anvil";
 const STDIO_ARGS: &[&str] = &["mcp", "serve", "--stdio"];
@@ -118,12 +118,18 @@ pub(crate) fn install(
         });
     }
 
+    // No-follow parent creation + revalidation closes the race where a
+    // checked component is swapped for an outside symlink between the
+    // initial ensure_safe_target and the write.
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
+        crate::util::create_dir_all_nofollow(parent)
             .with_context(|| format!("creating directory {}", parent.display()))?;
     }
+    ensure_safe_target(root, &path)?;
     let rendered = merge_document(kind, &path, entry.clone())?;
-    atomic_write(&path, rendered.as_bytes())
+    // Parent-fd-pinned atomic write: tempfile + rename cannot follow a
+    // concurrent parent-directory swap.
+    atomic_write_nofollow(&path, rendered.as_bytes())
         .with_context(|| format!("writing MCP config {}", path.display()))?;
 
     Ok(InstallReport {

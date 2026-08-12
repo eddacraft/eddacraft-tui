@@ -16,7 +16,7 @@ use crate::GlobalArgs;
 use crate::activation::agent_registry::{AgentClientId, InstallScope};
 use crate::commands::mcp_installer;
 use crate::output::AlreadyReported;
-use crate::util::atomic_write;
+use crate::util::atomic_write_nofollow;
 
 /// Default HTTP port advertised when the user picks `--transport http` but
 /// does not pin a port. Matches the daemon default chosen by INTD.
@@ -278,16 +278,20 @@ fn write_target_config(
     let config_path = workspace.join(relative_path_for(target));
     ensure_path_safe(workspace, &config_path, yes, global)?;
 
+    // Re-validate after the initial check: directory creation and the
+    // merge read still use path-based ops, so a concurrent parent swap
+    // could race them. The write itself is no-follow / parent-fd pinned
+    // via atomic_write_nofollow, which is what closes the final window.
     if let Some(parent) = config_path.parent() {
-        fs::create_dir_all(parent)
+        crate::util::create_dir_all_nofollow(parent)
             .with_context(|| format!("creating directory {}", parent.display()))?;
     }
+    ensure_path_safe(workspace, &config_path, yes, global)?;
 
     let merged = merge_into_existing(target, &config_path, value)?;
-    // atomic_write replaces the destination via rename, which avoids the
-    // TOCTOU window that fs::write opens between the path-safety check and
-    // the actual write (a symlink could be swapped in mid-call).
-    atomic_write(&config_path, format!("{merged}\n").as_bytes())
+    // Parent-fd-pinned rename: refuses a swapped/symlinked parent and
+    // never writes the tempfile through a redirecting directory.
+    atomic_write_nofollow(&config_path, format!("{merged}\n").as_bytes())
         .with_context(|| format!("writing {}", config_path.display()))?;
 
     Ok(config_path)

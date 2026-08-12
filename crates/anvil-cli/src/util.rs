@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 /// Re-export of [`anvil_kernel::watcher::filter::is_ignored_dir_name`] —
 /// the canonical denylist lives in `anvil-kernel` so the watcher and the
@@ -411,6 +411,347 @@ pub fn refuse_if_parent_is_symlink(target: &Path) -> Result<()> {
     }
 }
 
+/// Create every missing directory component of `path` without following
+/// symlink components.
+///
+/// On Unix this walks the path with `openat`/`mkdirat` and
+/// `O_DIRECTORY|O_NOFOLLOW`, so a concurrent swap of a checked component for
+/// a symlink cannot redirect directory creation outside the intended tree.
+/// Non-Unix platforms fall back to [`std::fs::create_dir_all`] followed by a
+/// best-effort symlink-component refusal.
+pub fn create_dir_all_nofollow(path: &Path) -> Result<()> {
+    if path.as_os_str().is_empty() {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    {
+        create_dir_all_nofollow_unix(path)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(path)
+            .with_context(|| format!("creating directory {}", path.display()))?;
+        refuse_symlink_path_components(path)?;
+        Ok(())
+    }
+}
+
+/// Atomically write `data` to `path` while refusing symlink path components
+/// on the way to the parent directory.
+///
+/// On Unix the parent is created (if needed) and opened with no-follow
+/// semantics, the payload is written to a unique temp leaf via `openat`, and
+/// the temp is `renameat`ed into place under the pinned parent directory fd.
+/// That closes the TOCTOU window where a checked parent directory is swapped
+/// for a symlink between a path-based safety check and `tempfile_in(parent)`.
+///
+/// On non-Unix platforms this creates parents, re-checks for symlink
+/// components, then delegates to [`atomic_write`].
+pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .with_context(|| format!("write path has no file name: {}", path.display()))?;
+
+    create_dir_all_nofollow(parent)
+        .with_context(|| format!("creating directory {}", parent.display()))?;
+
+    #[cfg(unix)]
+    {
+        atomic_write_nofollow_unix(parent, leaf, data)
+            .with_context(|| format!("writing {}", path.display()))
+    }
+    #[cfg(not(unix))]
+    {
+        refuse_symlink_path_components(path)?;
+        refuse_if_parent_is_symlink(path)?;
+        // Re-check immediately before the path-based atomic write so a late
+        // parent swap is still observed on platforms without openat.
+        refuse_if_parent_is_symlink(path)?;
+        atomic_write(path, data)
+    }
+}
+
+/// Refuse when any existing component of `path` is a symlink.
+///
+/// Used by the non-Unix `atomic_write_nofollow` / `create_dir_all_nofollow`
+/// fallbacks where openat no-follow is unavailable.
+#[cfg(not(unix))]
+fn refuse_symlink_path_components(path: &Path) -> Result<()> {
+    let mut cursor = PathBuf::new();
+    for component in path.components() {
+        cursor.push(component);
+        let Ok(metadata) = std::fs::symlink_metadata(&cursor) else {
+            continue;
+        };
+        if metadata.file_type().is_symlink() {
+            bail!(
+                "refusing path through symlink {}: resolve the symlink and re-run",
+                cursor.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
+    use std::ffi::OsStr;
+    use std::os::fd::{AsFd, OwnedFd};
+    use std::path::Component;
+
+    use nix::errno::Errno;
+    use nix::fcntl::{OFlag, open, openat};
+    use nix::sys::stat::{Mode, mkdirat};
+
+    let dir_flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_CLOEXEC;
+    let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
+
+    let try_open = |parent: Option<std::os::fd::BorrowedFd<'_>>,
+                    name: &OsStr,
+                    flags: OFlag|
+     -> std::result::Result<OwnedFd, Errno> {
+        match parent {
+            Some(dirfd) => openat(dirfd, name, flags, Mode::empty()),
+            None => open(Path::new(name), flags, Mode::empty()),
+        }
+    };
+
+    let open_or_mkdir = |parent: Option<std::os::fd::BorrowedFd<'_>>,
+                         name: &OsStr|
+     -> Result<OwnedFd> {
+        match try_open(parent, name, nofollow_dir_flags) {
+            Ok(fd) => Ok(fd),
+            Err(Errno::ENOENT) => {
+                match parent {
+                    Some(dirfd) => mkdirat(dirfd, name, Mode::from_bits_truncate(0o755))
+                        .map_err(std::io::Error::from)
+                        .with_context(|| {
+                            format!("creating directory component {}", Path::new(name).display())
+                        })?,
+                    None => std::fs::create_dir(name).with_context(|| {
+                        format!("creating directory component {}", Path::new(name).display())
+                    })?,
+                }
+                try_open(parent, name, nofollow_dir_flags)
+                    .map_err(std::io::Error::from)
+                    .with_context(|| {
+                        format!(
+                            "opening created directory component {}",
+                            Path::new(name).display()
+                        )
+                    })
+            }
+            Err(err) if matches!(err, Errno::ELOOP) => bail!(
+                "refusing path through symlink {}: resolve the symlink and re-run",
+                Path::new(name).display()
+            ),
+            Err(err) if matches!(err, Errno::ENOTDIR) => bail!(
+                "refusing path component that is not a real directory (symlink or non-directory): {}",
+                Path::new(name).display()
+            ),
+            Err(err) => Err(std::io::Error::from(err)).with_context(|| {
+                format!("opening directory component {}", Path::new(name).display())
+            }),
+        }
+    };
+
+    let mut components = path.components();
+    let mut dirfd: OwnedFd = match components.next() {
+        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
+            .map_err(std::io::Error::from)
+            .with_context(|| "opening /")?,
+        Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
+            .map_err(std::io::Error::from)
+            .with_context(|| "opening current directory")?,
+        Some(Component::Normal(name)) => open_or_mkdir(None, name)?,
+        Some(Component::ParentDir) => {
+            bail!("refusing path with parent-dir component {}", path.display())
+        }
+        Some(Component::Prefix(_)) => {
+            bail!("refusing path with Windows prefix {}", path.display())
+        }
+        None => return Ok(()),
+    };
+
+    for component in components {
+        match component {
+            Component::Normal(name) => {
+                dirfd = open_or_mkdir(Some(dirfd.as_fd()), name)?;
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                bail!("refusing path with parent-dir component {}", path.display())
+            }
+            other => {
+                bail!(
+                    "refusing path with unsupported component {other:?} in {}",
+                    path.display()
+                )
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
+    use std::os::fd::{AsFd, OwnedFd};
+    use std::path::Component;
+
+    use nix::fcntl::{OFlag, open, openat};
+    use nix::sys::stat::Mode;
+
+    let dir_flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_CLOEXEC;
+    let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
+
+    let mut components = path.components();
+    let mut dirfd: OwnedFd = match components.next() {
+        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
+            .map_err(std::io::Error::from)
+            .with_context(|| "opening /")?,
+        Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
+            .map_err(std::io::Error::from)
+            .with_context(|| "opening current directory")?,
+        Some(Component::Normal(name)) => {
+            open(Path::new(name), nofollow_dir_flags, Mode::empty())
+                .map_err(|err| map_nofollow_dir_open_error(err, Path::new(name)))?
+        }
+        Some(Component::ParentDir) => {
+            bail!("refusing path with parent-dir component {}", path.display())
+        }
+        Some(Component::Prefix(_)) => {
+            bail!("refusing path with Windows prefix {}", path.display())
+        }
+        None => bail!("cannot open empty path as directory"),
+    };
+
+    for component in components {
+        match component {
+            Component::Normal(name) => {
+                dirfd = openat(dirfd.as_fd(), name, nofollow_dir_flags, Mode::empty())
+                    .map_err(|err| map_nofollow_dir_open_error(err, Path::new(name)))?;
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                bail!("refusing path with parent-dir component {}", path.display())
+            }
+            other => {
+                bail!(
+                    "refusing path with unsupported component {other:?} in {}",
+                    path.display()
+                )
+            }
+        }
+    }
+    Ok(dirfd)
+}
+
+#[cfg(unix)]
+fn map_nofollow_dir_open_error(err: nix::errno::Errno, component: &Path) -> anyhow::Error {
+    use nix::errno::Errno;
+    match err {
+        Errno::ELOOP => anyhow::anyhow!(
+            "refusing path through symlink {}: resolve the symlink and re-run",
+            component.display()
+        ),
+        Errno::ENOTDIR => anyhow::anyhow!(
+            "refusing path component that is not a real directory (symlink or non-directory): {}",
+            component.display()
+        ),
+        other => anyhow::Error::from(std::io::Error::from(other)).context(format!(
+            "opening directory component {}",
+            component.display()
+        )),
+    }
+}
+
+#[cfg(unix)]
+fn atomic_write_nofollow_unix(parent: &Path, leaf: &std::ffi::OsStr, data: &[u8]) -> Result<()> {
+    use std::os::fd::AsFd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use nix::fcntl::{OFlag, openat, renameat};
+    use nix::sys::stat::{Mode, fchmod};
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    let dirfd = open_dir_nofollow_unix(parent)?;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let mut last_err: Option<anyhow::Error> = None;
+
+    for attempt in 0..32u32 {
+        let temp_name = format!(
+            ".anvil-write-{}-{}-{attempt}.tmp",
+            std::process::id(),
+            nanos
+        );
+        let flags =
+            OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+        let fd = match openat(
+            dirfd.as_fd(),
+            temp_name.as_str(),
+            flags,
+            Mode::from_bits_truncate(0o600),
+        ) {
+            Ok(fd) => fd,
+            Err(nix::errno::Errno::EEXIST) => continue,
+            Err(err) => {
+                return Err(std::io::Error::from(err))
+                    .with_context(|| format!("creating temp file under {}", parent.display()));
+            }
+        };
+        if let Err(err) = fchmod(&fd, Mode::from_bits_truncate(0o600)) {
+            let _ = unlinkat(
+                dirfd.as_fd(),
+                temp_name.as_str(),
+                UnlinkatFlags::NoRemoveDir,
+            );
+            return Err(std::io::Error::from(err)).context("setting temp file mode 0o600");
+        }
+
+        let mut file = std::fs::File::from(fd);
+        if let Err(err) = file.write_all(data).and_then(|_| file.flush()) {
+            let _ = unlinkat(
+                dirfd.as_fd(),
+                temp_name.as_str(),
+                UnlinkatFlags::NoRemoveDir,
+            );
+            return Err(err).context("writing temp file payload");
+        }
+        drop(file);
+
+        match renameat(dirfd.as_fd(), temp_name.as_str(), dirfd.as_fd(), leaf) {
+            Ok(()) => return Ok(()),
+            Err(err) => {
+                let _ = unlinkat(
+                    dirfd.as_fd(),
+                    temp_name.as_str(),
+                    UnlinkatFlags::NoRemoveDir,
+                );
+                last_err = Some(
+                    anyhow::Error::from(std::io::Error::from(err)).context(format!(
+                        "renaming temp file into place under {}",
+                        parent.display()
+                    )),
+                );
+            }
+        }
+    }
+
+    Err(last_err.unwrap_or_else(|| {
+        anyhow::anyhow!(
+            "could not allocate a unique temp file under {}",
+            parent.display()
+        )
+    }))
+}
+
 /// Create `path` exclusively and write `data`. Fails with `AlreadyExists` if
 /// the file is already present — use this instead of `atomic_write` when the
 /// caller has already decided "only create, do not overwrite", so the
@@ -757,6 +1098,75 @@ mod tests {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         atomic_write(&path, b"ok").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "ok");
+    }
+
+    #[test]
+    fn atomic_write_nofollow_creates_nested_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested").join("config.json");
+        atomic_write_nofollow(&path, b"{\"ok\":true}").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"ok\":true}");
+    }
+
+    #[test]
+    fn atomic_write_nofollow_overwrites_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, "old").unwrap();
+        atomic_write_nofollow(&path, b"new").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "new");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_nofollow_refuses_symlinked_parent_without_writing_outside() {
+        use std::os::unix::fs::symlink;
+
+        let outside = tempfile::tempdir().unwrap();
+        let outside_marker = outside.path().join("leaked.json");
+
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join(".cursor");
+        symlink(outside.path(), &parent).unwrap();
+
+        let path = parent.join("mcp.json");
+        let err = atomic_write_nofollow(&path, b"secret").expect_err("symlinked parent");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink"),
+            "error should identify symlink refusal: {msg}"
+        );
+        assert!(
+            !outside_marker.exists(),
+            "must not create a file outside the intended root"
+        );
+        assert!(
+            std::fs::read_dir(outside.path()).unwrap().next().is_none(),
+            "outside directory must remain untouched"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn create_dir_all_nofollow_refuses_symlink_component_without_creating_outside() {
+        use std::os::unix::fs::symlink;
+
+        let outside = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let link = root.path().join("escape");
+        symlink(outside.path(), &link).unwrap();
+
+        let target = link.join("child");
+        let err = create_dir_all_nofollow(&target).expect_err("symlink component");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink"),
+            "error should mention symlink: {msg}"
+        );
+        assert!(
+            !outside.path().join("child").exists(),
+            "must not create directories through the symlink"
+        );
     }
 
     #[test]
