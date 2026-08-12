@@ -546,11 +546,11 @@ fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
                         )
                     })
             }
-            Err(err) if matches!(err, Errno::ELOOP) => bail!(
+            Err(Errno::ELOOP) => bail!(
                 "refusing path through symlink {}: resolve the symlink and re-run",
                 Path::new(name).display()
             ),
-            Err(err) if matches!(err, Errno::ENOTDIR) => bail!(
+            Err(Errno::ENOTDIR) => bail!(
                 "refusing path component that is not a real directory (symlink or non-directory): {}",
                 Path::new(name).display()
             ),
@@ -716,7 +716,7 @@ fn atomic_write_nofollow_unix(parent: &Path, leaf: &std::ffi::OsStr, data: &[u8]
         }
 
         let mut file = std::fs::File::from(fd);
-        if let Err(err) = file.write_all(data).and_then(|_| file.flush()) {
+        if let Err(err) = file.write_all(data).and_then(|()| file.flush()) {
             let _ = unlinkat(
                 dirfd.as_fd(),
                 temp_name.as_str(),
