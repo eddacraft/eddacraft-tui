@@ -646,6 +646,7 @@ enum GovernedStoreKind {
 }
 
 impl GovernedStoreKind {
+    #[cfg(unix)]
     fn components(self) -> &'static [&'static str] {
         match self {
             Self::Tracked => &["anvil", "exceptions", "store.json"],
