@@ -2085,8 +2085,8 @@ mod tests {
 
     // --- gather_profile format sniffing ---
 
-    /// UCFG-003: init now writes canonical snake_case YAML; the sniff must
-    /// recognise it (and the legacy camelCase TOML that `start --format`
+    /// UCFG-003: init now writes canonical `snake_case` YAML; the sniff must
+    /// recognise it (and the legacy `camelCase` TOML that `start --format`
     /// used to write) instead of reporting "(invalid config)".
     #[test]
     fn gather_profile_recognises_snake_case_yaml() {

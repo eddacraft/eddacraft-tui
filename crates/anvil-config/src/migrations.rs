@@ -7,14 +7,10 @@
 //! reconciles the *contents* of an already-discovered `.anvil.<ext>`
 //! config when a newer anvil minor version changes the config schema.
 //!
-//! The production registry is intentionally **empty** today:
-//! [`production_migrations`] returns no entries because no shipped anvil
-//! version has changed the config schema, so every real config resolves
-//! to "no migration needed". The registry exists as the seam a future
-//! schema change registers its transform into, so `anvil migrate schema`
-//! can apply it without operators hand-editing files. Keeping it empty
-//! but wired means the seam is exercised end-to-end (CLI plumbing, version
-//! delta, dry-run/apply) before the first real migration arrives.
+//! The production registry carries one entry: the ADR-120 / UCFG-003
+//! `camelCase` → `snake_case` key rename (introduced in `0.10.0-beta`),
+//! applied by `anvil migrate schema` so operators never hand-edit files.
+//! Future schema changes append their [`SchemaMigration`] alongside it.
 
 use semver::Version;
 use serde_json::Value;
@@ -67,22 +63,22 @@ impl std::fmt::Debug for SchemaMigration {
     }
 }
 
-/// Legacy camelCase → canonical snake_case key pairs at the top level of
-/// the project config. ADR-120 pt 3: snake_case is the canonical key space
+/// Legacy `camelCase` → canonical `snake_case` key pairs at the top level of
+/// the project config. ADR-120 pt 3: `snake_case` is the canonical key space
 /// across all formats; these are the keys the pre-UCFG-003 writers emitted
-/// in camelCase (`init.rs` YAML/JSON, `start.rs pre_write_anvil_config_format`).
+/// in `camelCase` (`init.rs` YAML/JSON, `start.rs pre_write_anvil_config_format`).
 pub const LEGACY_CAMEL_KEYS: [(&str, &str); 2] = [
     ("schemaVersion", "schema_version"),
     ("planningDir", "planning_dir"),
 ];
 
-/// Rename legacy camelCase keys to their canonical snake_case names, in
-/// place, returning the camelCase keys that were present (sorted).
+/// Rename legacy `camelCase` keys to their canonical `snake_case` names, in
+/// place, returning the `camelCase` keys that were present (sorted).
 ///
-/// Rules: a camelCase value moves to the snake_case slot only when the
-/// snake_case key is absent; when both exist the canonical snake_case
-/// value wins and the shadowed camelCase duplicate is dropped. Either way
-/// the camelCase key is removed and reported, so callers can render
+/// Rules: a `camelCase` value moves to the `snake_case` slot only when the
+/// `snake_case` key is absent; when both exist the canonical `snake_case`
+/// value wins and the shadowed `camelCase` duplicate is dropped. Either way
+/// the `camelCase` key is removed and reported, so callers can render
 /// [`legacy_keys_deprecation_note`]. Non-objects are left untouched.
 ///
 /// This is an explicit opt-in at typed boundaries and the transform body
@@ -107,7 +103,7 @@ pub fn normalize_legacy_keys(config: &mut Value) -> Vec<String> {
     renamed
 }
 
-/// Render the operator-facing deprecation note for legacy camelCase keys
+/// Render the operator-facing deprecation note for legacy `camelCase` keys
 /// found by [`normalize_legacy_keys`]. `None` when nothing was renamed.
 #[must_use]
 pub fn legacy_keys_deprecation_note(renamed: &[String]) -> Option<String> {
