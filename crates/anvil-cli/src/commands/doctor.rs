@@ -1721,11 +1721,12 @@ fn looks_like_project_root() -> bool {
     PROJECT_MARKERS.iter().any(|m| Path::new(m).exists())
 }
 
-/// Default `.anvilrc` produced by the `config-exists` auto-fix. Mirrors the
-/// shape that `anvil init` writes so the file passes `check_config_valid`
-/// rather than landing the user in a fix→fail loop.
-fn default_anvilrc_yaml() -> &'static str {
-    "schemaVersion: \"1.0.0\"\nplanningDir: \"plans\"\nformat: \"yaml\"\nchecks:\n  - \"secret-detection\"\n  - \"import-boundaries\"\n  - \"antipattern-scan\"\n"
+/// Default config produced by the `config-exists` auto-fix. Mirrors the
+/// canonical `snake_case` shape `anvil init` writes (UCFG-001/003) so the
+/// file passes `check_config_valid` rather than landing the user in a
+/// fix→fail loop.
+fn default_config_yaml() -> &'static str {
+    "schema_version: \"1.0.0\"\nplanning_dir: \"plans\"\nformat: \"yaml\"\nchecks:\n  - \"secret-detection\"\n  - \"import-boundaries\"\n  - \"antipattern-scan\"\n"
 }
 
 fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
@@ -1762,24 +1763,28 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
                 }
             }
             "config-exists" => {
-                // A zero-byte `.anvilrc` triggers `check_config_exists`'s
-                // missing-file path; remove it before write_new opens with
-                // O_CREAT | O_EXCL, mirroring `anvil init`'s behaviour.
-                let path = Path::new(".anvilrc");
-                if let Ok(meta) = std::fs::metadata(path)
-                    && meta.is_file()
-                    && meta.len() == 0
-                {
-                    let _ = std::fs::remove_file(path);
+                // UCFG-001 / ADR-120 pt 1: the auto-fix creates the
+                // canonical file; no command creates a new `.anvilrc`.
+                // A zero-byte stub triggers `check_config_exists`'s
+                // missing-file path; remove it first, mirroring init.
+                let path = Path::new(".anvil.yaml");
+                for stub in [".anvil.yaml", ".anvilrc"] {
+                    let stub = Path::new(stub);
+                    if let Ok(meta) = std::fs::metadata(stub)
+                        && meta.is_file()
+                        && meta.len() == 0
+                    {
+                        let _ = std::fs::remove_file(stub);
+                    }
                 }
-                match std::fs::write(path, default_anvilrc_yaml()) {
+                match std::fs::write(path, default_config_yaml()) {
                     Ok(()) => {
                         check.status = CheckStatus::Pass;
-                        check.message = ".anvilrc created with defaults".to_string();
+                        check.message = ".anvil.yaml created with defaults".to_string();
                         check.auto_fixable = false;
                         if speak {
                             println!(
-                                "  Fixed: config-exists — created .anvilrc with default \
+                                "  Fixed: config-exists — created .anvil.yaml with default \
                                  schema (yaml, three checks)"
                             );
                         }

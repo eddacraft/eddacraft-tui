@@ -124,9 +124,13 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
             .with_context(|| format!("failed to create project directory: {name}"))?;
     }
 
-    let anvilrc_path = project_dir.join(".anvilrc");
-    if anvilrc_path.exists() {
-        anyhow::bail!(".anvilrc already exists in {name} — use `anvil init --force` to overwrite");
+    // UCFG-001 / ADR-120 pt 1: the wizard scaffolds the canonical
+    // config; no command creates a new `.anvilrc`.
+    let config_path = project_dir.join(".anvil.json");
+    if config_path.exists() || project_dir.join(".anvilrc").exists() {
+        anyhow::bail!(
+            "a project config already exists in {name} — use `anvil init --force` to overwrite"
+        );
     }
 
     let anvil_dir = project_dir.join(".anvil");
@@ -139,9 +143,9 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
         "hooks": state.config.enable_hooks,
         "checks": checks,
     });
-    let anvilrc_content = serde_json::to_string_pretty(&config)?;
-    crate::util::atomic_write(&anvilrc_path, anvilrc_content.as_bytes())
-        .context("failed to write .anvilrc")?;
+    let config_content = serde_json::to_string_pretty(&config)?;
+    crate::util::atomic_write(&config_path, config_content.as_bytes())
+        .context("failed to write .anvil.json")?;
 
     println!();
     println!("  Project scaffolded successfully!");
@@ -228,9 +232,9 @@ mod tests {
 
         assert!(project_name.exists());
         assert!(project_name.join(".anvil").exists());
-        assert!(project_name.join(".anvilrc").exists());
+        assert!(project_name.join(".anvil.json").exists());
 
-        let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
+        let rc_content = std::fs::read_to_string(project_name.join(".anvil.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         assert_eq!(parsed["template"], "typescript-monorepo");
         assert_eq!(parsed["watch"], true);
@@ -277,9 +281,9 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(dir.path().join(".anvil").exists());
-        assert!(dir.path().join(".anvilrc").exists());
+        assert!(dir.path().join(".anvil.json").exists());
 
-        let rc_content = std::fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
+        let rc_content = std::fs::read_to_string(dir.path().join(".anvil.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         assert_eq!(parsed["template"], "minimal");
         let checks = parsed["checks"].as_array().unwrap();
@@ -360,7 +364,7 @@ mod tests {
 
         scaffold_project(&state).unwrap();
 
-        let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
+        let rc_content = std::fs::read_to_string(project_name.join(".anvil.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         let checks = parsed["checks"].as_array().unwrap();
         assert!(checks.contains(&serde_json::json!("import-boundaries")));

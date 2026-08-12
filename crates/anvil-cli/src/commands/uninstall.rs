@@ -35,7 +35,7 @@ const MCP_SERVER_KEY: &str = "anvil";
 #[derive(Debug, Args)]
 #[command(
     about = "Remove anvil state from this project, or from the machine with --global.",
-    after_help = "Scope:\n  - Default: current project only (.anvil/, .anvilrc, and anvil-managed hooks).\n  - --global: also removes user-level anvil state, credentials, anvil MCP entries, and the running daemon.\n  - The anvil binary is never removed; uninstall it with Homebrew, WinGet, Scoop, Cargo, or your installer path after cleaning state."
+    after_help = "Scope:\n  - Default: current project only (.anvil/, the project config file, and anvil-managed hooks).\n  - --global: also removes user-level anvil state, credentials, anvil MCP entries, and the running daemon.\n  - The anvil binary is never removed; uninstall it with Homebrew, WinGet, Scoop, Cargo, or your installer path after cleaning state."
 )]
 #[allow(clippy::struct_excessive_bools)] // CLI flags, intentional shape.
 pub struct UninstallArgs {
@@ -260,9 +260,17 @@ fn build_plan_with_install_user_dir(
     if path_present(&dot_anvil) {
         actions.push(Action::RemoveProjectAnvil { path: dot_anvil });
     }
-    let anvilrc = project_root.join(".anvilrc");
-    if path_present(&anvilrc) {
-        actions.push(Action::RemoveAnvilrc { path: anvilrc });
+    for name in [
+        ".anvilrc",
+        ".anvil.yaml",
+        ".anvil.yml",
+        ".anvil.json",
+        ".anvil.toml",
+    ] {
+        let config = project_root.join(name);
+        if path_present(&config) {
+            actions.push(Action::RemoveAnvilrc { path: config });
+        }
     }
 
     // 3) User-level state — only with `--global`. The daemon stop

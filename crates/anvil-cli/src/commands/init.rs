@@ -22,7 +22,7 @@ pub struct InitArgs {
     pub force: bool,
 }
 
-/// Schema version for generated `.anvilrc` files.
+/// Schema version for generated project config files.
 const SCHEMA_VERSION: &str = "1.0.0";
 
 /// The legacy config filename. Never written since UCFG-001 / ADR-120
@@ -615,6 +615,27 @@ mod tests {
             no_tui: true,
             verbose: false,
             ..Default::default()
+        }
+    }
+
+    /// UCFG-001 verifier advisory: the chosen format threads through
+    /// to the written extension for every reachable format.
+    #[test]
+    fn generate_config_writes_the_format_matching_extension() {
+        for (format, expected) in [
+            ("yaml", ".anvil.yaml"),
+            ("json", ".anvil.json"),
+            ("toml", ".anvil.toml"),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let config = AnvilConfig {
+                format: format.to_string(),
+                ..Default::default()
+            };
+            let generated = generate_config(&config, dir.path()).expect(format);
+            assert_eq!(generated.config_path, dir.path().join(expected));
+            assert!(dir.path().join(expected).exists(), "{expected}");
+            assert!(!dir.path().join(".anvilrc").exists());
         }
     }
 

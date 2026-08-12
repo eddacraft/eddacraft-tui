@@ -391,6 +391,8 @@ Change status to **Ready** when:
 - **Validation:** MCP resource snapshot tests for inline + delegated;
   doctor topology matrix
 - **Files:** `crates/anvil-cli/src/mcp/resources/`,
+  `crates/anvil-cli/src/mcp/tools/status.rs` (reads `.anvilrc` only —
+  UCFG-001 verifier coverage-gap note),
   `crates/anvil-cli/src/config_summary.rs`,
   `crates/anvil-cli/src/commands/doctor.rs`
 - **Confidence:** High
