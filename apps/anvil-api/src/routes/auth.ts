@@ -78,10 +78,14 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
     }
 
     debug('licence verified successfully');
+    // BACT-013: prefer the freshly-read DB plan over the (possibly stale)
+    // licence claim — an account's plan can change after a licence was
+    // minted. Fall back to the claim only when the row itself has no plan
+    // (fixture tolerance; real rows always carry it post-021).
     return c.json({
       valid: true,
       isEdict: false,
-      user: { email: claims.email, plan: claims.tier },
+      user: { email: claims.email, plan: user.plan ?? claims.plan },
       scopes: claims.scopes,
     });
   }
@@ -131,7 +135,10 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
         email: record.email,
         identity: { provider: 'email', id: null },
         org: null,
-        tier: 'pro',
+        // BACT-013: the joined account plan (findTokenByHash SELECTs
+        // u.plan); 'beta' default matches the column DEFAULT for rows
+        // predating the join (fixture tolerance).
+        plan: record.plan ?? 'beta',
         scopes,
         seats: 1,
       },
@@ -182,7 +189,8 @@ auth.post('/license/refresh', zValidator('json', verifySchema), async (c) => {
         email: record.email,
         identity: { provider: 'email', id: null },
         org: null,
-        tier: 'pro',
+        // BACT-013: see the identical comment on /auth/verify above.
+        plan: record.plan ?? 'beta',
         scopes,
         seats: 1,
       },

@@ -1,8 +1,8 @@
 # Account plan, activity, and entitlements
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                              |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | BACT  | Live   | Last reviewed 2026-08-12 against `flags/audiences.json`, `flags/manifest.json`, `apps/anvil-api/src/lib/feature-flags.ts`, and ADR-121 |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                   |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | BACT  | Live   | Last reviewed 2026-08-13 against `flags/audiences.json`, `flags/manifest.json`, `apps/anvil-api/src/lib/feature-flags.ts`, `apps/anvil-api/src/lib/licence.ts`, and ADR-121 |
 
 | Upstream                                                                                                                                                                                                | Downstream                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -44,6 +44,16 @@ spec.
 
 Product code should resolve catalogue flags with that context, not hardcode
 commercial if-trees that bypass FLAGCAT.
+
+**JWT claim mapping (BACT-013):** the licence JWT's primary claim is now
+**`plan`**, sourced from `account.plan` at mint (session mint, session refresh,
+and access-token/licence re-verify all sign the account's current plan, never a
+hardcoded value). A **`tier`** claim is still written on the wire,
+byte-identical to `plan`, purely as a compat alias for edge verifiers that read
+the raw JWT without a DB round trip (`apps/docs-shell`, `apps/docs-site`) — it
+is not a second semantic axis, and `verifyLicence` falls back to a licence's
+legacy `tier` claim only when `plan` is absent, so already-issued tokens keep
+verifying. Drop the alias once those verifiers read `plan` instead.
 
 See also [feature-flag-governance.md](./feature-flag-governance.md) and the
 [feature gating model](../../plans/specs/2026-05-19-feature-gating-model.md).

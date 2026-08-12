@@ -62,6 +62,12 @@ function post(path: string, body: unknown) {
   });
 }
 
+/** Decodes a JWT payload without verifying the signature — test-only. */
+function decodeJwtPayload(jwt: string): Record<string, unknown> {
+  const payloadB64 = jwt.split('.')[1] ?? '';
+  return JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+}
+
 describe('POST /auth/verify', () => {
   const mockedFind = vi.mocked(findTokenByHash);
 
@@ -193,6 +199,44 @@ describe('POST /auth/verify', () => {
     expect(typeof json.license).toBe('string');
     expect(json.license.split('.').length).toBe(3);
   });
+
+  it('signs the licence with the joined account plan claim (BACT-013)', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      revoked_at: null,
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'active',
+      plan: 'beta',
+    });
+    const res = await post('/auth/verify', { token: 'anvil_beta_' + 'a'.repeat(43) });
+    const json = await res.json();
+    const payload = decodeJwtPayload(json.license);
+    expect(payload['plan']).toBe('beta');
+    expect(payload['tier']).toBe('beta');
+  });
+
+  it('defaults the licence plan claim to `beta` when the joined row has no plan (fixture tolerance)', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      revoked_at: null,
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'active',
+    });
+    const res = await post('/auth/verify', { token: 'anvil_beta_' + 'a'.repeat(43) });
+    const json = await res.json();
+    const payload = decodeJwtPayload(json.license);
+    expect(payload['plan']).toBe('beta');
+  });
 });
 
 describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
@@ -202,26 +246,28 @@ describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
     vi.clearAllMocks();
   });
 
-  function activeUser() {
+  function activeUser(overrides: Record<string, unknown> = {}) {
     return {
       id: 'user-1',
       email: 'dev@example.com',
       name: null,
       notes: null,
       status: 'active',
+      plan: 'beta',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      ...overrides,
     };
   }
 
-  function mintLicence(expiresAt?: string): Promise<string> {
+  function mintLicence(expiresAt?: string, plan = 'pro'): Promise<string> {
     return signLicence(
       {
         sub: 'user-1',
         email: 'dev@example.com',
         identity: { provider: 'github', id: '12345' },
         org: null,
-        tier: 'pro',
+        plan,
         scopes: ['beta'],
         seats: 1,
       },
@@ -241,10 +287,34 @@ describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.valid).toBe(true);
-    expect(body.user).toEqual({ email: 'dev@example.com', plan: 'pro' });
+    // BACT-013: the DB row's plan ('beta', from `activeUser()`) wins over
+    // the licence claim's plan ('pro', from `mintLicence()`'s default) — see
+    // the freshness test immediately below for the explicit regression pin.
+    expect(body.user).toEqual({ email: 'dev@example.com', plan: 'beta' });
     expect(body.scopes).toEqual(['beta']);
     expect(body.isEdict).toBe(false);
     expect(mockedFindUser).toHaveBeenCalledWith(undefined, 'user-1');
+  });
+
+  it('reports the fresh account plan from the DB row, not the (possibly stale) licence claim (BACT-013)', async () => {
+    // The claim says 'pro' (a claim minted before the account's plan
+    // changed, or before BACT-013); the DB row is the authority.
+    mockedFindUser.mockResolvedValue(activeUser({ plan: 'beta' }) as never);
+    const licence = await mintLicence(undefined, 'pro');
+
+    const res = await post('/auth/verify', { token: licence });
+    const body = await res.json();
+    expect(body.user).toEqual({ email: 'dev@example.com', plan: 'beta' });
+  });
+
+  it('falls back to the licence plan claim when the DB row has no plan (fixture tolerance)', async () => {
+    const { plan: _plan, ...userWithoutPlan } = activeUser({ plan: 'beta' });
+    mockedFindUser.mockResolvedValue(userWithoutPlan as never);
+    const licence = await mintLicence(undefined, 'legacy-claim');
+
+    const res = await post('/auth/verify', { token: licence });
+    const body = await res.json();
+    expect(body.user).toEqual({ email: 'dev@example.com', plan: 'legacy-claim' });
   });
 
   it('rejects a licence whose subject is no longer active', async () => {
@@ -344,6 +414,26 @@ describe('POST /auth/license/refresh', () => {
     const json = await res.json();
     expect(json.license).toBeDefined();
     expect(typeof json.license).toBe('string');
+  });
+
+  it('signs the refreshed licence with the joined account plan claim (BACT-013)', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      revoked_at: null,
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'active',
+      plan: 'beta',
+    });
+    const res = await post('/auth/license/refresh', { token: 'anvil_beta_' + 'a'.repeat(43) });
+    const json = await res.json();
+    const payload = decodeJwtPayload(json.license);
+    expect(payload['plan']).toBe('beta');
+    expect(payload['tier']).toBe('beta');
   });
 
   it('returns valid:false for invalid token format', async () => {

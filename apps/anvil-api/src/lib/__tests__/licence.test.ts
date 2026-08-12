@@ -41,7 +41,7 @@ function makeClaims(overrides: Partial<LicenceClaims> = {}): LicenceClaims {
     email: 'test@example.com',
     identity: { provider: 'github', id: null },
     org: null,
-    tier: 'pro',
+    plan: 'beta',
     scopes: ['beta'],
     seats: 1,
     ...overrides,
@@ -56,19 +56,33 @@ describe('signLicence', () => {
   });
 
   it('includes correct claims in the payload', async () => {
-    const claims = makeClaims({ email: 'josh@eddacraft.ai', tier: 'pro' });
+    const claims = makeClaims({ email: 'josh@eddacraft.ai', plan: 'beta' });
     const jwt = await signLicence(claims);
 
     const pubKey = await importSPKI(testPublicKeyPem, 'ES256');
     const { payload } = await jwtVerify(jwt, pubKey);
 
     expect(payload.email).toBe('josh@eddacraft.ai');
-    expect(payload.tier).toBe('pro');
     expect(payload.sub).toBe('user_test123');
     expect(payload.org).toBeNull();
     expect(payload.seats).toBe(1);
     expect(payload.iss).toBe('https://api.eddacraft.ai');
     expect(payload.aud).toBe('anvil-cli');
+  });
+
+  it('emits `plan` from the account plan (BACT-013 / ADR-121 decision 6)', async () => {
+    const jwt = await signLicence(makeClaims({ plan: 'beta' }));
+    const pubKey = await importSPKI(testPublicKeyPem, 'ES256');
+    const { payload } = await jwtVerify(jwt, pubKey);
+    expect(payload['plan']).toBe('beta');
+  });
+
+  it('mirrors `plan` onto a `tier` compat alias for apps/docs-shell and apps/docs-site, which still read `tier` directly (OQ-C) — never a second semantic axis', async () => {
+    const jwt = await signLicence(makeClaims({ plan: 'beta' }));
+    const pubKey = await importSPKI(testPublicKeyPem, 'ES256');
+    const { payload } = await jwtVerify(jwt, pubKey);
+    expect(payload['tier']).toBe('beta');
+    expect(payload['tier']).toBe(payload['plan']);
   });
 
   it('sets exp to 90 days from now', async () => {
@@ -322,5 +336,78 @@ describe('verifyLicence', () => {
   it('returns null for a malformed JWT string', async () => {
     expect(await verifyLicence('not.a.jwt')).toBeNull();
     expect(await verifyLicence('')).toBeNull();
+  });
+
+  describe('plan claim (BACT-013 / OQ-C)', () => {
+    it('returns `plan` from a freshly signed licence', async () => {
+      const jwt = await signLicence(makeClaims({ plan: 'beta' }));
+      const claims = await verifyLicence(jwt);
+      expect(claims?.plan).toBe('beta');
+    });
+
+    it('falls back to the legacy `tier` claim on a licence minted before BACT-013, so an already-issued token keeps verifying', async () => {
+      const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+      // Pre-BACT-013 shape: only `tier`, no `plan` claim at all.
+      const legacyJwt = await new SignJWT({
+        email: 'legacy@example.com',
+        identity: { provider: 'github', id: null },
+        org: null,
+        tier: 'pro',
+        scopes: ['beta'],
+        seats: 1,
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setSubject('user-legacy')
+        .setIssuedAt()
+        .setIssuer('https://api.eddacraft.ai')
+        .setAudience('anvil-cli')
+        .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+        .sign(privateKey);
+
+      const claims = await verifyLicence(legacyJwt);
+      expect(claims).not.toBeNull();
+      expect(claims?.plan).toBe('pro');
+    });
+
+    it('prefers `plan` over `tier` when a licence somehow carries both (dual-write window)', async () => {
+      const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+      const jwt = await new SignJWT({
+        email: 'dual@example.com',
+        identity: { provider: 'github', id: null },
+        org: null,
+        plan: 'beta',
+        tier: 'pro',
+        scopes: ['beta'],
+        seats: 1,
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setSubject('user-dual')
+        .setIssuedAt()
+        .setIssuer('https://api.eddacraft.ai')
+        .setAudience('anvil-cli')
+        .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+        .sign(privateKey);
+
+      const claims = await verifyLicence(jwt);
+      expect(claims?.plan).toBe('beta');
+    });
+
+    it('defaults to `beta` (the beta_users.plan column DEFAULT) when neither `plan` nor `tier` is present', async () => {
+      const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+      const jwt = await new SignJWT({
+        email: 'noplan@example.com',
+        scopes: ['beta'],
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setSubject('user-noplan')
+        .setIssuedAt()
+        .setIssuer('https://api.eddacraft.ai')
+        .setAudience('anvil-cli')
+        .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+        .sign(privateKey);
+
+      const claims = await verifyLicence(jwt);
+      expect(claims?.plan).toBe('beta');
+    });
   });
 });

@@ -197,10 +197,10 @@ export async function insertToken(
 export async function findTokenByHash(
   sql: NeonClient,
   tokenHash: string
-): Promise<(AccessToken & { email: string; user_status: string }) | null> {
+): Promise<(AccessToken & { email: string; user_status: string; plan?: string }) | null> {
   const r = rows(
     await sql`
-    SELECT t.*, u.email, u.status AS user_status
+    SELECT t.*, u.email, u.status AS user_status, u.plan
     FROM access_tokens t
     JOIN beta_users u ON u.id = t.user_id
     WHERE t.token_hash = ${tokenHash}
@@ -211,6 +211,11 @@ export async function findTokenByHash(
   const TokenWithUserSchema = AccessTokenSchema.extend({
     email: z.string(),
     user_status: z.coerce.string(),
+    // BACT-013: the account's durable plan, joined for licence-mint claims
+    // (`/auth/verify` access-token path, `/auth/license/refresh`).
+    // `.optional()` for fixture tolerance — real rows always carry it
+    // post-021, same convention as `BetaUserSchema.plan` above.
+    plan: z.string().optional(),
   });
   return TokenWithUserSchema.parse(r[0]);
 }

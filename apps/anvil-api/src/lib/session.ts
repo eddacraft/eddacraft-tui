@@ -20,9 +20,17 @@ const DEFAULT_REFRESH_TTL_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** BACT-013: matches the `beta_users.plan` column DEFAULT (migration 021). */
+const DEFAULT_PLAN = 'beta';
+
 export interface MintSessionInput {
-  /** The authenticated, active beta user the session is for. */
-  user: { id: string; email: string };
+  /**
+   * The authenticated, active beta user the session is for. `plan` is
+   * optional here only for narrow test/legacy callers — real rows always
+   * carry `plan` (BACT-008 column DEFAULT 'beta'); omit it and the licence
+   * still gets a safe 'beta' default (BACT-013).
+   */
+  user: { id: string; email: string; plan?: string | null };
   /** Provider identity stamped into the licence claim (`github` or `email`). */
   identity: LicenceClaims['identity'];
   /** Licence (access-token) lifetime in days. Defaults to 7. */
@@ -82,7 +90,7 @@ export async function mintSession(
     email: user.email,
     identity,
     org: null,
-    tier: 'pro',
+    plan: user.plan ?? DEFAULT_PLAN,
     scopes,
     seats: 1,
   };
@@ -162,7 +170,7 @@ export async function mintRotatedSession(
     email: user.email,
     identity,
     org: null,
-    tier: 'pro',
+    plan: user.plan ?? DEFAULT_PLAN,
     scopes,
     seats: 1,
   };

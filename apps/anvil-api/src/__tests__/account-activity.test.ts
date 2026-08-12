@@ -51,7 +51,7 @@ describe('POST /account/activity (BACT-005)', () => {
       email: 'alice@example.com',
       identity: { provider: 'github', id: '1' },
       org: null,
-      tier: 'pro',
+      plan: 'beta',
       scopes: ['beta'],
       seats: 1,
     });

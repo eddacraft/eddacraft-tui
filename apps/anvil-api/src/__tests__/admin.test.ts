@@ -1041,6 +1041,61 @@ describe('admin endpoints', () => {
       expect(accessTokenCall).toContainEqual(['preview', 'beta']);
     });
 
+    it('resolves scope entitlement against the existing account plan, not the anonymous default context (BACT-013)', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'active',
+        notes: null,
+        plan: 'beta',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      vi.mocked(findActiveScopesForUser).mockResolvedValue(['beta']);
+      mockSql.transaction.mockResolvedValue([
+        [{ email: 'alice@example.com' }],
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      expect(vi.mocked(resolveApiScope)).toHaveBeenCalledWith(
+        'beta',
+        expect.objectContaining({
+          targetingKey: 'user-1',
+          audience: { accountTier: 'plan-beta' },
+        })
+      );
+    });
+
+    it('resolves scope entitlement against the anonymous default context when no account exists yet', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue(null);
+      mockSql.transaction.mockResolvedValue([
+        [{ email: 'new@example.com' }],
+        [{ id: 'user-2', email: 'new@example.com' }],
+        [{ id: 'token-2' }],
+        [{ id: 'audit-2' }],
+      ]);
+
+      const res = await request('POST', '/admin/approve', { email: 'new@example.com' }, ADMIN_KEY);
+
+      expect(res.status).toBe(200);
+      // Single-arg call — identical to pre-BACT-013 behaviour when there is
+      // no account row yet to carry a plan.
+      expect(vi.mocked(resolveApiScope)).toHaveBeenCalledWith('beta');
+    });
+
     it('drops disabled preserved scopes and audits the filtered grant atomically', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       vi.mocked(findUserByEmail).mockResolvedValue({

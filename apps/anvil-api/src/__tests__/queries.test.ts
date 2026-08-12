@@ -3,6 +3,7 @@ import type { NeonClient } from '../db/client.js';
 import {
   consumeAndRotateRefreshToken,
   findActiveScopesForUser,
+  findTokenByHash,
   insertOtpCodeIfUnderLimit,
   revokeRefreshFamilyAndAccessTokensForUser,
   stampUserActivity,
@@ -106,6 +107,50 @@ describe('db queries', () => {
       const sql = mockSql([{ active_token_count: 1, scopes: [] }]);
 
       await expect(findActiveScopesForUser(sql, 'user-1')).resolves.toEqual([]);
+    });
+  });
+
+  describe('findTokenByHash', () => {
+    it('selects the joined account plan alongside email/status (BACT-013)', async () => {
+      const row = {
+        id: 'at-1',
+        user_id: 'user-1',
+        token_hash: 'hash',
+        scopes: ['beta'],
+        is_edict: false,
+        expires_at: '2026-09-01T00:00:00.000Z',
+        revoked_at: null,
+        created_at: '2026-08-01T00:00:00.000Z',
+        email: 'alice@example.com',
+        user_status: 'active',
+        plan: 'beta',
+      };
+      const sql = mockSql([row]);
+
+      const result = await findTokenByHash(sql, 'hash');
+      expect(result).toEqual(expect.objectContaining({ plan: 'beta' }));
+
+      const strings = vi.mocked(sql).mock.calls[0]?.[0] as unknown as string[];
+      expect(strings.join('?')).toContain('u.plan');
+    });
+
+    it('leaves plan undefined for rows predating the BACT-008 column (fixture tolerance)', async () => {
+      const row = {
+        id: 'at-1',
+        user_id: 'user-1',
+        token_hash: 'hash',
+        scopes: ['beta'],
+        is_edict: false,
+        expires_at: '2026-09-01T00:00:00.000Z',
+        revoked_at: null,
+        created_at: '2026-08-01T00:00:00.000Z',
+        email: 'alice@example.com',
+        user_status: 'active',
+      };
+      const sql = mockSql([row]);
+
+      const result = await findTokenByHash(sql, 'hash');
+      expect(result?.plan).toBeUndefined();
     });
   });
 

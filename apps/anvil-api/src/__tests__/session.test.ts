@@ -29,7 +29,7 @@ import { hashToken } from '../lib/token.js';
 import { mintRotatedSession, mintSession } from '../lib/session.js';
 
 const sql = {} as never;
-const user = { id: 'user-1', email: 'alice@example.com' };
+const user = { id: 'user-1', email: 'alice@example.com', plan: 'beta' };
 
 beforeEach(() => {
   // resetAllMocks wipes implementations as well as call history; re-state every
@@ -70,7 +70,7 @@ describe('mintSession', () => {
         email: 'alice@example.com',
         identity: { provider: 'github', id: '42' },
         org: null,
-        tier: 'pro',
+        plan: 'beta',
         scopes: ['beta', 'preview'],
         seats: 1,
       },
@@ -78,6 +78,17 @@ describe('mintSession', () => {
       7
     );
     expect(result.license).toBe('signed.jwt.token');
+  });
+
+  it('defaults the plan claim to `beta` when the caller passes a user without a plan (BACT-013)', async () => {
+    const identity: LicenceClaims['identity'] = { provider: 'email', id: null };
+    await mintSession(sql, { user: { id: 'user-2', email: 'no-plan@example.com' }, identity });
+
+    expect(vi.mocked(signLicence)).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: 'beta' }),
+      undefined,
+      7
+    );
   });
 
   it('returns a fresh hex refresh token and an ISO expiry ~7 days ahead', async () => {
@@ -211,6 +222,11 @@ describe('mintRotatedSession', () => {
     });
     expect(vi.mocked(insertRefreshToken)).not.toHaveBeenCalled();
     expect(vi.mocked(findActiveScopesForUser)).toHaveBeenCalledWith(sql, 'user-1');
+    expect(vi.mocked(signLicence)).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: 'beta' }),
+      undefined,
+      7
+    );
   });
 
   it('returns ok:false without signing when the atomic rotate fails', async () => {

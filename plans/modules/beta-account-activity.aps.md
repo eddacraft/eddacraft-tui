@@ -412,7 +412,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-013: Plan on evaluation context and JWT alignment
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** High
 - **Confidence:** medium — JWT compat for `tier` vs `plan` (OQ-C).
 - **Intent:** Entitlements evaluate with the account’s plan against catalogue

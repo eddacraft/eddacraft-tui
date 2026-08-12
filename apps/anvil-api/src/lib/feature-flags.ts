@@ -9,6 +9,7 @@ import {
   API_SCOPE_FLAG_PREFIX,
   API_SCOPE_NAMES,
   DEFAULT_APPROVAL_SCOPES,
+  canonicalAccountTier,
   isApiScopeName,
   type ApiScopeName,
 } from '@eddacraft/anvil-flags-catalogue';
@@ -69,6 +70,48 @@ export function defaultApiEvaluationContext(): EvaluationContext {
   return {
     targetingKey: 'api-anonymous',
     environment: { environment: currentEnvironment() },
+  };
+}
+
+/** BACT-013: matches the `beta_users.plan` column DEFAULT (migration 021). */
+const DEFAULT_PLAN = 'beta';
+
+export interface AuthenticatedEvaluationSubject {
+  /**
+   * Stable targeting key for the authenticated principal — prefer the
+   * account id. A pre-account identifier (e.g. an email mid-approve, before
+   * the `beta_users` row exists) is an acceptable fallback.
+   */
+  targetingKey: string;
+  /**
+   * The account's durable plan (`beta_users.plan`, BACT-008/ADR-121).
+   * Omit/null when the account/plan is not yet known — defaults to the
+   * column's own DEFAULT rather than fabricating a value.
+   */
+  plan?: string | null;
+}
+
+/**
+ * BACT-013 (ADR-121 decision 3): evaluation context for an *authenticated*
+ * API path, so entitlement flags can target the account's plan instead of
+ * only ever seeing the anonymous default context.
+ *
+ * Reuses `canonicalAccountTier` — the same reconciliation helper
+ * `apps/docs-site`'s `evaluateDocsAccess` uses to turn a bare plan name
+ * (`beta`) into its canonical `plan-*` audience id — so there is exactly one
+ * audience inventory (`flags/audiences.json`), never a second one invented
+ * here. The `accountTier` attribute name matches the one shipped flag that
+ * already targets it (`docs.access`); do not introduce a parallel attribute
+ * for the same axis.
+ */
+export function authenticatedApiEvaluationContext(
+  subject: AuthenticatedEvaluationSubject
+): EvaluationContext {
+  const plan = subject.plan ?? DEFAULT_PLAN;
+  return {
+    targetingKey: subject.targetingKey,
+    environment: { environment: currentEnvironment() },
+    audience: { accountTier: canonicalAccountTier(plan) },
   };
 }
 

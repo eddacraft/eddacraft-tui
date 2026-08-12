@@ -30,7 +30,11 @@ import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
-import { DEFAULT_APPROVAL_SCOPES, resolveApiScope } from '../lib/feature-flags.js';
+import {
+  DEFAULT_APPROVAL_SCOPES,
+  authenticatedApiEvaluationContext,
+  resolveApiScope,
+} from '../lib/feature-flags.js';
 import {
   inviteSchema,
   approveSchema,
@@ -156,6 +160,12 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   // Flag gate: Zod already restricts scope values to the manifest names, but
   // the api.scope.* entitlement flags let operators disable a scope without
   // a redeploy. Reject here so a flipped flag is honoured on the hot path.
+  //
+  // BACT-013: deliberately anonymous default context, not
+  // `authenticatedApiEvaluationContext` — the target account may not exist
+  // yet at invite time (this runs before the `beta_users` upsert below), so
+  // there is no plan to carry. `/admin/approve` builds a plan-aware context
+  // when an account row already exists.
   for (const scope of scopes) {
     const resolution = resolveApiScope(scope);
     if (!resolution || !resolution.allowed) {
@@ -413,10 +423,25 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
         )
       : [...DEFAULT_APPROVAL_SCOPES];
 
+    // BACT-013: evaluate scope entitlement against the *existing* account's
+    // plan (an authenticated-path evaluation context) rather than always
+    // falling through to the anonymous default. When there is no account
+    // row yet (`existingUser` is null — a brand-new approval), there is no
+    // plan to carry, so this deliberately keeps calling `resolveApiScope`
+    // with just the scope — identical to pre-BACT-013 behaviour.
+    const scopeContext = existingUser
+      ? authenticatedApiEvaluationContext({
+          targetingKey: existingUser.id,
+          plan: existingUser.plan,
+        })
+      : undefined;
+
     const grantedScopes: string[] = [];
     const droppedScopes: string[] = [];
     for (const scope of requestedScopes) {
-      const resolution = resolveApiScope(scope);
+      const resolution = scopeContext
+        ? resolveApiScope(scope, scopeContext)
+        : resolveApiScope(scope);
       if (resolution?.allowed) {
         grantedScopes.push(scope);
       } else {

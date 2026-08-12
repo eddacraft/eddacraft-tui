@@ -12,7 +12,16 @@ export interface LicenceClaims {
   email: string;
   identity: { provider: string; id: string | null };
   org: string | null;
-  tier: string;
+  /**
+   * BACT-013 / ADR-121 decision 6: durable plan name sourced from
+   * `beta_users.plan` (e.g. `beta`). Primary claim — supersedes the legacy
+   * `tier` name, which described a subscription tier ("pro") that never
+   * actually varied and confused the plan axis. `signLicence` still writes a
+   * `tier` key onto the wire (mirroring this value) for `apps/docs-shell`
+   * and `apps/docs-site`, which verify the raw JWT without a DB round trip
+   * and still read `tier` directly (OQ-C).
+   */
+  plan: string;
   scopes: string[];
   seats: number;
 }
@@ -104,12 +113,20 @@ export async function verifyLicence(jwt: string): Promise<LicenceClaims | null> 
       return null;
     }
     const identity = payload['identity'] as LicenceClaims['identity'] | undefined;
+    // BACT-013 / OQ-C: prefer the `plan` claim; fall back to the legacy
+    // `tier` claim so licences minted before this change keep verifying —
+    // never silently downgrade an in-flight session. `'beta'` matches the
+    // `beta_users.plan` column DEFAULT (migration 021).
+    const rawPlan = payload['plan'];
+    const rawTier = payload['tier'];
+    const plan =
+      typeof rawPlan === 'string' ? rawPlan : typeof rawTier === 'string' ? rawTier : 'beta';
     return {
       sub: payload.sub,
       email: payload['email'] as string,
       identity: identity ?? { provider: 'unknown', id: null },
       org: (payload['org'] as string | null) ?? null,
-      tier: typeof payload['tier'] === 'string' ? (payload['tier'] as string) : 'pro',
+      plan,
       scopes: payload['scopes'] as string[],
       seats: typeof payload['seats'] === 'number' ? (payload['seats'] as number) : 1,
     };
@@ -141,7 +158,13 @@ export async function signLicence(
     email: claims.email,
     identity: claims.identity,
     org: claims.org,
-    tier: claims.tier,
+    plan: claims.plan,
+    // BACT-013 / OQ-C: `tier` compat alias for apps/docs-shell and
+    // apps/docs-site, which verify the raw JWT at the edge and still read
+    // `tier` directly (DOCS_ACCESS_TIERS / evaluateDocsAccess). Mirrors
+    // `plan` byte-for-byte — never a second semantic axis (ADR-121 decision
+    // 6). Drop once those edge verifiers read `plan` instead.
+    tier: claims.plan,
     scopes: claims.scopes,
     seats: claims.seats,
     rcAfter: now + RC_AFTER_DAYS * 86400,
