@@ -1096,6 +1096,51 @@ mod tests {
         assert!(t.contains("name: anvil-audit"));
     }
 
+    /// Workflow-dispatch inputs must not be expanded into shell source.
+    /// GitHub evaluates `${{ }}` before bash parses the script, so a
+    /// hostile branch/threshold value can break out of a double-quoted
+    /// argument. Pass inputs via step `env:` and expand quoted shell
+    /// variables only, after format validation.
+    #[test]
+    fn audit_workflow_template_uses_env_for_dispatch_inputs() {
+        let t = audit_workflow_template();
+
+        // Forbid direct expression interpolation into shell for dispatch inputs.
+        assert!(
+            !t.contains("--branch \"${{ github.event.inputs"),
+            "branch must not be interpolated into shell; use env + shell var",
+        );
+        assert!(
+            !t.contains("--threshold \"${{ github.event.inputs"),
+            "threshold must not be interpolated into shell; use env + shell var",
+        );
+
+        // Positive contract: expressions land only in env:, then shell vars.
+        assert!(
+            t.contains("AUDIT_BRANCH: ${{ github.event.inputs.branch || 'main' }}"),
+            "branch input must bind via AUDIT_BRANCH env",
+        );
+        assert!(
+            t.contains("AUDIT_THRESHOLD: ${{ github.event.inputs.threshold || '5' }}"),
+            "threshold input must bind via AUDIT_THRESHOLD env",
+        );
+        assert!(
+            t.contains("--branch \"$AUDIT_BRANCH\"") || t.contains("--branch \"$branch\""),
+            "anvil audit-chain must receive branch from a quoted shell variable",
+        );
+        assert!(
+            t.contains("--threshold \"$AUDIT_THRESHOLD\"")
+                || t.contains("--threshold \"$threshold\""),
+            "anvil audit-chain must receive threshold from a quoted shell variable",
+        );
+
+        // Validate inputs before invoking anvil.
+        assert!(
+            t.contains("AUDIT_BRANCH") && t.contains("::error::"),
+            "template must validate dispatch inputs and emit ::error:: on reject",
+        );
+    }
+
     #[test]
     fn collect_witnessed_shas_includes_merge_parents() {
         use anvil_witness::GenesisAnchor;

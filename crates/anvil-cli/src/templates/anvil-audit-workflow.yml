@@ -54,10 +54,29 @@ jobs:
 
       - name: Run L5 audit
         id: audit
+        # Bind workflow_dispatch inputs via env so values never land in
+        # shell source (GitHub expands ${{ }} before bash parses the script).
+        env:
+          AUDIT_BRANCH: ${{ github.event.inputs.branch || 'main' }}
+          AUDIT_THRESHOLD: ${{ github.event.inputs.threshold || '5' }}
         run: |
+          set -euo pipefail
+          branch="${AUDIT_BRANCH:-main}"
+          threshold="${AUDIT_THRESHOLD:-5}"
+
+          # Allow common git ref characters only; reject shell metacharacters.
+          if [[ ! "$branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+            echo "::error::branch must be a simple git ref (letters, digits, . _ / -)"
+            exit 1
+          fi
+          if [[ ! "$threshold" =~ ^[0-9]+$ ]] || (( threshold > 10000 )); then
+            echo "::error::threshold must be an integer from 0 to 10000"
+            exit 1
+          fi
+
           anvil audit-chain \
-            --branch "${{ github.event.inputs.branch || 'main' }}" \
-            --threshold "${{ github.event.inputs.threshold || '5' }}" \
+            --branch "$branch" \
+            --threshold "$threshold" \
             --json \
             > audit-report.json
           cat audit-report.json
