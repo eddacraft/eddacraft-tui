@@ -14,6 +14,33 @@
 > (catalogue home crate, attestation transport, audit store reuse, global
 > exit-code registry) are filed as work items in SETCON, not decided here.
 
+### Reference interaction captures
+
+These captures preserve the Grok Build `/settings` interaction patterns that
+informed the operator-supplied specification. They are design evidence, not a
+normative visual contract for Anvil. Captured from Grok Build 1.0.0 on
+12 August 2026; no setting was changed while collecting them.
+
+#### Grouped overview and visible current values
+
+![Grok Build settings overview with grouped rows, current values, search, keyboard navigation and natural-language help](assets/settings-truth-surface/01-settings-overview.png)
+
+#### Trust-sensitive settings remain legible in context
+
+![Grok Build settings sections for agent approvals, privacy, models and advanced behaviour](assets/settings-truth-surface/02-settings-agent-privacy-models.png)
+
+#### Progressive explanation in place
+
+![An expanded Grok Build setting showing an inline explanation without leaving the grouped settings view](assets/settings-truth-surface/03-settings-inline-explanation.png)
+
+#### Scoped choice screen with reversible navigation
+
+![Grok Build theme choice screen showing current selection, option descriptions, select, revert and reset controls](assets/settings-truth-surface/04-settings-choice-screen.png)
+
+#### Search narrows the truth surface without losing grouping or values
+
+![Grok Build settings search filtered to permission-related settings](assets/settings-truth-surface/05-settings-search.png)
+
 ---
 
 Status: Final  
