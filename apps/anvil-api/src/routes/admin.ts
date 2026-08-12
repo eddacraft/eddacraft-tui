@@ -47,6 +47,7 @@ import {
   waitlistListQuerySchema,
   auditListQuerySchema,
   usersEngagementQuerySchema,
+  accountActivityQuerySchema,
 } from './admin-schemas.js';
 import {
   AUDIENCE_KEYS,
@@ -57,6 +58,10 @@ import {
 import { EMAIL_REGISTRY, type TemplateKey } from '../lib/email-registry.js';
 import { isUniqueViolation } from '../lib/device-code.js';
 import { findFleetOverview } from '../lib/fleet-overview.js';
+import {
+  findAccountActivityRows,
+  buildAccountActivityOverview,
+} from '../lib/account-activity-metrics.js';
 
 const debug = createDebugger('api');
 
@@ -100,6 +105,24 @@ admin.use(
 admin.get('/fleet', async (c) => {
   debug('GET /admin/fleet');
   const result = await findFleetOverview(getClient());
+  return c.json(result);
+});
+
+/**
+ * GET /admin/activity
+ *
+ * BACT-009 (ADR-121): named-account activity metrics — DAA/WAA/MAA windows
+ * (1/7/30 days) computed from `beta_users.last_activity_at` (BACT-008),
+ * optional `plan` filter, and never-active / quiet cohort counts. Reports
+ * accounts, never installs — distinct from the anonymous FLEET population
+ * evidence at `GET /admin/fleet` above, which this route does not touch.
+ */
+admin.get('/activity', zValidator('query', accountActivityQuerySchema), async (c) => {
+  const { plan, idleDays } = c.req.valid('query');
+  debug('GET /admin/activity', { plan, idleDays });
+  const sql = getClient();
+  const rows = await findAccountActivityRows(sql, plan ?? null);
+  const result = buildAccountActivityOverview(rows, { idleDays, plan: plan ?? null });
   return c.json(result);
 });
 

@@ -624,6 +624,52 @@ describe('admin endpoints', () => {
       ]);
     });
 
+    it('surfaces plan and last_activity_at (BACT-009 / ADR-121)', async () => {
+      vi.mocked(findUserWithTokens).mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'alice@example.com',
+          name: 'Alice',
+          status: 'active',
+          notes: null,
+          plan: 'beta',
+          last_activity_at: '2026-08-12T09:00:00.000Z',
+          last_activity_kind: 'refresh',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        tokens: [],
+      });
+
+      const res = await request('GET', '/admin/user/alice@example.com', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user.plan).toBe('beta');
+      expect(body.user.last_activity_at).toBe('2026-08-12T09:00:00.000Z');
+      expect(body.user.last_activity_kind).toBe('refresh');
+    });
+
+    it('leaves plan/last_activity_at absent for an older-server-shaped fixture', async () => {
+      vi.mocked(findUserWithTokens).mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'alice@example.com',
+          name: 'Alice',
+          status: 'active',
+          notes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        tokens: [],
+      });
+
+      const res = await request('GET', '/admin/user/alice@example.com', undefined, ADMIN_KEY);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.user.plan).toBeUndefined();
+      expect(body.user.last_activity_at).toBeUndefined();
+    });
+
     it('returns 404 for unknown user', async () => {
       vi.mocked(findUserWithTokens).mockResolvedValue(null);
       const res = await request('GET', '/admin/user/nobody@example.com', undefined, ADMIN_KEY);

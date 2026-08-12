@@ -19,3 +19,13 @@ export function isAccountFeatureKey(value: string): value is AccountFeatureKey {
 
 /** Default idle window for CS engagement filters (BACT-006 / OQ3). */
 export const DEFAULT_IDLE_DAYS = 30;
+
+/**
+ * Closed set of account `plan` values (ADR-121 / BACT-008 `beta_users.plan`
+ * CHECK constraint). Widen alongside the CHECK and the catalogue plan-axis
+ * audiences (`flags/audiences.json`) when new plans ship — never invent a
+ * parallel plan list (ADR-121 decision 3).
+ */
+export const ACCOUNT_PLANS = ['beta'] as const;
+
+export type AccountPlan = (typeof ACCOUNT_PLANS)[number];

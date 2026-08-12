@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { API_SCOPE_NAMES, type ApiScopeName } from '../lib/feature-flags.js';
+import { ACCOUNT_PLANS, DEFAULT_IDLE_DAYS } from '../lib/account-activity.js';
 
 // Derived from the api.scope.* flag manifest in ../lib/feature-flags.ts —
 // the manifest is the single source of truth for valid scope names.
@@ -218,3 +219,14 @@ export const usersEngagementQuerySchema = z
   });
 
 export type UsersEngagementQuery = z.infer<typeof usersEngagementQuerySchema>;
+
+// BACT-009 (ADR-121): DAA/WAA/MAA window metrics over `last_activity_at`,
+// optional plan filter, quiet-cohort window. `plan` is the closed catalogue
+// set (today only `beta`) — an unrecognised value fails validation rather
+// than silently matching zero accounts.
+export const accountActivityQuerySchema = z.object({
+  plan: z.enum(ACCOUNT_PLANS).optional(),
+  idleDays: z.coerce.number().int().finite().min(1).max(365).default(DEFAULT_IDLE_DAYS),
+});
+
+export type AccountActivityQuery = z.infer<typeof accountActivityQuerySchema>;
