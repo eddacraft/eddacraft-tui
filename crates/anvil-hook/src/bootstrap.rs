@@ -345,8 +345,8 @@ mod tests {
         );
     }
 
-    /// Materialise the generated runtime into a repo-shaped tempdir:
-    /// `<root>/.husky/_/{h,husky.sh,<hook>…}`. Returns the root.
+    /// Materialise the generated runtime under `root`, giving it the
+    /// real repo shape: `<root>/.husky/_/{h,husky.sh,<hook>…}`.
     ///
     /// The layout matters: `h` resolves its target relative to the
     /// PARENT of its own directory, so a flat tempdir would not
