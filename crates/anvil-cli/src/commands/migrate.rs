@@ -197,7 +197,8 @@ fn serialise_to_format(value: &serde_json::Value, format: ConfigFormat) -> Resul
 
 /// Core of `anvil migrate schema`, parameterised on the working root and
 /// the migration registry so tests can inject a tempdir + fixture
-/// migrations (the production registry is empty today).
+/// migrations (the production registry carries the ADR-120 casing rename,
+/// introduced in `0.10.0-beta`).
 pub(crate) fn run_schema_in(
     args: &SchemaArgs,
     root: &Path,
@@ -523,7 +524,8 @@ mod tests {
             "checks: [secret-detection]\n",
         )
         .unwrap();
-        // Empty (production) registry → "no migration needed".
+        // Production registry: its only entry (introduced 0.10.0-beta) is
+        // not selected for an installed 0.9.4-beta → "no migration needed".
         run_schema_in(
             &schema_args(true),
             tmp.path(),

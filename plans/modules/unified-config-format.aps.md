@@ -179,7 +179,11 @@ Change status to **Ready** when:
   `start.rs existing_project_config_path` (today `.anvilrc`-first) to match
   `gate.rs`'s discover-first resolution, flipping its pinning test; `config
   set`'s writable-path keeps editing a discovered legacy `.anvilrc` in place
-  but never creates one
+  but never creates one. Owns ADR-120 pt 3's "rewritten on the next owned
+  write" clause (UCFG-003 verifier advisory): `config set` and
+  `migrate format` apply `normalize_legacy_keys` when rewriting a legacy
+  file, and doctor/`config show` render
+  `anvil_config::legacy_keys_deprecation_note` so operators actually see it
 - **Expected Outcome:** one migration command moves a legacy repo to the
   canonical name; every code path answers the dual-config question the same
   way; dual-truth states are visible, not silent
@@ -198,7 +202,7 @@ Change status to **Ready** when:
 
 #### UCFG-003: snake_case canonical key space
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** canonicalise keys to snake_case across yaml/json/toml in
   `anvil-config`; accept legacy camelCase on read via the migrations layer;
   owned writes emit snake_case only. This owns the actual divergent writer

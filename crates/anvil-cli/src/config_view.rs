@@ -144,11 +144,12 @@ impl GateConfigView {
 /// `.anvilrc` value. Mirrors the fields the existing private
 /// `init::AnvilConfig` struct serializes.
 ///
-/// Key casing: YAML/JSON producers (the legacy `yaml_serialise` /
-/// `serde_json` path) emit `schemaVersion` / `planningDir`. The TOML
-/// producer emits `schema_version` / `planning_dir`. The view accepts
-/// `camelCase` first and falls back to `snake_case` so it reads both
-/// pre-MLP2-041 writers without forcing a config-format migration.
+/// Key casing: every writer emits canonical `schema_version` /
+/// `planning_dir` since ADR-120 / UCFG-003; files written by pre-flip
+/// YAML/JSON producers carry `schemaVersion` / `planningDir`. The view
+/// accepts `camelCase` first and falls back to `snake_case` so it reads
+/// both eras without forcing a config-format migration (mixed-key
+/// precedence reconciliation is UCFG-002's owned-write scope).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InitConfigView {
     pub schema_version: String,
