@@ -17,7 +17,7 @@ revision was ever executed, so IDs are reallocated cleanly.
 
 | ID   | Owner | Priority | Status   | Progress |
 | ---- | ----- | -------- | -------- | -------- |
-| UCFG | —     | medium   | Proposed | 0/12     |
+| UCFG | —     | medium   | Ready    | 0/12     |
 
 **Last reviewed:** 2026-08-12 — module rewritten against ADR-120 (Proposed),
 superseding the ADR-016 revision. Verified against current code: `anvil init`
@@ -27,12 +27,13 @@ hand-rolled in `hook.rs` and `l4_validate.rs`. Council `council-0851e9cb`
 (standard pack, same day) findings folded in: start-vs-gate precedence split,
 `config set` legacy writer, policy yml→yaml flip made explicit, delegation
 containment hardened, fold confirmation, casing-writer ownership, TUI
-tutorial surface, ARCHCFG-007 sequencing.
+tutorial surface, ARCHCFG-007 sequencing. **2026-08-13:** ADR-120 Accepted (operator); module flipped to
+Ready against the v0.10.0-beta window.
 
-> **Activation gate.** UCFG promotes to **Ready** when (a) ADR-120 is
-> Accepted, and (b) the module is scheduled against a named release window.
-> SETCON reads what this module defines and SETPREF names it as the writer
-> contract; both stay anchored here.
+> **Activation gate: satisfied 2026-08-13.** ADR-120 Accepted (operator);
+> scheduled against the **v0.10.0-beta** release window. SETCON reads what
+> this module defines and SETPREF names it as the writer contract; both stay
+> anchored here.
 
 ## Purpose
 
@@ -136,9 +137,10 @@ must correlate all of them to understand configuration.
 
 Change status to **Ready** when:
 
-- [ ] ADR-120 Accepted (ADR-016 marked Rejected with pointer)
-- [ ] Release window named
-- [ ] Work items reviewed against current `main`
+- [x] ADR-120 Accepted 2026-08-13, operator (ADR-016 Rejected with pointer)
+- [x] Release window named: v0.10.0-beta
+- [x] Work items reviewed against current `main` (council `council-0851e9cb`,
+      2026-08-12)
 
 ---
 
