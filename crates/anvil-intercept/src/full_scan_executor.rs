@@ -352,9 +352,17 @@ pub fn prepare_scan(
     })
 }
 
+/// Outcome of [`run_segments`]: finished with the active scan token, or timed
+/// out mid-pass with the token that must be retired.
+enum SegmentRun {
+    Finished { token: u64 },
+    TimedOut { token: u64 },
+}
+
 /// Run one full pass over `files` with cooperative-yield continuations.
-/// Returns `true` on completion, `false` if the watchdog tripped `timed_out`
-/// mid-pass (the caller marks `ScanTimeout`).
+/// Returns [`SegmentRun::Finished`] on completion or [`SegmentRun::TimedOut`]
+/// if the wall-clock budget tripped mid-pass (the caller marks `ScanTimeout`
+/// with the returned token).
 ///
 /// Each segment registers its cancel handle BEFORE the machine goes `Running`,
 /// so an interactive `validate_paths` firing `coordinator.cancel(key)` right
@@ -364,16 +372,9 @@ pub fn prepare_scan(
 /// progress resumes (it does not require every yield to advance `start`). The
 /// machine lock is taken only for the brief `start_scan` (C2); the walk + parse
 /// + apply run lock-free.
-// Eight tightly-related parameters; bundling them into a struct would add
+// Nine tightly-related parameters; bundling them into a struct would add
 // ceremony without clarity for a single private helper.
 #[allow(clippy::too_many_arguments)]
-/// Outcome of [`run_segments`]: either the token of the last segment (ready to
-/// complete) or the token of the segment that hit the wall-clock budget.
-enum SegmentRun {
-    Finished { token: u64 },
-    TimedOut { token: u64 },
-}
-
 fn run_segments(
     ctx: &ScanContext,
     machine: &Arc<Mutex<AssuranceMachine>>,
@@ -389,8 +390,7 @@ fn run_segments(
     loop {
         let cancel = ScanCancel::new();
         ctx.coordinator.register_cancel(key, cancel.clone());
-        let token =
-            with_locked_machine_trace(machine, root, |m| m.start_scan(now_rfc3339()));
+        let token = with_locked_machine_trace(machine, root, |m| m.start_scan(now_rfc3339()));
 
         let outcome = run_chunked_scan(&files[start..], SCAN_CHUNK, &cancel, |path| {
             // CIB-095e: enforce the scan-timeout deadline inline (replacing the
@@ -440,6 +440,7 @@ fn run_segments(
 /// "set Stale + re-queue a separate job" — the two-pool model lets the
 /// continuation run here, so `Running` is the accurate state and there is no
 /// slot hand-off to race).
+#[allow(clippy::too_many_lines)] // terminal match arms for Clean/Bounded/Dirtied/Ignored + token path
 fn run_scan_loop(
     ctx: &ScanContext,
     machine: &Arc<Mutex<AssuranceMachine>>,
@@ -1076,7 +1077,10 @@ mod tests {
         let token = m.start_scan(now_rfc3339());
         m.note_apply_delta(); // stands in for a non-validate_paths apply
         assert!(m.is_dirty_during_scan());
-        assert_eq!(m.complete_scan(now_rfc3339(), token), ScanCompletion::Dirtied);
+        assert_eq!(
+            m.complete_scan(now_rfc3339(), token),
+            ScanCompletion::Dirtied
+        );
     }
 
     #[test]
