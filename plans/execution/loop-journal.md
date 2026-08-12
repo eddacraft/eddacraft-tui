@@ -888,3 +888,20 @@ never with feature work.
   with regression pins; round 2 in flight.
 - Next: land UCFG-005; UCFG-007 (dep 006, now unblocked) → 008; then
   001 → 002, 010, 011, 012.
+
+## Cycle — 2026-08-13 (UCFG drain, wave 2: UCFG-005 integrated)
+
+- UCFG-005 (gate-config re-point + fold):
+  `MERGED(879d79085e8f99aaba8e2071f4619b560f782dc0, 2026-08-12T21:39:05Z)`
+  via PR #3834; ancestor check passed post-fetch. Verifier round 1
+  blocking (fold resurrection on section-driven selections;
+  empty-selection round-trip) — repaired with regression pins; round 2
+  pass with both fixes live re-probed. Copilot found a third edge
+  (all-disabled legacy fold → checks: []) — refused with guidance,
+  regression-pinned, thread resolved pre-merge.
+- UCFG-007 (architecture section resolution) verified
+  pass-with-advisories; both advisories delivered in-branch (doctor
+  architecture-source note incl. dual-truth shadowing; migrate dry-run
+  comment-loss note). Stacked on 005, de-stacked onto main post-merge.
+- Next: land UCFG-007 → UCFG-008 (consumer sweep); then 001 → 002,
+  010, 011, 012.

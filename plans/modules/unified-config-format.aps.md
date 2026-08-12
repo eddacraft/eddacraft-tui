@@ -248,7 +248,7 @@ Change status to **Ready** when:
 
 #### UCFG-005: gate-config command re-pointed; legacy file folded
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3834
 - **Intent:** `anvil gate-config --list/--enable/--disable` reads/writes the
   main-config `gate` section. `anvil migrate` folds a legacy
   `gate-config.json` (only fields absent from the main config; every folded
