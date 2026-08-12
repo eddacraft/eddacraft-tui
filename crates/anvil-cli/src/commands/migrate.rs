@@ -586,6 +586,7 @@ pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -
         "Plan: add `architecture.source = \"{rel}\"` to {}.",
         project.label
     );
+    println!("Note: the config is re-serialised — comments are not preserved.");
     if !args.apply {
         println!("Dry-run only; pass --apply to write.");
         return Ok(());

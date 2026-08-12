@@ -116,6 +116,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_config_valid(),
         check_policy_variants(),
         check_legacy_gate_config(),
+        check_architecture_source(),
         check_anvil_dir(),
         check_anvil_dir_writable(),
         check_plans_dir(),
@@ -314,6 +315,61 @@ fn check_legacy_gate_config_in(root: &Path) -> DiagnosticCheck {
         remediation: Remediation {
             summary: "Fold it into the project config and remove it.".to_string(),
             command: Some("anvil migrate gate-config --apply".to_string()),
+            doc_url: None,
+        },
+    }
+}
+
+fn check_architecture_source() -> DiagnosticCheck {
+    check_architecture_source_in(Path::new("."))
+}
+
+/// UCFG-007 / ADR-120 pt 5: architecture config belongs to the main
+/// config's `architecture` section (inline or source-delegated). A
+/// standalone `.anvil/architecture.yaml` still works as the legacy
+/// fallback, but doctor names the migration; when both exist the
+/// section silently wins, so the shadowed file is called out.
+fn check_architecture_source_in(root: &Path) -> DiagnosticCheck {
+    let legacy = anvil_architecture::yaml_parser::architecture_yaml_exists(root);
+    let section = crate::commands::config::load_project_config(root)
+        .ok()
+        .and_then(|p| {
+            p.value
+                .get("architecture")
+                .filter(|v| !v.is_null())
+                .map(|_| ())
+        })
+        .is_some();
+    let (status, message) = match (section, legacy) {
+        (true, true) => (
+            CheckStatus::Warn,
+            "architecture section AND standalone .anvil/architecture.yaml both present —              the section wins; the standalone file is shadowed unless it is the section's              delegation target"
+                .to_string(),
+        ),
+        (false, true) => (
+            CheckStatus::Warn,
+            "standalone .anvil/architecture.yaml (legacy form) — still works; the              architecture section is the unified home"
+                .to_string(),
+        ),
+        (true, false) => (
+            CheckStatus::Pass,
+            "architecture lives in the config's architecture section".to_string(),
+        ),
+        (false, false) => (
+            CheckStatus::Pass,
+            "no architecture config (governance not opted in)".to_string(),
+        ),
+    };
+    DiagnosticCheck {
+        name: "architecture-source".to_string(),
+        category: "Configuration".to_string(),
+        status,
+        message,
+        details: None,
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "Point the section at the file explicitly, or fold it in.".to_string(),
+            command: Some("anvil migrate architecture --apply".to_string()),
             doc_url: None,
         },
     }
@@ -2300,6 +2356,44 @@ mod tests {
             assert!(!check.remediation.summary.is_empty());
             assert!(check.auto_fixable);
         });
+    }
+
+    #[test]
+    fn architecture_source_states_map_to_expected_statuses() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Neither → Pass.
+        assert_eq!(
+            check_architecture_source_in(tmp.path()).status,
+            CheckStatus::Pass
+        );
+        // Legacy only → Warn naming the migration.
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil/architecture.yaml"),
+            "schema_version: \"0.1.0\"\n",
+        )
+        .unwrap();
+        let legacy_only = check_architecture_source_in(tmp.path());
+        assert_eq!(legacy_only.status, CheckStatus::Warn);
+        assert_eq!(
+            legacy_only.remediation.command.as_deref(),
+            Some("anvil migrate architecture --apply")
+        );
+        // Both → Warn about shadowing.
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  layers: {}\n",
+        )
+        .unwrap();
+        let both = check_architecture_source_in(tmp.path());
+        assert_eq!(both.status, CheckStatus::Warn);
+        assert!(both.message.contains("shadowed"), "{}", both.message);
+        // Section only → Pass.
+        std::fs::remove_file(tmp.path().join(".anvil/architecture.yaml")).unwrap();
+        assert_eq!(
+            check_architecture_source_in(tmp.path()).status,
+            CheckStatus::Pass
+        );
     }
 
     #[test]
