@@ -1906,8 +1906,16 @@ export interface AccountActivityRollupRow {
  * Recompute and upsert distinct active-account counts for each requested
  * completed UTC day, per `plan` plus the `ROLLUP_TOTAL_PLAN_KEY` all-plan
  * total (BACT-011, ADR-121 OQ-A). Each (day, plan) row is written by
- * `ON CONFLICT ... DO UPDATE` (overwrite, never increment), so calling this
- * again for a day already rolled up is idempotent and never double-counts.
+ * `ON CONFLICT ... DO UPDATE ... GREATEST(...)` — a **best-observation**
+ * upsert, not a plain overwrite: `beta_users.last_activity_at` only ever
+ * advances, so a *later* re-roll of an already-written day can only ever
+ * observe the same or a *smaller* set of accounts still pointing at that
+ * day (accounts that were active again since have moved their pointer
+ * past it). Taking `GREATEST(stored, newly-observed)` keeps each day's
+ * best-ever snapshot instead of letting a later, smaller recount shrink an
+ * already-correct earlier one. Still idempotent (re-running the same
+ * observation is a no-op) and still never double-counts (it is a max, not
+ * a sum).
  *
  * `days` should come from `completedUtcDays` (lib/account-activity-rollup.ts)
  * — never the current, still-open UTC day. The UTC boundary is applied
@@ -1915,8 +1923,10 @@ export interface AccountActivityRollupRow {
  * session timezone, so the day a row lands in does not depend on
  * connection-level configuration.
  *
- * See `lib/account-activity-rollup.ts` for why a day rolled up late (after
- * an account's `last_activity_at` has moved past it) undercounts that day.
+ * See `lib/account-activity-rollup.ts` for why a day's *first* rollup, if
+ * it happens late (after an account's `last_activity_at` has already moved
+ * past that day), can still undercount — GREATEST preserves whatever best
+ * snapshot was ever taken, but cannot recover evidence no rollup ever saw.
  */
 export async function rollupAccountActivity(
   sql: NeonClient,
@@ -1954,7 +1964,7 @@ export async function rollupAccountActivity(
     INSERT INTO activity_rollup_daily (day, plan, active_accounts, computed_at)
     SELECT day, plan, cnt, now() FROM combined
     ON CONFLICT (day, plan) DO UPDATE
-      SET active_accounts = EXCLUDED.active_accounts,
+      SET active_accounts = GREATEST(activity_rollup_daily.active_accounts, EXCLUDED.active_accounts),
           computed_at = EXCLUDED.computed_at
     RETURNING day::text AS day, plan, active_accounts
   `;

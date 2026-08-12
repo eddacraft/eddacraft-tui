@@ -38,6 +38,11 @@ describe('022-account-activity-rollup-daily.sql (BACT-011)', () => {
   it('documents the late-rollup undercount caveat', () => {
     expect(migrationSql.toLowerCase()).toMatch(/undercount/);
   });
+
+  it('documents best-observation GREATEST semantics (BACT-011 F2)', () => {
+    expect(migrationSql).toMatch(/GREATEST/);
+    expect(migrationSql.toLowerCase()).toMatch(/never decrease/);
+  });
 });
 
 describe('schema.sql mirrors migration 022 (fresh-install parity)', () => {

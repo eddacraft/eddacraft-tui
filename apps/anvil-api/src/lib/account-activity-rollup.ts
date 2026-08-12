@@ -11,22 +11,33 @@
  * This rollup takes a snapshot: once a day, it counts distinct active
  * accounts whose `last_activity_at` falls (in UTC) on each of the last few
  * *completed* UTC days, and durably records that count per day/plan in
- * `activity_rollup_daily` (migration 022). Because the count is computed
- * from the live pointer at rollup time, **a day rolled up late — after an
- * account's `last_activity_at` has already advanced past that day —
- * undercounts that day.** The job runs frequently (piggybacking on the
- * existing hourly `/cron/cleanup` sweep, see `routes/cron.ts`) and
- * re-derives a trailing window of days on every run so a short outage
- * self-heals, but a day left un-rolled for longer than an account's next
- * activity gap will permanently undercount that day. This limitation must
- * stay documented wherever the rollup is described (see
- * `docs/runbooks/admin-cli.md` — "Daily rollup" section) rather than
- * silently presented as exact history.
+ * `activity_rollup_daily` (migration 022). The job runs frequently
+ * (piggybacking on the existing hourly `/cron/cleanup` sweep, see
+ * `routes/cron.ts`, and error-isolated from it — a rollup failure never
+ * fails the cleanup sweep) and re-derives a trailing window of days on
+ * every run so a short outage self-heals.
  *
- * The upsert is idempotent by construction: each run recomputes the full
- * count for each (day, plan) pair from `beta_users` and overwrites via
- * `ON CONFLICT ... DO UPDATE` (never an increment), so re-running the same
- * completed day any number of times never double-counts.
+ * The upsert is **best-observation**, not a plain overwrite:
+ * `SET active_accounts = GREATEST(stored, newly-observed)`. Because
+ * `last_activity_at` only ever advances, a *later* re-roll of an
+ * already-written day can only observe the same or a *smaller* set of
+ * accounts still pointing at that day (accounts that were active again
+ * since have moved their pointer past it) — GREATEST keeps each day's
+ * best-ever snapshot instead of letting a later, smaller recount shrink an
+ * already-correct earlier one. Stored counts therefore never decrease on
+ * re-roll, and the upsert is still idempotent and never double-counts (it
+ * is a max, not a sum).
+ *
+ * That does **not** eliminate undercounting: **a day's *first* rollup, if
+ * it happens late — after an account's `last_activity_at` has already
+ * advanced past that day — has nothing to observe for that account, and
+ * GREATEST has nothing to raise the stored value from.** The 7-day
+ * trailing window mitigates the common outage case, but cannot recover a
+ * day missed entirely past that window. The stored value approximates
+ * accounts observed active that day, not an exact audit log. This
+ * limitation must stay documented wherever the rollup is described (see
+ * `docs/runbooks/admin-cli.md` — "Daily historical-DAA rollup" section)
+ * rather than silently presented as exact history.
  */
 
 export const ACCOUNT_ACTIVITY_ROLLUP_SCHEMA_VERSION = 'anvil.account-activity-rollup.v1';

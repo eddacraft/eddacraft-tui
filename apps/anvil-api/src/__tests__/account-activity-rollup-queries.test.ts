@@ -51,14 +51,42 @@ describe('rollupAccountActivity (BACT-011)', () => {
     expect(query!.flatParams).toContain(ROLLUP_TOTAL_PLAN_KEY);
   });
 
-  it('upserts by overwrite, never by increment — idempotent re-run of the same day', async () => {
+  it('upserts by best-observation GREATEST, never by plain overwrite or increment', async () => {
     const sql = mockSql([]);
     await rollupAccountActivity(sql, ['2026-08-12']);
     const [query] = capturedQueries(sql);
     expect(query!.text).toContain('ON CONFLICT (day, plan) DO UPDATE');
-    expect(query!.text).toContain('SET active_accounts = EXCLUDED.active_accounts');
-    // Must not be an additive increment, or a repeat run would double-count.
+    // last_activity_at only advances, so a later re-roll of the same day can
+    // only ever *shrink* the set of accounts still visible on that day
+    // (BACT-011 F2 fix) — GREATEST preserves the day's best-ever snapshot
+    // instead of letting a later, smaller recount overwrite a correct
+    // earlier one.
+    expect(query!.text).toContain(
+      'SET active_accounts = GREATEST(activity_rollup_daily.active_accounts, EXCLUDED.active_accounts)'
+    );
+    // Must not be a plain overwrite (would regress to shrinking on re-roll)
+    // or an additive increment (would double-count on repeat runs).
+    expect(query!.text).not.toMatch(/SET active_accounts = EXCLUDED\.active_accounts(?!\))/);
     expect(query!.text).not.toMatch(/active_accounts\s*\+\s*EXCLUDED/);
+  });
+
+  it('re-roll with a lower observed count leaves the higher stored value (GREATEST)', async () => {
+    // Simulates what a real Postgres GREATEST upsert returns via RETURNING:
+    // day was previously rolled up at 5, a later re-roll only observes 3
+    // (an account's last_activity_at has since advanced past this day), so
+    // the stored/returned value stays at the prior high-water mark, 5.
+    const sql = mockSql([{ day: '2026-08-12', plan: 'beta', active_accounts: 5 }]);
+    const result = await rollupAccountActivity(sql, ['2026-08-12']);
+    expect(result).toEqual([{ day: '2026-08-12', plan: 'beta', activeAccounts: 5 }]);
+  });
+
+  it('re-roll with a higher observed count raises the stored value (GREATEST)', async () => {
+    // Same day, but this re-roll observes MORE active accounts than the
+    // prior snapshot (e.g. the first rollup ran before all activity for
+    // that day had landed) — GREATEST raises the stored value to match.
+    const sql = mockSql([{ day: '2026-08-12', plan: 'beta', active_accounts: 8 }]);
+    const result = await rollupAccountActivity(sql, ['2026-08-12']);
+    expect(result).toEqual([{ day: '2026-08-12', plan: 'beta', activeAccounts: 8 }]);
   });
 
   it('returns the upserted rows, mapped to camelCase', async () => {

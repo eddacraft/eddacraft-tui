@@ -11,19 +11,28 @@
 -- `beta_users.plan` closed set (today only 'beta') or the reserved
 -- '__all__' sentinel carrying the cross-plan total for that day.
 --
--- Idempotent write: the job (lib/account-activity-rollup.ts,
+-- Idempotent, best-observation write: the job (lib/account-activity-rollup.ts,
 -- db/queries.ts#rollupAccountActivity) always recomputes a day's count from
--- `beta_users` and upserts via `ON CONFLICT (day, plan) DO UPDATE` — never
--- an increment — so re-running the same completed day any number of times
--- never double-counts.
+-- `beta_users` and upserts via
+-- `ON CONFLICT (day, plan) DO UPDATE SET active_accounts =
+--   GREATEST(activity_rollup_daily.active_accounts, EXCLUDED.active_accounts)`
+-- — never a plain overwrite and never an increment. `last_activity_at` only
+-- ever advances, so a later re-roll of an already-written day can only
+-- observe the same or a *smaller* set of accounts still pointing at that
+-- day; GREATEST keeps each day's best-ever snapshot instead of letting a
+-- later, smaller recount shrink an already-correct earlier one. Re-running
+-- the same completed day any number of times never double-counts (it is a
+-- max, not a sum) and stored counts never decrease.
 --
--- Late-rollup undercount (documented honestly, not silently): the count for
--- a day is only as good as `beta_users.last_activity_at` at the moment the
--- job runs. If an account's activity has already advanced past that day
--- before the day is (re-)rolled up, that day's count can no longer see the
--- account and undercounts. The job mitigates this by recomputing a small
--- trailing window of days on every run (self-heals short outages), but
--- cannot recover a day missed entirely past that window. See
+-- Late-rollup undercount (documented honestly, not silently): a day's
+-- *first* rollup is only as good as `beta_users.last_activity_at` at the
+-- moment the job runs. If an account's activity has already advanced past
+-- that day before the day is ever rolled up once, that day's count can no
+-- longer see the account, and GREATEST has nothing to raise it from — the
+-- stored value approximates accounts observed active that day, not an
+-- exact audit log. The job mitigates the common case by recomputing a
+-- small trailing window of days on every run (self-heals short outages),
+-- but cannot recover a day missed entirely past that window. See
 -- `docs/runbooks/admin-cli.md` for the operator-facing version of this
 -- caveat.
 --
