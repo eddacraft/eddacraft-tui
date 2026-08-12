@@ -39,6 +39,44 @@ pub enum CoexistenceError {
         "framework `{0}` is not supported by coexistence; use `anvil hook bootstrap` for the plain install path"
     )]
     UnsupportedFramework(&'static str),
+    /// The host file's Anvil-managed markers are not a single
+    /// well-formed pair. Mutating such a file is unsafe: a newly
+    /// appended end marker would pair with a pre-existing unmatched
+    /// begin marker, and the next uninstall would delete every line
+    /// between them — user content included. Refuse instead, and
+    /// leave the file exactly as it was.
+    #[error(
+        "`{path}` has malformed anvil-managed markers ({defect}); refusing to modify it — repair the markers by hand, then re-run"
+    )]
+    MalformedMarkers { path: String, defect: MarkerDefect },
+}
+
+/// How a host file's marker pair is malformed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkerDefect {
+    /// A begin marker with no end marker after it.
+    UnmatchedBegin,
+    /// An end marker with no begin marker.
+    UnmatchedEnd,
+    /// More than one begin marker.
+    DuplicateBegin,
+    /// More than one end marker.
+    DuplicateEnd,
+    /// The end marker precedes the begin marker.
+    EndBeforeBegin,
+}
+
+impl std::fmt::Display for MarkerDefect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::UnmatchedBegin => "begin marker without a matching end marker",
+            Self::UnmatchedEnd => "end marker without a matching begin marker",
+            Self::DuplicateBegin => "more than one begin marker",
+            Self::DuplicateEnd => "more than one end marker",
+            Self::EndBeforeBegin => "end marker before the begin marker",
+        };
+        f.write_str(s)
+    }
 }
 
 pub fn plan_install(
@@ -92,38 +130,101 @@ pub fn plan_uninstall(
 /// `install_then_uninstall_preserves_user_content_*` tests pin
 /// both the byte-exact and canonical cases. Fully-owned managed
 /// files round-trip to empty (deleted) on uninstall.
-#[must_use]
-pub fn apply(existing: Option<&str>, file: &CoexistenceFile) -> String {
+///
+/// **Malformed markers are refused.** The host file must carry
+/// either no markers or exactly one well-formed `BEGIN … END` pair.
+/// Anything else — an unmatched begin, a stray end, duplicates, or
+/// an end before its begin — returns
+/// [`CoexistenceError::MalformedMarkers`] and the caller must leave
+/// the file untouched. Appending a fresh block to a file with a
+/// dangling begin marker would let that pre-existing marker pair
+/// with the new end marker, and the next uninstall would delete
+/// every line between them; refusing keeps user content safe.
+pub fn apply(existing: Option<&str>, file: &CoexistenceFile) -> Result<String, CoexistenceError> {
     if file.fully_owned {
         // Whole-file ownership: install/refresh writes initial_content;
         // uninstall clears it and yields empty (delete).
-        return file.initial_content.clone();
+        return Ok(file.initial_content.clone());
     }
     if existing.is_none() && file.block.is_empty() {
-        return String::new();
+        return Ok(String::new());
     }
     let body: String = existing.map_or_else(|| file.initial_content.clone(), str::to_string);
-    if let Some((before, after)) = split_at_markers(&body) {
-        if file.block.is_empty() {
-            return remove_marker_block(before, after);
+    match classify_markers(&body) {
+        MarkerState::Malformed(defect) => Err(CoexistenceError::MalformedMarkers {
+            path: file.relative_path.clone(),
+            defect,
+        }),
+        MarkerState::WellFormed { begin, after_end } => {
+            let before = &body[..begin];
+            let after = &body[after_end..];
+            if file.block.is_empty() {
+                Ok(remove_marker_block(before, after))
+            } else {
+                Ok(format!(
+                    "{before}{MARKER_BEGIN}\n{}\n{MARKER_END}{after}",
+                    file.block
+                ))
+            }
         }
-        return format!(
-            "{before}{MARKER_BEGIN}\n{}\n{MARKER_END}{after}",
-            file.block
-        );
+        MarkerState::Absent => {
+            if file.block.is_empty() {
+                Ok(body)
+            } else {
+                Ok(append_marker_block(&body, &file.block))
+            }
+        }
     }
-    if file.block.is_empty() {
-        return body;
-    }
-    append_marker_block(&body, &file.block)
 }
 
-fn split_at_markers(body: &str) -> Option<(&str, &str)> {
-    let start = body.find(MARKER_BEGIN)?;
-    let after_begin = start + MARKER_BEGIN.len();
-    let end_offset = body[after_begin..].find(MARKER_END)?;
-    let after_end = after_begin + end_offset + MARKER_END.len();
-    Some((&body[..start], &body[after_end..]))
+/// Shape of the Anvil-managed marker region in a host file.
+///
+/// Byte offsets rather than borrowed slices so callers can keep
+/// mutating the owning `String` without fighting the borrow checker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MarkerState {
+    /// No markers at all.
+    Absent,
+    /// Exactly one begin, exactly one end, in that order.
+    WellFormed {
+        /// Offset of `MARKER_BEGIN`.
+        begin: usize,
+        /// Offset one past the end of `MARKER_END`.
+        after_end: usize,
+    },
+    Malformed(MarkerDefect),
+}
+
+/// Classify a host file's markers.
+///
+/// The previous implementation took the first begin and the first
+/// end after it, silently treating every other shape as "no markers"
+/// — which is what let a dangling begin marker swallow user content
+/// on the following uninstall. This counts both markers so unmatched
+/// and duplicated states are distinguishable from absent ones.
+fn classify_markers(body: &str) -> MarkerState {
+    let begins = body.match_indices(MARKER_BEGIN).count();
+    let ends = body.match_indices(MARKER_END).count();
+    match (begins, ends) {
+        (0, 0) => MarkerState::Absent,
+        (0, _) => MarkerState::Malformed(MarkerDefect::UnmatchedEnd),
+        (_, 0) => MarkerState::Malformed(MarkerDefect::UnmatchedBegin),
+        (1, 1) => {
+            // Unwraps are sound: the counts above prove both exist.
+            let begin = body.find(MARKER_BEGIN).unwrap();
+            let end = body.find(MARKER_END).unwrap();
+            if end < begin + MARKER_BEGIN.len() {
+                MarkerState::Malformed(MarkerDefect::EndBeforeBegin)
+            } else {
+                MarkerState::WellFormed {
+                    begin,
+                    after_end: end + MARKER_END.len(),
+                }
+            }
+        }
+        (b, _) if b > 1 => MarkerState::Malformed(MarkerDefect::DuplicateBegin),
+        _ => MarkerState::Malformed(MarkerDefect::DuplicateEnd),
+    }
 }
 
 /// Remove the marker-bounded region and canonicalise trailing
@@ -411,6 +512,9 @@ mod tests {
                 CoexistenceError::UnsupportedFramework(id) => {
                     assert_eq!(id, fw.id());
                 }
+                other @ CoexistenceError::MalformedMarkers { .. } => {
+                    panic!("{fw:?} should be an unsupported-framework error, got {other:?}")
+                }
             }
         }
     }
@@ -464,7 +568,7 @@ mod tests {
             executable: true,
             fully_owned: false,
         };
-        let out = apply(None, &file);
+        let out = apply(None, &file).unwrap();
         assert!(out.starts_with("#!/usr/bin/env sh\n"));
         assert!(out.contains(MARKER_BEGIN));
         assert!(out.contains("anvil hook pre-commit \"$@\""));
@@ -482,7 +586,7 @@ mod tests {
             fully_owned: false,
         };
         let existing = "#!/usr/bin/env sh\necho user-hook\n";
-        let out = apply(Some(existing), &file);
+        let out = apply(Some(existing), &file).unwrap();
         assert!(out.starts_with(existing));
         assert!(out.contains(MARKER_BEGIN));
         assert!(out.contains("managed-line"));
@@ -499,7 +603,7 @@ mod tests {
             fully_owned: false,
         };
         let existing = format!("top\n\n{MARKER_BEGIN}\nold-content\n{MARKER_END}\nbottom\n");
-        let out = apply(Some(&existing), &file);
+        let out = apply(Some(&existing), &file).unwrap();
         assert!(out.contains("new-content"));
         assert!(!out.contains("old-content"));
         assert!(out.contains("top\n"));
@@ -516,7 +620,7 @@ mod tests {
             fully_owned: false,
         };
         let existing = format!("top\n\n{MARKER_BEGIN}\nmanaged\n{MARKER_END}\nbottom\n");
-        let out = apply(Some(&existing), &file);
+        let out = apply(Some(&existing), &file).unwrap();
         assert!(!out.contains(MARKER_BEGIN));
         assert!(!out.contains(MARKER_END));
         assert!(!out.contains("managed"));
@@ -535,7 +639,7 @@ mod tests {
             fully_owned: false,
         };
         let existing = "unrelated content\n";
-        let out = apply(Some(existing), &file);
+        let out = apply(Some(existing), &file).unwrap();
         assert_eq!(out, existing);
     }
 
@@ -548,7 +652,121 @@ mod tests {
             executable: false,
             fully_owned: false,
         };
-        assert_eq!(apply(None, &file), "");
+        assert_eq!(apply(None, &file).unwrap(), "");
+    }
+
+    fn marker_file(block: &str) -> CoexistenceFile {
+        CoexistenceFile {
+            relative_path: "lefthook.yml".into(),
+            initial_content: String::new(),
+            block: block.into(),
+            executable: false,
+            fully_owned: false,
+        }
+    }
+
+    /// The data-loss sequence this guard exists for: a host file
+    /// carrying a stray begin marker (hand-edited, or a half-applied
+    /// earlier write). The old implementation appended a fresh block,
+    /// which gave the dangling begin marker an end marker to pair
+    /// with; the next uninstall then deleted everything between them
+    /// and `keep-me` was gone. Install must now refuse outright.
+    #[test]
+    fn install_refuses_file_with_unmatched_begin_marker() {
+        let existing = format!("user\n{MARKER_BEGIN}\nkeep-me\n");
+        let err = apply(Some(&existing), &marker_file("managed-line")).unwrap_err();
+        assert_eq!(
+            err,
+            CoexistenceError::MalformedMarkers {
+                path: "lefthook.yml".into(),
+                defect: MarkerDefect::UnmatchedBegin,
+            },
+        );
+        // The caller writes nothing, so `keep-me` survives on disk.
+        assert!(existing.contains("keep-me"));
+    }
+
+    #[test]
+    fn uninstall_refuses_file_with_unmatched_begin_marker() {
+        let existing = format!("user\n{MARKER_BEGIN}\nkeep-me\n");
+        let err = apply(Some(&existing), &marker_file("")).unwrap_err();
+        assert!(matches!(
+            err,
+            CoexistenceError::MalformedMarkers {
+                defect: MarkerDefect::UnmatchedBegin,
+                ..
+            },
+        ));
+    }
+
+    #[test]
+    fn apply_refuses_file_with_unmatched_end_marker() {
+        let existing = format!("user\n{MARKER_END}\nkeep-me\n");
+        for block in ["managed-line", ""] {
+            let err = apply(Some(&existing), &marker_file(block)).unwrap_err();
+            assert!(
+                matches!(
+                    err,
+                    CoexistenceError::MalformedMarkers {
+                        defect: MarkerDefect::UnmatchedEnd,
+                        ..
+                    },
+                ),
+                "block {block:?} should refuse an unmatched end marker, got {err:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_refuses_file_with_duplicate_begin_markers() {
+        let existing =
+            format!("{MARKER_BEGIN}\na\n{MARKER_END}\nmid\n{MARKER_BEGIN}\nb\n{MARKER_END}\n");
+        let err = apply(Some(&existing), &marker_file("managed-line")).unwrap_err();
+        assert!(matches!(
+            err,
+            CoexistenceError::MalformedMarkers {
+                defect: MarkerDefect::DuplicateBegin,
+                ..
+            },
+        ));
+    }
+
+    #[test]
+    fn apply_refuses_file_with_duplicate_end_markers() {
+        let existing = format!("{MARKER_BEGIN}\na\n{MARKER_END}\nmid\n{MARKER_END}\n");
+        let err = apply(Some(&existing), &marker_file("managed-line")).unwrap_err();
+        assert!(matches!(
+            err,
+            CoexistenceError::MalformedMarkers {
+                defect: MarkerDefect::DuplicateEnd,
+                ..
+            },
+        ));
+    }
+
+    #[test]
+    fn apply_refuses_file_with_end_marker_before_begin() {
+        let existing = format!("{MARKER_END}\nmid\n{MARKER_BEGIN}\n");
+        let err = apply(Some(&existing), &marker_file("managed-line")).unwrap_err();
+        assert!(matches!(
+            err,
+            CoexistenceError::MalformedMarkers {
+                defect: MarkerDefect::EndBeforeBegin,
+                ..
+            },
+        ));
+    }
+
+    /// A well-formed pair and a marker-free file must keep working —
+    /// the refusal must not swallow the ordinary paths.
+    #[test]
+    fn apply_still_accepts_absent_and_well_formed_markers() {
+        let absent = apply(Some("plain\n"), &marker_file("managed-line")).unwrap();
+        assert!(absent.contains(MARKER_BEGIN) && absent.contains("plain"));
+
+        let well_formed = format!("top\n{MARKER_BEGIN}\nold\n{MARKER_END}\nbottom\n");
+        let replaced = apply(Some(&well_formed), &marker_file("new")).unwrap();
+        assert!(replaced.contains("new") && !replaced.contains("old"));
     }
 
     #[test]
@@ -571,7 +789,7 @@ mod tests {
                 !managed.initial_content.is_empty(),
                 "{fw:?} managed file must ship non-empty initial_content"
             );
-            let out = apply(None, managed);
+            let out = apply(None, managed).unwrap();
             assert_eq!(
                 out, managed.initial_content,
                 "{fw:?} apply(None) must emit the generated managed config"
@@ -595,9 +813,9 @@ mod tests {
             let managed_uninstall = &uninstall.files[0];
             assert!(managed_install.fully_owned);
             assert!(managed_uninstall.fully_owned);
-            let installed = apply(None, managed_install);
+            let installed = apply(None, managed_install).unwrap();
             assert!(!installed.is_empty(), "{fw:?} install must create content");
-            let removed = apply(Some(&installed), managed_uninstall);
+            let removed = apply(Some(&installed), managed_uninstall).unwrap();
             assert_eq!(removed, "", "{fw:?} uninstall must delete fully-owned file");
         }
     }
@@ -611,8 +829,8 @@ mod tests {
         ] {
             let plan = plan_install(fw, ALL_HOOKS).unwrap();
             for file in &plan.files {
-                let first = apply(None, file);
-                let second = apply(Some(&first), file);
+                let first = apply(None, file).unwrap();
+                let second = apply(Some(&first), file).unwrap();
                 assert_eq!(
                     first, second,
                     "framework {fw:?} file {} not idempotent",
@@ -641,8 +859,8 @@ mod tests {
             ..install_file.clone()
         };
         let user_existing = "user-config:\n  thing: 1\n";
-        let installed = apply(Some(user_existing), &install_file);
-        let uninstalled = apply(Some(&installed), &uninstall_file);
+        let installed = apply(Some(user_existing), &install_file).unwrap();
+        let uninstalled = apply(Some(&installed), &uninstall_file).unwrap();
         assert_eq!(
             uninstalled, user_existing,
             "round-trip must be byte-exact for canonical input"
@@ -667,8 +885,8 @@ mod tests {
             ..install_file.clone()
         };
         for raw in ["body", "body\n\n", "body\n\n\n"] {
-            let installed = apply(Some(raw), &install_file);
-            let uninstalled = apply(Some(&installed), &uninstall_file);
+            let installed = apply(Some(raw), &install_file).unwrap();
+            let uninstalled = apply(Some(&installed), &uninstall_file).unwrap();
             assert_eq!(uninstalled, "body\n", "input {raw:?}");
         }
     }
@@ -687,8 +905,8 @@ mod tests {
             ..install_file.clone()
         };
         let user_existing = "user-config:\n  thing: 1\n";
-        let installed = apply(Some(user_existing), &install_file);
-        let uninstalled = apply(Some(&installed), &uninstall_file);
+        let installed = apply(Some(user_existing), &install_file).unwrap();
+        let uninstalled = apply(Some(&installed), &uninstall_file).unwrap();
         assert!(uninstalled.contains("user-config:"));
         assert!(uninstalled.contains("thing: 1"));
         assert!(!uninstalled.contains(MARKER_BEGIN));
@@ -709,8 +927,8 @@ mod tests {
             block: String::new(),
             ..install_file.clone()
         };
-        let installed = apply(None, &install_file);
-        let uninstalled = apply(Some(&installed), &uninstall_file);
+        let installed = apply(None, &install_file).unwrap();
+        let uninstalled = apply(Some(&installed), &uninstall_file).unwrap();
         assert_eq!(uninstalled, "");
     }
 
@@ -749,7 +967,7 @@ mod tests {
         extra_tail: &str,
     ) -> (tempfile::TempDir, std::process::ExitStatus) {
         let plan = plan_install(HookFramework::Husky, &[HookKind::PreCommit]).unwrap();
-        let mut contents = apply(None, &plan.files[0]);
+        let mut contents = apply(None, &plan.files[0]).unwrap();
         contents.push_str(extra_tail);
         let tmp = tempfile::tempdir().unwrap();
         let hook = tmp.path().join("pre-commit");
