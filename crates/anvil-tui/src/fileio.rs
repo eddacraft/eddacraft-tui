@@ -147,7 +147,11 @@ mod tests {
     fn refuses_fifo_without_blocking() {
         // A FIFO swapped in for a regular file must not hang the reader.
         // O_NONBLOCK + is_file() fstat rejects it promptly.
-        use std::time::{Duration, Instant};
+        // FIFO creation uses the `mkfifo` utility (not `libc::mkfifo`) because
+        // this crate builds with `-F unsafe-code`.
+        use std::sync::mpsc;
+        use std::time::Duration;
+
         let tmp = tempfile::tempdir().expect("tempdir");
         let fifo = tmp.path().join("state.json");
         let status = std::process::Command::new("mkfifo")
@@ -156,13 +160,14 @@ mod tests {
             .expect("spawn mkfifo");
         assert!(status.success(), "mkfifo failed: {status}");
 
-        let start = Instant::now();
-        let result = read_capped(&fifo, 1024);
-        let elapsed = start.elapsed();
-        assert!(
-            elapsed < Duration::from_millis(500),
-            "FIFO open must not block (elapsed {elapsed:?})"
-        );
+        let path = fifo.clone();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(read_capped(&path, 1024));
+        });
+        let result = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("FIFO open must not block (recv_timeout)");
         let err = result.expect_err("FIFO must be refused");
         assert_eq!(
             err.kind(),

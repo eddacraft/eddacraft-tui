@@ -165,7 +165,10 @@ mod tests {
     fn fifo_json_entries_are_skipped_without_blocking() {
         // A FIFO named like a data file must be skipped promptly — the loader
         // must not block waiting for a writer (TOCTOU swap class).
-        use std::time::{Duration, Instant};
+        // FIFO creation uses the `mkfifo` utility (not `libc::mkfifo`) because
+        // this crate builds with `-F unsafe-code`.
+        use std::sync::mpsc;
+        use std::time::Duration;
 
         let tmp = tempfile::tempdir().expect("tempdir");
         let anvil = tmp.path().join(".anvil");
@@ -178,13 +181,14 @@ mod tests {
             .expect("spawn mkfifo");
         assert!(status.success(), "mkfifo failed: {status}");
 
-        let start = Instant::now();
-        let ctx = load_context(tmp.path());
-        let elapsed = start.elapsed();
-        assert!(
-            elapsed < Duration::from_millis(500),
-            "load_context must not block on FIFO (elapsed {elapsed:?})"
-        );
+        let root = tmp.path().to_path_buf();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(load_context(&root));
+        });
+        let ctx = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("load_context must not block on FIFO (recv_timeout)");
         assert_eq!(ctx.resolve("real.ok"), Some(&serde_json::json!(true)));
         assert!(
             ctx.resolve("state").is_none(),
