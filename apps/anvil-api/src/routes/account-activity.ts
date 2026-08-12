@@ -89,13 +89,21 @@ accountActivity.post('/', async (c) => {
     for (const key of accepted) {
       await upsertAccountFeatureTouch(sql, claims.sub, key);
     }
-    // BACT-008 / ADR-121 decision 4: an accepted feature-touch is account
-    // activity — advance once per request regardless of how many allowlisted
-    // keys were accepted, never touching login stamps.
-    await stampUserActivity(sql, claims.sub, 'feature');
   } catch (err) {
     console.error('account activity upsert failed:', err);
     return c.json({ error: 'Failed to record activity' }, 500);
+  }
+
+  // BACT-008 / ADR-121 decision 4: an accepted feature-touch is account
+  // activity — advance once per request regardless of how many allowlisted
+  // keys were accepted, never touching login stamps. Best-effort: this runs
+  // after the touches above already committed, so a stamp failure must not
+  // 500 — a client retry on a 500 would re-upsert the same touches and
+  // inflate touch_count.
+  try {
+    await stampUserActivity(sql, claims.sub, 'feature');
+  } catch (err) {
+    console.error('account activity stamp failed (non-fatal):', err);
   }
 
   return c.json({ accepted: true, features: accepted }, 202);

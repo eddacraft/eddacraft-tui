@@ -264,4 +264,32 @@ describe('mintRotatedSession activity stamps (BACT-008)', () => {
     });
     expect(vi.mocked(stampUserActivity)).not.toHaveBeenCalled();
   });
+
+  it('still returns the rotated session when stampUserActivity rejects (best-effort)', async () => {
+    // Regression: the stamp runs after the refresh token is atomically
+    // rotated. If it throws (e.g. migration drift mid-rollout), the caller
+    // must still get the new session — the old token is already consumed,
+    // so losing the new one would force re-auth.
+    vi.mocked(stampUserActivity).mockRejectedValueOnce(new Error('activity stamp unavailable'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const result = await mintRotatedSession(sql, {
+      user,
+      identity: { provider: 'github', id: '42' },
+      familyId: 'family-1',
+      oldTokenId: 'rt-1',
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      session: {
+        license: 'signed.jwt.token',
+        refreshToken: expect.stringMatching(/^[0-9a-f]{64}$/),
+        expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      },
+    });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });

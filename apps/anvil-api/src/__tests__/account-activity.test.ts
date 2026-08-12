@@ -138,4 +138,23 @@ describe('POST /account/activity (BACT-005)', () => {
     expect(res.status).toBe(400);
     expect(mocks.stampUserActivity).not.toHaveBeenCalled();
   });
+
+  it('still returns the accepted-touches success response when stampUserActivity rejects (best-effort)', async () => {
+    // Regression: the activity stamp running after the touches already
+    // upserted must never turn into a 500 the client retries — a retry
+    // would re-upsert the same touches and inflate touch_count.
+    mocks.stampUserActivity.mockRejectedValue(new Error('activity stamp unavailable'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const res = await post({ features: ['watch', 'check'] }, 'Bearer good');
+
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body).toEqual({ accepted: true, features: ['watch', 'check'] });
+    expect(mocks.upsertAccountFeatureTouch).toHaveBeenCalledTimes(2);
+    expect(mocks.stampUserActivity).toHaveBeenCalledWith(mocks.sql, 'user-1', 'feature');
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });

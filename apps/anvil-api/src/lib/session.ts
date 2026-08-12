@@ -145,8 +145,15 @@ export async function mintRotatedSession(
   // BACT-008 / ADR-121 decision 4: a successful refresh is account activity
   // for token-era users who never re-run interactive login, but it is never
   // a login — only `stampUserActivity` (kind `refresh`) runs here, never
-  // `stampUserLogin`.
-  await stampUserActivity(sql, user.id, 'refresh');
+  // `stampUserLogin`. Best-effort: this runs after the refresh token is
+  // already atomically rotated (the old token is consumed), so a stamp
+  // failure must not cost the caller the new session — that would force
+  // re-auth for no reason (e.g. migration drift mid-rollout).
+  try {
+    await stampUserActivity(sql, user.id, 'refresh');
+  } catch (err) {
+    console.error('session refresh activity stamp failed (non-fatal):', err);
+  }
 
   const scopes = await findActiveScopesForUser(sql, user.id);
 
