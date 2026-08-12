@@ -42,8 +42,8 @@ This guide distinguishes **three** separate stories:
   re-identify fleet `install_id` values or put email on the anonymous beacon.
   Operator vocabulary for `plan`, `last_activity_at`, DAI vs DAA, and “quiet”
   (activity-idle) vs “never (interactively) logged in” is documented in
-  [admin-cli.md](../runbooks/admin-cli.md#plan-activity-and-daa-vocabulary-phase-2).
-  See also
+  [admin-cli.md](../runbooks/admin-cli.md#plan-activity-and-daa-vocabulary). See
+  also
   [beta-account-activity](../../plans/modules/beta-account-activity.aps.md),
   [account plan / activity / entitlements](../guides/account-plan-activity-and-entitlements.md),
   [ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md),

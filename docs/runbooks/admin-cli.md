@@ -1,12 +1,12 @@
 # Admin CLI Operator Runbook
 
-| Type    | Authority     | Owner                | Status | Freshness                                                                                                           |
-| ------- | ------------- | -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CIB, FLEET-007, BACT | Live   | Last reviewed 2026-08-13 against BACT-003/006 engagement filters and the BACT-007 plan/DAA/quiet vocabulary section |
+| Type    | Authority     | Owner                | Status | Freshness                                                                                                                                                         |
+| ------- | ------------- | -------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB, FLEET-007, BACT | Live   | Last reviewed 2026-08-13 against BACT-003/006 engagement filters, the BACT-007 plan/DAA/quiet vocabulary section, and the BACT-009 admin activity metrics surface |
 
-| Upstream                                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `crates/anvil-cli/src/commands/admin.rs`, `apps/anvil-api/src/middleware/admin-auth.ts`, `apps/anvil-api/src/lib/fleet-overview.ts`, `plans/modules/fleet-telemetry.aps.md#fleet-007-operator-fleet-view`, `plans/modules/continuous-improvement-backlog.aps.md#cib-004-simplify-admin-key-retrieval-with-credential-source-config`, `plans/archive/modules/admin-cli-hardening.aps.md`, GitHub issue #952 | Operator admin procedures; release/support handoff for admin key handling and fleet evidence |
+| Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Downstream                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli/src/commands/admin.rs`, `apps/anvil-api/src/middleware/admin-auth.ts`, `apps/anvil-api/src/lib/fleet-overview.ts`, `apps/anvil-api/src/lib/account-activity-metrics.ts`, `plans/modules/fleet-telemetry.aps.md#fleet-007-operator-fleet-view`, `plans/modules/continuous-improvement-backlog.aps.md#cib-004-simplify-admin-key-retrieval-with-credential-source-config`, `plans/archive/modules/admin-cli-hardening.aps.md`, GitHub issue #952 | Operator admin procedures; release/support handoff for admin key handling and fleet evidence |
 
 `anvil admin` is the Rust operator CLI surface that wraps Anvil's admin HTTP API
 (`/admin/*`). It is the supported way to approve waitlist signups, invite beta
@@ -515,21 +515,51 @@ anvil admin users --engagement missing_feature --feature watch
 anvil --json admin users --engagement idle --idle-days 14 --limit 20
 ```
 
-### Plan, activity, and DAA vocabulary (phase 2)
+### `activity` — DAA/WAA/MAA account activity metrics (BACT-009)
 
-Phase 2
+Named-account activity window metrics computed from `last_activity_at`
+(BACT-008). Reports **accounts**, never installs — distinct from `admin fleet`'s
+anonymous FLEET DAI/WAU/MAU (see **DAI vs DAA** below). This is an aggregate
+metrics surface, not a listing — use `admin users --engagement idle` /
+`--engagement never_logged_in` to list the accounts behind a cohort, or
+`admin show <email>` for one account's `plan` and `last_activity_at`.
+
+```bash
+anvil admin activity
+anvil admin activity --plan beta
+anvil admin activity --idle-days 14
+anvil --json admin activity --plan beta --idle-days 14
+```
+
+Flags:
+
+- `--plan <beta>` — restrict to one account plan (today only `beta`; an
+  unrecognised value is a usage error, not a silent empty result)
+- `--idle-days <1-365>` (default **30**) — the quiet-cohort window
+
+Output:
+
+- `activeAccounts.daily` / `.weekly` / `.monthly` — DAA/WAA/MAA: accounts with
+  `last_activity_at` within the trailing 1/7/30 days. An account active exactly
+  N days ago still counts in that window (inclusive boundary); one millisecond
+  older falls into the next window out.
+- `neverActive` — accounts with `last_activity_at IS NULL` (admitted but never
+  logged in, refreshed, or touched an allowlisted feature)
+- `quiet.count` — accounts with no activity ever, or activity strictly older
+  than `--idle-days` (an account exactly `--idle-days` old is not yet quiet)
+
+### Plan, activity, and DAA vocabulary
+
 ([ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md),
 [design spec](../../plans/specs/2026-08-12-account-plan-activity-entitlements.md),
-BACT-007..013) adds an account-level vocabulary that `show` and `users` do not
-fully expose yet. This section pins the target language now so operators and
-agents use consistent terms before the schema (BACT-008) and metrics surface
-(BACT-009) ship — table entries below are marked accordingly.
+BACT-007..013) adds an account-level vocabulary. `show`, `users`, and `activity`
+(above) expose it as follows.
 
 **`plan`** — every account carries a durable plan name. Today the only value is
 **`beta`**, mapping to feature-flag catalogue audience `plan-beta`. `plan` is a
 separate axis from account `status` (lifecycle: `active` / `pending` /
 `suspended` / `banned`) and from token `scopes` (capability grants gated by
-`api.scope.*` flags). Target once BACT-008 ships: `anvil admin show <email>` and
+`api.scope.*` flags). **Live (BACT-009):** `anvil admin show <email>` and
 `anvil --json admin show <email>` surface `plan` alongside login stamps.
 
 **`last_activity_at`** — a single durable “did this account do anything lately”
@@ -544,23 +574,22 @@ stamp, distinct from the login stamps `show` already prints:
 
 Invite/approve alone never counts as activity or login — an admitted account
 that has not completed interactive login still shows `last_activity_at: null`
-and `login: never logged in`. Target once BACT-008 ships: `last_activity_at`
-(and optional `last_activity_kind`) on the account row and in `show` output.
+and `login: never logged in`. **Live (BACT-009):** `anvil admin show <email>`
+also surfaces `last_activity_at` (and `last_activity_kind` when set).
 
 **DAI vs DAA** — do not conflate these two labels:
 
-| Label   | Full name               | Counts                                                          | Source                                                                        |
-| ------- | ----------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **DAI** | Daily active _installs_ | Anonymous FLEET beacons (`install_id`)                          | `anvil admin fleet` (live today)                                              |
-| **DAA** | Daily active _accounts_ | Named, authenticated accounts with `last_activity_at` in-window | Target once BACT-009 ships: `anvil admin activity` (or documented equivalent) |
+| Label   | Full name               | Counts                                                          | Source                                  |
+| ------- | ----------------------- | --------------------------------------------------------------- | --------------------------------------- |
+| **DAI** | Daily active _installs_ | Anonymous FLEET beacons (`install_id`)                          | `anvil admin fleet` (live)              |
+| **DAA** | Daily active _accounts_ | Named, authenticated accounts with `last_activity_at` in-window | `anvil admin activity` (live, BACT-009) |
 
 FLEET DAI is directional population evidence and carries no identity (ADR-107).
 DAA is identity-bound and answers “how many customers used the product,” never
 the reverse. Never report FLEET DAI as a customer login count, and never join a
 FLEET `install_id` to an account.
 
-**“Quiet” vs “never (interactively) logged in”** — two idle definitions coexist
-during phase 2:
+**“Quiet” vs “never (interactively) logged in”** — two idle definitions coexist:
 
 - **Never (interactively) logged in** — today's
   `admin users --engagement never_logged_in` (`first_login_at IS NULL`). Says
@@ -568,9 +597,11 @@ during phase 2:
 - **Login-idle** — today's `admin users --engagement idle` (`last_login_at`
   older than `--idle-days`, default 30). Also blind to
   refresh/feature-touch-only accounts.
-- **Quiet (activity-idle)** — the phase-2 replacement, covering login, refresh,
-  and feature-touch via `last_activity_at`. Target once BACT-009 ships: prefer
-  this over login-idle for CS “who has gone quiet” queries.
+- **Quiet (activity-idle)** — covers login, refresh, and feature-touch via
+  `last_activity_at`. **Live (BACT-009):** `anvil admin activity --idle-days N`
+  reports the quiet count; prefer it over login-idle for CS “who has gone quiet”
+  queries. (`admin users --engagement idle` still lists individual accounts by
+  login-idle when you need names, not just a count.)
 
 Full vocabulary, entitlement model, and evaluation-context wiring:
 [account plan, activity, and entitlements](../guides/account-plan-activity-and-entitlements.md).
