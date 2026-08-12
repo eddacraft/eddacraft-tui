@@ -25,9 +25,10 @@ use crate::symbol_graph::SymbolGraph;
 /// base gets an independent pair.
 ///
 /// The result is deterministic and identical to a cold scan of the combined
-/// on-disk state for reconstructable cross edges (`Imports`, `Reexports`, and
-/// `Calls` — the GBASE-007 anchor). A clean worktree (empty fragment) composes
-/// to the base unchanged.
+/// on-disk state for reconstructable cross edges (`Imports` and `Reexports` —
+/// the GBASE-007 anchor). Surviving-base `Calls` into re-added overlay files
+/// are not yet reconstructed (symbol-granular; see `BaseReresolve`). A clean
+/// worktree (empty fragment) composes to the base unchanged.
 ///
 /// # Errors
 /// [`SnapshotLoadError::Corrupt`] if:
@@ -154,8 +155,8 @@ pub fn compose(
     //    (ADR-105 §3, "never trusted by a stale id"): resolve BOTH endpoints
     //    against the LIVE composed graph — the surviving base file's anchor and
     //    the re-added file's NEW overlay symbol — never a persisted id. Covers
-    //    Imports (from the dep map) plus Reexports/Calls recovered from the base
-    //    symbol graph (the dep map is Imports-only).
+    //    Imports (from the dep map) plus Reexports recovered from the base
+    //    symbol graph (the dep map is Imports-only; Calls stay out of this path).
     for directive in &plan.base_reresolve {
         let from = sym
             .symbols_in_file(&directive.from_file)

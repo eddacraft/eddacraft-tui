@@ -1,7 +1,7 @@
 //! GBASE-007: combined-state golden parity (base + overlay vs cold scan).
 //!
 //! Hermetic pin of composed graph shape, including surviving-base → re-added
-//! overlay `Imports` / `Reexports` / `Calls` reconstruction.
+//! overlay `Imports` / `Reexports` reconstruction.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};

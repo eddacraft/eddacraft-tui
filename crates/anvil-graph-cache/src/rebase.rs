@@ -121,8 +121,11 @@ pub struct BaseReresolve {
     pub from_file: String,
     /// The tombstoned-and-re-added (modified) overlay file the edge targets.
     pub to_file: String,
-    /// The edge kind to re-establish (`Imports` from the dep map; `Reexports` /
-    /// `Calls` recovered from surviving base symbol edges into re-added files).
+    /// The edge kind to re-establish (`Imports` from the dep map; `Reexports`
+    /// recovered from surviving base symbol edges into re-added files).
+    /// `Calls` are **not** recovered here: they are symbol-granular and this
+    /// directive is file-granular (first-symbol anchors would mis-wire multi-
+    /// symbol files).
     pub edge_type: EdgeType,
 }
 
@@ -139,8 +142,8 @@ pub struct BaseReresolve {
 /// 3. [`invalidated_base_edges`](Self::invalidated_base_edges) — the base edges
 ///    the tombstones invalidate (stale ids that must not be trusted).
 /// 4. [`base_reresolve`](Self::base_reresolve) — the surviving-base → overlay
-///    edges to re-establish (`Imports` from the dep map; `Reexports`/`Calls`
-///    from base symbol edges).
+///    edges to re-establish (`Imports` from the dep map; `Reexports` from base
+///    symbol edges).
 ///
 /// Composition itself (mutating a materialised graph) is **out of scope** — this
 /// is the plan, not its application.
@@ -158,8 +161,8 @@ pub struct ComposePlan {
     /// in the base's stale ids. Sorted; for GBASE-006 validation.
     pub invalidated_base_edges: Vec<InvalidatedEdge>,
     /// Surviving-base → re-added-overlay edges to re-establish (`Imports` from
-    /// the file-dependency forward map; `Reexports`/`Calls` from base symbol
-    /// edges). Sorted, de-duplicated.
+    /// the file-dependency forward map; `Reexports` from base symbol edges).
+    /// Sorted, de-duplicated.
     pub base_reresolve: Vec<BaseReresolve>,
 }
 
@@ -265,13 +268,19 @@ fn invalidated_base_edges(
 /// `update_file` re-lifts its import of `M` naturally — including it here would
 /// double the edge, so it is excluded.
 ///
-/// **Reexports** and **Calls** are recovered from the base symbol graph: the dep
-/// map is Imports-only, so a surviving re-export or call into a re-added file is
-/// otherwise dropped when the tombstone removes the old target node. Walk each
-/// re-added file's incoming base edges and emit file-granularity directives for
-/// those two kinds (skipping tombstoned sources, which re-lift themselves).
-/// `Contains` / `References` are structural within a file's own lift and do not
-/// cross the surviving→re-added boundary this plan restores.
+/// **Reexports** are recovered from the base symbol graph: the dep map is
+/// Imports-only, so a surviving re-export into a re-added file is otherwise
+/// dropped when the tombstone removes the old target node. Walk each re-added
+/// file's incoming base edges and emit file-granularity `Reexports` directives
+/// (skipping tombstoned sources, which re-lift themselves). File anchors match
+/// how re-exports are lifted (module-scope, like imports).
+///
+/// **Calls** are deliberately **not** recovered here: they are symbol-granular
+/// (`lift_calls` / `re_resolve_calls`), and a file-level first-symbol wire would
+/// mis-attribute multi-symbol files and collapse distinct call edges on
+/// sort/dedup. Restoring calls needs symbol-identity endpoints (or a call-site
+/// re-lift of surviving base files) — out of scope for this re-export fix.
+/// `Contains` / `References` stay structural within a file's own lift.
 fn base_reresolve(
     base_sym: &SymbolGraph,
     base_dep: &DependencyGraph,
@@ -292,10 +301,10 @@ fn base_reresolve(
             });
         }
 
-        // Recover non-import cross edges the Imports-only dep map cannot see.
+        // Recover re-export cross edges the Imports-only dep map cannot see.
         for node in base_sym.symbols_in_file(to_file) {
             for edge in base_sym.incoming_edges(node.id) {
-                if edge.edge_type != EdgeType::Reexports && edge.edge_type != EdgeType::Calls {
+                if edge.edge_type != EdgeType::Reexports {
                     continue;
                 }
                 let Some(from_node) = base_sym.get_symbol(edge.from) else {
@@ -307,7 +316,7 @@ fn base_reresolve(
                 out.push(BaseReresolve {
                     from_file: from_node.file.clone(),
                     to_file: to_file.to_owned(),
-                    edge_type: edge.edge_type,
+                    edge_type: EdgeType::Reexports,
                 });
             }
         }
