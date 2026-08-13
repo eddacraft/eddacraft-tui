@@ -97,8 +97,9 @@ This module implements the task-level suite specified in the architecture doc.
 
 - [x] Operator can run Tier A on demand without model credentials and get
       deterministic token/tool metrics for navigation scenarios
-- [x] Operator can run Tier B on demand with a pinned model and get paired
-      `control` vs `full-accel` results with success rubrics
+- [x] Operator can run Tier B on demand as a dry-run / external-driver
+      scaffold with paired `control` vs `full-accel` rubrics (live pinned
+      model n≥10 deferred; see DEVACC-007/008)
 - [x] Published claims cite scenario id, arm, tier, model, and Anvil SHA
 - [x] Nightly schedule remains off unless DEVACC-011 is deliberately enabled
 - [x] PR CI does not block on DEVACC task suites unless DEVACC-012 is
