@@ -15,7 +15,7 @@ mod validation;
 
 pub use canonical::{CanonicalError, canonical_json_bytes};
 pub use delegation::{DelegationError, ResolvedSection, SectionProvenance, resolve_section};
-pub use discover::{DISCOVER_PRECEDENCE, DiscoveredConfig, discover};
+pub use discover::{DISCOVER_PRECEDENCE, DiscoverError, DiscoveredConfig, discover};
 pub use format::ConfigFormat;
 pub use gate_section::{GateSection, GateSectionError};
 pub use migrations::{

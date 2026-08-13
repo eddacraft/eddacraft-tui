@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::format::ConfigFormat;
 
@@ -19,6 +19,19 @@ pub struct DiscoveredConfig {
     pub format: ConfigFormat,
 }
 
+/// Typed discovery failures. Invalid basenames become
+/// [`std::io::ErrorKind::InvalidInput`] so existing `io::Result`
+/// callers keep compiling; match the inner error to distinguish
+/// hygiene failures from filesystem errors.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum DiscoverError {
+    #[error(
+        "basename {basename:?} is not a single filename component — \
+         absolute paths, separators, and '.' / '..' are rejected"
+    )]
+    InvalidBasename { basename: String },
+}
+
 /// Find the first file matching `<basename>.<ext>` in `dir`, honouring
 /// the precedence in [`DISCOVER_PRECEDENCE`].
 ///
@@ -28,6 +41,12 @@ pub struct DiscoveredConfig {
 /// `basename` is the filename without extension — for `anvil/policy.*`
 /// pass `"policy"` with `dir = Path::new("anvil")`; for `.anvil.*`
 /// pass `".anvil"` with `dir = workspace_root`.
+///
+/// `basename` must be exactly one filename component. Absolute paths,
+/// separators (`/` / `\`), `.`, `..`, empty strings, Windows drive
+/// prefixes, and UNC forms are rejected as
+/// [`std::io::ErrorKind::InvalidInput`] wrapping
+/// [`DiscoverError::InvalidBasename`] before any filesystem probe.
 ///
 /// **Case sensitivity.** Discovery uses lowercase extensions only
 /// (`.yaml`, `.yml`, `.json`, `.toml`). This is a deliberate choice:
@@ -40,6 +59,7 @@ pub struct DiscoveredConfig {
 /// extension, to recognise the format. Discovery and recognition are
 /// deliberately split along this axis.
 pub fn discover(dir: &Path, basename: &str) -> std::io::Result<Option<DiscoveredConfig>> {
+    validate_basename(basename)?;
     for &format in &DISCOVER_PRECEDENCE {
         let candidate = dir.join(format!("{basename}.{}", format.extension()));
         match candidate.try_exists() {
@@ -58,6 +78,41 @@ pub fn discover(dir: &Path, basename: &str) -> std::io::Result<Option<Discovered
         }
     }
     Ok(None)
+}
+
+fn validate_basename(basename: &str) -> Result<(), DiscoverError> {
+    if !is_single_filename_component(basename) {
+        return Err(DiscoverError::InvalidBasename {
+            basename: basename.to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// True only when `basename` is exactly one `Normal` path component
+/// and cannot rewrite `dir` on Unix or Windows. Textual checks run
+/// before `Path` parsing so `foo/../bar` cannot collapse into `bar`.
+fn is_single_filename_component(basename: &str) -> bool {
+    if basename.is_empty() || basename.contains('\0') {
+        return false;
+    }
+    if basename.contains('/') || basename.contains('\\') {
+        return false;
+    }
+    // Reject Windows drive / UNC forms even on Unix so a hostile
+    // basename cannot become absolute after `Path::join` on Windows.
+    let bytes = basename.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return false;
+    }
+    let mut components = Path::new(basename).components();
+    matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
+}
+
+impl From<DiscoverError> for std::io::Error {
+    fn from(err: DiscoverError) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, err)
+    }
 }
 
 #[cfg(test)]
@@ -156,5 +211,57 @@ mod tests {
         let result = discover(dir.path(), ".anvil").unwrap().unwrap();
         assert_eq!(result.format, ConfigFormat::Toml);
         assert_eq!(result.path, dir.path().join(".anvil.toml"));
+    }
+
+    fn assert_invalid_basename(err: &std::io::Error, expected: &str) {
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        let typed = err
+            .get_ref()
+            .and_then(|inner| inner.downcast_ref::<DiscoverError>())
+            .expect("invalid basename should carry typed DiscoverError");
+        assert_eq!(
+            typed,
+            &DiscoverError::InvalidBasename {
+                basename: expected.to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_parent_dir_basename_without_probing_outside() {
+        let root = TempDir::new().unwrap();
+        let dir = root.path().join("project");
+        std::fs::create_dir(&dir).unwrap();
+        let outside = root.path().join("attacker");
+        std::fs::create_dir(&outside).unwrap();
+        touch(&outside, "policy.yaml");
+
+        let err = discover(&dir, "../attacker/policy").unwrap_err();
+        assert_invalid_basename(&err, "../attacker/policy");
+    }
+
+    #[test]
+    fn rejects_absolute_basename() {
+        let dir = TempDir::new().unwrap();
+        let err = discover(dir.path(), "/tmp/outside-policy").unwrap_err();
+        assert_invalid_basename(&err, "/tmp/outside-policy");
+    }
+
+    #[test]
+    fn rejects_separator_backslash_and_dot_components() {
+        let dir = TempDir::new().unwrap();
+        for basename in ["..", ".", "", "foo/bar", "foo\\bar"] {
+            let err = discover(dir.path(), basename).unwrap_err();
+            assert_invalid_basename(&err, basename);
+        }
+    }
+
+    #[test]
+    fn rejects_windows_drive_and_unc_basenames() {
+        let dir = TempDir::new().unwrap();
+        for basename in ["C:policy", "C:\\policy", "\\\\server\\share\\policy"] {
+            let err = discover(dir.path(), basename).unwrap_err();
+            assert_invalid_basename(&err, basename);
+        }
     }
 }
