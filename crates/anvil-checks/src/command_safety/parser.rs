@@ -291,13 +291,26 @@ fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
 
 #[must_use]
 fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
-    const ENV_OPTIONS_WITH_VALUE: &[&str] =
-        &["-C", "--chdir", "-S", "--split-string", "-u", "--unset"];
+    const ENV_OPTIONS_WITH_VALUE: &[&str] = &["-C", "--chdir", "-u", "--unset"];
 
     let mut start_index = 1;
     while start_index < tokens.len() {
         let token = &tokens[start_index];
-        if token.contains('=') {
+        // GNU `env -S` / `--split-string` takes a command *line*, not a
+        // skippable option value. Treating it like `-C` hid `env -S "rm -rf /"`
+        // as a bare `env`. Re-tokenise the payload the same way `bash -c` is
+        // unwrapped.
+        if token == "-S" || token == "--split-string" {
+            return tokens.get(start_index + 1).and_then(|inner| {
+                let inner_tokens = tokenise(inner);
+                (!inner_tokens.is_empty()).then_some(inner_tokens)
+            });
+        }
+        if let Some(inner) = token.strip_prefix("--split-string=") {
+            let inner_tokens = tokenise(inner);
+            return (!inner_tokens.is_empty()).then_some(inner_tokens);
+        }
+        if token.contains('=') && !token.starts_with('-') {
             start_index += 1;
         } else if token.starts_with("--") {
             if token.contains('=') {
@@ -1151,6 +1164,29 @@ mod tests {
     #[test]
     fn unwraps_env_long_chdir_option() {
         let parsed = parse_command("env --chdir /tmp rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.wrapper_chain, vec!["env"]);
+    }
+
+    #[test]
+    fn unwraps_env_split_string_as_inner_command() {
+        let parsed = parse_command(r#"env -S "rm -rf /""#);
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
+        assert_eq!(parsed.wrapper_chain, vec!["env"]);
+    }
+
+    #[test]
+    fn unwraps_env_long_split_string_option() {
+        let parsed = parse_command(r#"env --split-string "rm -rf /""#);
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.wrapper_chain, vec!["env"]);
+    }
+
+    #[test]
+    fn unwraps_env_split_string_equals_form() {
+        let parsed = parse_command(r#"env --split-string="rm -rf /""#);
         assert_eq!(parsed.command, "rm");
         assert_eq!(parsed.wrapper_chain, vec!["env"]);
     }
