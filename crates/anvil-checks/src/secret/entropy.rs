@@ -243,6 +243,8 @@ pub(crate) fn is_path_shaped_document_token(
 /// True when `match_start` sits in the path of an `http://` or `https://`
 /// URL on this line. Query and fragment matches are left to the card rule
 /// — a PAN in `?card=` is still a finding.
+/// The URL token ends at whitespace, query/fragment, or a quote / markup /
+/// list delimiter so a same-line standalone PAN is not swallowed.
 fn is_inside_http_url_path(line: &str, match_start: usize) -> bool {
     let Some(prefix) = line.get(..match_start) else {
         return false;
@@ -271,13 +273,31 @@ fn is_inside_http_url_path(line: &str, match_start: usize) -> bool {
         return false;
     };
     let after_path_start = &host_and_maybe_path[path_slash..];
-    if after_path_start.contains('?') || after_path_start.contains('#') {
-        return false;
-    }
-    if after_path_start.chars().any(|c| c.is_ascii_whitespace()) {
+    if after_path_start.chars().any(url_path_ended) {
         return false;
     }
     true
+}
+
+fn url_path_ended(c: char) -> bool {
+    c.is_ascii_whitespace()
+        || matches!(
+            c,
+            '?' | '#'
+                | '"'
+                | '\''
+                | '`'
+                | '<'
+                | '>'
+                | ','
+                | '{'
+                | '}'
+                | '['
+                | ']'
+                | '('
+                | ')'
+                | ';'
+        )
 }
 
 fn document_extension_prefix(after: &str) -> Option<&str> {

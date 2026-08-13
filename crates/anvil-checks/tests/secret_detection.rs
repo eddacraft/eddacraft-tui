@@ -234,6 +234,38 @@ fn does_not_flag_credit_card_digits_inside_https_url_path() {
 }
 
 #[test]
+fn still_flags_standalone_card_after_url_on_same_line() {
+    // Same-line PANs after a URL must still fire: the path exemption ends at
+    // quotes, angle brackets, commas, and other URL/path delimiters — not
+    // only whitespace / `?` / `#`.
+    let digits = ["4242"; 4].join("");
+    let config = config_without_entropy();
+    let cases = [
+        format!(r#"{{"checkout":"https://pay.example.com/session","pan":"{digits}"}}"#),
+        format!(r#"<a href="https://www.facebook.com/reel/xyz">{digits}</a>"#),
+        format!("https://example.com/order,{digits}"),
+    ];
+
+    for content in cases {
+        let findings = scan_content(&content, "src/payments.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Credit Card"),
+            "standalone PAN after a URL on the same line must still flag, line={content:?}, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>(),
+        );
+    }
+
+    let query = format!("https://pay.example.com/charge?card={digits}\n");
+    let query_findings = scan_content(&query, "src/payments.ts", &config);
+    assert!(
+        query_findings
+            .iter()
+            .any(|f| f.pattern_name == "Credit Card"),
+        "PAN in a URL query must still flag"
+    );
+}
+
+#[test]
 fn does_not_flag_hex_hashes_via_shape_allowlist() {
     // CLAWP-063: exercise the entropy path AND the hex-shape allowlist
     // (`^[a-f0-9]{64}$`) this test protects. Two subtleties the prior
