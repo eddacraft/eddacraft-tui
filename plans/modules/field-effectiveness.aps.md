@@ -5,7 +5,7 @@
 
 | ID   | Owner  | Priority | Status | Progress |
 | ---- | ------ | -------- | ------ | -------- |
-| FEFF | @aneki | High     | Ready  | 0/8      |
+| FEFF | @aneki | high     | Ready  | 0/8      |
 
 **Last reviewed:** 2026-08-13 against the index success criteria, DEVACC Tier C
 boundary, ADR-107, FLEET/BACT, current insights/drift evidence, and the
