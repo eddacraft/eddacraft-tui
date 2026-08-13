@@ -434,12 +434,30 @@ fn check_architecture_source_in(root: &Path) -> DiagnosticCheck {
                 .map(|_| ())
         })
         .is_some();
+    // UCFG-010: a section that DELEGATES to the standalone file is the
+    // sanctioned migrated state, not dual truth — provenance decides.
+    let delegates_to_legacy = section
+        && legacy
+        && matches!(
+            crate::architecture_source::resolve_architecture(root),
+            Ok(Some((
+                _,
+                crate::architecture_source::ArchitectureOrigin::Section(
+                    anvil_config::SectionProvenance::Delegated { .. },
+                ),
+            )))
+        );
     let (status, message) = match (section, legacy) {
+        (true, true) if delegates_to_legacy => (
+            CheckStatus::Pass,
+            "architecture section delegates to .anvil/architecture.yaml (migrated form)"
+                .to_string(),
+        ),
         (true, true) => (
             CheckStatus::Warn,
             "architecture section AND standalone .anvil/architecture.yaml both present — \
-             the section wins; the standalone file is shadowed unless it is the \
-             section's delegation target"
+             the section wins and the standalone file is shadowed (it is not the \
+             section's delegation target)"
                 .to_string(),
         ),
         (false, true) => (
@@ -2505,7 +2523,7 @@ mod tests {
             legacy_only.remediation.command.as_deref(),
             Some("anvil migrate architecture --apply")
         );
-        // Both → Warn about shadowing.
+        // Both, unrelated → Warn about shadowing.
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
             "architecture:\n  layers: {}\n",
@@ -2514,6 +2532,19 @@ mod tests {
         let both = check_architecture_source_in(tmp.path());
         assert_eq!(both.status, CheckStatus::Warn);
         assert!(both.message.contains("shadowed"), "{}", both.message);
+        // Both, but the section DELEGATES to the file → migrated form, Pass.
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  source: \".anvil/architecture.yaml\"\n",
+        )
+        .unwrap();
+        let delegated = check_architecture_source_in(tmp.path());
+        assert_eq!(delegated.status, CheckStatus::Pass);
+        assert!(
+            delegated.message.contains("delegates"),
+            "{}",
+            delegated.message
+        );
         // Section only → Pass.
         std::fs::remove_file(tmp.path().join(".anvil/architecture.yaml")).unwrap();
         assert_eq!(

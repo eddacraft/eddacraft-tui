@@ -388,7 +388,7 @@ Change status to **Ready** when:
 
 #### UCFG-010: MCP resources, config summary, doctor on the unified surface
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** `anvil://config`-class MCP resources, `config_summary`, and
   doctor render the resolved unified config (canonical name, gate section,
   resolved architecture, delegation provenance)

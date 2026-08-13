@@ -230,12 +230,29 @@ fn read_config() -> Result<Value, ReadError> {
                 .to_string_lossy()
                 .replace('\\', "/");
             Ok(match anvil_config::parse_file(&discovered.path) {
-                Ok(config) => json!({
-                    "config": config,
-                    "source": source,
-                    "isDefault": false,
-                    "errors": [],
-                }),
+                Ok(config) => {
+                    // UCFG-010: agents see the resolved unified surface —
+                    // gate composition and architecture provenance ride
+                    // beside the raw parse (additive fields only).
+                    let gate = anvil_config::GateSection::from_config_value(&config)
+                        .ok()
+                        .flatten()
+                        .map_or(Value::Null, |section| {
+                            json!({
+                                "checks": section.check_names(),
+                                "thresholds": section.thresholds,
+                            })
+                        });
+                    let architecture = architecture_provenance(&root);
+                    json!({
+                        "config": config,
+                        "source": source,
+                        "isDefault": false,
+                        "gate": gate,
+                        "architecture": architecture,
+                        "errors": [],
+                    })
+                }
                 Err(err) => json!({
                     "config": Value::Null,
                     "source": source,
@@ -248,11 +265,48 @@ fn read_config() -> Result<Value, ReadError> {
             "config": Value::Null,
             "source": Value::Null,
             "isDefault": true,
+            "architecture": architecture_provenance(&root),
             "errors": [],
         })),
         Err(err) => Err(ReadError::Internal(format!(
             "config discovery failed: {err}"
         ))),
+    }
+}
+
+/// UCFG-010: where the resolved architecture comes from, for agents —
+/// `inline`, `delegated` (with its workspace-relative source), the
+/// `legacy-file`, or `none`. Resolution errors render as a string so
+/// the resource read never fails on a malformed section.
+fn architecture_provenance(root: &std::path::Path) -> Value {
+    match crate::architecture_source::resolve_architecture(root) {
+        Ok(Some((
+            _,
+            crate::architecture_source::ArchitectureOrigin::Section(
+                anvil_config::SectionProvenance::Inline,
+            ),
+        ))) => json!({"origin": "inline"}),
+        Ok(Some((
+            _,
+            crate::architecture_source::ArchitectureOrigin::Section(
+                anvil_config::SectionProvenance::Delegated { path, .. },
+            ),
+        ))) => json!({
+            "origin": "delegated",
+            "source": path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/"),
+        }),
+        Ok(Some((_, crate::architecture_source::ArchitectureOrigin::LegacyFile(_)))) => {
+            json!({"origin": "legacy-file", "source": ".anvil/architecture.yaml"})
+        }
+        Ok(None) => json!({"origin": "none"}),
+        Err(err) => json!({
+            "origin": "error",
+            "error": redact_root(root, &format!("{err:#}")),
+        }),
     }
 }
 

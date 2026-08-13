@@ -67,6 +67,50 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
 }
 
 fn load_config_info(workspace_root: &Path) -> Value {
+    // UCFG-010: canonical `.anvil.<ext>` first (parsed through the
+    // shared loader + the UCFG-004 selection rule), legacy `.anvilrc`
+    // text parsing as the fallback.
+    match anvil_config::discover(workspace_root, ".anvil") {
+        Ok(Some(discovered)) => {
+            let source_name = discovered
+                .path
+                .file_name()
+                .and_then(std::ffi::OsStr::to_str)
+                .unwrap_or(".anvil.yaml")
+                .to_string();
+            return match anvil_config::parse_file(&discovered.path) {
+                Ok(value) => {
+                    let section = anvil_config::GateSection::from_config_value(&value)
+                        .ok()
+                        .flatten();
+                    let (checks, _) =
+                        crate::commands::gate_config::effective_selection(&value, section.as_ref());
+                    json!({
+                        "loaded": true,
+                        "source": source_name,
+                        "checks": checks
+                    })
+                }
+                Err(err) => json!({
+                    "loaded": false,
+                    "source": source_name,
+                    "checks": [],
+                    "error": format!("Failed to parse {source_name}: {err}")
+                }),
+            };
+        }
+        Ok(None) => {}
+        Err(err) => {
+            return json!({
+                "loaded": false,
+                "source": null,
+                "checks": [],
+                "error": format!("config discovery failed: {err}")
+            });
+        }
+    }
+
+    // legacy-fallback coverage (.anvilrc deliberately)
     let source = workspace_root.join(".anvilrc");
     let contents = match std::fs::read_to_string(&source) {
         Ok(contents) => contents,
@@ -241,6 +285,36 @@ fn tool_result(payload: &Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── UCFG-010: canonical-surface reads ───────────────────────
+
+    #[test]
+    fn config_info_reads_canonical_file_with_section_selection() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "gate:\n  checks:\n    secret-detection: {}\n",
+        )
+        .unwrap();
+        let info = load_config_info(tmp.path());
+        assert_eq!(info["loaded"], true);
+        assert_eq!(info["source"], ".anvil.yaml");
+        assert_eq!(info["checks"][0], "secret-detection");
+    }
+
+    #[test]
+    fn config_info_canonical_beats_legacy() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks":["lint"]}"#).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "checks:\n  - secret-detection\n",
+        )
+        .unwrap();
+        let info = load_config_info(tmp.path());
+        assert_eq!(info["source"], ".anvil.yaml");
+        assert_eq!(info["checks"][0], "secret-detection");
+    }
 
     #[test]
     fn status_rejects_relative_workspace_root() {
