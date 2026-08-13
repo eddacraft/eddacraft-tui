@@ -198,13 +198,23 @@ jobs:
           needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm -F @eddacraft/anvil-docs-meta build
 
+      # DOCFRESH-007 (ADR-119 D7): the command-probe binary must be the newest
+      # public release. A stale pin silently validates every fenced `anvil …`
+      # example against an old binary. Cheap file-read; fail before download.
+      - name: Check public command-probe pin (DOCFRESH-007)
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true' ||
+          needs.detect-changes.outputs.code-changed == 'true'
+        run: node scripts/docs/check-docs-version-pin.mjs
+
       - name: Install the public-doc command truth binary
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         env:
-          ANVIL_DOCS_VERSION: 0.9.1-beta
-          ANVIL_DOCS_INSTALLER_SHA256: e609fb1b175bb047fb3e86d801b320941c6605a4ce1810c33238fbb35223dcea
+          ANVIL_DOCS_VERSION: 0.9.4-beta
+          ANVIL_DOCS_INSTALLER_SHA256: d9e0b4fdcdde4bdce9f9ce9aef275110c26344e60016a3ffe7ae68be12b87ffd
         run: |
           installer_path="${RUNNER_TEMP}/eddacraft-anvil-installer.sh"
           curl --proto '=https' --tlsv1.2 -LsSf \

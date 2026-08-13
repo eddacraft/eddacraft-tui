@@ -1,8 +1,8 @@
 # Release Documentation Checklist
 
-| Type  | Authority | Owner  | Status | Freshness                                                          |
-| ----- | --------- | ------ | ------ | ------------------------------------------------------------------ |
-| Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-22 against DOCGOV-006 release-doc sync scope |
+| Type  | Authority | Owner  | Status | Freshness                                                            |
+| ----- | --------- | ------ | ------ | -------------------------------------------------------------------- |
+| Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-13 against ADR-119 D7 / DOCFRESH-007 pin check |
 
 | Upstream                                                                                    | Downstream                                     |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -175,6 +175,12 @@ affects install commands, supported targets, or project status.
 - [ ] `.github/workflows/release.yml` — cargo-dist publish pipeline changes
 - [ ] `.github/workflows/rust.yml` — Rust CI changes
 - [ ] `.github/workflows/ci-nightly.yml` — nightly build changes
+- [ ] `.github/workflows/ci.yml` `ANVIL_DOCS_VERSION` matches the newest heading
+      in `docs/public/anvil/releases/changelog.md` (DOCFRESH-007 / ADR-119 D7).
+      `ANVIL_DOCS_INSTALLER_SHA256` is the sha256 of that release's
+      `eddacraft-anvil-installer.sh`. Enforced by
+      `node scripts/docs/check-docs-version-pin.mjs` — bump both values in the
+      same commit as the public changelog heading.
 
 ### Pre-release: third-party attribution (ATTRIB)
 

@@ -283,7 +283,7 @@ release rather than `main`.
 - **Confidence:** medium
 - **Status:** Draft
 
-### DOCFRESH-007: Keep the public command-probe pin current — Ready
+### DOCFRESH-007: Keep the public command-probe pin current — In Progress
 
 - **Intent:** `docs:public:commands` is the strongest instrument in the system
   and its authority is only as good as the binary it probes.
@@ -297,7 +297,7 @@ release rather than `main`.
 - **Validation:** the new assertion fails when the pin and the newest changelog
   heading disagree
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
 
 ### DOCFRESH-008: Decide the model for out-of-tree public sections — Draft
 

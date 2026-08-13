@@ -1485,6 +1485,60 @@ else
   fail "glob matcher disagrees with git; git=[${git_matches}] js=[${js_matches}]"
 fi
 
+# Case H (DOCFRESH-007): ANVIL_DOCS_VERSION must match the newest public
+# changelog heading. A fixture mismatch fails; a fixture match and the live
+# repository both pass.
+echo "case H: docs version pin matches newest changelog heading"
+pin_script="${script_dir}/check-docs-version-pin.mjs"
+pin_root="${tmp_root}/docs-version-pin"
+mkdir -p "${pin_root}/.github/workflows" "${pin_root}/docs/public/anvil/releases"
+cat >"${pin_root}/.github/workflows/ci.yml" <<'EOF'
+      - name: Install the public-doc command truth binary
+        env:
+          ANVIL_DOCS_VERSION: 0.9.1-beta
+EOF
+cat >"${pin_root}/docs/public/anvil/releases/changelog.md" <<'EOF'
+## 0.9.4-beta — 10 August 2026 — Clearer install advice
+
+## 0.9.1-beta — 2 August 2026 — Daily Path Polish
+EOF
+set +e
+out="$(node "${pin_script}" --root "${pin_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "ANVIL_DOCS_VERSION is 0.9.1-beta" \
+  && echo "${out}" | grep -q "newest changelog heading is 0.9.4-beta"; then
+  pass "mismatch between pin and newest heading fails"
+else
+  fail "expected mismatch to fail (status ${status}); got: ${out}"
+fi
+
+cat >"${pin_root}/.github/workflows/ci.yml" <<'EOF'
+      - name: Install the public-doc command truth binary
+        env:
+          ANVIL_DOCS_VERSION: 0.9.4-beta
+EOF
+set +e
+out="$(node "${pin_script}" --root "${pin_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] && echo "${out}" | grep -q "0.9.4-beta matches newest changelog heading"; then
+  pass "matching pin and newest heading pass"
+else
+  fail "expected match to pass (status ${status}); got: ${out}"
+fi
+
+set +e
+out="$(cd "${repo_root}" && node "${pin_script}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]]; then
+  pass "live pin matches newest changelog heading"
+else
+  fail "live pin disagrees with changelog; got: ${out}"
+fi
+
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"
   exit 1
