@@ -2472,6 +2472,8 @@ fn mcp_serve_stdio_legacy_tools_list_accepts_progress_token_metadata() {
 #[test]
 fn mcp_serve_stdio_legacy_tools_call_accepts_progress_token_metadata() {
     let workspace = tempfile::tempdir().expect("workspace dir exists");
+    // legacy-fallback coverage (.anvilrc deliberately) — see the label at
+    // the first fixture (line ~937); UCFG-010 owns the production flip.
     std::fs::write(
         workspace.path().join(".anvilrc"),
         r#"{"checks":["secret-detection","policy"]}"#,
