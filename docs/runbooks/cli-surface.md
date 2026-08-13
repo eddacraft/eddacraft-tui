@@ -1229,7 +1229,8 @@ selection and the `gate` section carries composition. The legacy
 `.anvil/gate-config.json` is retired — gate runs ignore it, this command never
 reads or writes it, and `anvil doctor` warns on a stray file (fold it with
 `anvil migrate gate-config`). Disabling `secret-detection` or `command-safety`
-is refused (hard-pinned rule classes, ADR-039).
+is refused (their rule classes are hard-pinned for safety and cannot be turned
+off here).
 
 Planned: `anvil gate-config` will eventually consolidate into
 `anvil gate config` (subsystem rename per the CLI surface coherence spec).
