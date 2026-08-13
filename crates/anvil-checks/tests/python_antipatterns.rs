@@ -373,18 +373,10 @@ fn py008_eval_with_dynamic_argument_fires() {
     assert!(fires("src/app.py", "eval(input())\n", "PY-008"));
     assert!(fires("src/app.py", "eval(item)\n", "PY-008"));
     assert!(fires("src/app.py", "exec(imported)\n", "PY-008"));
-    assert!(fires(
-        "src/app.py",
-        "eval(user_input.strip())\n",
-        "PY-008"
-    ));
+    assert!(fires("src/app.py", "eval(user_input.strip())\n", "PY-008"));
     assert!(fires("src/app.py", "eval(user_input[0])\n", "PY-008"));
     assert!(fires("src/app.py", "exec(f'pass')\n", "PY-008"));
-    assert!(fires(
-        "src/app.py",
-        "exec(f\"{user_input}\")\n",
-        "PY-008"
-    ));
+    assert!(fires("src/app.py", "exec(f\"{user_input}\")\n", "PY-008"));
 }
 
 #[test]
