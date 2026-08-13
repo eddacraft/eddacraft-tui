@@ -484,6 +484,10 @@ pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
 /// unlinked via `unlinkat`. A swapped ancestor therefore fails closed instead
 /// of deleting a file outside the intended tree. A leaf symlink is unlinked
 /// itself (not its target).
+///
+/// Non-Unix platforms refuse any existing symlink component (including a
+/// leaf) then call [`std::fs::remove_file`]. That check is best-effort and
+/// still has a TOCTOU window; it does not offer the Unix openat guarantee.
 pub fn remove_file_nofollow(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
@@ -497,6 +501,10 @@ pub fn remove_file_nofollow(path: &Path) -> Result<()> {
 }
 
 /// Remove an empty directory without following symlink path components.
+///
+/// Unix uses the same no-follow `unlinkat` walk as [`remove_file_nofollow`].
+/// Non-Unix platforms refuse symlink components then call
+/// [`std::fs::remove_dir`], with the same best-effort TOCTOU limit.
 pub fn remove_dir_nofollow(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
