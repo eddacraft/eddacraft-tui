@@ -7,7 +7,7 @@
 | ---- | ----- | -------- | ------ | -------- |
 | BACT | —     | High     | Done | 12/12     |
 
-**Last reviewed:** 2026-08-13 — phase 2 complete: BACT-007..013 merged via
+**Last reviewed:** 2026-08-13 — phase 2 complete: BACT-007/-008/-009/-011/-012/-013 merged via
 PRs #3837/#3838/#3839/#3840/#3842/#3843 (plan column, activity stamps, DAA
 metrics, daily rollup, backfill, plan-aware evaluation context + JWT).
 
