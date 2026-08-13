@@ -283,21 +283,27 @@ release rather than `main`.
 - **Confidence:** medium
 - **Status:** Draft
 
-### DOCFRESH-007: Keep the public command-probe pin current — In Progress
+### DOCFRESH-007: Keep the public command-probe pin current — Merged
 
 - **Intent:** `docs:public:commands` is the strongest instrument in the system
   and its authority is only as good as the binary it probes.
-- **Expected Outcome:** `ANVIL_DOCS_VERSION` (`.github/workflows/ci.yml:191`)
+- **Expected Outcome:** `ANVIL_DOCS_VERSION` in `.github/workflows/ci.yml`
   tracks the newest version in `docs/public/anvil/releases/changelog.md`,
-  enforced by a check rather than remembered. It currently pins `0.9.1-beta`
-  against a `0.9.4-beta` repository, so every public command assertion is being
-  validated three releases behind.
+  enforced by a check rather than remembered.
 - **Scope:** `.github/workflows/ci.yml`, release checklist, new assertion
 - **Non-scope:** Changing what `docs:public:commands` probes
+- **Files:** `.github/workflows/ci.yml`,
+  `scripts/docs/check-docs-version-pin.mjs`,
+  `scripts/docs/docs-check.test.sh` (case H),
+  `docs/guides/release-doc-checklist.md`
 - **Validation:** the new assertion fails when the pin and the newest changelog
   heading disagree
+- **Evidence:** PR #3850 rebase-merged 2026-08-13 (`acc7e0483` ancestor of
+  `origin/main`). Pin is `0.9.4-beta` with matching installer sha256.
+  `node scripts/docs/check-docs-version-pin.mjs` exit 0; case H mismatch fails;
+  Docs Lint green including the new pin step and 127/127 public command probes.
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3850
 
 ### DOCFRESH-008: Decide the model for out-of-tree public sections — Draft
 
