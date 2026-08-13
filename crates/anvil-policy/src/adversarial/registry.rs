@@ -314,7 +314,8 @@ pub struct ProbePackRef {
     pub id: String,
     /// The pack directory, under `.anvil/probes/`.
     pub dir: PathBuf,
-    /// The manifest path (`<dir>/probes.yaml`), known to exist as a file.
+    /// The verified manifest path (`<dir>/probes.yaml` after containment),
+    /// known to exist as a regular file inside the pack directory.
     pub manifest_path: PathBuf,
 }
 
@@ -542,25 +543,38 @@ fn classify_dir(
 ) {
     // Containment first: a directory symlinked out of the probes root is
     // rejected before its contents are inspected.
-    match dir.canonicalize() {
-        Ok(canonical) if canonical.starts_with(canonical_probes) => {}
-        Ok(_) => {
-            rejected.push(RejectedEntry {
-                path: dir.to_path_buf(),
-                reason: RejectionReason::ContainmentEscape,
-            });
-            return;
-        }
+    let Some(canonical_dir) = canonicalise_or_reject(canonical_probes, dir, rejected) else {
+        return;
+    };
+    let manifest_path = dir.join(MANIFEST_FILENAME);
+    // Distinguish "no probes.yaml entry" from "entry present but unusable".
+    // `is_file()` follows symlinks and treats a dangling link as absent, which
+    // would silently skip cases the module reports as Unresolvable elsewhere.
+    match std::fs::symlink_metadata(&manifest_path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
         Err(_) => {
             rejected.push(RejectedEntry {
-                path: dir.to_path_buf(),
+                path: manifest_path,
                 reason: RejectionReason::Unresolvable,
             });
             return;
         }
+        // A directory named probes.yaml is not a manifest; ignore like other noise.
+        Ok(meta) if meta.is_dir() => return,
+        Ok(_) => {}
     }
-    let manifest_path = dir.join(MANIFEST_FILENAME);
-    if !manifest_path.is_file() {
+    // Fail-closed: probes.yaml must itself resolve within the pack directory.
+    // Directory containment alone is not enough when the manifest is a symlink
+    // that escapes the pack (or the probes root).
+    let Some(canonical_manifest) = canonicalise_or_reject(&canonical_dir, &manifest_path, rejected)
+    else {
+        return;
+    };
+    if !canonical_manifest.is_file() {
+        rejected.push(RejectedEntry {
+            path: manifest_path,
+            reason: RejectionReason::Unresolvable,
+        });
         return;
     }
     let Some(id) = dir.file_name().and_then(|n| n.to_str()).map(str::to_owned) else {
@@ -573,8 +587,34 @@ fn classify_dir(
     packs.push(ProbePackRef {
         id,
         dir: dir.to_path_buf(),
-        manifest_path,
+        manifest_path: canonical_manifest,
     });
+}
+
+/// Canonicalise `entry` and require it to stay within `containment_root`,
+/// pushing a [`RejectedEntry`] and returning `None` on failure or escape.
+fn canonicalise_or_reject(
+    containment_root: &Path,
+    entry: &Path,
+    rejected: &mut Vec<RejectedEntry>,
+) -> Option<PathBuf> {
+    match entry.canonicalize() {
+        Ok(canonical) if canonical.starts_with(containment_root) => Some(canonical),
+        Ok(_) => {
+            rejected.push(RejectedEntry {
+                path: entry.to_path_buf(),
+                reason: RejectionReason::ContainmentEscape,
+            });
+            None
+        }
+        Err(_) => {
+            rejected.push(RejectedEntry {
+                path: entry.to_path_buf(),
+                reason: RejectionReason::Unresolvable,
+            });
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -900,6 +940,91 @@ probes: []
         match ProbeRegistry::load(ws.path()) {
             Err(RegistryLoadError::Rejected(entry)) => {
                 assert_eq!(entry.reason, RejectionReason::ContainmentEscape);
+            }
+            other => panic!("expected Rejected, got {other:?}"),
+        }
+    }
+
+    // A contained pack directory whose probes.yaml is a symlink to an external
+    // valid manifest must be rejected — directory containment alone is not
+    // enough when the manifest itself escapes.
+    #[cfg(unix)]
+    #[test]
+    fn probe_registry_discovery_manifest_symlink_escape_rejected() {
+        let outside = TempDir::new().expect("outside");
+        let external_manifest = outside.path().join(MANIFEST_FILENAME);
+        std::fs::write(&external_manifest, manifest_with_id("baseline")).expect("outside manifest");
+
+        let ws = TempDir::new().expect("workspace");
+        write_pack(ws.path(), "legit", &manifest_with_id("legit"));
+
+        // Real in-probes pack dir whose probes.yaml is a symlink out.
+        let escape_dir = ws.path().join(PROBES_SUBDIR).join("baseline");
+        std::fs::create_dir_all(&escape_dir).expect("pack dir");
+        std::os::unix::fs::symlink(&external_manifest, escape_dir.join(MANIFEST_FILENAME))
+            .expect("manifest symlink");
+
+        let discovery = discover_probe_packs(ws.path()).expect("discover");
+        let ids: Vec<&str> = discovery.packs.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["legit"],
+            "escaping manifest must not be admitted as a pack: {discovery:?}"
+        );
+        assert_eq!(discovery.rejected.len(), 1, "{discovery:?}");
+        assert_eq!(
+            discovery.rejected[0].reason,
+            RejectionReason::ContainmentEscape
+        );
+        assert!(
+            discovery.rejected[0].path.ends_with("probes.yaml"),
+            "{discovery:?}"
+        );
+
+        // Fail-closed admission refuses the whole registry on the escape.
+        match ProbeRegistry::load(ws.path()) {
+            Err(RegistryLoadError::Rejected(entry)) => {
+                assert_eq!(entry.reason, RejectionReason::ContainmentEscape);
+            }
+            other => panic!("expected Rejected, got {other:?}"),
+        }
+
+        // discover_and_load must never load the external manifest either.
+        let loaded = discover_and_load(ws.path()).expect("discover_and_load");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].pack.id, "legit");
+        assert!(loaded[0].manifest.is_ok());
+    }
+
+    // A dangling probes.yaml symlink is Unresolvable (reported), not silently
+    // treated as "no manifest" — matching the module's broken-symlink contract.
+    #[cfg(unix)]
+    #[test]
+    fn probe_registry_discovery_dangling_manifest_symlink_is_unresolvable() {
+        let ws = TempDir::new().expect("workspace");
+        write_pack(ws.path(), "legit", &manifest_with_id("legit"));
+
+        let dangling_dir = ws.path().join(PROBES_SUBDIR).join("dangling-manifest");
+        std::fs::create_dir_all(&dangling_dir).expect("pack dir");
+        std::os::unix::fs::symlink(
+            dangling_dir.join("gone-probes.yaml"),
+            dangling_dir.join(MANIFEST_FILENAME),
+        )
+        .expect("dangling symlink");
+
+        let discovery = discover_probe_packs(ws.path()).expect("discover");
+        let ids: Vec<&str> = discovery.packs.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, ["legit"], "{discovery:?}");
+        assert_eq!(discovery.rejected.len(), 1, "{discovery:?}");
+        assert_eq!(discovery.rejected[0].reason, RejectionReason::Unresolvable);
+        assert!(
+            discovery.rejected[0].path.ends_with("probes.yaml"),
+            "{discovery:?}"
+        );
+
+        match ProbeRegistry::load(ws.path()) {
+            Err(RegistryLoadError::Rejected(entry)) => {
+                assert_eq!(entry.reason, RejectionReason::Unresolvable);
             }
             other => panic!("expected Rejected, got {other:?}"),
         }
