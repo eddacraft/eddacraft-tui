@@ -27,7 +27,7 @@ pub struct DiscoveredConfig {
 pub enum DiscoverError {
     #[error(
         "basename {basename:?} is not a single filename component — \
-         absolute paths, separators, and '.' / '..' are rejected"
+absolute paths, separators, and '.' / '..' are rejected"
     )]
     InvalidBasename { basename: String },
 }
