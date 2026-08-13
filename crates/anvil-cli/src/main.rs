@@ -752,11 +752,7 @@ enum SilentRefreshOutcome {
 /// Exchange a stored refresh token for a fresh licence and persist the
 /// result. Permanent failures print an actionable reason to stderr;
 /// transient failures stay silent unless `verbose` is set.
-fn try_silent_refresh(
-    creds: &auth::credentials::Credentials,
-    verbose: bool,
-    emit_human_messages: bool,
-) -> SilentRefreshOutcome {
+fn try_silent_refresh(verbose: bool, emit_human_messages: bool) -> SilentRefreshOutcome {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -770,14 +766,8 @@ fn try_silent_refresh(
         }
     };
 
-    match rt.block_on(auth::device_flow::try_refresh_credentials(creds)) {
-        Ok(new_creds) => {
-            if let Err(err) = auth::credentials::save(&new_creds) {
-                if verbose && emit_human_messages {
-                    eprintln!("[auth] saving refreshed credentials failed: {err:#}");
-                }
-                return SilentRefreshOutcome::TransientFailure;
-            }
+    match rt.block_on(auth::device_flow::refresh_command()) {
+        Ok(_) => {
             if verbose && emit_human_messages {
                 eprintln!("[auth] refreshed expired session via stored refresh token");
             }
@@ -1006,7 +996,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) ->
         && auth::credentials::is_expired(creds)
         && creds.refresh_token.is_some()
     {
-        match try_silent_refresh(creds, global.verbose, !json_mode) {
+        match try_silent_refresh(global.verbose, !json_mode) {
             SilentRefreshOutcome::Refreshed => loaded = auth::credentials::load(),
             SilentRefreshOutcome::PermanentFailure => {
                 refresh_reason_already_printed = true;

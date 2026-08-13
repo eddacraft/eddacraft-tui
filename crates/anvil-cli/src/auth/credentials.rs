@@ -1,8 +1,13 @@
+use std::fs::File;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+/// Sidecar next to `credentials.json`. The credential file is replaced
+/// atomically on save, so the rotation lock cannot live on that inode.
+const REFRESH_LOCK_FILE: &str = "credentials.lock";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -171,6 +176,41 @@ pub fn load_with_source() -> Result<Option<(Credentials, CredentialSource)>> {
     }
 
     Ok(None)
+}
+
+/// Inter-process exclusive lock for the credential refresh transaction.
+///
+/// Held across load → `/session/refresh` → save so two CLI processes cannot
+/// exchange the same rotating refresh token. Atomic replace of
+/// `credentials.json` protects file integrity but does not serialise that
+/// transaction; reuse of a rotated token revokes the whole session family.
+pub struct CredentialRefreshLock {
+    _file: File,
+}
+
+impl CredentialRefreshLock {
+    /// Block until this process owns the refresh lock.
+    pub fn acquire() -> Result<Self> {
+        let file = open_refresh_lock()?;
+        fs2::FileExt::lock_exclusive(&file).context("locking credentials refresh transaction")?;
+        Ok(Self { _file: file })
+    }
+}
+
+fn open_refresh_lock() -> Result<File> {
+    let dir = credentials_dir()?;
+    std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+    let path = dir.join(REFRESH_LOCK_FILE);
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).read(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.mode(0o600);
+    }
+    options
+        .open(&path)
+        .with_context(|| format!("opening {}", path.display()))
 }
 
 /// Save credentials atomically to the canonical XDG path.
@@ -522,5 +562,25 @@ mod tests {
             let expected = tmp_dir.path().join("anvil");
             assert_eq!(dir, expected);
         });
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn refresh_lock_file_is_created_owner_only() {
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(dir.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", None),
+            ],
+            || {
+                let _lock = CredentialRefreshLock::acquire().unwrap();
+                let path = credentials_dir().unwrap().join(REFRESH_LOCK_FILE);
+                assert!(path.is_file(), "refresh lock sidecar must exist");
+                use std::os::unix::fs::PermissionsExt as _;
+                let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+                assert_eq!(mode, 0o600, "refresh lock must be owner-only, got {mode:o}");
+            },
+        );
     }
 }

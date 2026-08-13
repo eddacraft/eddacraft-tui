@@ -22,11 +22,14 @@
 //! wiremock's `up_to_n_times` sequencing so the loop exits after one or two
 //! polls — the whole file runs in a couple of seconds.
 
+use std::collections::HashSet;
 use std::process::{Command, Output, Stdio};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde_json::Value;
 use wiremock::matchers::{body_json, method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
@@ -400,4 +403,116 @@ async fn device_flow_e2e_otp_request_verify_saves_credentials() {
     assert_eq!(creds["license"], "lic-otp");
     assert_eq!(creds["refreshToken"], "rt-otp");
     assert_eq!(creds["email"], "otp@example.com");
+}
+
+/// Mock `/session/refresh` that rotates a token on first use and treats a
+/// second use of the same token as family-revoking reuse — the server
+/// contract that makes concurrent unguarded refresh fatal.
+struct RotatingRefresh {
+    used: Arc<Mutex<HashSet<String>>>,
+}
+
+impl Respond for RotatingRefresh {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let body: Value = serde_json::from_slice(&request.body).unwrap_or(Value::Null);
+        let token = body
+            .get("refreshToken")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        let mut used = self.used.lock().expect("rotating-refresh lock");
+        if !used.insert(token.clone()) {
+            return ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "Token reuse detected"
+            }));
+        }
+        let next = format!("{token}.next");
+        ResponseTemplate::new(200)
+            .set_delay(Duration::from_millis(150))
+            .set_body_json(serde_json::json!({
+                "license": format!("lic-{next}"),
+                "refreshToken": next,
+                "expiresAt": "2099-12-31T23:59:59Z"
+            }))
+    }
+}
+
+// Concurrent `anvil auth refresh` against one rotating token must serialise
+// the load → exchange → save transaction. Without an inter-process lock
+// both processes submit the same token and the family is revoked.
+#[tokio::test]
+async fn concurrent_auth_refresh_serialises_rotating_token() {
+    let env = TestEnv::new();
+    let server = MockServer::start().await;
+    let used = Arc::new(Mutex::new(HashSet::new()));
+
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/session/refresh"))
+        .respond_with(RotatingRefresh {
+            used: Arc::clone(&used),
+        })
+        .mount(&server)
+        .await;
+
+    let creds_path = env.credentials_path();
+    std::fs::create_dir_all(creds_path.parent().expect("credentials parent")).unwrap();
+    std::fs::write(
+        &creds_path,
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "license": "lic-shared",
+            "refreshToken": "rt-shared",
+            "email": "user@example.com",
+            "expiresAt": "2099-12-31T23:59:59Z",
+            "isEdict": false
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let (first, second) = tokio::join!(
+        run(
+            env.command(&server.uri(), &["--no-tui", "--json", "auth", "refresh"]),
+            None,
+        ),
+        run(
+            env.command(&server.uri(), &["--no-tui", "--json", "auth", "refresh"]),
+            None,
+        ),
+    );
+
+    assert!(
+        first.status.success(),
+        "first concurrent refresh must succeed: stderr=\n{}",
+        stderr_of(&first)
+    );
+    assert!(
+        second.status.success(),
+        "second concurrent refresh must succeed after waiting for the lock: stderr=\n{}",
+        stderr_of(&second)
+    );
+
+    let submitted = used.lock().expect("rotating-refresh lock");
+    assert!(
+        submitted.contains("rt-shared"),
+        "the original token must be exchanged exactly once: {submitted:?}"
+    );
+    // Serialised refresh either rotates once (waiter re-reads the new token
+    // and exchanges that) or twice; reuse of the same token never occurs.
+    assert!(
+        submitted.len() <= 2,
+        "expected at most two distinct tokens, got {submitted:?}"
+    );
+
+    let creds = env
+        .saved_credentials()
+        .expect("refresh must leave credentials on disk");
+    let saved = creds["refreshToken"].as_str().expect("saved refresh token");
+    assert_ne!(
+        saved, "rt-shared",
+        "the stored refresh token must have rotated"
+    );
+    assert!(
+        saved.starts_with("rt-shared"),
+        "saved token should be in the rotated family, got {saved}"
+    );
 }

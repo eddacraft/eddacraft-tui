@@ -424,10 +424,14 @@ pub async fn try_refresh_credentials(creds: &Credentials) -> Result<Credentials>
     })
 }
 
-/// End-to-end refresh: load stored credentials, exchange the refresh token,
-/// persist the new credentials, and return them. Used by the explicit
-/// `anvil auth refresh` subcommand.
+/// End-to-end refresh: lock the credential file, re-read stored credentials,
+/// exchange the refresh token, persist the new credentials, and return them.
+///
+/// The exclusive lock serialises concurrent CLI processes so two refreshes
+/// cannot submit the same rotating token (which the server treats as reuse
+/// and answers by revoking the session family).
 pub async fn refresh_command() -> Result<Credentials> {
+    let _lock = credentials::CredentialRefreshLock::acquire()?;
     let creds = credentials::load()?
         .context("Not authenticated. Run `anvil auth login` to authenticate.")?;
     if creds.refresh_token.is_none() {
