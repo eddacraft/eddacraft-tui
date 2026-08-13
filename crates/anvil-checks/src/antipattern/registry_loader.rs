@@ -482,11 +482,10 @@ pub fn is_registered_rule_id(id: &str) -> bool {
     let Some(registry) = load_compiled_registry(&LoadRegistryOptions::default()).registry else {
         return false;
     };
-    registry.patterns.iter().any(|pattern| pattern.id == id)
-        || registry
-            .patterns
-            .iter()
-            .any(|pattern| pattern.id.eq_ignore_ascii_case(id))
+    registry
+        .patterns
+        .iter()
+        .any(|pattern| pattern.id.eq_ignore_ascii_case(id))
 }
 
 /// Look up a single pattern by id in an already-loaded registry.
