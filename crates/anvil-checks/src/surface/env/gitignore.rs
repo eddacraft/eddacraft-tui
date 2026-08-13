@@ -310,6 +310,11 @@ fn build_regex(body: &str, has_path_segments: bool, root_anchored: bool) -> Opti
 /// and just want to bundle discovery + check. Walks `repo_root` for
 /// every `is_env_file` match (non-recursive into ignored directories
 /// is the caller's job), reads each file, then runs the check.
+///
+/// `env_paths` may be repository-relative or absolute. Absolute paths
+/// are resolved for reading, then stripped to `repo_root`-relative
+/// form before matching and before they appear on findings. An
+/// absolute path outside `repo_root` is `InvalidInput`.
 pub fn check_gitignore_hygiene_for_paths(
     repo_root: &Path,
     env_paths: &[PathBuf],
@@ -341,7 +346,11 @@ pub fn check_gitignore_hygiene_for_paths(
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
             Err(err) => return Err(err),
         };
-        env_files.push((path.clone(), content));
+        // Matcher and findings are repo-relative. Absolute inputs are
+        // accepted for reading, then stripped so a root-anchored rule
+        // such as `/.env.local` can cover `/repo/.env.local`. Paths
+        // outside `repo_root` are a caller error, not a silent miss.
+        env_files.push((repo_relative_env_path(repo_root, path)?, content));
     }
 
     Ok(check_gitignore_hygiene(
@@ -350,13 +359,34 @@ pub fn check_gitignore_hygiene_for_paths(
     ))
 }
 
+/// Convert a wrapper input path to the repo-relative form the matcher
+/// and `GitignoreFinding.file` expect. Relative paths are kept as-is;
+/// absolute paths must sit under `repo_root`.
+fn repo_relative_env_path(repo_root: &Path, path: &Path) -> std::io::Result<PathBuf> {
+    if !path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+    path.strip_prefix(repo_root)
+        .map(Path::to_path_buf)
+        .map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "absolute env path {} is outside repository root {}",
+                    path.display(),
+                    repo_root.display()
+                ),
+            )
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         GitignoreFindingKind, SURFENV_002_RULE_ID, check_gitignore_hygiene,
-        is_intentionally_committed,
+        check_gitignore_hygiene_for_paths, is_intentionally_committed,
     };
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     fn env_file(path: &str, content: &str) -> (PathBuf, String) {
         (PathBuf::from(path), content.to_string())
@@ -590,5 +620,49 @@ mod tests {
         // Only `.env` should remain unignored.
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].file, std::path::Path::new(".env"));
+    }
+
+    #[test]
+    fn wrapper_absolute_path_matches_root_anchored_gitignore() {
+        // The wrapper accepts absolute env paths for reading. Those
+        // must be stripped to repo-relative before matching, or a
+        // root-anchored rule such as `/.env.local` fails to cover
+        // `/tmp/repo/.env.local` and findings leak absolute paths.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo_root = tmp.path();
+        std::fs::write(repo_root.join(".gitignore"), "/.env.local\n").expect("write gitignore");
+        std::fs::write(repo_root.join(".env.local"), "FOO=bar\n").expect("write .env.local");
+        std::fs::write(repo_root.join(".env.production"), "FOO=bar\n")
+            .expect("write .env.production");
+
+        let env_paths = vec![
+            repo_root.join(".env.local"),
+            repo_root.join(".env.production"),
+        ];
+        let findings = check_gitignore_hygiene_for_paths(repo_root, &env_paths)
+            .expect("wrapper should accept in-repo absolute paths");
+
+        assert_eq!(findings.len(), 1, "got {findings:?}");
+        assert_eq!(findings[0].file, Path::new(".env.production"));
+        assert!(
+            !findings[0].file.is_absolute(),
+            "finding path must stay repo-relative, got {}",
+            findings[0].file.display()
+        );
+    }
+
+    #[test]
+    fn wrapper_rejects_absolute_path_outside_repo_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo_root = tmp.path();
+        std::fs::write(repo_root.join(".gitignore"), "/.env.local\n").expect("write gitignore");
+
+        let outside = tempfile::tempdir().expect("outside dir");
+        let outsider = outside.path().join(".env.local");
+        std::fs::write(&outsider, "FOO=bar\n").expect("write outside env");
+
+        let err = check_gitignore_hygiene_for_paths(repo_root, &[outsider])
+            .expect_err("absolute path outside repo_root must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 }
