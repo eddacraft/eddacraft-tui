@@ -130,7 +130,7 @@ pub(crate) fn run_in(
         anyhow::bail!("{existing} already exists. Use --force to overwrite.");
     }
 
-    // A zero-byte `.anvilrc` is treated as "missing" by `config_exists_in`,
+    // A zero-byte config file stub is treated as "missing" by `config_exists_in`,
     // but `write_new` (O_CREAT | O_EXCL) would still fail because the inode
     // exists. Remove the empty stub so the upcoming create proceeds cleanly
     // — the only information it could possibly hold is "nothing".

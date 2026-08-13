@@ -295,7 +295,9 @@ fn list_config_hook_commands_safe(root: &Path, event: &str) -> Vec<String> {
 /// Read the project config (canonical `.anvil.<ext>` first, legacy
 /// `.anvilrc` fallback — UCFG-001) for profile configuration.
 fn gather_profile(root: &Path) -> ProfileInfo {
-    let (rc_path, label) = match anvil_config::discover(root, ".anvil") {
+    // `discover` builds its candidate names from ASCII literals, so the
+    // non-UTF-8 fallback below is unreachable for discovered paths.
+    let (config_path, label) = match anvil_config::discover(root, ".anvil") {
         Ok(Some(discovered)) => {
             let label = discovered
                 .path
@@ -308,7 +310,7 @@ fn gather_profile(root: &Path) -> ProfileInfo {
         _ => (root.join(".anvilrc"), ".anvilrc".to_string()),
     };
 
-    let Ok(contents) = std::fs::read_to_string(&rc_path) else {
+    let Ok(contents) = std::fs::read_to_string(&config_path) else {
         return ProfileInfo {
             name: "(no config)".to_string(),
             checks: vec![],

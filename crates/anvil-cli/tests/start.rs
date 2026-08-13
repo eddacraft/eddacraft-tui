@@ -846,9 +846,9 @@ fn start_idempotent_rerun_skips_init_and_install() {
 
     let cursor_path = home.path().join(".cursor/mcp.json");
     let claude_path = home.path().join(".claude.json");
-    let anvilrc = dir.path().join(".anvil.yaml");
+    let config = dir.path().join(".anvil.yaml");
 
-    let mtime_anvilrc_before = std::fs::metadata(&anvilrc).unwrap().modified().unwrap();
+    let mtime_config_before = std::fs::metadata(&config).unwrap().modified().unwrap();
     let mtime_cursor_before = std::fs::metadata(&cursor_path).unwrap().modified().unwrap();
     let mtime_claude_before = std::fs::metadata(&claude_path).unwrap().modified().unwrap();
 
@@ -862,11 +862,11 @@ fn start_idempotent_rerun_skips_init_and_install() {
         String::from_utf8_lossy(&second.stderr)
     );
 
-    let mtime_anvilrc_after = std::fs::metadata(&anvilrc).unwrap().modified().unwrap();
+    let mtime_config_after = std::fs::metadata(&config).unwrap().modified().unwrap();
     let mtime_cursor_after = std::fs::metadata(&cursor_path).unwrap().modified().unwrap();
     let mtime_claude_after = std::fs::metadata(&claude_path).unwrap().modified().unwrap();
     assert_eq!(
-        mtime_anvilrc_before, mtime_anvilrc_after,
+        mtime_config_before, mtime_config_after,
         "second start must not rewrite .anvilrc (idempotent rerun)"
     );
     assert_eq!(

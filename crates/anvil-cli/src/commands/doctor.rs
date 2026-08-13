@@ -1765,18 +1765,10 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
             "config-exists" => {
                 // UCFG-001 / ADR-120 pt 1: the auto-fix creates the
                 // canonical file; no command creates a new `.anvilrc`.
-                // A zero-byte stub triggers `check_config_exists`'s
-                // missing-file path; remove it first, mirroring init.
+                // This arm only runs when the presence probe found no
+                // config at all, and `fs::write` truncates any racing
+                // zero-byte stub — no pre-cleanup needed.
                 let path = Path::new(".anvil.yaml");
-                for stub in [".anvil.yaml", ".anvilrc"] {
-                    let stub = Path::new(stub);
-                    if let Ok(meta) = std::fs::metadata(stub)
-                        && meta.is_file()
-                        && meta.len() == 0
-                    {
-                        let _ = std::fs::remove_file(stub);
-                    }
-                }
                 match std::fs::write(path, default_config_yaml()) {
                     Ok(()) => {
                         check.status = CheckStatus::Pass;

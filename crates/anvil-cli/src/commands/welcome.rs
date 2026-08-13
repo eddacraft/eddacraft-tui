@@ -478,7 +478,9 @@ fn run_guided_init(
             Ok(generated) => {
                 // Name the file actually written (always `.anvilrc`) rather than
                 // a hardcoded literal, so the landing summary can never drift
-                // from what `generate_config` created (CIB-171).
+                // from what `generate_config` created (CIB-171) — the written
+                // file is the canonical `.anvil.<ext>` since UCFG-001; the
+                // fallback literal is unreachable for our own UTF-8 names.
                 let config_path = generated
                     .config_path
                     .file_name()
