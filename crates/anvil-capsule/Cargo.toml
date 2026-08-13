@@ -24,6 +24,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 sha2 = "0.11"
 hex = "0.4"
+tempfile = { workspace = true }
 workspace-hack.workspace = true
 
 # O_NOFOLLOW open for capsule evidence reads (final-component symlink
@@ -33,7 +34,6 @@ workspace-hack.workspace = true
 libc = "0.2"
 
 [dev-dependencies]
-tempfile = { workspace = true }
 jsonschema = { workspace = true }
 
 [lints]

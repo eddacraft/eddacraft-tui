@@ -443,33 +443,53 @@ fn observed_range_window(
 /// Write `bytes` to a private temp file that is removed on drop, so a
 /// path-only verifier cannot be pointed at a symlinked capsule leaf.
 fn stage_bytes_for_verify(label: &str, bytes: &[u8]) -> Result<StagedVerifyFile, String> {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "anvil-capsule-{label}-{}-{nanos}.tmp",
-        std::process::id()
-    ));
-    std::fs::write(&path, bytes).map_err(|e| format!("cannot stage {label} for verify: {e}"))?;
-    Ok(StagedVerifyFile { path })
+    stage_bytes_for_verify_in(&std::env::temp_dir(), label, bytes)
 }
 
-/// Temp path that is unlinked on drop.
+/// Stage into `dir` with an exclusive, randomly named file (not a
+/// predictable pid/timestamp path). Tests inject a directory so a
+/// hostile occupant can be planted without racing the system temp dir.
+fn stage_bytes_for_verify_in(
+    dir: &Path,
+    label: &str,
+    bytes: &[u8],
+) -> Result<StagedVerifyFile, String> {
+    let prefix = format!("anvil-capsule-{label}-");
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(&prefix).suffix(".tmp");
+    stage_bytes_for_verify_with(&builder, dir, label, bytes)
+}
+
+/// Create the staging file via `builder` in `dir`. The builder is the
+/// injectable exclusive-create provider: production uses a random
+/// suffix; tests pin `rand_bytes(0)` so a planted occupant or symlink
+/// is a deterministic collision.
+fn stage_bytes_for_verify_with(
+    builder: &tempfile::Builder<'_, '_>,
+    dir: &Path,
+    label: &str,
+    bytes: &[u8],
+) -> Result<StagedVerifyFile, String> {
+    use std::io::Write;
+
+    let mut file = builder
+        .tempfile_in(dir)
+        .map_err(|e| format!("cannot stage {label} for verify: {e}"))?;
+    file.write_all(bytes)
+        .map_err(|e| format!("cannot stage {label} for verify: {e}"))?;
+    file.flush()
+        .map_err(|e| format!("cannot stage {label} for verify: {e}"))?;
+    Ok(StagedVerifyFile { file })
+}
+
+/// Exclusive temp file that is unlinked on drop.
 struct StagedVerifyFile {
-    path: std::path::PathBuf,
+    file: tempfile::NamedTempFile,
 }
 
 impl StagedVerifyFile {
     fn path(&self) -> &Path {
-        &self.path
-    }
-}
-
-impl Drop for StagedVerifyFile {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
+        self.file.path()
     }
 }
 
@@ -1529,6 +1549,85 @@ mod tests {
             Verdict::Degraded,
             "unpaired seq pointers must degrade: {:?}",
             witness.detail
+        );
+    }
+
+    /// Clawpatch fnd_sig-feat-library-af58dd546d-f06b_de8f0411b8:
+    /// staging must create an exclusive file in an injectable directory
+    /// and must not clobber a pre-arranged occupant.
+    #[test]
+    fn staging_refuses_to_overwrite_existing_file_in_injected_temp_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let occupant = dir.path().join("occupied.tmp");
+        std::fs::write(&occupant, b"keep-me").unwrap();
+
+        let mut builder = tempfile::Builder::new();
+        builder.prefix("occupied").suffix(".tmp").rand_bytes(0);
+        let Err(err) = stage_bytes_for_verify_with(&builder, dir.path(), "witness", b"payload")
+        else {
+            panic!("occupied path must be refused");
+        };
+        assert!(
+            err.contains("cannot stage witness"),
+            "error should name the staging failure: {err}"
+        );
+        assert_eq!(
+            std::fs::read(&occupant).unwrap(),
+            b"keep-me",
+            "occupant must not be overwritten"
+        );
+    }
+
+    /// Hostile symlink at the injected staging name must be refused
+    /// without following it or rewriting the external target.
+    #[cfg(unix)]
+    #[test]
+    fn staging_refuses_symlink_collision_in_injected_temp_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = dir.path().join("outside");
+        std::fs::write(&outside, b"hostile").unwrap();
+        let occupied = dir.path().join("occupied.tmp");
+        std::os::unix::fs::symlink(&outside, &occupied).unwrap();
+
+        let mut builder = tempfile::Builder::new();
+        builder.prefix("occupied").suffix(".tmp").rand_bytes(0);
+        let Err(err) = stage_bytes_for_verify_with(&builder, dir.path(), "witness", b"payload")
+        else {
+            panic!("symlink collision must be refused");
+        };
+        assert!(
+            err.contains("cannot stage witness"),
+            "error should name the staging failure: {err}"
+        );
+        assert_eq!(
+            std::fs::read(&outside).unwrap(),
+            b"hostile",
+            "staging must not follow the symlink and rewrite the target"
+        );
+        assert!(
+            occupied
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink(),
+            "collision path must remain the planted symlink"
+        );
+    }
+
+    #[test]
+    fn staging_writes_unique_payload_files_under_injected_temp_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = stage_bytes_for_verify_in(dir.path(), "witness", b"alpha").unwrap();
+        let second = stage_bytes_for_verify_in(dir.path(), "witness", b"beta").unwrap();
+        assert_ne!(first.path(), second.path());
+        assert!(first.path().starts_with(dir.path()));
+        assert!(second.path().starts_with(dir.path()));
+        assert_eq!(std::fs::read(first.path()).unwrap(), b"alpha");
+        assert_eq!(std::fs::read(second.path()).unwrap(), b"beta");
+        let first_name = first.path().file_name().unwrap().to_string_lossy();
+        assert!(
+            first_name.starts_with("anvil-capsule-witness-") && first_name.ends_with(".tmp"),
+            "staged name should keep the label prefix: {first_name}"
         );
     }
 }
