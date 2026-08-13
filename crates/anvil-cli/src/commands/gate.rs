@@ -4509,7 +4509,7 @@ fn resolve_anvilrc_check_filter(
         if known.is_empty() {
             let valid = gate_canonical_names();
             bail!(
-                ".anvilrc#checks contains no valid gate checks. Valid: {}",
+                "the project config's `checks` list contains no valid gate checks. Valid: {}",
                 valid.join(", ")
             );
         }
@@ -4524,7 +4524,7 @@ fn format_anvilrc_unknown_checks_warning(unknown: &[&str]) -> String {
     unknown.sort_unstable();
     let valid = gate_canonical_names();
     format!(
-        "Warning: .anvilrc#checks contains unknown check(s): {}. Known checks will still run. Valid: {}",
+        "Warning: the project config's `checks` list contains unknown check(s): {}. Known checks will still run. Valid: {}",
         unknown
             .iter()
             .map(|n| describe_unknown_check(n))

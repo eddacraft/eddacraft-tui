@@ -927,10 +927,18 @@ fn start_verify_on_fresh_repo_reports_needs_action() {
 
     // --verify is read-only: no project config must be written, and
     // neither HOME's `.cursor/mcp.json` nor `.claude.json`.
-    assert!(
-        !dir.path().join(".anvil.yaml").exists() && !dir.path().join(".anvilrc").exists(),
-        "--verify must not write a project config"
-    );
+    for name in [
+        ".anvil.yaml",
+        ".anvil.yml",
+        ".anvil.json",
+        ".anvil.toml",
+        ".anvilrc",
+    ] {
+        assert!(
+            !dir.path().join(name).exists(),
+            "--verify must not write a project config ({name})"
+        );
+    }
     assert!(
         !home.path().join(".cursor/mcp.json").exists(),
         "--verify must not install Cursor MCP entry"
