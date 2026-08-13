@@ -124,6 +124,10 @@ describe('findAccountActivityRollupHistory (BACT-011)', () => {
     ]);
     const [query] = capturedQueries(sql);
     expect(query!.flatParams).toContain(ROLLUP_TOTAL_PLAN_KEY);
+    // DateStyle-independence: the day must be formatted explicitly, never via
+    // a bare ::text cast whose output depends on the session DateStyle.
+    expect(query!.text).toContain("to_char(day, 'YYYY-MM-DD')");
+    expect(query!.text).not.toContain('day::text');
   });
 
   it('filters to a specific plan series when a plan is given', async () => {

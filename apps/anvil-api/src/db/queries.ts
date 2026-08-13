@@ -1987,7 +1987,7 @@ export async function findAccountActivityRollupHistory(
 ): Promise<AccountActivityRollupRow[]> {
   const planKey = options.plan ?? ROLLUP_TOTAL_PLAN_KEY;
   const result = await sql`
-    SELECT day::text AS day, plan, active_accounts
+    SELECT to_char(day, 'YYYY-MM-DD') AS day, plan, active_accounts
     FROM activity_rollup_daily
     WHERE plan = ${planKey}
     ORDER BY day DESC
