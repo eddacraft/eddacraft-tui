@@ -181,12 +181,19 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
 ///   end in a known document extension, **or**
 /// - the match is introduced by a Windows drive-letter colon (`D:…`) which
 ///   the assignment regex otherwise treats as a secret assignment.
+///
+/// CIB-323 also treats a match that sits in an `http(s)://` URL path as
+/// path-shaped. Named vendor-prefixed rules do not use this helper.
 pub(crate) fn is_path_shaped_document_token(
     candidate: &str,
     line: &str,
     match_start: usize,
     match_end: usize,
 ) -> bool {
+    if is_inside_http_url_path(line, match_start) {
+        return true;
+    }
+
     let has_sep = candidate.contains('/') || candidate.contains('\\');
     if !has_sep {
         return false;
@@ -231,6 +238,46 @@ pub(crate) fn is_path_shaped_document_token(
     // contain multiple `/` characters. Extension / drive-letter evidence above
     // is required (Copilot review on #3724).
     false
+}
+
+/// True when `match_start` sits in the path of an `http://` or `https://`
+/// URL on this line. Query and fragment matches are left to the card rule
+/// — a PAN in `?card=` is still a finding.
+fn is_inside_http_url_path(line: &str, match_start: usize) -> bool {
+    let Some(prefix) = line.get(..match_start) else {
+        return false;
+    };
+
+    let scheme_at = prefix
+        .rmatch_indices("https://")
+        .map(|(i, _)| i)
+        .chain(prefix.rmatch_indices("http://").map(|(i, _)| i))
+        .max();
+    let Some(scheme_at) = scheme_at else {
+        return false;
+    };
+
+    let after_scheme = if prefix[scheme_at..].starts_with("https://") {
+        scheme_at + "https://".len()
+    } else {
+        scheme_at + "http://".len()
+    };
+    if after_scheme > prefix.len() {
+        return false;
+    }
+
+    let host_and_maybe_path = &prefix[after_scheme..];
+    let Some(path_slash) = host_and_maybe_path.find('/') else {
+        return false;
+    };
+    let after_path_start = &host_and_maybe_path[path_slash..];
+    if after_path_start.contains('?') || after_path_start.contains('#') {
+        return false;
+    }
+    if after_path_start.chars().any(|c| c.is_ascii_whitespace()) {
+        return false;
+    }
+    true
 }
 
 fn document_extension_prefix(after: &str) -> Option<&str> {

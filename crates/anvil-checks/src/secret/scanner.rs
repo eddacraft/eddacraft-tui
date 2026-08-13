@@ -5,7 +5,9 @@ use regex::Regex;
 use crate::secret::context::{
     context_window, has_sensitive_binding_context, has_validator_fixture_context, is_benign_context,
 };
-use crate::secret::entropy::detect_high_entropy_strings_with_line_filter_and_limit;
+use crate::secret::entropy::{
+    detect_high_entropy_strings_with_line_filter_and_limit, is_path_shaped_document_token,
+};
 use crate::secret::patterns::{
     CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
 };
@@ -97,6 +99,12 @@ fn is_credit_card_false_positive(line: &str, match_start: usize, match_end: usiz
     // (coordinates, ids, hashes) almost never do, so a Luhn failure marks the
     // match as a false positive (external-FP dogfood: 119 coordinate FPs).
     let matched = &line[match_start..match_end];
+    // CIB-323: 16-digit path segments in `https://` URLs (facebook reels, …)
+    // share the card regex and can be Luhn-valid. Reuse the path-shaped /
+    // URL-context classifier; do not disable the card rule itself.
+    if is_path_shaped_document_token(matched, line, match_start, match_end) {
+        return true;
+    }
     !luhn_valid(matched)
 }
 

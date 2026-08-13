@@ -204,6 +204,36 @@ function buildPayloadForArchitecture(id: string): string {
 }
 
 #[test]
+fn does_not_flag_credit_card_digits_inside_https_url_path() {
+    // CIB-323: facebook reel-shaped paths carry a 16-digit id that matches
+    // the Credit Card regex and can be Luhn-valid. Path context is not a card.
+    // Stripe test PAN groups (already a fixture in this crate) — assembled
+    // at runtime so the source never contains a 16-digit run.
+    let digits = ["4242"; 4].join("");
+    let config = config_without_entropy();
+
+    let url = format!("const reel = 'https://www.facebook.com/reel/{digits}';\n");
+    let url_findings = scan_content(&url, "src/share.ts", &config);
+    assert!(
+        !url_findings.iter().any(|f| f.pattern_name == "Credit Card"),
+        "16-digit run in an https URL path must not flag as Credit Card, got: {:?}",
+        url_findings
+            .iter()
+            .map(|f| &f.pattern_name)
+            .collect::<Vec<_>>(),
+    );
+
+    let standalone = format!("const card = '{digits}';\n");
+    let card_findings = scan_content(&standalone, "src/payments.ts", &config);
+    assert!(
+        card_findings
+            .iter()
+            .any(|f| f.pattern_name == "Credit Card"),
+        "standalone 16-digit card-shaped token must still flag"
+    );
+}
+
+#[test]
 fn does_not_flag_hex_hashes_via_shape_allowlist() {
     // CLAWP-063: exercise the entropy path AND the hex-shape allowlist
     // (`^[a-f0-9]{64}$`) this test protects. Two subtleties the prior
