@@ -15,7 +15,10 @@ allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**
 
 detection:
   type: regex
-  pattern: '\b(eval|exec|compile)\s*\(\s*[A-Za-z_]'
+  # RE2 has no lookahead. Treat optional r/b/f/u prefixes (1–2 chars,
+  # any case) immediately before a quote as a static literal, same as a
+  # bare quote. Dynamic identifiers still match.
+  pattern: '\b(eval|exec|compile)\s*\(\s*(?:[ac-eg-hj-qs-tv-zAC-EG-HJ-QS-TV-Z_]|[rbfuRBFU](?:[^''"rbfuRBFU]|[rbfuRBFU][^''"]))'
 
 related: [AP-008, PY-009]
 enabled: true
@@ -23,14 +26,27 @@ opt_in: false
 ---
 
 Don't call `eval()`, `exec()`, or `compile(..., "exec")` with a dynamic
-argument. The first character inside the parens is an identifier, which means
-the string being executed is not a static literal and may be attacker-controlled
-at runtime.
+argument. An identifier as the first argument means the string being executed
+is not a static literal and may be attacker-controlled at runtime.
 
 Replace with a structured dispatch — a dict of callables keyed on the input, a
 pydantic / attrs schema for data validation, or a restricted interpreter
 (`ast.literal_eval` for literals only, RestrictedPython, a subprocess with a
 clean env) if you genuinely need to run untrusted code.
 
-If the argument is a string literal you control end-to-end (e.g. `eval("1 + 1")`),
-the rule skips you when the leading character inside the parens is a quote.
+If the argument is a string literal you control end-to-end (e.g. `eval("1 + 1")`
+or a prefixed form such as `re.compile(r'^\d+$')`, `compile(rb"...", "<s>",
+"exec")`, `eval(u"1")`), the rule skips you: a bare quote or an optional
+`r`/`b`/`f`/`u`/`rb` prefix immediately before the quote is treated as static.
+
+## Why It's Harmful
+
+`eval()`, `exec()`, and `compile()` turn a run-time string into code in the
+process's full privilege. When the first argument is an identifier, static
+analysis cannot see the payload — it may be attacker-controlled.
+
+Prefixed string literals (`r`, `b`, `f`, `rb`, `u`, and the other legal
+combinations) are treated as static, the same as a bare quote. Forms such as
+`re.compile(r'^\d+$')`, `compile(rb"...", "<s>", "exec")`, and `eval(u"1")`
+do not fire. True dynamic arguments (`eval(user_input)`, `exec(payload)`,
+`compile(src, '<str>', 'exec')`) still do.

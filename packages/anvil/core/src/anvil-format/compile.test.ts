@@ -299,4 +299,22 @@ describe('compilePatterns — failure modes (synthetic tree)', () => {
     expect(registry!.patterns[0]?.id).toBe('FX-001');
     expect(registry!.prefixes.FX).toBe('fam-x');
   });
+
+  it("lets a rule override the family explanation via Why It's Harmful", async () => {
+    const root = path.join(tmp, 'override');
+    await writeAnvil('override/fam-x/definition.anvil', DEFINITION);
+    const overridden = [
+      RULE,
+      '',
+      "## Why It's Harmful",
+      'rule-specific harm about eval/exec/compile',
+      '',
+    ].join('\n');
+    await writeAnvil('override/fam-x/FX-001.anvil', overridden);
+
+    const { registry, errors } = await compilePatterns({ patternsDir: root });
+    expect(errors).toEqual([]);
+    expect(registry!.patterns[0]?.explanation).toBe('rule-specific harm about eval/exec/compile');
+    expect(registry!.patterns[0]?.nudge).toBe('nudge body');
+  });
 });

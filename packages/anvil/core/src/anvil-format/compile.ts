@@ -348,6 +348,12 @@ export async function compilePatterns(options: AnvilCompileOptions): Promise<Anv
         prefixes[prefix] = familyId;
       }
 
+      // A rule may override the family "Why It's Harmful" section so mixed
+      // families (e.g. python-reliability) can ship a rule-specific
+      // explanation. The body preamble stays the nudge.
+      const ruleSections = extractSections(rule.body);
+      const ruleExplanation = getExplanation(ruleSections);
+
       const compiled: CompiledPattern = {
         id,
         family: familyId,
@@ -359,14 +365,14 @@ export async function compilePatterns(options: AnvilCompileOptions): Promise<Anv
         targets: rule.frontmatter.targets,
         detection: rule.frontmatter.detection,
         allowlist: rule.frontmatter.allowlist,
-        nudge: rule.body,
+        nudge: ruleSections.preamble.length > 0 ? ruleSections.preamble : rule.body,
         related: rule.frontmatter.related,
         enabled: rule.frontmatter.enabled,
         opt_in: rule.frontmatter.opt_in,
 
         family_name: definition.frontmatter.name,
         category: definition.frontmatter.category,
-        explanation,
+        explanation: ruleExplanation || explanation,
         suggestion,
         definition_ref: relativeRef(referenceRoot, definition.path),
         tensions: [...definition.frontmatter.tensions],

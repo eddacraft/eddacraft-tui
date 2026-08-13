@@ -377,6 +377,51 @@ fn py008_eval_with_string_literal_does_not_fire() {
 }
 
 #[test]
+fn py008_prefixed_string_literals_do_not_fire() {
+    // Prefixed literals are static, same as a bare quote. The previous
+    // detector treated the prefix letter as an identifier and false-fired.
+    assert!(!fires(
+        "src/app.py",
+        "pattern = re.compile(r'^\\d+$')\n",
+        "PY-008"
+    ));
+    assert!(!fires("src/app.py", "compile(r\"print(1)\")\n", "PY-008"));
+    assert!(!fires(
+        "src/app.py",
+        "compile(rb\"print(1)\", \"<s>\", \"exec\")\n",
+        "PY-008"
+    ));
+    assert!(!fires("src/app.py", "eval(u\"1\")\n", "PY-008"));
+    assert!(!fires("src/app.py", "exec(f'pass')\n", "PY-008"));
+    assert!(!fires("src/app.py", "eval(b'1')\n", "PY-008"));
+}
+
+#[test]
+fn py008_explanation_describes_eval_exec_compile_not_family_boilerplate() {
+    let result = scan_file("src/app.py", "eval(user_input)\n", None);
+    let warning = result
+        .warnings
+        .iter()
+        .find(|w| w.id == "PY-008")
+        .expect("PY-008 should fire on eval(user_input)");
+    let explanation = warning.explanation.to_lowercase();
+    assert!(
+        explanation.contains("eval")
+            && explanation.contains("exec")
+            && explanation.contains("compile"),
+        "PY-008 explanation must describe eval/exec/compile, got: {}",
+        warning.explanation
+    );
+    for boilerplate in ["# type: ignore", "import *", "except:", "print()", "Any"] {
+        assert!(
+            !warning.explanation.contains(boilerplate),
+            "PY-008 explanation must not reuse family boilerplate ({boilerplate}): {}",
+            warning.explanation
+        );
+    }
+}
+
+#[test]
 fn py009_shell_true_and_pickle_fire() {
     assert!(fires(
         "src/app.py",
