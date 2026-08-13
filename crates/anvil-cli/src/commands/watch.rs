@@ -1848,18 +1848,73 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     // standalone kernel-schema file still used by unmigrated repos.
     // The chosen path is also the reload trigger: main config for
     // inline, delegated target for `source`, standalone yaml otherwise.
-    let arch_config = crate::architecture_source::watch_architecture_source_path(&workspace_root)?;
+    let arch_path = crate::architecture_source::watch_architecture_source_path(&workspace_root)?;
+    let (architecture, architecture_reloader) =
+        match crate::architecture_source::resolve_architecture(&workspace_root) {
+            Ok(Some((definition, _))) => {
+                let mapped =
+                    crate::architecture_source::architecture_config_from_definition(&definition);
+                let root = workspace_root.clone();
+                let reloader: anvil_kernel::watch::ArchitectureReloader =
+                    std::sync::Arc::new(move || {
+                        let (definition, _) =
+                            crate::architecture_source::resolve_architecture(&root)
+                                .map_err(|err| {
+                                    anvil_kernel::watch::WatchError::ConfigReload(format!(
+                                        "{err:#}"
+                                    ))
+                                })?
+                                .ok_or_else(|| {
+                                    anvil_kernel::watch::WatchError::ConfigReload(
+                                        "architecture section disappeared".into(),
+                                    )
+                                })?;
+                        Ok(
+                            crate::architecture_source::architecture_config_from_definition(
+                                &definition,
+                            ),
+                        )
+                    });
+                (Some(mapped), Some(reloader))
+            }
+            Ok(None) => (None, None),
+            Err(err) => {
+                // Kernel-schema standalone `.anvil/architecture.yaml` is
+                // not an ArchitectureDefinition; let the kernel parse it.
+                let standalone = arch_path.as_ref().is_some_and(|path| {
+                    path.file_name().and_then(|name| name.to_str()) == Some("architecture.yaml")
+                });
+                if standalone {
+                    (None, None)
+                } else {
+                    return Err(err);
+                }
+            }
+        };
+
+    let extra_watch_dirs = arch_path
+        .as_ref()
+        .and_then(|path| path.parent().map(std::path::Path::to_path_buf))
+        .into_iter()
+        .collect();
+    let filter = match &arch_path {
+        Some(path) => filter.with_exempt_paths(vec![path.clone()]),
+        None => filter,
+    };
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {
         root: watch_root.clone(),
         debounce_window: std::time::Duration::from_millis(args.debounce.unwrap_or(300)),
         filter: Some(filter),
+        extra_watch_dirs,
         ..Default::default()
     };
 
     let watch_config = anvil_kernel::watch::WatchConfig {
         root: watch_root.clone(),
-        architecture_config: arch_config.clone(),
+        architecture_config: arch_path.clone(),
+        architecture,
+        architecture_reloader,
         watcher: watcher_config,
         include_patterns: patterns,
         exclude_patterns: exclude.clone(),

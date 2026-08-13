@@ -48,7 +48,15 @@ pub enum WatchError {
     Pattern(#[from] PatternError),
     #[error("watch loop terminated unexpectedly")]
     ThreadPanicked,
+    #[error("architecture config reload error: {0}")]
+    ConfigReload(String),
 }
+
+/// Reloads a mapped `ArchitectureConfig` when the watched architecture
+/// source file changes (UCFG-013). The CLI supplies a closure that
+/// re-resolves the unified config so TOML/JSON inline sections work.
+pub type ArchitectureReloader =
+    std::sync::Arc<dyn Fn() -> Result<ArchitectureConfig, WatchError> + Send + Sync>;
 
 impl From<ArchitectureConfigValidationError> for WatchError {
     fn from(error: ArchitectureConfigValidationError) -> Self {
@@ -64,6 +72,11 @@ impl From<ArchitectureConfigValidationError> for WatchError {
 pub struct WatchConfig {
     pub root: PathBuf,
     pub architecture_config: Option<PathBuf>,
+    /// Pre-mapped architecture (inline / delegated Definition schema).
+    /// When set, used instead of parsing `architecture_config` as YAML.
+    pub architecture: Option<ArchitectureConfig>,
+    /// Re-resolve the mapped architecture after the source file changes.
+    pub architecture_reloader: Option<ArchitectureReloader>,
     pub watcher: WatcherConfig,
     /// User-supplied include glob patterns. Empty = include everything.
     /// Compiled into a `WatchPatternFilter` at `run_watch` start.
@@ -329,6 +342,7 @@ fn parse_initial_file(
 struct WatchArchitecture<'a> {
     path: Option<&'a Path>,
     config: &'a mut ArchitectureConfig,
+    reloader: Option<ArchitectureReloader>,
 }
 
 fn watch_loop(
@@ -348,6 +362,29 @@ fn watch_loop(
         };
 
         for change in &batch.changes {
+            if architecture_source_changed(&change.path, architecture.path) {
+                let reloaded = if let Some(reloader) = architecture.reloader.as_ref() {
+                    reloader()
+                } else {
+                    load_architecture_config(architecture.path)
+                };
+                match reloaded {
+                    Ok(reloaded) => {
+                        *architecture.config = reloaded;
+                        state.engine.clear_seen();
+                    }
+                    Err(err) => {
+                        let rel_path = change.path.strip_prefix(root).unwrap_or(&change.path);
+                        emitter.error(
+                            ErrorCode::Internal,
+                            Some(&rel_path.to_string_lossy()),
+                            &format!("reloading architecture config: {err}"),
+                            true,
+                        );
+                    }
+                }
+                continue;
+            }
             // Drop events that don't pass the user's --patterns / --exclude
             // filter.
             //
@@ -384,24 +421,6 @@ fn watch_loop(
             // Isolate per-change work so a panic in parse/extract/evaluate
             // surfaces as an error event and the loop keeps draining events
             // instead of silently terminating the watch thread.
-            if architecture_source_changed(&change.path, architecture.path) {
-                match load_architecture_config(architecture.path) {
-                    Ok(reloaded) => {
-                        *architecture.config = reloaded;
-                        state.engine.clear_seen();
-                    }
-                    Err(err) => {
-                        let rel_path = change.path.strip_prefix(root).unwrap_or(&change.path);
-                        emitter.error(
-                            ErrorCode::Internal,
-                            Some(&rel_path.to_string_lossy()),
-                            &format!("reloading architecture config: {err}"),
-                            true,
-                        );
-                    }
-                }
-                continue;
-            }
             let rel_path = change.path.strip_prefix(root).unwrap_or(&change.path);
             let rel_str = rel_path.to_string_lossy().to_string();
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -617,7 +636,12 @@ pub fn run_watch(
     }
 
     let arch_path = config.architecture_config.clone();
-    let mut arch_config = load_architecture_config(arch_path.as_deref())?;
+    let reloader = config.architecture_reloader.clone();
+    let mut arch_config = if let Some(mapped) = config.architecture.clone() {
+        mapped
+    } else {
+        load_architecture_config(arch_path.as_deref())?
+    };
 
     let filter = config.watcher.filter.clone().unwrap_or_default();
     let pattern_filter =
@@ -694,6 +718,7 @@ pub fn run_watch(
             &mut WatchArchitecture {
                 path: arch_path.as_deref(),
                 config: &mut arch_config,
+                reloader,
             },
             &mut state,
             &emitter,
@@ -827,6 +852,8 @@ architecture:
         let config = WatchConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: None,
+            architecture: None,
+            architecture_reloader: None,
             watcher: WatcherConfig {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
@@ -851,6 +878,8 @@ architecture:
         let config = WatchConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: None,
+            architecture: None,
+            architecture_reloader: None,
             watcher: WatcherConfig {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
@@ -881,6 +910,8 @@ architecture:
         let config = WatchConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: None,
+            architecture: None,
+            architecture_reloader: None,
             watcher: WatcherConfig {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
@@ -938,6 +969,8 @@ architecture:
         let config = WatchConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: None,
+            architecture: None,
+            architecture_reloader: None,
             watcher: WatcherConfig {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
@@ -1008,6 +1041,8 @@ architecture:
         let config = WatchConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: None,
+            architecture: None,
+            architecture_reloader: None,
             watcher: WatcherConfig {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
@@ -1071,6 +1106,8 @@ architecture:
         let config = WatchConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: None,
+            architecture: None,
+            architecture_reloader: None,
             watcher: WatcherConfig {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
@@ -1146,6 +1183,8 @@ architecture:
         let config = WatchConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: None,
+            architecture: None,
+            architecture_reloader: None,
             watcher: WatcherConfig {
                 root: tmp.path().to_path_buf(),
                 debounce_window: std::time::Duration::from_millis(20),

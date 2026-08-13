@@ -286,6 +286,8 @@ fn run_watch_demo_for_tutorial(
     let watch_config = anvil_kernel::watch::WatchConfig {
         root: workspace_root,
         architecture_config: None,
+        architecture: None,
+        architecture_reloader: None,
         watcher: watcher_config,
         include_patterns: vec!["**/*".to_string()],
         exclude_patterns: Vec::new(),

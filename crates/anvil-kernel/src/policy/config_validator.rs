@@ -239,21 +239,10 @@ fn validate_allowed_imports(
 }
 
 fn path_patterns_overlap(left: &str, right: &str) -> bool {
-    let left = pattern_prefix(left);
-    let right = pattern_prefix(right);
+    let left = crate::policy::config::pattern_prefix(left);
+    let right = crate::policy::config::pattern_prefix(right);
 
     !left.is_empty() && !right.is_empty() && (left.starts_with(&right) || right.starts_with(&left))
-}
-
-fn pattern_prefix(pattern: &str) -> String {
-    let mut normalised = pattern.trim().replace('\\', "/");
-    for suffix in ["**/*", "**", "*"] {
-        if let Some(prefix) = normalised.strip_suffix(suffix) {
-            normalised = prefix.to_string();
-            break;
-        }
-    }
-    normalised
 }
 
 #[cfg(test)]

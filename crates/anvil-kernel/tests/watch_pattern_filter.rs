@@ -86,6 +86,8 @@ fn exclude_pattern_drops_matching_files_from_initial_scan() {
     let cfg = WatchConfig {
         root: tmp.path().to_path_buf(),
         architecture_config: Some(tmp.path().join(".anvil/architecture.yaml")),
+        architecture: None,
+        architecture_reloader: None,
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: Vec::new(),
         exclude_patterns: vec!["vendor/**".to_string()],
@@ -113,6 +115,8 @@ fn include_pattern_restricts_initial_scan_to_matching_files() {
     let cfg = WatchConfig {
         root: tmp.path().to_path_buf(),
         architecture_config: Some(tmp.path().join(".anvil/architecture.yaml")),
+        architecture: None,
+        architecture_reloader: None,
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: vec!["src/**/*.ts".to_string()],
         exclude_patterns: Vec::new(),
@@ -142,6 +146,8 @@ fn no_filter_means_all_files_are_scanned() {
     let cfg = WatchConfig {
         root: tmp.path().to_path_buf(),
         architecture_config: Some(tmp.path().join(".anvil/architecture.yaml")),
+        architecture: None,
+        architecture_reloader: None,
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: Vec::new(),
         exclude_patterns: Vec::new(),
@@ -169,6 +175,8 @@ fn invalid_pattern_surfaces_a_clear_error() {
     let cfg = WatchConfig {
         root: tmp.path().to_path_buf(),
         architecture_config: None,
+        architecture: None,
+        architecture_reloader: None,
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: vec!["src/[unclosed".to_string()],
         exclude_patterns: Vec::new(),
@@ -220,6 +228,8 @@ fn excluded_runtime_change_does_not_emit_violation() {
     let cfg = WatchConfig {
         root: tmp.path().to_path_buf(),
         architecture_config: Some(tmp.path().join(".anvil/architecture.yaml")),
+        architecture: None,
+        architecture_reloader: None,
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: Vec::new(),
         exclude_patterns: vec!["vendor/**".to_string()],
@@ -263,6 +273,8 @@ fn unfiltered_runtime_change_does_emit_violation() {
     let cfg = WatchConfig {
         root: tmp.path().to_path_buf(),
         architecture_config: Some(tmp.path().join(".anvil/architecture.yaml")),
+        architecture: None,
+        architecture_reloader: None,
         watcher: watcher_config(tmp.path().to_path_buf()),
         include_patterns: Vec::new(),
         exclude_patterns: Vec::new(),

@@ -27,6 +27,9 @@ pub struct WatcherConfig {
     pub tick_interval: Duration,
     /// File filter for ignore patterns. If None, uses default patterns.
     pub filter: Option<FileFilter>,
+    /// Extra directories to register even when the denylist would skip
+    /// them (UCFG-013: parent of a `.anvil/architecture.yaml` source).
+    pub extra_watch_dirs: Vec<PathBuf>,
 }
 
 impl Default for WatcherConfig {
@@ -37,6 +40,7 @@ impl Default for WatcherConfig {
             max_pending: 500,
             tick_interval: Duration::from_millis(20),
             filter: None,
+            extra_watch_dirs: Vec::new(),
         }
     }
 }
@@ -293,6 +297,11 @@ pub fn start_watcher(
     // limits.
     let filter = config.filter.clone().unwrap_or_default();
     let diagnostics = watch_directories(&mut watcher, &config.root, &filter, progress)?;
+    for extra in &config.extra_watch_dirs {
+        if extra.exists() {
+            let _ = watcher.watch(extra, RecursiveMode::NonRecursive);
+        }
+    }
 
     // Wrap watcher so the processing thread can register new directories via a
     // Weak reference — a strong clone would self-retain the watcher after the

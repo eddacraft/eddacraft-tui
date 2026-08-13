@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Canonical local-noise directory denylist (ADOPT-004 / WATCHUX-002).
 ///
@@ -52,6 +52,7 @@ pub fn is_ignored_dir_name(name: &str) -> bool {
 pub struct FileFilter {
     ignore_patterns: Vec<String>,
     respect_extensions: bool,
+    exempt_paths: Vec<PathBuf>,
 }
 
 impl FileFilter {
@@ -59,6 +60,7 @@ impl FileFilter {
         Self {
             ignore_patterns,
             respect_extensions: true,
+            exempt_paths: Vec::new(),
         }
     }
 
@@ -72,6 +74,28 @@ impl FileFilter {
         self
     }
 
+    /// Always deliver events for these paths (UCFG-013 architecture
+    /// source). They may live under an ignored directory (`.anvil/`)
+    /// or lack a parseable source extension (`.anvil.yaml`).
+    #[must_use]
+    pub fn with_exempt_paths(mut self, paths: Vec<PathBuf>) -> Self {
+        self.exempt_paths = paths
+            .into_iter()
+            .map(|path| path.canonicalize().unwrap_or(path))
+            .collect();
+        self
+    }
+
+    fn is_exempt(&self, path: &Path) -> bool {
+        if self.exempt_paths.is_empty() {
+            return false;
+        }
+        let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        self.exempt_paths
+            .iter()
+            .any(|exempt| exempt == &canon || exempt == path)
+    }
+
     /// Default ignore patterns for typical projects. Derived from the
     /// canonical [`IGNORE_DIRS`] so watch cannot drift from audit /
     /// baseline / check / drift / gate.
@@ -81,6 +105,9 @@ impl FileFilter {
 
     /// Check if a path should be ignored.
     pub fn should_ignore(&self, path: &Path) -> bool {
+        if self.is_exempt(path) {
+            return false;
+        }
         for component in path.components() {
             let name = component.as_os_str().to_string_lossy();
             if self.ignore_patterns.iter().any(|p| p == name.as_ref()) {
@@ -110,6 +137,9 @@ impl FileFilter {
     /// pipeline — only the JS/TS extension restriction yields, not the
     /// "must look like a file" floor.
     pub fn should_process(&self, path: &Path) -> bool {
+        if self.is_exempt(path) {
+            return true;
+        }
         if self.should_ignore(path) {
             return false;
         }
@@ -192,6 +222,22 @@ mod tests {
         // Non-source files stay out.
         assert!(!filter.is_parseable(Path::new("README.md")));
         assert!(!filter.is_parseable(Path::new("Cargo.toml")));
+    }
+
+    #[test]
+    fn exempt_paths_are_processed_even_under_anvil_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        let arch = anvil_dir.join("architecture.yaml");
+        std::fs::write(&arch, "layers: []\n").unwrap();
+        let yaml = tmp.path().join(".anvil.yaml");
+        std::fs::write(&yaml, "architecture: {}\n").unwrap();
+
+        let filter = FileFilter::default().with_exempt_paths(vec![arch.clone(), yaml.clone()]);
+        assert!(filter.should_process(&arch));
+        assert!(filter.should_process(&yaml));
+        assert!(!filter.should_ignore(&arch));
     }
 
     #[test]

@@ -16,6 +16,7 @@ fn detects_parseable_file_creation() {
         max_pending: 100,
         tick_interval: Duration::from_millis(5),
         filter: None, // uses default filter
+        extra_watch_dirs: Vec::new(),
     };
 
     let (_watcher, rx, _diag) = start_watcher(&config, None).unwrap();
@@ -42,6 +43,7 @@ fn filters_out_non_parseable_files() {
         max_pending: 100,
         tick_interval: Duration::from_millis(5),
         filter: Some(FileFilter::default()),
+        extra_watch_dirs: Vec::new(),
     };
 
     let (_watcher, rx, _diag) = start_watcher(&config, None).unwrap();
@@ -79,6 +81,7 @@ fn setup_diagnostics_report_registered_directories() {
         max_pending: 100,
         tick_interval: Duration::from_millis(5),
         filter: None,
+        extra_watch_dirs: Vec::new(),
     };
 
     let (_watcher, _rx, diag) = start_watcher(&config, None).unwrap();
@@ -208,6 +211,7 @@ fn dropping_handle_stops_worker_promptly() {
         max_pending: 100,
         tick_interval: Duration::from_millis(5),
         filter: None,
+        extra_watch_dirs: Vec::new(),
     };
 
     let (handle, _rx, _diag) = start_watcher(&config, None).unwrap();

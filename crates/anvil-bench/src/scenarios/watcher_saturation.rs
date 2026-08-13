@@ -63,6 +63,7 @@ pub fn run_write_flood(config: &WatcherSaturationConfig, dir: &Path) -> Saturati
         max_pending: config.write_count.saturating_add(1).max(1),
         tick_interval: Duration::from_millis(5),
         filter: Some(FileFilter::default()),
+        extra_watch_dirs: Vec::new(),
     };
     let (_handle, batch_rx, diagnostics) =
         start_watcher(&watcher_config, None).expect("failed to start watcher");

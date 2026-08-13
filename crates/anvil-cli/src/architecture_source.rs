@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 
 use anvil_architecture::ArchitectureDefinition;
 use anvil_config::SectionProvenance;
+use anvil_kernel::policy::config::{ArchitectureConfig, LayerDef};
 use anyhow::{Context, Result};
 
 /// Where a resolved architecture definition came from.
@@ -75,24 +76,36 @@ pub(crate) fn resolve_architecture(
 ///   (kernel-schema or definition-schema; the kernel maps both)
 pub(crate) fn watch_architecture_source_path(root: &Path) -> Result<Option<PathBuf>> {
     let project = crate::commands::config::load_project_config(root)?;
-    match anvil_config::resolve_section(
-        &project.value,
-        "architecture",
-        root,
-        &project.writable_path,
-    )
-    .map_err(anyhow::Error::new)
-    .context("invalid config")?
+    if let Some(section) =
+        anvil_config::resolve_section(&project.value, "architecture", root, &project.writable_path)
+            .map_err(anyhow::Error::new)
+            .context("invalid config")?
     {
-        Some(section) => match section.provenance {
-            SectionProvenance::Inline => Ok(Some(project.writable_path)),
-            SectionProvenance::Delegated { path, .. } => Ok(Some(path)),
-        },
-        None => {
-            let standalone = anvil_architecture::yaml_parser::get_architecture_yaml_path(root);
-            Ok(standalone.exists().then_some(standalone))
-        }
+        return Ok(Some(match section.provenance {
+            SectionProvenance::Inline => project.writable_path,
+            SectionProvenance::Delegated { path, .. } => path,
+        }));
     }
+    let standalone = anvil_architecture::yaml_parser::get_architecture_yaml_path(root);
+    Ok(standalone.exists().then_some(standalone))
+}
+
+/// Map a resolved definition into the kernel's watch-time schema
+/// (UCFG-013). `patterns` → `paths`, `depends_on` → `allowed_imports`.
+pub(crate) fn architecture_config_from_definition(
+    definition: &ArchitectureDefinition,
+) -> ArchitectureConfig {
+    let mut layers: Vec<LayerDef> = definition
+        .layers
+        .iter()
+        .map(|(name, layer)| LayerDef {
+            name: name.clone(),
+            paths: layer.patterns.clone(),
+            allowed_imports: layer.depends_on.clone(),
+        })
+        .collect();
+    layers.sort_by(|left, right| left.name.cmp(&right.name));
+    ArchitectureConfig { layers }
 }
 
 #[cfg(test)]
@@ -261,6 +274,20 @@ mod tests {
             watch_architecture_source_path(tmp.path())
                 .unwrap()
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn definition_map_matches_double_star_patterns() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), arch_inline_config()).unwrap();
+        let (definition, _) = resolve_architecture(tmp.path()).unwrap().unwrap();
+        let config = architecture_config_from_definition(&definition);
+        assert_eq!(config.layers.len(), 1);
+        assert_eq!(config.layers[0].name, "core");
+        assert_eq!(
+            config.layer_for_file("src/core/user.ts").unwrap().name,
+            "core"
         );
     }
 

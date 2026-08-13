@@ -107,16 +107,42 @@ fn definition_layers_to_kernel(map: &serde_yaml::Mapping) -> serde_yaml::Value {
     serde_yaml::Value::Mapping(root)
 }
 
-/// Simple glob-like matching: trailing `*` acts as a prefix match,
-/// otherwise exact match. Normalises path separators to `/` for
-/// cross-platform compatibility.
+/// Shared with the overlap validator: strip a trailing `**/*`, `**`,
+/// or `*` so definition-schema `src/core/**` and kernel-schema
+/// `src/core/*` both become the prefix `src/core/`.
+pub(crate) fn pattern_prefix(pattern: &str) -> String {
+    let mut normalised = pattern.trim().replace('\\', "/");
+    for suffix in ["**/*", "**", "*"] {
+        if let Some(prefix) = normalised.strip_suffix(suffix) {
+            normalised = prefix.to_string();
+            break;
+        }
+    }
+    normalised
+}
+
+/// Glob-like matching for watch-time layer assignment.
+///
+/// Trailing `*`, `**`, `**/*`, or `/` is a directory prefix match
+/// (UCFG-013: definition templates use `src/core/**`). Otherwise
+/// the path must match exactly. Separators are normalised to `/`.
 fn matches_pattern(pattern: &str, path: &str) -> bool {
     let norm_path = path.replace('\\', "/");
     let norm_pattern = pattern.replace('\\', "/");
-    if let Some(prefix) = norm_pattern.strip_suffix('*') {
-        norm_path.starts_with(prefix)
-    } else if norm_pattern.ends_with('/') {
-        norm_path.starts_with(&norm_pattern)
+    let prefix = pattern_prefix(&norm_pattern);
+    if prefix != norm_pattern || norm_pattern.ends_with('/') {
+        let prefix = if prefix.ends_with('/') {
+            prefix
+        } else if prefix.is_empty() {
+            String::new()
+        } else {
+            format!("{prefix}/")
+        };
+        if prefix.is_empty() {
+            return true;
+        }
+        norm_path.starts_with(&prefix)
+            || norm_path.trim_end_matches('/') == prefix.trim_end_matches('/')
     } else {
         norm_path == norm_pattern
     }
@@ -205,6 +231,14 @@ layers:
     }
 
     #[test]
+    fn matches_pattern_definition_double_star() {
+        assert!(matches_pattern("src/core/**", "src/core/user.ts"));
+        assert!(matches_pattern("src/core/**", "src/core/nested/deep.ts"));
+        assert!(matches_pattern("src/core/**/*", "src/core/user.ts"));
+        assert!(!matches_pattern("src/core/**", "src/infra/db.ts"));
+    }
+
+    #[test]
     fn matches_pattern_windows_separators() {
         assert!(matches_pattern("src/domain/*", "src\\domain\\user.ts"));
         assert!(matches_pattern("src/domain/", "src\\domain\\user.ts"));
@@ -265,6 +299,21 @@ layers:
         assert_eq!(
             config.layer_for_file("src/domain/user.ts").unwrap().name,
             "domain"
+        );
+    }
+
+    #[test]
+    fn from_yaml_any_definition_double_star_matches_files() {
+        let yaml = r#"
+layers:
+  core:
+    patterns: ["src/core/**"]
+    depends_on: []
+"#;
+        let config = ArchitectureConfig::from_yaml_any(yaml).unwrap();
+        assert_eq!(
+            config.layer_for_file("src/core/user.ts").unwrap().name,
+            "core"
         );
     }
 
