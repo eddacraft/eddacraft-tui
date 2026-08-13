@@ -199,7 +199,7 @@ impl CredentialRefreshLock {
 
 fn open_refresh_lock() -> Result<File> {
     #[cfg(unix)]
-    use std::os::unix::fs::OpenOptionsExt as _;
+    use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 
     let dir = credentials_dir()?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
@@ -210,9 +210,24 @@ fn open_refresh_lock() -> Result<File> {
     {
         options.mode(0o600);
     }
-    options
+    let file = options
         .open(&path)
-        .with_context(|| format!("opening {}", path.display()))
+        .with_context(|| format!("opening {}", path.display()))?;
+    // OpenOptions::mode applies only on create. Re-apply owner-only bits so a
+    // pre-existing world-readable sidecar cannot be held by another local user.
+    #[cfg(unix)]
+    {
+        let mut perms = file
+            .metadata()
+            .with_context(|| format!("stat {}", path.display()))?
+            .permissions();
+        if perms.mode() & 0o777 != 0o600 {
+            perms.set_mode(0o600);
+            file.set_permissions(perms)
+                .with_context(|| format!("chmod 0600 {}", path.display()))?;
+        }
+    }
+    Ok(file)
 }
 
 /// Save credentials atomically to the canonical XDG path.
@@ -583,6 +598,33 @@ mod tests {
                 assert!(path.is_file(), "refresh lock sidecar must exist");
                 let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
                 assert_eq!(mode, 0o600, "refresh lock must be owner-only, got {mode:o}");
+            },
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn refresh_lock_tightens_preexisting_world_readable_file() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(dir.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", None),
+            ],
+            || {
+                let path = credentials_dir().unwrap().join(REFRESH_LOCK_FILE);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(&path, b"").unwrap();
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+                let _lock = CredentialRefreshLock::acquire().unwrap();
+                let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+                assert_eq!(
+                    mode, 0o600,
+                    "pre-existing lock file must be tightened to owner-only, got {mode:o}"
+                );
             },
         );
     }
