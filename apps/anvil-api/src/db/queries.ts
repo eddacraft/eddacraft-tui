@@ -1966,7 +1966,7 @@ export async function rollupAccountActivity(
     ON CONFLICT (day, plan) DO UPDATE
       SET active_accounts = GREATEST(activity_rollup_daily.active_accounts, EXCLUDED.active_accounts),
           computed_at = EXCLUDED.computed_at
-    RETURNING day::text AS day, plan, active_accounts
+    RETURNING to_char(day, 'YYYY-MM-DD') AS day, plan, active_accounts
   `;
   return (result as Record<string, unknown>[]).map((row) => ({
     day: String(row['day']),

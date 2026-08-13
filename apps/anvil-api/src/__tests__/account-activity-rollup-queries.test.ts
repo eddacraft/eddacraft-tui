@@ -68,6 +68,10 @@ describe('rollupAccountActivity (BACT-011)', () => {
     // or an additive increment (would double-count on repeat runs).
     expect(query!.text).not.toMatch(/SET active_accounts = EXCLUDED\.active_accounts(?!\))/);
     expect(query!.text).not.toMatch(/active_accounts\s*\+\s*EXCLUDED/);
+    // DateStyle-independence: RETURNING must format the day explicitly, never
+    // via a bare ::text cast whose output depends on the session DateStyle.
+    expect(query!.text).toContain("RETURNING to_char(day, 'YYYY-MM-DD') AS day");
+    expect(query!.text).not.toContain('day::text');
   });
 
   it('re-roll with a lower observed count leaves the higher stored value (GREATEST)', async () => {
