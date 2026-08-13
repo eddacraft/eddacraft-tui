@@ -171,7 +171,7 @@ Change status to **Ready** when:
 
 #### UCFG-002: migrate renames `.anvilrc`, doctor flags dual configs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3847
 - **Intent:** `anvil migrate format` converts `.anvilrc` → `.anvil.<ext>`
   in the chosen `--format` (yaml default; pass `--format json/toml` to keep
   a non-yaml body's format — recorded reconciliation of the original
