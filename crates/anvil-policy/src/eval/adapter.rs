@@ -217,6 +217,24 @@ fn spawn_with_etxtbsy_retry(
     }
 }
 
+/// Terminate a timed-out suite child and, on Unix, its process group.
+///
+/// The child is spawned in its own group (`process_group(0)`). Killing only
+/// the direct child leaves grandchildren (for example OPA) holding inherited
+/// stdout/stderr write ends, so the pipe-reader joins never complete.
+fn kill_suite_process_tree(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{Signal, killpg};
+        use nix::unistd::Pid;
+        if let Ok(pgid) = i32::try_from(child.id()) {
+            let _ = killpg(Pid::from_raw(pgid), Signal::SIGKILL);
+        }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 impl PolicyEvalRunner for SubprocessRunner {
     fn eval_json(&self, suite: &EvalSuite) -> Result<String, EvalHarnessError> {
         let exec_err =
@@ -231,8 +249,8 @@ impl PolicyEvalRunner for SubprocessRunner {
         // no longer flake under parallel runs.
         let mut child = spawn_with_etxtbsy_retry(
             || {
-                Command::new(&self.program)
-                    .args(Self::args(suite))
+                let mut cmd = Command::new(&self.program);
+                cmd.args(Self::args(suite))
                     // EVALCI-002: null the child's stdin so a future upstream
                     // prompt (an auth or licence gate on `anvil policy eval`)
                     // reads EOF and fails fast, rather than blocking on an
@@ -240,8 +258,13 @@ impl PolicyEvalRunner for SubprocessRunner {
                     // whole 60s budget.
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped())
-                    .spawn()
+                    .stderr(std::process::Stdio::piped());
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::CommandExt;
+                    cmd.process_group(0);
+                }
+                cmd.spawn()
             },
             ETXTBSY_MAX_RETRIES,
         )
@@ -282,12 +305,8 @@ impl PolicyEvalRunner for SubprocessRunner {
             .wait_timeout(self.timeout)
             .map_err(|e| exec_err(Box::new(e)))?
         else {
-            let _ = child.kill();
-            let _ = child.wait();
-            // The child's death (from `kill`) closes its pipe write ends,
-            // unblocking the readers; join to avoid dangling threads but discard
-            // the payloads. A grandchild (e.g. OPA) that inherited the write end
-            // and survives the kill can delay the join until it too exits.
+            kill_suite_process_tree(&mut child);
+            // Group death closes inherited write ends so these joins finish.
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return Err(exec_err(
@@ -605,6 +624,47 @@ mod tests {
         let runner = SubprocessRunner::new(path).with_timeout(Duration::from_millis(200));
         let err = runner.eval_json(&suite()).expect_err("should time out");
         assert!(matches!(err, EvalHarnessError::Execution { .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn eval_harness_adapter_subprocess_times_out_despite_grandchild_stdout() {
+        // A background grandchild that inherits stdout must not defeat the
+        // advertised per-suite timeout. Without a process-group kill, the
+        // runner kills only the shell and then blocks on the reader join
+        // until the grandchild exits.
+        use std::time::Instant;
+
+        let (dir, path) = script(
+            "sleep 30 &\nprintf '%s\\n' \"$!\" > \"$(dirname \"$0\")/grandchild.pid\"\nwait",
+        );
+        let runner = SubprocessRunner::new(path).with_timeout(Duration::from_millis(300));
+        let started = Instant::now();
+        let err = runner.eval_json(&suite()).expect_err("should time out");
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < Duration::from_secs(3),
+            "timeout path blocked joining readers for {elapsed:?}"
+        );
+        assert!(matches!(err, EvalHarnessError::Execution { .. }));
+        assert!(
+            err.to_string().contains("timed out"),
+            "expected timeout error: {err}"
+        );
+
+        let pid: i32 = std::fs::read_to_string(dir.path().join("grandchild.pid"))
+            .expect("grandchild pid recorded before timeout")
+            .trim()
+            .parse()
+            .expect("pid");
+        let gone = (0..20).any(|_| {
+            let alive = nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), None).is_ok();
+            if alive {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            !alive
+        });
+        assert!(gone, "grandchild {pid} still alive after suite timeout");
     }
 
     #[cfg(unix)]

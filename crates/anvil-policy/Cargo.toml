@@ -32,7 +32,7 @@ workspace-hack.workspace = true
 # openat ladder on Unix). Non-Unix falls back to path-string guards.
 # `nix` keeps the workspace forbid(unsafe_code) lint honest.
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", default-features = false, features = ["fs"] }
+nix = { version = "0.31", default-features = false, features = ["fs", "signal"] }
 
 [lints]
 workspace = true
