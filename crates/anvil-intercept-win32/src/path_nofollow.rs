@@ -176,14 +176,20 @@ fn remove_at(path: &Path, is_dir: bool) -> io::Result<()> {
         )
     })?;
     let dir = open_existing_dir(parent, true)?;
-    let kind = if is_dir {
-        OpenKind::Directory
-    } else {
-        OpenKind::Any
-    };
     // Open the leaf as-named (`FILE_OPEN_REPARSE_POINT`) so a leaf symlink or
-    // junction is deleted itself, matching Unix `unlinkat` (does not follow).
-    let leaf_handle = nt_open_at(dir.raw(), leaf, kind, DELETE | SYNCHRONIZE, false)?;
+    // junction is the object we inspect, matching Unix `unlinkat` (does not
+    // follow). A real directory is refused by `remove_file_nofollow`; a
+    // reparse point is unlinked itself.
+    let leaf_handle = nt_open_at(dir.raw(), leaf, OpenKind::Any, DELETE | SYNCHRONIZE, false)?;
+    let reparse = is_reparse(leaf_handle.raw())?;
+    let directory = is_directory(leaf_handle.raw())?;
+    if is_dir {
+        if reparse || !directory {
+            return Err(io::Error::from_raw_os_error(ERROR_DIRECTORY));
+        }
+    } else if directory && !reparse {
+        return Err(io::Error::from_raw_os_error(ERROR_DIRECTORY));
+    }
     dispose_handle(leaf_handle.raw())
 }
 
@@ -274,14 +280,22 @@ fn open_root_with_access(root: &Path, access: u32) -> io::Result<OwnedHandle> {
     Ok(owned)
 }
 
-fn is_reparse(handle: HANDLE) -> io::Result<bool> {
+fn file_attributes(handle: HANDLE) -> io::Result<u32> {
     let mut info = BY_HANDLE_FILE_INFORMATION::default();
     // SAFETY: `info` is a valid out struct; `handle` is a live file handle.
     let ok = unsafe { GetFileInformationByHandle(handle, &mut info) };
     if ok == 0 {
         return Err(io::Error::last_os_error());
     }
-    Ok(info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+    Ok(info.dwFileAttributes)
+}
+
+fn is_reparse(handle: HANDLE) -> io::Result<bool> {
+    Ok(file_attributes(handle)? & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+}
+
+fn is_directory(handle: HANDLE) -> io::Result<bool> {
+    Ok(file_attributes(handle)? & FILE_ATTRIBUTE_DIRECTORY != 0)
 }
 
 fn open_or_mkdir_at(parent: HANDLE, name: &OsStr) -> io::Result<OwnedHandle> {
@@ -676,6 +690,19 @@ mod tests {
         std::fs::write(&path, b"x").unwrap();
         remove_file_nofollow(&path).expect("remove");
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn remove_file_nofollow_refuses_a_real_directory() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("keep-me");
+        std::fs::create_dir(&dir).unwrap();
+        let err = remove_file_nofollow(&dir).expect_err("real directory");
+        assert!(
+            err.raw_os_error() == Some(ERROR_DIRECTORY) || format!("{err:#}").contains("directory"),
+            "must refuse a real directory: {err}"
+        );
+        assert!(dir.is_dir(), "real directory must remain");
     }
 
     #[test]
