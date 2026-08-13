@@ -109,6 +109,9 @@ export type ActivityKind = 'login' | 'refresh' | 'feature';
  * (BACT-008). Sets `first_login_at` only when still null; always refreshes
  * `last_login_at` and `last_login_method`. Invite/approve token mint must
  * not call this — only real session mint paths.
+ *
+ * `GREATEST(last_activity_at, now())` is safe on a first stamp: PostgreSQL
+ * GREATEST ignores NULLs, so GREATEST(NULL, now()) = now().
  */
 export async function stampUserLogin(
   sql: NeonClient,
@@ -134,6 +137,8 @@ export async function stampUserLogin(
  * without faking an interactive login. Never touches `first_login_at`,
  * `last_login_at`, or `last_login_method` — callers that completed a real
  * interactive mint must use `stampUserLogin` instead, which stamps both.
+ *
+ * Same GREATEST-ignores-NULL rule as `stampUserLogin`.
  */
 export async function stampUserActivity(
   sql: NeonClient,

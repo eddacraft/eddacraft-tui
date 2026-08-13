@@ -702,6 +702,29 @@ mod tests {
     }
 
     #[test]
+    fn plan_audience_ids_match_catalogue_inventory() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../flags/audiences.json");
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+        let value: serde_json::Value = serde_json::from_str(&raw).expect("audiences.json");
+        let mut from_file: Vec<&str> = value["audiences"]
+            .as_array()
+            .expect("audiences array")
+            .iter()
+            .filter(|row| row["axis"].as_str() == Some("plan"))
+            .filter_map(|row| row["id"].as_str())
+            .collect();
+        from_file.sort_unstable();
+        let mut from_const: Vec<&str> = PLAN_AUDIENCE_IDS.to_vec();
+        from_const.sort_unstable();
+        assert_eq!(
+            from_const, from_file,
+            "PLAN_AUDIENCE_IDS must match flags/audiences.json axis=plan ids"
+        );
+    }
+
+    #[test]
     fn is_enabled_helper_allows_default() {
         assert!(is_cli_licence_enabled(Some("beta")));
         assert!(is_cli_licence_enabled(None));
