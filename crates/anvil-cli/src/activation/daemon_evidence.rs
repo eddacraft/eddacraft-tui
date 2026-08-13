@@ -338,11 +338,9 @@ pub(super) fn evaluate_and_promote(
     }
 
     // Predicate #2: cardinality — at least one Participating surface
-    // for the worktree. Architect-resolved cardinality rule from the
-    // council split; the spec's "promote every handshake-verified
-    // client when the daemon attests the worktree" mass-promotion is
-    // tighter than required by the documented `LiveValidation`
-    // contract ("observed from this client inside this repo").
+    // for the worktree. Worktree-level evidence is necessary but not
+    // sufficient: per-client attribution (below) decides *which*
+    // handshake-verified clients may advance to LiveValidation.
     if !claim
         .surfaces
         .iter()
@@ -364,14 +362,47 @@ pub(super) fn evaluate_and_promote(
         return DaemonAttestation::StaleHeartbeat;
     }
 
-    // All gates pass — promote every handshake-verified client.
-    // Cardinality at the worktree level (≥ 1 Participating surface)
-    // satisfies the documented `LiveValidation` invariant without
-    // needing per-client identity resolution, which is unresolved
-    // (ARCH-001 follow-up).
+    // All gates pass. Promote handshake-verified clients that a
+    // participating surface actually names. `LiveValidation` is
+    // documented as evidence "from this client inside this repo";
+    // mass-promoting every HSV client when any surface participates
+    // violates that contract (Clawpatch e699c6bf1b).
+    //
+    // Unique-HSV fallback: when no participating surface names any
+    // known MCP client and exactly one HSV client exists, promote
+    // that client. Activation-spine and untagged sessions still
+    // attest the worktree for the only handshake-verified editor
+    // (MLP2-051f / #1831). A surface that names a *different*
+    // known client is not unattributed — do not borrow it. Two or
+    // more HSV clients with no attributable surface stay at
+    // `RestartHandshakeVerified`.
+    let participating: Vec<&str> = claim
+        .surfaces
+        .iter()
+        .filter(|surface| surface.state == SurfaceClaimState::Participating)
+        .map(|surface| surface.identifier.as_str())
+        .collect();
+    let hsv_ids: Vec<McpClientId> = map
+        .iter()
+        .filter(|(_, result)| result.tier == McpTier::RestartHandshakeVerified)
+        .map(|(id, _)| *id)
+        .collect();
+    let any_known_client_named = participating.iter().any(|identifier| {
+        [McpClientId::ClaudeCode, McpClientId::Cursor]
+            .into_iter()
+            .any(|client| surface_attests_client(identifier, client))
+    });
+    let unique_unattributed_fallback = hsv_ids.len() == 1 && !any_known_client_named;
+
     let mut promoted = 0_usize;
-    for result in map.values_mut() {
-        if result.tier == McpTier::RestartHandshakeVerified {
+    for (id, result) in map.iter_mut() {
+        if result.tier != McpTier::RestartHandshakeVerified {
+            continue;
+        }
+        let attested = participating
+            .iter()
+            .any(|identifier| surface_attests_client(identifier, *id));
+        if attested || unique_unattributed_fallback {
             result.tier = McpTier::LiveValidation;
             promoted += 1;
         }
@@ -392,6 +423,55 @@ pub(super) fn evaluate_and_promote(
         "activation: promoted to LiveValidation via daemon attestation",
     );
     DaemonAttestation::Promoted
+}
+
+/// True when a participating surface identifier names this MCP client.
+///
+/// Identifiers are either `driver/agent#starttime` (from `AgentTag`)
+/// or a raw session id. Matching is token-based on the client's
+/// stable label (`claude-code`, `cursor`) plus a small alias set
+/// used by existing fixtures (`mcp-shim-claude`).
+fn surface_attests_client(identifier: &str, client: McpClientId) -> bool {
+    let haystack = identifier.to_ascii_lowercase();
+    client_identity_tokens(client)
+        .iter()
+        .any(|token| contains_identity_token(&haystack, token))
+}
+
+fn client_identity_tokens(client: McpClientId) -> &'static [&'static str] {
+    match client {
+        McpClientId::ClaudeCode => &[
+            "claude-code",
+            "claude_code",
+            "claudecode",
+            "mcp-shim-claude",
+        ],
+        McpClientId::Cursor => &["cursor"],
+    }
+}
+
+fn contains_identity_token(haystack: &str, token: &str) -> bool {
+    if token.is_empty() || token.len() > haystack.len() {
+        return false;
+    }
+    let bytes = haystack.as_bytes();
+    let token_len = token.len();
+    let mut start = 0;
+    while start + token_len <= bytes.len() {
+        if haystack.is_char_boundary(start)
+            && haystack.is_char_boundary(start + token_len)
+            && haystack[start..start + token_len] == *token
+        {
+            let before_ok = start == 0 || !bytes[start - 1].is_ascii_alphanumeric();
+            let end = start + token_len;
+            let after_ok = end == bytes.len() || !bytes[end].is_ascii_alphanumeric();
+            if before_ok && after_ok {
+                return true;
+            }
+        }
+        start += 1;
+    }
+    false
 }
 
 fn skip_reason_to_attestation(reason: SkipReason) -> DaemonAttestation {
@@ -645,6 +725,31 @@ mod tests {
         map
     }
 
+    fn both_handshake_verified() -> BTreeMap<McpClientId, McpProbeResult> {
+        let mut map = BTreeMap::new();
+        map.insert(
+            McpClientId::ClaudeCode,
+            make_probe(McpTier::RestartHandshakeVerified),
+        );
+        map.insert(
+            McpClientId::Cursor,
+            make_probe(McpTier::RestartHandshakeVerified),
+        );
+        map
+    }
+
+    fn make_session_with_agent(
+        id: &str,
+        worktree: &Path,
+        heartbeat_unix: u64,
+        driver_id: &str,
+        claimed_agent_id: &str,
+    ) -> SessionRecord {
+        let mut session = make_session(id, worktree, heartbeat_unix);
+        session.agent_tag = Some(AgentTag::new(driver_id, claimed_agent_id, 9_000));
+        session
+    }
+
     /// DSV-049: `worktree_driver_attached` is true only for a live
     /// `Attached` driver on the matching worktree. `Absent`, `Failed`,
     /// and a mismatched worktree all read as not-attached — only live
@@ -773,6 +878,155 @@ mod tests {
         // Other clients are left at their original tier — promotion is
         // gated on `RestartHandshakeVerified`, not `RestartRequired`.
         assert_eq!(map[&McpClientId::Cursor].tier, McpTier::RestartRequired);
+    }
+
+    /// Clawpatch fnd_sig-feat-cli-command-ff7f623159-_e699c6bf1b:
+    /// two handshake-verified clients must not both become
+    /// `LiveValidation` when the daemon only attests one client's
+    /// surface.
+    #[test]
+    fn two_handshake_verified_clients_promote_only_the_attested_client() {
+        let worktree = PathBuf::from("/tmp/wt-e699-attested-one");
+        let now = now_with_recent_heartbeats();
+        let heartbeat = 1_716_336_050;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess-claude",
+                &worktree,
+                heartbeat,
+                "anvil-run",
+                "claude-code-1",
+            )],
+            vec![make_worktree_status("sess-claude", &worktree, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = both_handshake_verified();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::Promoted);
+        assert_eq!(map[&McpClientId::ClaudeCode].tier, McpTier::LiveValidation);
+        assert_eq!(
+            map[&McpClientId::Cursor].tier,
+            McpTier::RestartHandshakeVerified,
+            "unrelated HSV client must not inherit LiveValidation from another client's surface",
+        );
+    }
+
+    /// Two HSV clients plus an unattributed participating surface
+    /// (activation-spine / test-driver) must not mass-promote.
+    #[test]
+    fn two_handshake_verified_clients_with_unattributed_surface_do_not_promote() {
+        let worktree = PathBuf::from("/tmp/wt-e699-unattributed");
+        let now = now_with_recent_heartbeats();
+        let heartbeat = 1_716_336_050;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session("sess-1", &worktree, heartbeat)],
+            vec![make_worktree_status("sess-1", &worktree, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = both_handshake_verified();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::Enforced);
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::RestartHandshakeVerified,
+        );
+        assert_eq!(
+            map[&McpClientId::Cursor].tier,
+            McpTier::RestartHandshakeVerified,
+        );
+    }
+
+    /// A lone HSV client must not inherit `LiveValidation` from a
+    /// participating surface that names a different known client.
+    #[test]
+    fn unique_hsv_client_does_not_borrow_another_clients_surface() {
+        let worktree = PathBuf::from("/tmp/wt-e699-borrow-cursor");
+        let now = now_with_recent_heartbeats();
+        let heartbeat = 1_716_336_050;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess-cursor",
+                &worktree,
+                heartbeat,
+                "cursor-mcp",
+                "cursor-1",
+            )],
+            vec![make_worktree_status("sess-cursor", &worktree, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::Enforced);
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::RestartHandshakeVerified,
+            "Claude Code must not borrow a Cursor-named participating surface",
+        );
+        assert_eq!(map[&McpClientId::Cursor].tier, McpTier::RestartRequired);
+    }
+
+    #[test]
+    fn two_handshake_verified_clients_promote_only_cursor_when_cursor_surface_attests() {
+        let worktree = PathBuf::from("/tmp/wt-e699-attested-cursor");
+        let now = now_with_recent_heartbeats();
+        let heartbeat = 1_716_336_050;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess-cursor",
+                &worktree,
+                heartbeat,
+                "cursor-mcp",
+                "cursor-1",
+            )],
+            vec![make_worktree_status("sess-cursor", &worktree, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = both_handshake_verified();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::Promoted);
+        assert_eq!(map[&McpClientId::Cursor].tier, McpTier::LiveValidation);
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::RestartHandshakeVerified,
+        );
+    }
+
+    #[test]
+    fn identity_tokens_require_boundaries() {
+        assert!(contains_identity_token(
+            "anvil-run/claude-code-1#9000",
+            "claude-code"
+        ));
+        assert!(contains_identity_token("cursor-mcp/cursor#1", "cursor"));
+        assert!(!contains_identity_token("mycursor-agent#1", "cursor"));
+        assert!(!contains_identity_token(
+            "test-driver/test-agent#9000",
+            "claude-code"
+        ));
+        assert!(surface_attests_client(
+            "mcp-shim-claude",
+            McpClientId::ClaudeCode
+        ));
+        assert!(!surface_attests_client(
+            "test-driver/test-agent#9000",
+            McpClientId::ClaudeCode,
+        ));
     }
 
     #[test]
