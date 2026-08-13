@@ -7,10 +7,10 @@
 | --------- | ----- | -------- | ------ | -------- |
 | DOCFRESH  | —     | high     | In Progress | 6/8 |
 
-**Last reviewed:** 2026-08-13 — DOCFRESH-008 **In Progress**. ADR-122 splits
-public sections by product source of truth: edda-stack is in-tree and takes the
-full D6 triple; kindling and APS pages are copies and attest the imported
-product version. Feature PRs do not bump the module `N/M` (ADR-053).
+**Last reviewed:** 2026-08-13 — DOCFRESH-008 **Merged via PR #3868**. ADR-122
+splits public sections by product source of truth: edda-stack is in-tree and
+takes the full D6 triple; kindling and APS pages are copies and attest the
+imported product version. Feature PRs do not bump the module `N/M` (ADR-053).
 
 **Earlier — 2026-08-13** — DOCFRESH-004 **Merged via PR #3804**. Coverage moves
 from **104 to 118** checkable documents (of 228). Composition of the gap was
@@ -310,7 +310,7 @@ release rather than `main`.
 - **Confidence:** high
 - **Status:** Merged 2026-08-13 via PR #3850
 
-### DOCFRESH-008: Govern in-tree edda-stack and attest copied kindling/APS pages — In Progress
+### DOCFRESH-008: Govern in-tree edda-stack and attest copied kindling/APS pages — Merged
 
 - **Intent:** Split the three public sections by product source of truth.
   edda-stack is the in-repo Edda/Ember substrate. kindling and APS pages are
@@ -336,8 +336,12 @@ release rather than `main`.
   `docs/public/kindling/**`, `docs/public/aps/**`
 - **Validation:** `pnpm adr:check`; `pnpm docs:public:check`; case 13c in
   `scripts/docs/docs-check.test.sh`
+- **Evidence:** PR #3868 rebase-merged 2026-08-13 (`7a4451210` ancestor of
+  `origin/main`). Live checker: 0 errors, 34 copied-section pages attested.
+  `pnpm adr:check` 123/123; `pnpm test:docs-check` all cases; `pnpm docs:check`
+  11/11; Docs Lint green. Independent verify-loop: pass-with-advisories.
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3868
 
 ## Acceptance Criteria
 
