@@ -2036,6 +2036,60 @@ fn mcp_serve_stdio_resources_read_config_is_default_when_absent() {
     assert_eq!(payload["errors"].as_array().expect("errors array").len(), 0);
 }
 
+/// UCFG-010: the enriched `anvil://config` payload for an INLINE
+/// architecture section + gate section — gate view and provenance
+/// ride beside the raw parse.
+#[test]
+fn mcp_serve_stdio_resources_read_config_inline_topology() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    std::fs::write(
+        workspace.path().join(".anvil.yaml"),
+        "checks:\n  - secret-detection\ngate:\n  thresholds:\n    overall_score: 90\n  checks:\n    secret-detection:\n      max_findings: 0\narchitecture:\n  schema_version: \"0.1.0\"\n  layers:\n    core:\n      patterns: [\"src/**\"]\n      depends_on: []\n",
+    )
+    .unwrap();
+    let parsed = read_anvil_resource(workspace.path(), 47, "anvil://config");
+    let payload = anvil_resource_payload(&parsed, "anvil://config");
+    assert_eq!(payload["isDefault"], false, "{payload}");
+    assert_eq!(payload["source"], ".anvil.yaml", "{payload}");
+    assert_eq!(
+        payload["gate"]["checks"][0], "secret-detection",
+        "{payload}"
+    );
+    assert_eq!(
+        payload["gate"]["thresholds"]["overall_score"], 90,
+        "{payload}"
+    );
+    assert_eq!(payload["architecture"]["origin"], "inline", "{payload}");
+}
+
+/// UCFG-010: DELEGATED topology — provenance carries the
+/// workspace-relative source with forward slashes, no absolute paths.
+#[test]
+fn mcp_serve_stdio_resources_read_config_delegated_topology() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    std::fs::create_dir_all(workspace.path().join(".anvil")).unwrap();
+    std::fs::write(
+        workspace.path().join(".anvil/architecture.yaml"),
+        "schema_version: \"0.1.0\"\nlayers:\n  core:\n    patterns: [\"src/**\"]\n    depends_on: []\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join(".anvil.yaml"),
+        "architecture:\n  source: \".anvil/architecture.yaml\"\n",
+    )
+    .unwrap();
+    let parsed = read_anvil_resource(workspace.path(), 48, "anvil://config");
+    let payload = anvil_resource_payload(&parsed, "anvil://config");
+    assert_eq!(payload["architecture"]["origin"], "delegated", "{payload}");
+    let source = payload["architecture"]["source"]
+        .as_str()
+        .expect("source string");
+    assert!(
+        source.ends_with(".anvil/architecture.yaml") && !source.starts_with('/'),
+        "source must be workspace-relative: {source}"
+    );
+}
+
 #[test]
 fn mcp_serve_stdio_resources_read_drift_reports_no_snapshots_when_empty() {
     let workspace = tempfile::tempdir().expect("workspace dir exists");

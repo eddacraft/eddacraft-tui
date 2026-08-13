@@ -306,7 +306,7 @@ fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
         match path.try_exists() {
             Ok(true) => present.push(name),
             Ok(false) => {}
-            Err(e) => return config_variants_stat_error(&path, e),
+            Err(e) => return config_variants_stat_error(&path, &e),
         }
     }
     let winner = present.first().cloned();
@@ -314,7 +314,7 @@ fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
     match rc.try_exists() {
         Ok(true) => present.push(".anvilrc".to_string()),
         Ok(false) => {}
-        Err(e) => return config_variants_stat_error(&rc, e),
+        Err(e) => return config_variants_stat_error(&rc, &e),
     }
     let (status, message, details) = if present.len() > 1 {
         let winner = winner.unwrap_or_else(|| ".anvilrc".to_string());
@@ -364,7 +364,7 @@ fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
     }
 }
 
-fn config_variants_stat_error(path: &Path, err: std::io::Error) -> DiagnosticCheck {
+fn config_variants_stat_error(path: &Path, err: &std::io::Error) -> DiagnosticCheck {
     DiagnosticCheck {
         name: "config-variants".to_string(),
         category: "Configuration".to_string(),
@@ -434,19 +434,25 @@ fn check_architecture_source_in(root: &Path) -> DiagnosticCheck {
                 .map(|_| ())
         })
         .is_some();
-    // UCFG-010: a section that DELEGATES to the standalone file is the
-    // sanctioned migrated state, not dual truth — provenance decides.
+    // UCFG-010: a section that DELEGATES TO THE STANDALONE FILE is the
+    // sanctioned migrated state, not dual truth — provenance decides,
+    // and the delegation target must actually BE the legacy file (a
+    // section delegating elsewhere leaves the standalone file as
+    // genuinely shadowed dual truth).
+    let legacy_path = anvil_architecture::yaml_parser::get_architecture_yaml_path(root);
     let delegates_to_legacy = section
         && legacy
-        && matches!(
-            crate::architecture_source::resolve_architecture(root),
+        && match crate::architecture_source::resolve_architecture(root) {
             Ok(Some((
                 _,
                 crate::architecture_source::ArchitectureOrigin::Section(
-                    anvil_config::SectionProvenance::Delegated { .. },
+                    anvil_config::SectionProvenance::Delegated { path, .. },
                 ),
-            )))
-        );
+            ))) => legacy_path
+                .canonicalize()
+                .is_ok_and(|canonical_legacy| canonical_legacy == path),
+            _ => false,
+        };
     let (status, message) = match (section, legacy) {
         (true, true) if delegates_to_legacy => (
             CheckStatus::Pass,
@@ -2544,6 +2550,27 @@ mod tests {
             delegated.message.contains("delegates"),
             "{}",
             delegated.message
+        );
+        // UCFG-010 verifier regression: delegation ELSEWHERE beside an
+        // unrelated legacy file is still dual truth — Warn, not the
+        // migrated-form Pass.
+        std::fs::create_dir_all(tmp.path().join("configs")).unwrap();
+        std::fs::write(
+            tmp.path().join("configs/arch.yaml"),
+            "schema_version: \"0.1.0\"\nlayers: {}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  source: \"configs/arch.yaml\"\n",
+        )
+        .unwrap();
+        let elsewhere = check_architecture_source_in(tmp.path());
+        assert_eq!(elsewhere.status, CheckStatus::Warn);
+        assert!(
+            elsewhere.message.contains("shadowed"),
+            "{}",
+            elsewhere.message
         );
         // Section only → Pass.
         std::fs::remove_file(tmp.path().join(".anvil/architecture.yaml")).unwrap();
