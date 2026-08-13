@@ -345,6 +345,17 @@ fn bind_witness_to_manifest_range(
             );
         }
     };
+    if commits.base != manifest.range.base || commits.head != manifest.range.head {
+        return result(
+            CHECK_WITNESS,
+            Verdict::Degraded,
+            vec![format!(
+                "cannot bind witness to range: commits.json range {}..{} \
+                 does not match manifest.range {}..{}",
+                commits.base, commits.head, manifest.range.base, manifest.range.head
+            )],
+        );
+    }
     let range_commits: std::collections::BTreeSet<String> =
         commits.commits.iter().map(|c| c.sha.clone()).collect();
 
@@ -1420,6 +1431,13 @@ mod tests {
             Verdict::Pass,
             "digests-vs-repo must bind commits.json to manifest.range: {:?}",
             digests.detail
+        );
+        let witness = v.checks.iter().find(|c| c.name == CHECK_WITNESS).unwrap();
+        assert_ne!(
+            witness.verdict,
+            Verdict::Pass,
+            "witness-chain must not bind against a substituted commits range: {:?}",
+            witness.detail
         );
     }
 
