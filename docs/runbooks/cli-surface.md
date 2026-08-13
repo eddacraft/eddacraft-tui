@@ -1719,7 +1719,7 @@ missing executable or non-zero manager exit fails the command and names the
 attempted command.
 
 **Exit codes:** 0 (success or already up to date), 1 (update available when
-`--check` is used, or install error)
+`--check` is used, Windows self-update decline, or install error)
 
 **Examples:**
 

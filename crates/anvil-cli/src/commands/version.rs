@@ -1367,7 +1367,7 @@ mod tests {
         // upgrade line. If these two drift, one install gets two different
         // instructions depending on which command you happened to run.
         assert!(
-            crate::commands::update::windows_unsupported_message()
+            crate::commands::update::windows_unsupported_message(InstallMethod::CargoDist)
                 .contains(WINDOWS_INSTALLER_UPGRADE),
             "`version` and `update` must print the same Windows upgrade command"
         );

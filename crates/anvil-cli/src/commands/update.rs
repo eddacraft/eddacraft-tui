@@ -574,17 +574,6 @@ pub(crate) fn load_dist_receipt(updater: &mut axoupdater::AxoUpdater) -> bool {
 fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let current = env!("CARGO_PKG_VERSION");
 
-    // Windows holds an exclusive file lock on a running executable, so the
-    // in-process axoupdater replace cannot overwrite `anvil.exe`. The sidecar
-    // path (`find_sidecar`) is the only safe Windows updater; it is not
-    // shipped in this release (`install-updater = false` in
-    // dist-workspace.toml, gated on missing aarch64-pc-windows-msvc
-    // axoupdater binaries). `--check` is read-only, so let it through.
-    if cfg!(windows) && !args.check {
-        report_windows_unsupported(current, global);
-        return Ok(());
-    }
-
     let mut updater = axoupdater::AxoUpdater::new_for(DIST_APP_NAME);
 
     // Try loading the cargo-dist install receipt (created by shell/powershell installers).
@@ -630,6 +619,23 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
 
     if args.check {
         return report_check(current, update_needed, global);
+    }
+
+    // Windows holds an exclusive file lock on a running executable, so the
+    // in-process axoupdater replace cannot overwrite `anvil.exe`. The sidecar
+    // path (`find_sidecar`) is the only safe Windows updater; it is not
+    // shipped in this release (`install-updater = false` in
+    // dist-workspace.toml, gated on missing aarch64-pc-windows-msvc
+    // axoupdater binaries). Decline only after the same comparison `--check`
+    // just used, so already-current stays exit 0 and does not print a recipe.
+    if cfg!(windows) {
+        return conclude_windows_library_update(
+            current,
+            update_needed,
+            crate::commands::version::detect_install_method(),
+            global.json,
+            &mut std::io::stdout().lock(),
+        );
     }
 
     if !update_needed && !args.force && args.version.is_none() {
@@ -801,57 +807,103 @@ fn report_check(current: &str, update_needed: bool, global: &GlobalArgs) -> anyh
     Ok(())
 }
 
-fn report_windows_unsupported(current: &str, global: &GlobalArgs) {
-    let message = windows_unsupported_message();
-    if global.json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "current_version": current,
-                "platform": "windows",
-                "action": "unsupported",
-                "message": message,
-                "alternatives": [
-                    "winget upgrade --id eddacraft.anvil",
-                    crate::commands::version::WINDOWS_INSTALLER_UPGRADE,
-                ],
-            })
-        );
-    } else {
-        println!("Current version: {current}");
-        println!("{message}");
+/// Windows library-fallback outcome after the same `update_needed`
+/// comparison `--check` uses. Already-current is success; a needed
+/// update is operator-action-required (non-zero).
+fn conclude_windows_library_update<W: Write>(
+    current: &str,
+    update_needed: bool,
+    method: InstallMethod,
+    json: bool,
+    stdout: &mut W,
+) -> anyhow::Result<()> {
+    if !update_needed {
+        write_up_to_date(current, json, stdout)?;
+        return Ok(());
     }
+    write_windows_unsupported(current, method, json, stdout)?;
+    Err(crate::output::AlreadyReported.into())
 }
 
-/// Exposed to `version` so a test can prove the two surfaces print the same
-/// Windows upgrade command; a user who runs both must not get two answers.
-pub(crate) fn windows_unsupported_message() -> &'static str {
-    "Self-update is not supported on Windows in this release.\n\
-     \n\
-     To upgrade, use one of:\n  \
-     - winget upgrade --id eddacraft.anvil\n  \
-     - Re-run the PowerShell installer:\n      \
-         irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex\n\
-     \n\
-     If the installer fails with \"file is being used by another process\",\n\
-     close any editor running the anvil MCP server (Cursor, Claude Code)\n\
-     and try again."
-}
-
-fn report_up_to_date(current: &str, global: &GlobalArgs) {
-    if global.json {
-        println!(
+fn write_up_to_date<W: Write>(current: &str, json: bool, stdout: &mut W) -> std::io::Result<()> {
+    if json {
+        writeln!(
+            stdout,
             "{}",
             serde_json::json!({
                 "current_version": current,
                 "update_available": false,
                 "action": "none"
             })
+        )
+    } else {
+        writeln!(stdout, "Current version: {current}")?;
+        writeln!(stdout, "Already up to date.")
+    }
+}
+
+fn windows_unsupported_alternatives(method: InstallMethod) -> Vec<&'static str> {
+    let command = crate::commands::version::upgrade_command_for_platform(method, true);
+    if command.is_empty() {
+        Vec::new()
+    } else {
+        vec![command]
+    }
+}
+
+fn write_windows_unsupported<W: Write>(
+    current: &str,
+    method: InstallMethod,
+    json: bool,
+    stdout: &mut W,
+) -> std::io::Result<()> {
+    let alternatives = windows_unsupported_alternatives(method);
+    let message = windows_unsupported_message(method);
+    if json {
+        writeln!(
+            stdout,
+            "{}",
+            serde_json::json!({
+                "current_version": current,
+                "platform": "windows",
+                "action": "unsupported",
+                "message": message,
+                "alternatives": alternatives,
+            })
+        )
+    } else {
+        writeln!(stdout, "Current version: {current}")?;
+        writeln!(stdout, "{message}")
+    }
+}
+
+/// Exposed to `version` so a test can prove the two surfaces print the same
+/// Windows upgrade command; a user who runs both must not get two answers.
+pub(crate) fn windows_unsupported_message(method: InstallMethod) -> String {
+    let mut message = String::from("Self-update is not supported on Windows in this release.\n");
+    let Some(command) = windows_unsupported_alternatives(method).into_iter().next() else {
+        return message;
+    };
+    if command == crate::commands::version::WINDOWS_INSTALLER_UPGRADE {
+        message.push_str("\nTo upgrade, re-run the PowerShell installer:\n    ");
+        message.push_str(command);
+        message.push('\n');
+        message.push_str(
+            "\nIf the installer fails with \"file is being used by another process\",\n\
+             close any editor running the anvil MCP server (Cursor, Claude Code)\n\
+             and try again.",
         );
     } else {
-        println!("Current version: {current}");
-        println!("Already up to date.");
+        message.push_str("\nTo upgrade, run:\n    ");
+        message.push_str(command);
+        message.push('\n');
     }
+    message
+}
+
+fn report_up_to_date(current: &str, global: &GlobalArgs) {
+    write_up_to_date(current, global.json, &mut std::io::stdout().lock())
+        .expect("stdout write for already-current report");
 }
 
 fn perform_update(
@@ -1687,10 +1739,145 @@ mod tests {
 
     #[test]
     fn windows_unsupported_message_lists_alternatives() {
-        let msg = windows_unsupported_message();
-        assert!(msg.contains("winget upgrade --id eddacraft.anvil"));
+        let msg = windows_unsupported_message(InstallMethod::CargoDist);
         assert!(msg.contains("eddacraft-anvil-installer.ps1"));
         assert!(msg.contains("anvil MCP server"));
+        assert!(
+            !msg.contains("winget upgrade"),
+            "cargo-dist must not advertise winget: {msg}"
+        );
+    }
+
+    #[test]
+    fn windows_unsupported_when_update_needed_is_nonzero() {
+        let mut stdout = Vec::new();
+        let err = conclude_windows_library_update(
+            "0.9.4-beta",
+            true,
+            InstallMethod::CargoDist,
+            false,
+            &mut stdout,
+        )
+        .expect_err("operator action required must not look like success");
+        assert!(
+            err.is::<crate::output::AlreadyReported>(),
+            "JSON/human decline is already printed; main must not reprint: {err}"
+        );
+        let out = String::from_utf8(stdout).unwrap();
+        assert!(
+            out.contains("Self-update is not supported on Windows"),
+            "decline must name the Windows limitation, got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn already_current_windows_update_suppresses_upgrade_block() {
+        let mut stdout = Vec::new();
+        conclude_windows_library_update(
+            "0.9.4-beta",
+            false,
+            InstallMethod::CargoDist,
+            false,
+            &mut stdout,
+        )
+        .expect("already current must stay exit 0");
+        let out = String::from_utf8(stdout).unwrap();
+        assert!(
+            out.contains("Already up to date"),
+            "must match --check's already-current wording, got:\n{out}"
+        );
+        assert!(
+            !out.contains("To upgrade")
+                && !out.contains("winget")
+                && !out.contains("installer.ps1"),
+            "already-current must not print a reinstall recipe, got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn cargo_dist_windows_remedy_does_not_lead_with_winget() {
+        let mut stdout = Vec::new();
+        let err = conclude_windows_library_update(
+            "0.9.4-beta",
+            true,
+            InstallMethod::CargoDist,
+            false,
+            &mut stdout,
+        )
+        .expect_err("needed update still declines on Windows");
+        assert!(err.is::<crate::output::AlreadyReported>());
+        let out = String::from_utf8(stdout).unwrap();
+        let first_remedy = out
+            .lines()
+            .find(|line| {
+                line.contains("winget")
+                    || line.contains("irm ")
+                    || line.contains("installer.ps1")
+                    || line.contains("scoop ")
+            })
+            .unwrap_or("");
+        assert!(
+            !first_remedy.contains("winget"),
+            "cargo-dist must not lead with winget; first remedy was: {first_remedy:?}\n{out}"
+        );
+        assert!(
+            out.contains(crate::commands::version::WINDOWS_INSTALLER_UPGRADE),
+            "cargo-dist must share version's PowerShell installer line, got:\n{out}"
+        );
+        assert!(
+            !out.contains("winget upgrade"),
+            "winget is only for winget installs, got:\n{out}"
+        );
+
+        let mut json_out = Vec::new();
+        conclude_windows_library_update(
+            "0.9.4-beta",
+            true,
+            InstallMethod::CargoDist,
+            true,
+            &mut json_out,
+        )
+        .expect_err("JSON decline is still non-zero");
+        let document: serde_json::Value =
+            serde_json::from_str(std::str::from_utf8(&json_out).unwrap().trim()).unwrap();
+        assert_eq!(document["action"], "unsupported");
+        let alternatives = document["alternatives"]
+            .as_array()
+            .expect("JSON decline lists alternatives");
+        assert!(
+            alternatives
+                .iter()
+                .all(|alt| { !alt.as_str().is_some_and(|s| s.contains("winget upgrade")) }),
+            "cargo-dist JSON must not offer winget: {alternatives:?}"
+        );
+        assert!(
+            alternatives.iter().any(|alt| {
+                alt.as_str() == Some(crate::commands::version::WINDOWS_INSTALLER_UPGRADE)
+            }),
+            "cargo-dist JSON must offer the shared installer line: {alternatives:?}"
+        );
+    }
+
+    #[test]
+    fn winget_windows_remedy_is_only_for_winget_installs() {
+        let mut stdout = Vec::new();
+        conclude_windows_library_update(
+            "0.9.4-beta",
+            true,
+            InstallMethod::Winget,
+            false,
+            &mut stdout,
+        )
+        .expect_err("needed update still declines on Windows");
+        let out = String::from_utf8(stdout).unwrap();
+        assert!(
+            out.contains("winget upgrade --id eddacraft.anvil"),
+            "winget installs must be told to use winget, got:\n{out}"
+        );
+        assert!(
+            !out.contains("installer.ps1"),
+            "winget installs must not be handed the cargo-dist installer, got:\n{out}"
+        );
     }
 
     #[test]
