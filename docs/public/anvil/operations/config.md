@@ -8,7 +8,7 @@ upstream:
   - crates/anvil-config/src/discover.rs
   - crates/anvil-config/src/format.rs
   - crates/anvil-cli/src/commands/config.rs
-verified_against: 0.9.0-beta
+verified_against: 0.9.4-beta
 ---
 
 # Configuration reference
@@ -23,12 +23,12 @@ command creates one; convert it with `anvil migrate format`.
 
 ## Migration bridges
 
-| Situation                                    | Bridge                                                                                                                                                          |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Legacy `.anvilrc` file                       | `anvil migrate format` writes `.anvil.<ext>` with `snake_case` keys (add `--remove-old` to delete the legacy file)                                              |
-| Legacy `camelCase` keys (`schemaVersion`, …) | Still accepted on read; any owned write (`anvil config set`, `anvil migrate format`) rewrites them, and `anvil migrate schema --apply` converts a file in place |
-| Retired `.anvil/gate-config.json`            | Ignored by gate runs; `anvil migrate gate-config --apply` folds it into this file and removes it                                                                |
-| Standalone `.anvil/architecture.yaml`        | Still valid as a legacy fallback; `anvil migrate architecture --apply` records it as the `architecture.source`                                                  |
+| Situation                                    | Bridge                                                                                                                                                                                                                                                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Legacy `.anvilrc` file                       | `anvil migrate format` writes `.anvil.<ext>` with `snake_case` keys (add `--remove-old` to delete the legacy file)                                                                                                                                                                  |
+| Legacy `camelCase` keys (`schemaVersion`, …) | Still accepted on read; any owned write (`anvil config set`, `anvil migrate format`) rewrites them. (`anvil migrate schema --apply` applies registered migrations by version delta — the casing migration fires for pre-`0.10.0-beta` projects once running `0.10.0-beta` or later) |
+| Retired `.anvil/gate-config.json`            | Ignored by gate runs; `anvil migrate gate-config --apply` folds it into this file and removes it                                                                                                                                                                                    |
+| Standalone `.anvil/architecture.yaml`        | Still valid as a legacy fallback; `anvil migrate architecture --apply` records it as the `architecture.source`                                                                                                                                                                      |
 
 Each migrate subcommand previews by default and only writes with `--apply`
 (`migrate format` writes directly; it refuses to overwrite an existing
@@ -37,6 +37,11 @@ above: its `config-variants` check warns when more than one config file exists
 (naming the winner under discover-first precedence), and legacy `camelCase` keys
 surface as a deprecation note on both `anvil config show` and doctor's
 `config-valid` check.
+
+A malformed `gate` section is a loud error on both `anvil gate` and
+`anvil check` — the shared reader refuses to run rather than silently skipping
+your composition, and the error names the offending key with a dotted path (for
+example `invalid gate.checks`).
 
 ## Inspect effective configuration
 
