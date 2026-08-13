@@ -296,16 +296,25 @@ fn check_config_variants() -> DiagnosticCheck {
 /// legacy `.anvilrc` and a canonical `.anvil.<ext>` exist, or multiple
 /// canonical variants exist, discover-first decides — warn naming the
 /// winner so a stale variant cannot silently shadow the file being
-/// edited (incl. the forced-init stale-variant edge).
+/// edited (incl. the forced-init stale-variant edge). Candidate
+/// presence uses `try_exists` so a stat error is Fail, not absence.
 fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
-    let mut present: Vec<String> = anvil_config::DISCOVER_PRECEDENCE
-        .iter()
-        .map(|format| format!(".anvil.{}", format.extension()))
-        .filter(|name| root.join(name).is_file())
-        .collect();
+    let mut present: Vec<String> = Vec::new();
+    for format in &anvil_config::DISCOVER_PRECEDENCE {
+        let name = format!(".anvil.{}", format.extension());
+        let path = root.join(&name);
+        match path.try_exists() {
+            Ok(true) => present.push(name),
+            Ok(false) => {}
+            Err(e) => return config_variants_stat_error(&path, e),
+        }
+    }
     let winner = present.first().cloned();
-    if root.join(".anvilrc").is_file() {
-        present.push(".anvilrc".to_string());
+    let rc = root.join(".anvilrc");
+    match rc.try_exists() {
+        Ok(true) => present.push(".anvilrc".to_string()),
+        Ok(false) => {}
+        Err(e) => return config_variants_stat_error(&rc, e),
     }
     let (status, message, details) = if present.len() > 1 {
         let winner = winner.unwrap_or_else(|| ".anvilrc".to_string());
@@ -352,6 +361,23 @@ fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
         details,
         auto_fixable: false,
         remediation,
+    }
+}
+
+fn config_variants_stat_error(path: &Path, err: std::io::Error) -> DiagnosticCheck {
+    DiagnosticCheck {
+        name: "config-variants".to_string(),
+        category: "Configuration".to_string(),
+        status: CheckStatus::Fail,
+        message: format!("failed to stat {}", path.display()),
+        details: Some(err.to_string()),
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "Check filesystem permissions on the project root and retry `anvil doctor`."
+                .to_string(),
+            command: None,
+            doc_url: None,
+        },
     }
 }
 
@@ -2573,6 +2599,36 @@ mod tests {
             "{}",
             legacy.message
         );
+    }
+
+    #[test]
+    fn config_variants_stat_error_fails_instead_of_claiming_absent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file_root = tmp.path().join("not-a-directory");
+        std::fs::write(&file_root, b"").unwrap();
+        let check = check_config_variants_in(&file_root);
+        assert_eq!(check.status, CheckStatus::Fail);
+        assert!(
+            check.message.contains("failed to stat"),
+            "{}",
+            check.message
+        );
+        assert!(
+            check.message.contains(".anvil.yaml"),
+            "must name the path that could not be stat'd: {}",
+            check.message
+        );
+        assert!(
+            check.details.as_deref().is_some_and(|d| !d.is_empty()),
+            "details must carry the IO error: {:?}",
+            check.details
+        );
+        assert!(
+            !check.message.contains("no project config"),
+            "{}",
+            check.message
+        );
+        assert!(!check.remediation.summary.is_empty());
     }
 
     #[test]
