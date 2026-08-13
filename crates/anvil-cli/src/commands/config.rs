@@ -256,6 +256,8 @@ mod tests {
 
     #[test]
     fn set_updates_existing_anvilrc_in_place() {
+        // legacy-fallback coverage (.anvilrc deliberately) — `config set`
+        // must edit the legacy file in place, not seed a canonical twin.
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
 

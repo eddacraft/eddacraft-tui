@@ -1021,7 +1021,7 @@ mod tests {
 
     #[test]
     fn verify_offers_watch_when_config_valid_and_mcp_below_restart_required() {
-        // With a valid `.anvilrc` and a TS source file (so the
+        // With a valid config and a TS source file (so the
         // language profile reports a supported language), an empty
         // HOME means MCP cannot pre-write attach — the diagnostic
         // must surface `Offered` so the surface can advertise the
@@ -1029,7 +1029,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         fs::write(
-            dir.path().join(".anvilrc"),
+            dir.path().join(".anvil.yaml"),
             "profile: default\nchecks: []\n",
         )
         .unwrap();
@@ -1059,7 +1059,7 @@ mod tests {
         // error signal.
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
-        fs::write(dir.path().join(".anvilrc"), "{not json::").unwrap();
+        fs::write(dir.path().join(".anvil.yaml"), "{not json::").unwrap();
         let d = verify_with_home(dir.path(), Some(home.path()));
         assert_eq!(d.config, ConfigStatus::Invalid);
         assert_eq!(
@@ -1105,7 +1105,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         fs::write(
-            dir.path().join(".anvilrc"),
+            dir.path().join(".anvil.yaml"),
             "profile: default\nchecks: []\n",
         )
         .unwrap();
@@ -1177,6 +1177,11 @@ mod tests {
         // Re-assert via the helper that owns the mapping.
         let _ = d.protection_state();
     }
+
+    // legacy-fallback coverage (.anvilrc deliberately): the config-status
+    // tests below exercise `probe_config_status`'s legacy `.anvilrc`
+    // sniffing branch (JSON → TOML → YAML) and its semantic-emptiness
+    // guards. They stay on the legacy surface until that fallback retires.
 
     #[test]
     fn verify_recognises_valid_json_config() {
@@ -1393,12 +1398,12 @@ mod tests {
     fn idempotent_reverify_is_pure() {
         // LAUNCH-012 acceptance: re-running verification performs no
         // writes and leaves all state unchanged. Round-2 council:
-        // snapshot the entire workdir tree's mtimes, not just
-        // `.anvilrc`, so a future regression that writes anywhere
+        // snapshot the entire workdir tree's mtimes, not just the
+        // config file, so a future regression that writes anywhere
         // (e.g. `.anvil/`) is caught at the unit level too.
         let dir = TempDir::new().unwrap();
         fs::write(
-            dir.path().join(".anvilrc"),
+            dir.path().join(".anvil.yaml"),
             "profile: default\nchecks: []\n",
         )
         .unwrap();

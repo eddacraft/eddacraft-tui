@@ -76,7 +76,7 @@ fn ts_only_repo_shows_supported_tier() {
     write(&dir.path().join("src/a.ts"), "export const x = 1;\n");
     write(&dir.path().join("src/b.tsx"), "export const y = 2;\n");
     write(
-        &dir.path().join(".anvilrc"),
+        &dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     );
 
@@ -107,7 +107,7 @@ fn python_only_repo_is_supported_not_unsupported() {
     write(&dir.path().join("app.py"), "x = 1\n");
     write(&dir.path().join("lib/util.py"), "def f(): pass\n");
     write(
-        &dir.path().join(".anvilrc"),
+        &dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     );
 
@@ -134,7 +134,7 @@ fn tail_t1_language_is_unsupported_but_recognized() {
     let dir = tempfile::tempdir().unwrap();
     write(&dir.path().join("main.zig"), "pub fn main() void {}\n");
     write(
-        &dir.path().join(".anvilrc"),
+        &dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     );
 
@@ -163,7 +163,7 @@ fn rust_only_repo_is_supported_not_unsupported() {
     write(&dir.path().join("src/main.rs"), "fn main() {}\n");
     write(&dir.path().join("src/lib.rs"), "pub fn f() {}\n");
     write(
-        &dir.path().join(".anvilrc"),
+        &dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     );
 
@@ -190,7 +190,7 @@ fn mixed_repo_does_not_collapse_to_unsupported() {
     write(&dir.path().join("scripts/util.py"), "x = 1\n");
     write(&dir.path().join("main.rs"), "fn main() {}\n");
     write(
-        &dir.path().join(".anvilrc"),
+        &dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     );
 
@@ -215,7 +215,7 @@ fn human_render_shows_per_language_breakdown() {
     write(&dir.path().join("scripts/util.py"), "x = 1\n");
     write(&dir.path().join("cmd/main.go"), "package main\n");
     write(
-        &dir.path().join(".anvilrc"),
+        &dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     );
 
@@ -268,6 +268,8 @@ fn unclassified_files_surface_in_json_output() {
     write(&dir.path().join("src/a.ts"), "");
     write(&dir.path().join("Makefile"), "all:\n");
     write(&dir.path().join("README"), "");
+    // legacy-fallback coverage (.anvilrc deliberately) — pins the CIB-178
+    // exclusion of the legacy artefact from the unclassified count.
     write(
         &dir.path().join(".anvilrc"),
         "profile: default\nchecks: []\n",
@@ -312,7 +314,7 @@ fn vendored_dirs_are_excluded_from_language_count() {
         "package main\n",
     );
     write(
-        &dir.path().join(".anvilrc"),
+        &dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     );
 

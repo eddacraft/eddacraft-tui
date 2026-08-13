@@ -974,6 +974,8 @@ mod tests {
 
     #[test]
     fn existing_anvilrc_blocks_without_force() {
+        // legacy-fallback coverage (.anvilrc deliberately) — init must
+        // refuse when the legacy file is the existing config.
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join(".anvilrc"), "{}").unwrap();
 

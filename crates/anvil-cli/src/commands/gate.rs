@@ -9819,7 +9819,7 @@ rules: []
         // CIB-199: a malformed project config must fail the check with a visible
         // message, not silently disable `antipattern.exclude`.
         let tmp = tempfile::TempDir::new().unwrap();
-        std::fs::write(tmp.path().join(".anvilrc"), "{").unwrap();
+        std::fs::write(tmp.path().join(".anvil.json"), "{").unwrap();
         let result = run_check_antipattern(
             "antipattern-scan",
             tmp.path(),
@@ -10148,7 +10148,7 @@ rules: []
     fn resolve_anvilrc_check_filter_warns_and_continues_with_known_subset() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.json"),
             r#"{"checks": ["secret-detection", "lnt"]}"#,
         )
         .unwrap();
@@ -10164,7 +10164,7 @@ rules: []
     #[test]
     fn resolve_anvilrc_check_filter_errors_when_no_known_checks_remain() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks": ["lnt"]}"#).unwrap();
+        std::fs::write(tmp.path().join(".anvil.json"), r#"{"checks": ["lnt"]}"#).unwrap();
 
         let err = resolve_anvilrc_check_filter(tmp.path(), None).unwrap_err();
         let msg = err.to_string();
@@ -10641,7 +10641,7 @@ rules: []
     fn read_anvilrc_antipattern_excludes_parses_globs() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.json"),
             r#"{"antipattern": {"exclude": ["src/generated/**", "*.pb.ts"]}}"#,
         )
         .unwrap();
@@ -10662,6 +10662,8 @@ rules: []
                 .is_empty()
         );
         // Config present but no `antipattern.exclude` key.
+        // legacy-fallback coverage (.anvilrc deliberately) — keeps the legacy
+        // branch of `read_anvilrc_antipattern_excludes` exercised.
         std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks": ["secret"]}"#).unwrap();
         assert!(
             read_anvilrc_antipattern_excludes(tmp.path())
@@ -10673,12 +10675,14 @@ rules: []
     #[test]
     fn read_anvilrc_checks_none_for_empty_list() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks": []}"#).unwrap();
+        std::fs::write(tmp.path().join(".anvil.json"), r#"{"checks": []}"#).unwrap();
         assert!(read_anvilrc_checks(tmp.path()).unwrap().is_none());
     }
 
     #[test]
     fn read_anvilrc_checks_parses_json() {
+        // legacy-fallback coverage (.anvilrc deliberately) — exercises the
+        // extensionless format sniffing (JSON) of the legacy reader.
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
             tmp.path().join(".anvilrc"),
@@ -10695,7 +10699,7 @@ rules: []
     fn read_anvilrc_checks_parses_stable_ids() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.json"),
             r#"{"checks": ["ANV-CORE-001", "ANV-CORE-002"]}"#,
         )
         .unwrap();
@@ -10709,6 +10713,8 @@ rules: []
 
     #[test]
     fn read_anvilrc_checks_parses_yaml() {
+        // legacy-fallback coverage (.anvilrc deliberately) — exercises the
+        // extensionless format sniffing (YAML) of the legacy reader.
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
             tmp.path().join(".anvilrc"),
@@ -10722,6 +10728,8 @@ rules: []
 
     #[test]
     fn read_anvilrc_checks_parses_toml_inline() {
+        // legacy-fallback coverage (.anvilrc deliberately) — exercises the
+        // extensionless format sniffing (TOML) of the legacy reader.
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
             tmp.path().join(".anvilrc"),
@@ -10735,6 +10743,8 @@ rules: []
 
     #[test]
     fn read_anvilrc_checks_errors_on_unparseable_file() {
+        // legacy-fallback coverage (.anvilrc deliberately) — all sniffed
+        // formats must fail before the legacy reader surfaces an error.
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(tmp.path().join(".anvilrc"), "checks: [\n").unwrap();
         let err = read_anvilrc_checks(tmp.path()).unwrap_err();

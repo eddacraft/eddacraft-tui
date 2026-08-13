@@ -254,7 +254,12 @@ fn start_under_gated_anvil_home_does_not_seed_project_state() {
     let (ok, out) = run_anvil(project.path(), Some(home.path()), &["start"]);
     assert!(ok, "gated start should succeed read-only; out: {out}");
 
-    for seeded in ["anvil/project-id", ".anvilrc", ".gitattributes"] {
+    for seeded in [
+        "anvil/project-id",
+        ".anvil.yaml",
+        ".anvilrc",
+        ".gitattributes",
+    ] {
         assert!(
             !project.path().join(seeded).exists(),
             "{seeded} must NOT be seeded into the real project under a gated ANVIL_HOME"
@@ -280,8 +285,10 @@ fn init_refused_under_gated_anvil_home_leaves_no_anvilrc() {
         "refusal must name the opt-in flag; out: {out}"
     );
     assert!(
-        !project.path().join(".anvilrc").exists() && !project.path().join(".anvil").exists(),
-        "init must not seed .anvilrc / .anvil/ into the real project under the gate"
+        !project.path().join(".anvil.yaml").exists()
+            && !project.path().join(".anvilrc").exists()
+            && !project.path().join(".anvil").exists(),
+        "init must not seed a project config / .anvil/ into the real project under the gate"
     );
 }
 

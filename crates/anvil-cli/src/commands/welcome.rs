@@ -476,7 +476,7 @@ fn run_guided_init(
 
         match crate::commands::init::generate_config(&config, &init_root) {
             Ok(generated) => {
-                // Name the file actually written (always `.anvilrc`) rather than
+                // Name the file actually written rather than
                 // a hardcoded literal, so the landing summary can never drift
                 // from what `generate_config` created (CIB-171) — the written
                 // file is the canonical `.anvil.<ext>` since UCFG-001; the

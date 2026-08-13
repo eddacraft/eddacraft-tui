@@ -258,6 +258,8 @@ mod tests {
 
     #[test]
     fn scaffold_rejects_existing_anvilrc() {
+        // legacy-fallback coverage (.anvilrc deliberately) — the wizard must
+        // refuse to scaffold over a legacy config, not just canonical ones.
         let dir = tempfile::tempdir().unwrap();
         let project_name = dir.path().join("existing-project");
         std::fs::create_dir_all(&project_name).unwrap();

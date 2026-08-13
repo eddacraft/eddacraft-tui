@@ -346,7 +346,7 @@ fn start_pty_no_tui_stays_on_the_plain_path() {
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     )
     .unwrap();
@@ -383,7 +383,7 @@ fn start_tui_pty_enters_and_restores_the_alternate_screen() {
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     )
     .unwrap();
@@ -835,7 +835,7 @@ fn start_verify_is_byte_identical_without_a_daemon_line() {
 fn start_idempotent_rerun_skips_init_and_install() {
     // Idempotency contract: a second `anvil start` against the same
     // repo + same HOME must:
-    //   1. Not rewrite `.anvilrc` (mtime unchanged).
+    //   1. Not rewrite `.anvil.yaml` (mtime unchanged).
     //   2. Not rewrite the MCP entries (mtime unchanged on each
     //      target file).
     //   3. Still emit the diagnostic, ending at the same final state.
@@ -867,7 +867,7 @@ fn start_idempotent_rerun_skips_init_and_install() {
     let mtime_claude_after = std::fs::metadata(&claude_path).unwrap().modified().unwrap();
     assert_eq!(
         mtime_config_before, mtime_config_after,
-        "second start must not rewrite .anvilrc (idempotent rerun)"
+        "second start must not rewrite .anvil.yaml (idempotent rerun)"
     );
     assert_eq!(
         mtime_cursor_before, mtime_cursor_after,
@@ -925,11 +925,11 @@ fn start_verify_on_fresh_repo_reports_needs_action() {
         String::from_utf8_lossy(&out.stderr)
     );
 
-    // --verify is read-only: `.anvilrc` must NOT be written, and
+    // --verify is read-only: no project config must be written, and
     // neither HOME's `.cursor/mcp.json` nor `.claude.json`.
     assert!(
-        !dir.path().join(".anvilrc").exists(),
-        "--verify must not write .anvilrc"
+        !dir.path().join(".anvil.yaml").exists() && !dir.path().join(".anvilrc").exists(),
+        "--verify must not write a project config"
     );
     assert!(
         !home.path().join(".cursor/mcp.json").exists(),
@@ -1139,7 +1139,7 @@ fn start_json_emits_state_literal_in_status_verify_shape() {
     // LAUNCH-012 acceptance: `anvil start --json` is read-only — the
     // flag implies `--verify` (see `start.rs` `read_only = verify ||
     // json`). On a fresh repo with an empty HOME override no MCP entry
-    // exists and no `.anvilrc` is written, so the diagnostic maps
+    // exists and no project config is written, so the diagnostic maps
     // `ConfigStatus::Absent → ProtectionState::NeedsAction` — the same
     // outcome as `start --verify` (covered by
     // `start_verify_on_fresh_repo_reports_needs_action`).
@@ -1157,8 +1157,8 @@ fn start_json_emits_state_literal_in_status_verify_shape() {
 
     // --json implies --verify: no writes should land on disk.
     assert!(
-        !dir.path().join(".anvilrc").exists(),
-        "--json must not write .anvilrc (read-only)"
+        !dir.path().join(".anvil.yaml").exists() && !dir.path().join(".anvilrc").exists(),
+        "--json must not write a project config (read-only)"
     );
     assert!(
         !home.path().join(".cursor/mcp.json").exists(),
@@ -1244,12 +1244,12 @@ fn start_help_documents_daemon_lifecycle() {
 
 #[test]
 fn start_on_invalid_config_emits_error_state_not_panic() {
-    // Adversarial guardrail: a malformed .anvilrc must not panic the
+    // Adversarial guardrail: a malformed config must not panic the
     // start orchestrator. The diagnostic surfaces it as `state: error`.
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "{this is not valid in any format::",
     )
     .unwrap();
@@ -1277,13 +1277,13 @@ fn start_verify_on_initialised_repo_surfaces_partial_protection_note() {
     // so explicitly — never let the user infer protection from a
     // weaker tier or from config-only state.
     //
-    // The repo is pre-initialised with a valid `.anvilrc` so the
+    // The repo is pre-initialised with a valid config so the
     // diagnostic does not bypass the offer logic via the
     // `ConfigStatus::Absent` suppression (council remediation: the
     // primary action on Absent is `anvil init`, not watch fallback).
     let dir = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     )
     .unwrap();
@@ -1616,7 +1616,7 @@ fn start_watch_renders_partial_protection_and_starts_watcher() {
     // and a TS file forces a supported-language profile, locking the
     // path that the assertions below exercise.
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     )
     .unwrap();

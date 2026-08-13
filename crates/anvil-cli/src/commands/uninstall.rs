@@ -759,6 +759,8 @@ mod tests {
 
     #[test]
     fn build_plan_includes_existing_project_state() {
+        // legacy-fallback coverage (.anvilrc deliberately) — uninstall must
+        // plan removal of the legacy config file, not only `.anvil.<ext>`.
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
         write(&root.join(".anvilrc"), "[anvil]\n");
@@ -1092,7 +1094,7 @@ mod tests {
         {
             let tmp = TempDir::new().unwrap();
             let root = tmp.path();
-            let dangling = root.join(".anvilrc");
+            let dangling = root.join(".anvil.yaml");
             std::os::unix::fs::symlink("/nonexistent/path/to/anywhere", &dangling).unwrap();
             assert!(!dangling.exists(), "fixture: dangling symlink expected");
             assert!(
@@ -1113,7 +1115,7 @@ mod tests {
                 plan.actions
                     .iter()
                     .any(|a| matches!(a, Action::RemoveAnvilrc { .. })),
-                "dangling .anvilrc symlink should appear in plan"
+                "dangling .anvil.yaml symlink should appear in plan"
             );
         }
     }

@@ -5117,7 +5117,7 @@ mod tests {
         assert!(secret_detection_enabled_in_project(tmp.path()));
 
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.yaml"),
             "checks:\n  - antipattern-scan\n",
         )
         .unwrap();
@@ -5127,7 +5127,7 @@ mod tests {
         );
 
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.yaml"),
             "checks:\n  - secret-detection\n  - antipattern-scan\n",
         )
         .unwrap();
@@ -5695,7 +5695,7 @@ mod tests {
     fn plain_project_scope_installs_legacy_clients_only_under_project_root() {
         let project = tempfile::TempDir::new().unwrap();
         let home = tempfile::TempDir::new().unwrap();
-        std::fs::write(project.path().join(".anvilrc"), r#"{"checks":[]}"#).unwrap();
+        std::fs::write(project.path().join(".anvil.json"), r#"{"checks":[]}"#).unwrap();
         let mut diagnostic =
             activation::diagnostic::verify_with_home(project.path(), Some(home.path()));
         assert_eq!(

@@ -293,6 +293,9 @@ fn tool_result(payload: &Value) -> Value {
 
 #[cfg(test)]
 mod tests {
+    // legacy-fallback coverage (.anvilrc deliberately) — the MCP status
+    // tool's production path reads `.anvilrc` only, so every config
+    // fixture/message here stays legacy until UCFG-010 migrates the tool.
     use super::*;
 
     // ── UCFG-010: canonical-surface reads ───────────────────────

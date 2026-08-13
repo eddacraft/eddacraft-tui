@@ -646,6 +646,8 @@ mod tests {
         }
     }
 
+    // legacy-fallback coverage (.anvilrc deliberately) — `migrate format`
+    // takes the legacy file as its input, so every fixture here stays legacy.
     fn write_anvilrc(dir: &Path, contents: &str) {
         std::fs::write(dir.join(".anvilrc"), contents).unwrap();
     }

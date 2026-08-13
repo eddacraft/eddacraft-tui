@@ -61,7 +61,7 @@ fn status_verify_on_fresh_repo_renders_needs_action() {
 fn status_verify_on_repo_with_invalid_config_renders_error() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "{this is not valid in any format::",
     )
     .unwrap();
@@ -86,7 +86,7 @@ fn status_verify_json_keys_are_stable() {
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     )
     .unwrap();
@@ -154,7 +154,7 @@ fn status_default_json_embeds_activation_block() {
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     )
     .unwrap();
@@ -186,11 +186,11 @@ fn status_verify_is_idempotent_and_does_not_mutate_workdir() {
     // leaves existing state unchanged. We snapshot the entire
     // workdir's path → mtime map so a future regression that writes
     // to `.anvil/`, a sibling file, or a freshly-created path is
-    // caught — not just `.anvilrc`.
+    // caught — not just the config file.
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     fs::write(
-        dir.path().join(".anvilrc"),
+        dir.path().join(".anvil.yaml"),
         "profile: default\nchecks: []\n",
     )
     .unwrap();

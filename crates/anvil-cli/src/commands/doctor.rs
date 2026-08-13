@@ -2327,8 +2327,10 @@ mod tests {
         // git-available depends on the host having git installed; we
         // cannot reliably force the Fail branch in CI without breaking
         // PATH. Coverage: tested separately via the doc-link assertion.
-        // config-valid Fail branches require crafted .anvilrc content;
+        // config-valid Fail branches require crafted config content;
         // exercise with a dedicated fixture.
+        // legacy-fallback coverage (.anvilrc deliberately) — keeps doctor's
+        // legacy `.anvilrc` probe branch exercised.
         out.push(with_tempdir_as_cwd(|_| {
             std::fs::write(".anvilrc", "").unwrap();
             check_config_valid()

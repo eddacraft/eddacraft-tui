@@ -110,7 +110,7 @@ fn bare_anvil_json_not_activated_is_structured() {
 fn bare_anvil_with_config_outside_git_refuses_worktree() {
     let tmp = tempfile::tempdir().expect("tempdir");
     // Config present but not a git worktree → refuse (worktree validation gate).
-    std::fs::write(tmp.path().join(".anvilrc"), "{}\n").expect("write config");
+    std::fs::write(tmp.path().join(".anvil.json"), "{}\n").expect("write config");
     let out = Command::new(ANVIL_BIN)
         .current_dir(tmp.path())
         .env("ANVIL_DEV", "1")

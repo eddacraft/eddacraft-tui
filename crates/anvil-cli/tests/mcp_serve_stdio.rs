@@ -934,6 +934,9 @@ fn mcp_serve_stdio_tools_call_known_tool_allows_clean_content_via_embedded_fallb
 
 #[test]
 fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
+    // legacy-fallback coverage (.anvilrc deliberately) — the MCP status
+    // tool's production path reads `.anvilrc` only (until UCFG-010), so
+    // its config fixtures in this file stay on the legacy surface.
     let workspace = tempfile::tempdir().expect("workspace dir exists");
     std::fs::write(
         workspace.path().join(".anvilrc"),

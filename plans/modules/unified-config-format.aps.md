@@ -435,7 +435,7 @@ Change status to **Ready** when:
 
 #### UCFG-012: fixture and CI sweep
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** convert test fixtures and CI steps referencing `.anvilrc`,
   `gate-config.json`, or direct `architecture.yaml` reads to the canonical
   surface (legacy-fallback fixtures kept deliberately and labelled)

@@ -1927,6 +1927,8 @@ mod tests {
 
     #[test]
     fn gather_with_anvilrc() {
+        // legacy-fallback coverage (.anvilrc deliberately) — keeps
+        // `gather_profile`'s legacy fallback branch exercised.
         let dir = make_temp_dir();
         std::fs::write(
             dir.join(".anvilrc"),
@@ -1945,6 +1947,8 @@ mod tests {
 
     #[test]
     fn gather_with_invalid_anvilrc() {
+        // legacy-fallback coverage (.anvilrc deliberately) — invalid
+        // legacy content must surface "(invalid config)".
         let dir = make_temp_dir();
         std::fs::write(dir.join(".anvilrc"), "not json at all").unwrap();
 
@@ -2106,7 +2110,7 @@ mod tests {
     fn gather_profile_recognises_snake_case_yaml() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.yaml"),
             "schema_version: \"1.0.0\"\nplanning_dir: \"plans\"\nformat: \"yaml\"\nchecks:\n  - \"secret-detection\"\n",
         )
         .unwrap();
@@ -2117,6 +2121,8 @@ mod tests {
 
     #[test]
     fn gather_profile_recognises_legacy_camel_toml() {
+        // legacy-fallback coverage (.anvilrc deliberately) — camelCase TOML
+        // is the shape old `start --format` wrote into the legacy file.
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
             tmp.path().join(".anvilrc"),
@@ -2700,11 +2706,11 @@ mod tests {
     #[test]
     fn plain_mode_fits_24_rows() {
         // Worst-case rule-mode summary the surface can emit (the
-        // invalid-config branch). Use a tempdir whose `.anvilrc` is
+        // invalid-config branch). Use a tempdir whose `.anvil.yaml` is
         // intentionally malformed so the appended block reaches the
         // three-line invalid-config render.
         let dir = make_temp_dir();
-        std::fs::write(dir.join(".anvilrc"), "not json at all").unwrap();
+        std::fs::write(dir.join(".anvil.yaml"), "enforcement: [").unwrap();
         let rule_mode_lines = crate::config_summary::render_rule_mode_summary(&dir)
             .lines()
             .count();

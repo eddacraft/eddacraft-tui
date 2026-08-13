@@ -37,6 +37,9 @@ export const util = helper();
 "#,
     )
     .unwrap();
+    // kernel-schema fixture: the kernel deliberately keeps its own
+    // `.anvil/architecture.yaml` file until the watch mapping item lands
+    // (not the `.anvil.<ext>` project-config surface).
     fs::write(root.join(".anvil/architecture.yaml"), "layers: []\n").unwrap();
 }
 

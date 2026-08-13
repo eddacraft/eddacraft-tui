@@ -2205,7 +2205,7 @@ mod tests {
     fn resolve_enabled_planless_checks_honours_anvilrc_subset() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.yaml"),
             "checks:\n  - secret-detection\n",
         )
         .unwrap();
@@ -2216,11 +2216,11 @@ mod tests {
 
     #[test]
     fn resolve_enabled_planless_checks_drops_non_planless_entries() {
-        // `.anvilrc` enables `policy` (gate-only) — planless dispatch must
+        // Config enables `policy` (gate-only) — planless dispatch must
         // silently ignore it, not surface it as something `check` runs.
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.yaml"),
             "checks:\n  - antipattern-scan\n  - policy\n",
         )
         .unwrap();
@@ -2358,7 +2358,7 @@ mod tests {
         let file = src_dir.join("foo.ts");
         std::fs::write(&file, "export const x = 1;\n").unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.yaml"),
             "checks:\n  - policy\n  - architecture\n",
         )
         .unwrap();
@@ -2405,7 +2405,7 @@ mod tests {
         let lock = tmp.path().join("yarn.lock");
         std::fs::write(&lock, "lockfile v1\n").unwrap();
         std::fs::write(
-            tmp.path().join(".anvilrc"),
+            tmp.path().join(".anvil.yaml"),
             "checks:\n  - secret-detection\n",
         )
         .unwrap();

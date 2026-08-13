@@ -14,8 +14,9 @@ pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 ///
 /// Order matches `anvil_config::discover` / `anvil config show` for the
 /// `.anvil.<ext>` family (yaml → yml → json → toml), then legacy `.anvilrc`
-/// last. `anvil init` still *writes* `.anvilrc`; this list only decides
-/// presence detection and refusal messaging when any supported file exists.
+/// last. Since UCFG-001 `anvil init` writes the canonical `.anvil.<ext>`;
+/// this list decides presence detection and refusal messaging when any
+/// supported file exists.
 const PROJECT_CONFIG_NAMES: &[&str] = &[
     ".anvil.yaml",
     ".anvil.yml",
@@ -35,9 +36,8 @@ pub fn config_exists() -> bool {
 
 /// Check whether a non-empty anvil configuration file exists under `dir`.
 ///
-/// The CLI writes `.anvilrc` regardless of serialisation format; the
-/// `.anvil.{yaml,yml,json,toml}` names are retained for tolerance against
-/// hand-authored configs or future layout changes.
+/// The CLI writes the canonical `.anvil.<ext>` (UCFG-001); the legacy
+/// `.anvilrc` name is retained for tolerance against unmigrated repos.
 ///
 /// Zero-byte files are treated as absent so a stray `touch .anvilrc`
 /// does not cause init to silently skip and leave the user without a
@@ -70,6 +70,8 @@ mod tests {
 
     #[test]
     fn config_exists_detects_anvilrc() {
+        // legacy-fallback coverage (.anvilrc deliberately) — presence
+        // detection must still recognise the legacy filename.
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
 
@@ -88,6 +90,8 @@ mod tests {
 
     #[test]
     fn existing_config_prefers_anvil_yaml_over_anvilrc() {
+        // legacy-fallback coverage (.anvilrc deliberately) — dual-config
+        // precedence pin: canonical must win when both files exist.
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
         std::fs::write(tmp.path().join(".anvil.yaml"), "schemaVersion: 1.0.0\n").unwrap();
@@ -101,6 +105,8 @@ mod tests {
 
     #[test]
     fn config_exists_ignores_empty_anvilrc() {
+        // legacy-fallback coverage (.anvilrc deliberately) — a stray
+        // zero-byte legacy file must not read as an existing config.
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join(".anvilrc"), b"").unwrap();
 
