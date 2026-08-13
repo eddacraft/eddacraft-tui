@@ -78,6 +78,41 @@ fn report_fp_list_reads_local_reports_without_plaintext_path_or_snippet() {
 }
 
 #[test]
+fn report_fp_accepts_printed_finding_id_and_records_owning_check() {
+    let home = tempdir().expect("anvil home");
+    let source = home.path().join("src").join("app.py");
+    std::fs::create_dir_all(source.parent().expect("parent")).expect("mkdir");
+    std::fs::write(&source, "eval(user_input)\n").expect("write source");
+    let source_arg = format!("{}:1", source.display());
+
+    let record = run_anvil(home.path(), &["--json", "report-fp", "PY-008", &source_arg]);
+    assert!(
+        record.status.success(),
+        "record report-fp PY-008 failed\nstdout={}\nstderr={}",
+        String::from_utf8_lossy(&record.stdout),
+        String::from_utf8_lossy(&record.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&record.stdout);
+    let payload: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|err| panic!("json record output: {err}: {stdout}"));
+    assert_eq!(payload["recorded"], true);
+    assert_eq!(payload["check_id"], "ANV-CORE-003");
+
+    let listed = run_anvil(home.path(), &["--json", "report-fp", "--list"]);
+    assert!(
+        listed.status.success(),
+        "list report-fp failed\nstdout={}\nstderr={}",
+        String::from_utf8_lossy(&listed.stdout),
+        String::from_utf8_lossy(&listed.stderr)
+    );
+    let listed_stdout = String::from_utf8_lossy(&listed.stdout);
+    let listed_payload: serde_json::Value = serde_json::from_str(&listed_stdout)
+        .unwrap_or_else(|err| panic!("json list output: {err}: {listed_stdout}"));
+    assert_eq!(listed_payload["count"], 1);
+    assert_eq!(listed_payload["reports"][0]["check_id"], "ANV-CORE-003");
+}
+
+#[test]
 fn report_fp_list_empty_sidecar_is_clean() {
     let home = tempdir().expect("anvil home");
     let listed = run_anvil(home.path(), &["--json", "report-fp", "--list"]);

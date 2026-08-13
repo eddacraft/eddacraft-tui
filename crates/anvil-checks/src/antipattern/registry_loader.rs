@@ -474,6 +474,21 @@ pub fn patterns_from_registry(registry: &CompiledRegistry) -> Vec<AntiPattern> {
         .collect()
 }
 
+/// True when `id` is a compiled-registry rule id (`PY-008`, `RS-001`, …).
+/// Includes AST-only rules that [`super::is_valid_pattern_id`] does not
+/// see, because those still print from `anvil check`.
+#[must_use]
+pub fn is_registered_rule_id(id: &str) -> bool {
+    let Some(registry) = load_compiled_registry(&LoadRegistryOptions::default()).registry else {
+        return false;
+    };
+    registry.patterns.iter().any(|pattern| pattern.id == id)
+        || registry
+            .patterns
+            .iter()
+            .any(|pattern| pattern.id.eq_ignore_ascii_case(id))
+}
+
 /// Look up a single pattern by id in an already-loaded registry.
 ///
 /// Returns `None` when the id is absent or the entry is not regex-backed
@@ -735,6 +750,19 @@ mod tests {
             ast_query: "(unsafe_block) @target".to_string(),
         };
         assert!(compiled_to_antipattern(&cp).is_none());
+    }
+
+    #[test]
+    fn is_registered_rule_id_includes_ast_only_ids() {
+        // RS-* are AST-backed; they are still printed by `anvil check`
+        // and must resolve as first-class rule ids even though the regex
+        // catalogue skips them.
+        assert!(is_registered_rule_id("RS-001"));
+        assert!(is_registered_rule_id("PY-008"));
+        assert!(is_registered_rule_id("AP-008"));
+        assert!(is_registered_rule_id("WC-001"));
+        assert!(!is_registered_rule_id("PY-999"));
+        assert!(!is_registered_rule_id("lnt"));
     }
 
     #[test]

@@ -272,6 +272,31 @@ pub(crate) fn definition_by_name(name: &str) -> Option<&'static CheckDefinition>
     })
 }
 
+/// Map a finding / rule id printed by `anvil check` (`PY-008`, `AP-008`,
+/// `WC-001`, `RS-001`, `SECRET-OPENAI-KEY`, …) onto the owning check's
+/// stable `ANV-*` ID. Unknown ids return `None` so the caller can still
+/// reject garbage (`lnt`) with a registry-backed suggestion.
+pub(crate) fn owning_check_for_finding_id(id: &str) -> Option<&'static str> {
+    if anvil_checks::antipattern::is_registered_rule_id(id) {
+        return Some("ANV-CORE-003");
+    }
+    let normalised = id.to_ascii_uppercase();
+    if is_secret_finding_id(&normalised) {
+        return Some("ANV-CORE-001");
+    }
+    None
+}
+
+/// `anvil check` projects secret findings as `SECRET-<PATTERN-NAME>`
+/// (`SECRET-OPENAI-KEY`, `SECRET-HIGH-ENTROPY-STRING`). Accept that family
+/// as a first-class alias of secret-detection; custom pattern names use
+/// the same prefix.
+fn is_secret_finding_id(normalised: &str) -> bool {
+    normalised
+        .strip_prefix("SECRET-")
+        .is_some_and(|rest| !rest.is_empty())
+}
+
 pub(crate) fn canonical_check_name(name: &str) -> Option<&'static str> {
     definition_by_name(name).map(|def| def.canonical_name)
 }
@@ -420,6 +445,21 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+
+    #[test]
+    fn owning_check_for_finding_id_maps_registry_and_secret_families() {
+        assert_eq!(owning_check_for_finding_id("PY-008"), Some("ANV-CORE-003"));
+        assert_eq!(owning_check_for_finding_id("AP-008"), Some("ANV-CORE-003"));
+        assert_eq!(owning_check_for_finding_id("WC-001"), Some("ANV-CORE-003"));
+        assert_eq!(owning_check_for_finding_id("RS-001"), Some("ANV-CORE-003"));
+        assert_eq!(
+            owning_check_for_finding_id("SECRET-OPENAI-KEY"),
+            Some("ANV-CORE-001")
+        );
+        assert_eq!(owning_check_for_finding_id("SECRET-"), None);
+        assert_eq!(owning_check_for_finding_id("lnt"), None);
+        assert_eq!(owning_check_for_finding_id("PY-999"), None);
+    }
 
     #[test]
     fn closest_registered_id_suggests_near_canonical_typo() {

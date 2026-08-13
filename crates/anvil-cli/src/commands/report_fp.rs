@@ -20,7 +20,9 @@ use anyhow::{Result, bail};
 use clap::Args;
 
 use crate::GlobalArgs;
-use crate::commands::check_catalog::{closest_registered_id, definition_by_name};
+use crate::commands::check_catalog::{
+    closest_registered_id, definition_by_name, owning_check_for_finding_id,
+};
 use crate::output::{self, OutputMode};
 
 #[derive(Debug, Args)]
@@ -31,8 +33,9 @@ pub struct ReportFpArgs {
     #[arg(long)]
     list: bool,
 
-    /// The check the false positive fired under — a stable `ANV-*` ID, the
-    /// canonical name, or a legacy alias.
+    /// The check the false positive fired under — a stable `ANV-*` ID, a
+    /// printed finding / rule id (`PY-008`, `AP-008`, `WC-*`, `RS-*`,
+    /// `SECRET-*`), the canonical name, or a legacy alias.
     #[arg(required_unless_present = "list")]
     check_id: Option<String>,
 
@@ -54,6 +57,9 @@ pub struct ReportFpArgs {
 fn resolve_check_id(input: &str) -> Result<&'static str> {
     if let Some(def) = definition_by_name(input) {
         return Ok(def.stable_id);
+    }
+    if let Some(stable_id) = owning_check_for_finding_id(input) {
+        return Ok(stable_id);
     }
     let suggestion = closest_registered_id(input)
         .map(|s| format!(" (did you mean '{s}'?)"))
@@ -172,6 +178,40 @@ mod tests {
         );
         // `secret` is a legacy alias of secret-detection.
         assert_eq!(resolve_check_id("secret").unwrap(), "ANV-CORE-001");
+    }
+
+    #[test]
+    fn resolve_check_id_accepts_printed_finding_ids() {
+        // `anvil check` prints rule ids (PY-008, AP-008, …), not ANV-* check ids.
+        assert_eq!(resolve_check_id("PY-008").unwrap(), "ANV-CORE-003");
+        assert_eq!(resolve_check_id("AP-008").unwrap(), "ANV-CORE-003");
+        assert_eq!(resolve_check_id("WC-001").unwrap(), "ANV-CORE-003");
+        assert_eq!(resolve_check_id("RS-001").unwrap(), "ANV-CORE-003");
+        assert_eq!(
+            resolve_check_id("SECRET-OPENAI-KEY").unwrap(),
+            "ANV-CORE-001"
+        );
+    }
+
+    #[test]
+    fn report_fp_help_names_check_and_rule_ids() {
+        use clap::{Args, Command};
+
+        let help = ReportFpArgs::augment_args(Command::new("report-fp"))
+            .render_long_help()
+            .to_string();
+        assert!(
+            help.contains("ANV-"),
+            "help must name ANV-* check ids: {help}"
+        );
+        assert!(
+            help.contains("PY-") || help.contains("rule id"),
+            "help must name printed rule ids: {help}"
+        );
+        assert!(
+            help.contains("SECRET-"),
+            "help must name SECRET-* finding ids: {help}"
+        );
     }
 
     #[test]

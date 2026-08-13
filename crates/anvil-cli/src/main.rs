@@ -224,14 +224,15 @@ enum Commands {
     /// `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`,
     /// `dependency`) live under `anvil gate`.
     Check(commands::check::CheckArgs),
-    /// Report a false positive against a check.
+    /// Report a false positive against a check or a printed finding id.
     ///
     /// Records `anvil report-fp <check-id> <file:line>` to the local
     /// Kindling record only, or lists local reports with `--list` — nothing
     /// leaves the machine. The file path is recorded and listed as a
     /// one-way salted hash, never plaintext, and source content is never
-    /// included unless `--include-snippet` is set. The check identifier is
-    /// validated against the stable-ID registry.
+    /// included unless `--include-snippet` is set. Accepts a stable `ANV-*`
+    /// check ID, a rule id printed by `anvil check` (`PY-008`, `AP-008`,
+    /// `WC-*`, `SECRET-*`, `RS-*`), the canonical name, or a legacy alias.
     #[command(name = "report-fp")]
     ReportFp(commands::report_fp::ReportFpArgs),
     /// Run diagnostic checks on your environment.
