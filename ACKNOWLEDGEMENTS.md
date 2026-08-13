@@ -2948,8 +2948,8 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `libsqlite3-sys` 0.38.1
-- `rusqlite` 0.40.1
+- `libsqlite3-sys` 0.38.2
+- `rusqlite` 0.40.2
 
 <details>
 <summary>Licence text</summary>
@@ -9474,8 +9474,8 @@ the following restrictions:
 | `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.13.1 | MIT License | https://github.com/rust-lang/regex |
 | `uuid` | 1.24.0 | MIT License | https://github.com/uuid-rs/uuid |
-| `libsqlite3-sys` | 0.38.1 | MIT License | https://github.com/rusqlite/rusqlite |
-| `rusqlite` | 0.40.1 | MIT License | https://github.com/rusqlite/rusqlite |
+| `libsqlite3-sys` | 0.38.2 | MIT License | https://github.com/rusqlite/rusqlite |
+| `rusqlite` | 0.40.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
 | `hyper` | 1.11.0 | MIT License | https://github.com/hyperium/hyper |
 | `either` | 1.17.0 | MIT License | https://github.com/rayon-rs/either |
