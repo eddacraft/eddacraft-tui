@@ -1089,7 +1089,15 @@ mod tests {
         let barrier = Arc::new(Barrier::new(2));
         let registry = RuleRegistry::with_rules(vec![Box::new(GateRule(Arc::clone(&barrier)))])
             .expect("registry");
-        let service = ScanBufferService::new(EnforcementPipeline::new(registry));
+        // Production timeout is 2s — the same window this test may spend
+        // polling for in_flight==1. A late schedule then times the
+        // caller out while the worker is still on the barrier, so
+        // join returns with the counter still 1. Give the evaluation
+        // a longer budget than the poll.
+        let service = ScanBufferService::with_timeout(
+            EnforcementPipeline::new(registry),
+            Duration::from_secs(30),
+        );
         assert_eq!(service.in_flight(), 0);
 
         let service_clone = service.clone();
