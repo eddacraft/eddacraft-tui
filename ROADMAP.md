@@ -1,7 +1,7 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-10 (`v0.9.4-beta` clearer install advice published;
-provisional next release window `v0.9.5-beta`; highest-value programme track is
+**Last updated:** 2026-08-13 (`v0.9.5-beta` claim locked — config unification
+and product deep clean; UCFG primary. Highest-value programme track remains
 Graph Trust Surfaces Wave 0 / CGBDG. See `RELEASE-PLAN.md`. Module status lives
 in the SOT files below; this roadmap stays thematic.)
 

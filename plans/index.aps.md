@@ -11,9 +11,10 @@
 > Dashboard remains flag-gated. Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is provisional **`v0.9.5-beta`** (field intake —
-> claim not frozen). Highest-value **programme** track is Graph Trust Surfaces
-> Wave 0 (**CGBDG** discovery; **CONF-001** schedule). See
+> The active release window is **`v0.9.5-beta`** (claim locked 2026-08-13 —
+> **config unification and product deep clean**; UCFG-001..014 primary). Not
+> cut-ready until changelog + standing bar. Highest-value **programme** track
+> remains Graph Trust Surfaces Wave 0 (**CGBDG**; **CONF-001** schedule). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
 ## Contents
@@ -108,7 +109,7 @@ Selection rules:
 | 2 | MCPLH-001..006 — MCP live-heal (agent-ready without session restart) | Ready | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Multi-harness fleets strand old `mcp serve` after upgrade; restarting agent sessions is hard. Not a release cut claim. | Start MCPLH-001 (PATH-stable install), then 002 re-exec / 003 refresh cascade. |
 | 3 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
 | 4 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
-| 5 | Provisional v0.9.5-beta — field intake | Schedule | [RELEASE-PLAN](../RELEASE-PLAN.md) | One untagged active window after 0.9.4 closeout. | Intake post-0.9.4 field signal; lock claim before cut. |
+| 5 | v0.9.5-beta — config unification + deep clean | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [UCFG](./modules/unified-config-format.aps.md) | Claim locked 2026-08-13; UCFG-001..014 + secondary honesty items Merged on main. | Curate CHANGELOG Unreleased; standing bar; preflight → cut. |
 | 6 | v0.9.4-beta claim set | Released/Shipped | [release record](./releases/v0.9.4-beta.md) | Install honesty + field follow-up published 2026-08-10. | None — historical. |
 | 7 | v0.9.3-beta claim set | Released/Shipped | [release record](./releases/v0.9.3-beta.md), [CIB](./modules/continuous-improvement-backlog.aps.md) | Honesty + Windows window published 2026-08-07; APS items advanced at closeout. | None — historical. |
 ## Release Plan
@@ -124,7 +125,8 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is provisional **`v0.9.5-beta`** (field intake; claim not frozen), declared in
+window is **`v0.9.5-beta`** (claim locked — config unification and product
+deep clean), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
 
@@ -812,7 +814,7 @@ compatibility interface on the same resolver — nothing here deprecates it.
 | [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters). **Graph Trust Surfaces** track; Wave 0 = CONF-001 ADR (see [programme](./specs/2026-07-28-graph-trust-surfaces.md)). | Proposed |
 | [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model — reconciled 2026-07-17 with POLRESET/ADR-098: Rust ownership split across kernel types, CLI, architecture/kernel, and policy engine; remains Draft pending product timing and CONF-002 contract co-design. Tier-1 for CONF; not Wave 1. | Draft |
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking — **not** in the Graph Trust Surfaces five-track shortlist; validation commands still need Rust rescope before any execution claim. | Ready |
-| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces | Ready |
+| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces — **Done 14/14 Merged**; primary claim of `v0.9.5-beta` (release evidence still owed) | Done |
 
 ### Dormant: Not Yet Scheduled
 
