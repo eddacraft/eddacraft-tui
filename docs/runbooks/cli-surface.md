@@ -1,7 +1,7 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                   |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                          |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-14 against `crates/anvil-cli/src/commands/update.rs` (Windows decline exit) and `{init,migrate,gate_config,architecture}.rs` |
 
 | Upstream                                                         | Downstream                                                  |

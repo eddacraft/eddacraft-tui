@@ -1,7 +1,7 @@
 # Shipped Codebase Review Checklist
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                               |
-| ----- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                               |
+| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-14: CIB-324 Windows update/version honesty against `crates/anvil-cli/src/commands/version.rs` and `update.rs`; prior v0.9.4 short pass 2026-08-09 |
 
 | Upstream                                                                                          | Downstream                                           |
