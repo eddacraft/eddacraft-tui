@@ -32,7 +32,7 @@ function readOrExit(path) {
     return readFileSync(path, 'utf8');
   } catch (err) {
     const unreadable = err.code !== 'ENOENT';
-    console.error(`[${SURFACE}] cannot read ${path}: ${err.message}`);
+    console.error(`[${SURFACE}] ERROR: ${rel(path)} — cannot read: ${err.message}`);
     process.exit(unreadable ? 2 : 1);
   }
 }
