@@ -37,7 +37,7 @@ pub enum ParseError {
     /// delegated target has already been canonicalised, so a
     /// concurrent swap cannot redirect the read outside the
     /// workspace (or at all).
-    #[error("config path {path} is a symlink (refused by no-follow open)")]
+    #[error("config path {path} is a symlink (refused by no-follow semantics)")]
     Symlink { path: PathBuf },
     #[error("unrecognised extension on {path}: only yaml/yml/json/toml are accepted")]
     UnrecognisedExtension { path: PathBuf },
