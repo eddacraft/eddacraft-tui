@@ -18,7 +18,7 @@
 //! fixture). Per-file granularity is the right unit because `.gitignore`
 //! itself is not the right place to add per-rule directives.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -333,6 +333,10 @@ pub fn check_gitignore_hygiene_for_paths(
         } else {
             repo_root.join(path)
         };
+        // Resolve matching/finding path from the read location, not the
+        // raw input, so `repo/../outside.env` cannot be read as outside
+        // and then reported as a repo-relative `../outside.env`.
+        let relative = repo_relative_env_path(repo_root, &absolute)?;
         // Distinguish "file gone" (discovery list is stale — skip it,
         // surfacing nothing is correct because there's nothing to
         // warn about) from real I/O failures (permission denied,
@@ -346,11 +350,7 @@ pub fn check_gitignore_hygiene_for_paths(
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
             Err(err) => return Err(err),
         };
-        // Matcher and findings are repo-relative. Absolute inputs are
-        // accepted for reading, then stripped so a root-anchored rule
-        // such as `/.env.local` can cover `/repo/.env.local`. Paths
-        // outside `repo_root` are a caller error, not a silent miss.
-        env_files.push((repo_relative_env_path(repo_root, path)?, content));
+        env_files.push((relative, content));
     }
 
     Ok(check_gitignore_hygiene(
@@ -359,25 +359,33 @@ pub fn check_gitignore_hygiene_for_paths(
     ))
 }
 
-/// Convert a wrapper input path to the repo-relative form the matcher
-/// and `GitignoreFinding.file` expect. Relative paths are kept as-is;
-/// absolute paths must sit under `repo_root`.
+/// Convert a resolved env path to the repo-relative form the matcher
+/// and `GitignoreFinding.file` expect. Relative paths are kept as-is
+/// when they stay inside `repo_root`; absolute paths must sit under
+/// `repo_root` with no `..` escape.
 fn repo_relative_env_path(repo_root: &Path, path: &Path) -> std::io::Result<PathBuf> {
-    if !path.is_absolute() {
-        return Ok(path.to_path_buf());
+    let outside = || {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "env path {} is outside repository root {}",
+                path.display(),
+                repo_root.display()
+            ),
+        )
+    };
+    let stripped = if path.is_absolute() {
+        path.strip_prefix(repo_root).map_err(|_| outside())?
+    } else {
+        path
+    };
+    if stripped
+        .components()
+        .any(|component| matches!(component, Component::ParentDir | Component::Prefix(_)))
+    {
+        return Err(outside());
     }
-    path.strip_prefix(repo_root)
-        .map(Path::to_path_buf)
-        .map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!(
-                    "absolute env path {} is outside repository root {}",
-                    path.display(),
-                    repo_root.display()
-                ),
-            )
-        })
+    Ok(stripped.to_path_buf())
 }
 
 #[cfg(test)]
@@ -663,6 +671,32 @@ mod tests {
 
         let err = check_gitignore_hygiene_for_paths(repo_root, &[outsider])
             .expect_err("absolute path outside repo_root must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn wrapper_rejects_parent_dir_escape() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let repo_root = tmp.path();
+        std::fs::write(repo_root.join(".gitignore"), "/.env.local\n").expect("write gitignore");
+
+        let outside = tempfile::tempdir().expect("outside dir");
+        let outsider = outside.path().join(".env.local");
+        std::fs::write(&outsider, "FOO=bar\n").expect("write outside env");
+
+        let escaped = repo_root
+            .join("..")
+            .join(outside.path().file_name().expect("outside name"))
+            .join(".env.local");
+        let err = check_gitignore_hygiene_for_paths(repo_root, &[escaped])
+            .expect_err("lexical .. escape must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+
+        let relative_escape = PathBuf::from("..")
+            .join(outside.path().file_name().expect("outside name"))
+            .join(".env.local");
+        let err = check_gitignore_hygiene_for_paths(repo_root, &[relative_escape])
+            .expect_err("relative .. escape must fail");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 }
