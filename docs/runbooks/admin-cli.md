@@ -533,9 +533,16 @@ anvil --json admin activity --plan beta --idle-days 14
 
 Flags:
 
-- `--plan <beta>` — restrict to one account plan (today only `beta`; an
-  unrecognised value is a usage error, not a silent empty result)
-- `--idle-days <1-365>` (default **30**) — the quiet-cohort window
+- `--plan <name>` — restrict to one account plan (today only `beta`). The CLI
+  does **not** validate this against a hardcoded plan list — an older `anvil`
+  binary would otherwise reject a plan a newer server has since added, breaking
+  the backward-tolerance the admin surface relies on elsewhere (see BACT-003).
+  The plan set is the **server's** closed list; an unrecognised value is a
+  **server-rejected API error** (exit `1`, not a clap usage error), never a
+  silent empty result.
+- `--idle-days <1-365>` (default **30**) — the quiet-cohort window. Unlike
+  `--plan`, this range **is** enforced client-side by clap before any request is
+  sent — out-of-range values are a usage error (exit `2`).
 
 Output:
 
