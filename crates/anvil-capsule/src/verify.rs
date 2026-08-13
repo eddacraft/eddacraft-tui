@@ -53,8 +53,8 @@ pub fn verify_capsule_at(
 
     CapsuleVerification::from_checks(vec![
         check_manifest_digests(capsule_dir, &manifest),
-        check_witness_chain(capsule_dir),
-        check_digests_vs_repo(capsule_dir, repo_root),
+        check_witness_chain(capsule_dir, &manifest),
+        check_digests_vs_repo(capsule_dir, repo_root, &manifest),
         check_exceptions(capsule_dir, repo_root, now),
     ])
 }
@@ -272,8 +272,9 @@ fn check_manifest_digests(capsule_dir: &Path, manifest: &CapsuleManifest) -> Che
     result(CHECK_MANIFEST, verdict, details)
 }
 
-/// `witness-chain`: reuse `verify_chain_dag` over `witness.ndjson`.
-fn check_witness_chain(capsule_dir: &Path) -> CheckResult {
+/// `witness-chain`: reuse `verify_chain_dag` over `witness.ndjson`, then
+/// bind the declared manifest window to lines that attest the range.
+fn check_witness_chain(capsule_dir: &Path, manifest: &CapsuleManifest) -> CheckResult {
     let path = capsule_dir.join("witness.ndjson");
     // Read via the O_NOFOLLOW-backed helper so a symlinked witness file
     // is refused before any digest/semantic consumption. Stage the
@@ -309,14 +310,7 @@ fn check_witness_chain(capsule_dir: &Path) -> CheckResult {
             Verdict::Degraded,
             vec!["empty witness chain (no lines)".to_string()],
         ),
-        Ok(report) => result(
-            CHECK_WITNESS,
-            Verdict::Pass,
-            vec![format!(
-                "{} lines, {} merge(s)",
-                report.line_count, report.merge_count
-            )],
-        ),
+        Ok(report) => bind_witness_to_manifest_range(capsule_dir, manifest, &bytes, &report),
         // An I/O failure reading the chain is a tool failure, not a
         // broken chain — `error`, never an overclaimed `block` (copilot).
         Err(e @ anvil_witness::VerifyError::Io { .. }) => result(
@@ -330,6 +324,109 @@ fn check_witness_chain(capsule_dir: &Path) -> CheckResult {
             vec![format!("witness chain broken: {e}")],
         ),
     }
+}
+
+/// After the chain DAG is valid, require the manifest window to match
+/// the attested range commits and degrade when nothing in the range is
+/// witnessed.
+fn bind_witness_to_manifest_range(
+    capsule_dir: &Path,
+    manifest: &CapsuleManifest,
+    bytes: &[u8],
+    report: &anvil_witness::DagVerification,
+) -> CheckResult {
+    let commits = match read_capsule_commits(capsule_dir) {
+        Ok(commits) => commits,
+        Err(detail) => {
+            return result(
+                CHECK_WITNESS,
+                Verdict::Degraded,
+                vec![format!("cannot bind witness to range: {detail}")],
+            );
+        }
+    };
+    let range_commits: std::collections::BTreeSet<String> =
+        commits.commits.iter().map(|c| c.sha.clone()).collect();
+
+    let lines = match parse_witness_lines(bytes) {
+        Ok(lines) => lines,
+        Err(detail) => return result(CHECK_WITNESS, Verdict::Error, vec![detail]),
+    };
+
+    let (observed_start, observed_end) = observed_range_window(&lines, &range_commits);
+    let declared_start = manifest.range.witness_seq_start;
+    let declared_end = manifest.range.witness_seq_end;
+
+    let mut verdict = Verdict::Pass;
+    let mut details = Vec::new();
+
+    match (declared_start, declared_end) {
+        (None, None) | (Some(_), Some(_)) => {}
+        (Some(_), None) | (None, Some(_)) => {
+            verdict = verdict.worst(Verdict::Degraded);
+            details.push("manifest witness sequence pointers are unpaired".to_string());
+        }
+    }
+
+    if observed_start != declared_start || observed_end != declared_end {
+        verdict = verdict.worst(Verdict::Degraded);
+        details.push(format!(
+            "manifest witness window [{declared_start:?}, {declared_end:?}] \
+             does not match attested range window [{observed_start:?}, {observed_end:?}]"
+        ));
+    }
+
+    if observed_start.is_none() {
+        verdict = verdict.worst(Verdict::Degraded);
+        details.push("no witness line attests a commit in the capsule range".to_string());
+    }
+
+    if verdict == Verdict::Pass {
+        details.push(format!(
+            "{} lines, {} merge(s)",
+            report.line_count, report.merge_count
+        ));
+    }
+    result(CHECK_WITNESS, verdict, details)
+}
+
+/// Parse capsule `witness.ndjson` bytes into [`anvil_witness::WitnessLine`]s
+/// using the same newline split as collection.
+fn parse_witness_lines(bytes: &[u8]) -> Result<Vec<anvil_witness::WitnessLine>, String> {
+    let mut lines = Vec::new();
+    for (offset, raw) in bytes.split(|b| *b == b'\n').enumerate() {
+        let raw = raw.strip_suffix(b"\r").unwrap_or(raw);
+        if raw.is_empty() {
+            continue;
+        }
+        match anvil_witness::WitnessLine::from_ndjson_line(raw) {
+            Ok(line) => lines.push(line),
+            Err(e) => {
+                return Err(format!("unparseable witness line {}: {e}", offset + 1));
+            }
+        }
+    }
+    Ok(lines)
+}
+
+/// Min/max `seq` of lines whose `commit_sha` is in `range_commits`.
+fn observed_range_window(
+    lines: &[anvil_witness::WitnessLine],
+    range_commits: &std::collections::BTreeSet<String>,
+) -> (Option<u64>, Option<u64>) {
+    let mut start: Option<u64> = None;
+    let mut end: Option<u64> = None;
+    for line in lines {
+        if line
+            .commit_sha
+            .as_deref()
+            .is_some_and(|sha| range_commits.contains(sha))
+        {
+            start = Some(start.map_or(line.seq, |s| s.min(line.seq)));
+            end = Some(end.map_or(line.seq, |e| e.max(line.seq)));
+        }
+    }
+    (start, end)
 }
 
 /// Write `bytes` to a private temp file that is removed on drop, so a
@@ -378,10 +475,16 @@ fn is_capsule_basename(name: &str) -> bool {
 /// from `repo_root` and compare canonical bytes to the capsule's files. A
 /// divergence is `degraded` (stale / different repo), inability to
 /// re-collect is `degraded`.
-fn check_digests_vs_repo(capsule_dir: &Path, repo_root: &Path) -> CheckResult {
-    // The capsule's own commits.json gives the resolved range to
-    // re-collect against; its rules.json gives the producing identity so
-    // the digest pipeline matches by construction.
+///
+/// The re-collect uses [`CapsuleManifest::range`], not the range claimed
+/// inside `commits.json`. A substituted commits document for another
+/// locally available range must not pass merely because that other
+/// range still exists in the repo.
+fn check_digests_vs_repo(
+    capsule_dir: &Path,
+    repo_root: &Path,
+    manifest: &CapsuleManifest,
+) -> CheckResult {
     let commits = match read_capsule_commits(capsule_dir) {
         Ok(commits) => commits,
         Err(detail) => return result(CHECK_DIGESTS, Verdict::Degraded, vec![detail]),
@@ -394,7 +497,15 @@ fn check_digests_vs_repo(capsule_dir: &Path, repo_root: &Path) -> CheckResult {
     let mut verdict = Verdict::Pass;
     let mut details = Vec::new();
 
-    match collect_commits(repo_root, &commits.base, &commits.head) {
+    if commits.base != manifest.range.base || commits.head != manifest.range.head {
+        verdict = verdict.worst(Verdict::Degraded);
+        details.push(format!(
+            "commits.json range {}..{} does not match manifest.range {}..{}",
+            commits.base, commits.head, manifest.range.base, manifest.range.head
+        ));
+    }
+
+    match collect_commits(repo_root, &manifest.range.base, &manifest.range.head) {
         Ok(recollected) => {
             if !bytes_match(
                 capsule_dir,
@@ -1272,5 +1383,134 @@ mod tests {
             witness.detail
         );
         assert_eq!(v.verdict, Verdict::Block);
+    }
+
+    /// Clawpatch fnd_sig-feat-library-5035974263-cc49_c0ce2e7335:
+    /// a digest-updated commits.json for a different locally available
+    /// range must not pass while manifest.range still names the original.
+    #[test]
+    fn verify_does_not_pass_when_commits_range_mismatches_manifest() {
+        let (dir, base, head) = scratch_repo();
+        std::fs::write(dir.path().join("c.txt"), "three").unwrap();
+        git(dir.path(), &["add", "."]);
+        git(dir.path(), &["commit", "-q", "-m", "other"]);
+        let other = git(dir.path(), &["rev-parse", "HEAD"]).trim().to_string();
+
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        let alternate = collect_commits(dir.path(), &head, &other).unwrap();
+        rewrite_recorded(
+            &out,
+            "commits.json",
+            &alternate.to_canonical_bytes().unwrap(),
+        );
+
+        let v = verify_capsule(&out, dir.path());
+        assert_ne!(
+            v.verdict,
+            Verdict::Pass,
+            "substituted commits range must not pass: {:?}",
+            v.checks
+        );
+        let digests = v.checks.iter().find(|c| c.name == CHECK_DIGESTS).unwrap();
+        assert_ne!(
+            digests.verdict,
+            Verdict::Pass,
+            "digests-vs-repo must bind commits.json to manifest.range: {:?}",
+            digests.detail
+        );
+    }
+
+    /// Clawpatch: a digest-updated, structurally valid witness chain
+    /// that attests no commit in the capsule range must degrade the
+    /// witness-chain check — DAG validity is not enough.
+    #[test]
+    fn verify_degrades_when_witness_chain_attests_no_range_commit() {
+        let (dir, base, head) = scratch_repo();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        let mut unrelated = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-06-08T00:00:00Z",
+            "pre-commit",
+            None,
+        );
+        unrelated.commit_sha = Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string());
+        rewrite_recorded(&out, "witness.ndjson", &unrelated.to_ndjson_line().unwrap());
+
+        let v = verify_capsule(&out, dir.path());
+        let witness = v.checks.iter().find(|c| c.name == CHECK_WITNESS).unwrap();
+        assert_eq!(
+            witness.verdict,
+            Verdict::Degraded,
+            "unrelated valid chain must degrade: {:?}",
+            witness.detail
+        );
+        assert_ne!(v.verdict, Verdict::Pass);
+    }
+
+    /// Manifest sequence pointers must be a pair identifying the min/max
+    /// seq of lines whose `commit_sha` is in the capsule range.
+    #[test]
+    fn verify_degrades_when_witness_seq_pointers_mismatch_range() {
+        let (dir, base, head) = scratch_repo();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        let mut manifest =
+            CapsuleManifest::from_json_bytes(&std::fs::read(out.join("manifest.json")).unwrap())
+                .unwrap();
+        manifest.range.witness_seq_start = Some(99);
+        manifest.range.witness_seq_end = Some(99);
+        std::fs::write(
+            out.join("manifest.json"),
+            manifest.to_canonical_bytes().unwrap(),
+        )
+        .unwrap();
+
+        let v = verify_capsule(&out, dir.path());
+        let witness = v.checks.iter().find(|c| c.name == CHECK_WITNESS).unwrap();
+        assert_eq!(
+            witness.verdict,
+            Verdict::Degraded,
+            "wrong seq pointers must degrade: {:?}",
+            witness.detail
+        );
+    }
+
+    /// Sequence pointers are a pair: a lone start or end is not a
+    /// valid window into the embedded chain.
+    #[test]
+    fn verify_degrades_when_witness_seq_pointers_are_unpaired() {
+        let (dir, base, head) = scratch_repo();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        let mut manifest =
+            CapsuleManifest::from_json_bytes(&std::fs::read(out.join("manifest.json")).unwrap())
+                .unwrap();
+        manifest.range.witness_seq_end = None;
+        std::fs::write(
+            out.join("manifest.json"),
+            manifest.to_canonical_bytes().unwrap(),
+        )
+        .unwrap();
+
+        let v = verify_capsule(&out, dir.path());
+        let witness = v.checks.iter().find(|c| c.name == CHECK_WITNESS).unwrap();
+        assert_eq!(
+            witness.verdict,
+            Verdict::Degraded,
+            "unpaired seq pointers must degrade: {:?}",
+            witness.detail
+        );
     }
 }
