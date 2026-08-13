@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner                                                                                                            | Status | Freshness                                                                                                                |
 | ----- | ------------- | ---------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | ADOPT ([`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-05-17 against `tools/test-harness/editor-coexistence/` and `.github/workflows/editor-coexistence.yml` |
+| Guide | Authoritative | ADOPT ([`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-08-13 against `tools/test-harness/editor-coexistence/` and `.github/workflows/editor-coexistence.yml` |
 
 | Upstream                                                                                                                                    | Downstream                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
