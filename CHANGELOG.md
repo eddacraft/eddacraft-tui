@@ -11,6 +11,86 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+This window is about trusting the project config anvil reads: one canonical
+file, one key casing, and migrate/doctor paths for the older names — plus a few
+honesty fixes so Claude's project MCP install, live-validation status, and
+several checks match reality.
+
+### Changed
+
+- **Project config has one canonical filename.** Fresh `anvil init` writes
+  `.anvil.yaml` by default (or `.anvil.json` / `.anvil.toml` if you pick those
+  formats). `.anvilrc` is still read as a fallback, but no command creates one.
+  Convert with `anvil migrate format`.
+
+- **Config keys are `snake_case`.** Owned writes (`anvil init`,
+  `anvil config set`, migrate) emit keys such as `schema_version`. Older
+  `camelCase` files still load; `anvil config show` and `anvil doctor` mention
+  the legacy casing.
+
+- **Gate composition lives in the project config.** `anvil gate-config` reads
+  and writes a `gate` section in that file. A leftover `.anvil/gate-config.json`
+  is no longer used by gate runs; fold it with
+  `anvil migrate gate-config --apply`. A malformed `gate` section is now a loud
+  error on `anvil gate` and `anvil check` instead of being skipped.
+
+- **Architecture can sit in the project file or a pointed-to file.** You can
+  keep `.anvil/architecture.yaml` and record it with
+  `anvil migrate architecture --apply`, or put the definition inline. Unmigrated
+  standalone files still work.
+
+- **When both `anvil/policy.yaml` and `anvil/policy.yml` exist, yaml wins.**
+  `anvil doctor` warns when more than one policy or project-config variant is
+  present and names the winner.
+
+### Added
+
+- **Migration and doctor coverage for the older config names.**
+  `anvil migrate format` renames `.anvilrc`; `anvil migrate gate-config` and
+  `anvil migrate architecture` preview by default and write with `--apply`.
+  `anvil doctor` reports dual-file and legacy-key states.
+
+- **GitHub Actions checks see compact YAML mappings.** Trigger and `uses:` forms
+  written as `{ pull_request_target: … }` or `- { uses: owner/repo@branch }` are
+  no longer invisible to the supply-chain rules.
+
+- **History secret scan covers lockfile URL credentials.** Recognised lockfiles
+  such as `Cargo.lock` and `yarn.lock` are checked for credentials embedded in
+  dependency URLs, instead of being skipped because the path ended in `.lock`.
+
+- **Command-safety unwraps `env -S`.** A wrapped line such as
+  `env -S "rm -rf /"` is treated as the inner command, so the same
+  dangerous-command rules apply.
+
+### Fixed
+
+- **Claude Code project MCP install writes `.mcp.json`.** Project-scoped install
+  used to write workspace `.claude.json`, which Claude does not load for MCP.
+  User and local scope stay on `~/.claude.json`. Re-run
+  `anvil mcp install --client claude-code` (or activation) in a project that was
+  installed the old way.
+
+- **Live-validation status is per client.** When several MCP clients are
+  connected, a participating surface for one of them no longer marks the others
+  as live-validated. Status now follows the client that was actually observed.
+
+- **Windows install has a stable PowerShell short URL.**
+  `irm https://install.eddacraft.ai/windows | iex` always fetches the latest
+  official installer.
+
+- **Snippet-egress consent is no longer a file in the repo.** A committed or
+  checkout-controlled consent file cannot turn source-text snippets on. Consent
+  lives in your user state and is bound to that workspace; use
+  `anvil gctx egress enable` / `disable` as before.
+
+- **Husky coexistence writes the hook files Git actually runs.** After the Husky
+  runtime directory was missing, bootstrap could leave hooks silently dead. The
+  generated `.husky/_/<hook>` entrypoints now run.
+
+- **Commit-protection verify binds the attested range to the evidence.** A
+  substituted range or an unrelated valid witness chain no longer passes as if
+  it belonged to that capsule.
+
 ## [0.9.4-beta] — 2026-08-10 — Clearer install advice and quieter false alarms
 
 This patch is about trusting what anvil tells you: how you installed it, whether
