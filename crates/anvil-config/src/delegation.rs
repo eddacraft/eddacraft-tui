@@ -20,11 +20,11 @@
 //!   absolute paths, Windows drive/UNC forms, symlink targets that
 //!   escape the workspace root after canonicalisation, and
 //!   self-reference back to the main config file.
-//! - **Hardened parse**: delegated targets are read via
-//!   [`crate::read_to_string_bounded`] and parsed via [`crate::parse_str`],
-//!   inheriting the size cap, YAML alias rejection, and depth cap
-//!   (ADR-046) — the legacy `anvil-architecture` YAML parser is never
-//!   handed a delegated path.
+//! - **Hardened parse**: delegated targets are read via the no-follow
+//!   bounded reader (canonicalise, then `O_NOFOLLOW` open of that
+//!   leaf) and parsed via [`crate::parse_str`], inheriting the size
+//!   cap, YAML alias rejection, and depth cap (ADR-046) — the legacy
+//!   `anvil-architecture` YAML parser is never handed a delegated path.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -292,17 +292,37 @@ pub fn resolve_section(
 
     let (canonical, format) = safe_source_path(section, rel, workspace_root, main_config_path)?;
 
-    let contents = crate::read_to_string_bounded(&canonical).map_err(|e| match e {
-        ParseError::NotARegularFile { .. } => DelegationError::NotARegularFile {
-            section: section.to_string(),
-            path: rel.to_string(),
-        },
-        other => DelegationError::Io {
-            section: section.to_string(),
-            path: rel.to_string(),
-            detail: other.to_string(),
-        },
-    })?;
+    // Test-only seam: run *after* the path-safety checks and *before* the
+    // bounded re-open, so a regression can swap the verified leaf for a
+    // symlink or FIFO without depending on a live race.
+    #[cfg(test)]
+    AFTER_SAFE_SOURCE_PATH.with(|hook| {
+        if let Some(hook) = hook.get() {
+            hook(&canonical);
+        }
+    });
+
+    // Open the *canonical* path with no-follow semantics so a
+    // regular→symlink swap after the checks above cannot redirect
+    // the read. A pre-existing in-workspace symlink still works
+    // because `safe_source_path` already resolved it.
+    let contents =
+        crate::parse::read_to_string_bounded_nofollow(&canonical).map_err(|e| match e {
+            ParseError::NotARegularFile { .. } => DelegationError::NotARegularFile {
+                section: section.to_string(),
+                path: rel.to_string(),
+            },
+            ParseError::Symlink { .. } => DelegationError::Io {
+                section: section.to_string(),
+                path: rel.to_string(),
+                detail: "target was replaced with a symlink after validation".to_string(),
+            },
+            other => DelegationError::Io {
+                section: section.to_string(),
+                path: rel.to_string(),
+                detail: other.to_string(),
+            },
+        })?;
     let value =
         crate::parse_str(&contents, format, &canonical).map_err(|e| DelegationError::Parse {
             section: section.to_string(),
@@ -330,6 +350,32 @@ pub fn resolve_section(
             format,
         },
     }))
+}
+
+#[cfg(test)]
+thread_local! {
+    static AFTER_SAFE_SOURCE_PATH: std::cell::Cell<Option<fn(&Path)>> =
+        const { std::cell::Cell::new(None) };
+    static SWAP_DEST: std::cell::RefCell<Option<PathBuf>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn set_after_safe_source_path(hook: Option<fn(&Path)>) {
+    AFTER_SAFE_SOURCE_PATH.set(hook);
+}
+
+/// Clears the test-only post-validation hook on drop so a panicked
+/// race test cannot leak into the next test on the same thread.
+#[cfg(test)]
+struct HookReset;
+
+#[cfg(test)]
+impl Drop for HookReset {
+    fn drop(&mut self) {
+        set_after_safe_source_path(None);
+        SWAP_DEST.with(|slot| *slot.borrow_mut() = None);
+    }
 }
 
 #[cfg(test)]
@@ -495,6 +541,29 @@ mod tests {
         );
     }
 
+    /// A symlink whose *resolved* target stays inside the workspace
+    /// is still a valid delegated source: we canonicalise first, then
+    /// no-follow-open the resolved regular file.
+    #[cfg(unix)]
+    #[test]
+    fn in_workspace_symlink_delegation_still_resolves() {
+        let f = Fixture::new();
+        f.write("real.yaml", "layers:\n  core: {}\n");
+        std::os::unix::fs::symlink(f.root().join("real.yaml"), f.root().join("linked.yaml"))
+            .unwrap();
+        let resolved = f
+            .resolve(&json!({"architecture": {"source": "linked.yaml"}}))
+            .unwrap()
+            .unwrap();
+        assert_eq!(resolved.value["layers"]["core"], json!({}));
+        match resolved.provenance {
+            SectionProvenance::Delegated { .. } => {}
+            other @ SectionProvenance::Inline => {
+                panic!("expected Delegated, got {other:?}")
+            }
+        }
+    }
+
     #[test]
     fn self_reference_is_rejected() {
         let f = Fixture::new();
@@ -629,6 +698,85 @@ mod tests {
         let err = f
             .resolve(&json!({"architecture": {"source": "pipe.yaml"}}))
             .unwrap_err();
+        assert!(
+            matches!(err, DelegationError::NotARegularFile { .. }),
+            "{err}"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "rejection must not block"
+        );
+    }
+
+    /// Clawpatch fnd_sig-feat-library-105b94af10-99d9_666f4dc9a5:
+    /// after `safe_source_path` has canonicalised and typed the
+    /// target, a concurrent writer can replace that leaf with an
+    /// escaping symlink. The resolver must refuse the swapped path
+    /// and must not return the replacement's contents.
+    #[cfg(unix)]
+    #[test]
+    fn delegated_target_symlink_swap_after_validation_is_refused() {
+        let f = Fixture::new();
+        f.write("arch.yaml", "layers:\n  core: {}\n");
+
+        let outside = tempfile::TempDir::new().unwrap();
+        let secret = outside.path().join("secret.yaml");
+        std::fs::write(&secret, "leaked: true\n").unwrap();
+
+        // `fn(&Path)` cannot capture, so the replacement target is
+        // stashed in a thread-local the hook can read.
+        SWAP_DEST.with(|slot| *slot.borrow_mut() = Some(secret));
+        let _reset = HookReset;
+
+        set_after_safe_source_path(Some(|canonical| {
+            let dest = SWAP_DEST
+                .with(|slot| slot.borrow().clone())
+                .expect("swap dest set");
+            std::fs::remove_file(canonical).expect("unlink verified target");
+            std::os::unix::fs::symlink(&dest, canonical).expect("plant escaping symlink");
+        }));
+
+        let err = f
+            .resolve(&json!({"architecture": {"source": "arch.yaml"}}))
+            .expect_err("swapped symlink must be refused");
+        let msg = err.to_string();
+        assert!(
+            !msg.contains("leaked"),
+            "error must not echo the replacement body: {msg}"
+        );
+        match err {
+            DelegationError::Io { detail, .. } => {
+                assert!(
+                    detail.contains("replaced with a symlink"),
+                    "got detail: {detail}"
+                );
+            }
+            other => panic!("expected Io refusal, got {other}"),
+        }
+    }
+
+    /// Same seam as the symlink-swap test: a FIFO planted after
+    /// validation must be refused promptly, not hung on open.
+    #[cfg(unix)]
+    #[test]
+    fn delegated_target_fifo_swap_after_validation_is_refused() {
+        let f = Fixture::new();
+        f.write("arch.yaml", "layers:\n  core: {}\n");
+        let _reset = HookReset;
+
+        set_after_safe_source_path(Some(|canonical| {
+            std::fs::remove_file(canonical).expect("unlink verified target");
+            let status = std::process::Command::new("mkfifo")
+                .arg(canonical)
+                .status()
+                .expect("mkfifo");
+            assert!(status.success(), "mkfifo failed: {status}");
+        }));
+
+        let started = std::time::Instant::now();
+        let err = f
+            .resolve(&json!({"architecture": {"source": "arch.yaml"}}))
+            .expect_err("swapped FIFO must be refused");
         assert!(
             matches!(err, DelegationError::NotARegularFile { .. }),
             "{err}"

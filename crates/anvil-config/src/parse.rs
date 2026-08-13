@@ -33,6 +33,12 @@ pub enum ParseError {
     /// promptly instead of hanging the command.
     #[error("config path {path} is not a regular file (FIFO, device, or directory)")]
     NotARegularFile { path: PathBuf },
+    /// Leaf symlink refused by a no-follow open. Used after a
+    /// delegated target has already been canonicalised, so a
+    /// concurrent swap cannot redirect the read outside the
+    /// workspace (or at all).
+    #[error("config path {path} is a symlink (refused by no-follow open)")]
+    Symlink { path: PathBuf },
     #[error("unrecognised extension on {path}: only yaml/yml/json/toml are accepted")]
     UnrecognisedExtension { path: PathBuf },
     #[error("yaml parse error in {path}: {source}")]
@@ -311,8 +317,32 @@ pub fn parse_file(path: &Path) -> Result<Value, ParseError> {
 /// for a writer. The delegation-layer `stat` guard is now
 /// defence-in-depth against the same class.
 pub fn read_to_string_bounded(path: &Path) -> Result<String, ParseError> {
+    read_to_string_bounded_with(path, LeafFollow::Follow)
+}
+
+/// Bounded read that refuses a final-component symlink.
+///
+/// Delegation calls this on a *canonical* path after workspace
+/// containment has already been proven. `O_NOFOLLOW` then closes
+/// the check/open window: a concurrent swap of that leaf for a
+/// symlink (escaping or otherwise) fails the open rather than
+/// being followed.
+pub(crate) fn read_to_string_bounded_nofollow(path: &Path) -> Result<String, ParseError> {
+    read_to_string_bounded_with(path, LeafFollow::NoFollow)
+}
+
+#[derive(Clone, Copy)]
+enum LeafFollow {
+    /// Follow a leaf symlink. Main-config / discover paths still
+    /// accept a symlink to a regular file.
+    Follow,
+    /// Refuse a leaf symlink (`O_NOFOLLOW` on Unix).
+    NoFollow,
+}
+
+fn read_to_string_bounded_with(path: &Path, follow: LeafFollow) -> Result<String, ParseError> {
     use std::io::Read;
-    let file = open_regular_nonblocking(path)?;
+    let file = open_regular_nonblocking(path, follow)?;
     let metadata = file.metadata().map_err(|source| ParseError::Io {
         path: path.to_path_buf(),
         source,
@@ -348,24 +378,44 @@ pub fn read_to_string_bounded(path: &Path) -> Result<String, ParseError> {
 
 /// Open `path` without blocking on a FIFO, then refuse anything
 /// that is not a regular file on the held descriptor.
-fn open_regular_nonblocking(path: &Path) -> Result<std::fs::File, ParseError> {
+fn open_regular_nonblocking(path: &Path, follow: LeafFollow) -> Result<std::fs::File, ParseError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
 
         // O_NONBLOCK: a FIFO open does not wait for a writer.
         // O_CLOEXEC: keep the handle out of child processes.
+        // O_NOFOLLOW (optional): refuse a leaf symlink instead of
+        // following it — closes the check/open TOCTOU against a
+        // concurrent symlink swap.
         // The type check is fstat-on-the-held-fd (not a second path
         // lookup) so a regular→FIFO swap between a prior stat and
         // this open cannot hang the command.
-        let file = std::fs::OpenOptions::new()
+        let mut flags = libc::O_NONBLOCK | libc::O_CLOEXEC;
+        if matches!(follow, LeafFollow::NoFollow) {
+            flags |= libc::O_NOFOLLOW;
+        }
+        let file = match std::fs::OpenOptions::new()
             .read(true)
-            .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC)
+            .custom_flags(flags)
             .open(path)
-            .map_err(|source| ParseError::Io {
-                path: path.to_path_buf(),
-                source,
-            })?;
+        {
+            Ok(file) => file,
+            Err(source)
+                if matches!(follow, LeafFollow::NoFollow)
+                    && source.raw_os_error() == Some(libc::ELOOP) =>
+            {
+                return Err(ParseError::Symlink {
+                    path: path.to_path_buf(),
+                });
+            }
+            Err(source) => {
+                return Err(ParseError::Io {
+                    path: path.to_path_buf(),
+                    source,
+                });
+            }
+        };
         let meta = file.metadata().map_err(|source| ParseError::Io {
             path: path.to_path_buf(),
             source,
@@ -380,13 +430,21 @@ fn open_regular_nonblocking(path: &Path) -> Result<std::fs::File, ParseError> {
 
     #[cfg(not(unix))]
     {
-        // Best-effort: follow the path (so a symlink to a regular
-        // config still works) and refuse anything that is not a
-        // regular file. A concurrent swap remains possible here.
-        let meta = std::fs::metadata(path).map_err(|source| ParseError::Io {
+        // Best-effort: refuse a known leaf symlink / non-file before
+        // open. A concurrent swap remains possible on these platforms.
+        let meta = match follow {
+            LeafFollow::NoFollow => std::fs::symlink_metadata(path),
+            LeafFollow::Follow => std::fs::metadata(path),
+        }
+        .map_err(|source| ParseError::Io {
             path: path.to_path_buf(),
             source,
         })?;
+        if matches!(follow, LeafFollow::NoFollow) && meta.file_type().is_symlink() {
+            return Err(ParseError::Symlink {
+                path: path.to_path_buf(),
+            });
+        }
         if !meta.is_file() {
             return Err(ParseError::NotARegularFile {
                 path: path.to_path_buf(),
@@ -848,5 +906,25 @@ telemetry:
             matches!(err, ParseError::NotARegularFile { .. }),
             "got {err:?}"
         );
+    }
+
+    /// No-follow open refuses a leaf symlink rather than reading the
+    /// target. This is the primitive the delegation resolver uses
+    /// after canonicalisation.
+    #[cfg(unix)]
+    #[test]
+    fn nofollow_read_refuses_leaf_symlink() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("secret.yaml");
+        std::fs::write(&target, "leaked: true\n").unwrap();
+        let link = tmp.path().join("link.yaml");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        let err = read_to_string_bounded_nofollow(&link).expect_err("leaf symlink must be refused");
+        assert!(matches!(err, ParseError::Symlink { .. }), "got {err:?}");
+        // The following reader still accepts the same path — the
+        // nofollow flag is what changes the outcome.
+        let followed = read_to_string_bounded(&link).expect("follow path still works");
+        assert_eq!(followed, "leaked: true\n");
     }
 }
