@@ -354,6 +354,9 @@ jobs:
           # cargo-dist's top-level param(...) block (insert_after_param).
           # Prepending a full script (second param + exit 0) made clean installs a
           # silent no-op on Windows.
+          # Also initialise $Args after param so powershell -File works:
+          # cargo-dist later does Install-Binary "$Args" under Set-StrictMode,
+          # and -File leaves $Args unset (irm | iex still has a caller $args).
           ps1="$(find target/distrib -name 'eddacraft-anvil-installer.ps1' -print -quit 2>/dev/null || true)"
           guard="scripts/install/windows-package-manager-guard.ps1"
           inject="scripts/install/inject-windows-pm-guard.py"

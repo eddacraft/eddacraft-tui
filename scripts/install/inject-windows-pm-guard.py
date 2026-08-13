@@ -6,6 +6,10 @@ a silent no-op. Inject *after* the first top-level `param (...)`.
 
 The banner written here lands in the public installer, so it — like the guard
 itself — carries no internal tracker ids.
+
+Also initialise `$Args` when `powershell -File` left it unset. cargo-dist later
+does `Install-Binary "$Args"` after `Set-StrictMode`; `irm | iex` already has
+a caller `$args` and is left unchanged.
 """
 from __future__ import annotations
 
@@ -25,6 +29,12 @@ def inject(ps1_path: Path, guard_path: Path) -> None:
     head, rest = match.group(0), ps1[match.end() :]
     out = (
         head
+        + "\n"
+        + "# powershell -File does not populate $Args after param;\n"
+        + "# cargo-dist later reads it under Set-StrictMode.\n"
+        + "if (-not (Get-Variable -Name Args -ErrorAction SilentlyContinue)) {\n"
+        + "    $Args = @()\n"
+        + "}\n"
         + "\n# --- begin anvil package-manager dual-install guard ---\n"
         + "# Injected after cargo-dist param (insert_after_param; not prepended).\n"
         + guard

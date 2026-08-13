@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Contract tests for the Windows package-manager dual-install guard (CIB-228/230).
+# Contract tests for the Windows package-manager dual-install guard (CIB-228/230)
+# and powershell -File $Args safety (CIB-325).
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
@@ -97,6 +98,10 @@ grep -Fq 'insert_after_param' "$RELEASE_YML" \
 
 # Fixture: assemble a fake cargo-dist installer the way release does and assert
 # the cargo-dist body remains reachable (no early exit 0 in the prefix).
+#
+# Shape matches cargo-dist's generated installer: param, then later
+# Set-StrictMode + Install-Binary "$Args". powershell -File leaves $Args
+# unset after param; irm | iex inherits a caller $args.
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 fake_ps1="$tmp/eddacraft-anvil-installer.ps1"
@@ -106,7 +111,16 @@ param (
     [switch]$NoModifyPath,
     [switch]$Help
 )
-Write-Host "CARGO_DIST_BODY_REACHED"
+function Install-Binary($install_args) {
+    Write-Host "CARGO_DIST_BODY_REACHED"
+}
+Set-StrictMode -Version Latest
+try {
+  Install-Binary "$Args"
+} catch {
+  Write-Information $_
+  exit 1
+}
 PS1
 
 python3 "$INJECT" "$fake_ps1" "$GUARD"
@@ -128,5 +142,83 @@ fi
 if grep -nE 'GH[[:space:]]*#[0-9]+|GitHub[[:space:]]*#[0-9]+' "$fake_ps1" >/dev/null; then
   fail "assembled public installer must not contain GH/GitHub #NNNN (CIB-230)"
 fi
+if grep -nE '(CIB|ADR|EVAL)-[0-9]+' "$fake_ps1" >/dev/null; then
+  fail "assembled public installer must not contain internal tracker ids (CIB-230)"
+fi
+
+# Conceptual powershell -File run: $Args starts unset (no inherited caller
+# $args). After param, Set-StrictMode makes a later "$Args" read throw
+# unless the post-process initialised $Args or dropped the pass-through.
+# Must reach the cargo-dist install body, not variable-not-set.
+python3 - "$fake_ps1" <<'PY' || fail "assembled installer is not safe under powershell -File + Set-StrictMode (\$Args unset)"
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+match = re.search(r"(?ms)^(\s*param\s*\(.*?\))\s*\r?\n", text)
+if not match:
+    print("conceptual -File run: no param block", file=sys.stderr)
+    sys.exit(1)
+rest = text[match.end() :]
+args_defined = False
+strict = False
+reached_body = False
+
+
+def code_only(line: str) -> str:
+    # Strip unquoted comments. Quoted # is not a comment.
+    out = []
+    in_squote = False
+    in_dquote = False
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "'" and not in_dquote:
+            in_squote = not in_squote
+            out.append(ch)
+        elif ch == '"' and not in_squote:
+            in_dquote = not in_dquote
+            out.append(ch)
+        elif ch == "#" and not in_squote and not in_dquote:
+            break
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+for raw in rest.splitlines():
+    line = code_only(raw)
+    if re.search(r"(?i)Set-StrictMode\b", line):
+        strict = True
+    if re.search(r"(?i)\$Args\s*=", line):
+        args_defined = True
+    if re.search(r"(?i)CARGO_DIST_BODY_REACHED", line):
+        reached_body = True
+    # A read of $Args (not an assignment) under StrictMode with $Args unset
+    # is the -File failure mode.
+    if (
+        strict
+        and not args_defined
+        and re.search(r"(?i)\$Args\b", line)
+        and not re.search(r"(?i)\$Args\s*=", line)
+    ):
+        print(
+            "conceptual -File run: $Args read under Set-StrictMode while unset:",
+            line.strip(),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if re.search(r"(?i)\bInstall-Binary\b", line) and not re.search(
+        r"(?i)\bfunction\s+Install-Binary\b", line
+    ):
+        reached_body = True
+
+if not reached_body:
+    print("conceptual -File run: never reached install body", file=sys.stderr)
+    sys.exit(1)
+print("conceptual -File run: reached install body")
+PY
 
 echo "windows-package-manager-guard.test.sh: ok"
