@@ -46,7 +46,9 @@ try {
   });
 
   if (result.dryRun) {
-    console.log(`\n${result.affected} account(s) would be backfilled. Re-run with --apply to write.`);
+    console.log(
+      `\n${result.affected} account(s) would be backfilled. Re-run with --apply to write.`
+    );
   } else {
     console.log(`\nbackfilled ${result.affected} account(s).`);
   }
