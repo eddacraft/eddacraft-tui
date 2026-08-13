@@ -295,7 +295,7 @@ pub fn resolve_section(
     // Test-only seam: run *after* the path-safety checks and *before* the
     // bounded re-open, so a regression can swap the verified leaf for a
     // symlink or FIFO without depending on a live race.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     AFTER_SAFE_SOURCE_PATH.with(|hook| {
         if let Some(hook) = hook.get() {
             hook(&canonical);
@@ -352,7 +352,7 @@ pub fn resolve_section(
     }))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 thread_local! {
     static AFTER_SAFE_SOURCE_PATH: std::cell::Cell<Option<fn(&Path)>> =
         const { std::cell::Cell::new(None) };
@@ -360,17 +360,17 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn set_after_safe_source_path(hook: Option<fn(&Path)>) {
     AFTER_SAFE_SOURCE_PATH.set(hook);
 }
 
 /// Clears the test-only post-validation hook on drop so a panicked
 /// race test cannot leak into the next test on the same thread.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 struct HookReset;
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 impl Drop for HookReset {
     fn drop(&mut self) {
         set_after_safe_source_path(None);
