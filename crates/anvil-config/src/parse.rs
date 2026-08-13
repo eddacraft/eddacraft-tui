@@ -380,13 +380,14 @@ fn open_regular_nonblocking(path: &Path) -> Result<std::fs::File, ParseError> {
 
     #[cfg(not(unix))]
     {
-        // Best-effort: refuse known non-files before open. A
-        // concurrent swap remains possible on these platforms.
-        let meta = std::fs::symlink_metadata(path).map_err(|source| ParseError::Io {
+        // Best-effort: follow the path (so a symlink to a regular
+        // config still works) and refuse anything that is not a
+        // regular file. A concurrent swap remains possible here.
+        let meta = std::fs::metadata(path).map_err(|source| ParseError::Io {
             path: path.to_path_buf(),
             source,
         })?;
-        if !meta.file_type().is_file() {
+        if !meta.is_file() {
             return Err(ParseError::NotARegularFile {
                 path: path.to_path_buf(),
             });

@@ -90,10 +90,13 @@ impl FileFilter {
         if self.exempt_paths.is_empty() {
             return false;
         }
-        let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-        self.exempt_paths
-            .iter()
-            .any(|exempt| exempt == &canon || exempt == path)
+        if self.exempt_paths.iter().any(|exempt| exempt == path) {
+            return true;
+        }
+        let Ok(canon) = path.canonicalize() else {
+            return false;
+        };
+        self.exempt_paths.iter().any(|exempt| exempt == &canon)
     }
 
     /// Default ignore patterns for typical projects. Derived from the

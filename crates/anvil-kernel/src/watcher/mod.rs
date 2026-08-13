@@ -296,10 +296,24 @@ pub fn start_watcher(
     // `.git`, `target`, etc.) at the OS level to avoid exhausting inotify
     // limits.
     let filter = config.filter.clone().unwrap_or_default();
-    let diagnostics = watch_directories(&mut watcher, &config.root, &filter, progress)?;
+    let mut diagnostics = watch_directories(&mut watcher, &config.root, &filter, progress)?;
     for extra in &config.extra_watch_dirs {
-        if extra.exists() {
-            let _ = watcher.watch(extra, RecursiveMode::NonRecursive);
+        if !extra.exists() {
+            continue;
+        }
+        match watcher.watch(extra, RecursiveMode::NonRecursive) {
+            Ok(()) => diagnostics.registered += 1,
+            Err(e) => {
+                diagnostics.failed += 1;
+                if matches!(e.kind, notify::ErrorKind::MaxFilesWatch) {
+                    diagnostics.limit_exhausted = true;
+                }
+                if diagnostics.sample_errors.len() < 3 {
+                    diagnostics
+                        .sample_errors
+                        .push(format!("{}: {e}", extra.display()));
+                }
+            }
         }
     }
 
