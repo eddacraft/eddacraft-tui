@@ -151,9 +151,11 @@ fn round_trip(body: &[u8]) -> Result<String> {
     round_trip_on(&resolve_endpoint()?, body)
 }
 
-/// Connect only after the same socket-path and peer checks used by
-/// `anvil intercept status`. Heartbeats and request/response share
-/// this helper so a substituted rendezvous cannot receive session ids.
+/// Open a Unix daemon stream after the same owner-only checks used by
+/// `anvil intercept status`: preflight the socket path, connect, then
+/// validate the connected peer before any write. Heartbeats and
+/// request/response share this helper so a substituted rendezvous
+/// cannot receive session ids.
 #[cfg(unix)]
 fn open_validated_unix_stream(path: &Path) -> Result<std::os::unix::net::UnixStream> {
     use std::os::unix::net::UnixStream;
