@@ -22,12 +22,26 @@ use anvil_kernel_types::protection_claim::{
     WorktreeClaimState,
 };
 
+/// Headline fixtures isolate the worktree-state field. `full` is the
+/// exception: spec §14.2 requires at least one protecting surface.
+fn surfaces_for_worktree_headline(state: WorktreeClaimState) -> Vec<SurfaceClaim> {
+    if state == WorktreeClaimState::Full {
+        vec![SurfaceClaim {
+            identifier: "contract-test-full".into(),
+            state: SurfaceClaimState::Participating,
+        }]
+    } else {
+        vec![]
+    }
+}
+
 /// Every §14.2 state is reachable and survives a JSON round-trip
 /// without losing its identity.
 #[test]
 fn every_worktree_state_round_trips_through_json() {
     for state in WorktreeClaimState::all() {
-        let claim = ProtectionClaim::new(*state, vec![]);
+        let surfaces = surfaces_for_worktree_headline(*state);
+        let claim = ProtectionClaim::new(*state, surfaces);
         let line = serde_json::to_string(&claim).expect("serialise");
         let back: ProtectionClaim = serde_json::from_str(&line).expect("deserialise round-trip");
         assert_eq!(

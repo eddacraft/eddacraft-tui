@@ -132,10 +132,19 @@ fn surface_fixture_path(state: SurfaceClaimState) -> PathBuf {
 
 /// Synthesise the canonical fixture claim for a worktree state. The
 /// surfaces array is empty so the fixture isolates the worktree-
-/// state field — surface-state fixtures live in a separate set with
-/// a pinned `Full` worktree state.
+/// state field, except for `Full` which spec §14.2 requires to name
+/// at least one protecting surface. Surface-state fixtures live in
+/// a separate set with a pinned `Full` worktree state.
 fn fixture_for_worktree(state: WorktreeClaimState) -> ProtectionClaim {
-    ProtectionClaim::new(state, vec![])
+    let surfaces = if state == WorktreeClaimState::Full {
+        vec![SurfaceClaim {
+            identifier: "surface-fixture".into(),
+            state: SurfaceClaimState::Participating,
+        }]
+    } else {
+        vec![]
+    };
+    ProtectionClaim::new(state, surfaces)
 }
 
 /// Synthesise the canonical fixture claim for a surface state. The

@@ -98,6 +98,15 @@ describe('parseProtectionClaim (Rust → TS parity)', () => {
     });
   });
 
+  it('rejects a full claim with no protecting surfaces', () => {
+    const wire = {
+      schema_version: PROTECTION_CLAIM_SCHEMA_VERSION,
+      worktree_state: 'full',
+      surfaces: [],
+    };
+    expect(() => parseProtectionClaim(wire)).toThrow(/full.*surface/);
+  });
+
   it('rejects an unknown schema_version (Rust enforces this at the type boundary)', () => {
     const wire = {
       schema_version: 'anvil.protection-claim.v999',

@@ -1,5 +1,10 @@
 {
   "schema_version": "anvil.protection-claim.v1",
   "worktree_state": "full",
-  "surfaces": []
+  "surfaces": [
+    {
+      "identifier": "surface-fixture",
+      "state": "participating"
+    }
+  ]
 }

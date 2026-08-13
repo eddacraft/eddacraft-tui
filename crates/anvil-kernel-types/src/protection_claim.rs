@@ -187,14 +187,59 @@ pub struct ProtectionClaim {
 impl ProtectionClaim {
     /// Build a claim at the pinned schema version. Mostly used by
     /// tests and the (deferred) status-render path.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the state/surface combination is invalid (for
+    /// example [`WorktreeClaimState::Full`] with no surfaces). Prefer
+    /// [`Self::try_new`] when the combination is not already known-good.
     #[must_use]
     pub fn new(worktree_state: WorktreeClaimState, surfaces: Vec<SurfaceClaim>) -> Self {
-        Self {
-            schema_version: PROTECTION_CLAIM_SCHEMA_VERSION.to_string(),
+        Self::try_new(worktree_state, surfaces)
+            .unwrap_or_else(|err| panic!("invalid ProtectionClaim: {err}"))
+    }
+
+    /// Fallible constructor sharing the deserialise-path state/surface
+    /// invariants. Prefer this when the combination is not already
+    /// known-good.
+    pub fn try_new(
+        worktree_state: WorktreeClaimState,
+        surfaces: Vec<SurfaceClaim>,
+    ) -> Result<Self, String> {
+        Self::from_validated(
+            PROTECTION_CLAIM_SCHEMA_VERSION.to_string(),
             worktree_state,
             surfaces,
-        }
+        )
     }
+
+    fn from_validated(
+        schema_version: String,
+        worktree_state: WorktreeClaimState,
+        surfaces: Vec<SurfaceClaim>,
+    ) -> Result<Self, String> {
+        validate_state_surfaces(worktree_state, &surfaces)?;
+        Ok(Self {
+            schema_version,
+            worktree_state,
+            surfaces,
+        })
+    }
+}
+
+/// State-to-surface invariants that both construction and
+/// deserialisation must honour. `SurfaceClaim` has no role/backend
+/// field, so the documented "daemon-backed MCP + participating
+/// editor" pairing cannot be checked here — only that `full` is
+/// never minted with no known surfaces.
+fn validate_state_surfaces(
+    worktree_state: WorktreeClaimState,
+    surfaces: &[SurfaceClaim],
+) -> Result<(), String> {
+    if worktree_state == WorktreeClaimState::Full && surfaces.is_empty() {
+        return Err("worktree_state \"full\" requires at least one protecting surface".to_string());
+    }
+    Ok(())
 }
 
 /// Wire-shape intermediate used by [`ProtectionClaim`]'s
@@ -218,11 +263,7 @@ impl TryFrom<ProtectionClaimRaw> for ProtectionClaim {
                 raw.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION,
             ));
         }
-        Ok(Self {
-            schema_version: raw.schema_version,
-            worktree_state: raw.worktree_state,
-            surfaces: raw.surfaces,
-        })
+        Self::from_validated(raw.schema_version, raw.worktree_state, raw.surfaces)
     }
 }
 
@@ -503,7 +544,13 @@ mod tests {
     /// Sanity: the pinned current `schema_version` still round-trips.
     #[test]
     fn pinned_schema_version_round_trips() {
-        let claim = ProtectionClaim::new(WorktreeClaimState::Full, vec![]);
+        let claim = ProtectionClaim::new(
+            WorktreeClaimState::Full,
+            vec![SurfaceClaim {
+                identifier: "mcp-shim-claude".into(),
+                state: SurfaceClaimState::Participating,
+            }],
+        );
         let line = serde_json::to_string(&claim).expect("serialise");
         let back: ProtectionClaim = serde_json::from_str(&line).expect("deserialise round-trip");
         assert_eq!(back.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION);
@@ -523,14 +570,14 @@ mod tests {
         let wire = r#"{
             "schema_version": "anvil.protection-claim.v1",
             "worktree_state": "full",
-            "surfaces": [],
+            "surfaces": [{"identifier":"mcp-shim-claude","state":"participating"}],
             "degraded_reasons": ["surface-drift", "rule-pack-mismatch"]
         }"#;
         let claim: ProtectionClaim = serde_json::from_str(wire)
             .expect("unknown optional top-level field must be silently ignored");
         assert_eq!(claim.schema_version, PROTECTION_CLAIM_SCHEMA_VERSION);
         assert_eq!(claim.worktree_state, WorktreeClaimState::Full);
-        assert!(claim.surfaces.is_empty());
+        assert_eq!(claim.surfaces.len(), 1);
     }
 
     /// The unknown optional field is not re-emitted by serialise —
@@ -623,5 +670,74 @@ mod tests {
         assert_eq!(claim.worktree_state, WorktreeClaimState::Full);
         assert_eq!(claim.surfaces.len(), 1);
         assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Participating);
+    }
+
+    /// Spec §14.2: `full` requires protecting surfaces. An empty
+    /// `surfaces` array is not a type-valid Full claim — status /
+    /// MCP / doctor consumers must not see "fully protected" with
+    /// no known surfaces.
+    #[test]
+    fn full_claim_with_no_surfaces_fails_to_deserialise() {
+        let wire = r#"{"schema_version":"anvil.protection-claim.v1","worktree_state":"full","surfaces":[]}"#;
+        let result: Result<ProtectionClaim, _> = serde_json::from_str(wire);
+        assert!(
+            result.is_err(),
+            "full + empty surfaces must reject at deserialise: {result:?}",
+        );
+        let err_text = result.unwrap_err().to_string();
+        assert!(
+            err_text.contains("full") && err_text.contains("surface"),
+            "diagnostic should name the full/surfaces invariant, got: {err_text}",
+        );
+    }
+
+    /// Construction shares the deserialise invariant so in-process
+    /// producers cannot mint a type-validated Full claim with no
+    /// surfaces either.
+    #[test]
+    fn full_claim_with_no_surfaces_fails_to_construct() {
+        let result = ProtectionClaim::try_new(WorktreeClaimState::Full, vec![]);
+        assert!(
+            result.is_err(),
+            "full + empty surfaces must reject at construction: {result:?}",
+        );
+        let err_text = result.unwrap_err();
+        assert!(
+            err_text.contains("full") && err_text.contains("surface"),
+            "diagnostic should name the full/surfaces invariant, got: {err_text}",
+        );
+    }
+
+    /// Positive fixtures: states that may have no attachments still
+    /// construct with an empty `surfaces` array; Full remains valid
+    /// once at least one protecting surface is present.
+    #[test]
+    fn permitted_aggregate_states_construct() {
+        let empty_ok = [
+            WorktreeClaimState::Unprotected,
+            WorktreeClaimState::Warming,
+            WorktreeClaimState::PreWriteEmbedded,
+            WorktreeClaimState::PreWriteDaemon,
+            WorktreeClaimState::SaveTimeOnly,
+            WorktreeClaimState::DegradedProtection,
+            WorktreeClaimState::CrossBoundaryMixed,
+            WorktreeClaimState::MultiDaemonDetected,
+            WorktreeClaimState::PathUncertain,
+        ];
+        for state in empty_ok {
+            ProtectionClaim::try_new(state, vec![]).unwrap_or_else(|err| {
+                panic!("{state:?} with empty surfaces must remain constructible: {err}")
+            });
+        }
+        let full = ProtectionClaim::try_new(
+            WorktreeClaimState::Full,
+            vec![SurfaceClaim {
+                identifier: "mcp-shim-claude".into(),
+                state: SurfaceClaimState::Participating,
+            }],
+        )
+        .expect("full with a protecting surface must construct");
+        assert_eq!(full.worktree_state, WorktreeClaimState::Full);
+        assert_eq!(full.surfaces.len(), 1);
     }
 }

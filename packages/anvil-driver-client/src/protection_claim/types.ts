@@ -205,10 +205,15 @@ export function parseProtectionClaim(value: unknown): ProtectionClaim {
     );
   }
 
+  const parsedSurfaces = surfaces.map(parseSurfaceClaim);
+  if (worktreeState === 'full' && parsedSurfaces.length === 0) {
+    throw new TypeError('worktree_state "full" requires at least one protecting surface');
+  }
+
   return {
     schema_version: PROTECTION_CLAIM_SCHEMA_VERSION,
     worktree_state: worktreeState as WorktreeClaimState,
-    surfaces: surfaces.map(parseSurfaceClaim),
+    surfaces: parsedSurfaces,
   };
 }
 
