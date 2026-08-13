@@ -49,7 +49,7 @@ confirmed by FEFF-002 before implementation).
 | Design | Simple retrospective/prospective before-and-after comparison |
 | Historical window | 6–12 weeks immediately before activation, frozen before extraction |
 | Active window | 10 working days with anvil; extend only under the pre-registered low-activity rule |
-| Activity gate | At least 10 merged PRs or 50 relevant commits across the paired periods; neither period may be empty |
+| Activity gate | Use one frozen activity unit for both periods: at least 5 eligible merged PRs in each period (10 total), or 25 eligible commits in each period (50 total), with no more than 3:1 exposure imbalance |
 | Cohort | Minimum one eligible repository; target three independent teams/repositories; stretch five or more |
 | Export | Local, user-reviewed manual bundle only; no automatic upload |
 | Claim posture | Descriptive observational evidence; never a causal claim |
@@ -59,6 +59,22 @@ default maximum is 20 working days. If the activity gate is still unmet at that
 point, the result remains descriptive and is labelled insufficient for a
 comparative product claim; the window is not extended selectively after
 results are inspected.
+
+The protocol selects the activity unit before extraction. Complete,
+authoritative PR metadata is preferred; otherwise the study uses commits. An
+eligible commit is a non-merge change to the pre-registered in-scope source,
+test, architecture, or configuration paths; generated, vendored,
+dependency-lock-only, study-tooling, and period-boundary adjustment commits are
+excluded. These definitions and the 3:1 exposure limit are frozen before
+outcomes are visible. A repository below either period's floor is
+descriptive-only.
+
+An eligible merged PR targets the frozen integration branch and contains at
+least one eligible in-scope change under the same path and exclusion rules.
+Documentation-only, generated-only, vendored-only, dependency-only, bot-only,
+revert-only, backport/duplicate, and study-tooling PRs do not qualify. A mixed
+PR counts once; linked PRs that deliver one logical change count once under a
+grouping frozen before extraction.
 
 ### Cohort and claim ladder
 
@@ -75,6 +91,20 @@ descriptive cases but do not enter the comparative aggregate. Results are
 reported per repository before any cross-repository summary; raw event counts
 are not pooled across repositories of different sizes.
 
+Before outcomes are inspected, the study register freezes recruitment
+channels, invitees, repository and team independence rules, inclusion and
+exclusion criteria, and the enrolled cohort. The default recruitment window is
+20 working days and closes at its end or when five consented repositories meet
+the frozen baseline-only provisional criteria, whichever comes first. That
+cohort is fixed before prospective collection. Active-period eligibility is
+assessed only during analysis; it cannot reopen or extend recruitment. Results
+must never influence early stopping. Invited, declined, enrolled, withdrawn,
+capture-failed, ineligible, and
+descriptive-only cases remain in the recruitment funnel. Withdrawal controls
+future use of that participant's data; only the minimal, consented
+accountability record may remain. Reports include attrition and sensitivity
+analyses rather than complete cases alone.
+
 ### Metric and evidence boundaries
 
 | Outcome | Retrospective source | Prospective source | Honest claim boundary |
@@ -90,22 +120,52 @@ reliable, pre-existing label or authoritative metadata. Commit authorship,
 message style, diff shape, or model-like prose must never be used to infer AI
 assistance.
 
+### Criterion-to-evidence boundary
+
+| Index success criterion | First-study capability | Completion rule |
+| ----------------------- | ---------------------- | --------------- |
+| At least 50% of developers run anvil on every save | Directional prospective developer-day adoption proxy only | Remains unchecked unless an authoritative developer population and independently valid per-developer every-save denominator exist |
+| No increase in AI-assisted time-to-merge | Overall throughput direction, stratified by size; AI subset only with pre-existing authoritative metadata | Remains unchecked without the authoritative AI subset and its pre-registered comparator |
+| New cross-boundary edges fall 30% over eight weeks | Directional 10–20-working-day transition rate | Remains unchecked until the active observation horizon is at least eight weeks under the same protocol |
+| Fewer than 10% of warnings are suppressed without resolution | Prospective warning disposition only; historical deterministic violations stay a separate proxy | Remains unchecked without comparable warning denominators and resolution follow-up in both periods |
+
+The verifier's claims allowlist mechanically separates directional field
+evidence from criterion completion. The first study cannot check a criterion
+merely because its directional result is favourable.
+
 ### Retrospective replay contract
 
 1. Freeze the study windows, selection cadence, anvil version/SHA, rule
    catalogue digest, architecture configuration digest, and metric dictionary
    before inspecting results.
-2. Prefer merged-PR heads when complete GitHub metadata is available; otherwise
-   use a documented first-parent or weekly-tip cadence consistently for that
-   repository.
-3. Materialise historical commits only in bounded temporary detached
-   worktrees. Never switch, reset, clean, or write into a participant's working
-   checkout.
-4. Apply the same pinned analyser and approved boundary definition to both
+2. Freeze one change-transition unit per repository and use it in both periods:
+   the merge parent to merged-PR head when complete PR metadata exists,
+   otherwise every eligible first-parent commit's parent to result. Analyse
+   both sides of every transition; weekly-tip sampling is not comparative
+   evidence.
+3. Record whether the frozen boundary definition was valid at each historical
+   point. Report present-policy replay as retroactive conformance separately
+   from contemporaneous drift, and never aggregate repositories with
+   incompatible transition or policy evidence classes.
+4. Materialise historical trees only through sanitised Git configuration or
+   non-checkout plumbing. Disable hooks, external filters, submodules, LFS,
+   credential helpers, and repository-defined executables. Never install
+   dependencies or execute participant code.
+5. Run only the pinned absolute analyser in a no-network, credential-stripped
+   isolation boundary with a temporary state root, bounded process, time,
+   memory, and disk budgets, and symlink/path-containment checks. Never switch,
+   reset, clean, or write into a participant's working checkout.
+6. Apply the same pinned analyser and approved boundary definition to both
    periods. A snapshot that cannot load that definition is an evidence gap.
-5. Record analysed and skipped snapshots, failure reasons, files/languages in
+7. Record analysed and skipped snapshots, failure reasons, files/languages in
    scope, and rule/config changes so coverage accompanies every result.
-6. Normalise drift counts by eligible change activity as well as reporting
+8. Default comparative coverage floors are 90% of selected transitions in each
+   period and 90% of prospective eligible developer-days for metrics that
+   depend on daily capture. FEFF-001 may replace these only before enrolment.
+   Below-floor metrics are descriptive-only and carry worst-case or sensitivity
+   bounds; missingness is never silently dropped.
+9. Normalise drift counts by the same frozen eligible activity unit as well as
+   reporting
    absolute counts; do not let a quieter active period look safer by default.
 
 ### Manual bundle boundary
@@ -115,19 +175,56 @@ machine until a person reviews the exact export and explicitly approves it.
 
 The export bundle contains only schema-versioned aggregates and provenance:
 
-- a random study/repository pseudonym, never the repository name;
-- frozen period, selection, tool, rule, and configuration fingerprints;
+- a study-and-recipient-specific pseudonym, never the repository name;
+- bucketed period and activity values plus recipient-specific, unlinkable
+  commitments where configuration integrity must be demonstrated;
 - metric definitions, cohort/evidence class, activity denominators, coverage,
   missing-data reasons, and aggregate results;
-- a manifest of included files plus digests and verifier outcome;
-- the review/approval receipt and bundle retention/deletion dates.
+- a manifest of the immutable payload, its canonical digest, and verifier
+  outcome;
+- bundle retention/deletion dates.
 
-The export bundle must not contain source text, diffs, raw file paths,
-repository names or URLs, commit/PR titles, authors, emails, hostnames, command
-arguments, access tokens, raw event rows, or reversible commit identifiers.
+The export uses a recursively closed allowlist schema: unknown, misspelled,
+nested, aliased, free-form, and extension-map fields fail validation. New
+fields require a schema version plus renewed ADR and consent review. The
+payload must not contain source text, diffs, raw file paths, repository names
+or URLs, exact dates or small cells that create avoidable linkage, stable
+cross-recipient fingerprints, commit/PR titles, authors, emails, hostnames,
+command arguments, access tokens, raw event rows, or reversible commit
+identifiers. Before export or publication, a disclosure-risk review considers
+recipient knowledge and linkage to candidate repositories; explicit consent
+is required for any repository-specific result that remains identifiable.
+
+Review and approval operate on an immutable, canonically serialised payload.
+The participant sees that payload and its digest. Approval is a separate
+envelope that binds the digest, schema version, study-and-recipient pseudonym,
+purpose, recipient, bundle ID, nonce, and initial-transfer expiry using a
+participant-controlled signature or another authenticated mechanism accepted
+by FEFF-001. Adding the envelope does not alter the reviewed payload. The
+recipient verifies the transfer before expiry and creates an authenticated
+acceptance receipt binding the payload digest, approval envelope, recipient,
+nonce, and acceptance time. The verifier rejects payload or envelope
+substitution, stale initial transfer, nonce reuse, and wrong-recipient or
+wrong-purpose replay. After timely acceptance, the immutable payload, approval
+envelope, and acceptance receipt remain verifiable as durable history; transfer
+expiry does not invalidate archived evidence.
+
 Full local receipts may retain the data needed to reproduce a bundle, subject
 to the protocol's retention and deletion rules; they are never exported by
-default.
+default. They live in a user-scoped, non-repository state root with owner-only
+permissions or platform ACLs, no-follow create-new and atomic writes, strict
+path containment, bounded age and size, and redacted errors. Deletion covers
+raw receipts, caches, temporary trees, and exports; any surviving deletion
+receipt is explicitly data-minimised and unlinkable.
+
+Existing privacy controls remain authoritative. FEFF-001 defines their exact
+precedence, but study start never implies an override: `DO_NOT_TRACK` is a
+superset hard-off for local collection and
+`ANVIL_INTERCEPT_DISABLE_OBSERVATION` is the whole-observation break-glass.
+FEFF-004 checks applicable controls before every participant-source read or
+ledger write, fails closed, and stops new collection immediately if they
+change mid-study. Resume requires a fresh explicit action. Any exception needs
+separate ADR-authorised consent and cannot be inferred from joining a study.
 
 ## In Scope
 
@@ -196,11 +293,14 @@ default.
 
 ## Readiness and Sequencing
 
-FEFF-001 and FEFF-002 are Ready and may proceed in parallel. No collection
-surface is promoted until both close. FEFF-002 must explicitly disposition
-current KFIT-007/-009/-010 and DPO-003 dependencies: if a supported study-grade
-source is missing, the required upstream item or a narrowly owned FEFF adapter
-must be planned before FEFF-004 becomes Ready.
+FEFF-001 and the synthetic/public/operator-owned portion of FEFF-002 are Ready
+and may proceed in parallel. No private participant repository, GitHub
+metadata, or governance data is read until FEFF-001 accepts the consent,
+authority, retention, and deletion contract. No collection surface is
+promoted until both close. FEFF-002 must explicitly disposition current
+KFIT-007/-009/-010 and DPO-003 dependencies: if a supported study-grade source
+is missing, the required upstream item or a narrowly owned FEFF adapter must be
+planned before FEFF-004 becomes Ready.
 
 FEFF-003 and FEFF-004 may then proceed in parallel. FEFF-005 validates both
 outputs. FEFF-006 follows the manual export surface. FEFF-007 remains blocked
@@ -218,9 +318,12 @@ completed study.
   design, retrospective and prospective windows, adaptive cohort/claims
   ladder, low-activity extension rule, local-only processing, user-reviewed
   manual export, consent/withdrawal, local and exported retention/deletion,
-  forbidden fields, metric definitions, missing-data treatment, and the rule
-  that observational evidence cannot support a causal claim. The decision log
-  and this module agree.
+  closed export allowlist, disclosure-risk model, immutable-payload approval
+  envelope, existing privacy-control precedence, hardened local storage,
+  Git/GitHub authorisation, replay isolation, activity and coverage floors,
+  recruitment/stopping/attrition rules, metric definitions, missing-data
+  treatment, and the rule that observational evidence cannot support a causal
+  claim. The decision log and this module agree.
 - **Validation:** `pnpm format:check && pnpm aps:active-lint && pnpm docs:check`
 - **Files:** `plans/decisions/DECISION-LOG.md`,
   `plans/decisions/<next>-field-effectiveness-evidence.md`, this module
@@ -235,11 +338,13 @@ completed study.
 - **Expected Outcome:** A source audit maps each metric to its authoritative
   Git, GitHub, anvil, DPO/KFIT, insights, drift, or participant source; marks
   measured values versus placeholders/proxies; demonstrates isolated replay on
-  at least two historical commits without touching the active checkout; records
-  coverage/failure behaviour; and decides the implementation owner for the
+  at least two synthetic, public, or explicitly operator-owned historical
+  commits without touching the active checkout; records coverage/failure
+  behaviour; and decides the implementation owner for the
   retrospective runner and prospective evidence adapter. It explicitly
   dispositions KFIT-007/-009/-010 and DPO-003 dependencies and forbids direct
-  reads of undocumented storage.
+  reads of undocumented storage. Participant-data probes remain gated on
+  FEFF-001.
 - **Validation:** The audit records successful replay and current-surface probe
   commands; `pnpm format:check && pnpm aps:active-lint && pnpm docs:check`
 - **Files:** `plans/audits/`, `crates/anvil-cli/src/commands/insights.rs`,
@@ -255,13 +360,20 @@ completed study.
   modifying participant work or exporting repository content.
 - **Expected Outcome:** A user-explicit local runner freezes and validates the
   study manifest; selects the documented historical cadence; queries Git and
-  optional authorised GitHub metadata; replays the pinned analyser and boundary
-  definition in temporary detached worktrees; records every analysed/skipped
-  snapshot and error; and emits local aggregate throughput, activity, drift,
+  optional authorised GitHub metadata; replays every frozen parent/result
+  transition using the pinned analyser and boundary definition in isolated
+  temporary trees; records every analysed/skipped snapshot and error; and emits
+  local aggregate throughput, activity, drift,
   deterministic violation, escape-hatch proxy, and coverage records. Repeated
   runs over unchanged inputs are byte-stable apart from explicitly excluded
-  local receipt timestamps. Temporary worktrees are removed only after clean,
-  bounded teardown and never overlap the participant checkout.
+  local receipt timestamps. The runner uses sanitised Git, executes no
+  participant code, has no network or ambient credentials, applies resource
+  and path-containment bounds, and safely handles malicious snapshots and
+  interrupted teardown. GitHub access is pinned independently to the consented
+  repository and GitHub/GHES host, uses read-only least-privilege credentials
+  and allowlisted queries/endpoints, never trusts a remote URL for credential
+  routing, redacts errors, and bounds caches, retention, rate-limit, purge, and
+  offline-input behaviour.
 - **Validation:** `cargo test -p anvil-bench -- field_effectiveness_retrospective`
 - **Files:** `crates/anvil-bench/`, `benchmarks/field-effectiveness/`, schemas
   selected by FEFF-002
@@ -278,9 +390,15 @@ completed study.
   aggregates and evidence gaps for eligible Git activity, anvil-active
   developer-days, warning/finding disposition, suppressions, drift snapshots,
   governance observations where supported, and capture health. Export is
-  impossible until the local review renders the exact schema-versioned bundle
-  and the user gives explicit approval. No automatic upload or raw event/path
-  export exists, and withdrawal/deletion leaves a verifiable local receipt.
+  impossible until local review renders the exact canonically serialised
+  payload and digest and the user creates a separate authenticated approval
+  envelope bound to them. Initial transfer produces the authenticated
+  acceptance receipt required for durable verification. It honours existing
+  privacy hard-offs before every
+  read/write and on mid-study changes. Local state is owner-only,
+  non-repository, no-follow, atomic, bounded, and fully deletable. No automatic
+  upload or raw event/path export exists, and withdrawal/deletion leaves only a
+  consented, data-minimised receipt.
 - **Validation:** `cargo test -p eddacraft-anvil -- field_effectiveness`
 - **Files:** `crates/anvil-cli/`, schemas and local state paths selected by
   FEFF-001/-002
@@ -294,13 +412,17 @@ completed study.
 - **Intent:** Make malformed, underpowered, incomparable, or privacy-unsafe
   evidence fail closed before it reaches a report.
 - **Expected Outcome:** A deterministic verifier rejects forbidden fields,
-  schema/digest mismatch, changed definitions/configuration between periods,
-  empty or selectively extended periods, missing approval, replay coverage
-  below the protocol floor, absent denominators, and activity below the 10-PR
-  or 50-commit gate. Valid bundles receive an evidence class, per-repository
-  before/after distributions and normalised rates, missing-data table, and
-  claims allowlist. AI-assisted results are omitted unless authoritative input
-  metadata passes the FEFF-001 rule.
+  unknown fields at every nesting level, schema/digest or approval-envelope
+  mismatch, changed definitions/configuration between periods, selectively
+  extended periods, missing approval or acceptance, invalid initial-transfer
+  freshness, nonce or recipient/purpose replay, replay/capture coverage below
+  the metric-specific floor, absent denominators, excessive exposure imbalance,
+  and activity below either period's frozen floor. Valid bundles receive an
+  evidence class, per-repository before/after distributions and normalised
+  rates, recruitment/attrition and missing-data tables, sensitivity bounds, and
+  a claims allowlist that cannot complete an index criterion without its exact
+  denominator and horizon. AI-assisted results are omitted unless authoritative
+  input metadata passes the FEFF-001 rule.
 - **Validation:** `cargo test -p anvil-bench -- field_effectiveness_verify`
 - **Files:** `crates/anvil-bench/`, bundle schemas and fixtures
 - **Confidence:** medium
@@ -336,6 +458,9 @@ completed study.
   verifier records activity eligibility, evidence class, coverage, deviations,
   withdrawals, missing data, and qualitative friction. Low-activity cases are
   extended only under the pre-registered rule or retained as descriptive cases.
+  Recruitment follows the frozen sampling frame, 20-working-day window, and
+  outcome-independent stopping rule; the full invite-to-disposition funnel,
+  attrition, and sensitivity analyses accompany the results.
 - **Validation:** FEFF-005's verifier passes every comparative bundle; the
   study register accounts for every recruited, completed, withdrawn, excluded,
   and descriptive-only case; `pnpm docs:check`
@@ -356,7 +481,10 @@ completed study.
   replay coverage, study deviations, friction themes, and limitations. It
   states which adoption, throughput, drift, and signal-quality claims are
   supported, contradicted, or still untested. The index success criteria gain
-  evidence links only where the protocol permits; exploratory evidence remains
+  evidence links only where the criterion-to-evidence matrix permits; the
+  default first study cannot complete the every-save adoption, authoritative
+  AI-assisted throughput, eight-week drift, or comparable historical warning
+  criteria. Exploratory and directional evidence remains
   labelled and cannot silently check a criterion complete. Follow-up product
   work is filed in APS or GitHub rather than embedded as deferred-work notes.
 - **Validation:** FEFF-005 verifier passes the report inputs;
@@ -374,10 +502,12 @@ completed study.
 | Current architecture rules do not apply cleanly to old commits | High | Freeze the participant-approved definition; expose unsupported snapshots and coverage; never count failures as clean |
 | A quieter active period appears to reduce drift | High | Report normalised rates and activity denominators alongside absolute counts |
 | Historical escape-hatch scans are mistaken for warning history | High | Keep historical proxies and prospective warning disposition in separate fields and prose |
-| Small or opportunistic cohort is over-generalised | High | Enforce the cohort/claim ladder and per-repository-first reporting |
-| Export accidentally identifies a private repository or person | High | Denylist schema, irreversible pseudonyms, exact local review, manual approval, verifier rejection |
+| Small or opportunistic cohort is over-generalised | High | Freeze the recruitment frame and stopping rule; report the full funnel, attrition, sensitivity, cohort/claim ladder, and per-repository results |
+| Export accidentally identifies a private repository or person | High | Closed allowlist, recipient-specific pseudonyms, bucketing/small-cell controls, disclosure-risk review, explicit consent, and verifier rejection |
+| Reviewed evidence is changed or replayed after approval | High | Canonical immutable payload plus authenticated approval and timely acceptance receipts; transfer expiry does not invalidate the archive |
 | Prospective evidence relies on placeholder or lossy sources | High | FEFF-002 source audit; explicit evidence gaps; promote required DPO/KFIT work before collection |
-| Historical replay damages participant work or consumes unbounded disk | High | Temporary detached worktrees, active-checkout refusal, bounded concurrency/storage, clean teardown |
+| Historical replay executes hostile repository behaviour or damages participant work | High | Sanitised materialisation, no code/network/credentials, isolated pinned analyser, resource and path limits, active-checkout refusal, clean teardown |
+| Local receipts leak or are accidentally committed | High | Owner-only non-repository storage, no-follow atomic writes, bounded retention, redacted errors, and complete deletion |
 | Low activity causes indefinite study extension | Medium | Pre-register a maximum (default 20 working days); otherwise descriptive-only |
 
 ## Decisions
@@ -387,15 +517,22 @@ completed study.
    waiting period.
 3. The prospective default is 10 working days, with a pre-registered bounded
    low-activity extension.
-4. Eligibility requires 10 merged PRs or 50 relevant commits across the paired
-   periods, with neither period empty.
+4. Eligibility uses one frozen unit and requires at least 5 eligible PRs in
+   each period (10 total) or 25 eligible commits in each (50 total), with no
+   more than 3:1 exposure imbalance.
 5. Cohort size adapts to recruitment; the achieved size controls the evidence
-   label and permitted interpretation.
+   label, while a frozen sampling frame, recruitment window, stopping rule, and
+   full disposition funnel prevent outcome-dependent selection.
 6. Evidence leaves the participant machine only in an explicitly approved,
-   user-reviewed manual aggregate bundle.
+   user-reviewed immutable aggregate payload plus its authenticated approval
+   envelope.
 7. The same frozen analyser/rules/configuration apply to both periods.
 8. The study never infers AI assistance or claims every-save coverage from
    evidence that cannot support it.
+9. Existing privacy hard-offs remain authoritative and participant-data replay
+   does not begin before the evidence/privacy decision.
+10. Directional evidence cannot complete an index criterion without that
+    criterion's exact denominator and observation horizon.
 
 ## Stats
 
