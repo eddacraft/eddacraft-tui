@@ -417,7 +417,9 @@ pub fn refuse_if_parent_is_symlink(target: &Path) -> Result<()> {
 /// On Unix this walks the path with `openat`/`mkdirat` and
 /// `O_DIRECTORY|O_NOFOLLOW`, so a concurrent swap of a checked component for
 /// a symlink cannot redirect directory creation outside the intended tree.
-/// Non-Unix platforms fall back to [`std::fs::create_dir_all`] followed by a
+/// On Windows the same guarantee is provided by handle-relative
+/// `NtCreateFile` with `OBJ_DONT_REPARSE` (junctions and symlinks). Other
+/// platforms fall back to [`std::fs::create_dir_all`] followed by a
 /// best-effort symlink-component refusal.
 pub fn create_dir_all_nofollow(path: &Path) -> Result<()> {
     if path.as_os_str().is_empty() {
@@ -428,7 +430,12 @@ pub fn create_dir_all_nofollow(path: &Path) -> Result<()> {
     {
         create_dir_all_nofollow_unix(path)
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        anvil_intercept_win32::path_nofollow::create_dir_all_nofollow(path)
+            .with_context(|| format!("creating directory {}", path.display()))
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         std::fs::create_dir_all(path)
             .with_context(|| format!("creating directory {}", path.display()))?;
@@ -446,8 +453,9 @@ pub fn create_dir_all_nofollow(path: &Path) -> Result<()> {
 /// That closes the TOCTOU window where a checked parent directory is swapped
 /// for a symlink between a path-based safety check and `tempfile_in(parent)`.
 ///
-/// On non-Unix platforms this creates parents, re-checks for symlink
-/// components, then delegates to [`atomic_write`].
+/// On Windows the parent is pinned with `OBJ_DONT_REPARSE` and the payload
+/// is renamed into place under that handle. Other platforms create parents,
+/// re-check for symlink components, then delegate to [`atomic_write`].
 pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
     let parent = path
         .parent()
@@ -468,7 +476,12 @@ pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
         atomic_write_nofollow_unix(parent, leaf, data)
             .with_context(|| format!("writing {}", path.display()))
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        anvil_intercept_win32::path_nofollow::atomic_write_nofollow(path, data)
+            .with_context(|| format!("writing {}", path.display()))
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         refuse_symlink_path_components(path)?;
         // Immediate pre-write parent check: platforms without openat rely on
@@ -485,15 +498,21 @@ pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
 /// of deleting a file outside the intended tree. A leaf symlink is unlinked
 /// itself (not its target).
 ///
-/// Non-Unix platforms refuse any existing symlink component (including a
-/// leaf) then call [`std::fs::remove_file`]. That check is best-effort and
-/// still has a TOCTOU window; it does not offer the Unix openat guarantee.
+/// Windows uses the same handle-relative `OBJ_DONT_REPARSE` walk. Other
+/// platforms refuse any existing symlink component (including a leaf) then
+/// call [`std::fs::remove_file`]. That remaining fallback is best-effort and
+/// still has a TOCTOU window.
 pub fn remove_file_nofollow(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         remove_nofollow_unix(path, false)
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        anvil_intercept_win32::path_nofollow::remove_file_nofollow(path)
+            .with_context(|| format!("removing file {}", path.display()))
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         refuse_symlink_path_components(path)?;
         std::fs::remove_file(path).with_context(|| format!("removing file {}", path.display()))
@@ -503,14 +522,20 @@ pub fn remove_file_nofollow(path: &Path) -> Result<()> {
 /// Remove an empty directory without following symlink path components.
 ///
 /// Unix uses the same no-follow `unlinkat` walk as [`remove_file_nofollow`].
-/// Non-Unix platforms refuse symlink components then call
-/// [`std::fs::remove_dir`], with the same best-effort TOCTOU limit.
+/// Windows uses handle-relative `OBJ_DONT_REPARSE`. Other platforms refuse
+/// symlink components then call [`std::fs::remove_dir`], with a remaining
+/// best-effort TOCTOU limit.
 pub fn remove_dir_nofollow(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         remove_nofollow_unix(path, true)
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        anvil_intercept_win32::path_nofollow::remove_dir_nofollow(path)
+            .with_context(|| format!("removing directory {}", path.display()))
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         refuse_symlink_path_components(path)?;
         std::fs::remove_dir(path).with_context(|| format!("removing directory {}", path.display()))
@@ -519,9 +544,10 @@ pub fn remove_dir_nofollow(path: &Path) -> Result<()> {
 
 /// Refuse when any existing component of `path` is a symlink.
 ///
-/// Used by the non-Unix `atomic_write_nofollow` / `create_dir_all_nofollow`
-/// fallbacks where openat no-follow is unavailable.
-#[cfg(not(unix))]
+/// Used by the non-Unix, non-Windows `atomic_write_nofollow` /
+/// `create_dir_all_nofollow` fallbacks where handle-relative no-follow is
+/// unavailable.
+#[cfg(not(any(unix, windows)))]
 fn refuse_symlink_path_components(path: &Path) -> Result<()> {
     let mut cursor = PathBuf::new();
     for component in path.components() {
@@ -1243,6 +1269,64 @@ mod tests {
         assert!(
             !outside.path().join("child").exists(),
             "must not create directories through the symlink"
+        );
+    }
+
+    #[cfg(windows)]
+    fn plant_junction(link: &std::path::Path, target: &std::path::Path) -> bool {
+        std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn atomic_write_nofollow_refuses_junctioned_parent_without_writing_outside() {
+        let outside = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join(".cursor");
+        assert!(
+            plant_junction(&parent, outside.path()),
+            "mklink /J creates a junction without privilege"
+        );
+
+        let path = parent.join("mcp.json");
+        let err = atomic_write_nofollow(&path, b"secret").expect_err("junctioned parent");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink"),
+            "error should identify symlink refusal: {msg}"
+        );
+        assert!(
+            std::fs::read_dir(outside.path()).unwrap().next().is_none(),
+            "outside directory must remain untouched"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn create_dir_all_nofollow_refuses_junction_component_without_creating_outside() {
+        let outside = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let link = root.path().join("escape");
+        assert!(
+            plant_junction(&link, outside.path()),
+            "mklink /J creates a junction without privilege"
+        );
+
+        let target = link.join("child");
+        let err = create_dir_all_nofollow(&target).expect_err("junction component");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink"),
+            "error should mention symlink: {msg}"
+        );
+        assert!(
+            !outside.path().join("child").exists(),
+            "must not create directories through the junction"
         );
     }
 

@@ -239,7 +239,7 @@ impl Journal {
     /// the workspace. Failures stay local: better to leave files in place
     /// than follow a swapped path.
     fn rollback(self) {
-        #[cfg(all(test, unix))]
+        #[cfg(test)]
         {
             let probe = self
                 .created_files
@@ -335,7 +335,7 @@ impl Journal {
             }
         }
 
-        #[cfg(all(test, unix))]
+        #[cfg(test)]
         race_hook::fire(dir);
 
         crate::util::create_dir_all_nofollow(dir)
@@ -377,7 +377,7 @@ impl Journal {
                 let original = read_existing_nofollow(abs)
                     .with_context(|| format!("reading existing {}", abs.display()))?;
                 self.restored.push((abs.to_path_buf(), original));
-                #[cfg(all(test, unix))]
+                #[cfg(test)]
                 race_hook::fire(abs);
                 crate::util::atomic_write_nofollow(abs, contents)
                     .with_context(|| format!("writing {}", abs.display()))?;
@@ -386,7 +386,7 @@ impl Journal {
                 // Same ordering for creations: journal first, so a partial
                 // write is still removed by rollback.
                 self.created_files.push(abs.to_path_buf());
-                #[cfg(all(test, unix))]
+                #[cfg(test)]
                 race_hook::fire(abs);
                 crate::util::atomic_write_nofollow(abs, contents)
                     .with_context(|| format!("writing {}", abs.display()))?;
@@ -404,7 +404,8 @@ impl Journal {
 ///
 /// On Unix this opens with `O_NOFOLLOW` so a leaf symlink planted between a
 /// prior `symlink_metadata` check and the open is refused rather than followed.
-/// Non-Unix platforms re-check symlink metadata then use a normal read.
+/// Windows uses handle-relative `OBJ_DONT_REPARSE`. Other platforms re-check
+/// symlink metadata then use a normal read.
 fn read_existing_nofollow(path: &Path) -> Result<Vec<u8>> {
     #[cfg(unix)]
     {
@@ -433,7 +434,12 @@ fn read_existing_nofollow(path: &Path) -> Result<Vec<u8>> {
             .with_context(|| format!("reading {}", path.display()))?;
         Ok(buf)
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        anvil_intercept_win32::path_nofollow::read_nofollow(path)
+            .with_context(|| format!("reading {}", path.display()))
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         if std::fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
             bail!(
@@ -446,9 +452,9 @@ fn read_existing_nofollow(path: &Path) -> Result<Vec<u8>> {
 }
 
 /// Test-only hook fired after containment checks and immediately before a
-/// journal create/write. Used to simulate concurrent ancestor symlink swaps.
-/// Unix-only: the race simulation relies on POSIX symlink behaviour.
-#[cfg(all(test, unix))]
+/// journal create/write. Used to simulate concurrent ancestor symlink or
+/// junction swaps on platforms that can plant them without privilege.
+#[cfg(test)]
 mod race_hook {
     use std::cell::RefCell;
     use std::path::Path;
@@ -1344,6 +1350,152 @@ mod tests {
             {
                 let _ = std::fs::remove_dir_all(&anvil_path);
                 let _ = std::os::unix::fs::symlink(&outside_path, &anvil_path);
+            }
+        });
+
+        let outcome = install_pack_files(ws.path(), "anvil-baseline", &version, &broken, true)
+            .expect("install returns an outcome");
+        assert!(matches!(outcome, InstallOutcome::RolledBack { .. }));
+
+        assert_eq!(
+            std::fs::read(&marker).expect("read outside marker"),
+            b"OUTSIDE",
+            "rollback must not restore original bytes through a swapped ancestor"
+        );
+    }
+
+    #[cfg(windows)]
+    fn plant_junction(link: &Path, target: &Path) -> bool {
+        std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+
+    /// A `.anvil` junction pointing outside the workspace must be a reported
+    /// install failure with nothing written through the link.
+    #[cfg(windows)]
+    #[test]
+    fn policy_install_refuses_escaping_anvil_junction() {
+        let ws = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside dir");
+        assert!(
+            plant_junction(&ws.path().join(".anvil"), outside.path()),
+            "mklink /J creates a junction without privilege"
+        );
+
+        let version = ANVIL_BASELINE.manifest().unwrap().version;
+        let err = install_pack_files(
+            ws.path(),
+            "anvil-baseline",
+            &version,
+            &baseline_files(),
+            false,
+        )
+        .expect_err("an escaping .anvil junction must be refused");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("containment") || msg.contains("outside") || msg.contains("symlink"),
+            "{msg}"
+        );
+        assert!(
+            !outside.path().join("policies").exists(),
+            "external dir must be untouched"
+        );
+    }
+
+    /// Simulate the TOCTOU window on Windows: containment passes against a
+    /// real `.anvil`, then the ancestor is swapped for an outside junction
+    /// immediately before create/write. Install must fail without writing
+    /// outside.
+    #[cfg(windows)]
+    #[test]
+    fn policy_install_refuses_mid_install_ancestor_junction_swap() {
+        let ws = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside dir");
+        let anvil = ws.path().join(".anvil");
+        std::fs::create_dir_all(&anvil).expect("create real .anvil");
+
+        let outside_path = outside.path().to_path_buf();
+        let anvil_path = anvil.clone();
+        let _hook_guard = race_hook::install(move |path| {
+            if path.starts_with(&anvil_path)
+                && anvil_path
+                    .symlink_metadata()
+                    .is_ok_and(|m| !m.file_type().is_symlink())
+            {
+                let _ = std::fs::remove_dir_all(&anvil_path);
+                let _ = plant_junction(&anvil_path, &outside_path);
+            }
+        });
+
+        let version = ANVIL_BASELINE.manifest().unwrap().version;
+        let result = install_pack_files(
+            ws.path(),
+            "anvil-baseline",
+            &version,
+            &baseline_files(),
+            false,
+        );
+
+        let err = result.expect_err("mid-install ancestor junction swap must fail");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink") || msg.contains("containment") || msg.contains("outside"),
+            "{msg}"
+        );
+        assert!(
+            std::fs::read_dir(outside.path())
+                .expect("read outside")
+                .next()
+                .is_none(),
+            "must not create files outside the workspace through the swapped junction"
+        );
+    }
+
+    /// After a --force overwrite, swap `.anvil` for an outside junction
+    /// immediately before rollback. Restore must not write original bytes
+    /// through the swapped ancestor.
+    #[cfg(windows)]
+    #[test]
+    fn policy_install_rollback_refuses_mid_rollback_ancestor_junction_swap() {
+        let ws = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside dir");
+        let version = ANVIL_BASELINE.manifest().unwrap().version;
+        install_pack_files(
+            ws.path(),
+            "anvil-baseline",
+            &version,
+            &baseline_files(),
+            false,
+        )
+        .expect("seed a valid install");
+
+        let mut broken = baseline_files();
+        for file in &mut broken {
+            if file.rel == "policies/change_scope.rego" {
+                file.contents = file.contents.replace("changed_count > soft_limit", "false");
+            }
+        }
+
+        let anvil = ws.path().join(".anvil");
+        let outside_path = outside.path().to_path_buf();
+        let planted_rel = PathBuf::from("policies/anvil-baseline/policies");
+        std::fs::create_dir_all(outside.path().join(&planted_rel)).expect("plant outside tree");
+        let marker = outside.path().join(&planted_rel).join("change_scope.rego");
+        std::fs::write(&marker, b"OUTSIDE").expect("outside marker");
+
+        let anvil_path = anvil.clone();
+        let _hook_guard = race_hook::install_rollback(move |path| {
+            if path.starts_with(&anvil_path)
+                && anvil_path
+                    .symlink_metadata()
+                    .is_ok_and(|m| !m.file_type().is_symlink())
+            {
+                let _ = std::fs::remove_dir_all(&anvil_path);
+                let _ = plant_junction(&anvil_path, &outside_path);
             }
         });
 

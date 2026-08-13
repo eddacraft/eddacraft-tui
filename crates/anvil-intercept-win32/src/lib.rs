@@ -1,8 +1,10 @@
-//! Windows-only Win32 helpers for the intercept daemon.
+//! Windows-only Win32 helpers for the intercept daemon and CLI writers.
 //!
 //! `anvil-intercept` forbids unsafe code. This crate keeps the narrow
 //! Win32 security-attribute boundary in one place and exposes a safe
-//! named-pipe constructor for the daemon IPC listener.
+//! named-pipe constructor for the daemon IPC listener. Handle-relative
+//! no-reparse create/write/remove lives in [`path_nofollow`] so `anvil-cli`
+//! can refuse junction swaps without taking `unsafe_code`.
 
 #![cfg(windows)]
 #![deny(unsafe_op_in_unsafe_fn)]
@@ -11,6 +13,8 @@
 // `path_safety` analogue). Kept in its own module; the unsafe NtCreateFile FFI
 // stays here so `anvil-intercept` keeps `#![forbid(unsafe_code)]`.
 pub mod read_safety;
+// Policy-install / CLI writers: handle-relative no-reparse create/write/remove.
+pub mod path_nofollow;
 
 use std::ffi::{OsStr, c_void};
 use std::io;
