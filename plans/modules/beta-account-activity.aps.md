@@ -5,14 +5,11 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| BACT | —     | High     | Ready | 6/12     |
+| BACT | —     | High     | Done | 12/12     |
 
-**Last reviewed:** 2026-08-12 — phase 2 planned: account **`plan`** (only
-`beta` initially), **DAA** activity stamps (login + refresh + feature touch),
-entitlements via feature-flag catalogue audiences; FLEET remains DAI only
-([ADR-121](../decisions/121-account-plan-activity-and-flag-entitlements.md),
-[spec](../specs/2026-08-12-account-plan-activity-entitlements.md)). Phase 1
-(BACT-001..006) merged via PR #3782.
+**Last reviewed:** 2026-08-13 — phase 2 complete: BACT-007..013 merged via
+PRs #3837/#3838/#3839/#3840/#3842/#3843 (plan column, activity stamps, DAA
+metrics, daily rollup, backfill, plan-aware evaluation context + JWT).
 
 > **Exclusive module.** Feature PRs flip item `Status:` only; do not bump the
 > header or index `N/M` counts (ADR-053). Reconcile counts on a bookkeeping
@@ -307,7 +304,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-007: Phase-2 vocabulary and operator docs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3837
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Durable operator/agent language: users + plan, DAI vs DAA,
@@ -329,7 +326,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-008: Account `plan` + `last_activity_at` stamps
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3838
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Schema and write paths so every licensed use can update activity
@@ -355,7 +352,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-009: Admin user activity metrics surface
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3840
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Operators see DAA/WAA/MAA and quiet users without Neon SQL and
@@ -376,7 +373,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-011: Daily account-activity rollup (historical DAA)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3842
 - **Priority:** Medium
 - **Confidence:** medium — scheduling surface (cron vs external) at execution.
 - **Intent:** Reconstruct “how many accounts were active on day D” after users
@@ -395,7 +392,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-012: Optional refresh-token activity backfill
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3843
 - **Priority:** Low
 - **Confidence:** high
 - **Intent:** One-shot proxy so pre-stamp token users are not all “never
@@ -412,7 +409,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-013: Plan on evaluation context and JWT alignment
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3839
 - **Priority:** High
 - **Confidence:** medium — JWT compat for `tier` vs `plan` (OQ-C).
 - **Intent:** Entitlements evaluate with the account’s plan against catalogue
@@ -441,5 +438,12 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
   BACT-003 and Resend webhook verification. Do not implement under FLEET.
 - **Table rename** `beta_users` → `users` — optional bookkeeping migration when
   product language fully leaves “beta” as the table name.
+- **JWT `tier` alias retirement:** BACT-013 emits `plan` and keeps `tier` as a
+  byte-identical compat alias because docs-shell/docs-site verify the raw JWT
+  at the edge and still read `tier`. Promote an item to migrate those
+  verifiers to `plan`, drop the alias from `signLicence`, and revisit the
+  claimless-token `beta` default in `verifyLicence` (fail closed once the
+  alias is gone). docs-site also has no test suite covering its middleware
+  read path (pre-existing gap).
 - **Additional plan names** (`pro`, `enterprise`, …) — widen CHECK + audience
   mapping when commercial plans ship; still catalogue-driven.
