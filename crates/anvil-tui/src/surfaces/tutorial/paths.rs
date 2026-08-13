@@ -379,7 +379,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Summary",
-            "You defined layers in `.anvil/architecture.yaml` and validated the definition. Boundary checks run when you invoke `anvil check` or `anvil gate` — this walk did not install commit hooks or editor wiring.",
+            "You defined layers in `.anvil/architecture.yaml` and validated the definition. Boundary checks run when you invoke `anvil check` or `anvil gate` — this walk did not install commit hooks or editor wiring. The standalone file stays valid (watch-time enforcement reads it directly); the unified home is the `architecture` section of your project config — `anvil migrate architecture --apply` records this file as its `source`.",
             "Architecture definition is in place. Press enter to finish.",
         ),
     ]

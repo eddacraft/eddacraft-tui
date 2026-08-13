@@ -112,15 +112,18 @@ when the user asks whether the repo is safe to merge, commit, or proceed.
 
 ## Configuration
 
-anvil's active project settings live in `.anvilrc`. `anvil init` creates it.
-**YAML is the default**; **TOML and JSON are also supported** (same schema,
-different encoding — use whichever the project already standardises on).
+anvil's active project settings live in `.anvil.<ext>` — the extension names the
+format. `anvil init` creates `.anvil.yaml`. **YAML is the default**; **TOML and
+JSON are also supported** (same schema, different encoding — use whichever the
+project already standardises on). A legacy `.anvilrc` is still read as a
+fallback; `anvil migrate format` converts it. Keys are `snake_case` (legacy
+`camelCase` keys are accepted on read; `anvil migrate schema` rewrites them).
 
-Example (YAML):
+Example (`.anvil.yaml`):
 
 ```yaml
-schemaVersion: '1.0.0'
-planningDir: plans
+schema_version: '1.0.0'
+planning_dir: plans
 format: yaml
 checks:
   - secret-detection
@@ -136,9 +139,11 @@ Use canonical check names in docs, plans, and commands:
 - `policy`
 - `command-safety`
 
-`.anvil/gate-config.json` is a planning surface for gate composition, but
-current gate runs are controlled by `.anvilrc#checks` and CLI flags such as
-`--only-checks` or `--skip-checks`.
+Gate runs are controlled by the top-level `checks` list in the project config
+(plus CLI flags such as `--only-checks` or `--skip-checks`); the optional `gate`
+section carries composition (per-check configuration). Manage both with
+`anvil gate-config`. The legacy `.anvil/gate-config.json` is retired — gate runs
+ignore it; fold a leftover file with `anvil migrate gate-config`.
 
 Custom **Rego packs**, PolicyInput rules, pack manifests, and pack test design
 are outside this skill. Use only current anvil product and repository
@@ -148,9 +153,11 @@ configuration and the architecture YAML sketch below.
 
 ## Architecture boundaries
 
-Use `.anvil/architecture.yaml` for **import-boundary** rules (layers and deps).
-For domain invariants that need custom Rego or pack admission, stop this
-workflow and follow the current product's documented policy-authoring path.
+Define **import-boundary** rules (layers and deps) in the `architecture` section
+of the project config, or in a standalone `.anvil/architecture.yaml` (still
+valid; `anvil migrate architecture` links it as the section's `source`). For
+domain invariants that need custom Rego or pack admission, stop this workflow
+and follow the current product's documented policy-authoring path.
 
 A layer declares the files it owns and which layers it may depend on:
 

@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                  |
-| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-07-24 against `crates/anvil-cli/src/commands/update.rs` |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                   |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-13 against `crates/anvil-cli/src/commands/{init,migrate,gate_config,architecture}.rs` |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -169,7 +169,8 @@ $ anvil doctor --json | jq .checks
 ## anvil config
 
 **Class:** Admin **Purpose:** Show, set, and convert Anvil project config.
-**When to use:** To inspect or modify rule modes in `.anvilrc` / `.anvil.<ext>`.
+**When to use:** To inspect or modify rule modes in the project config
+(`.anvil.<ext>`; a legacy `.anvilrc` is still read as a fallback).
 
 **Synopsis:** `anvil config <show|set <rule> <mode>|convert --to <fmt>>`
 
@@ -424,22 +425,23 @@ $ anvil --help
 
 **Class:** Setup **Purpose:** Activate or **reconfigure** Anvil in this
 repository. **When to use:** First-time setup, adding MCP after a prior decline,
-or repairing activation after a config change. Writes `.anvilrc` if missing and
-can install MCP / workflow consent items. For a quiet daily on-switch without
-reinstall, use bare `anvil` instead.
+or repairing activation after a config change. Writes `.anvil.yaml` (or the
+`--format` choice) if no project config exists and can install MCP / workflow
+consent items. For a quiet daily on-switch without reinstall, use bare `anvil`
+instead.
 
 **Synopsis:**
 `anvil start [--verify] [--watch] [--format <fmt>] [--new-identity] [--why]`
 
 **Flags:**
 
-| Flag             | Description                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------- |
-| `--verify`       | Run a read-only activation probe instead of writing files.                               |
-| `--watch`        | After activation, run the save-time watch fallback when MCP cannot pre-write attach.     |
-| `--format <fmt>` | Config file format for first-run: `yaml`, `yml`, `json`, or `toml`. Default: `.anvilrc`. |
-| `--new-identity` | Mint a fresh project UUID (use after forking a repo). Incompatible with `--verify`.      |
-| `--why`          | Print per-tier activation evidence to stderr alongside the normal verdict.               |
+| Flag             | Description                                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--verify`       | Run a read-only activation probe instead of writing files.                                                                                                         |
+| `--watch`        | After activation, run the save-time watch fallback when MCP cannot pre-write attach.                                                                               |
+| `--format <fmt>` | Config file format for first-run `.anvil.<ext>`: `yaml`, `yml`, `json`, or `toml`. Default: `yaml`. Ignored (with a warning) when a project config already exists. |
+| `--new-identity` | Mint a fresh project UUID (use after forking a repo). Incompatible with `--verify`.                                                                                |
+| `--why`          | Print per-tier activation evidence to stderr alongside the normal verdict.                                                                                         |
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
@@ -509,8 +511,10 @@ $ anvil welcome
 ## anvil init
 
 **Class:** Setup **Purpose:** Initialise Anvil configuration for a project.
-**When to use:** To create an initial `.anvilrc` / `.anvil.<ext>` configuration
-in a repo that doesn't have one yet.
+**When to use:** To create the canonical `.anvil.yaml` configuration in a repo
+that doesn't have one yet (an existing config, including a legacy `.anvilrc`,
+makes init bail without `--force`; `--force` replaces it and removes a legacy
+`.anvilrc`).
 
 **Synopsis:** `anvil init [--force]`
 
@@ -668,18 +672,23 @@ $ anvil --json report-fp --list
 
 ## anvil migrate
 
-**Class:** Admin **Purpose:** Migrate Anvil config to a new format or schema
-version. **When to use:** After upgrading Anvil when config format changes are
-required, or to convert a legacy `.anvilrc` to a multi-format config file.
+**Class:** Admin **Purpose:** Migrate legacy config surfaces onto the canonical
+`.anvil.<ext>` project config. **When to use:** To convert a legacy `.anvilrc`,
+reconcile the config schema after upgrading Anvil (including the legacy
+`camelCase` → `snake_case` key rename), fold a retired
+`.anvil/gate-config.json`, or move a standalone architecture file under the
+`architecture` section.
 
-**Synopsis:** `anvil migrate [format|schema]`
+**Synopsis:** `anvil migrate [format|schema|gate-config|architecture]`
 
 **Subcommands:**
 
-| Subcommand | Description                                                                       |
-| ---------- | --------------------------------------------------------------------------------- |
-| `format`   | Migrate a legacy `.anvilrc` to `.anvil.<ext>` (yaml/yml/json/toml).               |
-| `schema`   | Reconcile an existing config's schema across Anvil versions (dry-run by default). |
+| Subcommand     | Description                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `format`       | Migrate a legacy `.anvilrc` to `.anvil.<ext>` (yaml/yml/json/toml).                                                      |
+| `schema`       | Reconcile an existing config's schema across Anvil versions (dry-run by default); rewrites legacy `camelCase` keys.      |
+| `gate-config`  | Fold a retired `.anvil/gate-config.json` into the main config (absent fields only), then remove it (dry-run by default). |
+| `architecture` | Record a standalone `.anvil/architecture.yaml` as the config's `architecture.source` (dry-run by default).               |
 
 **`format` flags:**
 
@@ -689,11 +698,12 @@ required, or to convert a legacy `.anvilrc` to a multi-format config file.
 | `--force`      | Overwrite an existing `.anvil.<ext>` file.               |
 | `--remove-old` | Remove the legacy `.anvilrc` after writing the new file. |
 
-**`schema` flags:**
+**`schema` / `gate-config` / `architecture` flags:**
 
-| Flag      | Description                                             |
-| --------- | ------------------------------------------------------- |
-| `--apply` | Write the migrated config (default is dry-run preview). |
+| Flag                               | Description                                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `--apply`                          | Write the migration (default is dry-run preview).                                                                  |
+| `--accept-weakening` (gate-config) | Confirm a fold that would deselect currently-effective checks (enforcement-weakening folds are refused otherwise). |
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
@@ -703,6 +713,8 @@ required, or to convert a legacy `.anvilrc` to a multi-format config file.
 $ anvil migrate format --format yaml
 $ anvil migrate schema
 $ anvil migrate schema --apply
+$ anvil migrate gate-config --apply
+$ anvil migrate architecture --apply
 ```
 
 ---
@@ -1211,8 +1223,13 @@ $ anvil gate --format sarif > results.sarif
 ## anvil gate-config
 
 **Class:** Admin **Purpose:** Configure gate check settings and thresholds.
-**When to use:** To enable, disable, or list gate checks stored in
-`.anvil/gate-config.json`.
+**When to use:** To enable, disable, or list gate checks. Reads and writes the
+main project config (`.anvil.<ext>`): the top-level `checks` list carries
+selection and the `gate` section carries composition. The legacy
+`.anvil/gate-config.json` is retired — gate runs ignore it, this command never
+reads or writes it, and `anvil doctor` warns on a stray file (fold it with
+`anvil migrate gate-config`). Disabling `secret-detection` or `command-safety`
+is refused (hard-pinned rule classes, ADR-039).
 
 Planned: `anvil gate-config` will eventually consolidate into
 `anvil gate config` (subsystem rename per the CLI surface coherence spec).
@@ -1234,8 +1251,8 @@ Planned: `anvil gate-config` will eventually consolidate into
 
 ```
 $ anvil gate-config --list
-$ anvil gate-config --enable dependency
-$ anvil gate-config --disable coverage
+$ anvil gate-config --enable import-boundaries
+$ anvil gate-config --disable antipattern-scan
 ```
 
 ---
@@ -1488,8 +1505,12 @@ $ anvil capsule prune --keep-last 10 --apply
 ## anvil architecture
 
 **Class:** Admin **Purpose:** Manage architecture boundary definitions. **When
-to use:** To validate or inspect the architecture definition in
-`.anvil/architecture.yaml`.
+to use:** To validate or inspect the project's architecture definition. Both
+subcommands resolve the main config's `architecture` section first (inline, or
+delegated via `architecture.source`), falling back to a standalone
+`.anvil/architecture.yaml` (legacy form, still valid); `--file` inspects an
+explicit path instead. Watch-time architecture enforcement still reads the
+standalone file, not the section.
 
 **Synopsis:** `anvil architecture <validate|show>`
 

@@ -409,7 +409,7 @@ Change status to **Ready** when:
 
 #### UCFG-011: documentation sweep to one canonical name
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** config.md names exactly one canonical filename and the legacy
   fallback story; first-project, quickstart, agent-harness, using-anvil
   skill, and cli-surface runbook updated; gate-config "planning surface"

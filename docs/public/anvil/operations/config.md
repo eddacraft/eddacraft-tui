@@ -13,8 +13,30 @@ verified_against: 0.9.0-beta
 
 # Configuration reference
 
-anvil reads project configuration from `.anvilrc` or a supported `.anvil.yaml`,
-`.anvil.yml`, `.anvil.json`, or `.anvil.toml` file.
+The canonical project configuration file is `.anvil.<ext>` in the project root,
+where the extension names the format: `.anvil.yaml` (the default), `.anvil.yml`,
+`.anvil.json`, or `.anvil.toml`. `anvil init` writes `.anvil.yaml`. Keys are
+`snake_case` (for example `schema_version`, `planning_dir`).
+
+`.anvilrc` is the legacy name. It is still read as a fallback everywhere, but no
+command creates one; convert it with `anvil migrate format`.
+
+## Migration bridges
+
+| Situation                                    | Bridge                                                                                                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Legacy `.anvilrc` file                       | `anvil migrate format` writes `.anvil.<ext>` with `snake_case` keys (add `--remove-old` to delete the legacy file)                                              |
+| Legacy `camelCase` keys (`schemaVersion`, …) | Still accepted on read; any owned write (`anvil config set`, `anvil migrate format`) rewrites them, and `anvil migrate schema --apply` converts a file in place |
+| Retired `.anvil/gate-config.json`            | Ignored by gate runs; `anvil migrate gate-config --apply` folds it into this file and removes it                                                                |
+| Standalone `.anvil/architecture.yaml`        | Still valid as a legacy fallback; `anvil migrate architecture --apply` records it as the `architecture.source`                                                  |
+
+Each migrate subcommand previews by default and only writes with `--apply`
+(`migrate format` writes directly; it refuses to overwrite an existing
+`.anvil.<ext>` without `--force`). `anvil doctor` reports the legacy states
+above: its `config-variants` check warns when more than one config file exists
+(naming the winner under discover-first precedence), and legacy `camelCase` keys
+surface as a deprecation note on both `anvil config show` and doctor's
+`config-valid` check.
 
 ## Inspect effective configuration
 
