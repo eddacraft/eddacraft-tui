@@ -438,6 +438,91 @@ describe('KindlingService.query', () => {
     expect(queries[0].max_results).toBe(3);
   });
 
+  it('truncates a store response that exceeds config max_results', async () => {
+    const config = KindlingConfigSchema.parse({
+      enabled: true,
+      query_limits: { max_results: 1, max_payload_bytes: 1024 * 1024 },
+    });
+    const store: IKindlingStore = {
+      emit: async () => {},
+      query: async (): Promise<QueryResponse> => ({
+        metadata: {
+          query_id: VALID_UUID,
+          executed_at: VALID_TIMESTAMP,
+          contract_version: '1.0.0',
+          result_count: 10,
+          truncated: false,
+          truncation_reason: 'none',
+        },
+        observations: Array.from({ length: 10 }, (_, i) => ({
+          id: `550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, '0')}`,
+          kind: 'session_start' as const,
+          timestamp: VALID_TIMESTAMP,
+          session_id: SESSION_UUID,
+          provenance: [],
+          payload: {},
+        })),
+      }),
+      close: async () => {},
+    };
+    const svc = new KindlingService(store, config);
+    const resp = await svc.query({
+      scope: 'session',
+      session_id: SESSION_UUID,
+      shape: 'timeline',
+      format: 'json',
+      max_results: 10,
+      max_payload_bytes: 1024 * 1024,
+    });
+    expect(resp.observations).toHaveLength(1);
+    expect(resp.metadata.result_count).toBe(1);
+    expect(resp.metadata.truncated).toBe(true);
+    expect(resp.metadata.truncation_reason).toBe('max_results');
+  });
+
+  it('truncates a store response that exceeds config max_payload_bytes', async () => {
+    const largePayload = 'x'.repeat(600);
+    const config = KindlingConfigSchema.parse({
+      enabled: true,
+      query_limits: { max_results: 100, max_payload_bytes: 100 },
+    });
+    const store: IKindlingStore = {
+      emit: async () => {},
+      query: async (): Promise<QueryResponse> => ({
+        metadata: {
+          query_id: VALID_UUID,
+          executed_at: VALID_TIMESTAMP,
+          contract_version: '1.0.0',
+          result_count: 3,
+          truncated: false,
+          truncation_reason: 'none',
+        },
+        observations: Array.from({ length: 3 }, (_, i) => ({
+          id: `550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, '0')}`,
+          kind: 'session_start' as const,
+          timestamp: VALID_TIMESTAMP,
+          session_id: SESSION_UUID,
+          provenance: [],
+          payload: { data: largePayload },
+        })),
+      }),
+      close: async () => {},
+    };
+    const svc = new KindlingService(store, config);
+    const resp = await svc.query({
+      scope: 'session',
+      session_id: SESSION_UUID,
+      shape: 'timeline',
+      format: 'json',
+      max_results: 100,
+      max_payload_bytes: 10 * 1024 * 1024,
+    });
+    expect(resp.observations.length).toBeLessThan(3);
+    expect(resp.metadata.truncated).toBe(true);
+    expect(resp.metadata.truncation_reason).toBe('max_payload_bytes');
+    expect(resp.metadata.result_count).toBe(resp.observations.length);
+  });
+
   it('throws QueryValidationError after service is closed', async () => {
     const { store } = makeSpyStore();
     const svc = new KindlingService(store, enabledConfig);

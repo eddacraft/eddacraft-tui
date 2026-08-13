@@ -19,6 +19,7 @@ import { QueryRequestSchema } from './query-contract.js';
 import type { KindlingConfig } from './config.js';
 import { DEFAULT_KINDLING_CONFIG, shouldCapture } from './config.js';
 import { validateNoSensitiveData, redactSensitiveFields } from './sensitive-data-validator.js';
+import { enforceQueryLimits } from './query-limits.js';
 import { createDebugger } from './utils/debug.js';
 
 const debug = createDebugger('kindling');
@@ -213,7 +214,7 @@ export class KindlingService {
    * Execute a query against the Kindling store.
    *
    * Validates the query request against the contract schema and enforces
-   * configured query limits before delegating to the store.
+   * configured query limits on the request and again on the store response.
    *
    * @param request - The query request
    * @returns Query response with observations
@@ -246,7 +247,11 @@ export class KindlingService {
       ),
     } as QueryRequest;
 
-    return this.store.query(limitedRequest);
+    const response = await this.store.query(limitedRequest);
+    return enforceQueryLimits(response, {
+      max_results: limitedRequest.max_results,
+      max_payload_bytes: limitedRequest.max_payload_bytes,
+    });
   }
 
   /**
