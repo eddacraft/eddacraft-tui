@@ -521,6 +521,8 @@ describe('KindlingService.query', () => {
     expect(resp.metadata.truncated).toBe(true);
     expect(resp.metadata.truncation_reason).toBe('max_payload_bytes');
     expect(resp.metadata.result_count).toBe(resp.observations.length);
+    const payloadBytes = new TextEncoder().encode(JSON.stringify(resp.observations)).byteLength;
+    expect(payloadBytes).toBeLessThanOrEqual(config.query_limits.max_payload_bytes);
   });
 
   it('throws QueryValidationError after service is closed', async () => {
