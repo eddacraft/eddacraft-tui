@@ -953,3 +953,34 @@ never with feature work.
   owned-write snake_case rewrite in config set + migrate format;
   deprecation-note render in config show + doctor config-valid.
 - Next: land UCFG-002; then sweeps 010, 011, 012.
+
+## Cycle — 2026-08-13 (UCFG drain COMPLETE: waves 2-3 tail integrated)
+
+- UCFG-002: `MERGED(44742814178163bcd5abba1dc75641a1e5fb0380)` via PR #3847.
+- UCFG-012: `MERGED(48f3d9ea7c6108578a2565a3218f0312504be23f)` via PR #3848
+  (36 fixture conversions; every legacy read path keeps labelled coverage).
+- UCFG-010: `MERGED(9da932e37a4cbb45f19fd44bedeef54ab6877cf1)` via PR #3852
+  (verifier round 1 caught a delegation-target comparison regression;
+  its clippy fold also HEALED MAIN, which had gone red under -D warnings
+  from an externally-landed doctor hardening commit that blocked every
+  open PR's CI).
+- UCFG-011: `MERGED(6109c9afd856ee1df233e0b23ab26db5c3acdca8)` via PR #3851
+  (3 verifier rounds; round 2 caught a repair commit whose script had
+  silently dropped three edits — verify file contents, not claims.
+  LESSON: docs/runbooks/cli-surface.md is include_str!'d into clap help,
+  so CLIC-010's internal-identifier lint applies to runbook prose).
+- All integration proofs: `git merge-base --is-ancestor` against
+  origin/main passed for every merge sha above post-fetch.
+- Module state: 12/14 items Merged. UCFG-013 (watch/kernel architecture
+  mapping) and UCFG-014 (descriptor-bound reader guard) minted during
+  the drain remain Proposed behind the Ready membrane — operator call.
+- Environment incidents handled: /tmp tmpfs filled twice (a verifier's
+  unbounded suite log ~11GB — killed, verifier resumed with bounded
+  output; second occurrence self-recovered); inotify instance
+  exhaustion from external processes made watch tests fail locally for
+  a stretch (proven environmental; suggested remedy: sudo sysctl
+  fs.inotify.max_user_instances=256).
+- Authority: session-scoped operator grant (autonomous+merge) recorded
+  at drain start; no admin merge, no bypass, no review dismissal.
+- Next: nothing Ready remains in UCFG. aps:index reconcile owed if the
+  stored index counts drift.

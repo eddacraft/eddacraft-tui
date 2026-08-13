@@ -17,7 +17,7 @@ revision was ever executed, so IDs are reallocated cleanly.
 
 | ID   | Owner | Priority | Status   | Progress |
 | ---- | ----- | -------- | -------- | -------- |
-| UCFG | —     | medium   | Ready    | 0/12     |
+| UCFG | —     | medium   | Ready    | 12/14    |
 
 **Last reviewed:** 2026-08-12 — module rewritten against ADR-120 (Proposed),
 superseding the ADR-016 revision. Verified against current code: `anvil init`
@@ -388,7 +388,7 @@ Change status to **Ready** when:
 
 #### UCFG-010: MCP resources, config summary, doctor on the unified surface
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3852
 - **Intent:** `anvil://config`-class MCP resources, `config_summary`, and
   doctor render the resolved unified config (canonical name, gate section,
   resolved architecture, delegation provenance)
@@ -409,7 +409,7 @@ Change status to **Ready** when:
 
 #### UCFG-011: documentation sweep to one canonical name
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3851
 - **Intent:** config.md names exactly one canonical filename and the legacy
   fallback story; first-project, quickstart, agent-harness, using-anvil
   skill, and cli-surface runbook updated; gate-config "planning surface"
@@ -435,7 +435,7 @@ Change status to **Ready** when:
 
 #### UCFG-012: fixture and CI sweep
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3848
 - **Intent:** convert test fixtures and CI steps referencing `.anvilrc`,
   `gate-config.json`, or direct `architecture.yaml` reads to the canonical
   surface (legacy-fallback fixtures kept deliberately and labelled)
