@@ -293,14 +293,19 @@ fn architecture_provenance(root: &std::path::Path) -> Value {
             crate::architecture_source::ArchitectureOrigin::Section(
                 anvil_config::SectionProvenance::Delegated { path, .. },
             ),
-        ))) => json!({
-            "origin": "delegated",
-            "source": path
-                .strip_prefix(root)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .replace('\\', "/"),
-        }),
+        ))) => {
+            // Egress: never emit an absolute host path. When the
+            // canonical target does not strip against the workspace
+            // root, redact rather than fall back to the raw path.
+            let source = path.strip_prefix(root).map_or_else(
+                |_| redact_root(root, &path.to_string_lossy()),
+                |relative| relative.to_string_lossy().replace('\\', "/"),
+            );
+            json!({
+                "origin": "delegated",
+                "source": source,
+            })
+        }
         Ok(Some((_, crate::architecture_source::ArchitectureOrigin::LegacyFile(_)))) => {
             json!({"origin": "legacy-file", "source": ".anvil/architecture.yaml"})
         }

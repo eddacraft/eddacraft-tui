@@ -2084,10 +2084,10 @@ fn mcp_serve_stdio_resources_read_config_delegated_topology() {
     let source = payload["architecture"]["source"]
         .as_str()
         .expect("source string");
-    assert!(
-        source.ends_with(".anvil/architecture.yaml") && !source.starts_with('/'),
-        "source must be workspace-relative: {source}"
-    );
+    // Deterministic fixture → exact workspace-relative equality (also
+    // rejects Windows-style absolute forms that a starts_with('/')
+    // check would miss).
+    assert_eq!(source, ".anvil/architecture.yaml", "{payload}");
 }
 
 #[test]

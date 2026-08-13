@@ -80,16 +80,25 @@ fn load_config_info(workspace_root: &Path) -> Value {
                 .to_string();
             return match anvil_config::parse_file(&discovered.path) {
                 Ok(value) => {
-                    let section = anvil_config::GateSection::from_config_value(&value)
-                        .ok()
-                        .flatten();
+                    // A malformed gate section is a loud gate error; the
+                    // tool must not fail the read, but agents must see
+                    // the problem rather than a silent fallback.
+                    let (section, gate_error) =
+                        match anvil_config::GateSection::from_config_value(&value) {
+                            Ok(section) => (section, None),
+                            Err(err) => (None, Some(err.to_string())),
+                        };
                     let (checks, _) =
                         crate::commands::gate_config::effective_selection(&value, section.as_ref());
-                    json!({
+                    let mut info = json!({
                         "loaded": true,
                         "source": source_name,
                         "checks": checks
-                    })
+                    });
+                    if let Some(err) = gate_error {
+                        info["error"] = json!(format!("invalid config: {err}"));
+                    }
+                    info
                 }
                 Err(err) => json!({
                     "loaded": false,
