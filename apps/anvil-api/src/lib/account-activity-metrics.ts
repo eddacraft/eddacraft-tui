@@ -26,11 +26,40 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * clock-anchor row a `LEFT JOIN` against zero matching `beta_users` rows
  * produces (empty table, or a `plan` filter with no matches) — it carries
  * `as_of` but represents no account and must not be counted.
+ *
+ * `as_of` / `last_activity_at` are ISO 8601 strings **constructed in JS**
+ * from a DateStyle-independent numeric epoch (Postgres `extract(epoch from
+ * …)`), never parsed from Postgres's own textual timestamp output. This
+ * sidesteps two portability traps: `timestamptz::text` formatting depends on
+ * the session's `DateStyle` setting (ISO vs Postgres/SQL/German output,
+ * MDY/DMY/YMD field order), and `new Date(nonIsoString)` parsing is
+ * engine-defined in JS for anything but the ISO 8601 subset — either could
+ * silently misparse and corrupt window/quiet counts. A numeric epoch has no
+ * such ambiguity, so the DateStyle dependency is eliminated by construction
+ * rather than merely handled.
  */
 export interface AccountActivityQueryRow {
   as_of: string;
   account_id: string | null;
   last_activity_at: string | null;
+}
+
+/**
+ * Convert a Postgres `extract(epoch from …)` result (seconds since the
+ * Unix epoch, as a `number` or numeric-string depending on driver
+ * coercion) to an ISO 8601 string. Never touches Postgres's textual
+ * timestamp representation, so it cannot be affected by `DateStyle`.
+ * Throws rather than silently producing an invalid date from unexpected
+ * input (e.g. a non-numeric value smuggled through by a query change).
+ */
+function epochSecondsToIso(value: unknown): string {
+  const seconds = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(seconds)) {
+    throw new Error(
+      `account activity query returned a non-finite timestamp epoch: ${JSON.stringify(value)}`
+    );
+  }
+  return new Date(seconds * 1000).toISOString();
 }
 
 export interface AccountActivityWindowCounts {
@@ -147,26 +176,30 @@ export async function findAccountActivityRows(
   sql: NeonClient,
   plan: string | null
 ): Promise<AccountActivityQueryRow[]> {
+  // `extract(epoch from …)` (not `::text`) — see the AccountActivityQueryRow
+  // doc comment above: a numeric epoch is immune to the session DateStyle
+  // that a textual timestamp cast would depend on.
   const result = plan
     ? await sql`
         SELECT
-          clock.as_of::text AS as_of,
+          extract(epoch from clock.as_of) AS as_of,
           u.id::text AS account_id,
-          u.last_activity_at::text AS last_activity_at
+          extract(epoch from u.last_activity_at) AS last_activity_at
         FROM (SELECT now() AS as_of) AS clock
         LEFT JOIN beta_users u ON u.status = 'active' AND u.plan = ${plan}
       `
     : await sql`
         SELECT
-          clock.as_of::text AS as_of,
+          extract(epoch from clock.as_of) AS as_of,
           u.id::text AS account_id,
-          u.last_activity_at::text AS last_activity_at
+          extract(epoch from u.last_activity_at) AS last_activity_at
         FROM (SELECT now() AS as_of) AS clock
         LEFT JOIN beta_users u ON u.status = 'active'
       `;
   return (result as Record<string, unknown>[]).map((row) => ({
-    as_of: String(row['as_of']),
+    as_of: epochSecondsToIso(row['as_of']),
     account_id: row['account_id'] === null ? null : String(row['account_id']),
-    last_activity_at: row['last_activity_at'] === null ? null : String(row['last_activity_at']),
+    last_activity_at:
+      row['last_activity_at'] === null ? null : epochSecondsToIso(row['last_activity_at']),
   }));
 }

@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ACCOUNT_ACTIVITY_SCHEMA_VERSION,
   buildAccountActivityOverview,
+  findAccountActivityRows,
   type AccountActivityQueryRow,
 } from '../lib/account-activity-metrics.js';
+import type { NeonClient } from '../db/client.js';
 
 const AS_OF = '2026-08-13T12:00:00.000Z';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -141,5 +143,63 @@ describe('buildAccountActivityOverview', () => {
 
   it('throws when the query returned no rows at all (contract violation)', () => {
     expect(() => buildAccountActivityOverview([], { idleDays: 30, plan: null })).toThrow();
+  });
+});
+
+describe('findAccountActivityRows', () => {
+  // Timestamp portability: the query casts with `extract(epoch from …)` — a
+  // plain numeric with no dependence on the session's DateStyle setting —
+  // rather than `::text` (Postgres formats timestamp text per DateStyle:
+  // ISO vs Postgres/SQL/German output, MDY/DMY/YMD field order; `new
+  // Date(nonIsoString)` parsing is then engine-defined in JS for anything
+  // but the ISO subset). These tests prove the row mapper never falls back
+  // to parsing Postgres's textual timestamp output.
+
+  function fakeSql(rows: unknown[]): NeonClient {
+    return vi.fn().mockResolvedValue(rows) as unknown as NeonClient;
+  }
+
+  it('converts a numeric epoch to the equivalent ISO string, independent of any DateStyle', async () => {
+    const asOfEpoch = new Date(AS_OF).getTime() / 1000;
+    const lastActivityEpoch = new Date(isoMinusMs(3 * DAY_MS)).getTime() / 1000;
+
+    const rows = await findAccountActivityRows(
+      fakeSql([{ as_of: asOfEpoch, account_id: 'a', last_activity_at: lastActivityEpoch }]),
+      null
+    );
+
+    expect(rows).toEqual([
+      { as_of: AS_OF, account_id: 'a', last_activity_at: isoMinusMs(3 * DAY_MS) },
+    ]);
+  });
+
+  it('accepts a numeric-string epoch (some drivers coerce numerics to strings)', async () => {
+    const asOfEpoch = new Date(AS_OF).getTime() / 1000;
+
+    const rows = await findAccountActivityRows(
+      fakeSql([{ as_of: String(asOfEpoch), account_id: null, last_activity_at: null }]),
+      null
+    );
+
+    expect(rows).toEqual([{ as_of: AS_OF, account_id: null, last_activity_at: null }]);
+  });
+
+  it('fails loudly rather than silently misparsing a non-numeric epoch — e.g. a DateStyle=German-shaped timestamp a regressed ::text query might emit', async () => {
+    await expect(
+      findAccountActivityRows(
+        fakeSql([{ as_of: '13.08.2026 12:00:00', account_id: null, last_activity_at: null }]),
+        null
+      )
+    ).rejects.toThrow(/non-finite/);
+  });
+
+  it('sends the plan filter as a bound query parameter', async () => {
+    const asOfEpoch = new Date(AS_OF).getTime() / 1000;
+    const sql = fakeSql([{ as_of: asOfEpoch, account_id: null, last_activity_at: null }]);
+
+    await findAccountActivityRows(sql, 'beta');
+
+    const callArgs = (sql as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as unknown[];
+    expect(callArgs).toContain('beta');
   });
 });

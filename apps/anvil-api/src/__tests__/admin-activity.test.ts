@@ -22,8 +22,14 @@ function request(path: string, authKey?: string) {
 const AS_OF = '2026-08-13T12:00:00.000Z';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function isoMinusMs(ms: number): string {
-  return new Date(new Date(AS_OF).getTime() - ms).toISOString();
+// mockSql stands in for the Neon driver, which — for `extract(epoch from …)`
+// — returns seconds-since-epoch numerics, never Postgres's DateStyle-shaped
+// textual timestamp output. Fixtures below emit that same numeric shape so
+// this test exercises the real wire contract, not a stand-in string.
+const AS_OF_EPOCH = new Date(AS_OF).getTime() / 1000;
+
+function epochMinusMs(ms: number): number {
+  return (new Date(AS_OF).getTime() - ms) / 1000;
 }
 
 describe('GET /admin/activity (BACT-009)', () => {
@@ -52,7 +58,9 @@ describe('GET /admin/activity (BACT-009)', () => {
   });
 
   it('returns the stable envelope for an empty account table', async () => {
-    mockSql.mockResolvedValueOnce([{ as_of: AS_OF, account_id: null, last_activity_at: null }]);
+    mockSql.mockResolvedValueOnce([
+      { as_of: AS_OF_EPOCH, account_id: null, last_activity_at: null },
+    ]);
 
     const response = await request('/activity', ADMIN_KEY);
     expect(response.status).toBe(200);
@@ -69,10 +77,10 @@ describe('GET /admin/activity (BACT-009)', () => {
 
   it('computes DAA/WAA/MAA and cohorts from account rows', async () => {
     mockSql.mockResolvedValueOnce([
-      { as_of: AS_OF, account_id: 'a', last_activity_at: isoMinusMs(0) },
-      { as_of: AS_OF, account_id: 'b', last_activity_at: isoMinusMs(3 * DAY_MS) },
-      { as_of: AS_OF, account_id: 'c', last_activity_at: null },
-      { as_of: AS_OF, account_id: 'd', last_activity_at: isoMinusMs(90 * DAY_MS) },
+      { as_of: AS_OF_EPOCH, account_id: 'a', last_activity_at: epochMinusMs(0) },
+      { as_of: AS_OF_EPOCH, account_id: 'b', last_activity_at: epochMinusMs(3 * DAY_MS) },
+      { as_of: AS_OF_EPOCH, account_id: 'c', last_activity_at: null },
+      { as_of: AS_OF_EPOCH, account_id: 'd', last_activity_at: epochMinusMs(90 * DAY_MS) },
     ]);
 
     const response = await request('/activity', ADMIN_KEY);
@@ -86,7 +94,7 @@ describe('GET /admin/activity (BACT-009)', () => {
 
   it('passes the plan filter through to the query and echoes it back', async () => {
     mockSql.mockResolvedValueOnce([
-      { as_of: AS_OF, account_id: 'a', last_activity_at: isoMinusMs(0) },
+      { as_of: AS_OF_EPOCH, account_id: 'a', last_activity_at: epochMinusMs(0) },
     ]);
 
     const response = await request('/activity?plan=beta', ADMIN_KEY);
@@ -107,7 +115,7 @@ describe('GET /admin/activity (BACT-009)', () => {
 
   it('honours a custom idleDays quiet window', async () => {
     mockSql.mockResolvedValueOnce([
-      { as_of: AS_OF, account_id: 'a', last_activity_at: isoMinusMs(15 * DAY_MS) },
+      { as_of: AS_OF_EPOCH, account_id: 'a', last_activity_at: epochMinusMs(15 * DAY_MS) },
     ]);
 
     const response = await request('/activity?idleDays=14', ADMIN_KEY);
