@@ -511,10 +511,10 @@ $ anvil welcome
 ## anvil init
 
 **Class:** Setup **Purpose:** Initialise Anvil configuration for a project.
-**When to use:** To create the canonical `.anvil.yaml` configuration in a repo
-that doesn't have one yet (an existing config, including a legacy `.anvilrc`,
-makes init bail without `--force`; `--force` replaces it and removes a legacy
-`.anvilrc`).
+**When to use:** To create the canonical `.anvil.<ext>` configuration
+(`.anvil.yaml` by default; the wizard can pick JSON/TOML) in a repo that doesn't
+have one yet (an existing config, including a legacy `.anvilrc`, makes init bail
+without `--force`; `--force` replaces it and removes a legacy `.anvilrc`).
 
 **Synopsis:** `anvil init [--force]`
 

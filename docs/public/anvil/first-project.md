@@ -70,7 +70,7 @@ listed in `depends_on`.
 
 The standalone file remains valid, and save-time watch enforcement reads it
 directly. The unified home for this definition is the `architecture` section of
-the project config (`.anvil.yaml`) — written inline or delegated to this file
+the project config (`.anvil.<ext>`) — written inline or delegated to this file
 with an `architecture.source` line, which `anvil migrate architecture --apply`
 adds for you. `anvil architecture validate` and `show` resolve the section
 first, then fall back to the standalone file.

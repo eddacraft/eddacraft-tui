@@ -113,12 +113,12 @@ when the user asks whether the repo is safe to merge, commit, or proceed.
 ## Configuration
 
 anvil's active project settings live in `.anvil.<ext>` — the extension names the
-format. `anvil init` creates `.anvil.yaml`. **YAML is the default**; **TOML and
-JSON are also supported** (same schema, different encoding — use whichever the
-project already standardises on). A legacy `.anvilrc` is still read as a
-fallback; `anvil migrate format` converts it. Keys are `snake_case` (legacy
-`camelCase` keys are accepted on read; any owned write — `anvil config set`,
-`anvil migrate format` — rewrites them).
+format. `anvil init` creates `.anvil.yaml` by default. **YAML is the default**;
+**TOML and JSON are also supported** (same schema, different encoding — use
+whichever the project already standardises on). A legacy `.anvilrc` is still
+read as a fallback; `anvil migrate format` converts it. Keys are `snake_case`
+(legacy `camelCase` keys are accepted on read; any owned write —
+`anvil config set`, `anvil migrate format` — rewrites them).
 
 Example (`.anvil.yaml`):
 
