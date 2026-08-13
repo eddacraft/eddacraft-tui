@@ -63,7 +63,7 @@ FROM (
 ) rt
 WHERE u.id = rt.user_id
   AND u.last_activity_at IS NULL
-RETURNING u.id
+RETURNING 1
 `.trim();
 
 export async function runActivityBackfill(
