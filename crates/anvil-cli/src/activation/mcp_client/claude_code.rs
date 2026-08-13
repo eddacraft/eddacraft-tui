@@ -1,11 +1,11 @@
 //! Claude Code MCP client (LAUNCH-009).
 //!
-//! Claude Code reads MCP config from `~/.claude.json` (per-user) and
-//! `.claude.json` (per-workspace). The file is strict JSON in current
-//! Claude Code versions; the JSONC concern raised in council was based
-//! on a misread of `~/.claude/settings.json` (a different file). The
-//! MCP config file specifically is JSON-only — verified against the
-//! Claude Code docs.
+//! Claude Code reads MCP config from `~/.claude.json` (user / local
+//! scope) and `.mcp.json` (project / workspace scope). The file is
+//! strict JSON in current Claude Code versions; the JSONC concern
+//! raised in council was based on a misread of `~/.claude/settings.json`
+//! (a different file). The MCP config file specifically is JSON-only —
+//! verified against the Claude Code docs.
 //!
 //! Server entries live under the top-level `mcpServers` key, indexed by
 //! a free-form server name (we use `"anvil"`).
@@ -35,9 +35,10 @@ impl McpClient for ClaudeCode {
 
     fn config_paths(&self, workspace: &Path, home: Option<&Path>) -> Vec<ConfigCandidate> {
         let mut paths = Vec::with_capacity(2);
-        // Workspace-local first.
+        // Workspace-local first. Claude Code's project-scoped MCP file
+        // is `.mcp.json`; `~/.claude.json` is user/local only.
         paths.push(ConfigCandidate {
-            path: workspace.join(".claude.json"),
+            path: workspace.join(".mcp.json"),
             scope: ConfigScope::Workspace,
         });
         if let Some(h) = home {
@@ -126,8 +127,9 @@ fn build_entry(fresh: &AnvilEntry) -> Result<Value, RenderError> {
     }
 }
 
-/// Claude Code keeps MCP server entries in `.claude.json`, while permission
-/// rules live in the sibling `.claude/settings.json` settings file.
+/// Claude Code keeps project MCP servers in `.mcp.json` and user/local
+/// servers in `~/.claude.json`. Permission rules live in
+/// `.claude/settings.json` next to the MCP file's parent directory.
 pub(crate) fn settings_path_for_mcp_config(mcp_config_path: &Path) -> PathBuf {
     mcp_config_path
         .parent()
@@ -197,8 +199,12 @@ mod tests {
         let home = PathBuf::from("/home/u");
         let paths = ClaudeCode.config_paths(&ws, Some(&home));
         assert_eq!(paths.len(), 2);
-        assert_eq!(paths[0].path, PathBuf::from("/repo/.claude.json"));
+        // Claude Code project scope is `.mcp.json`; user/local scope is
+        // `~/.claude.json` (https://docs.anthropic.com/en/docs/claude-code/mcp).
+        assert_eq!(paths[0].path, PathBuf::from("/repo/.mcp.json"));
+        assert_eq!(paths[0].scope, ConfigScope::Workspace);
         assert_eq!(paths[1].path, PathBuf::from("/home/u/.claude.json"));
+        assert_eq!(paths[1].scope, ConfigScope::Global);
     }
 
     #[test]
@@ -322,6 +328,12 @@ mod tests {
     fn settings_path_sits_under_claude_directory_next_to_mcp_config() {
         let path = settings_path_for_mcp_config(Path::new("/home/u/.claude.json"));
         assert_eq!(path, PathBuf::from("/home/u/.claude/settings.json"));
+    }
+
+    #[test]
+    fn settings_path_for_workspace_mcp_json_is_project_settings() {
+        let path = settings_path_for_mcp_config(Path::new("/repo/.mcp.json"));
+        assert_eq!(path, PathBuf::from("/repo/.claude/settings.json"));
     }
 
     #[test]
