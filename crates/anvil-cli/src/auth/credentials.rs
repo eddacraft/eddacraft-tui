@@ -198,6 +198,9 @@ impl CredentialRefreshLock {
 }
 
 fn open_refresh_lock() -> Result<File> {
+    #[cfg(unix)]
+    use std::os::unix::fs::OpenOptionsExt as _;
+
     let dir = credentials_dir()?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
     let path = dir.join(REFRESH_LOCK_FILE);
@@ -205,7 +208,6 @@ fn open_refresh_lock() -> Result<File> {
     options.create(true).read(true).write(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt as _;
         options.mode(0o600);
     }
     options
@@ -567,6 +569,8 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn refresh_lock_file_is_created_owner_only() {
+        use std::os::unix::fs::PermissionsExt as _;
+
         let dir = tempfile::tempdir().unwrap();
         temp_env::with_vars(
             [
@@ -577,7 +581,6 @@ mod tests {
                 let _lock = CredentialRefreshLock::acquire().unwrap();
                 let path = credentials_dir().unwrap().join(REFRESH_LOCK_FILE);
                 assert!(path.is_file(), "refresh lock sidecar must exist");
-                use std::os::unix::fs::PermissionsExt as _;
                 let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
                 assert_eq!(mode, 0o600, "refresh lock must be owner-only, got {mode:o}");
             },

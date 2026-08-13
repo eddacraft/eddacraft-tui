@@ -1,8 +1,8 @@
 # GitHub Device-Flow Login Operator Runbook
 
-| Type    | Authority     | Owner     | Status | Freshness                                                                          |
-| ------- | ------------- | --------- | ------ | ---------------------------------------------------------------------------------- |
-| Runbook | Authoritative | GHCLIAUTH | Live   | Last reviewed 2026-06-11 against `apps/anvil-api/src/routes/auth-github-device.ts` |
+| Type    | Authority     | Owner     | Status | Freshness                                                                                                                         |
+| ------- | ------------- | --------- | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | GHCLIAUTH | Live   | Last reviewed 2026-08-13 against `crates/anvil-cli/src/auth/device_flow.rs` and `apps/anvil-api/src/routes/auth-github-device.ts` |
 
 | Upstream                                                                                                                                                                                                                                                  | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -196,6 +196,15 @@ Only proceed with the cutover once the smoke login confirms end-to-end.
   the payload will not decrypt, it fails closed to `expired`.
 - A concurrent mint race is resolved by re-reading and re-returning the winner's
   stored session; only one mint is ever recorded.
+- After login, the CLI stores a rotating refresh token next to the licence.
+  `anvil auth refresh` and silent startup refresh hold an exclusive
+  `credentials.lock` sidecar across load → `/session/refresh` → save, then
+  re-read the file after acquiring the lock. Two concurrent CLI processes must
+  not submit the same refresh token: the API treats reuse as family theft and
+  revokes the whole session. "Refresh-token reuse detected" on stderr means the
+  family was already revoked — the user must run `anvil auth login` again. A
+  hung refresh holds the lock until that process exits (the lock is released on
+  process death).
 
 ## Structured operational logs
 
