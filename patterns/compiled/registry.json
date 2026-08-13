@@ -782,7 +782,7 @@
       "targets": ["source"],
       "detection": {
         "type": "regex",
-        "pattern": "\\b(eval|exec|compile)\\s*\\(\\s*[A-Za-z_][A-Za-z0-9_]*\\s*[,()]"
+        "pattern": "\\b(eval|exec|compile)\\s*\\(\\s*(?:[fF]['\"]|[A-Za-z_][A-Za-z0-9_]*\\s*[,().\\[])"
       },
       "file_extensions": [".py"],
       "allowlist": [
@@ -792,13 +792,13 @@
         "**/conftest.py",
         "**/explain/**"
       ],
-      "nudge": "Don't call `eval()`, `exec()`, or `compile(..., \"exec\")` with a dynamic\nargument. An identifier as the first argument means the string being executed\nis not a static literal and may be attacker-controlled at runtime.\n\nReplace with a structured dispatch — a dict of callables keyed on the input, a\npydantic / attrs schema for data validation, or a restricted interpreter\n(`ast.literal_eval` for literals only, RestrictedPython, a subprocess with a\nclean env) if you genuinely need to run untrusted code.\n\nIf the argument is a string literal you control end-to-end (e.g. `eval(\"1 + 1\")`\nor a prefixed form such as `re.compile(r'^\\d+$')`, `compile(rb\"...\", \"<s>\",\n\"exec\")`, `eval(u\"1\")`), the rule skips you: a bare quote or an optional\n`r`/`b`/`f`/`u`/`rb` prefix immediately before the quote is treated as static.",
+      "nudge": "Don't call `eval()`, `exec()`, or `compile(..., \"exec\")` with a dynamic\nargument. An identifier as the first argument means the string being executed\nis not a static literal and may be attacker-controlled at runtime.\n\nReplace with a structured dispatch — a dict of callables keyed on the input, a\npydantic / attrs schema for data validation, or a restricted interpreter\n(`ast.literal_eval` for literals only, RestrictedPython, a subprocess with a\nclean env) if you genuinely need to run untrusted code.\n\nIf the argument is a string literal you control end-to-end (e.g. `eval(\"1 + 1\")`\nor a raw/bytes/unicode prefix such as `re.compile(r'^\\d+$')`,\n`compile(rb\"...\", \"<s>\", \"exec\")`, `eval(u\"1\")`), the rule skips you. f-strings\nare not treated as static — they can interpolate run-time values.",
       "related": ["AP-008", "PY-009"],
       "enabled": true,
       "opt_in": false,
       "family_name": "Python Reliability",
       "category": "error-handling",
-      "explanation": "`eval()`, `exec()`, and `compile()` turn a run-time string into code in the\nprocess's full privilege. When the first argument is an identifier, static\nanalysis cannot see the payload — it may be attacker-controlled.\n\nPrefixed string literals (`r`, `b`, `f`, `rb`, `u`, and the other legal\ncombinations) are treated as static, the same as a bare quote. Forms such as\n`re.compile(r'^\\d+$')`, `compile(rb\"...\", \"<s>\", \"exec\")`, and `eval(u\"1\")`\ndo not fire. True dynamic arguments (`eval(user_input)`, `exec(payload)`,\n`compile(src, '<str>', 'exec')`) still do.",
+      "explanation": "`eval()`, `exec()`, and `compile()` turn a run-time string into code in the\nprocess's full privilege. When the first argument is an identifier, static\nanalysis cannot see the payload — it may be attacker-controlled.\n\nRaw, bytes, and unicode prefixes (`r`, `b`, `u`, `rb`) are treated as static,\nthe same as a bare quote. Forms such as `re.compile(r'^\\d+$')`,\n`compile(rb\"...\", \"<s>\", \"exec\")`, and `eval(u\"1\")` do not fire. f-strings\nand true dynamic arguments (`eval(user_input)`, `eval(user_input.strip())`,\n`eval(user_input[0])`, `exec(payload)`, `compile(src, '<str>', 'exec')`)\nstill do.",
       "suggestion": "Add the specific code to the suppression so it silences only the real failure\n(`# type: ignore[arg-type]`, `# noqa: E501`, `# pylint: disable=broad-except`);\ncatch the narrowest exception you can handle and re-raise or log the rest\n(`except ValueError:` over bare `except:`); import the names you use explicitly\ninstead of `*`; use the `logging` module instead of `print()`; give the value a\nreal type instead of `Any`. When a pattern is genuinely correct, suppress the\nfinding with a reason: `# @anvil-ignore PY-004 -- top-level daemon guard, logs\nand re-raises`.",
       "definition_ref": "patterns/python-reliability/definition.anvil",
       "tensions": [],

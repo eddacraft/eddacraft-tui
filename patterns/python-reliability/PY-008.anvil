@@ -15,11 +15,10 @@ allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**
 
 detection:
   type: regex
-  # RE2 has no lookahead. Require a real identifier then `,`, `)`, or
-  # `(` so prefixed literals (`r'...'`, `rb"..."`) stay static while
-  # `eval(input())` / `eval(item)` still fire. Do not subtract prefix
-  # letters from the identifier start class.
-  pattern: '\b(eval|exec|compile)\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*[,()]'
+  # RE2 has no lookahead. Static: bare quotes and r/b/u/rb prefixes.
+  # Dynamic: identifier then `,` `)` `(` `.` `[`, or an f-string (f-strings
+  # interpolate). Do not subtract prefix letters from the identifier class.
+  pattern: '\b(eval|exec|compile)\s*\(\s*(?:[fF][''"]|[A-Za-z_][A-Za-z0-9_]*\s*[,().\[])'
 
 related: [AP-008, PY-009]
 enabled: true
@@ -36,9 +35,9 @@ pydantic / attrs schema for data validation, or a restricted interpreter
 clean env) if you genuinely need to run untrusted code.
 
 If the argument is a string literal you control end-to-end (e.g. `eval("1 + 1")`
-or a prefixed form such as `re.compile(r'^\d+$')`, `compile(rb"...", "<s>",
-"exec")`, `eval(u"1")`), the rule skips you: a bare quote or an optional
-`r`/`b`/`f`/`u`/`rb` prefix immediately before the quote is treated as static.
+or a raw/bytes/unicode prefix such as `re.compile(r'^\d+$')`,
+`compile(rb"...", "<s>", "exec")`, `eval(u"1")`), the rule skips you. f-strings
+are not treated as static — they can interpolate run-time values.
 
 ## Why It's Harmful
 
@@ -46,8 +45,9 @@ or a prefixed form such as `re.compile(r'^\d+$')`, `compile(rb"...", "<s>",
 process's full privilege. When the first argument is an identifier, static
 analysis cannot see the payload — it may be attacker-controlled.
 
-Prefixed string literals (`r`, `b`, `f`, `rb`, `u`, and the other legal
-combinations) are treated as static, the same as a bare quote. Forms such as
-`re.compile(r'^\d+$')`, `compile(rb"...", "<s>", "exec")`, and `eval(u"1")`
-do not fire. True dynamic arguments (`eval(user_input)`, `exec(payload)`,
-`compile(src, '<str>', 'exec')`) still do.
+Raw, bytes, and unicode prefixes (`r`, `b`, `u`, `rb`) are treated as static,
+the same as a bare quote. Forms such as `re.compile(r'^\d+$')`,
+`compile(rb"...", "<s>", "exec")`, and `eval(u"1")` do not fire. f-strings
+and true dynamic arguments (`eval(user_input)`, `eval(user_input.strip())`,
+`eval(user_input[0])`, `exec(payload)`, `compile(src, '<str>', 'exec')`)
+still do.
