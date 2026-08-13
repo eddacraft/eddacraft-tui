@@ -244,6 +244,7 @@ fn still_flags_standalone_card_after_url_on_same_line() {
         format!(r#"{{"checkout":"https://pay.example.com/session","pan":"{digits}"}}"#),
         format!(r#"<a href="https://www.facebook.com/reel/xyz">{digits}</a>"#),
         format!("https://example.com/order,{digits}"),
+        format!(r#"href="https://example.com" /reel/{digits}"#),
     ];
 
     for content in cases {

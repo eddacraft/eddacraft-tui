@@ -272,6 +272,14 @@ fn is_inside_http_url_path(line: &str, match_start: usize) -> bool {
     let Some(path_slash) = host_and_maybe_path.find('/') else {
         return false;
     };
+    // A terminator in the host (`href="https://example.com" /reel/...`)
+    // means the later slash is not this URL's path.
+    if host_and_maybe_path[..path_slash]
+        .chars()
+        .any(url_path_ended)
+    {
+        return false;
+    }
     let after_path_start = &host_and_maybe_path[path_slash..];
     if after_path_start.chars().any(url_path_ended) {
         return false;
