@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 263/315  |
+| CIB | —     | In Progress | 263/324  |
 
 ## Purpose
 
@@ -9685,4 +9685,291 @@ CIB-251/255 only.
   (`current_date::text`, `received_on::text`) were out of that campaign's
   scope.
 - **Confidence:** high
+
+## Pack-06 intake (Dave 0.9.4-beta full pack, 2026-08-11)
+
+Source: operator-held
+`/home/aneki/tmp/anvil-beta/Dave/2026-08-11-anvil-094-full-pack-for-*.md`
+(plus the local scratch
+`.scratch/dave-feedback-reconciliation.md` in the operator checkout).
+One tester, mainly their agent, Windows 11, often no TTY. Severity and
+PATTERN-C framing are theirs, not product truth. Ids `UPD-*` and `UX-*`
+collide with pack 01 — always qualify by pack.
+
+**Baseline preserved:** packs 01–04 stay on CIB-228..267 / 301 / 302 / 315.
+Pack 05 / 05a shipped as unnamed 0.9.4 field fixes (Dave
+`confirmed_fixed`: SEC-FP-1, SEC-WIT-1, SEC-FP-2, SEC-COV-1, RETEST-1,
+RETEST-2). Do not re-file those.
+
+**CIB-319:** unused (318 then 320). Do not reuse. This intake starts at
+**CIB-322**.
+
+### Pack-06 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| PY008-FP | net-new FP we created by shipping SEC-COV-1 | **CIB-322** Ready P1 |
+| B14 | PY-008 `explanation` is family boilerplate | **Absorbed** into CIB-322 |
+| SEC-CARD-1 | card rule on URL path digit runs | **CIB-323** Ready P2 |
+| UPD-1 / UPD-2 / UPD-3 *(pack 06)* | Windows `update` honesty (exit 0 / advice while current / winget on cargo-dist) | **CIB-324** Ready P2 |
+| SEC-INST-1 | downloaded installer.ps1 dies on `$Args` | **CIB-325** Ready P2 |
+| B4 / REPORTFP-1 | `report-fp` rejects the ids `check` prints | **CIB-326** Ready P2 |
+| C3 / B10 | unparseable architecture.yaml silently disables import-boundaries | **CIB-327** Draft P2 (verify first) |
+| SUPPRESS-1 | scanner FP has no scoped escape; grant/commit deadlock | **CIB-328** Draft P2 (deadlock only; L4-only exceptions stay) |
+| UX-3 *(pack 06)* | bare `anvil` on non-TTY becomes `intercept start --foreground` and does not return | **CIB-329** Draft P2 (verify Windows detach) |
+| C1 / B1 | MCP `gateUnavailable` → proceed | **Won't change** without an ADR. ADR-002; not fired on 0.9.4 |
+| C2 / B11 | generated hooks `exit 0` if `anvil` missing | **Won't change** without amending ADR-038 D-5 |
+| SUPPRESS-1 `@anvil-ignore` | claimed no-op | **Not filed.** Preceding-line ignore is tested green for PY-004 |
+| B12 | gate vs check secret domains | **Already CIB-255.** Disclosure shipped; do not re-file |
+| B15 | `validate_write` vs `check` on identical bytes | **Won't file as a defect.** Pre-write is a documented subset |
+| B2 / B3 | MCP creds at spawn; `auth login` exit 1 after refresh | **Not filed.** 0.9.2 only; not retested on 0.9.4 |
+| AP017-FP / WC001-FP | `from_string` / `usedforsecurity=False` | **Parked.** Revisit if still loud after CIB-322 |
+| DASH-SUP-1 / DASH-BASE-1 / DASH-WEB-1 | dashboard read-path / CORS | **Parked.** Dashboard is flag-gated; not this window |
+| CAPSULE-EXC-1 | capsule blesses warned grants | **Parked.** Honesty, not a ship gate |
+| SEC-DAEMON-1 / B6 / UX-1 / UX-2 / UX-4 / UX-5 | polish / copy / docs landing | **Won't change** this pass |
+| STATE-1 | kindling vs clean-tree vs doctor | **Question, not a CIB.** ADR-073 |
+| SEC-COV-3 / SEC-UX-1 | pack 05 leftovers (rule-family scope; check single-file / exit 1) | **Parked.** Honesty/docs, not this intake |
+| PATTERN-A / B / C | framing only | **Do not file** |
+
+### CIB-322: PY-008 must not fire on Python prefixed string literals
+
+- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Priority:** P1 — ERROR, blocks commits, we created this by shipping SEC-COV-1
+- **Intent:** `PY-008` decides an argument is dynamic by testing whether the
+  first character inside the parens is a quote. A Python prefixed literal
+  (`r`, `b`, `f`, `rb`, `u`, …) starts with a letter, so
+  `re.compile(r"...")`, `compile(r"...")`, and the same shapes for `eval` /
+  `exec` all fire. Prefixed literals are near-universal in Python.
+- **Expected Outcome:**
+  - Prefixed string literals are treated as static, same as a bare quote.
+  - True dynamic arguments (`eval(user_input)`, `compile(src, "<s>", "exec")`)
+    still fire.
+  - `eval("1+1")` / `exec('pass')` stay clean (existing tests).
+  - The compiled-registry `explanation` for PY-008 describes eval/exec/compile,
+    not the python-reliability family boilerplate (`# type: ignore`, bare
+    `# noqa`, `except:`, `import *`, `print()`, `Any`). Fold Dave B14 here.
+- **Non-scope / do not:** do not add receiver resolution as the only fix —
+  unqualified `compile(r"...")` must also stay clean. Do not drop PY-008.
+- **Files:** `patterns/python-reliability/PY-008.anvil`,
+  `patterns/compiled/registry.json` (regenerate; do not hand-edit if a
+  compile step exists), `crates/anvil-checks/tests/python_antipatterns.rs`
+- **Validation:** add RED-then-green cases for `re.compile(r'^\d+$')`,
+  `compile(rb"...", "<s>", "exec")`, `eval(u"1")` (must not fire) next to
+  the existing dynamic-argument cases (must fire). Registry explanation no
+  longer mentions `# type: ignore` / `import *` as if they were this rule.
+- **Identified From:** Dave pack 06 PY008-FP + B14, 2026-08-11, anvil
+  0.9.4-beta, Windows 11. Confirmed on current `main`: pattern is
+  `\b(eval|exec|compile)\s*\(\s*[A-Za-z_]`.
+- **Coordinates with:** SEC-COV-1 / 0.9.4 PY-008/PY-009 ship
+- **Confidence:** high — source + missing test for prefixed literals.
+
+### CIB-323: Credit-card rule must not fire on URL path digit runs
+
+- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Priority:** P2 — same class as the path-shaped entropy exemption shipped
+  for SEC-FP-1
+- **Intent:** `SECRET-CREDIT-CARD` is a bare 16-digit run
+  (`\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b`). A Facebook reel (or any
+  URL path segment) of 16 digits trips it. Vendor-prefixed secret rules
+  stay precise; this generic shape does not.
+- **Expected Outcome:** a 16-digit run inside a URL path (or other
+  path-shaped token) is not reported as a credit card. A standalone
+  Luhn-plausible card number outside a URL still fires. Reuse the
+  path-shaped exemption idea from the 0.9.4 entropy fix rather than
+  inventing a second classifier.
+- **Non-scope / do not:** do not disable the card rule; do not require a
+  live Luhn test against third-party URLs as the only proof.
+- **Files:** `crates/anvil-checks/src/secret/patterns.rs` (Credit Card),
+  secret scanner / entropy helpers, secret-detection tests
+- **Validation:** fixture line with a `https://` URL whose path contains 16
+  digits is clean; a standalone 16-digit card-shaped token still reports
+  `SECRET-CREDIT-CARD`.
+- **Identified From:** Dave pack 06 SEC-CARD-1, 2026-08-11. Confirmed the
+  pattern is still the bare digit run on current `main`.
+- **Coordinates with:** SEC-FP-1 (0.9.4 path-shaped entropy exemption)
+- **Confidence:** high on the match; medium on the exact exemption shape.
+
+### CIB-324: Windows `anvil update` must match `--check` and the install method
+
+- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Priority:** P2 — scripted `update && …` and cargo-dist Windows users
+- **Intent:** Three pack-06 observations share the Windows `update` surface
+  (new meanings; not pack-01 UPD-1/2/3):
+  1. `anvil update` declines ("Self-update is not supported on Windows")
+     and **exits 0**, so a script treats "operator action required" as
+     success.
+  2. The same invocation prints the full `To upgrade, use one of:` block
+     while `anvil update --check` reports already current.
+  3. The first printed remedy is `winget upgrade --id eddacraft.anvil`
+     even when `anvil version --json` says `install_method: cargo_dist`
+     (winget has nothing to upgrade).
+- **Expected Outcome:**
+  - Decline / operator-action-required is a distinct non-zero exit (or
+    documented JSON `action: unsupported` with non-zero), separable from
+    "already current" (exit 0).
+  - If already current, do not print a reinstall recipe. Consult the same
+    comparison `--check` uses.
+  - Printed remedies are filtered by the already-resolved install method
+    (cargo-dist → installer line already shared with `version`; winget
+    only when the install is actually winget).
+- **Non-scope / do not:** do not implement Windows self-update in this
+  item; do not re-open CIB-315 receipt-root detection.
+- **Files:** `crates/anvil-cli/src/commands/update.rs`
+  (`report_windows_unsupported`, `windows_unsupported_message`)
+- **Validation:** unit tests for (a) Windows-unsupported path exit ≠ 0,
+  (b) already-current suppresses the upgrade block, (c) cargo-dist method
+  does not lead with `winget upgrade`.
+- **Identified From:** Dave pack 06 UPD-1 / UPD-2 / UPD-3, 2026-08-11,
+  0.9.4-beta cargo-dist install on Windows 11. Confirmed
+  `windows_unsupported_message` still leads with winget and the decline
+  path prints then returns without a non-zero exit.
+- **Coordinates with:** CIB-229, CIB-315
+- **Confidence:** high.
+
+### CIB-325: PowerShell installer must run as a downloaded file
+
+- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Priority:** P2 — penalises the download-verify-inspect path
+- **Intent:** `powershell -File eddacraft-anvil-installer.ps1` dies with
+  `$args` unset under `Set-StrictMode` because cargo-dist's generated
+  script has a `param` block (so `$Args` is never populated) and later
+  calls `Install-Binary "$Args"`. `irm | iex` survives only because it
+  runs in a caller scope where `$args` already exists.
+- **Expected Outcome:** the published Windows installer runs both as
+  `irm … | iex` (documented) and as `powershell -File <downloaded.ps1>`
+  (the careful path). Dual-install refuse and clean-PATH install still
+  hold (CIB-228). No private tracker ids (CIB-230).
+- **Non-scope / do not:** do not change the documented `irm | iex` path;
+  do not wait on an upstream cargo-dist release if a release.yml
+  post-process can initialise `$Args` or drop the unused pass-through.
+- **Files:** release inject / post-process for
+  `eddacraft-anvil-installer.ps1` (`.github/workflows/release.yml`,
+  `scripts/install/windows-package-manager-guard.ps1` and any installer
+  contract test). The `$Args` line itself is cargo-dist generated.
+- **Validation:** a fixture that concatenates or post-processes the way
+  release.yml does, then runs the script under
+  `Set-StrictMode -Version Latest` with `-File` and no inherited `$args`,
+  must reach the install body (or the dual-install refuse), not a
+  variable-not-set error.
+- **Identified From:** Dave pack 06 SEC-INST-1, 2026-08-11.
+- **Coordinates with:** CIB-228, CIB-230
+- **Confidence:** high on the mechanism (param + StrictMode + `$Args`);
+  medium on the smallest patch site.
+
+### CIB-326: `report-fp` must accept the finding ids `check` prints
+
+- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Priority:** P2 — FP telemetry cannot receive the ids users see
+- **Intent:** `report-fp` validates against the OPSUP-001 check catalogue
+  (`ANV-CORE-001` / `secret-detection`). `anvil check` prints rule ids
+  (`PY-008`, `AP-008`, `SECRET-HIGH-ENTROPY-STRING`). Those are rejected
+  as `unknown check` with no alternative. False-positive reports about
+  the rules users actually look at cannot be recorded.
+- **Expected Outcome:** `report-fp PY-008 path:line` (and AP- / SECRET- /
+  WC- finding ids) records against the owning check (or accepts the rule
+  id as a first-class alias). Unknown garbage still fails with a
+  suggestion. Help text names both forms.
+- **Non-scope / do not:** do not change the on-disk Kindling record
+  schema beyond what is needed to store the rule id; do not auto-open
+  GitHub issues.
+- **Files:** `crates/anvil-cli/src/commands/report_fp.rs`,
+  `crates/anvil-cli/src/commands/check_catalog.rs` (or a rule-id → check
+  map next to the compiled registry)
+- **Validation:** `report-fp PY-008 file.py:1` and `report-fp AP-008
+  file.ts:1` succeed; `report-fp lnt …` still errors with a suggestion.
+- **Identified From:** Dave pack 06 B4 / REPORTFP-1, still present on
+  0.9.4. Confirmed `resolve_check_id` only consults `CHECK_DEFINITIONS`.
+- **Coordinates with:** OPSUP-001 / ADR-089
+- **Confidence:** high.
+
+### CIB-327: Unparseable architecture config must not silently disable enforcement
+
+- **Status:** Draft — verify the swallow path before implementation
+- **Priority:** P2 honesty (Dave C3 / B10)
+- **Intent:** Dave reports that an unparseable `.anvil/architecture.yaml`
+  (including a hand-written `rules:` block the parser rejects) makes
+  import-boundaries enforce nothing, with no loud failure. The `rules:`
+  schema is unpublished; parser errors (`missing field 'name'`, then
+  `'from'`) invite guessing. The author is most likely to have a broken
+  file at the moment they are adding rules.
+- **Expected Outcome:** a present-but-unparseable architecture source
+  fails closed for import-boundaries (or the surface names "architecture
+  rules not loaded: <parse error>") rather than looking like a clean
+  tree. Docs show the `rules:` schema or stop implying it. **Not** a
+  flip of MCP `gateUnavailable` or hook-missing-binary policy.
+- **Non-scope / do not:** do not file this as "PATTERN-C fail-open"; do
+  not change ADR-002 / ADR-038. Do not invent a new architecture DSL in
+  this item.
+- **Files:** `crates/anvil-architecture/src/yaml_parser.rs`,
+  import-boundaries / architecture check entry, `docs` for the
+  architecture YAML schema
+- **Validation:** fixture with a syntactically invalid or schema-invalid
+  architecture file; `anvil check` / `gate` on import-boundaries is
+  non-success (or prints a cannot-load line that cannot be skimmed as
+  clean). A valid file still enforces.
+- **Identified From:** Dave pack 06 C3 / B10, 2026-08-11. Parser itself
+  returns `Err` on invalid YAML; the swallow is likely at the check
+  entry — confirm before coding.
+- **Coordinates with:** UCFG architecture section, ADR-002 (do not
+  conflate)
+- **Confidence:** medium — observed by Dave; swallow site not yet pinned.
+
+### CIB-328: Landing the first exception store must not require skipping every hook
+
+- **Status:** Draft — operator-authorised intake 2026-08-14; deadlock only
+- **Priority:** P2 UX (Dave SUPPRESS-1)
+- **Intent:** A scanner-level false positive (PY-008 on this estate) has
+  no scoped escape that `anvil check` / `anvil gate` / pre-commit honour.
+  `exception grant` writes a store that `exception verify` reports
+  active, but gates read the store from the committed tree (ADR-100), so
+  the commit that would land the store is blocked by the finding it
+  excepts. The only working lever was `ANVIL_SKIP_HOOKS=1`.
+- **Expected Outcome:** there is a scoped way to land the *first*
+  exception-store commit (or an equivalent scanner-level ignore that
+  actually binds `check` / `gate` / pre-commit) without disabling all
+  hooks. ADR-100 L4-only / committed-tree loading stays.
+- **Non-scope / do not:** do not make worktree exception grants bind
+  `check` / `gate`. Do not treat `@anvil-ignore` as broken — preceding-line
+  ignore is already tested for PY-004; placement may have been theirs.
+- **Files:** `crates/anvil-cli/src/commands/exception.rs`, pre-commit /
+  gate exception loading, suppression docs
+- **Validation:** grant for a planted scanner finding → commit the store
+  without `ANVIL_SKIP_HOOKS`; subsequent check/gate honour the committed
+  grant (or the documented scanner-level ignore). Control: a different
+  finding is still blocked.
+- **Identified From:** Dave pack 06 SUPPRESS-1, 2026-08-11. Compounded
+  PY008-FP (CIB-322); this item remains even after that FP is gone.
+- **Coordinates with:** ADR-100, CIB-322
+- **Confidence:** high on the deadlock; medium on the smallest product
+  shape.
+
+### CIB-329: Bare `anvil` on Windows must not become a blocking foreground daemon
+
+- **Status:** Draft — verify the Windows detach path before implementation
+- **Priority:** P2 (high if the parent really never returns)
+- **Intent:** Dave ran bare `anvil` with stdin not a TTY. No output, no
+  return within 120s, process survived SIGTERM, live image was
+  `anvil.exe intercept start --foreground`. ADR-114 *does* make bare
+  `anvil` the daily ensure surface and *does* allow spawn without a TTY
+  (`ensure.rs` even prints "ensuring the per-user save-time daemon").
+  The defect is a parent that does not return — detach failed, or the
+  child was mistaken for the parent. Confirm which on Windows.
+- **Expected Outcome:** non-TTY `anvil` (ensure) either (a) detaches the
+  daemon and returns with a one-line announcement, or (b) refuses
+  honestly like `tutorial` if detach cannot be proven. It must not
+  replace the user's process with a blocking `intercept start
+  --foreground`.
+- **Non-scope / do not:** do not remove ADR-114 bare-ensure; do not
+  require a TTY for ensure. Dave's "tutorial refuses, this does not" is
+  a contrast, not a request to make ensure refuse in all non-TTY cases.
+- **Files:** `crates/anvil-cli/src/commands/ensure.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`
+  (`ensure_save_time_daemon` / `DetachedCommandLauncher`)
+- **Validation:** Windows non-TTY `anvil` (or a unit of the detach
+  launcher) returns; the daemon, if started, is a *child*. Parent exit
+  is 0 or a documented non-zero, not a hang. Unix path stays green.
+- **Identified From:** Dave pack 06 UX-3, 2026-08-11, Windows 11.
+- **Coordinates with:** ADR-114, ADR-082 / DLIFE
+- **Confidence:** medium — hang is reported; detach-vs-exec not proven
+  in-tree.
 
