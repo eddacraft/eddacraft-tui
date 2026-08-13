@@ -49,8 +49,15 @@ pub fn run(args: &ConfigArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
 fn show_config(root: &Path) -> anyhow::Result<String> {
     let config = load_project_config(root)?;
     let modes = RuleModes::from_value(&config.value)?;
+    // UCFG-002: surface legacy camelCase keys so operators actually see
+    // the deprecation (the anvil-config helper had no render path).
+    let mut probe = config.value.clone();
+    let renamed = anvil_config::normalize_legacy_keys(&mut probe);
+    let note = anvil_config::legacy_keys_deprecation_note(&renamed)
+        .map(|note| format!("note: {note}\n"))
+        .unwrap_or_default();
     Ok(format!(
-        "config: {label}\nrule modes: {}\n",
+        "config: {label}\nrule modes: {}\n{note}",
         modes.summary(),
         label = config.label
     ))
@@ -76,6 +83,12 @@ fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<()> {
 
     let mut config = load_project_config(root)?;
     ensure_rule_mode(&mut config.value, rule, mode);
+    // ADR-120 pt 3 "rewritten on the next owned write": an owned write
+    // of a legacy-cased file emits canonical snake_case keys.
+    let renamed = anvil_config::normalize_legacy_keys(&mut config.value);
+    if let Some(note) = anvil_config::legacy_keys_deprecation_note(&renamed) {
+        eprintln!("anvil: {note} (rewritten in this write)");
+    }
     RuleModes::from_value(&config.value).with_context(|| format!("invalid rule mode `{mode}`"))?;
 
     let text = serialize_config(&config.value, config.writable_format)?;
@@ -266,5 +279,58 @@ mod tests {
 
         assert!(output.contains("[enforcement.rules.new-dependency-introduction]"));
         assert!(output.contains("mode = \"off\""));
+    }
+
+    // ── UCFG-002 pins ───────────────────────────────────────────
+
+    /// ADR-120 pt 1: no command creates a `.anvilrc` — a rule-mode set
+    /// with no config materialises the canonical file.
+    #[test]
+    fn set_with_no_config_creates_canonical_file() {
+        let tmp = TempDir::new().unwrap();
+        set_rule_mode(tmp.path(), "public-api-expansion", "off").unwrap();
+        assert!(tmp.path().join(".anvil.yaml").exists());
+        assert!(!tmp.path().join(".anvilrc").exists());
+    }
+
+    /// ADR-120 pt 3 "rewritten on the next owned write": setting a rule
+    /// mode on a legacy `camelCase` file emits canonical `snake_case` keys
+    /// (in place — the filename does not change; migration is explicit).
+    #[test]
+    fn set_rewrites_legacy_camel_keys_in_place() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"schemaVersion":"1.0.0","planningDir":"plans","checks":[]}"#,
+        )
+        .unwrap();
+        set_rule_mode(tmp.path(), "public-api-expansion", "warn").unwrap();
+        let content = std::fs::read_to_string(tmp.path().join(".anvilrc")).unwrap();
+        assert!(content.contains("schema_version"), "{content}");
+        assert!(!content.contains("schemaVersion"), "{content}");
+        assert!(!tmp.path().join(".anvil.yaml").exists(), "no silent rename");
+    }
+
+    /// The deprecation note renders on `config show` for legacy-cased
+    /// files and stays silent for canonical ones.
+    #[test]
+    fn show_renders_the_legacy_key_note() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "schemaVersion: \"1.0.0\"\nchecks: []\n",
+        )
+        .unwrap();
+        let shown = show_config(tmp.path()).unwrap();
+        assert!(shown.contains("deprecated camelCase"), "{shown}");
+        assert!(shown.contains("migrate schema"), "{shown}");
+
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "schema_version: \"1.0.0\"\nchecks: []\n",
+        )
+        .unwrap();
+        let shown = show_config(tmp.path()).unwrap();
+        assert!(!shown.contains("deprecated"), "{shown}");
     }
 }

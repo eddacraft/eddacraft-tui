@@ -150,7 +150,7 @@ Change status to **Ready** when:
 
 #### UCFG-001: init writes canonical `.anvil.<ext>`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-13 via PR #3841
 - **Intent:** `anvil init` writes `.anvil.yaml` by default (ext follows the
   chosen format); stops writing `.anvilrc`. TUI init surface labels updated
   (it currently suppresses `.anvil.*` labels because init never writes them).
@@ -171,7 +171,7 @@ Change status to **Ready** when:
 
 #### UCFG-002: migrate renames `.anvilrc`, doctor flags dual configs
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** `anvil migrate` renames `.anvilrc` → `.anvil.<ext>` preserving
   the embedded format (atomic). `anvil doctor` warns when both names exist,
   or multiple `.anvil.<ext>` variants exist, naming which file wins.

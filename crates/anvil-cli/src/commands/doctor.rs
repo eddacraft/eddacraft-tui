@@ -116,6 +116,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_config_valid(),
         check_policy_variants(),
         check_legacy_gate_config(),
+        check_config_variants(),
         check_architecture_source(),
         check_anvil_dir(),
         check_anvil_dir_writable(),
@@ -285,6 +286,68 @@ fn check_config_exists_in(root: &Path) -> DiagnosticCheck {
 
 fn check_legacy_gate_config() -> DiagnosticCheck {
     check_legacy_gate_config_in(Path::new("."))
+}
+
+fn check_config_variants() -> DiagnosticCheck {
+    check_config_variants_in(Path::new("."))
+}
+
+/// UCFG-002 / ADR-120 pt 2: one config file per project. When both the
+/// legacy `.anvilrc` and a canonical `.anvil.<ext>` exist, or multiple
+/// canonical variants exist, discover-first decides — warn naming the
+/// winner so a stale variant cannot silently shadow the file being
+/// edited (incl. the forced-init stale-variant edge).
+fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
+    let mut present: Vec<String> = anvil_config::DISCOVER_PRECEDENCE
+        .iter()
+        .map(|format| format!(".anvil.{}", format.extension()))
+        .filter(|name| root.join(name).is_file())
+        .collect();
+    let winner = present.first().cloned();
+    if root.join(".anvilrc").is_file() {
+        present.push(".anvilrc".to_string());
+    }
+    let (status, message, details) = if present.len() > 1 {
+        let winner = winner.unwrap_or_else(|| ".anvilrc".to_string());
+        (
+            CheckStatus::Warn,
+            format!(
+                "multiple project config files found; {winner} wins (discover-first precedence)"
+            ),
+            Some(format!(
+                "present: {} — remove the shadowed file(s), or run `anvil migrate format` \
+                 to finish a legacy conversion",
+                present.join(", ")
+            )),
+        )
+    } else {
+        (
+            CheckStatus::Pass,
+            match present.first() {
+                Some(name) if name == ".anvilrc" => {
+                    "legacy .anvilrc is the only config (still supported; \
+                     `anvil migrate format` converts it)"
+                        .to_string()
+                }
+                Some(name) => format!("{name} is the single project config"),
+                None => "no project config (run `anvil init`)".to_string(),
+            },
+            None,
+        )
+    };
+    DiagnosticCheck {
+        name: "config-variants".to_string(),
+        category: "Configuration".to_string(),
+        status,
+        message,
+        details,
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "Keep exactly one project config file.".to_string(),
+            command: None,
+            doc_url: None,
+        },
+    }
 }
 
 /// UCFG-005 / ADR-120 pt 4: `.anvil/gate-config.json` is retired —
@@ -532,12 +595,18 @@ fn check_config_valid_in(root: &Path) -> DiagnosticCheck {
                 .is_some_and(|v| v.is_table());
 
             if json_ok || yaml_ok || toml_ok {
+                // UCFG-002: surface legacy camelCase keys (deprecation
+                // note render path for the anvil-config helper).
+                let details = anvil_config::parse_file(&path).ok().and_then(|mut value| {
+                    let renamed = anvil_config::normalize_legacy_keys(&mut value);
+                    anvil_config::legacy_keys_deprecation_note(&renamed)
+                });
                 DiagnosticCheck {
                     name: "config-valid".to_string(),
                     category: "Configuration".to_string(),
                     status: CheckStatus::Pass,
                     message: format!("{name} is valid (JSON/YAML/TOML)"),
-                    details: None,
+                    details,
                     auto_fixable: false,
                     remediation: Remediation::default(),
                 }
@@ -2407,6 +2476,85 @@ mod tests {
         assert_eq!(
             check_architecture_source_in(tmp.path()).status,
             CheckStatus::Pass
+        );
+    }
+
+    #[test]
+    fn config_valid_details_carry_the_legacy_key_note() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "schemaVersion: \"1.0.0\"\nchecks: []\n",
+        )
+        .unwrap();
+        let check = check_config_valid_in(tmp.path());
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(
+            check
+                .details
+                .as_deref()
+                .is_some_and(|d| d.contains("schemaVersion") && d.contains("migrate schema")),
+            "details must render the deprecation note: {:?}",
+            check.details
+        );
+        // Canonical snake_case file → no note.
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "schema_version: \"1.0.0\"\nchecks: []\n",
+        )
+        .unwrap();
+        assert!(check_config_valid_in(tmp.path()).details.is_none());
+    }
+
+    #[test]
+    fn config_variants_states_map_to_expected_statuses() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // None → Pass.
+        assert_eq!(
+            check_config_variants_in(tmp.path()).status,
+            CheckStatus::Pass
+        );
+        // Single canonical → Pass.
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks: []\n").unwrap();
+        assert_eq!(
+            check_config_variants_in(tmp.path()).status,
+            CheckStatus::Pass
+        );
+        // Legacy beside canonical → Warn naming the discover winner.
+        std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
+        let dual = check_config_variants_in(tmp.path());
+        assert_eq!(dual.status, CheckStatus::Warn);
+        assert!(
+            dual.message.contains(".anvil.yaml wins"),
+            "{}",
+            dual.message
+        );
+        assert!(
+            dual.details
+                .as_deref()
+                .is_some_and(|d| d.contains(".anvilrc")),
+            "details must list the shadowed file"
+        );
+        // Forced-init stale-variant edge: two canonical variants.
+        std::fs::remove_file(tmp.path().join(".anvilrc")).unwrap();
+        std::fs::write(tmp.path().join(".anvil.json"), "{}").unwrap();
+        let variants = check_config_variants_in(tmp.path());
+        assert_eq!(variants.status, CheckStatus::Warn);
+        assert!(
+            variants.message.contains(".anvil.yaml wins"),
+            "{}",
+            variants.message
+        );
+        // Legacy only → Pass with the migration named.
+        std::fs::remove_file(tmp.path().join(".anvil.yaml")).unwrap();
+        std::fs::remove_file(tmp.path().join(".anvil.json")).unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
+        let legacy = check_config_variants_in(tmp.path());
+        assert_eq!(legacy.status, CheckStatus::Pass);
+        assert!(
+            legacy.message.contains("migrate format"),
+            "{}",
+            legacy.message
         );
     }
 

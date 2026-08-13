@@ -157,7 +157,13 @@ pub(crate) fn run_format_in(args: &FormatArgs, root: &Path) -> Result<()> {
 
     let contents =
         std::fs::read_to_string(&old).with_context(|| format!("reading {}", old.display()))?;
-    let value = detect_and_parse(&contents, &old)?;
+    let mut value = detect_and_parse(&contents, &old)?;
+    // ADR-120 pt 3: the conversion is an owned write — legacy camelCase
+    // keys are rewritten to canonical snake_case on the way through.
+    let renamed = anvil_config::normalize_legacy_keys(&mut value);
+    if let Some(note) = anvil_config::legacy_keys_deprecation_note(&renamed) {
+        println!("anvil: {note} (rewritten during migration)");
+    }
 
     let serialised = serialise_to_format(&value, format)
         .with_context(|| format!("serialising config as {}", format.extension()))?;
@@ -936,6 +942,22 @@ mod tests {
             err.to_string().contains("comparing project version"),
             "got: {err}"
         );
+    }
+
+    /// ADR-120 pt 3: `migrate format` is an owned write — legacy
+    /// `camelCase` keys convert to canonical `snake_case` on the way through.
+    #[test]
+    fn format_migration_normalizes_legacy_keys() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"schemaVersion":"1.0.0","planningDir":"plans","checks":[]}"#,
+        )
+        .unwrap();
+        run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
+        assert!(content.contains("schema_version"), "{content}");
+        assert!(!content.contains("schemaVersion"), "{content}");
     }
 
     // ── `anvil migrate gate-config` fold (UCFG-005) ─────────────

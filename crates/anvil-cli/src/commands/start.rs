@@ -1750,25 +1750,25 @@ fn pre_write_anvil_config(root: &Path, format: StartFormat) -> anyhow::Result<()
 /// present. Used by CIB-225 to name the path that caused `--format` to be
 /// ignored.
 fn existing_project_config_path(root: &Path) -> anyhow::Result<Option<std::path::PathBuf>> {
-    let legacy = root.join(".anvilrc");
-    // Prefer try_exists so permission/IO errors do not silently look like
-    // "absent" and allow a second config write (CIB-225 review).
-    match legacy.try_exists() {
-        Ok(true) => return Ok(Some(legacy)),
-        Ok(false) => {}
-        Err(err) => {
-            return Err(anyhow::Error::new(err).context(format!(
-                "checking for existing project config at {}",
-                legacy.display()
-            )));
-        }
-    }
+    // UCFG-002 / ADR-120 pt 2: discover-first is the single precedence
+    // truth — `.anvil.<ext>` beats `.anvilrc` everywhere, matching
+    // `gate.rs`'s resolution.
     if let Some(existing) = anvil_config::discover(root, ".anvil")
         .with_context(|| format!("scanning {} for .anvil.<ext>", root.display()))?
     {
         return Ok(Some(existing.path));
     }
-    Ok(None)
+    let legacy = root.join(".anvilrc");
+    // Prefer try_exists so permission/IO errors do not silently look like
+    // "absent" and allow a second config write (CIB-225 review).
+    match legacy.try_exists() {
+        Ok(true) => Ok(Some(legacy)),
+        Ok(false) => Ok(None),
+        Err(err) => Err(anyhow::Error::new(err).context(format!(
+            "checking for existing project config at {}",
+            legacy.display()
+        ))),
+    }
 }
 
 /// CIB-225: one-line stderr warning when `--format` is ignored because a
@@ -5423,6 +5423,32 @@ mod tests {
             warning.contains(existing.to_string_lossy().as_ref()),
             "warning must name the existing config path: {warning}"
         );
+    }
+
+    /// UCFG-002 / ADR-120 pt 2 pin: when BOTH `.anvilrc` and a
+    /// `.anvil.<ext>` exist, discover-first wins — matching `gate.rs`'s
+    /// resolution, so every surface answers the dual-config question
+    /// the same way. (Pre-UCFG-002 this fn was legacy-first.)
+    #[test]
+    fn dual_config_resolves_discover_first_matching_gate() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks":["lint"]}"#).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "checks:\n  - secret-detection\n",
+        )
+        .unwrap();
+
+        // start's answer
+        let existing = existing_project_config_path(tmp.path()).unwrap().unwrap();
+        assert_eq!(existing, tmp.path().join(".anvil.yaml"));
+
+        // gate's answer (same file wins)
+        let checks = crate::commands::gate::read_anvilrc_checks(tmp.path())
+            .unwrap()
+            .unwrap();
+        assert!(checks.contains("secret-detection"), "{checks:?}");
+        assert!(!checks.contains("lint"), "{checks:?}");
     }
 
     /// CIB-225: other-format `.anvil.<ext>` also causes `--format` to be

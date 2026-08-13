@@ -936,3 +936,20 @@ never with feature work.
   .anvil.<ext>; --force replaces a legacy .anvilrc; TUI labels +
   snapshots flipped; status profile reader made discover-first.
 - Next: land UCFG-001 → UCFG-002; then 010, 011, 012.
+
+## Cycle — 2026-08-13 (UCFG drain, wave 3: UCFG-001 integrated)
+
+- UCFG-001 (init writes canonical .anvil.yaml):
+  `MERGED(49a41b51f03644615ab10fa7672229cfce056d77, 2026-08-13T00:21:20Z)`
+  via PR #3841; ancestor check passed. Verifier round 1 BLOCKING ×2
+  (surviving .anvilrc creation paths: wizard scaffold; doctor --fix,
+  which wrote camelCase keys) — repaired; round 2 pass. Five Copilot
+  threads fixed incl. removal of doctor's dead stub-cleanup (its
+  rationale was factually wrong). Advisories folded or recorded
+  (forced-init stale-variant → UCFG-002; MCP status tool → UCFG-010).
+- UCFG-002 In Progress (this branch): start.rs discover-first
+  reconciliation + dual-file cross-surface pin; doctor config-variants
+  warning (legacy+canonical, multi-variant, forced-init edge);
+  owned-write snake_case rewrite in config set + migrate format;
+  deprecation-note render in config show + doctor config-valid.
+- Next: land UCFG-002; then sweeps 010, 011, 012.
