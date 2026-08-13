@@ -285,6 +285,12 @@ impl ProjectIdentity {
     ///   with no origin configured matches `origin_canonical: None`,
     ///   otherwise yields `Mismatch::OriginCanonical { live: None }`.
     ///
+    /// A path that is not a Git worktree at all is
+    /// [`IdentityError::GitInvocationFailed`], not a `Match`. Legacy
+    /// identities (no recorded `first_commit` / `origin_canonical`)
+    /// still skip those field checks, but only after Git confirms
+    /// the path is a repository.
+    ///
     /// Returns [`IdentityCheck::Match`] when every recorded field
     /// agrees, [`IdentityCheck::ForkedFromParent`] when
     /// `forked_from` is set (the operator has declared a fork —
@@ -431,10 +437,12 @@ fn canonicalise_host_path(host: &str, path: &str) -> String {
 /// MLP2-003: run `git rev-list --max-parents=0 HEAD` in `worktree`
 /// and return the single resulting SHA. Returns `Ok(None)` when the
 /// worktree has no commits yet (the command exits non-zero with a
-/// recognised "unknown revision" stderr); other failures surface as
+/// recognised "unknown revision" stderr); a path that is not a Git
+/// repository, and other failures, surface as
 /// `IdentityError::GitInvocationFailed`.
 #[allow(dead_code)]
 pub fn read_first_commit(worktree: &Path) -> Result<Option<String>, IdentityError> {
+    ensure_git_worktree(worktree)?;
     let output = std::process::Command::new("git")
         .arg("-C")
         .arg(worktree)
@@ -449,11 +457,18 @@ pub fn read_first_commit(worktree: &Path) -> Result<Option<String>, IdentityErro
         // Empty repos and just-init'd worktrees report "unknown
         // revision or path not in the working tree" or "fatal: bad
         // revision 'HEAD'". Both are "no commits yet" — treat as None.
+        // "not a git repository" is a hard failure: a non-worktree
+        // path must not look like an empty repo.
         let lower = stderr.to_ascii_lowercase();
+        if stderr_says_not_a_git_repository(&lower) {
+            return Err(IdentityError::GitInvocationFailed {
+                worktree: worktree.to_path_buf(),
+                message: format!("`git rev-list` exited non-zero: {stderr}"),
+            });
+        }
         if lower.contains("unknown revision")
             || lower.contains("bad revision")
             || lower.contains("does not have any commits")
-            || lower.contains("not a git repository")
         {
             return Ok(None);
         }
@@ -484,10 +499,12 @@ pub fn read_first_commit(worktree: &Path) -> Result<Option<String>, IdentityErro
 
 /// MLP2-003: run `git config --get remote.origin.url` in `worktree`,
 /// canonicalise the result, and return it. `Ok(None)` when origin
-/// is not configured (the command exits 1 with no output); other
-/// failures surface as `IdentityError::GitInvocationFailed`.
+/// is not configured (the command exits 1 with no output); a path
+/// that is not a Git repository, and other failures, surface as
+/// `IdentityError::GitInvocationFailed`.
 #[allow(dead_code)]
 pub fn read_origin_canonical(worktree: &Path) -> Result<Option<String>, IdentityError> {
+    ensure_git_worktree(worktree)?;
     let output = std::process::Command::new("git")
         .arg("-C")
         .arg(worktree)
@@ -501,12 +518,17 @@ pub fn read_origin_canonical(worktree: &Path) -> Result<Option<String>, Identity
         // git config --get returns 1 (and empty stdout) when the
         // key is not set. Treat that path as "no origin configured"
         // rather than a hard error so freshly-`git init`ed worktrees
-        // do not trip the daemon's verify.
+        // do not trip the daemon's verify. A non-repository path is
+        // rejected by `ensure_git_worktree` first; the stderr check
+        // below is defence in depth.
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if output.stderr.is_empty() || stderr.trim().is_empty() {
-            return Ok(None);
+        if stderr_says_not_a_git_repository(&stderr.to_ascii_lowercase()) {
+            return Err(IdentityError::GitInvocationFailed {
+                worktree: worktree.to_path_buf(),
+                message: format!("`git config` exited non-zero: {stderr}"),
+            });
         }
-        if stderr.to_ascii_lowercase().contains("not a git repository") {
+        if output.stderr.is_empty() || stderr.trim().is_empty() {
             return Ok(None);
         }
         return Err(IdentityError::GitInvocationFailed {
@@ -520,6 +542,34 @@ pub fn read_origin_canonical(worktree: &Path) -> Result<Option<String>, Identity
         return Ok(None);
     }
     Ok(Some(canonicalise_origin(trimmed)))
+}
+
+fn stderr_says_not_a_git_repository(lower_stderr: &str) -> bool {
+    lower_stderr.contains("not a git repository")
+}
+
+/// Confirm `worktree` is a Git worktree before treating missing
+/// commits / origin as absent metadata. `git config --get` on a
+/// non-repository path exits 1 with empty stderr — the same signal
+/// as "origin is not configured" — so helpers must probe first.
+fn ensure_git_worktree(worktree: &Path) -> Result<(), IdentityError> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(worktree)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map_err(|err| IdentityError::GitInvocationFailed {
+            worktree: worktree.to_path_buf(),
+            message: format!("spawning `git rev-parse`: {err}"),
+        })?;
+    if output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == "true" {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(IdentityError::GitInvocationFailed {
+        worktree: worktree.to_path_buf(),
+        message: format!("`git rev-parse --is-inside-work-tree` failed: {stderr}"),
+    })
 }
 
 fn is_full_git_sha1(value: &str) -> bool {
@@ -1235,6 +1285,31 @@ origin_canonical:
         );
     }
 
+    /// Clawpatch fnd_sig-feat-cli-command-ff7f623159-_517e880d61:
+    /// a directory that is not a Git worktree must not be treated as
+    /// "no first commit yet". Reserve `Ok(None)` for empty repos.
+    #[test]
+    fn read_first_commit_fails_for_non_git_directory() {
+        let dir = isolated_non_git_tempdir();
+        let err = read_first_commit(dir.path()).expect_err("non-git dir must fail");
+        assert!(
+            matches!(err, IdentityError::GitInvocationFailed { .. }),
+            "expected GitInvocationFailed, got {err:?}"
+        );
+    }
+
+    /// Clawpatch fnd_sig-feat-cli-command-ff7f623159-_517e880d61:
+    /// a non-Git directory is not "origin not configured".
+    #[test]
+    fn read_origin_canonical_fails_for_non_git_directory() {
+        let dir = isolated_non_git_tempdir();
+        let err = read_origin_canonical(dir.path()).expect_err("non-git dir must fail");
+        assert!(
+            matches!(err, IdentityError::GitInvocationFailed { .. }),
+            "expected GitInvocationFailed, got {err:?}"
+        );
+    }
+
     /// MLP2-003: a repo with one commit reports that commit's SHA
     /// as its `first_commit` and a worktree-rooted `verify` against
     /// a recorded matching identity returns `Match`.
@@ -1369,6 +1444,29 @@ origin_canonical:
         };
         let check = id.verify_against_worktree(dir.path()).unwrap();
         assert_eq!(check, IdentityCheck::Match);
+    }
+
+    /// Clawpatch fnd_sig-feat-cli-command-ff7f623159-_517e880d61:
+    /// a legacy identity (no `first_commit` / `origin_canonical`) must
+    /// not `Match` a directory that is not a Git worktree at all.
+    #[test]
+    fn verify_legacy_identity_rejects_non_git_directory() {
+        let dir = isolated_non_git_tempdir();
+        let id = ProjectIdentity {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
+            created_at: None,
+            created_by_version: None,
+            forked_from: None,
+            first_commit: None,
+            origin_canonical: None,
+        };
+        let err = id
+            .verify_against_worktree(dir.path())
+            .expect_err("non-git dir must fail");
+        assert!(
+            matches!(err, IdentityError::GitInvocationFailed { .. }),
+            "expected GitInvocationFailed, got {err:?}"
+        );
     }
 
     /// MLP2-003: when `first_commit` was recorded but the live
@@ -1558,6 +1656,32 @@ origin_canonical:
             }
             other => panic!("expected Mismatch, got {other:?}"),
         }
+    }
+
+    /// Temp directory that `git -C` will not walk into a parent
+    /// repository. `TempDir::new()` follows `TMPDIR`, which test
+    /// harnesses often remap inside this worktree.
+    fn isolated_non_git_tempdir() -> TempDir {
+        for base in [Path::new("/tmp"), Path::new("/var/tmp")] {
+            if !base.is_dir() {
+                continue;
+            }
+            let Ok(dir) = TempDir::new_in(base) else {
+                continue;
+            };
+            let probe = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args(["rev-parse", "--is-inside-work-tree"])
+                .env_remove("GIT_DIR")
+                .env_remove("GIT_WORK_TREE")
+                .output()
+                .expect("git rev-parse");
+            if !probe.status.success() {
+                return dir;
+            }
+        }
+        panic!("could not create a directory outside any git repository");
     }
 
     /// Test-helper: spin up a tempdir-backed git repo with the
