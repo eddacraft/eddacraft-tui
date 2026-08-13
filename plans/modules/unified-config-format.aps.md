@@ -172,8 +172,11 @@ Change status to **Ready** when:
 #### UCFG-002: migrate renames `.anvilrc`, doctor flags dual configs
 
 - **Status:** In Progress
-- **Intent:** `anvil migrate` renames `.anvilrc` → `.anvil.<ext>` preserving
-  the embedded format (atomic). `anvil doctor` warns when both names exist,
+- **Intent:** `anvil migrate format` converts `.anvilrc` → `.anvil.<ext>`
+  in the chosen `--format` (yaml default; pass `--format json/toml` to keep
+  a non-yaml body's format — recorded reconciliation of the original
+  "preserving the embedded format" wording with shipped MLP2-040
+  behaviour), atomically. `anvil doctor` warns when both names exist,
   or multiple `.anvil.<ext>` variants exist, naming which file wins.
   UCFG-001 verifier deferral: doctor's multi-variant warning must also
   cover the forced-init stale-variant edge (a forced non-yaml init

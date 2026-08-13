@@ -311,6 +311,24 @@ mod tests {
         assert!(!tmp.path().join(".anvil.yaml").exists(), "no silent rename");
     }
 
+    /// UCFG-002 dual-config leg: with both names present, `config set`
+    /// edits the discover winner and leaves the legacy file untouched.
+    #[test]
+    fn set_edits_the_discover_winner_in_dual_state() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks":["lint"]}"#).unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
+        let legacy_before = std::fs::read(tmp.path().join(".anvilrc")).unwrap();
+        set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap();
+        let canonical = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
+        assert!(canonical.contains("public-api-expansion"), "{canonical}");
+        assert_eq!(
+            std::fs::read(tmp.path().join(".anvilrc")).unwrap(),
+            legacy_before,
+            "legacy file must be byte-identical"
+        );
+    }
+
     /// The deprecation note renders on `config show` for legacy-cased
     /// files and stays silent for canonical ones.
     #[test]

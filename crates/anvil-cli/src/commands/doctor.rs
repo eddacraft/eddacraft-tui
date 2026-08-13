@@ -335,6 +335,15 @@ fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
             None,
         )
     };
+    let remediation = if status == CheckStatus::Warn {
+        Remediation {
+            summary: "Keep exactly one project config file.".to_string(),
+            command: None,
+            doc_url: None,
+        }
+    } else {
+        Remediation::default()
+    };
     DiagnosticCheck {
         name: "config-variants".to_string(),
         category: "Configuration".to_string(),
@@ -342,11 +351,7 @@ fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
         message,
         details,
         auto_fixable: false,
-        remediation: Remediation {
-            summary: "Keep exactly one project config file.".to_string(),
-            command: None,
-            doc_url: None,
-        },
+        remediation,
     }
 }
 
@@ -1777,6 +1782,10 @@ pub fn apply_fix_at(checks: &mut [DiagnosticCheck], index: usize) {
 fn looks_like_project_root() -> bool {
     const PROJECT_MARKERS: &[&str] = &[
         ".anvilrc",
+        ".anvil.yaml",
+        ".anvil.yml",
+        ".anvil.json",
+        ".anvil.toml",
         "package.json",
         "Cargo.toml",
         "pyproject.toml",
@@ -1924,6 +1933,14 @@ fn format_plain(checks: &[DiagnosticCheck], protection_claim: &ProtectionClaim) 
             name = check.name,
             message = check.message,
         );
+        // UCFG-002: details carry operator-facing specifics (the legacy
+        // camelCase deprecation note, the config-variants file list) —
+        // print them on the default surface, not only --json/TUI.
+        if let Some(details) = &check.details
+            && !details.is_empty()
+        {
+            let _ = writeln!(out, "      {details}");
+        }
         // Surface remediation inline for non-Pass / non-Skipped statuses
         // so the user sees the next action without having to drop into the
         // TUI. Pass / Skipped checks have a default (empty) remediation.
