@@ -234,15 +234,17 @@ fn read_config() -> Result<Value, ReadError> {
                     // UCFG-010: agents see the resolved unified surface —
                     // gate composition and architecture provenance ride
                     // beside the raw parse (additive fields only).
-                    let gate = anvil_config::GateSection::from_config_value(&config)
-                        .ok()
-                        .flatten()
-                        .map_or(Value::Null, |section| {
-                            json!({
-                                "checks": section.check_names(),
-                                "thresholds": section.thresholds,
-                            })
-                        });
+                    let gate = match anvil_config::GateSection::from_config_value(&config) {
+                        Ok(Some(section)) => json!({
+                            "checks": section.check_names(),
+                            "thresholds": section.thresholds,
+                        }),
+                        Ok(None) => Value::Null,
+                        // A malformed section is a loud gate error — the
+                        // resource read must not fail, but agents must be
+                        // able to tell "malformed" from "absent".
+                        Err(err) => json!({"error": redact_root(&root, &err.to_string())}),
+                    };
                     let architecture = architecture_provenance(&root);
                     json!({
                         "config": config,

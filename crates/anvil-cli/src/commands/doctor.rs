@@ -472,10 +472,16 @@ fn check_architecture_source_in(root: &Path) -> DiagnosticCheck {
              architecture section is the unified home"
                 .to_string(),
         ),
-        (true, false) => (
-            CheckStatus::Pass,
-            "architecture lives in the config's architecture section".to_string(),
-        ),
+        (true, false) => match crate::architecture_source::resolve_architecture(root) {
+            Ok(_) => (
+                CheckStatus::Pass,
+                "architecture lives in the config's architecture section".to_string(),
+            ),
+            Err(e) => (
+                CheckStatus::Warn,
+                format!("architecture section present but unresolvable: {e:#}"),
+            ),
+        },
         (false, false) => (
             CheckStatus::Pass,
             "no architecture config (governance not opted in)".to_string(),
@@ -2574,9 +2580,28 @@ mod tests {
         );
         // Section only → Pass.
         std::fs::remove_file(tmp.path().join(".anvil/architecture.yaml")).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  layers: {}\n",
+        )
+        .unwrap();
         assert_eq!(
             check_architecture_source_in(tmp.path()).status,
             CheckStatus::Pass
+        );
+        // Present-but-unresolvable section (broken delegation) → Warn,
+        // matching `anvil architecture validate`'s loud error.
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  source: \"gone.yaml\"\n",
+        )
+        .unwrap();
+        let broken = check_architecture_source_in(tmp.path());
+        assert_eq!(broken.status, CheckStatus::Warn);
+        assert!(
+            broken.message.contains("unresolvable"),
+            "{}",
+            broken.message
         );
     }
 
