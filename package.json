@@ -87,7 +87,6 @@
     "docs:public:check": "node scripts/docs/check-public-docs.mjs",
     "docs:public:commands": "node scripts/docs/check-anvil-public-commands.mjs",
     "docs:public:aps-commands": "node scripts/docs/check-aps-public-commands.mjs",
-    "docs:version-pin:check": "node scripts/docs/check-docs-version-pin.mjs",
     "docs:public:generate": "node scripts/docs/generate-anvil-public-reference.mjs",
     "predocs:check:update-baseline": "pnpm -s -F @eddacraft/anvil-docs-meta build",
     "docs:check:update-baseline": "node scripts/docs/docs-check.mjs --update-baseline",
