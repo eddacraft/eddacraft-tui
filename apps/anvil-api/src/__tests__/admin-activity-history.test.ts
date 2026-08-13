@@ -27,6 +27,8 @@ function request(path: string, authKey?: string) {
 }
 
 const AS_OF = '2026-08-13T12:00:00.000Z';
+// Metrics rows cross the wire as epoch seconds since the BACT-009 DateStyle fix.
+const AS_OF_EPOCH = new Date(AS_OF).getTime() / 1000;
 
 describe('GET /admin/activity?history=true (BACT-011)', () => {
   beforeEach(() => {
@@ -41,7 +43,9 @@ describe('GET /admin/activity?history=true (BACT-011)', () => {
   });
 
   it('omits the history block entirely when history is not requested', async () => {
-    mockSql.mockResolvedValueOnce([{ as_of: AS_OF, account_id: null, last_activity_at: null }]);
+    mockSql.mockResolvedValueOnce([
+      { as_of: AS_OF_EPOCH, account_id: null, last_activity_at: null },
+    ]);
 
     const response = await request('/activity', ADMIN_KEY);
     expect(response.status).toBe(200);
@@ -53,7 +57,7 @@ describe('GET /admin/activity?history=true (BACT-011)', () => {
 
   it('adds the all-plan total history series when history=true with no plan filter', async () => {
     mockSql
-      .mockResolvedValueOnce([{ as_of: AS_OF, account_id: null, last_activity_at: null }])
+      .mockResolvedValueOnce([{ as_of: AS_OF_EPOCH, account_id: null, last_activity_at: null }])
       .mockResolvedValueOnce([
         { day: '2026-08-12', plan: ROLLUP_TOTAL_PLAN_KEY, active_accounts: 5 },
         { day: '2026-08-11', plan: ROLLUP_TOTAL_PLAN_KEY, active_accounts: 4 },
@@ -71,7 +75,9 @@ describe('GET /admin/activity?history=true (BACT-011)', () => {
 
   it('scopes history to the requested plan when a plan filter is set', async () => {
     mockSql
-      .mockResolvedValueOnce([{ as_of: AS_OF, account_id: 'a', last_activity_at: AS_OF }])
+      .mockResolvedValueOnce([
+        { as_of: AS_OF_EPOCH, account_id: 'a', last_activity_at: AS_OF_EPOCH },
+      ])
       .mockResolvedValueOnce([{ day: '2026-08-12', plan: 'beta', active_accounts: 1 }]);
 
     const response = await request('/activity?plan=beta&history=true', ADMIN_KEY);
@@ -82,7 +88,7 @@ describe('GET /admin/activity?history=true (BACT-011)', () => {
 
   it('honours a custom historyDays window, bounded to MAX_HISTORY_DAYS', async () => {
     mockSql
-      .mockResolvedValueOnce([{ as_of: AS_OF, account_id: null, last_activity_at: null }])
+      .mockResolvedValueOnce([{ as_of: AS_OF_EPOCH, account_id: null, last_activity_at: null }])
       .mockResolvedValueOnce([]);
 
     const response = await request('/activity?history=true&historyDays=30', ADMIN_KEY);
@@ -96,7 +102,7 @@ describe('GET /admin/activity?history=true (BACT-011)', () => {
 
   it('returns an empty series rather than erroring when nothing has been rolled up yet', async () => {
     mockSql
-      .mockResolvedValueOnce([{ as_of: AS_OF, account_id: null, last_activity_at: null }])
+      .mockResolvedValueOnce([{ as_of: AS_OF_EPOCH, account_id: null, last_activity_at: null }])
       .mockResolvedValueOnce([]);
 
     const response = await request('/activity?history=true', ADMIN_KEY);
