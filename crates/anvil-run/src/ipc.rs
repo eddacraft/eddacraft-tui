@@ -148,20 +148,29 @@ pub fn validate_jsonrpc_envelope(value: &Value, request_id: &str) -> Result<()> 
 
 #[cfg(unix)]
 fn round_trip(body: &[u8]) -> Result<String> {
+    round_trip_on(&resolve_endpoint()?, body)
+}
+
+/// Connect only after the same socket-path and peer checks used by
+/// `anvil intercept status`. Heartbeats and request/response share
+/// this helper so a substituted rendezvous cannot receive session ids.
+#[cfg(unix)]
+fn open_validated_unix_stream(path: &Path) -> Result<std::os::unix::net::UnixStream> {
     use std::os::unix::net::UnixStream;
 
-    let path = resolve_endpoint()?;
-    if let Err(err) = anvil_intercept::ipc::validate_socket_path_for_client(&path) {
+    if let Err(err) = anvil_intercept::ipc::validate_socket_path_for_client(path) {
         return match err {
             anvil_intercept::ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(anyhow!(ClientError::DaemonNotRunning { path }))
+                Err(anyhow!(ClientError::DaemonNotRunning {
+                    path: path.to_path_buf(),
+                }))
             }
             other => Err(anyhow!(ClientError::DaemonRefused {
                 reason: other.to_string(),
             })),
         };
     }
-    let mut stream = UnixStream::connect(&path)
+    let stream = UnixStream::connect(path)
         .map_err(ClientError::Io)
         .with_context(|| format!("failed to connect to {}", path.display()))?;
     anvil_intercept::ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
@@ -169,6 +178,12 @@ fn round_trip(body: &[u8]) -> Result<String> {
             reason: err.to_string(),
         })
     })?;
+    Ok(stream)
+}
+
+#[cfg(unix)]
+fn round_trip_on(path: &Path, body: &[u8]) -> Result<String> {
+    let mut stream = open_validated_unix_stream(path)?;
     stream.set_read_timeout(Some(REQUEST_TIMEOUT))?;
     stream.set_write_timeout(Some(REQUEST_TIMEOUT))?;
     stream.write_all(body)?;
@@ -216,11 +231,14 @@ fn round_trip(body: &[u8]) -> Result<String> {
 
 #[cfg(unix)]
 fn send_one_way(body: &[u8]) -> Result<()> {
-    use std::os::unix::net::UnixStream;
+    send_one_way_on(&resolve_endpoint()?, body)
+}
 
-    let path = resolve_endpoint()?;
-    let mut stream = UnixStream::connect(&path)
-        .with_context(|| format!("failed to connect to {}", path.display()))?;
+/// Unix notification write. Tests inject a rendezvous path so they can
+/// prove validation happens before any frame is written.
+#[cfg(unix)]
+fn send_one_way_on(path: &Path, body: &[u8]) -> Result<()> {
+    let mut stream = open_validated_unix_stream(path)?;
     stream.set_write_timeout(Some(REQUEST_TIMEOUT))?;
     stream.write_all(body)?;
     stream.flush()?;
@@ -487,5 +505,93 @@ mod tests {
         assert_eq!(trim_trailing_newline(b"hello\n"), b"hello");
         assert_eq!(trim_trailing_newline(b"hello\r\n"), b"hello");
         assert_eq!(trim_trailing_newline(b"hello"), b"hello");
+    }
+
+    /// Bind a Unix socket under a 0700 parent, then widen the socket
+    /// mode so client-side path validation must refuse it.
+    ///
+    /// The parent lives in `/tmp` so the socket path stays under the
+    /// platform `sockaddr_un` length cap even when `TMPDIR` is a long
+    /// worktree path.
+    #[cfg(unix)]
+    fn bind_world_readable_socket() -> (tempfile::TempDir, std::os::unix::net::UnixListener, PathBuf)
+    {
+        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::net::UnixListener;
+
+        let tmp = tempfile::Builder::new()
+            .prefix("ar-ipc-")
+            .tempdir_in("/tmp")
+            .expect("short /tmp fixture");
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = tmp.path().join("s");
+        let listener = UnixListener::bind(&path).expect("bind test socket");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o666)).unwrap();
+        (tmp, listener, path)
+    }
+
+    #[cfg(unix)]
+    fn take_pending_bytes(listener: &std::os::unix::net::UnixListener) -> Vec<u8> {
+        use std::io::Read;
+
+        listener.set_nonblocking(true).expect("nonblocking accept");
+        match listener.accept() {
+            Ok((mut stream, _)) => {
+                let mut buf = Vec::new();
+                let _ = stream.read_to_end(&mut buf);
+                buf
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => Vec::new(),
+            Err(err) => panic!("unexpected accept error: {err}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn send_one_way_rejects_world_readable_socket_before_writing() {
+        let (_tmp, listener, path) = bind_world_readable_socket();
+        let body =
+            jsonrpc_notification_line("heartbeat", &serde_json::json!({"session_id": "sess_x"}));
+
+        let err = send_one_way_on(&path, &body)
+            .expect_err("heartbeat must refuse a world-readable rendezvous");
+        let received = take_pending_bytes(&listener);
+
+        assert!(
+            received.is_empty(),
+            "no notification frame may reach an unvalidated peer, got {} bytes",
+            received.len()
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("refused") || msg.contains("permissions") || msg.contains("0600"),
+            "error should name the IPC trust refusal, got: {msg}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn round_trip_rejects_world_readable_socket_before_writing() {
+        let (_tmp, listener, path) = bind_world_readable_socket();
+        let body = jsonrpc_request_line(
+            "session.register",
+            &serde_json::json!({"session_id": "sess_x"}),
+            "req-1",
+        );
+
+        let err = round_trip_on(&path, &body)
+            .expect_err("request must refuse a world-readable rendezvous");
+        let received = take_pending_bytes(&listener);
+
+        assert!(
+            received.is_empty(),
+            "no request frame may reach an unvalidated peer, got {} bytes",
+            received.len()
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("refused") || msg.contains("permissions") || msg.contains("0600"),
+            "error should name the IPC trust refusal, got: {msg}"
+        );
     }
 }
