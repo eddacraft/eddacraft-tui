@@ -314,8 +314,9 @@ pub struct ProbePackRef {
     pub id: String,
     /// The pack directory, under `.anvil/probes/`.
     pub dir: PathBuf,
-    /// The verified manifest path (`<dir>/probes.yaml` after containment),
-    /// known to exist as a regular file inside the pack directory.
+    /// Canonical path of the admitted manifest: a regular file inside the pack
+    /// directory. If `probes.yaml` is a contained symlink, this is the target,
+    /// not the link.
     pub manifest_path: PathBuf,
 }
 
