@@ -233,15 +233,31 @@ impl Journal {
     /// files to their original bytes, then remove created directories deepest
     /// first. Best-effort — each step ignores its own error so one failure does
     /// not abort the rest of the unwind.
+    ///
+    /// Restore and remove use no-follow helpers so a concurrent ancestor
+    /// symlink-swap after the write phase cannot redirect rollback outside
+    /// the workspace. Failures stay local: better to leave files in place
+    /// than follow a swapped path.
     fn rollback(self) {
+        #[cfg(all(test, unix))]
+        {
+            let probe = self
+                .created_files
+                .first()
+                .or_else(|| self.restored.first().map(|(path, _)| path))
+                .or_else(|| self.created_dirs.first());
+            if let Some(path) = probe {
+                race_hook::fire_rollback(path);
+            }
+        }
         for path in &self.created_files {
-            let _ = std::fs::remove_file(path);
+            let _ = crate::util::remove_file_nofollow(path);
         }
         for (path, original) in &self.restored {
-            let _ = std::fs::write(path, original);
+            let _ = crate::util::atomic_write_nofollow(path, original);
         }
         for dir in self.created_dirs.iter().rev() {
-            let _ = std::fs::remove_dir(dir);
+            let _ = crate::util::remove_dir_nofollow(dir);
         }
     }
 
@@ -441,6 +457,7 @@ mod race_hook {
 
     thread_local! {
         static HOOK: RefCell<Option<RaceHook>> = const { RefCell::new(None) };
+        static ROLLBACK_HOOK: RefCell<Option<RaceHook>> = const { RefCell::new(None) };
     }
 
     /// RAII guard that clears the thread-local hook on drop so panics cannot
@@ -460,14 +477,35 @@ mod race_hook {
         Guard
     }
 
+    /// Install a hook fired at the start of journal rollback, after writes
+    /// have completed. Separate from [`install`] so write-time and rollback-
+    /// time races can be simulated independently.
+    pub fn install_rollback(hook: impl FnMut(&Path) + 'static) -> Guard {
+        ROLLBACK_HOOK.with(|cell| {
+            *cell.borrow_mut() = Some(Box::new(hook));
+        });
+        Guard
+    }
+
     fn clear() {
         HOOK.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+        ROLLBACK_HOOK.with(|cell| {
             *cell.borrow_mut() = None;
         });
     }
 
     pub fn fire(path: &Path) {
         HOOK.with(|cell| {
+            if let Some(ref mut hook) = *cell.borrow_mut() {
+                hook(path);
+            }
+        });
+    }
+
+    pub fn fire_rollback(path: &Path) {
+        ROLLBACK_HOOK.with(|cell| {
             if let Some(ref mut hook) = *cell.borrow_mut() {
                 hook(path);
             }
@@ -1262,6 +1300,61 @@ mod tests {
                 .next()
                 .is_none(),
             "must not create files outside the workspace through the swapped symlink"
+        );
+    }
+
+    /// After a --force overwrite, swap `.anvil` for an outside symlink
+    /// immediately before rollback. Restore must not write original bytes
+    /// through the swapped ancestor.
+    #[cfg(unix)]
+    #[test]
+    fn policy_install_rollback_refuses_mid_rollback_ancestor_symlink_swap() {
+        let ws = TempDir::new().expect("workspace");
+        let outside = TempDir::new().expect("outside dir");
+        let version = ANVIL_BASELINE.manifest().unwrap().version;
+        install_pack_files(
+            ws.path(),
+            "anvil-baseline",
+            &version,
+            &baseline_files(),
+            false,
+        )
+        .expect("seed a valid install");
+
+        let mut broken = baseline_files();
+        for file in &mut broken {
+            if file.rel == "policies/change_scope.rego" {
+                file.contents = file.contents.replace("changed_count > soft_limit", "false");
+            }
+        }
+
+        let anvil = ws.path().join(".anvil");
+        let outside_path = outside.path().to_path_buf();
+        let planted_rel = PathBuf::from("policies/anvil-baseline/policies");
+        std::fs::create_dir_all(outside.path().join(&planted_rel)).expect("plant outside tree");
+        let marker = outside.path().join(&planted_rel).join("change_scope.rego");
+        std::fs::write(&marker, b"OUTSIDE").expect("outside marker");
+
+        let anvil_path = anvil.clone();
+        let _hook_guard = race_hook::install_rollback(move |path| {
+            if path.starts_with(&anvil_path)
+                && anvil_path
+                    .symlink_metadata()
+                    .is_ok_and(|m| !m.file_type().is_symlink())
+            {
+                let _ = std::fs::remove_dir_all(&anvil_path);
+                let _ = std::os::unix::fs::symlink(&outside_path, &anvil_path);
+            }
+        });
+
+        let outcome = install_pack_files(ws.path(), "anvil-baseline", &version, &broken, true)
+            .expect("install returns an outcome");
+        assert!(matches!(outcome, InstallOutcome::RolledBack { .. }));
+
+        assert_eq!(
+            std::fs::read(&marker).expect("read outside marker"),
+            b"OUTSIDE",
+            "rollback must not restore original bytes through a swapped ancestor"
         );
     }
 

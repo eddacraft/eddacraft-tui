@@ -478,6 +478,37 @@ pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> Result<()> {
     }
 }
 
+/// Remove a file without following symlink path components.
+///
+/// On Unix the parent is opened with no-follow semantics and the leaf is
+/// unlinked via `unlinkat`. A swapped ancestor therefore fails closed instead
+/// of deleting a file outside the intended tree. A leaf symlink is unlinked
+/// itself (not its target).
+pub fn remove_file_nofollow(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        remove_nofollow_unix(path, false)
+    }
+    #[cfg(not(unix))]
+    {
+        refuse_symlink_path_components(path)?;
+        std::fs::remove_file(path).with_context(|| format!("removing file {}", path.display()))
+    }
+}
+
+/// Remove an empty directory without following symlink path components.
+pub fn remove_dir_nofollow(path: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        remove_nofollow_unix(path, true)
+    }
+    #[cfg(not(unix))]
+    {
+        refuse_symlink_path_components(path)?;
+        std::fs::remove_dir(path).with_context(|| format!("removing directory {}", path.display()))
+    }
+}
+
 /// Refuse when any existing component of `path` is a symlink.
 ///
 /// Used by the non-Unix `atomic_write_nofollow` / `create_dir_all_nofollow`
@@ -676,6 +707,36 @@ fn map_nofollow_dir_open_error(err: nix::errno::Errno, component: &Path) -> anyh
             component.display()
         )),
     }
+}
+
+#[cfg(unix)]
+fn remove_nofollow_unix(path: &Path, is_dir: bool) -> Result<()> {
+    use std::os::fd::AsFd;
+
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .with_context(|| format!("remove path has no file name: {}", path.display()))?;
+    let dirfd = open_dir_nofollow_unix(parent)?;
+    let flags = if is_dir {
+        UnlinkatFlags::RemoveDir
+    } else {
+        UnlinkatFlags::NoRemoveDir
+    };
+    unlinkat(dirfd.as_fd(), leaf, flags)
+        .map_err(std::io::Error::from)
+        .with_context(|| {
+            if is_dir {
+                format!("removing directory {}", path.display())
+            } else {
+                format!("removing file {}", path.display())
+            }
+        })
 }
 
 #[cfg(unix)]
@@ -1175,6 +1236,46 @@ mod tests {
             !outside.path().join("child").exists(),
             "must not create directories through the symlink"
         );
+    }
+
+    #[test]
+    fn remove_file_nofollow_removes_a_real_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("doomed.txt");
+        std::fs::write(&path, b"x").unwrap();
+        remove_file_nofollow(&path).unwrap();
+        assert!(!path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_file_nofollow_refuses_symlinked_parent_without_deleting_outside() {
+        use std::os::unix::fs::symlink;
+
+        let outside = tempfile::tempdir().unwrap();
+        let marker = outside.path().join("victim.txt");
+        std::fs::write(&marker, b"keep").unwrap();
+
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join(".anvil");
+        symlink(outside.path(), &parent).unwrap();
+
+        let err = remove_file_nofollow(&parent.join("victim.txt")).expect_err("symlinked parent");
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("symlink"),
+            "error should identify symlink: {msg}"
+        );
+        assert_eq!(std::fs::read(&marker).unwrap(), b"keep");
+    }
+
+    #[test]
+    fn remove_dir_nofollow_removes_an_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let child = dir.path().join("empty");
+        std::fs::create_dir(&child).unwrap();
+        remove_dir_nofollow(&child).unwrap();
+        assert!(!child.exists());
     }
 
     #[test]
