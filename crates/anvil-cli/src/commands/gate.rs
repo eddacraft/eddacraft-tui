@@ -10131,8 +10131,8 @@ rules: []
     fn anvilrc_unknown_warning_includes_suggestion_and_known_subset_policy() {
         let msg = format_anvilrc_unknown_checks_warning(&["lnt"]);
         assert!(
-            msg.contains(".anvilrc#checks contains unknown check(s): 'lnt'"),
-            "warning must name bad config entry: {msg}"
+            msg.contains("`checks` list contains unknown check(s): 'lnt'"),
+            "warning must name the bad config entry: {msg}"
         );
         assert!(
             msg.contains("did you mean 'lint'?"),
