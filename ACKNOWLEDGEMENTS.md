@@ -162,7 +162,7 @@ named in the crate source linked from the inventory table.
 
 ## Licence summary
 
-- **MIT License** — 361 crates
+- **MIT License** — 362 crates
 - **Unicode License v3** — 19 crates
 - **Apache License 2.0** — 17 crates
 - **ISC License** — 7 crates
@@ -7372,6 +7372,7 @@ Used by:
 - `windows-strings` 0.4.2
 - `windows-strings` 0.5.1
 - `windows-sys` 0.52.0
+- `windows-sys` 0.59.0
 - `windows-sys` 0.60.2
 - `windows-sys` 0.61.2
 - `windows-targets` 0.52.6
@@ -9693,6 +9694,7 @@ the following restrictions:
 | `windows-strings` | 0.4.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-strings` | 0.5.1 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.52.0 | MIT License | https://github.com/microsoft/windows-rs |
+| `windows-sys` | 0.59.0 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.60.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.61.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-targets` | 0.52.6 | MIT License | https://github.com/microsoft/windows-rs |

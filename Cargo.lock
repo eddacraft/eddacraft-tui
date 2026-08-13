@@ -6738,6 +6738,8 @@ dependencies = [
  "tracing-core",
  "unicode-truncate",
  "winapi",
+ "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
  "windows-sys 0.61.2",
  "zerocopy",
 ]
