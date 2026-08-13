@@ -39,9 +39,9 @@ several checks match reality.
   `anvil migrate architecture --apply`, or put the definition inline. Unmigrated
   standalone files still work.
 
-- **When both `anvil/policy.yaml` and `anvil/policy.yml` exist, yaml wins.**
-  `anvil doctor` warns when more than one policy or project-config variant is
-  present and names the winner.
+- **When both `anvil/policy.yaml` and `anvil/policy.yml` exist,
+  `anvil/policy.yaml` wins.** `anvil doctor` warns when more than one policy or
+  project-config variant is present and names the winner.
 
 ### Added
 
