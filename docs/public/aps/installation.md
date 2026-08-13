@@ -5,6 +5,7 @@ description:
   Choose an APS installation path and maintain an existing project safely.
 sidebar_position: 3
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Install, update, or migrate APS

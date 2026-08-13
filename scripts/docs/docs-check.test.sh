@@ -445,15 +445,18 @@ else
   fail "public command truth duplicated an existing help flag; got: $(tr '\n' ';' <"${args_file}")"
 fi
 
-# Case 13c (DOCFRESH-005): public pages carry governance frontmatter — owner
-# everywhere; upstream + verified_against for sections whose sources live in
-# this tree (anvil, start-here, beta); owner-only for external-upstream
-# sections (kindling, aps, edda-stack) pending DOCFRESH-008, counted visibly.
+# Case 13c (DOCFRESH-008): public pages carry governance frontmatter.
+# In-tree product sections (anvil, start-here, beta, edda-stack) require
+# the full triple. Copied sections (kindling, aps) require owner plus
+# verified_against as the imported product version; optional upstream
+# must resolve if declared. Attested copies are counted visibly.
 echo "case 13c: public pages declare governance frontmatter"
 gov_root="${tmp_root}/public-governance-fixture"
 mkdir -p "${gov_root}/docs/public/anvil" "${gov_root}/docs/public/kindling" \
-  "${gov_root}/apps/docs-site/sidebars" "${gov_root}/crates/anvil-cli/src"
+  "${gov_root}/docs/public/edda-stack" "${gov_root}/apps/docs-site/sidebars" \
+  "${gov_root}/crates/anvil-cli/src" "${gov_root}/packages/edda-stack"
 printf 'fn main() {}\n' >"${gov_root}/crates/anvil-cli/src/main.rs"
+printf '# edda-stack\n' >"${gov_root}/packages/edda-stack/README.md"
 cat >"${gov_root}/apps/docs-site/sidebars/anvil.ts" <<'EOF'
 export default {
   anvilSidebar: ['governed'],
@@ -472,12 +475,26 @@ verified_against: 0.9.4-beta
 
 # Governed page
 EOF
+cat >"${gov_root}/docs/public/edda-stack/overview.md" <<'EOF'
+---
+id: overview
+title: edda-stack overview
+description: In-tree product section page.
+owner: DOCSYNC
+upstream:
+  - packages/edda-stack/README.md
+verified_against: 0.9.4-beta
+---
+
+# edda-stack overview
+EOF
 cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
 ---
 id: index
 title: kindling overview
-description: External-upstream section page.
+description: Copied-section page attested to an imported product version.
 owner: DOCSYNC
+verified_against: 0.2.0
 public_unlisted: true
 ---
 
@@ -489,10 +506,55 @@ status=$?
 set -e
 if [[ "${status}" -eq 0 ]] \
   && echo "${out}" | grep -qE "^\[public-docs\] summary: 0 errors, [0-9]+ files checked$" \
-  && echo "${out}" | grep -q "1 external-upstream page(s) carry owner-only governance pending DOCFRESH-008"; then
-  pass "full triple passes in-tree; owner-only passes external and is counted visibly"
+  && echo "${out}" | grep -q "1 copied-section page(s) attested against an imported product version"; then
+  pass "full triple passes in-tree including edda-stack; attested copy is counted visibly"
 else
-  fail "governed fixture should pass with a visible external count (status ${status}); got: ${out}"
+  fail "governed fixture should pass with a visible copied-section count (status ${status}); got: ${out}"
+fi
+cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
+---
+id: index
+title: kindling overview
+description: Copied-section page without a version pin.
+owner: DOCSYNC
+public_unlisted: true
+---
+
+# kindling overview
+EOF
+set +e
+out="$(node "${public_script}" --root "${gov_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "missing governance frontmatter: verified_against"; then
+  pass "copied-section page cannot omit verified_against"
+else
+  fail "copied section should fail without verified_against (status ${status}); got: ${out}"
+fi
+cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
+---
+id: index
+title: kindling overview
+description: Copied-section page with a dead optional upstream.
+owner: DOCSYNC
+upstream:
+  - packages/kindling-integration/README.md
+verified_against: 0.2.0
+public_unlisted: true
+---
+
+# kindling overview
+EOF
+set +e
+out="$(node "${public_script}" --root "${gov_root}" --skip-generated 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -ne 0 ]] \
+  && echo "${out}" | grep -q "upstream path does not exist: packages/kindling-integration/README.md"; then
+  pass "copied-section optional upstream must resolve when declared"
+else
+  fail "dead optional upstream on a copied page should fail (status ${status}); got: ${out}"
 fi
 cat >"${gov_root}/docs/public/anvil/governed.md" <<'EOF'
 ---
@@ -510,7 +572,9 @@ cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
 ---
 id: index
 title: kindling overview
-description: External-upstream section page.
+description: Copied-section page attested to an imported product version.
+owner: DOCSYNC
+verified_against: 0.2.0
 public_unlisted: true
 ---
 
@@ -538,17 +602,43 @@ owner: DOCSYNC
 
 # Governed page
 EOF
+cat >"${gov_root}/docs/public/edda-stack/overview.md" <<'EOF'
+---
+id: overview
+title: edda-stack overview
+description: In-tree product section page.
+owner: DOCSYNC
+---
+
+# edda-stack overview
+EOF
 set +e
 out="$(node "${public_script}" --root "${gov_root}" --skip-generated 2>&1)"
 status=$?
 set -e
 if [[ "${status}" -ne 0 ]] \
-  && echo "${out}" | grep -q "missing governance frontmatter: upstream" \
-  && echo "${out}" | grep -q "missing governance frontmatter: verified_against"; then
-  pass "in-tree section page cannot omit upstream or verified_against"
+  && echo "${out}" | grep -q "docs/public/anvil/governed.md:1 — missing governance frontmatter: upstream" \
+  && echo "${out}" | grep -q "docs/public/anvil/governed.md:1 — missing governance frontmatter: verified_against" \
+  && echo "${out}" | grep -q "docs/public/edda-stack/overview.md:1 — missing governance frontmatter: upstream" \
+  && echo "${out}" | grep -q "docs/public/edda-stack/overview.md:1 — missing governance frontmatter: verified_against"; then
+  pass "in-tree section page, including edda-stack, cannot omit upstream or verified_against"
 else
   fail "in-tree governance requirements not enforced (status ${status}); got: ${out}"
 fi
+# Restore the in-tree fixtures so later leakage assertions stay at two errors.
+cat >"${gov_root}/docs/public/edda-stack/overview.md" <<'EOF'
+---
+id: overview
+title: edda-stack overview
+description: In-tree product section page.
+owner: DOCSYNC
+upstream:
+  - packages/edda-stack/README.md
+verified_against: 0.9.4-beta
+---
+
+# edda-stack overview
+EOF
 # Only the governance keys are exempt from the leakage scan — frontmatter
 # title and description render into built HTML (page <title>, meta tags) and
 # stay under the newcomer trust contract.
@@ -569,8 +659,9 @@ cat >"${gov_root}/docs/public/kindling/index.md" <<'EOF'
 ---
 id: index
 title: kindling overview
-description: External-upstream section page.
+description: Copied-section page attested to an imported product version.
 owner: DOCSYNC
+verified_against: 0.2.0
 public_unlisted: true
 ---
 
@@ -959,6 +1050,7 @@ id: getting-started
 title: Create your first APS plan
 description: Install APS and validate a first plan.
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Create your first APS plan
@@ -971,6 +1063,7 @@ id: agents
 title: Work with an AI agent
 description: Give an AI agent a bounded APS work item.
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Work with an AI agent
@@ -997,6 +1090,7 @@ id: internal
 title: APS internals
 description: Internal implementation notes.
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # APS internals

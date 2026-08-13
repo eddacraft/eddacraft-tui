@@ -5,6 +5,9 @@ description:
   Planned evolution of capture, review, and canonical memory capabilities.
 sidebar_position: 3
 owner: DOCSYNC
+upstream:
+  - packages/edda-stack/README.md
+verified_against: 0.9.4-beta
 ---
 
 # Capability Roadmap

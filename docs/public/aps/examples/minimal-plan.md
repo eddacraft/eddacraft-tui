@@ -4,6 +4,7 @@ title: 'Example: one small module'
 description: A complete small APS plan with one executable work item.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Example: one small module

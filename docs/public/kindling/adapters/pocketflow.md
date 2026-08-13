@@ -4,6 +4,7 @@ title: PocketFlow Adapter
 description: Capture workflow node executions as Kindling observations.
 sidebar_position: 3
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # PocketFlow Adapter

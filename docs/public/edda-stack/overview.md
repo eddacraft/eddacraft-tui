@@ -5,6 +5,9 @@ description:
   Capture signals, promote reusable knowledge, and preserve trusted decisions.
 sidebar_position: 1
 owner: DOCSYNC
+upstream:
+  - packages/edda-stack/README.md
+verified_against: 0.9.4-beta
 ---
 
 # Development Memory System

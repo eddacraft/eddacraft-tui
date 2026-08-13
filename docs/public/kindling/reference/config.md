@@ -5,6 +5,7 @@ description:
   Environment variables, data locations, and how kindling resolves them.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Configuration

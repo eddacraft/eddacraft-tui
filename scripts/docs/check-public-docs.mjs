@@ -23,11 +23,11 @@ const PUBLIC_ROOT = resolve(REPO_ROOT, 'docs/public');
 const ANVIL_ROOT = resolve(REPO_ROOT, 'docs/public/anvil');
 const BETA_ROOT = resolve(REPO_ROOT, 'docs/public/beta');
 const APS_ROOT = resolve(REPO_ROOT, 'docs/public/aps');
-// Sections whose product sources live in this repository declare the full
-// governance triple (owner, upstream, verified_against). Sections whose
-// sources are out of tree carry owner-only governance until DOCFRESH-008
-// decides their verification model; they are counted visibly, never silently.
-const EXTERNAL_UPSTREAM_SECTIONS = new Set(['kindling', 'aps', 'edda-stack']);
+// In-tree product sections declare the full governance triple (owner,
+// upstream, verified_against). Copied sections (kindling, aps) attest
+// owner plus verified_against as the imported product version; optional
+// upstream must still resolve. edda-stack is in-tree (ADR-122).
+const COPIED_SECTIONS = new Set(['kindling', 'aps']);
 const ANVIL_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/anvil.ts');
 const APS_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/aps.ts');
 const SITE_SHELL_PATHS = [
@@ -128,7 +128,7 @@ for (const file of files) {
 }
 
 const governanceFiles = markdownFiles(PUBLIC_ROOT);
-const externalPending = checkGovernance(governanceFiles);
+const copiedAttested = checkGovernance(governanceFiles);
 const filesChecked = new Set([...files, ...governanceFiles]).size;
 
 checkNavigation();
@@ -142,7 +142,7 @@ findings.sort((a, b) =>
 
 if (JSON_OUTPUT) {
   process.stdout.write(
-    `${JSON.stringify({ surface: 'public-docs', findings, summary: { errors: findings.length, filesChecked, externalPending } }, null, 2)}\n`
+    `${JSON.stringify({ surface: 'public-docs', findings, summary: { errors: findings.length, filesChecked, copiedAttested } }, null, 2)}\n`
   );
 } else {
   for (const finding of findings) {
@@ -150,9 +150,9 @@ if (JSON_OUTPUT) {
       `[public-docs] ERROR: ${finding.file}:${finding.line} — ${finding.message}\n`
     );
   }
-  if (externalPending > 0) {
+  if (copiedAttested > 0) {
     process.stdout.write(
-      `[public-docs] info: ${externalPending} external-upstream page(s) carry owner-only governance pending DOCFRESH-008\n`
+      `[public-docs] info: ${copiedAttested} copied-section page(s) attested against an imported product version\n`
     );
   }
   process.stdout.write(
@@ -415,11 +415,11 @@ function governanceFrontmatterLines(lines) {
 }
 
 function checkGovernance(publicFiles) {
-  let ownerOnlyExternal = 0;
+  let copiedAttested = 0;
   for (const file of publicFiles) {
     const publicPath = normalise(relative(REPO_ROOT, file));
     const section = publicPath.split('/')[2];
-    const external = EXTERNAL_UPSTREAM_SECTIONS.has(section);
+    const copied = COPIED_SECTIONS.has(section);
     const frontmatter = parseFrontmatter(readFileSync(file, 'utf8'));
 
     const owner = frontmatter.owner;
@@ -434,8 +434,9 @@ function checkGovernance(publicFiles) {
         ? frontmatter.upstream
         : [frontmatter.upstream];
     if (upstream === undefined) {
-      if (external) ownerOnlyExternal += 1;
-      else add(publicPath, 1, 'missing governance frontmatter: upstream (declared source paths)');
+      if (!copied) {
+        add(publicPath, 1, 'missing governance frontmatter: upstream (declared source paths)');
+      }
     } else if (upstream.length === 0) {
       add(publicPath, 1, 'upstream must list at least one repository path');
     } else {
@@ -450,9 +451,7 @@ function checkGovernance(publicFiles) {
 
     const version = frontmatter.verified_against;
     if (version === undefined) {
-      if (!external) {
-        add(publicPath, 1, 'missing governance frontmatter: verified_against (product version)');
-      }
+      add(publicPath, 1, 'missing governance frontmatter: verified_against (product version)');
     } else if (
       typeof version !== 'string' ||
       !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.-]+)?$/.test(version)
@@ -462,9 +461,11 @@ function checkGovernance(publicFiles) {
         1,
         `verified_against must be a bare product version like 0.9.4-beta: ${version}`
       );
+    } else if (copied) {
+      copiedAttested += 1;
     }
   }
-  return ownerOnlyExternal;
+  return copiedAttested;
 }
 
 function documentId(file, explicitId, root) {

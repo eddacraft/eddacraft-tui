@@ -5,6 +5,7 @@ description:
   Understand what APS checks and when plan validation may execute commands.
 sidebar_position: 3
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Validation, audit, and CI safety

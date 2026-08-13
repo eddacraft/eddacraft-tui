@@ -5,6 +5,7 @@ description:
   Capture context hands-free through an adapter instead of logging manually.
 sidebar_position: 3
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Automatic Capture

@@ -6,6 +6,7 @@ description:
   tool.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Use APS with an AI agent

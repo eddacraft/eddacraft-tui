@@ -4,6 +4,7 @@ title: OpenCode Adapter
 description: Capture observations from OpenCode development sessions.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # OpenCode Adapter

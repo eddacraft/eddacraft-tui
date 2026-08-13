@@ -6,6 +6,7 @@ description:
   ranked hits.
 sidebar_position: 3
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Retrieval

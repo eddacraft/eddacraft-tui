@@ -4,6 +4,7 @@ title: Install
 description: Install the kindling binary and initialise project memory.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Install Kindling

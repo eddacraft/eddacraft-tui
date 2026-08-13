@@ -4,6 +4,7 @@ title: Plan a monorepo
 description: Choose between one tagged plan and independently owned child plans.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Plan a monorepo

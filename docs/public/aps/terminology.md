@@ -4,6 +4,7 @@ title: APS glossary
 description: Plain-language definitions for the terms used in APS documentation.
 sidebar_position: 5
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # APS glossary

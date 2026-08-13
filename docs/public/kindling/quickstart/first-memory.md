@@ -6,6 +6,7 @@ description:
   the CLI.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Your First Memory

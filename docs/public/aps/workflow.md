@@ -4,6 +4,7 @@ title: Run the APS workflow
 description: Select, start, validate, and complete one bounded work item.
 sidebar_position: 4
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Run the APS workflow

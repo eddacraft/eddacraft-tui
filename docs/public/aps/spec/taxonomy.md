@@ -4,6 +4,7 @@ title: How APS documents fit together
 description: Understand indexes, modules, work items, and optional action plans.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # How APS documents fit together

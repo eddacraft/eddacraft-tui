@@ -5,6 +5,9 @@ description:
   Capture development observations with enough context for later reuse.
 sidebar_position: 1
 owner: DOCSYNC
+upstream:
+  - packages/edda-stack/src/contracts/ports/kindling.port.ts
+verified_against: 0.9.4-beta
 ---
 
 # Signal Capture (Kindling)

@@ -5,6 +5,9 @@ description:
   Practical answers for teams evaluating trust, governance, and adoption risk.
 sidebar_position: 4
 owner: DOCSYNC
+upstream:
+  - packages/edda-stack/README.md
+verified_against: 0.9.4-beta
 ---
 
 # Enterprise Questions Answered

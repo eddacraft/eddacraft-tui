@@ -6,6 +6,7 @@ description:
   and manual capture with no IDE plugin required.
 sidebar_position: 0
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Quickstart without Claude Code

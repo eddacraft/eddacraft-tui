@@ -4,6 +4,7 @@ title: Custom Integrations
 description: Build your own integration on the Rust or TypeScript APIs.
 sidebar_position: 5
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Custom Integrations

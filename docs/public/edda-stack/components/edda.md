@@ -5,6 +5,9 @@ description:
   Maintain trusted, attributable, versioned memory for teams and agents.
 sidebar_position: 3
 owner: DOCSYNC
+upstream:
+  - packages/edda-stack/src/edda/README.md
+verified_against: 0.9.4-beta
 ---
 
 # Canonical Memory (Edda)

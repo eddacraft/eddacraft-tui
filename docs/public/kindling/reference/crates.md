@@ -4,6 +4,7 @@ title: Crates
 description: The published Rust crates and which one to depend on.
 sidebar_position: 4
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Crates

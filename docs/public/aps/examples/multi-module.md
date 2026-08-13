@@ -4,6 +4,7 @@ title: 'Example: dependent modules'
 description: A multi-module APS plan with an explicit dependency boundary.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Example: dependent modules

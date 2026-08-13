@@ -4,6 +4,7 @@ title: Document format reference
 description: Look up required sections and fields for APS Markdown documents.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Document format reference

@@ -4,6 +4,7 @@ title: Claude Code Adapter
 description: Automatic session memory and context injection for Claude Code.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Claude Code Adapter

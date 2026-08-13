@@ -5,6 +5,7 @@ description:
   Install APS, create a small plan, and select its first ready work item.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Create and validate your first plan

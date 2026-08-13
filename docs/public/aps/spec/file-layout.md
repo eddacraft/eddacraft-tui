@@ -5,6 +5,7 @@ description:
   Know which APS files are generated, editable, optional, or temporary.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # Project files and ownership

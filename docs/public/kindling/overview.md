@@ -6,6 +6,7 @@ description:
   organise, and deterministically retrieve development context.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Kindling

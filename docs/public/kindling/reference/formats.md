@@ -5,6 +5,7 @@ description:
   JSON shapes for observations, capsules, and the export/import bundle.
 sidebar_position: 3
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Formats

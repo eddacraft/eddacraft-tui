@@ -6,6 +6,7 @@ description:
   Windsurf.
 sidebar_position: 4
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # VS Code Adapter

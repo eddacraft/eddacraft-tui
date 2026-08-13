@@ -5,6 +5,9 @@ description:
   Principles for trustworthy, reusable development memory at team scale.
 sidebar_position: 2
 owner: DOCSYNC
+upstream:
+  - packages/edda-stack/README.md
+verified_against: 0.9.4-beta
 ---
 
 # Design Principles

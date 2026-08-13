@@ -5,6 +5,7 @@ description:
   Bounded groups of observations with an intent and an open/close lifecycle.
 sidebar_position: 2
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # Capsules

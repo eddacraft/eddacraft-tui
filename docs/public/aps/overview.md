@@ -5,6 +5,7 @@ description:
   Understand how APS turns development intent into bounded, verifiable work.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.6.0
 ---
 
 # What APS does

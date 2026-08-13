@@ -7,7 +7,12 @@
 | --------- | ----- | -------- | ------ | -------- |
 | DOCFRESH  | —     | high     | In Progress | 6/8 |
 
-**Last reviewed:** 2026-08-13 — DOCFRESH-004 **Merged via PR #3804**. Coverage moves
+**Last reviewed:** 2026-08-13 — DOCFRESH-008 **In Progress**. ADR-122 splits
+public sections by product source of truth: edda-stack is in-tree and takes the
+full D6 triple; kindling and APS pages are copies and attest the imported
+product version. Feature PRs do not bump the module `N/M` (ADR-053).
+
+**Earlier — 2026-08-13** — DOCFRESH-004 **Merged via PR #3804**. Coverage moves
 from **104 to 118** checkable documents (of 228). Composition of the gap was
 mis-stated in the item and is corrected there: no document was missing a review
 date. What actually blocked coverage was `Upstream` cells carrying prose or
@@ -305,30 +310,34 @@ release rather than `main`.
 - **Confidence:** high
 - **Status:** Merged 2026-08-13 via PR #3850
 
-### DOCFRESH-008: Decide the model for out-of-tree public sections — Draft
+### DOCFRESH-008: Govern in-tree edda-stack and attest copied kindling/APS pages — In Progress
 
-- **Intent:** ADR-119 D6 assumes a document's upstream lives in this repository.
-  For three public sections it does not, and that hole needs a decision rather
-  than a silent gap.
-- **Expected Outcome:** A recorded decision covering `docs/public/kindling/**`,
-  `docs/public/aps/**`, and `docs/public/edda-stack/**`, whose sources are not
-  in this tree (no `kindling-*` or `aps` crates exist here), so
-  `git diff <tag>..<tag>` cannot verify them. Concrete symptoms today:
-  `docs/public/kindling/reference/crates.md:11` claims workspace **0.2.0** and
-  `docs/public/aps/getting-started.md:55` claims `aps 0.6.0`, and neither can be
-  checked from this repository. Options to weigh: an external-upstream
-  declaration with a manual `verified_against` attestation, a cross-repo check,
-  or explicit exclusion with a named owner. Whatever is chosen must make the
-  exclusion visible in the coverage counts, not silent.
-- **Scope:** ADR follow-up, `docs/public/kindling/**`, `docs/public/aps/**`,
-  `docs/public/edda-stack/**`
-- **Non-scope:** Changing version claims in those sections without a source of
-  truth to check them against
+- **Intent:** Split the three public sections by product source of truth.
+  edda-stack is the in-repo Edda/Ember substrate. kindling and APS pages are
+  copies of external products and must attest the imported version rather than
+  invent an in-repo upstream.
+- **Expected Outcome:** ADR-122 recorded. `check-public-docs.mjs` treats
+  `docs/public/edda-stack/**` as in-tree (full `owner` / in-repo `upstream` /
+  `verified_against` triple, same D6 model as anvil). `docs/public/kindling/**`
+  and `docs/public/aps/**` require `owner` plus `verified_against` as the
+  imported product version the copy was last synced to (`0.2.0` / `0.6.0`
+  today). Optional `upstream` on a copied page must resolve; a copied page
+  without `verified_against` is an error. Coverage reports attested
+  copied-section pages visibly. No fake in-repo upstreams for foreign products.
+- **Scope:** ADR-122, `scripts/docs/check-public-docs.mjs`,
+  `scripts/docs/docs-check.test.sh` (case 13c), `docs/public/edda-stack/**`,
+  `docs/public/kindling/**`, `docs/public/aps/**`
+- **Non-scope:** Cross-repo checks against `eddacraft/kindling` or
+  `anvil-plan-spec`; changing the version claims those copies describe
 - **Dependencies:** DOCFRESH-005
-- **Validation:** decision recorded in `plans/decisions/` and indexed in
-  `DECISION-LOG.md`; `pnpm adr:check` clean
-- **Confidence:** low
-- **Status:** Draft
+- **Files:** `plans/decisions/122-public-docs-copied-section-attestation.md`,
+  `plans/decisions/DECISION-LOG.md`, `scripts/docs/check-public-docs.mjs`,
+  `scripts/docs/docs-check.test.sh`, `docs/public/edda-stack/**`,
+  `docs/public/kindling/**`, `docs/public/aps/**`
+- **Validation:** `pnpm adr:check`; `pnpm docs:public:check`; case 13c in
+  `scripts/docs/docs-check.test.sh`
+- **Confidence:** high
+- **Status:** In Progress
 
 ## Acceptance Criteria
 
@@ -336,8 +345,10 @@ release rather than `main`.
   a `docs-owed` finding; one that moves only a directory-level upstream does not.
 - No `docs-owed` finding can turn a merge gate red for anything a commit did not
   do (ADR-117).
-- Every public document declares an owner, an upstream, and the product version
-  it was verified against.
+- Every public document declares an owner and the product version it was
+  verified against. In-tree product sections also declare an in-repo
+  `upstream`. Copied sections (`kindling`, `aps`) attest `verified_against` as
+  the imported product version and do not invent in-repo upstreams (ADR-122).
 - A release cannot be declared ready while a public page's declared upstream
   changed between **that page's own `verified_against` tag** and the candidate
   without re-verification. The release's `previous_tag` is explicitly not the
@@ -352,6 +363,8 @@ release rather than `main`.
 
 - [ADR-119](../decisions/119-documentation-freshness-from-declared-upstream.md)
   — execution authority for this module
+- [ADR-122](../decisions/122-public-docs-copied-section-attestation.md)
+  — in-tree edda-stack vs copied kindling/APS attestation
 - [ADR-117](../decisions/117-repo-state-checks-are-not-per-pr-gates.md) — why
   the trigger is commit-caused rather than calendar-based
 - [ADR-042](../decisions/042-closeout-enforcement-exit-codes.md) — the ADR-002

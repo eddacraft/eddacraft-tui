@@ -4,6 +4,7 @@ title: CLI Reference
 description: Complete reference for the kindling command-line interface.
 sidebar_position: 1
 owner: DOCSYNC
+verified_against: 0.2.0
 ---
 
 # CLI Reference
