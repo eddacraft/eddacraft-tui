@@ -65,6 +65,13 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$tag" ] || die "--tag is required"
+case "$tag" in
+  *..* | */* | *\\*)
+    die "--tag must be a single path component without '..'"
+    ;;
+esac
+git check-ref-format "refs/tags/${tag}" >/dev/null \
+  || die "--tag is not a valid Git tag name: $tag"
 [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || die "--source-sha must be a 40-character lowercase Git SHA"
 [[ "$run_id" =~ ^[0-9]+$ ]] || die "--run-id must be numeric"
 [ -d "$private_dir" ] || die "private asset directory does not exist: $private_dir"
