@@ -683,12 +683,12 @@ reconcile the config schema after upgrading Anvil (including the legacy
 
 **Subcommands:**
 
-| Subcommand     | Description                                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `format`       | Migrate a legacy `.anvilrc` to `.anvil.<ext>` (yaml/yml/json/toml).                                                      |
-| `schema`       | Reconcile an existing config's schema across Anvil versions (dry-run by default); rewrites legacy `camelCase` keys.      |
-| `gate-config`  | Fold a retired `.anvil/gate-config.json` into the main config (absent fields only), then remove it (dry-run by default). |
-| `architecture` | Record a standalone `.anvil/architecture.yaml` as the config's `architecture.source` (dry-run by default).               |
+| Subcommand     | Description                                                                                                                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`       | Migrate a legacy `.anvilrc` to `.anvil.<ext>` (yaml/yml/json/toml).                                                                                                                |
+| `schema`       | Reconcile an existing config's schema across Anvil versions (dry-run by default); the registered casing migration fires for pre-`0.10.0-beta` projects on `0.10.0-beta`+ binaries. |
+| `gate-config`  | Fold a retired `.anvil/gate-config.json` into the main config (absent fields only), then remove it (dry-run by default).                                                           |
+| `architecture` | Record a standalone `.anvil/architecture.yaml` as the config's `architecture.source` (dry-run by default).                                                                         |
 
 **`format` flags:**
 

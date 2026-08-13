@@ -117,7 +117,8 @@ format. `anvil init` creates `.anvil.yaml`. **YAML is the default**; **TOML and
 JSON are also supported** (same schema, different encoding — use whichever the
 project already standardises on). A legacy `.anvilrc` is still read as a
 fallback; `anvil migrate format` converts it. Keys are `snake_case` (legacy
-`camelCase` keys are accepted on read; `anvil migrate schema` rewrites them).
+`camelCase` keys are accepted on read; any owned write — `anvil config set`,
+`anvil migrate format` — rewrites them).
 
 Example (`.anvil.yaml`):
 
@@ -141,9 +142,10 @@ Use canonical check names in docs, plans, and commands:
 
 Gate runs are controlled by the top-level `checks` list in the project config
 (plus CLI flags such as `--only-checks` or `--skip-checks`); the optional `gate`
-section carries composition (per-check configuration). Manage both with
-`anvil gate-config`. The legacy `.anvil/gate-config.json` is retired — gate runs
-ignore it; fold a leftover file with `anvil migrate gate-config`.
+section carries composition (per-check configuration). Inspect both with
+`anvil gate-config --list`; toggle selection with `--enable`/`--disable`. The
+legacy `.anvil/gate-config.json` is retired — gate runs ignore it; fold a
+leftover file with `anvil migrate gate-config`.
 
 Custom **Rego packs**, PolicyInput rules, pack manifests, and pack test design
 are outside this skill. Use only current anvil product and repository
