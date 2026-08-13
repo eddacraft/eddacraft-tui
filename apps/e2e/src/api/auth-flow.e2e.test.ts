@@ -128,7 +128,7 @@ describe('API Auth Flow › POST /auth/verify', () => {
     expect(body).toEqual(
       expect.objectContaining({
         valid: true,
-        user: { email: 'user@test.local' },
+        user: { email: 'user@test.local', plan: 'beta' },
         scopes: ['beta'],
         expiresAt,
       })
