@@ -234,7 +234,7 @@ release rather than `main`.
 - **Confidence:** medium
 - **Status:** In Progress
 
-### DOCFRESH-005: Public-doc governance in frontmatter — In Progress
+### DOCFRESH-005: Public-doc governance in frontmatter — Merged
 
 - **Intent:** Give the 91 public documents an owner, a declared upstream, and a
   verification anchor without putting anything on the rendered page.
@@ -248,12 +248,17 @@ release rather than `main`.
 - **Dependencies:** DOCFRESH-001
 - **Validation:** `pnpm docs:public:check` and a docs-site build
 - **Confidence:** medium
-- **Status:** In Progress — PR #3830 open (independently verified,
-  pass-with-advisories). Delivered with one recorded narrowing: the
-  external-upstream sections (`kindling`, `aps`, `edda-stack` — 41 pages)
-  carry owner-only governance because their sources are not in this tree;
-  the full-triple requirement for them is DOCFRESH-008's decision, and the
-  checker counts the exclusion visibly on every run.
+- **Status:** Merged 2026-08-13 via PR #3830 (independently verified,
+  pass-with-advisories; rebase merge proven ancestor of `main`). Delivered
+  with one recorded narrowing: the external-upstream sections (`kindling`,
+  `aps`, `edda-stack` — 41 pages) carry owner-only governance because their
+  sources are not in this tree; the full-triple requirement for them is
+  DOCFRESH-008's decision, and the checker counts the exclusion visibly on
+  every run. Advisories left for follow-up: an external page declaring
+  `upstream` without `verified_against` is silently half-governed (fold
+  into DOCFRESH-008), and the module acceptance criterion "every public
+  document declares … the product version it was verified against" is
+  narrowed accordingly for the external sections.
 
 ### DOCFRESH-006: Verify public docs at the release boundary — Draft
 
