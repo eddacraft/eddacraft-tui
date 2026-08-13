@@ -782,7 +782,7 @@
       "targets": ["source"],
       "detection": {
         "type": "regex",
-        "pattern": "\\b(eval|exec|compile)\\s*\\(\\s*(?:[ac-eg-hj-qs-tv-zAC-EG-HJ-QS-TV-Z_]|[rbfuRBFU](?:[^'\"rbfuRBFU]|[rbfuRBFU][^'\"]))"
+        "pattern": "\\b(eval|exec|compile)\\s*\\(\\s*[A-Za-z_][A-Za-z0-9_]*\\s*[,()]"
       },
       "file_extensions": [".py"],
       "allowlist": [

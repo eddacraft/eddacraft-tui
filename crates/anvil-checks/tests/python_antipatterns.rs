@@ -368,6 +368,11 @@ fn py008_eval_with_dynamic_argument_fires() {
         "code = compile(src, '<str>', 'exec')\n",
         "PY-008"
     ));
+    // Identifier start `i` must still fire — do not subtract prefix
+    // letters from the first-character class.
+    assert!(fires("src/app.py", "eval(input())\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(item)\n", "PY-008"));
+    assert!(fires("src/app.py", "exec(imported)\n", "PY-008"));
 }
 
 #[test]

@@ -15,10 +15,11 @@ allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**
 
 detection:
   type: regex
-  # RE2 has no lookahead. Treat optional r/b/f/u prefixes (1–2 chars,
-  # any case) immediately before a quote as a static literal, same as a
-  # bare quote. Dynamic identifiers still match.
-  pattern: '\b(eval|exec|compile)\s*\(\s*(?:[ac-eg-hj-qs-tv-zAC-EG-HJ-QS-TV-Z_]|[rbfuRBFU](?:[^''"rbfuRBFU]|[rbfuRBFU][^''"]))'
+  # RE2 has no lookahead. Require a real identifier then `,`, `)`, or
+  # `(` so prefixed literals (`r'...'`, `rb"..."`) stay static while
+  # `eval(input())` / `eval(item)` still fire. Do not subtract prefix
+  # letters from the identifier start class.
+  pattern: '\b(eval|exec|compile)\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*[,()]'
 
 related: [AP-008, PY-009]
 enabled: true
