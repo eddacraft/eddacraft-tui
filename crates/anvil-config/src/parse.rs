@@ -28,6 +28,11 @@ pub enum ParseError {
         #[source]
         source: std::io::Error,
     },
+    /// UCFG-014: a FIFO, device, directory, or other non-regular
+    /// target. Opened with `O_NONBLOCK` (Unix) so this surfaces
+    /// promptly instead of hanging the command.
+    #[error("config path {path} is not a regular file (FIFO, device, or directory)")]
+    NotARegularFile { path: PathBuf },
     #[error("unrecognised extension on {path}: only yaml/yml/json/toml are accepted")]
     UnrecognisedExtension { path: PathBuf },
     #[error("yaml parse error in {path}: {source}")]
@@ -299,12 +304,15 @@ pub fn parse_file(path: &Path) -> Result<Value, ParseError> {
 /// that grows past the cap *after* fstat but before EOF still
 /// surfaces as [`ParseError::FileTooLarge`] rather than overflowing
 /// the buffer.
+///
+/// **UCFG-014.** The open uses `O_NONBLOCK` on Unix and then
+/// `fstat`s the held descriptor, so a FIFO (or other non-regular
+/// target) cannot hang `anvil gate` / `config` / `doctor` waiting
+/// for a writer. The delegation-layer `stat` guard is now
+/// defence-in-depth against the same class.
 pub fn read_to_string_bounded(path: &Path) -> Result<String, ParseError> {
     use std::io::Read;
-    let file = std::fs::File::open(path).map_err(|source| ParseError::Io {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let file = open_regular_nonblocking(path)?;
     let metadata = file.metadata().map_err(|source| ParseError::Io {
         path: path.to_path_buf(),
         source,
@@ -336,6 +344,58 @@ pub fn read_to_string_bounded(path: &Path) -> Result<String, ParseError> {
         });
     }
     Ok(contents)
+}
+
+/// Open `path` without blocking on a FIFO, then refuse anything
+/// that is not a regular file on the held descriptor.
+fn open_regular_nonblocking(path: &Path) -> Result<std::fs::File, ParseError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+
+        // O_NONBLOCK: a FIFO open does not wait for a writer.
+        // O_CLOEXEC: keep the handle out of child processes.
+        // The type check is fstat-on-the-held-fd (not a second path
+        // lookup) so a regular→FIFO swap between a prior stat and
+        // this open cannot hang the command.
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK | libc::O_CLOEXEC)
+            .open(path)
+            .map_err(|source| ParseError::Io {
+                path: path.to_path_buf(),
+                source,
+            })?;
+        let meta = file.metadata().map_err(|source| ParseError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        if !meta.is_file() {
+            return Err(ParseError::NotARegularFile {
+                path: path.to_path_buf(),
+            });
+        }
+        Ok(file)
+    }
+
+    #[cfg(not(unix))]
+    {
+        // Best-effort: refuse known non-files before open. A
+        // concurrent swap remains possible on these platforms.
+        let meta = std::fs::symlink_metadata(path).map_err(|source| ParseError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        if !meta.file_type().is_file() {
+            return Err(ParseError::NotARegularFile {
+                path: path.to_path_buf(),
+            });
+        }
+        std::fs::File::open(path).map_err(|source| ParseError::Io {
+            path: path.to_path_buf(),
+            source,
+        })
+    }
 }
 
 /// Convert a `toml::Value` to a `serde_json::Value`.
@@ -715,5 +775,77 @@ telemetry:
         }
         parse_str(&payload, ConfigFormat::Json, Path::new("ok.json"))
             .expect("under-cap depth must parse");
+    }
+
+    /// UCFG-014: a FIFO as the main config must fail promptly, not
+    /// hang `File::open` waiting for a writer.
+    #[cfg(unix)]
+    #[test]
+    fn fifo_main_config_is_rejected_without_blocking() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let tmp = TempDir::new().unwrap();
+        let fifo = tmp.path().join(".anvil.yaml");
+        let status = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo");
+        assert!(status.success(), "mkfifo failed: {status}");
+
+        let path = fifo.clone();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(read_to_string_bounded(&path));
+        });
+        let result = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("FIFO open must not block");
+        let err = result.expect_err("FIFO must be refused");
+        assert!(
+            matches!(err, ParseError::NotARegularFile { .. }),
+            "got {err:?}"
+        );
+    }
+
+    /// UCFG-014: `parse_file` (gate/config/doctor entry) inherits the
+    /// same non-blocking regular-file guard.
+    #[cfg(unix)]
+    #[test]
+    fn parse_file_fifo_is_rejected_without_blocking() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let tmp = TempDir::new().unwrap();
+        let fifo = tmp.path().join(".anvil.yaml");
+        let status = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .expect("mkfifo");
+        assert!(status.success(), "mkfifo failed: {status}");
+
+        let path = fifo.clone();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(parse_file(&path));
+        });
+        let result = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("FIFO parse_file must not block");
+        let err = result.expect_err("FIFO must be refused");
+        assert!(
+            matches!(err, ParseError::NotARegularFile { .. }),
+            "got {err:?}"
+        );
+    }
+
+    #[test]
+    fn directory_is_rejected_as_not_a_regular_file() {
+        let tmp = TempDir::new().unwrap();
+        let err = read_to_string_bounded(tmp.path()).expect_err("directory must be refused");
+        assert!(
+            matches!(err, ParseError::NotARegularFile { .. }),
+            "got {err:?}"
+        );
     }
 }

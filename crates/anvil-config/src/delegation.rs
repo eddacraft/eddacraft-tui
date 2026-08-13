@@ -208,8 +208,10 @@ fn safe_source_path(
             path: rel.to_string(),
         });
     }
-    // UCFG-006/008 pinned note: a FIFO (or device) target would hang
-    // the bounded read on open. stat never opens, so guard here.
+    // Defence-in-depth (UCFG-014): the bounded reader now refuses
+    // non-regular files on the held descriptor. Keep the pre-open
+    // stat so a FIFO is still rejected as NotARegularFile before
+    // open, matching the existing error shape.
     let file_type = canonical
         .metadata()
         .map_err(|e| DelegationError::Io {
@@ -290,10 +292,16 @@ pub fn resolve_section(
 
     let (canonical, format) = safe_source_path(section, rel, workspace_root, main_config_path)?;
 
-    let contents = crate::read_to_string_bounded(&canonical).map_err(|e| DelegationError::Io {
-        section: section.to_string(),
-        path: rel.to_string(),
-        detail: e.to_string(),
+    let contents = crate::read_to_string_bounded(&canonical).map_err(|e| match e {
+        ParseError::NotARegularFile { .. } => DelegationError::NotARegularFile {
+            section: section.to_string(),
+            path: rel.to_string(),
+        },
+        other => DelegationError::Io {
+            section: section.to_string(),
+            path: rel.to_string(),
+            detail: other.to_string(),
+        },
     })?;
     let value =
         crate::parse_str(&contents, format, &canonical).map_err(|e| DelegationError::Parse {

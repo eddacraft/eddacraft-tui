@@ -1842,22 +1842,13 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     print_warmup_cache_status(warmup_paths.as_ref(), output_mode);
     print_tui_startup_message(output_mode);
 
-    // Watch-time architecture enforcement feeds the KERNEL, whose
-    // `ArchitectureConfig` schema (a `layers` LIST) is distinct from the
-    // `ArchitectureDefinition` (a `layers` MAP) that gate and the
-    // architecture commands resolve via `architecture_source`. The
-    // kernel therefore keeps its pre-UCFG-008 wiring: the standalone
-    // `.anvil/architecture.yaml` path when present. Feeding it a
-    // section-resolved (inline or delegated) Definition-schema file
-    // would fail its parser and kill watch at startup. Watch-time
-    // enforcement for section-based configs needs an in-process
-    // Definition→kernel mapping and is owned by a follow-up item.
-    let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
-    let arch_config = if arch_config_path.exists() {
-        Some(arch_config_path)
-    } else {
-        None
-    };
+    // UCFG-013: the kernel now maps Definition-schema `layers` maps
+    // (and inline `architecture:` sections) onto its list schema, so
+    // watch can follow the same resolution seam as gate — plus the
+    // standalone kernel-schema file still used by unmigrated repos.
+    // The chosen path is also the reload trigger: main config for
+    // inline, delegated target for `source`, standalone yaml otherwise.
+    let arch_config = crate::architecture_source::watch_architecture_source_path(&workspace_root)?;
 
     let watcher_config = anvil_kernel::watcher::WatcherConfig {
         root: watch_root.clone(),

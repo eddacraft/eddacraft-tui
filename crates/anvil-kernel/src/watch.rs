@@ -326,11 +326,16 @@ fn parse_initial_file(
     Ok((rel_path.to_path_buf(), symbols))
 }
 
+struct WatchArchitecture<'a> {
+    path: Option<&'a Path>,
+    config: &'a mut ArchitectureConfig,
+}
+
 fn watch_loop(
     root: &Path,
     batch_rx: &mpsc::Receiver<crate::watcher::events::ChangeBatch>,
     pattern_filter: &WatchPatternFilter,
-    arch_config: &ArchitectureConfig,
+    architecture: &mut WatchArchitecture<'_>,
     state: &mut WatchState,
     emitter: &EventEmitter,
     stop: &AtomicBool,
@@ -379,10 +384,28 @@ fn watch_loop(
             // Isolate per-change work so a panic in parse/extract/evaluate
             // surfaces as an error event and the loop keeps draining events
             // instead of silently terminating the watch thread.
+            if architecture_source_changed(&change.path, architecture.path) {
+                match load_architecture_config(architecture.path) {
+                    Ok(reloaded) => {
+                        *architecture.config = reloaded;
+                        state.engine.clear_seen();
+                    }
+                    Err(err) => {
+                        let rel_path = change.path.strip_prefix(root).unwrap_or(&change.path);
+                        emitter.error(
+                            ErrorCode::Internal,
+                            Some(&rel_path.to_string_lossy()),
+                            &format!("reloading architecture config: {err}"),
+                            true,
+                        );
+                    }
+                }
+                continue;
+            }
             let rel_path = change.path.strip_prefix(root).unwrap_or(&change.path);
             let rel_str = rel_path.to_string_lossy().to_string();
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                process_change(root, change, arch_config, state, emitter);
+                process_change(root, change, architecture.config, state, emitter);
             }));
             if let Err(panic) = result {
                 let message = panic_message(&panic);
@@ -593,7 +616,8 @@ pub fn run_watch(
         return Err(WatchError::RootNotFound(config.root.clone()));
     }
 
-    let arch_config = load_architecture_config(config.architecture_config.as_deref())?;
+    let arch_path = config.architecture_config.clone();
+    let mut arch_config = load_architecture_config(arch_path.as_deref())?;
 
     let filter = config.watcher.filter.clone().unwrap_or_default();
     let pattern_filter =
@@ -667,7 +691,10 @@ pub fn run_watch(
             &root,
             &batch_rx,
             &pattern_filter,
-            &arch_config,
+            &mut WatchArchitecture {
+                path: arch_path.as_deref(),
+                config: &mut arch_config,
+            },
             &mut state,
             &emitter,
             &stop_clone,
@@ -694,6 +721,19 @@ fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, W
     }
 }
 
+fn architecture_source_changed(change_path: &Path, arch_path: Option<&Path>) -> bool {
+    let Some(arch_path) = arch_path else {
+        return false;
+    };
+    let canon_arch = arch_path
+        .canonicalize()
+        .unwrap_or_else(|_| arch_path.to_path_buf());
+    let canon_change = change_path
+        .canonicalize()
+        .unwrap_or_else(|_| change_path.to_path_buf());
+    canon_arch == canon_change
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -718,6 +758,65 @@ layers:
 
         let err = load_architecture_config(Some(&config_path)).unwrap_err();
         assert!(err.to_string().contains("unknown layer"));
+    }
+
+    #[test]
+    fn architecture_config_loader_accepts_definition_schema() {
+        let tmp = TempDir::new().unwrap();
+        let config_path = tmp.path().join("architecture.yaml");
+        fs::write(
+            &config_path,
+            r#"
+schema_version: "0.1.0"
+layers:
+  api:
+    patterns: ["src/api/*"]
+    depends_on: [api]
+"#,
+        )
+        .unwrap();
+
+        let config = load_architecture_config(Some(&config_path)).unwrap();
+        assert_eq!(config.layers.len(), 1);
+        assert_eq!(config.layers[0].name, "api");
+        assert_eq!(config.layers[0].paths, vec!["src/api/*"]);
+        assert_eq!(config.layers[0].allowed_imports, vec!["api"]);
+    }
+
+    #[test]
+    fn architecture_config_loader_accepts_inline_main_config() {
+        let tmp = TempDir::new().unwrap();
+        let config_path = tmp.path().join(".anvil.yaml");
+        fs::write(
+            &config_path,
+            r#"
+version: 1
+architecture:
+  schema_version: "0.1.0"
+  layers:
+    core:
+      patterns: ["src/core/**"]
+      depends_on: []
+"#,
+        )
+        .unwrap();
+
+        let config = load_architecture_config(Some(&config_path)).unwrap();
+        assert_eq!(config.layers.len(), 1);
+        assert_eq!(config.layers[0].name, "core");
+    }
+
+    #[test]
+    fn architecture_source_changed_matches_canonical_path() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("architecture.yaml");
+        fs::write(&path, "layers: []\n").unwrap();
+        assert!(architecture_source_changed(&path, Some(&path)));
+        assert!(!architecture_source_changed(
+            &tmp.path().join("other.yaml"),
+            Some(&path)
+        ));
+        assert!(!architecture_source_changed(&path, None));
     }
 
     #[test]

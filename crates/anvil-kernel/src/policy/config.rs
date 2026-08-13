@@ -18,6 +18,34 @@ impl ArchitectureConfig {
         serde_yaml::from_str(yaml)
     }
 
+    /// Parse the kernel schema (`layers` list) or the definition schema
+    /// (`layers` map with `patterns` / `depends_on`). A main-config
+    /// document whose `architecture:` section is inline is accepted so
+    /// `anvil watch` can load and reload inline sections from the same
+    /// file (UCFG-013).
+    pub fn from_yaml_any(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        let value: serde_yaml::Value = serde_yaml::from_str(yaml)?;
+        Self::from_value_any(value)
+    }
+
+    fn from_value_any(value: serde_yaml::Value) -> Result<Self, serde_yaml::Error> {
+        let root = match value.get("architecture") {
+            Some(inner) if inner.is_mapping() => {
+                let source_only = inner.as_mapping().is_some_and(|map| {
+                    map.len() == 1 && map.contains_key(serde_yaml::Value::from("source"))
+                });
+                if source_only { value } else { inner.clone() }
+            }
+            _ => value,
+        };
+        match root.get("layers") {
+            Some(serde_yaml::Value::Mapping(map)) => {
+                serde_yaml::from_value(definition_layers_to_kernel(map))
+            }
+            _ => serde_yaml::from_value(root),
+        }
+    }
+
     /// Find which layer a file belongs to by matching against layer path patterns.
     /// Patterns use simple prefix matching (e.g. "src/domain/" matches "src/domain/foo.ts").
     pub fn layer_for_file(&self, file_path: &str) -> Option<&LayerDef> {
@@ -36,6 +64,47 @@ impl ArchitectureConfig {
             .find(|l| l.name == from_layer)
             .is_some_and(|l| l.allowed_imports.iter().any(|a| a == to_layer))
     }
+}
+
+fn definition_layers_to_kernel(map: &serde_yaml::Mapping) -> serde_yaml::Value {
+    let mut entries: Vec<(&str, &serde_yaml::Value)> = map
+        .iter()
+        .filter_map(|(key, layer)| key.as_str().map(|name| (name, layer)))
+        .collect();
+    entries.sort_by(|left, right| left.0.cmp(right.0));
+    let layers = entries
+        .into_iter()
+        .map(|(name, layer)| {
+            let mut mapped = serde_yaml::Mapping::new();
+            mapped.insert(
+                serde_yaml::Value::from("name"),
+                serde_yaml::Value::from(name),
+            );
+            let paths = match layer.get("patterns") {
+                Some(serde_yaml::Value::Sequence(seq)) => seq.clone(),
+                _ => Vec::new(),
+            };
+            mapped.insert(
+                serde_yaml::Value::from("paths"),
+                serde_yaml::Value::Sequence(paths),
+            );
+            let allowed = match layer.get("depends_on") {
+                Some(serde_yaml::Value::Sequence(seq)) => seq.clone(),
+                _ => Vec::new(),
+            };
+            mapped.insert(
+                serde_yaml::Value::from("allowed_imports"),
+                serde_yaml::Value::Sequence(allowed),
+            );
+            serde_yaml::Value::Mapping(mapped)
+        })
+        .collect();
+    let mut root = serde_yaml::Mapping::new();
+    root.insert(
+        serde_yaml::Value::from("layers"),
+        serde_yaml::Value::Sequence(layers),
+    );
+    serde_yaml::Value::Mapping(root)
 }
 
 /// Simple glob-like matching: trailing `*` acts as a prefix match,
@@ -165,5 +234,71 @@ layers:
         let config = ArchitectureConfig::from_yaml(yaml).unwrap();
         assert!(config.layers[0].allowed_imports.is_empty());
         assert!(!config.is_import_allowed("lib", "lib"));
+    }
+
+    const DEFINITION_YAML: &str = r#"
+schema_version: "0.1.0"
+layers:
+  domain:
+    patterns:
+      - "src/domain/*"
+    depends_on:
+      - domain
+  infrastructure:
+    patterns:
+      - "src/infra/*"
+    depends_on:
+      - domain
+      - infrastructure
+"#;
+
+    #[test]
+    fn from_yaml_any_maps_definition_schema() {
+        let config = ArchitectureConfig::from_yaml_any(DEFINITION_YAML).unwrap();
+        assert_eq!(config.layers.len(), 2);
+        assert_eq!(config.layers[0].name, "domain");
+        assert_eq!(config.layers[0].paths, vec!["src/domain/*"]);
+        assert_eq!(config.layers[0].allowed_imports, vec!["domain"]);
+        assert_eq!(config.layers[1].name, "infrastructure");
+        assert!(config.is_import_allowed("infrastructure", "domain"));
+        assert!(!config.is_import_allowed("domain", "infrastructure"));
+        assert_eq!(
+            config.layer_for_file("src/domain/user.ts").unwrap().name,
+            "domain"
+        );
+    }
+
+    #[test]
+    fn from_yaml_any_extracts_inline_architecture_section() {
+        let yaml = r#"
+version: 1
+architecture:
+  schema_version: "0.1.0"
+  layers:
+    core:
+      patterns: ["src/core/**"]
+      depends_on: []
+"#;
+        let config = ArchitectureConfig::from_yaml_any(yaml).unwrap();
+        assert_eq!(config.layers.len(), 1);
+        assert_eq!(config.layers[0].name, "core");
+        assert_eq!(config.layers[0].paths, vec!["src/core/**"]);
+    }
+
+    #[test]
+    fn from_yaml_any_keeps_kernel_list_schema() {
+        let config = ArchitectureConfig::from_yaml_any(SAMPLE_YAML).unwrap();
+        assert_eq!(config.layers.len(), 3);
+        assert_eq!(config.layers[0].name, "domain");
+    }
+
+    #[test]
+    fn from_yaml_any_does_not_follow_source_only_section() {
+        let yaml = "architecture:\n  source: \".anvil/architecture.yaml\"\n";
+        let err = ArchitectureConfig::from_yaml_any(yaml).unwrap_err();
+        assert!(
+            err.to_string().contains("layers") || err.to_string().contains("missing"),
+            "source-only section must not be treated as a definition: {err}"
+        );
     }
 }

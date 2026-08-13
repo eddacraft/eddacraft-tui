@@ -452,7 +452,7 @@ Change status to **Ready** when:
 
 #### UCFG-013: watch-time architecture enforcement for section configs
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** map the resolved `ArchitectureDefinition` (layers map) into
   the kernel's `ArchitectureConfig` (layers list) in-process, so `anvil
   watch` enforces architecture for inline and source-delegated sections —
@@ -476,7 +476,7 @@ Change status to **Ready** when:
 
 #### UCFG-014: descriptor-bound guard in the shared bounded reader
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** move the non-regular-file guard into
   `anvil_config::read_to_string_bounded` itself using the
   open-nonblocking + fstat-the-held-descriptor pattern (cf. c0aed53f6):

@@ -1483,6 +1483,7 @@ dependencies = [
 name = "eddacraft-anvil-config"
 version = "0.9.4-beta"
 dependencies = [
+ "libc",
  "semver",
  "serde",
  "serde_json",

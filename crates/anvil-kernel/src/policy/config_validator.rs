@@ -107,7 +107,7 @@ fn architecture_config_over_cap(path: &Path) -> std::io::Error {
 pub fn parse_validated_architecture_config(
     yaml: &str,
 ) -> Result<ArchitectureConfig, ArchitectureConfigValidationError> {
-    let config = ArchitectureConfig::from_yaml(yaml)?;
+    let config = ArchitectureConfig::from_yaml_any(yaml)?;
     let report = validate_architecture_config(&config);
     if report.valid {
         Ok(config)

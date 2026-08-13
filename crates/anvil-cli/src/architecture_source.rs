@@ -66,6 +66,35 @@ pub(crate) fn resolve_architecture(
     Ok(None)
 }
 
+/// Path `anvil watch` should hand the kernel as its architecture
+/// source so enforcement and reload cover every topology (UCFG-013):
+///
+/// - inline section → the main config file
+/// - delegated `source` → the delegated target
+/// - no section → standalone `.anvil/architecture.yaml` when present
+///   (kernel-schema or definition-schema; the kernel maps both)
+pub(crate) fn watch_architecture_source_path(root: &Path) -> Result<Option<PathBuf>> {
+    let project = crate::commands::config::load_project_config(root)?;
+    match anvil_config::resolve_section(
+        &project.value,
+        "architecture",
+        root,
+        &project.writable_path,
+    )
+    .map_err(anyhow::Error::new)
+    .context("invalid config")?
+    {
+        Some(section) => match section.provenance {
+            SectionProvenance::Inline => Ok(Some(project.writable_path)),
+            SectionProvenance::Delegated { path, .. } => Ok(Some(path)),
+        },
+        None => {
+            let standalone = anvil_architecture::yaml_parser::get_architecture_yaml_path(root);
+            Ok(standalone.exists().then_some(standalone))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,5 +215,65 @@ mod tests {
         // The context is the top-level message; the delegation detail
         // lives in the chain (rendered by consumers via `{:#}`).
         assert!(format!("{err:#}").contains("traversal"), "got: {err:#}");
+    }
+
+    #[test]
+    fn watch_path_inline_is_the_main_config() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), arch_inline_config()).unwrap();
+        let path = watch_architecture_source_path(tmp.path()).unwrap().unwrap();
+        assert_eq!(path, tmp.path().join(".anvil.yaml"));
+    }
+
+    #[test]
+    fn watch_path_delegated_is_the_target() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/architecture.yaml"), ARCH_YAML).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  source: \".anvil/architecture.yaml\"\n",
+        )
+        .unwrap();
+        let path = watch_architecture_source_path(tmp.path()).unwrap().unwrap();
+        assert_eq!(
+            path,
+            tmp.path()
+                .join(".anvil/architecture.yaml")
+                .canonicalize()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn watch_path_legacy_standalone_is_the_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/architecture.yaml"), ARCH_YAML).unwrap();
+        let path = watch_architecture_source_path(tmp.path()).unwrap().unwrap();
+        assert_eq!(path, tmp.path().join(".anvil/architecture.yaml"));
+    }
+
+    #[test]
+    fn watch_path_none_when_no_architecture() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(
+            watch_architecture_source_path(tmp.path())
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn watch_path_kernel_schema_standalone_is_the_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil/architecture.yaml"),
+            "layers:\n  - name: api\n    paths: [\"src/api/*\"]\n",
+        )
+        .unwrap();
+        let path = watch_architecture_source_path(tmp.path()).unwrap().unwrap();
+        assert_eq!(path, tmp.path().join(".anvil/architecture.yaml"));
     }
 }
