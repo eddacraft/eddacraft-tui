@@ -2,7 +2,7 @@
 
 | Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                               |
 | ----- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-09: v0.9.4 pre-release short pass against `v0.9.3-beta..origin/main` and write-path sources under `crates/anvil-cli/src/mcp/`, `crates/anvil-cli/src/registration.rs`, `crates/anvil-cli/src/commands/version.rs` |
+| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-14: CIB-324 Windows update/version honesty against `crates/anvil-cli/src/commands/version.rs` and `update.rs`; prior v0.9.4 short pass 2026-08-09 |
 
 | Upstream                                                                                          | Downstream                                           |
 | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |

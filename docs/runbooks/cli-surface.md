@@ -2,7 +2,7 @@
 
 | Type    | Authority     | Owner | Status | Freshness                                                                                                   |
 | ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-13 against `crates/anvil-cli/src/commands/{init,migrate,gate_config,architecture}.rs` |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-14 against `crates/anvil-cli/src/commands/update.rs` (Windows decline exit) and `{init,migrate,gate_config,architecture}.rs` |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -1718,8 +1718,9 @@ and completion messages to stderr, and leaves anvil-owned stdout empty. A
 missing executable or non-zero manager exit fails the command and names the
 attempted command.
 
-**Exit codes:** 0 (success or already up to date), 1 (update available when
-`--check` is used, Windows self-update decline, or install error)
+**Exit codes:** 0 (success or already up to date, including Windows when no
+update is needed), 1 (update available when `--check` is used, Windows
+self-update decline when an update is needed, or install error)
 
 **Examples:**
 

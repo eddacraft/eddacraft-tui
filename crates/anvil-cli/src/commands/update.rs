@@ -896,7 +896,6 @@ pub(crate) fn windows_unsupported_message(method: InstallMethod) -> String {
     } else {
         message.push_str("\nTo upgrade, run:\n    ");
         message.push_str(command);
-        message.push('\n');
     }
     message
 }
