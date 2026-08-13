@@ -5,9 +5,9 @@
 
 | ID        | Owner | Priority | Status | Progress |
 | --------- | ----- | -------- | ------ | -------- |
-| DOCFRESH  | —     | high     | In Progress | 0/8 |
+| DOCFRESH  | —     | high     | In Progress | 6/8 |
 
-**Last reviewed:** 2026-08-12 — DOCFRESH-004 **In Progress**. Coverage moves
+**Last reviewed:** 2026-08-13 — DOCFRESH-004 **Merged via PR #3804**. Coverage moves
 from **104 to 118** checkable documents (of 228). Composition of the gap was
 mis-stated in the item and is corrected there: no document was missing a review
 date. What actually blocked coverage was `Upstream` cells carrying prose or
@@ -209,7 +209,7 @@ release rather than `main`.
 - **Confidence:** medium
 - **Status:** Merged 2026-08-12 via PR #3800
 
-### DOCFRESH-004: Grow the checkable corpus — In Progress
+### DOCFRESH-004: Grow the checkable corpus — Merged
 
 - **Intent:** Coverage is the ceiling on this whole model; 125 of 228 documents
   are currently invisible to it.
@@ -232,7 +232,7 @@ release rather than `main`.
 - **Validation:** `pnpm docs:check` green, and
   `node scripts/docs/check-docs-owed.mjs --json` shows a lower `uncheckable`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-12 via PR #3804
 
 ### DOCFRESH-005: Public-doc governance in frontmatter — Merged
 
