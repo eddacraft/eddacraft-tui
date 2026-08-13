@@ -67,7 +67,7 @@ done
 [ -n "$tag" ] || die "--tag is required"
 case "$tag" in
   *..* | */* | *\\*)
-    die "--tag must be a single path component without '..'"
+    die "--tag must be a single path component (no '/', '\\', or '..')"
     ;;
 esac
 git check-ref-format "refs/tags/${tag}" >/dev/null \
