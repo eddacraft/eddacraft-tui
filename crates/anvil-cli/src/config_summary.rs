@@ -112,6 +112,22 @@ mod tests {
         );
     }
 
+    /// legacy-fallback coverage (.anvilrc deliberately): pins the
+    /// legacy branch of `load_config_value` after the incidental
+    /// status-surface coverage converted to the canonical name.
+    #[test]
+    fn renders_modes_from_legacy_anvilrc_fallback() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"enforcement":{"rules":{"public-api-expansion":{"mode":"off"}}}}"#,
+        )
+        .unwrap();
+        let summary = render_rule_mode_summary(tmp.path());
+        assert!(summary.contains("public-api-expansion=off"), "{summary}");
+        assert!(summary.contains("rule source: .anvilrc"), "{summary}");
+    }
+
     #[test]
     fn renders_modes_from_discovered_config() {
         let tmp = TempDir::new().unwrap();
