@@ -155,6 +155,17 @@ fn load_config_info(workspace_root: &Path) -> Value {
     }
 }
 
+fn canonicalize_check_names(checks: Vec<String>) -> Vec<String> {
+    checks
+        .into_iter()
+        .map(|name| {
+            check_catalog::canonical_check_name(&name)
+                .unwrap_or(&name)
+                .to_string()
+        })
+        .collect()
+}
+
 fn parse_config_checks(contents: &str) -> Result<Vec<String>, String> {
     let checks = if let Ok(value) = serde_json::from_str::<Value>(contents) {
         let Some(object) = value.as_object() else {
@@ -196,14 +207,7 @@ fn parse_config_checks(contents: &str) -> Result<Vec<String>, String> {
         return Err("Failed to parse .anvilrc as JSON, YAML, or TOML".to_string());
     };
 
-    Ok(checks
-        .into_iter()
-        .map(|name| {
-            check_catalog::canonical_check_name(&name)
-                .unwrap_or(&name)
-                .to_string()
-        })
-        .collect())
+    Ok(canonicalize_check_names(checks))
 }
 
 fn extract_checks_from_json(value: &Value) -> Vec<String> {
@@ -293,9 +297,8 @@ fn tool_result(payload: &Value) -> Value {
 
 #[cfg(test)]
 mod tests {
-    // legacy-fallback coverage (.anvilrc deliberately) — the MCP status
-    // tool's production path reads `.anvilrc` only, so every config
-    // fixture/message here stays legacy until UCFG-010 migrates the tool.
+    // Canonical-surface tests sit above; `.anvilrc` fixtures below cover
+    // the UCFG-010 legacy fallback only.
     use super::*;
 
     // ── UCFG-010: canonical-surface reads ───────────────────────
@@ -362,6 +365,68 @@ mod tests {
         assert_eq!(payload["config"]["loaded"], false);
         assert_eq!(payload["backend"], "local");
         assert_eq!(payload["daemonStatus"], "not-wired");
+    }
+
+    #[test]
+    fn status_loads_canonical_anvil_yaml() {
+        let cwd = std::env::current_dir().expect("test cwd is accessible");
+        let workspace = tempfile::tempdir_in(cwd).expect("workspace exists");
+        std::fs::write(
+            workspace.path().join(".anvil.yaml"),
+            "schema_version: \"1.0\"\nchecks:\n  - secret\n",
+        )
+        .expect("write .anvil.yaml");
+
+        let result = call(&json!({ "workspaceRoot": workspace.path() }));
+
+        assert_eq!(result["isError"], false);
+        let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
+            .expect("payload is JSON");
+        assert_eq!(payload["config"]["loaded"], true);
+        assert_eq!(payload["config"]["source"], ".anvil.yaml");
+        assert_eq!(payload["config"]["checks"], json!(["secret-detection"]));
+    }
+
+    #[test]
+    fn status_prefers_anvil_yaml_over_legacy_anvilrc() {
+        let cwd = std::env::current_dir().expect("test cwd is accessible");
+        let workspace = tempfile::tempdir_in(cwd).expect("workspace exists");
+        std::fs::write(
+            workspace.path().join(".anvil.yaml"),
+            "checks:\n  - secret\n",
+        )
+        .expect("write .anvil.yaml");
+        std::fs::write(
+            workspace.path().join(".anvilrc"),
+            r#"{"checks":["policy"]}"#,
+        )
+        .expect("write .anvilrc");
+
+        let result = call(&json!({ "workspaceRoot": workspace.path() }));
+
+        let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
+            .expect("payload is JSON");
+        assert_eq!(payload["config"]["source"], ".anvil.yaml");
+        assert_eq!(payload["config"]["checks"], json!(["secret-detection"]));
+    }
+
+    #[test]
+    fn status_falls_back_to_legacy_anvilrc() {
+        let cwd = std::env::current_dir().expect("test cwd is accessible");
+        let workspace = tempfile::tempdir_in(cwd).expect("workspace exists");
+        std::fs::write(
+            workspace.path().join(".anvilrc"),
+            r#"{"checks":["secret"]}"#,
+        )
+        .expect("write .anvilrc");
+
+        let result = call(&json!({ "workspaceRoot": workspace.path() }));
+
+        let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
+            .expect("payload is JSON");
+        assert_eq!(payload["config"]["loaded"], true);
+        assert_eq!(payload["config"]["source"], ".anvilrc");
+        assert_eq!(payload["config"]["checks"], json!(["secret-detection"]));
     }
 
     #[test]

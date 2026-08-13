@@ -43,6 +43,7 @@ describe('db queries', () => {
       const strings = call?.[0] as unknown as string[];
       const asSql = strings.join('?');
       expect(asSql).toContain('last_activity_at');
+      expect(asSql).toContain('GREATEST');
       expect(asSql).toContain('last_activity_kind');
       const flat = call?.flatMap((part) => (Array.isArray(part) ? part : [part]));
       const asText = JSON.stringify(flat);
@@ -59,6 +60,7 @@ describe('db queries', () => {
       const strings = call?.[0] as unknown as string[];
       const asSql = strings.join('?');
       expect(asSql).toContain('last_activity_at');
+      expect(asSql).toContain('GREATEST');
       expect(asSql).toContain('last_activity_kind');
       expect(asSql).not.toContain('first_login_at');
       expect(asSql).not.toContain('last_login_at');

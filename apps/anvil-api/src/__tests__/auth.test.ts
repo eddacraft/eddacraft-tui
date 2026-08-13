@@ -164,7 +164,7 @@ describe('POST /auth/verify', () => {
     expect(body).toEqual(
       expect.objectContaining({
         valid: true,
-        user: { email: 'test@example.com' },
+        user: { email: 'test@example.com', plan: 'beta' },
         scopes: ['beta'],
         expiresAt,
       })
@@ -215,6 +215,7 @@ describe('POST /auth/verify', () => {
     });
     const res = await post('/auth/verify', { token: 'anvil_beta_' + 'a'.repeat(43) });
     const json = await res.json();
+    expect(json.user).toEqual({ email: 'test@example.com', plan: 'beta' });
     const payload = decodeJwtPayload(json.license);
     expect(payload['plan']).toBe('beta');
     expect(payload['tier']).toBe('beta');

@@ -152,7 +152,7 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   return c.json({
     valid: true,
     isEdict: record.is_edict,
-    user: { email: record.email },
+    user: { email: record.email, plan: record.plan ?? 'beta' },
     scopes,
     expiresAt: record.expires_at,
     license: licence,

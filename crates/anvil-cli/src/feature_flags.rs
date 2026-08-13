@@ -108,6 +108,29 @@ pub fn cli_licence_gate_flag() -> CliGateFlag {
     }
 }
 
+/// Plan-axis audience ids from `flags/audiences.json`. Keep in lock-step with
+/// the catalogue inventory so we never invent a `plan-*` id that is not there.
+const PLAN_AUDIENCE_IDS: &[&str] = &["plan-free", "plan-beta", "plan-pro", "plan-enterprise"];
+
+/// Map a raw account plan (`beta`) to its catalogue audience id (`plan-beta`).
+///
+/// Mirrors `canonicalAccountTier` in `@eddacraft/anvil-flags-catalogue`: an
+/// already-canonical id passes through; a bare name is prefixed only when
+/// `plan-<name>` exists in the inventory; anything else is returned unchanged
+/// so unknown plans fail closed.
+#[must_use]
+pub fn canonical_account_tier(tier: &str) -> String {
+    if tier.is_empty() || PLAN_AUDIENCE_IDS.contains(&tier) {
+        return tier.to_string();
+    }
+    let candidate = format!("plan-{tier}");
+    if PLAN_AUDIENCE_IDS.contains(&candidate.as_str()) {
+        candidate
+    } else {
+        tier.to_string()
+    }
+}
+
 /// Build an OpenFeature-aligned evaluation context for the current CLI session.
 ///
 /// `plan` comes from the `/api/v1/auth/verify` response (`WhoamiResponse.plan`).
@@ -116,6 +139,9 @@ pub fn cli_licence_gate_flag() -> CliGateFlag {
 /// available, and may fall back to a constant such as `"cli-session"`. Today
 /// `commands::auth::whoami` passes the authenticated email; a follow-up
 /// will plumb a JWT `sub` through instead.
+///
+/// `licence_plan` is the account column name (`beta`). `account_tier` is the
+/// catalogue audience id (`plan-beta`) — BACT-013 / ADR-121 decision 3.
 pub fn cli_evaluation_context(
     targeting_key: impl Into<String>,
     plan: Option<&str>,
@@ -129,7 +155,7 @@ pub fn cli_evaluation_context(
         },
         audience: Some(AudienceContext {
             licence_plan: plan.map(str::to_string),
-            account_tier: plan.map(str::to_string),
+            account_tier: plan.map(canonical_account_tier),
             ..AudienceContext::default()
         }),
     }
@@ -663,7 +689,16 @@ mod tests {
         assert_eq!(context.targeting_key, "operator-42");
         let audience = context.audience.expect("audience");
         assert_eq!(audience.licence_plan.as_deref(), Some("pro"));
-        assert_eq!(audience.account_tier.as_deref(), Some("pro"));
+        assert_eq!(audience.account_tier.as_deref(), Some("plan-pro"));
+    }
+
+    #[test]
+    fn canonical_account_tier_maps_bare_plan_and_passes_through_ids() {
+        assert_eq!(canonical_account_tier("beta"), "plan-beta");
+        assert_eq!(canonical_account_tier("plan-beta"), "plan-beta");
+        assert_eq!(canonical_account_tier("enterprise"), "plan-enterprise");
+        assert_eq!(canonical_account_tier("platinum"), "platinum");
+        assert_eq!(canonical_account_tier(""), "");
     }
 
     #[test]

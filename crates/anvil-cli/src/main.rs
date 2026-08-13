@@ -1211,12 +1211,9 @@ fn dispatch_update_result<W: Write>(
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
     // BACT-005: detached account-activity worker (authenticated feature touch).
-    // Only intercept when the env carries an allowlisted feature key — accidental
-    // presence of the variable must not skip normal CLI parsing (Copilot review).
-    if std::env::var(account_activity::ACCOUNT_ACTIVITY_WORKER_ENV)
-        .ok()
-        .is_some_and(|key| account_activity::is_account_feature_key(&key))
-    {
+    // Switch is the sentinel `"1"`; the feature key is a second env. Accidental
+    // `ANVIL_INTERNAL_ACCOUNT_ACTIVITY=check` must not skip CLI parsing.
+    if account_activity::is_detached_worker() {
         account_activity::run_worker();
         return ExitCode::from(EXIT_OK);
     }

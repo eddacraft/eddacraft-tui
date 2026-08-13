@@ -121,7 +121,7 @@ export async function stampUserLogin(
       first_login_at = COALESCE(first_login_at, now()),
       last_login_at = now(),
       last_login_method = ${method},
-      last_activity_at = now(),
+      last_activity_at = GREATEST(last_activity_at, now()),
       last_activity_kind = ${'login'},
       updated_at = now()
     WHERE id = ${userId}
@@ -143,7 +143,7 @@ export async function stampUserActivity(
   await sql`
     UPDATE beta_users
     SET
-      last_activity_at = now(),
+      last_activity_at = GREATEST(last_activity_at, now()),
       last_activity_kind = ${kind},
       updated_at = now()
     WHERE id = ${userId}

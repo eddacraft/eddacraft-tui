@@ -143,13 +143,19 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
 
     match &args.command {
         AuthCommand::Login { otp, edict } => {
-            if *otp {
+            let result = if *otp {
                 rt.block_on(device_flow::login_otp_flow())
             } else if *edict {
                 rt.block_on(device_flow::login_edict_flow())
             } else {
                 rt.block_on(device_flow::login_device_flow())
+            };
+            // Pre-dispatch spawn_feature_touch("auth") no-ops: credentials do
+            // not exist yet. Emit after a successful login writes them.
+            if result.is_ok() {
+                crate::account_activity::spawn_feature_touch("auth");
             }
+            result
         }
         AuthCommand::Logout => {
             credentials::clear()?;
