@@ -9667,3 +9667,22 @@ CIB-251/255 only.
 - **Confidence:** high — the check is a single command with a proven RED
   reproduction, and the failure it catches is deterministic once the cache is
   cold.
+
+### CIB-321: Make fleet-overview SQL date output DateStyle-independent
+
+- **Status:** Draft
+- **Intent:** Remove the latent DateStyle-dependent `::text` casts from the
+  fleet overview so its dates cannot silently misparse under non-ISO session
+  settings.
+- **Expected Outcome:** `apps/anvil-api/src/lib/fleet-overview.ts` emits dates
+  via `to_char(..., 'YYYY-MM-DD')` (or epoch + `toISOString()`), matching the
+  BACT-009/011 pattern (PRs #3840/#3842), with SQL-text pins so a bare
+  `::text` cast cannot return; FLEET overview JSON contract unchanged.
+- **Validation:** anvil-api vitest (fleet contract tests still pass) plus the
+  new SQL-text assertions.
+- **Identified From:** Copilot review of PRs #3840/#3842 flagged the same bug
+  class three times in BACT phase 2; `fleet-overview.ts` instances
+  (`current_date::text`, `received_on::text`) were out of that campaign's
+  scope.
+- **Confidence:** high
+

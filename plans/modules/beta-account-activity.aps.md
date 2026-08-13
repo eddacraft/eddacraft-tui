@@ -438,12 +438,25 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
   BACT-003 and Resend webhook verification. Do not implement under FLEET.
 - **Table rename** `beta_users` → `users` — optional bookkeeping migration when
   product language fully leaves “beta” as the table name.
-- **JWT `tier` alias retirement:** BACT-013 emits `plan` and keeps `tier` as a
-  byte-identical compat alias because docs-shell/docs-site verify the raw JWT
-  at the edge and still read `tier`. Promote an item to migrate those
-  verifiers to `plan`, drop the alias from `signLicence`, and revisit the
-  claimless-token `beta` default in `verifyLicence` (fail closed once the
-  alias is gone). docs-site also has no test suite covering its middleware
-  read path (pre-existing gap).
+- **BACT-014 (reserved id, Draft — not authorised): retire the JWT `tier`
+  compat alias.**
+  - **Status:** Draft
+  - **Intent:** finish the OQ-C migration so `plan` is the only entitlement
+    claim and claimless tokens fail closed.
+  - **Expected Outcome:** `apps/docs-shell/lib/jwt.ts` and
+    `apps/docs-site/middleware.ts` read `plan` (with `tier` fallback removed
+    after a deprecation window); `signLicence` stops emitting `tier`;
+    `verifyLicence` fails closed (no implicit `'beta'`) when neither claim is
+    present; docs-site middleware gains a test suite covering the entitlement
+    read path (pre-existing gap noted 2026-08-13).
+  - **Validation:** anvil-api licence/JWT tests for the new claim shape and
+    fail-closed path; docs-shell suite; new docs-site middleware tests; grep
+    proves no production `payload.tier` reader remains.
+  - **Identified From:** BACT-013 independent verification advisories
+    (PR #3839, 2026-08-13).
+  - **Dependencies:** BACT-013 shipped; a deprecation window long enough that
+    outstanding pre-BACT-013 tokens (which carry both claims) have expired.
+  - **Confidence:** high.
+
 - **Additional plan names** (`pro`, `enterprise`, …) — widen CHECK + audience
   mapping when commercial plans ship; still catalogue-driven.
