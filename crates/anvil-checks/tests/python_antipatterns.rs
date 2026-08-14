@@ -532,6 +532,54 @@ fn py008_dotted_compile_receiver_does_not_fire() {
     }
 }
 
+/// Review of #3889 asked whether the gate could match `compile` inside a larger
+/// identifier — `_compile`, `foo_compile` — on the theory that `_` was treated
+/// as a delimiter. It is not: `_` sits inside the negated class (`[^.\w]`, and
+/// the earlier ASCII spelling `[^A-Za-z0-9_.]` too), so an identifier character
+/// before `compile` never satisfies the gate. Pinned so the answer stays true.
+#[test]
+fn py008_compile_inside_a_larger_identifier_does_not_fire() {
+    for src in [
+        "_compile(src, \"<s>\", \"exec\")\n",
+        "foo_compile(src, \"<s>\", \"exec\")\n",
+        "my_compile(payload)\n",
+        "x = _compile(payload)\n",
+        "recompile(payload)\n",
+        "précompile(x, y, z)\n",
+    ] {
+        assert!(
+            !fires("src/app.py", src, "PY-008"),
+            "`compile` inside a larger identifier is a different function: {src:?}"
+        );
+    }
+}
+
+/// The receiver exemption has one exception: `builtins.compile` really is the
+/// builtin, reached through its module. `builtins.eval(x)` already fires, so
+/// leaving the `compile` spelling silent was an inconsistency a caller could
+/// lean on. Raised in review of #3889.
+#[test]
+fn py008_builtins_compile_still_fires() {
+    for src in [
+        "builtins.compile(user_input, \"<s>\", \"exec\")\n",
+        "__builtins__.compile(src, \"<s>\", \"exec\")\n",
+        "x = builtins.compile(payload, \"<s>\", \"exec\")\n",
+    ] {
+        assert!(
+            fires("src/app.py", src, "PY-008"),
+            "builtins.compile is the builtin and must fire: {src:?}"
+        );
+    }
+    // A module that merely ends in "builtins" is not the builtins module.
+    assert!(!fires("src/app.py", "mybuiltins.compile(x)\n", "PY-008"));
+    // The exemption arm must not smuggle past the static-argument rule.
+    assert!(!fires(
+        "src/app.py",
+        "builtins.compile(r\"static\", \"<s>\", \"exec\")\n",
+        "PY-008"
+    ));
+}
+
 /// The receiver gate applies to `compile` only. CIB-322's Non-scope clause is
 /// explicit that receiver resolution must not become the whole fix: an
 /// unqualified `compile(...)` is the builtin and must still fire. `eval` and

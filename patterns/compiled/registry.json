@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-08-14T06:45:09.446Z",
+  "compiled_at": "2026-08-14T09:01:19.370Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -782,7 +782,7 @@
       "targets": ["source"],
       "detection": {
         "type": "regex",
-        "pattern": "(?:\\b(?:eval|exec)|(?:^|[^.\\w])compile)\\s*\\(\\s*(?:\\*|(?:[fF][rR]?|[rR][fF])['\"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_'\"]|$))"
+        "pattern": "(?:\\b(?:eval|exec)|(?:^|[^.\\w])_{0,2}builtins_{0,2}\\.compile|(?:^|[^.\\w])compile)\\s*\\(\\s*(?:\\*|(?:[fF][rR]?|[rR][fF])['\"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_'\"]|$))"
       },
       "file_extensions": [".py"],
       "allowlist": [
@@ -792,7 +792,7 @@
         "**/conftest.py",
         "**/explain/**"
       ],
-      "nudge": "Don't call `eval()`, `exec()`, or `compile(..., \"exec\")` with a dynamic\nargument. An identifier as the first argument means the string being executed\nis not a static literal and may be attacker-controlled at runtime.\n\nReplace with a structured dispatch — a dict of callables keyed on the input, a\npydantic / attrs schema for data validation, or a restricted interpreter\n(`ast.literal_eval` for literals only, RestrictedPython, a subprocess with a\nclean env) if you genuinely need to run untrusted code.\n\nA bare string literal you control end-to-end (`eval(\"1 + 1\")`) or a raw, bytes,\nor unicode prefixed literal (`re.compile(r'^\\d+$')`, `compile(rb\"...\", \"<s>\",\n\"exec\")`, `eval(u\"1\")`) does not fire. f-strings do fire in every prefix\nordering (`f`, `rf`, `fr`) — they interpolate run-time values.\n\nA dotted receiver written tight against the name — `re.compile(pattern_var)`,\n`torch.compile(model)`, `self.compile(src)` — is not the builtin `compile` and\ndoes not fire. `eval` and `exec` have no such exemption: `df.eval(expr)` and\n`obj.exec(cmd)` still fire, because a method spelled `eval` or `exec` is a real\nexecution surface.\n\nThat exemption is byte-level, not syntactic, and it cuts both ways. It does not\nrecognise a receiver separated by spaces or a line break (`re . compile(x)`\nstill fires), and it cannot tell `re.compile` from `builtins.compile` — so\n`builtins.compile(user_input, \"<s>\", \"exec\")`, which really is the builtin\nreached through its module, is silently exempt. Review that shape by hand.\n\nA literal first argument is **not** proof the call is safe: the rule reads only\nthe first token after `(` on a single line, so a formatted or concatenated\nliteral (`exec(\"DELETE FROM %s\" % table)`, `eval(\"{}\".format(x))`,\n`eval(\"x\" + user)`), a parenthesised expression, and a call whose argument\nstarts on a later line are blind spots you must review by hand.",
+      "nudge": "Don't call `eval()`, `exec()`, or `compile(..., \"exec\")` with a dynamic\nargument. An identifier as the first argument means the string being executed\nis not a static literal and may be attacker-controlled at runtime.\n\nReplace with a structured dispatch — a dict of callables keyed on the input, a\npydantic / attrs schema for data validation, or a restricted interpreter\n(`ast.literal_eval` for literals only, RestrictedPython, a subprocess with a\nclean env) if you genuinely need to run untrusted code.\n\nA bare string literal you control end-to-end (`eval(\"1 + 1\")`) or a raw, bytes,\nor unicode prefixed literal (`re.compile(r'^\\d+$')`, `compile(rb\"...\", \"<s>\",\n\"exec\")`, `eval(u\"1\")`) does not fire. f-strings do fire in every prefix\nordering (`f`, `rf`, `fr`) — they interpolate run-time values.\n\nA dotted receiver written tight against the name — `re.compile(pattern_var)`,\n`torch.compile(model)`, `self.compile(src)` — is not the builtin `compile` and\ndoes not fire. `eval` and `exec` have no such exemption: `df.eval(expr)` and\n`obj.exec(cmd)` still fire, because a method spelled `eval` or `exec` is a real\nexecution surface.\n\n`builtins.compile(...)` and `__builtins__.compile(...)` are the exception to\nthat exemption and still fire — they really are the builtin under its module\nname, and `builtins.eval` fires too.\n\nThe exemption is byte-level, not syntactic, so it does not recognise a receiver\nseparated by spaces or a line break: `re . compile(x)` still fires. Review that\nshape by hand.\n\nA literal first argument is **not** proof the call is safe: the rule reads only\nthe first token after `(` on a single line, so a formatted or concatenated\nliteral (`exec(\"DELETE FROM %s\" % table)`, `eval(\"{}\".format(x))`,\n`eval(\"x\" + user)`), a parenthesised expression, and a call whose argument\nstarts on a later line are blind spots you must review by hand.",
       "related": ["AP-008", "PY-009"],
       "enabled": true,
       "opt_in": false,

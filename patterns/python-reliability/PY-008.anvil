@@ -46,8 +46,17 @@ detection:
   # `[^A-Za-z0-9_.]`: `\w` is Unicode-aware in Rust's regex, and Python 3
   # allows Unicode identifiers (PEP 3131). With the ASCII class, the accented
   # byte in `précompile(x, y, z)` satisfies "not an identifier char" and the
-  # rule false-fires on an unrelated function.
-  pattern: '(?:\b(?:eval|exec)|(?:^|[^.\w])compile)\s*\(\s*(?:\*|(?:[fF][rR]?|[rR][fF])[''"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_''"]|$))'
+  # rule false-fires on an unrelated function. `_` is inside the class either
+  # way, so `_compile(...)` / `foo_compile(...)` are not the builtin and stay
+  # clean — pinned by a regression test.
+  #
+  # `builtins.compile` is exempted from the receiver gate by its own arm: it
+  # really is the builtin under its module name, and `builtins.eval` already
+  # fires, so leaving it silent was an inconsistency a caller could lean on.
+  # `_{0,2}builtins_{0,2}` covers the `__builtins__` spelling. The leading
+  # `(?:^|[^.\w])` keeps `mybuiltins.compile(x)` — an unrelated module that
+  # merely ends in "builtins" — clean.
+  pattern: '(?:\b(?:eval|exec)|(?:^|[^.\w])_{0,2}builtins_{0,2}\.compile|(?:^|[^.\w])compile)\s*\(\s*(?:\*|(?:[fF][rR]?|[rR][fF])[''"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_''"]|$))'
 
 related: [AP-008, PY-009]
 enabled: true
@@ -74,11 +83,13 @@ does not fire. `eval` and `exec` have no such exemption: `df.eval(expr)` and
 `obj.exec(cmd)` still fire, because a method spelled `eval` or `exec` is a real
 execution surface.
 
-That exemption is byte-level, not syntactic, and it cuts both ways. It does not
-recognise a receiver separated by spaces or a line break (`re . compile(x)`
-still fires), and it cannot tell `re.compile` from `builtins.compile` — so
-`builtins.compile(user_input, "<s>", "exec")`, which really is the builtin
-reached through its module, is silently exempt. Review that shape by hand.
+`builtins.compile(...)` and `__builtins__.compile(...)` are the exception to
+that exemption and still fire — they really are the builtin under its module
+name, and `builtins.eval` fires too.
+
+The exemption is byte-level, not syntactic, so it does not recognise a receiver
+separated by spaces or a line break: `re . compile(x)` still fires. Review that
+shape by hand.
 
 A literal first argument is **not** proof the call is safe: the rule reads only
 the first token after `(` on a single line, so a formatted or concatenated
