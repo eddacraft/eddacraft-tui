@@ -12,6 +12,7 @@
 use std::env;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::Value;
 
@@ -23,6 +24,9 @@ pub(crate) const REEXECED_ENV: &str = "ANVIL_MCP_REEXECED";
 pub(crate) const NO_REEXEC_ENV: &str = "ANVIL_MCP_NO_REEXEC";
 /// Explicit preferred executable (spec §6 override). Not `current_exe()`.
 pub(crate) const PREFERRED_ENV: &str = "ANVIL_MCP_PREFERRED";
+
+/// Process-local anti-loop if `exec` returns (crate forbids `set_var`).
+static REEXEC_ATTEMPTED: AtomicBool = AtomicBool::new(false);
 
 const TRIGGER_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -268,7 +272,7 @@ pub(crate) fn probe_from_process(method: Option<&str>, phase: FramePhase) -> Ree
 fn gate_from_process() -> ReexecGate {
     if env_flag_set(NO_REEXEC_ENV) {
         ReexecGate::KillSwitch
-    } else if env_flag_set(REEXECED_ENV) {
+    } else if env_flag_set(REEXECED_ENV) || REEXEC_ATTEMPTED.load(Ordering::SeqCst) {
         ReexecGate::AlreadyAttempted
     } else if cfg!(unix) {
         ReexecGate::Allowed
@@ -320,6 +324,7 @@ fn exec_preferred(preferred: &Path) {
         cmd.arg0(PREFERRED_MCP_COMMAND);
         cmd.args(env::args_os().skip(1));
         cmd.env(REEXECED_ENV, "1");
+        REEXEC_ATTEMPTED.store(true, Ordering::SeqCst);
         let err = cmd.exec();
         eprintln!(
             "anvil mcp serve: failed to re-exec {}: {err}. {}",
@@ -342,9 +347,21 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{
-        CheckKind, FramePhase, ReexecDecision, ReexecGate, ReexecProbe, StayReason, decide,
-        resolve_preferred_executable,
+        CheckKind, FramePhase, REEXEC_ATTEMPTED, ReexecDecision, ReexecGate, ReexecProbe,
+        StayReason, decide, exec_preferred, resolve_preferred_executable,
     };
+    use std::sync::atomic::Ordering;
+
+    #[cfg(unix)]
+    #[test]
+    fn exec_failure_marks_process_already_reexeced() {
+        exec_preferred(std::path::Path::new("/nonexistent-anvil-reexec"));
+        assert!(
+            REEXEC_ATTEMPTED.load(Ordering::SeqCst),
+            "failed exec must still consume the one-shot anti-loop marker"
+        );
+        REEXEC_ATTEMPTED.store(false, Ordering::SeqCst);
+    }
 
     fn skewed_probe() -> ReexecProbe {
         ReexecProbe {
