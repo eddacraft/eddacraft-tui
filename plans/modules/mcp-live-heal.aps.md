@@ -73,7 +73,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-001: PATH-stable MCP install command
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-14 via PR #3900
 - **Intent:** Stop managed installers from pinning versioned absolute paths
   (e.g. Homebrew Cellar) so upgrades do not strand new and existing configs.
 - **Expected Outcome:** Default managed entries use `command: anvil` with args
