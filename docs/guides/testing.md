@@ -1,8 +1,8 @@
 # Testing Best Practices
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-08-13 against `.github/workflows/ci.yml` (DOCFRESH-007 `ANVIL_DOCS_VERSION` 0.9.1-beta→0.9.4-beta — a docs-probe pin, not a test-convention change, so no content change was needed) and earlier `.github/workflows/rust.yml`, `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                           |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-08-14 against `.github/workflows/ci.yml` (CIB-335 added the compiled-registry parity step to the `Unit Tests` job — documented under Package-Specific Guidance) and earlier `.github/workflows/rust.yml`, `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
 
 | Upstream                                                                                                                                                                  | Downstream                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -372,6 +372,33 @@ it('should reject invalid plan ID format', () => {
   expect(result.success).toBe(false);
 });
 ```
+
+#### Compiled pattern registry parity (CIB-335)
+
+`patterns/compiled/registry.json` is generated from the `.anvil` sources and
+embedded into the Rust scanner binary with `include_str!`, so a stale registry
+ships a rule set that no longer matches `patterns/`. The `Unit Tests` job runs
+`pnpm --filter @eddacraft/anvil-core patterns:check` to catch that.
+
+Two things to know when touching the compiler or a rule:
+
+- **Regenerate, never hand-edit** `registry.json`. Run
+  `pnpm --filter @eddacraft/anvil-core patterns:compile`, then let the
+  pre-commit hook normalise it — the compiler writes expanded JSON while the
+  committed file is formatter-normalised.
+- **Warnings are not drift.** The nine legacy `AP`-prefix collision warnings are
+  emitted by design on every run and do not fail the check. Pass `--strict` to
+  escalate warnings to failures locally.
+
+The check compares against a fresh compile with object keys canonicalised, so
+key reordering is not drift; array order _is_ significant, because the compiler
+sorts patterns and families for stable diffs.
+
+`patterns/**` has no dedicated class in the CI change classifier — it reaches
+`unit-tests-required` through the conservative `unknown` fallback. That coupling
+is incidental, so it is pinned by fixtures in
+`scripts/ci/classify-changes.test.sh`; if you add a `patterns` path class,
+update those fixtures or this gate silently stops running.
 
 ### Adapters (`packages/adapters/`)
 
