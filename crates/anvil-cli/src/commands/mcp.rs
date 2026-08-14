@@ -237,6 +237,10 @@ fn run_serve(args: &McpServeArgs) -> Result<()> {
 }
 
 fn run_stdio_server() -> Result<()> {
+    // Recycle before the first read so a skewed image does not consume
+    // `initialize` (the replacement process then handles the handshake).
+    crate::mcp::reexec::maybe_reexec_at_startup();
+
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin.lock());
     let mut stdout = io::stdout().lock();
@@ -262,6 +266,9 @@ fn run_stdio_server() -> Result<()> {
             write_message(&mut stdout, &protocol::render::parse_error_response())?;
             continue;
         };
+
+        // Between complete frames only — never after partial JSON-RPC stdout.
+        crate::mcp::reexec::maybe_reexec_between_messages(&message);
 
         if let Some(response) = handle_message(&message) {
             write_message(&mut stdout, &response)?;

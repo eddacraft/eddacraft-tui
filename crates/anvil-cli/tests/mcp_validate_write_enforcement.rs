@@ -199,6 +199,7 @@ fn spawn_mcp_server(workspace_root: &Path, xdg_runtime_dir: &Path) -> Child {
         // (which the trust check rejects unless it matches the cwd).
         .current_dir(workspace_root)
         .env("ANVIL_DEV", "1")
+        .env("ANVIL_MCP_PREFERRED", ANVIL_BIN)
         .env("XDG_RUNTIME_DIR", xdg_runtime_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

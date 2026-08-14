@@ -24,6 +24,7 @@ impl Drop for KillOnDrop {
 fn installed_anvil_answers_modern_discover_for_activation_probe() {
     let child = Command::new(ANVIL_BIN)
         .args(["mcp", "serve", "--stdio"])
+        .env("ANVIL_MCP_PREFERRED", ANVIL_BIN)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
