@@ -507,6 +507,66 @@ fn py008_prefixed_string_literals_do_not_fire() {
     }
 }
 
+/// CIB-332: `compile` is not only the Python builtin. `re.compile`,
+/// `torch.compile`, and any `self.compile` / `Pattern.compile` method are
+/// ordinary calls that take a variable, and PY-008 fired on all of them at
+/// `severity: error, confidence: high`. CIB-322 fixed only the inline
+/// prefixed-literal half (`re.compile(r'^\d+$')`); the named-constant idiom
+/// (`DATE_RE = r'...'` then `re.compile(DATE_RE)`) is the common real shape and
+/// still false-fired. A dotted receiver means the call is not the builtin.
+#[test]
+fn py008_dotted_compile_receiver_does_not_fire() {
+    for src in [
+        // The named-constant regex idiom — the most common real-world shape.
+        "pattern = re.compile(pattern_var)\n",
+        "rx = re.compile(user_supplied_regex, re.I)\n",
+        // Non-stdlib receivers named `compile` are just as ordinary.
+        "model = torch.compile(model)\n",
+        "self.compile(src)\n",
+        "Pattern.compile(name)\n",
+    ] {
+        assert!(
+            !fires("src/app.py", src, "PY-008"),
+            "a dotted `compile` receiver is not the builtin and must not fire: {src:?}"
+        );
+    }
+}
+
+/// The receiver gate applies to `compile` only. CIB-322's Non-scope clause is
+/// explicit that receiver resolution must not become the whole fix: an
+/// unqualified `compile(...)` is the builtin and must still fire. `eval` and
+/// `exec` keep their word boundary deliberately — `df.eval(expr)` (pandas) and
+/// an `obj.exec(cmd)` wrapper are genuine execution surfaces, unlike
+/// `re.compile`.
+#[test]
+fn py008_unqualified_compile_and_attribute_eval_exec_still_fire() {
+    for src in [
+        // Unqualified `compile` is the builtin — dotting the receiver must not
+        // be a way to lose the builtin case.
+        "compile(src, '<str>', 'exec')\n",
+        "compile(source=src, filename=\"<s>\", mode=\"exec\")\n",
+        // Attribute access on eval/exec still fires.
+        "builtins.eval(user_input)\n",
+        "df.eval(expr)\n",
+        "obj.exec(cmd)\n",
+    ] {
+        assert!(
+            fires("src/app.py", src, "PY-008"),
+            "must still fire: {src:?}"
+        );
+    }
+
+    // `^` in the receiver gate is a per-line anchor, not a per-file one: the
+    // scanner runs the regex line by line. Asserting only on line 1 (where the
+    // two anchors coincide) would pass even if the rule silently degraded to
+    // matching the first line of a file.
+    assert!(fires(
+        "src/app.py",
+        "import dis\ncompile(src, '<str>', 'exec')\n",
+        "PY-008"
+    ));
+}
+
 #[test]
 fn py008_explanation_describes_eval_exec_compile_not_family_boilerplate() {
     let result = scan_file("src/app.py", "eval(user_input)\n", None);

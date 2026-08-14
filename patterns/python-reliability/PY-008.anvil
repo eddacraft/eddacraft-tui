@@ -29,7 +29,19 @@ detection:
   # calls); the scanner matches per line, so nothing else reaches them.
   # Do NOT narrow the terminator to an allowlist of punctuation: that silently
   # drops every operator form, which is the canonical injection shape.
-  pattern: '\b(eval|exec|compile)\s*\(\s*(?:\*|(?:[fF][rR]?|[rR][fF])[''"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_''"]|$))'
+  #
+  # Receiver gate (CIB-332): `compile` alone is dot-gated — it matches only at
+  # start of line or after a byte that is not an identifier char or `.`, so a
+  # dotted receiver (`re.compile`, `torch.compile`, `self.compile`,
+  # `Pattern.compile`) is not the builtin and does not fire, while unqualified
+  # `compile(src, "<s>", "exec")` still does. `eval` and `exec` keep `\b` on
+  # purpose: `df.eval(expr)` and an `obj.exec(cmd)` wrapper are genuine
+  # execution surfaces, so attribute access on them must still fire.
+  # The gate consumes its one leading byte (same construct as PY-006's
+  # `(^|[^.\w])print\s*\(`), so a non-start-of-line `compile` finding reports a
+  # column one to the left; `column` is dropped by the JSON renderer and SARIF
+  # emits line-only, so only the miette caret sees it.
+  pattern: '(?:\b(?:eval|exec)|(?:^|[^A-Za-z0-9_.])compile)\s*\(\s*(?:\*|(?:[fF][rR]?|[rR][fF])[''"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_''"]|$))'
 
 related: [AP-008, PY-009]
 enabled: true
@@ -49,6 +61,12 @@ A bare string literal you control end-to-end (`eval("1 + 1")`) or a raw, bytes,
 or unicode prefixed literal (`re.compile(r'^\d+$')`, `compile(rb"...", "<s>",
 "exec")`, `eval(u"1")`) does not fire. f-strings do fire in every prefix
 ordering (`f`, `rf`, `fr`) — they interpolate run-time values.
+
+Only unqualified `compile(...)` is the builtin, so a dotted receiver
+(`re.compile(pattern_var)`, `torch.compile(model)`, `self.compile(src)`) does
+not fire whatever the argument is. `eval` and `exec` have no such exemption:
+`df.eval(expr)` and `obj.exec(cmd)` still fire, because a method spelled `eval`
+or `exec` is a real execution surface.
 
 A literal first argument is **not** proof the call is safe: the rule reads only
 the first token after `(` on a single line, so a formatted or concatenated
@@ -72,3 +90,11 @@ composed payloads (`eval(prefix + user_input)`, `exec(tmpl % vars)`,
 `eval(cmd if trusted else default)`), keyword arguments
 (`compile(source=src, filename="<s>", mode="exec")`), and unpacking
 (`eval(*args)`).
+
+`compile` is also an ordinary method name, so the rule reads it as the builtin
+only when it is unqualified. A dotted receiver — `re.compile(pattern_var)`,
+`torch.compile(model)`, `self.compile(src)`, `Pattern.compile(name)` — is
+exempt, which is what makes the named-constant regex idiom (`DATE_RE = r"..."`
+then `re.compile(DATE_RE)`) clean. That exemption is `compile`-only:
+`builtins.eval(user_input)`, `df.eval(expr)`, and `obj.exec(cmd)` all still
+fire.
