@@ -494,7 +494,7 @@ Change status to **Ready** when:
 
 #### UCFG-015: migrate format and config convert write any canonical format
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-14 via PR #3893
 - **Intent:** `anvil migrate format` and `anvil config convert --to` share one
   writer that converts the discovered project config (`.anvil.yaml` / `.yml` /
   `.json` / `.toml`, or leftover `.anvilrc`) to any of those dest formats.
