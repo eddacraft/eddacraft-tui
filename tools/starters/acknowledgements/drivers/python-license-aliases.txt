@@ -1,0 +1,26 @@
+# Classifier / metadata names pip-licenses reports → SPDX.
+# licences.toml stays SPDX. The Python driver appends every alias
+# whose SPDX is on the allow-list before calling --allow-only.
+# Tab-separated: SPDX<TAB>alias
+# Do not add these aliases to licences.toml — they are Python-only.
+
+Apache-2.0	Apache Software License
+Apache-2.0	Apache License 2.0
+Apache-2.0	Apache License, Version 2.0
+MIT	MIT License
+BSD-2-Clause	BSD License
+BSD-3-Clause	BSD License
+BSD-3-Clause	3-Clause BSD License
+BSD-3-Clause	BSD 3-Clause
+ISC	ISC License
+MPL-2.0	Mozilla Public License 2.0 (MPL 2.0)
+MPL-2.0	Mozilla Public License 2.0
+MPL-2.0	Mozilla Public License Version 2.0
+LGPL-3.0	GNU Lesser General Public License v3 (LGPLv3)
+LGPL-3.0-only	GNU Lesser General Public License v3 (LGPLv3)
+GPL-3.0	GNU General Public License v3 (GPLv3)
+GPL-3.0-only	GNU General Public License v3 (GPLv3)
+PSF-2.0	Python Software Foundation License
+Unlicense	The Unlicense
+0BSD	Zero-Clause BSD
+CC0-1.0	CC0 1.0 Universal (CC0 1.0) Public Domain Dedication

@@ -42,10 +42,9 @@ manifest_path = "crates/your-cli/Cargo.toml" # shipping binary's manifest
 template_path = "about.hbs" # cargo-about handlebars template
 config_path = "about.toml" # cargo-about config
 
-# --- Node-only starter (copy this instead of, or as well as, rust) ---
-# The ACKNOWLEDGEMENTS.md marker suffix must be this block's `name`.
-# If you copied ACKNOWLEDGEMENTS.md.template, replace {{BLOCK_NAME}}
-# with `node`.
+# Keep one live [[blocks]] entry per ecosystem you ship. Comment out
+# rust if you are not a Rust consumer. Replace {{BLOCK_NAME}} in
+# ACKNOWLEDGEMENTS.md with that block's `name`.
 #
 # [[blocks]]
 # name            = "node"
@@ -53,3 +52,15 @@ config_path = "about.toml" # cargo-about config
 # manifest_path   = "package.json"
 # node_allow_path = "licences.node-allow.txt"
 # prod_only       = true
+#
+# [[blocks]]
+# name          = "go"
+# ecosystem     = "go"
+# module_path   = "."
+# go_allow_path = "licences.go-allow.txt"
+#
+# [[blocks]]
+# name              = "python"
+# ecosystem         = "python"
+# venv_path         = ".venv"
+# python_allow_path = "licences.python-allow.txt"

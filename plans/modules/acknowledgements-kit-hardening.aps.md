@@ -195,6 +195,10 @@ authorisation once the six land.
 | ATTRIB-032  | nxrust F6  | Ship the notice with the package   |
 | ATTRIB-033  | nxrust     | Documented Node cold-start fixture |
 | ATTRIB-034  | —          | Kit `1.2.1` cut                    |
+| ATTRIB-035  | matrix     | Multi-ecosystem adopt + packaging  |
+| ATTRIB-036  | matrix     | Python classifier → SPDX aliases   |
+| ATTRIB-037  | matrix     | Rust/Go/Python cold-start fixtures |
+| ATTRIB-038  | —          | Kit `1.2.2` cut                    |
 
 ### ATTRIB-018: Splice gates enforce the documented marker invariants
 
@@ -607,6 +611,64 @@ every defect above reproduced.
 - **Files:** `tools/starters/acknowledgements/VERSION`,
   `tools/starters/acknowledgements/CHANGELOG.md`.
 - **Dependencies:** ATTRIB-027..-033.
+
+### ATTRIB-035: Marker/bootstrap/packaging are every-ecosystem
+
+- **Status:** Ready (operator authorisation 2026-08-14 — full matrix)
+- **Intent:** The 1.2.1 Node path is not the only documented first-copy
+  path. Rust, Go, and Python copy the same marker and expander contract.
+- **Expected Outcome:** `attribution.toml.example` has first-class rust,
+  node, go, and python stanzas. The adoption checklist copies each
+  ecosystem's template, says non-Rust repos need no `about.toml`, and
+  tells Rust crates to `include` the notice and `exclude` the kit
+  subtree so `cargo package` does not ship scripts/tests.
+- **Validation:** README and example contain go and python stanzas and
+  a `cargo` include/exclude note; ATTRIB-037 fixtures copy only shipped
+  templates per ecosystem.
+- **Files:** `tools/starters/acknowledgements/README.md`,
+  `tools/starters/acknowledgements/attribution.toml.example`.
+
+### ATTRIB-036: Python allow-list accepts classifier names
+
+- **Status:** Ready (operator authorisation 2026-08-14 — full matrix)
+- **Intent:** A current Python app whose packages report Trove names
+  (`Apache Software License`, `Mozilla Public License 2.0 (MPL 2.0)`)
+  can satisfy a SPDX-only `licences.toml`.
+- **Expected Outcome:** `licences.toml` stays SPDX. The Python driver
+  expands `--allow-only` with a kit-owned alias table. No aliases are
+  written into `licences.toml` or the Node/Go/Rust consumers.
+- **Validation:** A fixture package that reports `Apache Software
+  License` passes the strict gate when `licences.toml` has only
+  `Apache-2.0`.
+- **Files:** `tools/starters/acknowledgements/drivers/python.sh`,
+  `tools/starters/acknowledgements/drivers/python-license-aliases.txt`,
+  `tools/starters/acknowledgements/tests/python-driver-aliases.sh`,
+  `tools/starters/acknowledgements/README.md`.
+
+### ATTRIB-037: Cold-start fixtures for Rust, Go, and Python
+
+- **Status:** Ready (operator authorisation 2026-08-14 — full matrix)
+- **Intent:** Marker/bootstrap regressions cannot hide behind a Node-only
+  fixture.
+- **Expected Outcome:** `tests/{rust,go,python}-cold-adopt.sh` copy only
+  shipped templates for that ecosystem and generate without Rust files
+  (Go/Python) or without Node files (Rust). Skip if the ecosystem tool
+  is missing.
+- **Validation:** All three are on `tests/run-all.sh`.
+- **Files:** `tools/starters/acknowledgements/tests/rust-cold-adopt.sh`,
+  `tools/starters/acknowledgements/tests/go-cold-adopt.sh`,
+  `tools/starters/acknowledgements/tests/python-cold-adopt.sh`,
+  `tools/starters/acknowledgements/tests/run-all.sh`.
+
+### ATTRIB-038: Cut kit 1.2.2
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** Matrix adopt fixes reach pin consumers.
+- **Expected Outcome:** `VERSION` / `CHANGELOG.md` are `1.2.2`.
+- **Validation:** `check-version.sh` is clean.
+- **Files:** `tools/starters/acknowledgements/VERSION`,
+  `tools/starters/acknowledgements/CHANGELOG.md`.
+- **Dependencies:** ATTRIB-035..-037.
 
 ## Decisions (2026-08-03)
 

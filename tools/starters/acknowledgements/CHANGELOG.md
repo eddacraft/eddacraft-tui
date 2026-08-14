@@ -21,6 +21,33 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 - **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
+## [1.2.2] - 2026-08-14
+
+The 1.2.1 Node path was not the whole adoption contract. Marker and allow-list
+bootstrap apply to every canonical ecosystem; Python's strict gate now accepts
+classifier names for SPDX ids already on the list; Rust crates get packaging
+guidance so `cargo package` does not ship the kit.
+
+### Fixed
+
+- **A current Python app can satisfy a SPDX-only `licences.toml`.**
+  `pip-licenses` reports Trove names (`Apache Software License`,
+  `Mozilla Public License 2.0 (MPL 2.0)`). The Python driver expands
+  `--allow-only` with `drivers/python-license-aliases.txt`. Do not put those
+  strings in `licences.toml`.
+
+### Documentation
+
+- Adoption checklist copies Rust, Node, Go, and Python templates as peers.
+  Non-Rust repos still need no `about.toml` / `deny.toml`.
+- Ship the notice, not the kit: npm `"files"` and Cargo `include` / `exclude` so
+  `cargo package` does not publish scripts, tests, and templates.
+
+### Tests
+
+- Cold-start fixtures for Rust, Go, and Python copy only shipped templates. A
+  classifier-named Apache package passes on SPDX `Apache-2.0`.
+
 ## [1.2.1] - 2026-08-14
 
 The documented first-copy path for a Node-only consumer now works. The generator

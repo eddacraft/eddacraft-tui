@@ -85,22 +85,40 @@ if [ -z "$allow_line" ]; then
   exit 1
 fi
 
+# pip-licenses reports Trove/classifier names, not SPDX. Expand the
+# SPDX allow-list with Python-only aliases so a licences.toml of
+# Apache-2.0 accepts "Apache Software License". Node/Go/Rust are
+# untouched — the table lives beside this driver.
+alias_file="$(cd "$(dirname "$0")" && pwd)/python-license-aliases.txt"
+allow_for_tool="$allow_line"
+if [ -f "$alias_file" ]; then
+  while IFS="$(printf '\t')" read -r spdx alias || [ -n "${spdx:-}" ]; do
+    case "$spdx" in
+      '' | \#*) continue ;;
+    esac
+    [ -z "${alias:-}" ] && continue
+    case ";$allow_line;" in
+      *";$spdx;"*) allow_for_tool="$allow_for_tool;$alias" ;;
+    esac
+  done <"$alias_file"
+fi
+
 # ── Strict gate — must run BEFORE render ─────────────────────────────
 # pip-licenses --allow-only exits non-zero on the first package whose
 # licence is not in the list. Capture stderr to attach the allow-list +
 # fix hint to the error report.
 strict_err="$(mktemp)"
 trap 'rm -f "$strict_err"' EXIT
-if ! "$pip_licenses" --allow-only "$allow_line" >/dev/null 2>"$strict_err"; then
+if ! "$pip_licenses" --allow-only "$allow_for_tool" >/dev/null 2>"$strict_err"; then
   echo "drivers/python.sh: pip-licenses --allow-only rejected one or more dependencies." >&2
-  echo "  allow-list (from $python_allow_path):" >&2
+  echo "  allow-list (from $python_allow_path, SPDX):" >&2
   echo "    $allow_line" >&2
   echo "  pip-licenses output:" >&2
   sed 's/^/    /' "$strict_err" >&2
-  echo "  fix: add the missing licence to licences.toml + rerun expand-licences.sh," >&2
-  echo "    or remove/replace the offending dependency." >&2
-  echo "  note: pip-licenses reports classifier-derived names, which are not always" >&2
-  echo "    exact SPDX identifiers — see the kit README's Python section." >&2
+  echo "  fix: add the missing licence's SPDX id to licences.toml + rerun" >&2
+  echo "    expand-licences.sh, or remove/replace the offending dependency." >&2
+  echo "  classifier names such as 'Apache Software License' are accepted when" >&2
+  echo "    their SPDX form is already on the allow-list." >&2
   exit 1
 fi
 

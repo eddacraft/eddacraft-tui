@@ -66,29 +66,36 @@ and edit one file (`attribution.toml`). No script edits are required.
    cp tools/starters/acknowledgements/licences.toml.template licences.toml
    ```
 
-   Then copy the per-driver config for each ecosystem you ship. For Node:
+   Then copy the per-driver files for **each** ecosystem you ship:
 
    ```bash
-   cp tools/starters/acknowledgements/licences.node-allow.txt.template \
-     licences.node-allow.txt
-   ```
-
-   For Rust:
-
-   ```bash
+   # Rust
    cp tools/starters/acknowledgements/about.toml.template about.toml
    cp tools/starters/acknowledgements/about.hbs.template about.hbs
+
+   # Node
+   cp tools/starters/acknowledgements/licences.node-allow.txt.template \
+     licences.node-allow.txt
+
+   # Go
+   cp tools/starters/acknowledgements/licences.go-allow.txt.template \
+     licences.go-allow.txt
+
+   # Python
+   cp tools/starters/acknowledgements/licences.python-allow.txt.template \
+     licences.python-allow.txt
    ```
 
-   The Go and Python drivers use `licences.<eco>-allow.txt.template`; the
-   bundled-binaries driver uses `bundled-binaries.toml.example`.
+   Bundled binaries use `bundled-binaries.toml.example`.
 
-3. Edit `attribution.toml`: declare one `[[blocks]]` entry per ecosystem you
-   ship. For Node-only, comment out the rust example and uncomment the
-   `name = "node"` stanza. Then replace `{{BLOCK_NAME}}` in
-   `ACKNOWLEDGEMENTS.md` with that same name (`node`, `rust`, …). Named blocks
-   use suffixed markers (`<!-- BEGIN AUTO-GENERATED node -->`); the unsuffixed
-   pair is only for the legacy flat `[rust]` shim.
+3. Edit `attribution.toml`: one `[[blocks]]` entry per ecosystem. Comment out
+   the rust example if you are not a Rust consumer; uncomment the node / go /
+   python stanza you need. Then replace `{{BLOCK_NAME}}` in
+   `ACKNOWLEDGEMENTS.md` with that block's `name` (`rust`, `node`, `go`,
+   `python`, …). Named blocks use suffixed markers
+   (`<!-- BEGIN AUTO-GENERATED rust -->`); the unsuffixed pair is only for the
+   legacy flat `[rust]` shim. Leaving `{{BLOCK_NAME}}` in place fails the
+   marker-count gate on every ecosystem.
 
 4. Populate the allow-list. Edit `licences.toml`, then:
 
@@ -96,8 +103,9 @@ and edit one file (`attribution.toml`). No script edits are required.
    tools/starters/acknowledgements/expand-licences.sh
    ```
 
-   Node-only repos do not need `about.toml` or `deny.toml`. The expander writes
-   only the consumer files that exist beside `licences.toml`.
+   Non-Rust repos do not need `about.toml` or `deny.toml`. The expander writes
+   only the consumer files that exist beside `licences.toml`. That is the same
+   bootstrap for Node, Go, and Python.
 
 5. Generate:
 
@@ -105,13 +113,29 @@ and edit one file (`attribution.toml`). No script edits are required.
    tools/starters/acknowledgements/generate-acknowledgements.sh
    ```
 
-   For Node, install `license-checker` as a devDependency first. The driver
-   finds `node_modules/.bin/license-checker` itself; you do not need it on
-   `PATH`.
+   Node: `npm install --save-dev license-checker` — the driver finds
+   `node_modules/.bin` itself. Go: `go-licenses` on `PATH` and
+   `go mod download`. Python: install `pip-licenses` into the venv you point
+   `venv_path` at.
 
-6. Ship the notice. Put `ACKNOWLEDGEMENTS.md` in the artefact you redistribute —
-   for npm, add it to `package.json` `"files"` (or stop ignoring it) so
-   `npm pack` includes it.
+6. Ship the notice with the artefact you redistribute — not the kit.
+   - **npm:** add `ACKNOWLEDGEMENTS.md` to `package.json` `"files"`.
+   - **crates.io:** include the notice and exclude the kit subtree, or
+     `cargo package` will ship scripts, tests, and templates:
+
+     ```toml
+     include = [
+       "src/**/*",
+       "Cargo.toml",
+       "Cargo.lock",
+       "README.md",
+       "LICENSE*",
+       "ACKNOWLEDGEMENTS.md",
+     ]
+     ```
+
+     or `exclude = ["tools/starters/**"]` plus an explicit include of
+     `ACKNOWLEDGEMENTS.md` if you otherwise filter `*.md`.
 
 7. Wire CI: drop `ci-freshness.yml.snippet` into your existing workflow.
    Uncomment only the setup steps for ecosystems you actually declare.
@@ -555,26 +579,14 @@ Strict-licence gate: `pip-licenses --allow-only "<semicolon-joined SPDX list>"`
 runs before render; one disallowed dep exits non-zero, names the offending
 package, and leaves the on-disk target byte-identical.
 
-**Licence-name caveat.** `pip-licenses` reports licence names derived from each
-package's Trove classifiers / metadata, which are **not always exact SPDX
-identifiers** (e.g. a package may report `BSD License` rather than
-`BSD-3-Clause`, or `MIT License` rather than `MIT`). The allow-list expanded
-from `licences.toml` is SPDX, so a mismatch can cause a false strict failure.
-
-Do **not** work around this by adding classifier-style names (`BSD License`,
-`MIT License`) to `licences.toml`: the `spdx` field there also feeds
-`about.toml` (cargo-about) and `deny.toml` (cargo-deny), which require valid
-SPDX identifiers — a non-SPDX value breaks those consumers. Safe options
-instead:
-
-- normalise the offending package's metadata (or pin a version that publishes a
-  modern SPDX `License-Expression`);
-- enable `pip-licenses --partial-match` (not enabled by the kit) so `MIT`
-  matches `MIT License`, if you accept the looser matching;
-- ignore the package in your venv composition if it is not actually shipped.
-
-A Python-specific SPDX-alias mechanism in the expander is a possible future
-enhancement; today the kit keeps `licences.toml` strictly SPDX.
+`pip-licenses` reports Trove/classifier names, not SPDX
+(`Apache Software License`, `Mozilla Public License 2.0 (MPL 2.0)`). Keep
+`licences.toml` strictly SPDX — those ids still feed cargo-about and cargo-deny.
+The Python driver expands `--allow-only` with
+`drivers/python-license-aliases.txt` so a SPDX allow-list of `Apache-2.0`
+accepts the classifier name. Do not put classifier strings in `licences.toml`.
+Add a row to the alias table only when a real package reports a stable name the
+table does not yet cover.
 
 CI provisioning (per your existing Python toolchain), e.g.:
 

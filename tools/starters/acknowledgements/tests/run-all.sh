@@ -43,12 +43,16 @@ TESTS=(
   node-driver-render.sh
   node-driver-strict.sh
   node-cold-adopt.sh
+  rust-cold-adopt.sh
   go-driver-preflight.sh
   go-driver-render.sh
   go-driver-strict.sh
+  go-cold-adopt.sh
   python-driver-preflight.sh
   python-driver-render.sh
   python-driver-strict.sh
+  python-driver-aliases.sh
+  python-cold-adopt.sh
   bundled-binaries-preflight.sh
   bundled-binaries-render.sh
 )

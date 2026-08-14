@@ -51,3 +51,8 @@ deny = true
 spdx = "CC0-1.0"
 about = true
 deny = true
+
+[[licences]]
+spdx = "MPL-2.0"
+about = true
+deny = true
