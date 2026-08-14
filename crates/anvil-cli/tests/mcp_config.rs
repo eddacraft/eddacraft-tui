@@ -691,6 +691,69 @@ fn mcp_install_refuses_foreign_anvil_entry_without_overwriting() {
 }
 
 #[test]
+fn mcp_install_defaults_to_path_stable_anvil_not_current_exe() {
+    let dir = tempfile::tempdir().unwrap();
+    let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
+    assert!(
+        install.status.success(),
+        "install failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&install.stdout),
+        String::from_utf8_lossy(&install.stderr),
+    );
+
+    let path = dir.path().join(".cursor").join("mcp.json");
+    let raw = fs::read_to_string(&path).unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    assert_rust_stdio_entry(&parsed, "anvil");
+    let command = parsed["mcpServers"]["anvil"]["command"].as_str().unwrap();
+    assert_eq!(command, "anvil");
+    assert!(
+        !command.contains("Cellar") && !command.contains("/nix/store/"),
+        "default command must not be a versioned install path: {command}"
+    );
+    assert!(
+        !std::path::Path::new(command).is_absolute(),
+        "default command must be PATH-stable, not absolute: {command}"
+    );
+}
+
+#[test]
+fn mcp_install_rewrites_homebrew_cellar_path_to_preferred_anvil() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".cursor").join("mcp.json");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&serde_json::json!({
+            "mcpServers": {
+                "anvil": {
+                    "command": "/opt/homebrew/Cellar/anvil/0.9.2-beta/bin/anvil",
+                    "args": ["mcp", "serve", "--stdio"]
+                }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let install = run_mcp(dir.path(), &["install", "--client", "cursor"]);
+    assert!(
+        install.status.success(),
+        "install failed\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&install.stdout),
+        String::from_utf8_lossy(&install.stderr),
+    );
+
+    let raw = fs::read_to_string(&path).unwrap();
+    let parsed: Value = serde_json::from_str(&raw).unwrap();
+    assert_rust_stdio_entry(&parsed, "anvil");
+    assert!(
+        !raw.contains("Cellar"),
+        "Cellar pin must be rewritten: {raw}"
+    );
+}
+
+#[test]
 fn mcp_install_rewrites_anvil_owned_command_drift() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(".cursor").join("mcp.json");

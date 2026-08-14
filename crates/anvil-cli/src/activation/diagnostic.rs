@@ -375,63 +375,35 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
 
     // LAUNCH-009: probe each registered MCP client. The probe is
     // read-only — it only reads each editor's config; the install
-    // path is in the orchestrator. The fresh entry uses
-    // `current_exe()` as the canonical command path so tier
-    // classification compares against what we'd actually install.
-    let (mcp, mcp_last_error, daemon_attestation, save_time_driver_attached): (
-        BTreeMap<McpClientId, super::mcp_client::McpProbeResult>,
-        Option<String>,
-        super::daemon_evidence::DaemonAttestation,
-        bool,
-    ) = match std::env::current_exe() {
-        Ok(exe) => {
-            let fresh = super::mcp_client::AnvilEntry::local_stdio(exe);
-            let mut probe_results = super::mcp_client::probe_all(root, home, &fresh);
-            promote_restart_required_after_handshake(root, home, &mut probe_results, &fresh);
-            // MLP2-051f: best-effort promote to LiveValidation from daemon
-            // attestation; carries attestation on the diagnostic for render.
-            // DSV-049: also report supervised save-time driver attachment.
-            if matches!(config, ConfigStatus::Valid) {
-                let outcome =
-                    super::daemon_evidence::promote_to_live_validation_when_daemon_attests(
-                        &mut probe_results,
-                        root,
-                    );
-                (
-                    probe_results,
-                    None,
-                    outcome.attestation,
-                    outcome.save_time_driver_attached,
-                )
-            } else {
-                (
-                    probe_results,
-                    None,
-                    super::daemon_evidence::DaemonAttestation::NotProbed,
-                    false,
-                )
-            }
-        }
-        Err(e) => {
-            // Couldn't resolve current_exe (rare — typically only fails
-            // in stripped containers without /proc). Set last_error so
-            // protection_state() returns Error and the user / SRE sees
-            // an actionable cause rather than a silent "needs_action"
-            // with no MCP clients reported. (Council finding: ops M3.)
-            tracing::warn!(
-                error = %e,
-                "verify: could not resolve current_exe; MCP probe skipped",
+    // path is in the orchestrator. Fresh uses the PATH-stable preferred
+    // command (MCPLH-001 / spec §6), not `current_exe()`, so Cellar
+    // pins classify as drift rather than matching the running binary.
+    let fresh = super::mcp_client::AnvilEntry::preferred_stdio();
+    let mut probe_results = super::mcp_client::probe_all(root, home, &fresh);
+    promote_restart_required_after_handshake(root, home, &mut probe_results, &fresh);
+    // MLP2-051f: best-effort promote to LiveValidation from daemon
+    // attestation; carries attestation on the diagnostic for render.
+    // DSV-049: also report supervised save-time driver attachment.
+    let (mcp, mcp_last_error, daemon_attestation, save_time_driver_attached) =
+        if matches!(config, ConfigStatus::Valid) {
+            let outcome = super::daemon_evidence::promote_to_live_validation_when_daemon_attests(
+                &mut probe_results,
+                root,
             );
             (
-                BTreeMap::new(),
-                Some(format!(
-                    "could not resolve current_exe; MCP probe skipped ({e})"
-                )),
+                probe_results,
+                None,
+                outcome.attestation,
+                outcome.save_time_driver_attached,
+            )
+        } else {
+            (
+                probe_results,
+                None,
                 super::daemon_evidence::DaemonAttestation::NotProbed,
                 false,
             )
-        }
-    };
+        };
 
     // LAUNCH-015: walk the working tree and classify languages so the
     // protection-state mapping can return `Unsupported` honestly when
@@ -495,7 +467,7 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
 /// (via [`super::mcp_client::installed_restart_required_entries`]) so
 /// verification reflects what the editor would really spawn — including
 /// bare `"anvil"` entries from `anvil mcp-config` that PATH-resolve to a
-/// different binary than `current_exe()`. If extraction fails for every
+/// different binary than the preferred PATH `anvil`. If extraction fails for every
 /// restart-required client (config re-parse error, missing `command`
 /// field, etc.), the probe falls back to `fresh` for observability only
 /// and logs that no client was promoted.
@@ -526,7 +498,7 @@ fn promote_restart_required_after_handshake(
     if installed.is_empty() {
         tracing::warn!(
             "mcp probe: could not extract installed entry; \
-                     falling back to current_exe — log result reflects \
+                     falling back to preferred command — log result reflects \
                      fresh, not the editor's actual spawn target",
         );
         match super::mcp_client::probe_startable(fresh) {

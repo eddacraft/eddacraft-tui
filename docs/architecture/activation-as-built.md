@@ -186,8 +186,9 @@ orchestrator executes seven main ordered steps:
 
 5. **Install MCP entries for the multi-client registry (LAUNCH-009 part 2 /
    ACTMO-004 / MCPX / ADR-106).** Unless `anvil start --no-mcp` is passed or
-   `ANVIL_NO_MCP` is non-empty, the orchestrator resolves `current_exe()`,
-   builds an `AnvilEntry::local_stdio` (`mcp_client.rs:91-101`), then calls
+   `ANVIL_NO_MCP` is non-empty, the orchestrator builds
+   `AnvilEntry::preferred_stdio` (PATH-stable `command: anvil`, never
+   `current_exe()` / Cellar; MCPLH-001 / spec §6), then calls
    `install::install_for_clients` (`orchestrator/mod.rs`) for clients selected
    interactively or via `--mcp-client` / `--all-mcp-clients` against the full
    `AgentClientId` registry (Claude Code, Cursor, Codex, OpenCode, Gemini CLI,
@@ -425,10 +426,11 @@ JSON, Grok TOML, Zed context servers, and so on).
 The drift classifier (`mcp_client.rs:457-508`) refuses to call any entry
 "anvil's" unless the canonical args (`["mcp", "serve", "--stdio"]`) match AND
 the command basename is `anvil` / `anvil.exe`. A foreign command such as
-`/bin/bash` carrying our key + args is `UnsafeDrift`. Bare `"anvil"` (from
-`anvil mcp-config` PATH-resolved) is treated as equivalent to a full
-`current_exe()` path via `entries_equivalent` (`mcp_client.rs:537-573`) so those
-installs do not falsely report as `RestartRequired` after an idempotent re-run.
+`/bin/bash` carrying our key + args is `UnsafeDrift`. Existing PATH-stable
+`"anvil"` matches an anvil-shaped fresh command via `entries_equivalent` so a
+leftover absolute fresh cannot rewrite it back to a Cellar path. Absolute or
+versioned existing commands (Homebrew Cellar, `/nix/store`, …) vs preferred bare
+`anvil` are `SafeDrift` and are rewritten on install/ensure.
 
 **Atomicity and safety:**
 

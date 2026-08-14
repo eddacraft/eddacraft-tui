@@ -601,23 +601,7 @@ impl TuiConsentPlan {
 
     fn apply_registry_mcp_candidates(&self, selected: &BTreeSet<&str>) -> Vec<RegistryInstallRow> {
         let mut rows: Vec<RegistryInstallRow> = Vec::new();
-        let command = match std::env::current_exe() {
-            Ok(command) => command,
-            Err(error) => {
-                for (id, candidate) in &self.registry_mcp_candidates {
-                    if selected.contains(id.as_str()) {
-                        rows.push(RegistryInstallRow {
-                            display_name: candidate.client.entry().display_name.to_string(),
-                            status: RegistryInstallStatus::Failed {
-                                error: format!("resolving anvil executable: {error}"),
-                            },
-                        });
-                    }
-                }
-                return rows;
-            }
-        };
-        let command = command.to_string_lossy();
+        let command = crate::activation::mcp_client::preferred_mcp_command(None);
         for (id, candidate) in &self.registry_mcp_candidates {
             if !selected.contains(id.as_str()) {
                 continue;
@@ -651,7 +635,7 @@ impl TuiConsentPlan {
                 candidate.client,
                 candidate.scope,
                 root,
-                &command,
+                command,
                 false,
                 false,
             ) {
@@ -746,9 +730,7 @@ pub(crate) fn build_tui_consent_plan(
     let mut enabled = crate::activation::mcp_client::all_client_ids();
     extend_enabled_with_explicit_clients(&mut enabled, registry_selection.explicit_clients);
     let fresh = if matches!(mcp_install_policy, McpInstallPolicy::Install) {
-        std::env::current_exe()
-            .ok()
-            .map(crate::activation::mcp_client::AnvilEntry::local_stdio)
+        Some(crate::activation::mcp_client::AnvilEntry::preferred_stdio())
     } else {
         None
     };
@@ -974,19 +956,17 @@ impl TuiConsentPlan {
 
         // ACTTUI-018: dry-run the registry installer. When the expected anvil
         // entry is already present and matches, skip the offer (settled).
-        if let Ok(command) = std::env::current_exe() {
-            let command = command.to_string_lossy();
-            if let Ok(report) = crate::commands::mcp_installer::install(
-                entry.id, scope, root, &command, false, true, // dry_run
-            ) && !report.changed
-            {
-                self.settled_mcp.push(format!(
-                    "{}: already configured at {}",
-                    entry.display_name,
-                    report.path.display(),
-                ));
-                return;
-            }
+        let command = crate::activation::mcp_client::preferred_mcp_command(None);
+        if let Ok(report) = crate::commands::mcp_installer::install(
+            entry.id, scope, root, command, false, true, // dry_run
+        ) && !report.changed
+        {
+            self.settled_mcp.push(format!(
+                "{}: already configured at {}",
+                entry.display_name,
+                report.path.display(),
+            ));
+            return;
         }
 
         self.offers.push(TuiConsentOffer {
@@ -1715,62 +1695,41 @@ fn run_with_home_and_registration_outcome<'a>(
             activation_run.skip(ActivationStep::McpConsent, "MCP installation disabled");
             InstallReport::default()
         }
-        McpInstallPolicy::Install => match std::env::current_exe() {
-            Ok(exe) => {
-                let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
-                if matches!(render_mode, StartRenderMode::Tui) {
-                    // Mirrors the WorkflowConsent deferral above: no legacy
-                    // picker is shown, so the step is explicitly Deferred
-                    // rather than Started/Completed, which would
-                    // otherwise misreport a "Passed" consent step in the TUI
-                    // progress panel before the surface's own consent widget
-                    // has run.
-                    if tui_mcp_offer_available(root, home, &fresh, enabled) {
-                        activation_run.defer(
-                            ActivationStep::McpConsent,
-                            "deferred to activation TUI consent surface",
-                        );
-                    } else {
-                        activation_run.skip(
-                            ActivationStep::McpConsent,
-                            "no MCP changes available for consent",
-                        );
-                    }
-                    install::install_for_clients_with_consent_mode(
-                        root,
-                        home,
-                        &fresh,
-                        install::InstallConsentMode::DeferToTui,
-                        enabled,
-                    )
-                } else {
-                    activation_run.start(ActivationStep::McpConsent);
-                    let report = install::install_for_clients(
-                        root,
-                        home,
-                        &fresh,
-                        demand_interactive,
-                        enabled,
+        McpInstallPolicy::Install => {
+            let fresh = crate::activation::mcp_client::AnvilEntry::preferred_stdio();
+            if matches!(render_mode, StartRenderMode::Tui) {
+                // Mirrors the WorkflowConsent deferral above: no legacy
+                // picker is shown, so the step is explicitly Deferred
+                // rather than Started/Completed, which would
+                // otherwise misreport a "Passed" consent step in the TUI
+                // progress panel before the surface's own consent widget
+                // has run.
+                if tui_mcp_offer_available(root, home, &fresh, enabled) {
+                    activation_run.defer(
+                        ActivationStep::McpConsent,
+                        "deferred to activation TUI consent surface",
                     );
-                    activation_run.complete(ActivationStep::McpConsent);
-                    report
+                } else {
+                    activation_run.skip(
+                        ActivationStep::McpConsent,
+                        "no MCP changes available for consent",
+                    );
                 }
+                install::install_for_clients_with_consent_mode(
+                    root,
+                    home,
+                    &fresh,
+                    install::InstallConsentMode::DeferToTui,
+                    enabled,
+                )
+            } else {
+                activation_run.start(ActivationStep::McpConsent);
+                let report =
+                    install::install_for_clients(root, home, &fresh, demand_interactive, enabled);
+                activation_run.complete(ActivationStep::McpConsent);
+                report
             }
-            Err(e) => {
-                // current_exe failed — verify_with_home will also report
-                // last_error, so we don't shadow that signal. Skip install
-                // entirely.
-                tracing::warn!(
-                    error = %e,
-                    "orchestrator: could not resolve current_exe; MCP install skipped",
-                );
-                activation_run.skip(
-                    ActivationStep::McpConsent,
-                    "could not resolve current_exe for MCP install",
-                );
-                InstallReport::default()
-            }
-        },
+        }
     };
     // CIB-164: carry the honest hook-coverage bool alongside the MCP report so
     // the render path claims L3/L4 only when the hooks are really installed.
@@ -2560,12 +2519,11 @@ verdict: completed"
         // must not re-offer mcp:codex, and must record a settled row.
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
-        let command = std::env::current_exe().unwrap();
         crate::commands::mcp_installer::install(
             AgentClientId::Codex,
             InstallScope::Global,
             home.path(),
-            &command.to_string_lossy(),
+            crate::activation::mcp_client::PREFERRED_MCP_COMMAND,
             false,
             false,
         )
@@ -3492,6 +3450,16 @@ verdict: completed"
         );
         assert!(home.path().join(".cursor/mcp.json").exists());
         assert!(home.path().join(".claude.json").exists());
+        let cursor_raw = std::fs::read_to_string(home.path().join(".cursor/mcp.json")).unwrap();
+        let cursor: serde_json::Value = serde_json::from_str(&cursor_raw).unwrap();
+        assert_eq!(
+            cursor["mcpServers"]["anvil"]["command"], "anvil",
+            "default managed install must write PATH-stable anvil, not current_exe"
+        );
+        assert!(
+            !cursor_raw.contains("Cellar"),
+            "default managed install must not pin a Cellar path: {cursor_raw}"
+        );
     }
 
     #[test]
@@ -3538,15 +3506,25 @@ verdict: completed"
         let cursor_tier = diag.mcp.get(&McpClientId::Cursor).map(|r| r.tier);
         let claude_tier = diag.mcp.get(&McpClientId::ClaudeCode).map(|r| r.tier);
 
-        assert_eq!(
-            cursor_tier,
-            Some(crate::activation::diagnostic::McpTier::RestartRequired),
-            "Cursor tier should advance to RestartRequired after install"
+        assert!(
+            matches!(
+                cursor_tier,
+                Some(
+                    crate::activation::diagnostic::McpTier::RestartRequired
+                        | crate::activation::diagnostic::McpTier::RestartHandshakeVerified
+                )
+            ),
+            "Cursor tier should advance to RestartRequired after install, got {cursor_tier:?}"
         );
-        assert_eq!(
-            claude_tier,
-            Some(crate::activation::diagnostic::McpTier::RestartRequired),
-            "Claude Code tier should advance to RestartRequired after install"
+        assert!(
+            matches!(
+                claude_tier,
+                Some(
+                    crate::activation::diagnostic::McpTier::RestartRequired
+                        | crate::activation::diagnostic::McpTier::RestartHandshakeVerified
+                )
+            ),
+            "Claude Code tier should advance to RestartRequired after install, got {claude_tier:?}"
         );
     }
 

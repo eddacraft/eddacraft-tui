@@ -101,7 +101,7 @@ pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
             args,
             global,
             &workspace,
-            command_override.unwrap_or("anvil"),
+            crate::activation::mcp_client::preferred_mcp_command(command_override),
         );
     }
 
@@ -380,7 +380,7 @@ fn validate_rust_stdio_entry(
         return Ok(());
     }
 
-    let expected_command = expected_command.unwrap_or("anvil");
+    let expected_command = crate::activation::mcp_client::preferred_mcp_command(expected_command);
 
     if global.json {
         eprintln!(
@@ -431,7 +431,7 @@ fn command_matches_expected(command: &str, expected_command: Option<&str>) -> bo
         return command == expected_command;
     }
 
-    command == "anvil"
+    command == crate::activation::mcp_client::PREFERRED_MCP_COMMAND
 }
 
 /// Build the editor-specific JSON value that goes on disk.
@@ -446,7 +446,7 @@ pub(crate) fn build_config(
     port: u16,
     command_override: Option<&str>,
 ) -> Value {
-    let command = command_override.unwrap_or("anvil");
+    let command = crate::activation::mcp_client::preferred_mcp_command(command_override);
     let entry = build_entry(target, transport, port, command);
     json!({
         "mcpServers": {

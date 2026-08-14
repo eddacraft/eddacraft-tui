@@ -964,6 +964,102 @@ mod tests {
     }
 
     #[test]
+    fn preferred_fresh_rewrites_cellar_owned_entry_to_anvil() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let cursor_path = home.path().join(".cursor/mcp.json");
+        fs::create_dir_all(cursor_path.parent().unwrap()).unwrap();
+        fs::write(
+            &cursor_path,
+            r#"{
+  "mcpServers": {
+    "anvil": {
+      "command": "/opt/homebrew/Cellar/anvil/0.9.2-beta/bin/anvil",
+      "args": ["mcp", "serve", "--stdio"]
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &AnvilEntry::preferred_stdio(),
+            false,
+            &all_enabled(),
+        );
+        match report_outcome(&report, McpClientId::Cursor) {
+            InstallOutcome::Installed {
+                drift: DriftClass::SafeDrift { .. },
+                ..
+            } => {}
+            other => panic!("expected Cellar SafeDrift rewrite, got {other:?}"),
+        }
+        let raw = fs::read_to_string(&cursor_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let cmd = v["mcpServers"]["anvil"]["command"].as_str().unwrap();
+        assert_eq!(cmd, "anvil");
+        assert!(
+            !raw.contains("Cellar"),
+            "rewritten entry must not keep a Cellar path: {raw}"
+        );
+    }
+
+    #[test]
+    fn ensure_existing_rewrites_cellar_path_to_preferred_anvil() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let cursor_path = home.path().join(".cursor/mcp.json");
+        fs::create_dir_all(cursor_path.parent().unwrap()).unwrap();
+        fs::write(
+            &cursor_path,
+            r#"{
+  "mcpServers": {
+    "anvil": {
+      "command": "/opt/homebrew/Cellar/anvil/0.9.2-beta/bin/anvil",
+      "args": ["mcp", "serve", "--stdio"]
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let summary = ensure_existing_mcp_entries(
+            ws.path(),
+            Some(home.path()),
+            &AnvilEntry::preferred_stdio(),
+        );
+        match summary.report.per_client.get(&McpClientId::Cursor) {
+            Some(InstallOutcome::Installed { .. }) => {}
+            other => panic!("expected ensure to rewrite Cellar entry, got {other:?}"),
+        }
+        let raw = fs::read_to_string(&cursor_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(v["mcpServers"]["anvil"]["command"], "anvil");
+    }
+
+    #[test]
+    fn preferred_fresh_writes_bare_anvil_not_absolute() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &AnvilEntry::preferred_stdio(),
+            false,
+            &all_enabled(),
+        );
+        assert!(matches!(
+            report_outcome(&report, McpClientId::Cursor),
+            InstallOutcome::Installed { .. }
+        ));
+        let raw = fs::read_to_string(home.path().join(".cursor/mcp.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(v["mcpServers"]["anvil"]["command"], "anvil");
+    }
+
+    #[test]
     fn fresh_repo_auto_installs_to_global_scope() {
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();

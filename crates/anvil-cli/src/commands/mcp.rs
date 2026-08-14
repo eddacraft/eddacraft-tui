@@ -98,7 +98,9 @@ fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
         bail!("--command must not be empty");
     }
 
-    let command = args.command.as_deref().map_or("anvil", str::trim);
+    let command = crate::activation::mcp_client::preferred_mcp_command(
+        args.command.as_deref().map(str::trim),
+    );
     let install = match mcp_installer::install(
         args.client,
         args.scope,
@@ -177,7 +179,9 @@ fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
 }
 
 fn run_vscode_profile_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
-    let command = args.command.as_deref().map_or("anvil", str::trim);
+    let command = crate::activation::mcp_client::preferred_mcp_command(
+        args.command.as_deref().map(str::trim),
+    );
     if command.is_empty() {
         bail!("--command must not be empty");
     }

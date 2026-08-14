@@ -2346,8 +2346,8 @@ fn install_first_wave_mcp_clients(
 ) -> anyhow::Result<Vec<String>> {
     let home = crate::util::user_home_dir();
     let project = std::env::current_dir().context("resolving project directory")?;
-    let command = std::env::current_exe().context("resolving anvil executable")?;
-    install_first_wave_mcp_clients_at(args, render_mode, home.as_deref(), &project, &command)
+    let command = Path::new(activation::mcp_client::preferred_mcp_command(None));
+    install_first_wave_mcp_clients_at(args, render_mode, home.as_deref(), &project, command)
 }
 
 fn install_first_wave_mcp_clients_at(
@@ -5727,13 +5727,13 @@ mod tests {
         args.mcp_scope = InstallScope::Project;
         args.mcp_client = vec![AgentClientId::ClaudeCode, AgentClientId::Cursor];
 
-        let command = std::env::current_exe().unwrap();
+        let command = Path::new(activation::mcp_client::PREFERRED_MCP_COMMAND);
         let lines = install_first_wave_mcp_clients_at(
             &args,
             StartRenderMode::Plain,
             Some(home.path()),
             project.path(),
-            &command,
+            command,
         )
         .unwrap();
 

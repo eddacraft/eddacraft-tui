@@ -91,19 +91,14 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     let mcp_line = if mcp_opt_out() {
         "mcp: skipped (`ANVIL_NO_MCP`)".to_string()
     } else {
-        match std::env::current_exe() {
-            Ok(exe) => {
-                let fresh = AnvilEntry::local_stdio(exe);
-                let home = util::user_home_dir();
-                let summary = ensure_existing_mcp_entries(root, home.as_deref(), &fresh);
-                format_mcp_line(
-                    &summary.report,
-                    summary.managed,
-                    summary.absent_for_recovery,
-                )
-            }
-            Err(err) => format!("mcp: could not resolve anvil executable ({err})"),
-        }
+        let fresh = AnvilEntry::preferred_stdio();
+        let home = util::user_home_dir();
+        let summary = ensure_existing_mcp_entries(root, home.as_deref(), &fresh);
+        format_mcp_line(
+            &summary.report,
+            summary.managed,
+            summary.absent_for_recovery,
+        )
     };
 
     // Final protection probe after ensure.

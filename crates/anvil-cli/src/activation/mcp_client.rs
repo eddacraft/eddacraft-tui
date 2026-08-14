@@ -17,8 +17,9 @@ pub mod cursor;
 pub enum AnvilEntry {
     /// Local stdio transport: editor spawns `anvil mcp serve --stdio`.
     Stdio {
-        /// Path to the anvil binary (typically `current_exe()` resolved
-        /// at orchestrator level).
+        /// Command written into the editor config. Managed installs use
+        /// the PATH-stable bare name [`PREFERRED_MCP_COMMAND`];
+        /// `--command` / `local_stdio` remain for explicit overrides.
         command: PathBuf,
         /// Arguments after the command — usually
         /// `["mcp", "serve", "--stdio"]`.
@@ -31,9 +32,25 @@ pub enum AnvilEntry {
     // RemoteHttp { url, auth } — reserved
 }
 
+/// PATH-stable command written into managed MCP entries (MCPLH-001 / spec §6).
+/// Never a Homebrew Cellar or other versioned absolute install path.
+pub(crate) const PREFERRED_MCP_COMMAND: &str = "anvil";
+
+/// Resolve the command string written into managed MCP entries.
+///
+/// An explicit `--command` / install-time override wins; otherwise the
+/// PATH-stable bare name [`PREFERRED_MCP_COMMAND`]. Never defaults to
+/// `current_exe()`.
+pub(crate) fn preferred_mcp_command(command_override: Option<&str>) -> &str {
+    command_override.unwrap_or(PREFERRED_MCP_COMMAND)
+}
+
 impl AnvilEntry {
-    /// Construct the canonical local-stdio entry for an anvil binary at
-    /// `command`. Used by the orchestrator after resolving `current_exe()`.
+    /// Construct a local-stdio entry for an explicit command path.
+    ///
+    /// Production managed install/ensure/start should use
+    /// [`Self::preferred_stdio`] so configs stay PATH-stable. Pass an
+    /// absolute path only for `--command` / side-by-side overrides.
     pub fn local_stdio(command: PathBuf) -> Self {
         Self::Stdio {
             command,
@@ -44,6 +61,11 @@ impl AnvilEntry {
             ],
             env: BTreeMap::new(),
         }
+    }
+
+    /// Canonical managed entry: PATH-stable `anvil mcp serve --stdio`.
+    pub fn preferred_stdio() -> Self {
+        Self::local_stdio(PathBuf::from(PREFERRED_MCP_COMMAND))
     }
 
     /// Transport tag for diagnostic JSON output.
@@ -498,17 +520,15 @@ pub(crate) fn looks_like_anvil(cmd: &str) -> bool {
     matches!(basename, "anvil" | "anvil.exe")
 }
 
-/// True if `existing` (the on-disk entry) is byte-equivalent to `fresh`
-/// (what we'd write), allowing for the bare `"anvil"`-vs-full-path
-/// equivalence the standalone `anvil mcp-config` CLI introduced.
+/// True if `existing` (the on-disk entry) is equivalent to `fresh`
+/// (what we'd write).
 ///
-/// Council finding (copilot): users who installed via `anvil mcp-config`
-/// have `"command": "anvil"` (bare, PATH-resolved). The probe builds
-/// fresh from `current_exe()` (full path). Strict byte equality reports
-/// these users as `ConfigPresent` not `RestartRequired`. Equivalence
-/// here treats bare-`anvil` as matching when fresh's basename is
-/// `anvil` / `anvil.exe`. `args`, `env`, and `type` (if present) must
-/// still match exactly.
+/// PATH-stable existing `"command": "anvil"` matches an anvil-shaped
+/// fresh command so a leftover `current_exe()` fresh cannot rewrite it
+/// back to a Cellar path. The converse is **not** equivalent: an
+/// absolute existing command vs preferred bare `anvil` is drift
+/// (MCPLH-001) and must be rewritten. `args`, `env`, and `type` (if
+/// present) must still match exactly.
 #[allow(dead_code)] // called by trait verify_config_tier / classify_drift impls
 pub(crate) fn entries_equivalent(existing: &serde_json::Value, fresh: &serde_json::Value) -> bool {
     let (Some(eo), Some(fo)) = (existing.as_object(), fresh.as_object()) else {
@@ -530,19 +550,16 @@ pub(crate) fn entries_equivalent(existing: &serde_json::Value, fresh: &serde_jso
     if ec == fc {
         return true;
     }
-    // If existing is bare `"anvil"` (or `"anvil.exe"`) and fresh's
-    // basename matches, treat as equivalent. Conversely, if fresh is
-    // bare and existing's basename matches. Cross-platform basename
-    // (split on both `/` and `\`) so a Windows-pathed existing entry
-    // probed from a Unix smoke test still resolves correctly.
+    // Cross-platform basename (split on both `/` and `\`) so a
+    // Windows-pathed existing entry probed from a Unix smoke test
+    // still resolves correctly.
     let e_basename = ec.rsplit(['/', '\\']).next().unwrap_or(ec);
     let f_basename = fc.rsplit(['/', '\\']).next().unwrap_or(fc);
     let e_is_bare = e_basename == ec;
-    let f_is_bare = f_basename == fc;
-    // Only equivalence when at least one side is bare and basenames
-    // match. Two full paths with the same basename but different
-    // prefixes are version drift, not equivalence.
-    if (e_is_bare || f_is_bare) && !e_basename.is_empty() && e_basename == f_basename {
+    // One-way: existing PATH-stable `anvil` matches any anvil-shaped
+    // fresh. Existing absolute/versioned paths vs preferred bare
+    // `anvil` stay non-equivalent so install/ensure rewrite them.
+    if e_is_bare && !e_basename.is_empty() && e_basename == f_basename {
         return true;
     }
     false
@@ -1355,10 +1372,31 @@ mod tests {
     }
 
     #[test]
-    fn entries_equivalent_recognises_bare_anvil_vs_full_path() {
-        // Council finding: `anvil mcp-config` writes `"command": "anvil"`
-        // (bare); the activation probe builds fresh from current_exe()
-        // (full path). Strict byte equality misclassifies these users.
+    fn preferred_mcp_command_defaults_to_bare_anvil() {
+        assert_eq!(preferred_mcp_command(None), "anvil");
+        assert_eq!(preferred_mcp_command(Some("anvil")), "anvil");
+        let preferred = AnvilEntry::preferred_stdio();
+        match preferred {
+            AnvilEntry::Stdio { command, args, env } => {
+                assert_eq!(command, std::path::PathBuf::from("anvil"));
+                assert_eq!(args, vec!["mcp", "serve", "--stdio"]);
+                assert!(env.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn preferred_mcp_command_honours_explicit_override() {
+        assert_eq!(
+            preferred_mcp_command(Some("/opt/side-by-side/anvil")),
+            "/opt/side-by-side/anvil"
+        );
+    }
+
+    #[test]
+    fn entries_equivalent_keeps_path_stable_existing_against_absolute_fresh() {
+        // Existing PATH-stable `anvil` must not be rewritten if a leftover
+        // caller still passes current_exe() / an absolute path as fresh.
         let bare_existing = serde_json::json!({
             "command": "anvil",
             "args": ["mcp", "serve", "--stdio"],
@@ -1370,7 +1408,28 @@ mod tests {
             "env": {},
         });
         assert!(entries_equivalent(&bare_existing, &full_fresh));
-        assert!(entries_equivalent(&full_fresh, &bare_existing));
+    }
+
+    #[test]
+    fn entries_equivalent_treats_cellar_path_as_drift_vs_preferred() {
+        let cellar_existing = serde_json::json!({
+            "command": "/opt/homebrew/Cellar/anvil/0.9.2-beta/bin/anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        let preferred = serde_json::json!({
+            "command": "anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        assert!(!entries_equivalent(&cellar_existing, &preferred));
+        match classify_drift_by_args(&cellar_existing, &AnvilEntry::preferred_stdio()) {
+            DriftClass::SafeDrift { reason } => {
+                assert!(reason.contains("Cellar"), "{reason}");
+                assert!(reason.contains("anvil"), "{reason}");
+            }
+            other => panic!("expected SafeDrift for Cellar vs preferred, got {other:?}"),
+        }
     }
 
     #[test]
