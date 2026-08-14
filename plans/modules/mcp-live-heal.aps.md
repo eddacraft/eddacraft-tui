@@ -73,15 +73,20 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-001: PATH-stable MCP install command
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Stop managed installers from pinning versioned absolute paths
   (e.g. Homebrew Cellar) so upgrades do not strand new and existing configs.
 - **Expected Outcome:** Default managed entries use `command: anvil` with args
   `mcp serve --stdio` (plus client type discriminators where required).
   Absolute/versioned paths are treated as drift and rewritten on install/refresh.
   `--command` remains for explicit side-by-side overrides.
-- **Files:** `crates/anvil-cli/src/commands/mcp_installer.rs`,
-  `crates/anvil-cli/src/commands/mcp_config.rs`, related install tests
+- **Files:** `crates/anvil-cli/src/activation/mcp_client.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/install.rs`,
+  `crates/anvil-cli/src/commands/mcp.rs`,
+  `crates/anvil-cli/src/commands/mcp_config.rs`,
+  `crates/anvil-cli/src/commands/ensure.rs`,
+  `crates/anvil-cli/tests/mcp_config.rs`,
+  `docs/architecture/activation-as-built.md`
 - **Validation:** `cargo test -p eddacraft-anvil -- mcp_install` (or the package
   test filter that covers install rewrite); fixture asserts default command is
   bare `anvil`, not a Cellar path
