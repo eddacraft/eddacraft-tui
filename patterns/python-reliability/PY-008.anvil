@@ -40,8 +40,14 @@ detection:
   # The gate consumes its one leading byte (same construct as PY-006's
   # `(^|[^.\w])print\s*\(`), so a non-start-of-line `compile` finding reports a
   # column one to the left; `column` is dropped by the JSON renderer and SARIF
-  # emits line-only, so only the miette caret sees it.
-  pattern: '(?:\b(?:eval|exec)|(?:^|[^A-Za-z0-9_.])compile)\s*\(\s*(?:\*|(?:[fF][rR]?|[rR][fF])[''"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_''"]|$))'
+  # emits line-only, so only the miette caret sees it. CIB-333 fixes the shift
+  # for both rules.
+  # The gate class MUST stay `[^.\w]` and not an ASCII spelling like
+  # `[^A-Za-z0-9_.]`: `\w` is Unicode-aware in Rust's regex, and Python 3
+  # allows Unicode identifiers (PEP 3131). With the ASCII class, the accented
+  # byte in `précompile(x, y, z)` satisfies "not an identifier char" and the
+  # rule false-fires on an unrelated function.
+  pattern: '(?:\b(?:eval|exec)|(?:^|[^.\w])compile)\s*\(\s*(?:\*|(?:[fF][rR]?|[rR][fF])[''"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_''"]|$))'
 
 related: [AP-008, PY-009]
 enabled: true
@@ -62,11 +68,17 @@ or unicode prefixed literal (`re.compile(r'^\d+$')`, `compile(rb"...", "<s>",
 "exec")`, `eval(u"1")`) does not fire. f-strings do fire in every prefix
 ordering (`f`, `rf`, `fr`) — they interpolate run-time values.
 
-Only unqualified `compile(...)` is the builtin, so a dotted receiver
-(`re.compile(pattern_var)`, `torch.compile(model)`, `self.compile(src)`) does
-not fire whatever the argument is. `eval` and `exec` have no such exemption:
-`df.eval(expr)` and `obj.exec(cmd)` still fire, because a method spelled `eval`
-or `exec` is a real execution surface.
+A dotted receiver written tight against the name — `re.compile(pattern_var)`,
+`torch.compile(model)`, `self.compile(src)` — is not the builtin `compile` and
+does not fire. `eval` and `exec` have no such exemption: `df.eval(expr)` and
+`obj.exec(cmd)` still fire, because a method spelled `eval` or `exec` is a real
+execution surface.
+
+That exemption is byte-level, not syntactic, and it cuts both ways. It does not
+recognise a receiver separated by spaces or a line break (`re . compile(x)`
+still fires), and it cannot tell `re.compile` from `builtins.compile` — so
+`builtins.compile(user_input, "<s>", "exec")`, which really is the builtin
+reached through its module, is silently exempt. Review that shape by hand.
 
 A literal first argument is **not** proof the call is safe: the rule reads only
 the first token after `(` on a single line, so a formatted or concatenated

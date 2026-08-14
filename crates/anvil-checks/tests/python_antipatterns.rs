@@ -556,15 +556,44 @@ fn py008_unqualified_compile_and_attribute_eval_exec_still_fire() {
         );
     }
 
-    // `^` in the receiver gate is a per-line anchor, not a per-file one: the
-    // scanner runs the regex line by line. Asserting only on line 1 (where the
-    // two anchors coincide) would pass even if the rule silently degraded to
-    // matching the first line of a file.
+    // An unqualified `compile` below line 1 still fires. Note this does NOT
+    // discriminate a per-line `^` from a per-file one — under whole-file
+    // matching the gate's `[^.\w]` arm would consume the preceding newline and
+    // match anyway. The per-line property comes from the scanner iterating
+    // lines (`scanner.rs`, the `for line_index in 0..rule_lines.len()` loop);
+    // this case only guards against the gate rejecting a leading-token
+    // `compile` that is not at the start of the file.
     assert!(fires(
         "src/app.py",
         "import dis\ncompile(src, '<str>', 'exec')\n",
         "PY-008"
     ));
+}
+
+/// The receiver gate must exclude Unicode identifier characters, not just
+/// ASCII ones. Python 3 allows Unicode identifiers (PEP 3131), so an ASCII
+/// spelling of the gate class (`[^A-Za-z0-9_.]`) treats the accented byte in
+/// `précompile` as "not an identifier char" and false-fires on an unrelated
+/// function. `\w` is Unicode-aware in Rust's regex, which is why the gate is
+/// spelled `[^.\w]` — the same class PY-006 uses.
+///
+/// Found by independent verification of CIB-332: these fired on the first cut
+/// of the gate and are clean on `main`, i.e. it was a new false positive
+/// introduced by a false-positive fix.
+#[test]
+fn py008_receiver_gate_does_not_false_fire_on_unicode_identifiers() {
+    for src in [
+        "précompile(x, y, z)\n",
+        "Ωcompile(x, y, z)\n",
+        "naïve_compile(src)\n",
+    ] {
+        assert!(
+            !fires("src/app.py", src, "PY-008"),
+            "a Unicode-named function is not the builtin `compile`: {src:?}"
+        );
+    }
+    // ...while the dynamic-argument arm still handles Unicode identifiers.
+    assert!(fires("src/app.py", "eval(naïve_input)\n", "PY-008"));
 }
 
 #[test]
