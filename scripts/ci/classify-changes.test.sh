@@ -227,6 +227,19 @@ assert_json_contains "${patterns}" '.requiredChecks | index("unit-tests")' 'patt
 patterns_compiler=$(run_case patterns-compiler packages/anvil/core/scripts/compile-patterns.ts)
 assert_json_contains "${patterns_compiler}" '.requiredChecks | index("unit-tests")' 'pattern compiler requires unit tests (CIB-335 parity gate)'
 
+# The two assertions above pin the *routing* — that a parity-breaking change
+# still demands `unit-tests`. They say nothing about whether the gate is still
+# *invoked*. Pin the step's presence too, so deleting it fails a fixture rather
+# than quietly leaving a green build with no parity check. Verification of
+# CIB-335 raised this: routing and invocation are separate failure modes.
+ci_workflow="${repo_root:-$(git rev-parse --show-toplevel)}/.github/workflows/ci.yml"
+if ! grep -Fq 'pnpm --filter @eddacraft/anvil-core patterns:check' "${ci_workflow}"; then
+  echo "FAIL: ci.yml no longer invokes the compiled-registry parity gate (CIB-335)" >&2
+  echo "      expected a step running 'pnpm --filter @eddacraft/anvil-core patterns:check'" >&2
+  exit 1
+fi
+echo "ok: ci.yml invokes the compiled-registry parity gate (CIB-335)"
+
 empty=$(run_case empty)
 assert_json_contains "${empty}" '.pathClasses == []' 'empty path set has no path classes'
 assert_json_contains "${empty}" '.warnings == ["no-changed-paths"]' 'empty path set warns no changed paths'
