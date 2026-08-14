@@ -517,7 +517,7 @@ Change status to **Ready** when:
 
 #### UCFG-016: doctor TTY offers migrate / remove leftover config
 
-- **Status:** In Progress
+- **Status:** In Progress (PR #3898)
 - **Intent:** Interactive `anvil doctor` (TTY, not `--json`) offers to migrate
   or remove leftover dual-config / gate-config / unrecorded architecture
   states. Non-TTY stays warn-only. Problem states only — a single healthy
