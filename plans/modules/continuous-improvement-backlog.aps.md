@@ -10060,8 +10060,8 @@ RETEST-2). Do not re-file those.
 - **Status:** In Progress via PR
   [#3889](https://github.com/eddacraft/anvil-001/pull/3889) (open,
   2026-08-14). Operator-authorised 2026-08-14 from the #3880 council review
-- **Priority:** P1 — ERROR, blocks commits; the remaining half of the
-  false-positive class CIB-322 was filed for
+- **Priority:** P1 — ERROR, blocks commits. CIB-322 was filed against this
+  false-positive class; this is the half of it that PR #3880 did not close
 - **Intent:** CIB-322 fixed the inline prefixed-literal shape
   (`re.compile(r'^\d+$')`) but not the far more common named-constant
   idiom: define a regex as a module constant, then `re.compile(DATE_RE)`.
