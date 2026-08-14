@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 269/330  |
+| CIB | —     | In Progress | 270/330  |
 
 ## Purpose
 
@@ -10192,7 +10192,17 @@ RETEST-2). Do not re-file those.
 
 ### CIB-335: Compiled-registry parity has no working CI gate
 
-- **Status:** Ready
+- **Status:** Merged via PR
+  [#3892](https://github.com/eddacraft/anvil-001/pull/3892) (merged
+  2026-08-14, rebase — ancestor of `main` verified by content, not SHA). Not
+  yet in a tagged release. Filed and delivered the same day; the entry was
+  written as `Ready` before the implementation PR opened and this reconcile
+  corrects it. Landed with two review fixes beyond the filed scope: the drift
+  walker threw a raw `TypeError` on a registry that was valid JSON but not an
+  object (it still failed closed), and the stale-registry header counted the
+  reported lines rather than the differences, so a wholesale regeneration
+  always claimed the display cap. A fixture now pins that `ci.yml` still
+  *invokes* the gate, not merely that the classifier routes to it
 - **Priority:** P2 — no live defect, but `patterns/compiled/registry.json` is
   a trust boundary with nothing guarding it
 - **Intent:** `registry.json` is what the Rust scanner actually enforces —
