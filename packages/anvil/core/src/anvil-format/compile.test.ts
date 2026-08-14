@@ -317,4 +317,66 @@ describe('compilePatterns — failure modes (synthetic tree)', () => {
     expect(registry!.patterns[0]?.explanation).toBe('rule-specific harm about eval/exec/compile');
     expect(registry!.patterns[0]?.nudge).toBe('nudge body');
   });
+
+  // CHARACTERISATION, not desired behaviour. `extractSections` trims the
+  // preamble, so a rule body that opens with an H2 yields `preamble === ''`,
+  // the `preamble.length > 0` guard fails, and `nudge` falls back to the raw
+  // body — leaking literal `##` markdown into the inline nudge a developer
+  // sees on a finding. Nothing validates this: the compiler emits no error and
+  // `CompiledPatternSchema.nudge` is only `z.string().min(1)`.
+  //
+  // No shipped rule triggers it today (PY-008, the only rule using the
+  // override, has a three-paragraph preamble). Pinned here so the fix has a
+  // RED to flip — when the compiler learns to error on an empty preamble, or
+  // strips the heading, this test must be rewritten to assert that instead.
+  it('currently leaks raw ## markdown into nudge when a rule body has no preamble', async () => {
+    const root = path.join(tmp, 'no-preamble');
+    await writeAnvil('no-preamble/fam-x/definition.anvil', DEFINITION);
+    const headingFirst = [
+      '---',
+      'id: FX-001',
+      'type: rule',
+      'family: fam-x',
+      'title: t',
+      'version: 1',
+      'severity: warning',
+      'confidence: high',
+      'spectrum_position: 2',
+      'targets: [source]',
+      "detection: { type: regex, pattern: 'x' }",
+      '---',
+      '',
+      "## Why It's Harmful",
+      'rule-specific harm with no preamble above it',
+      '',
+    ].join('\n');
+    await writeAnvil('no-preamble/fam-x/FX-001.anvil', headingFirst);
+
+    const { registry, errors } = await compilePatterns({ patternsDir: root });
+    expect(errors).toEqual([]);
+    // The override still resolves...
+    expect(registry!.patterns[0]?.explanation).toBe('rule-specific harm with no preamble above it');
+    // ...but the nudge is the raw body, heading syntax and all.
+    expect(registry!.patterns[0]?.nudge).toContain("## Why It's Harmful");
+  });
+
+  // A rule-body H2 that is not the recognised override heading is parsed into
+  // `sections` and then read by nobody: `getExplanation` matches only
+  // "why it's harmful", so `ruleExplanation` is empty and the family
+  // explanation is used, while the section body is dropped from `nudge` too.
+  // Silent content loss with no compiler error — pinned for the same reason.
+  it('currently discards an unrecognised rule-body H2 with no error', async () => {
+    const root = path.join(tmp, 'stray-heading');
+    await writeAnvil('stray-heading/fam-x/definition.anvil', DEFINITION);
+    const strayHeading = [RULE, '', '## Security Impact', 'content that vanishes', ''].join('\n');
+    await writeAnvil('stray-heading/fam-x/FX-001.anvil', strayHeading);
+
+    const { registry, errors } = await compilePatterns({ patternsDir: root });
+    expect(errors).toEqual([]);
+    expect(registry!.patterns[0]?.nudge).toBe('nudge body');
+    // Falls back to the family explanation; the H2 body is nowhere.
+    expect(registry!.patterns[0]?.explanation).toBe('harm');
+    expect(registry!.patterns[0]?.nudge).not.toContain('content that vanishes');
+    expect(registry!.patterns[0]?.explanation).not.toContain('content that vanishes');
+  });
 });

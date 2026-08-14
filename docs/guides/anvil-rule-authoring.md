@@ -87,12 +87,19 @@ enabled: true
 opt_in: false
 ---
 
-Narrative markdown body. Two paragraphs max:
+Narrative markdown body. Keep it short — everything above the first `##`
+heading becomes the `nudge`:
 
-1. **What to do instead** — concrete, short, action-focused. This is what
-   becomes the `nudge` surfaced to the author / reviewer.
+1. **What to do instead** — concrete, short, action-focused.
 2. **Why it matters** — the reasoning, for humans and AI reviewers who
    navigate from the warning to the family definition.
+
+Optionally, a rule-level explanation that replaces the family's:
+
+## Why It's Harmful
+
+Why this specific rule matters, when the family definition's explanation
+is too broad to be useful here.
 ```
 
 ### Fields
@@ -122,9 +129,34 @@ Narrative markdown body. Two paragraphs max:
 ### Body
 
 The markdown body is the _rich definition_ — what a reviewer should read when
-they want to understand the rule beyond the one-line title. The first short
-paragraph becomes the inline `nudge`. Keep it action-oriented: "Use X instead of
-Y", not "this is bad".
+they want to understand the rule beyond the one-line title. Keep it
+action-oriented: "Use X instead of Y", not "this is bad".
+
+The compiler splits the body on H2 (`##`) headings:
+
+- **Everything before the first H2 becomes the `nudge`** — the inline text shown
+  on a finding. It is the whole preamble, not just the first paragraph; several
+  short paragraphs are fine.
+- **`## Why It's Harmful` overrides the family-level `explanation`** for this
+  rule only. Use it when the family definition's explanation does not fit — a
+  mixed-topic family such as `python-reliability` covers suppression comments,
+  bare `except:`, wildcard imports and `eval()`, so its family explanation is
+  boilerplate for any one of them. Without the override, a rule inherits the
+  family text verbatim.
+- **Any other H2 is silently discarded.** It is parsed, then read by nothing: it
+  does not reach `nudge`, `explanation`, or any other compiled field, and the
+  compiler emits no error. Do not put content you need under `## Examples`,
+  `## References`, or similar in a _rule_ body — only family `definition.anvil`
+  files have a required-section contract.
+- **Do not start a rule body with an H2.** With no preamble the `nudge` falls
+  back to the entire raw body, so literal `##` markdown leaks into the inline
+  text a developer sees on a finding. Always write the nudge paragraphs first.
+
+The last two behaviours are characterised by tests in
+`packages/anvil/core/src/anvil-format/compile.test.ts` and are pinned as
+current-behaviour, not desired-behaviour — CIB-334 covers making the compiler
+reject an unrecognised or leading rule-body H2 instead of dropping content
+silently.
 
 ### Example: AI-001 reasoning rule
 
