@@ -69,7 +69,8 @@ if [ ! -f "$license_file" ]; then
   echo "fail scenario 1c: LICENSE is missing at $license_file" >&2
   exit 1
 fi
-if ! grep -q 'Apache License' "$license_file" || ! grep -q 'Version 2.0' "$license_file"; then
+if ! grep -qF 'Apache License' "$license_file" ||
+  ! grep -qF 'http://www.apache.org/licenses/LICENSE-2.0' "$license_file"; then
   echo "fail scenario 1c: LICENSE does not look like Apache-2.0" >&2
   exit 1
 fi
