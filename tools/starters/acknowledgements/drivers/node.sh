@@ -60,12 +60,6 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "drivers/node.sh: jq not installed (required to parse the block-config-json argument)" >&2
   exit 1
 fi
-if ! command -v license-checker >/dev/null 2>&1; then
-  echo "drivers/node.sh: license-checker not installed. Install via npm:" >&2
-  echo "  npm install --save-dev license-checker" >&2
-  echo "  # or globally: npm install -g license-checker" >&2
-  exit 1
-fi
 
 if [ ! -f "$manifest_path" ]; then
   echo "drivers/node.sh: manifest_path does not exist: $manifest_path" >&2
@@ -99,6 +93,43 @@ if [ -z "$found_nm" ]; then
   exit 1
 fi
 
+# Prefer the project-local binary. A documented `npm install --save-dev
+# license-checker` puts it in node_modules/.bin, which is not on PATH
+# when the adopter runs the generator directly.
+license_checker=""
+nm_search="$manifest_dir"
+while [ "$nm_search" != "/" ]; do
+  if [ -x "$nm_search/node_modules/.bin/license-checker" ]; then
+    license_checker="$nm_search/node_modules/.bin/license-checker"
+    break
+  fi
+  nm_search="$(dirname "$nm_search")"
+done
+if [ -z "$license_checker" ]; then
+  license_checker="$(command -v license-checker 2>/dev/null || true)"
+fi
+if [ -z "$license_checker" ]; then
+  echo "drivers/node.sh: license-checker not installed." >&2
+  echo "  install it next to the manifest (preferred):" >&2
+  echo "    npm install --save-dev license-checker" >&2
+  echo "  the driver looks in node_modules/.bin walking up from $manifest_dir," >&2
+  echo "  then on PATH. A global install also works: npm install -g license-checker" >&2
+  exit 1
+fi
+
+pkg_name="$(jq -er '.name // empty' "$manifest_path")" || pkg_name=""
+pkg_version="$(jq -er '.version // empty' "$manifest_path")" || pkg_version=""
+if [ -z "$pkg_name" ] || [ -z "$pkg_version" ]; then
+  echo "drivers/node.sh: $manifest_path is missing name or version; cannot exclude the consumer package" >&2
+  exit 1
+fi
+self_exclude="$pkg_name@$pkg_version"
+if [ -n "$exclude" ]; then
+  exclude="$self_exclude;$exclude"
+else
+  exclude="$self_exclude"
+fi
+
 # ── Read allow-list (one semicolon-joined SPDX line) ─────────────────
 # `licences.node-allow.txt` carries comment lines (#...) outside the
 # markers + the marker lines themselves + one data line between the
@@ -127,7 +158,7 @@ fi
 # to the error report.
 strict_err="$(mktemp)"
 trap 'rm -f "$strict_err"' EXIT
-if ! license-checker "${lc_args[@]}" --onlyAllow "$allow_line" >/dev/null 2>"$strict_err"; then
+if ! "$license_checker" "${lc_args[@]}" --onlyAllow "$allow_line" >/dev/null 2>"$strict_err"; then
   echo "drivers/node.sh: license-checker --onlyAllow rejected one or more dependencies." >&2
   echo "  allow-list (from $node_allow_path):" >&2
   echo "    $allow_line" >&2
@@ -148,7 +179,7 @@ fi
 # name, licence expression, or repository URL carrying one cannot break
 # the markdown table — the same guarantee drivers/bundled-binaries.sh
 # already gives its hand-curated values.
-license-checker "${lc_args[@]}" --json | jq -r '
+"$license_checker" "${lc_args[@]}" --json | jq -r '
   def cell: tostring | gsub("\\|"; "\\|");
   to_entries
   | sort_by(.key)

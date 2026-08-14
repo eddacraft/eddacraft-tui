@@ -436,5 +436,33 @@ if ! grep -q "Bogus-8.8" <<<"$output_s7"; then
 fi
 echo "ok scenario 7: hand-edit inside Python markers → --check detects drift"
 
+# --- Scenario 8: Node-only consumer, no Rust files --------------------------
+node_only="$fixture_dir/node-only"
+mkdir -p "$node_only"
+cat >"$node_only/licences.toml" <<'EOF'
+[[licences]]
+spdx = "MIT"
+about = true
+deny = true
+EOF
+cat >"$node_only/licences.node-allow.txt" <<'EOF'
+# BEGIN AUTO-GENERATED FROM licences.toml — node-allow
+# END AUTO-GENERATED FROM licences.toml — node-allow
+EOF
+if ! (cd "$node_only" && "$EXPANDER") >/dev/null; then
+  echo "FAIL scenario 8: expander refused a Node-only tree (no about.toml/deny.toml)" >&2
+  (cd "$node_only" && "$EXPANDER") >&2 || true
+  exit 1
+fi
+if ! grep -q 'MIT' "$node_only/licences.node-allow.txt"; then
+  echo "FAIL scenario 8: Node-only expand did not write MIT into the allow file" >&2
+  exit 1
+fi
+if ! (cd "$node_only" && "$EXPANDER" --check) >/dev/null; then
+  echo "FAIL scenario 8: Node-only --check failed after a clean expand" >&2
+  exit 1
+fi
+echo "ok scenario 8: Node-only tree (no about.toml/deny.toml) expands and checks"
+
 echo ""
-echo "Drift test passed: all seven scenarios green."
+echo "Drift test passed: all eight scenarios green."

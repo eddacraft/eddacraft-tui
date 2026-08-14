@@ -21,6 +21,36 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 - **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
+## [1.2.1] - 2026-08-14
+
+The documented first-copy path for a Node-only consumer now works. The generator
+core in 1.2.0 was fine; the templates, expander, Node driver lookup, and CI
+snippet were not.
+
+### Fixed
+
+- **Copying the shipped template and example config is no longer an immediate
+  orphan error.** The acknowledgements template uses `{{BLOCK_NAME}}` in the
+  marker pair. Replace it with the block `name`.
+- **A Node-only repo can populate its allow-list.** The kit ships
+  `licences.toml.template`. The expander no longer requires `about.toml` or
+  `deny.toml`.
+- **`license-checker` installed as a devDependency is found.** The Node driver
+  walks `node_modules/.bin` from the manifest. You do not need it on `PATH`.
+- **A published package is not attributed to itself.** The driver always
+  excludes the manifest's own `name@version`.
+
+### Changed
+
+- `ci-freshness.yml.snippet` is a generator `--check` job with commented
+  per-ecosystem setup. It no longer installs cargo-about or runs a Rust fixture.
+
+### Documentation
+
+- The adoption checklist covers Node-only bootstrap, `{{BLOCK_NAME}}`, and
+  putting `ACKNOWLEDGEMENTS.md` in `package.json` `"files"` so `npm pack`
+  includes it.
+
 ## [1.2.0] - 2026-08-14
 
 Reproduces every distinct copyright notice instead of one per licence family.

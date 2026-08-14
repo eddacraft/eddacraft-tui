@@ -70,9 +70,9 @@ echo 'module.exports = "fake-b";' >"$project/packages/fake-b/index.js"
 cat >"$project/package.json" <<'EOF'
 {
   "name": "attrib-node-fixture",
-  "version": "0.0.0",
-  "private": true,
-  "license": "UNLICENSED",
+  "version": "0.3.0",
+  "private": false,
+  "license": "MIT",
   "dependencies": {
     "fake-a": "file:./packages/fake-a",
     "fake-b": "file:./packages/fake-b"
@@ -117,10 +117,8 @@ if ! ( cd "$project" && npm install --no-audit --no-fund --prefer-offline >/dev/
   exit 0
 fi
 
-# Surface the fixture's installed license-checker binary on PATH so
-# the driver's preflight + invocation finds it without the user
-# needing a global install.
-export PATH="$project/node_modules/.bin:$PATH"
+# Do not put node_modules/.bin on PATH. The driver must find
+# license-checker itself (ATTRIB-029).
 
 # ── Run 1: write ──────────────────────────────────────────────────────
 ( cd "$project" && "$GENERATOR" --config attribution.toml ) || {
@@ -145,6 +143,10 @@ if ! printf '%s' "$block_body" | grep -qE 'fake-a.*1\.0\.0.*MIT'; then
 fi
 if ! printf '%s' "$block_body" | grep -qE 'fake-b.*2\.0\.0.*Apache-2\.0'; then
   echo "fail: rendered block missing fake-b/2.0.0/Apache-2.0 row (body: $block_body)" >&2
+  exit 1
+fi
+if printf '%s' "$block_body" | grep -q 'attrib-node-fixture'; then
+  echo "fail: consumer package was attributed to itself (body: $block_body)" >&2
   exit 1
 fi
 

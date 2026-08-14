@@ -1,41 +1,43 @@
-# Drop this job into a GitHub Actions workflow (e.g. .github/workflows/rust.yml)
-# to fail CI when ACKNOWLEDGEMENTS.md drifts from `Cargo.lock`. Pin the
-# cargo-about version via an env var or repo-level workflow variable so
-# regenerations are reproducible.
+# Drop this job into a GitHub Actions workflow to fail CI when
+# ACKNOWLEDGEMENTS.md drifts. Uncomment only the setup for ecosystems
+# you actually declare in attribution.toml.
 #
-# SECURITY: The action references below use floating tags (@v6, @v1, @v2)
+# SECURITY: The action references below use floating tags (@v4, @v6)
 # for readability. Before using this snippet in a real workflow, replace
-# every `@<tag>` with the corresponding full commit SHA so the action
-# tree is supply-chain-safe (matches anvil's own convention; see e.g.
-# .github/workflows/rust.yml). Floating tags can be silently moved by
-# the action publisher and are not safe for production CI.
+# every `@<tag>` with the corresponding full commit SHA.
 
 acknowledgements-diff:
   name: Acknowledgements freshness
   runs-on: ubuntu-latest
   steps:
     - uses: actions/checkout@v6 # pin to commit SHA before merging
-    - uses: actions-rust-lang/setup-rust-toolchain@v1 # pin to commit SHA before merging
-    - name: Install cargo-about
-      uses: taiki-e/install-action@v2 # pin to commit SHA before merging
-      with:
-        tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
-    - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
+
+    # Node block: uncomment the next two steps.
+    # - uses: actions/setup-node@v4 # pin to commit SHA before merging
+    #   with:
+    #     node-version: '20'
+    # - run: npm ci
+
+    # Rust block: uncomment the next two steps.
+    # - uses: actions-rust-lang/setup-rust-toolchain@v1 # pin to commit SHA before merging
+    # - uses: taiki-e/install-action@v2 # pin to commit SHA before merging
+    #   with:
+    #     tool: cargo-about@0.8.4
+
+    # Go block: uncomment and put go-licenses on PATH.
+    # - uses: actions/setup-go@v5 # pin to commit SHA before merging
+    # - run: go install github.com/google/go-licenses@v1.6.0
+
+    # Python block: the driver uses the consumer-supplied venv.
+    # - uses: actions/setup-python@v5 # pin to commit SHA before merging
+
+    - name: Acknowledgements freshness
       run: |
         if ! tools/starters/acknowledgements/generate-acknowledgements.sh --check; then
           echo "::error::ACKNOWLEDGEMENTS.md is stale. Re-run the generator locally and commit."
           exit 1
         fi
-    # Regression guard: standalone fixture test that pins
-    # cargo-about's strict mode (`--fail`). Runs alongside the freshness
-    # check; cheap (sub-second) and self-contained.
-    - name: Strict license-field regression test
-      run: tools/starters/acknowledgements/tests/strict-license-field.sh
-    # Drift between licences.toml and the two consumer
-    # files (about.toml.accepted, deny.toml.[licenses].allow) fails CI.
-    - name: Licences single-source drift check
-      run: tools/starters/acknowledgements/expand-licences.sh --check
-    # Regression guard: prove the drift detector itself
-    # still detects drift in three scenarios.
-    - name: Licences drift detector self-test
-      run: tools/starters/acknowledgements/tests/licences-drift.sh
+
+    # If you keep licences.toml, uncomment:
+    # - name: Licences single-source drift check
+    #   run: tools/starters/acknowledgements/expand-licences.sh --check

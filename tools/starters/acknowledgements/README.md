@@ -35,7 +35,8 @@ and edit one file (`attribution.toml`). No script edits are required.
 | `licences.node-allow.txt.template`   | Marker scaffolding for the Node driver's allow-list file                                     |
 | `licences.go-allow.txt.template`     | Marker scaffolding for the Go driver's allow-list file                                       |
 | `licences.python-allow.txt.template` | Marker scaffolding for the Python driver's allow-list file                                   |
-| `ACKNOWLEDGEMENTS.md.template`       | Bootstrap target file with markers in place                                                  |
+| `ACKNOWLEDGEMENTS.md.template`       | Bootstrap target file with `{{BLOCK_NAME}}` markers                                          |
+| `licences.toml.template`             | Canonical allow-list; expand into each driver's consumer file                                |
 | `ci-freshness.yml.snippet`           | GitHub Actions freshness-gate job                                                            |
 | `tests/`                             | Self-tests pinning the kit's invariants                                                      |
 | `LICENSE`                            | Apache License 2.0 grant for this kit                                                        |
@@ -62,30 +63,41 @@ and edit one file (`attribution.toml`). No script edits are required.
    ```bash
    cp tools/starters/acknowledgements/attribution.toml.example attribution.toml
    cp tools/starters/acknowledgements/ACKNOWLEDGEMENTS.md.template ACKNOWLEDGEMENTS.md
+   cp tools/starters/acknowledgements/licences.toml.template licences.toml
    ```
 
-   Then copy the per-driver config for each ecosystem you ship. For Rust:
+   Then copy the per-driver config for each ecosystem you ship. For Node:
+
+   ```bash
+   cp tools/starters/acknowledgements/licences.node-allow.txt.template \
+     licences.node-allow.txt
+   ```
+
+   For Rust:
 
    ```bash
    cp tools/starters/acknowledgements/about.toml.template about.toml
    cp tools/starters/acknowledgements/about.hbs.template about.hbs
    ```
 
-   The Node, Go, and Python drivers use allow-list files
-   (`licences.<eco>-allow.txt.template`) instead; the bundled-binaries driver
-   uses `bundled-binaries.toml.example`. See the per-driver block reference
-   below for the files each ecosystem needs.
+   The Go and Python drivers use `licences.<eco>-allow.txt.template`; the
+   bundled-binaries driver uses `bundled-binaries.toml.example`.
 
 3. Edit `attribution.toml`: declare one `[[blocks]]` entry per ecosystem you
-   ship, pointing each block at the manifest it attributes (a Rust block's
-   `manifest_path` at the shipping binary's `Cargo.toml` — usually
-   `crates/your-cli/Cargo.toml` rather than the workspace root, so dev-only deps
-   stay out — a Node block's at its `package.json`, and so on). The per-driver
-   reference lists each driver's keys.
+   ship. For Node-only, comment out the rust example and uncomment the
+   `name = "node"` stanza. Then replace `{{BLOCK_NAME}}` in
+   `ACKNOWLEDGEMENTS.md` with that same name (`node`, `rust`, …). Named blocks
+   use suffixed markers (`<!-- BEGIN AUTO-GENERATED node -->`); the unsuffixed
+   pair is only for the legacy flat `[rust]` shim.
 
-4. Tune each declared driver's licence policy — e.g. `about.toml`'s `accepted`
-   list and `targets` for Rust, or the allow-list files for Node, Go, and
-   Python.
+4. Populate the allow-list. Edit `licences.toml`, then:
+
+   ```bash
+   tools/starters/acknowledgements/expand-licences.sh
+   ```
+
+   Node-only repos do not need `about.toml` or `deny.toml`. The expander writes
+   only the consumer files that exist beside `licences.toml`.
 
 5. Generate:
 
@@ -93,7 +105,16 @@ and edit one file (`attribution.toml`). No script edits are required.
    tools/starters/acknowledgements/generate-acknowledgements.sh
    ```
 
-6. Wire CI: drop `ci-freshness.yml.snippet` into your existing workflow.
+   For Node, install `license-checker` as a devDependency first. The driver
+   finds `node_modules/.bin/license-checker` itself; you do not need it on
+   `PATH`.
+
+6. Ship the notice. Put `ACKNOWLEDGEMENTS.md` in the artefact you redistribute —
+   for npm, add it to `package.json` `"files"` (or stop ignoring it) so
+   `npm pack` includes it.
+
+7. Wire CI: drop `ci-freshness.yml.snippet` into your existing workflow.
+   Uncomment only the setup steps for ecosystems you actually declare.
 
 ## Customising `ACKNOWLEDGEMENTS.md`
 
@@ -115,6 +136,7 @@ author left for you to fill in.
 | `{{GENERATOR_TOOL_URL}}`    | Upstream URL for the tool you use, e.g. `https://github.com/EmbarkStudios/cargo-about` or `https://github.com/davglass/license-checker` |
 | `{{LOCKFILE_NAME}}`         | The lockfile the attribution derives from, e.g. `Cargo.lock`, `pnpm-lock.yaml`, `go.sum`, or `requirements.txt`                         |
 | `{{GENERATOR_SCRIPT_PATH}}` | Path to the generator script as it appears in your repo, e.g. `tools/starters/acknowledgements/generate-acknowledgements.sh`            |
+| `{{BLOCK_NAME}}`            | The block `name` from `attribution.toml`. Becomes the marker suffix (`<!-- BEGIN AUTO-GENERATED node -->`).                             |
 
 A one-shot `sed` works for most of these. This Rust example can be adapted to
 whichever driver owns your generated block:
@@ -158,11 +180,12 @@ Two things in the template are load-bearing for the generator:
 1. The marker pair at the bottom:
 
    ```markdown
-   <!-- BEGIN AUTO-GENERATED -->
-   <!-- END AUTO-GENERATED -->
+   <!-- BEGIN AUTO-GENERATED {{BLOCK_NAME}} -->
+   <!-- END AUTO-GENERATED {{BLOCK_NAME}} -->
    ```
 
-   Each must appear **exactly once** on a line of its own. If you customise the
+   Replace `{{BLOCK_NAME}}` with the block `name` (`node`, `rust`, …). Each pair
+   must appear **exactly once** on a line of its own. If you customise the
    marker text via `[project].marker_begin` / `marker_end` in
    `attribution.toml`, update both the template and the config together.
 
@@ -191,17 +214,17 @@ and any downstream consumer of the output rely on every rule below.
 ### Marker syntax
 
 The target markdown file must contain **exactly one** BEGIN marker and **exactly
-one** END marker, on lines of their own:
+one** END marker per declared block, on lines of their own. Named blocks suffix
+the default text with the block `name`:
 
 ```markdown
-<!-- BEGIN AUTO-GENERATED -->
-<!-- END AUTO-GENERATED -->
+<!-- BEGIN AUTO-GENERATED node -->
+<!-- END AUTO-GENERATED node -->
 ```
 
-The default markers are HTML comments so the file remains valid markdown and the
-markers don't render in viewers. Marker text is overridable per project via
-`[project].marker_begin` / `[project].marker_end` in `attribution.toml` (e.g.
-for projects that grow multi-block markers).
+The unsuffixed pair (`<!-- BEGIN AUTO-GENERATED -->`) is only for the legacy
+flat `[rust]` shim. Marker text is overridable per project via
+`[project].marker_begin` / `[project].marker_end` in `attribution.toml`.
 
 The generator matches markers via literal substring containment, not regex, so
 the marker text need not be regex-safe.
@@ -450,15 +473,16 @@ Strict-licence gate: `license-checker --onlyAllow "<semi-joined SPDX list>"`
 runs before render; one disallowed dep exits non-zero, names the offending
 package@version in stderr, and leaves the on-disk target byte-identical.
 
-`--excludePrivatePackages` is always-on, so the consumer's own package and any
-internal `@workspace/*` packages marked `"private": true` stay out of the
-rendered block automatically.
+The driver always excludes the manifest's own `name@version`, so a published
+package is not attributed to itself. `--excludePrivatePackages` is also
+always-on: workspace packages marked `"private": true` stay out. Use `exclude`
+only for extra hoisted internals, not for the consumer package.
 
-The driver requires `license-checker` on `PATH`. Install per-project:
+The driver looks for `license-checker` in `node_modules/.bin` walking up from
+the manifest, then on `PATH`. Install per-project:
 
 ```bash
 npm install --save-dev license-checker
-# or globally: npm install -g license-checker
 ```
 
 ### `ecosystem = "go"`

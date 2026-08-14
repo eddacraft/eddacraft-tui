@@ -7,7 +7,13 @@
 | ------ | ---------- | ----------- |
 | ATTRIB | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-08-03 — opened from a full read-through of the shipped
+**Last reviewed:** 2026-08-14 — Node cold-adopt of shipped `v1.2.0` against
+`@eddacraft/nxrust` confirmed the generator core and failed the documented
+first-copy path. ATTRIB-027..-034 authorised the same day (spec
+[`2026-08-14-acknowledgements-cold-adopt.md`](../specs/2026-08-14-acknowledgements-cold-adopt.md)).
+ATTRIB-025 (`--version`) stays Proposed and out of this cut.
+
+**Last reviewed (history):** 2026-08-03 — opened from a full read-through of the shipped
 kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
 config-parser defect were reproduced against the real scripts; the rest are
 gaps in the kit's own verification and mirror surface. The four design decisions
@@ -32,10 +38,12 @@ the items whose deliverable is inside the released kit — ATTRIB-018, -019, -02
 and -022 — read **Released/Shipped via kit `v1.1.0`**. ATTRIB-021 (a CI matrix
 change) and ATTRIB-023 (recorded decisions, no kit code) stay **Merged**,
 because nothing of theirs is in the subtree the release publishes. Module stays
-**In Progress** for ATTRIB-025 (`--version`), still Proposed.
+**In Progress** for ATTRIB-025 (`--version`), still Proposed, and for
+ATTRIB-027..-034 (Node cold-adopt).
 
-Design contract:
-[`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md).
+Design contracts:
+[`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md),
+[`plans/specs/2026-08-14-acknowledgements-cold-adopt.md`](../specs/2026-08-14-acknowledgements-cold-adopt.md).
 
 ## Purpose
 
@@ -179,6 +187,14 @@ authorisation once the six land.
 | ATTRIB-023  | F10–F12    | Ergonomics backlog                 |
 | ATTRIB-025  | —          | Dispatcher `--version`             |
 | ATTRIB-024  | —          | Release cut                        |
+| ATTRIB-027  | nxrust F1  | Template markers match named blocks |
+| ATTRIB-028  | nxrust F2  | Node-only licence bootstrap        |
+| ATTRIB-029  | nxrust F3  | Local `license-checker` resolution |
+| ATTRIB-030  | nxrust F4  | Auto-exclude the consumer package  |
+| ATTRIB-031  | nxrust F5  | Ecosystem-neutral freshness snippet |
+| ATTRIB-032  | nxrust F6  | Ship the notice with the package   |
+| ATTRIB-033  | nxrust     | Documented Node cold-start fixture |
+| ATTRIB-034  | —          | Kit `1.2.1` cut                    |
 
 ### ATTRIB-018: Splice gates enforce the documented marker invariants
 
@@ -485,6 +501,112 @@ every defect above reproduced.
   release per item.
 - **Confidence:** high — mechanical, and the release path is proven from the
   `v1.0.0` cut.
+
+### ATTRIB-027: Template markers match the named-block contract
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** Copying the shipped template and example config does not produce
+  an orphaned-marker refusal.
+- **Expected Outcome:** `ACKNOWLEDGEMENTS.md.template` uses
+  `<!-- BEGIN AUTO-GENERATED {{BLOCK_NAME}} -->` (and matching END). The
+  adoption checklist says to replace `{{BLOCK_NAME}}` with the block `name`.
+  `attribution.toml.example` carries a first-class Node stanza.
+- **Validation:** The Node cold-start fixture (ATTRIB-033) copies only shipped
+  templates and generates without an orphan error.
+- **Files:** `tools/starters/acknowledgements/ACKNOWLEDGEMENTS.md.template`,
+  `tools/starters/acknowledgements/attribution.toml.example`,
+  `tools/starters/acknowledgements/README.md`.
+
+### ATTRIB-028: Node-only licence bootstrap works
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** A Node-only consumer can populate `licences.node-allow.txt`
+  without inventing Rust files.
+- **Expected Outcome:** The kit ships `licences.toml.template`.
+  `expand-licences.sh` requires only the consumer files that exist;
+  `about.toml` and `deny.toml` are optional, matching Node/Go/Python.
+- **Validation:** `licences-drift.sh` has a node-only fixture (no about/deny)
+  that expand `--check`s green; ATTRIB-033 runs the expander on copied
+  templates only.
+- **Files:** `tools/starters/acknowledgements/licences.toml.template`,
+  `tools/starters/acknowledgements/expand-licences.sh`,
+  `tools/starters/acknowledgements/tests/licences-drift.sh`.
+
+### ATTRIB-029: Find license-checker next to node_modules
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** `npm install --save-dev license-checker` then the documented
+  generator command works with no PATH surgery.
+- **Expected Outcome:** The Node driver resolves
+  `node_modules/.bin/license-checker` walking up from the manifest, then
+  `PATH`. The error names the local install.
+- **Validation:** `node-driver-render.sh` no longer exports PATH; a missing
+  local binary still fails preflight.
+- **Files:** `tools/starters/acknowledgements/drivers/node.sh`,
+  `tools/starters/acknowledgements/tests/node-driver-render.sh`,
+  `tools/starters/acknowledgements/README.md`.
+
+### ATTRIB-030: Exclude the consumer package automatically
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** A published package is not attributed to itself.
+- **Expected Outcome:** The driver always `--excludePackages` the manifest's
+  own `name@version`. The optional `exclude` key remains for extras. The
+  README no longer claims `--excludePrivatePackages` hides a published
+  package.
+- **Validation:** The render fixture is `"private": false` and the consumer
+  name does not appear in the block.
+- **Files:** `tools/starters/acknowledgements/drivers/node.sh`,
+  `tools/starters/acknowledgements/tests/node-driver-render.sh`,
+  `tools/starters/acknowledgements/README.md`.
+
+### ATTRIB-031: Freshness snippet is ecosystem-neutral
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** A Node-only consumer can drop in the CI snippet without
+  installing cargo-about or running a Rust fixture.
+- **Expected Outcome:** `ci-freshness.yml.snippet` runs generator `--check`
+  and comments optional per-ecosystem setup and the expander.
+- **Validation:** The snippet contains no required `cargo-about` or
+  `strict-license-field.sh` step.
+- **Files:** `tools/starters/acknowledgements/ci-freshness.yml.snippet`,
+  `tools/starters/acknowledgements/README.md`.
+
+### ATTRIB-032: Adoption tells you to ship the notice
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** `npm pack` including the notice is a documented step, not a
+  surprise.
+- **Expected Outcome:** The adoption checklist says to include
+  `ACKNOWLEDGEMENTS.md` in `package.json` `files` (or the equivalent
+  release artefact).
+- **Validation:** README grep for `files` / `npm pack` in the adoption
+  section; ATTRIB-033 asserts the generated file exists after generate.
+- **Files:** `tools/starters/acknowledgements/README.md`.
+
+### ATTRIB-033: Documented Node cold-start is a fixture
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** The documented copy path cannot regress without CI going red.
+- **Expected Outcome:** `tests/node-cold-adopt.sh` copies only shipped
+  templates, expands, generates without PATH hacks or Rust files, excludes
+  the consumer package, and `--check`s green.
+- **Validation:** The fixture is on the `tests/run-all.sh` list and passes.
+- **Files:** `tools/starters/acknowledgements/tests/node-cold-adopt.sh`,
+  `tools/starters/acknowledgements/tests/run-all.sh`.
+- **Dependencies:** ATTRIB-027..-032.
+
+### ATTRIB-034: Cut kit 1.2.1
+
+- **Status:** Ready (operator authorisation 2026-08-14)
+- **Intent:** External consumers can pin the cold-adopt fixes.
+- **Expected Outcome:** `VERSION` and `CHANGELOG.md` are `1.2.1`. The
+  entry is written for consumers (no work-item ids).
+- **Validation:** `check-version.sh` is clean; ATTRIB-033 passes against
+  the bumped tree.
+- **Files:** `tools/starters/acknowledgements/VERSION`,
+  `tools/starters/acknowledgements/CHANGELOG.md`.
+- **Dependencies:** ATTRIB-027..-033.
 
 ## Decisions (2026-08-03)
 

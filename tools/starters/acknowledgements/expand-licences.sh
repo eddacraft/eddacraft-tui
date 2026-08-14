@@ -4,10 +4,9 @@
 #
 # Also expand into `licences.node-allow.txt` as a single
 # semicolon-joined SPDX list — consumed by `drivers/node.sh` via
-# `license-checker --onlyAllow`. The Node fragment is emitted only
-# when `licences.node-allow.txt` exists alongside the other consumer
-# files; absent file means "this consumer does not need a Node
-# allow-list", and the expander stays silent rather than failing.
+# `license-checker --onlyAllow`. Every consumer file is optional:
+# the fragment is emitted only when that file exists beside
+# licences.toml. A Node-only repo therefore needs no about.toml.
 #
 # Reads the canonical `licences.toml` (default: project root) and
 # rebuilds each consumer file's licence array between BEGIN/END
@@ -89,21 +88,23 @@ node_allow_txt="$project_root/licences.node-allow.txt"
 go_allow_txt="$project_root/licences.go-allow.txt"
 python_allow_txt="$project_root/licences.python-allow.txt"
 
-if [ ! -f "$about_toml" ]; then
-  echo "error: $about_toml is missing" >&2
-  exit 1
+# Every consumer file is optional. Presence means "expand me";
+# absence means this repo does not use that consumer. A Node-only
+# adopter therefore needs licences.toml + licences.node-allow.txt and
+# does not invent about.toml / deny.toml.
+emit_about_fragment=false
+if [ -f "$about_toml" ]; then
+  emit_about_fragment=true
 fi
-if [ ! -f "$deny_toml" ]; then
-  echo "error: $deny_toml is missing" >&2
-  exit 1
+emit_deny_fragment=false
+if [ -f "$deny_toml" ]; then
+  emit_deny_fragment=true
 fi
 
 # `licences.node-allow.txt` is optional. Consumers that ship a Node
 # attribution block create the file (copy
 # `licences.node-allow.txt.template` from the kit); consumers without
-# a Node block do not. This back-compat shape was chosen to
-# match the dispatcher's flat-`[rust]` shim — existing Rust-only
-# consumers don't migrate.
+# a Node block do not.
 emit_node_fragment=false
 if [ -f "$node_allow_txt" ]; then
   emit_node_fragment=true
@@ -120,6 +121,17 @@ fi
 emit_python_fragment=false
 if [ -f "$python_allow_txt" ]; then
   emit_python_fragment=true
+fi
+
+if [ "$emit_about_fragment" != "true" ] &&
+  [ "$emit_deny_fragment" != "true" ] &&
+  [ "$emit_node_fragment" != "true" ] &&
+  [ "$emit_go_fragment" != "true" ] &&
+  [ "$emit_python_fragment" != "true" ]; then
+  echo "error: no expander consumer files found beside $config_path" >&2
+  echo "  copy a template (about.toml.template, licences.node-allow.txt.template, …)" >&2
+  echo "  next to licences.toml, then rerun." >&2
+  exit 1
 fi
 
 # --- Parse licences.toml -----------------------------------------------------
@@ -426,8 +438,12 @@ splice() {
 }
 
 drift=0
-splice "$about_toml" "$MARKER_BEGIN_ABOUT" "$MARKER_END_ABOUT" "$about_fragment" || drift=1
-splice "$deny_toml"  "$MARKER_BEGIN_DENY"  "$MARKER_END_DENY"  "$deny_fragment"  || drift=1
+if [ "$emit_about_fragment" = "true" ]; then
+  splice "$about_toml" "$MARKER_BEGIN_ABOUT" "$MARKER_END_ABOUT" "$about_fragment" || drift=1
+fi
+if [ "$emit_deny_fragment" = "true" ]; then
+  splice "$deny_toml" "$MARKER_BEGIN_DENY" "$MARKER_END_DENY" "$deny_fragment" || drift=1
+fi
 if [ "$emit_node_fragment" = "true" ]; then
   splice "$node_allow_txt" "$MARKER_BEGIN_NODE_ALLOW" "$MARKER_END_NODE_ALLOW" "$node_allow_fragment" || drift=1
 fi
@@ -445,15 +461,18 @@ if [ "$drift" -ne 0 ]; then
 fi
 
 if [ "$mode" = "write" ]; then
-  expanded="about.toml (accepted), deny.toml (allow)"
-  if [ "$emit_node_fragment" = "true" ]; then
-    expanded="$expanded, licences.node-allow.txt (node-allow)"
-  fi
-  if [ "$emit_go_fragment" = "true" ]; then
-    expanded="$expanded, licences.go-allow.txt (go-allow)"
-  fi
-  if [ "$emit_python_fragment" = "true" ]; then
-    expanded="$expanded, licences.python-allow.txt (python-allow)"
-  fi
+  expanded=""
+  append_expanded() {
+    if [ -n "$expanded" ]; then
+      expanded="$expanded, $1"
+    else
+      expanded="$1"
+    fi
+  }
+  [ "$emit_about_fragment" = "true" ] && append_expanded "about.toml (accepted)"
+  [ "$emit_deny_fragment" = "true" ] && append_expanded "deny.toml (allow)"
+  [ "$emit_node_fragment" = "true" ] && append_expanded "licences.node-allow.txt (node-allow)"
+  [ "$emit_go_fragment" = "true" ] && append_expanded "licences.go-allow.txt (go-allow)"
+  [ "$emit_python_fragment" = "true" ] && append_expanded "licences.python-allow.txt (python-allow)"
   echo "ok: licences.toml expanded into $expanded"
 fi

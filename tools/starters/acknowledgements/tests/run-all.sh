@@ -42,6 +42,7 @@ TESTS=(
   node-driver-preflight.sh
   node-driver-render.sh
   node-driver-strict.sh
+  node-cold-adopt.sh
   go-driver-preflight.sh
   go-driver-render.sh
   go-driver-strict.sh

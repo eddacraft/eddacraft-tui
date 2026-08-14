@@ -1,0 +1,53 @@
+# Copy this file to your repo root as `licences.toml` and edit.
+#
+# Single source for every driver allow-list the expander writes
+# (`about.toml`, `deny.toml`, `licences.<eco>-allow.txt`). Schema:
+#
+#   [[licences]]
+#   spdx  = "SPDX identifier"  (required)
+#   about = true|false         (required — include in about.toml / *-allow.txt)
+#   deny  = true|false         (required — include in deny.toml)
+#   note  = "free text"        (optional)
+#
+# Start small. The driver's strict gate names the first disallowed
+# package; add that licence here and rerun expand-licences.sh.
+
+[[licences]]
+spdx = "MIT"
+about = true
+deny = true
+
+[[licences]]
+spdx = "Apache-2.0"
+about = true
+deny = true
+
+[[licences]]
+spdx = "BSD-2-Clause"
+about = true
+deny = true
+
+[[licences]]
+spdx = "BSD-3-Clause"
+about = true
+deny = true
+
+[[licences]]
+spdx = "ISC"
+about = true
+deny = true
+
+[[licences]]
+spdx = "0BSD"
+about = true
+deny = true
+
+[[licences]]
+spdx = "BlueOak-1.0.0"
+about = true
+deny = true
+
+[[licences]]
+spdx = "CC0-1.0"
+about = true
+deny = true

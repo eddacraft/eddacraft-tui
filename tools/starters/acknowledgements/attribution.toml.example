@@ -42,11 +42,14 @@ manifest_path = "crates/your-cli/Cargo.toml" # shipping binary's manifest
 template_path = "about.hbs" # cargo-about handlebars template
 config_path = "about.toml" # cargo-about config
 
-# Add additional blocks below as you adopt non-Rust drivers
-# (Node, Go, Python).
+# --- Node-only starter (copy this instead of, or as well as, rust) ---
+# The ACKNOWLEDGEMENTS.md marker suffix must be this block's `name`.
+# If you copied ACKNOWLEDGEMENTS.md.template, replace {{BLOCK_NAME}}
+# with `node`.
 #
 # [[blocks]]
-# name      = "node-devtools"
-# ecosystem = "node"
-# manifest_path = "package.json"
-# prod_only     = false           # include devDependencies
+# name            = "node"
+# ecosystem       = "node"
+# manifest_path   = "package.json"
+# node_allow_path = "licences.node-allow.txt"
+# prod_only       = true
