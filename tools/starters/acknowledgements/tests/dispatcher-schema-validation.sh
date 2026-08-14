@@ -647,5 +647,33 @@ if [ "$e" = "0" ]; then
 fi
 echo "ok scenario 16: marker text containing a backslash still gates (exit $e)"
 
+# ── Scenario 17: leftover {{BLOCK_NAME}} is named in the count-gate error.
+# classify() rejects {{BLOCK_NAME}} (not [a-z0-9-]+), so the orphan scan
+# cannot see it and the count gate used to report "count: 0" only.
+s17="$fixture_root/leftover-placeholder"
+make_scan_case "$s17" '# A
+
+<!-- BEGIN AUTO-GENERATED {{BLOCK_NAME}} -->
+<!-- END AUTO-GENERATED {{BLOCK_NAME}} -->
+'
+result17="$(ATTRIB_DRIVERS_DIR="$stub_drivers" run_generator "$s17")"
+exit17="$(printf '%s\n' "$result17" | awk -F= '/^EXIT=/ { print $2; exit }')"
+if [ "$exit17" = "0" ]; then
+  echo "FAIL scenario 17: leftover {{BLOCK_NAME}} was accepted as a live marker" >&2
+  echo "$result17" >&2
+  exit 1
+fi
+if ! printf '%s' "$result17" | grep -q "replace it with 'stub'"; then
+  echo "FAIL scenario 17: error does not say to replace {{BLOCK_NAME}} with the block name" >&2
+  echo "$result17" >&2
+  exit 1
+fi
+if ! printf '%s' "$result17" | grep -q "is not a marker"; then
+  echo "FAIL scenario 17: error does not say {{BLOCK_NAME}} is not a marker" >&2
+  echo "$result17" >&2
+  exit 1
+fi
+echo "ok scenario 17: leftover {{BLOCK_NAME}} is named in the count-gate error (exit $exit17)"
+
 echo ""
-echo "dispatcher schema-validation tests passed: 16/16 scenarios green."
+echo "dispatcher schema-validation tests passed: 17/17 scenarios green."

@@ -94,8 +94,8 @@ and edit one file (`attribution.toml`). No script edits are required.
    `ACKNOWLEDGEMENTS.md` with that block's `name` (`rust`, `node`, `go`,
    `python`, …). Named blocks use suffixed markers
    (`<!-- BEGIN AUTO-GENERATED rust -->`); the unsuffixed pair is only for the
-   legacy flat `[rust]` shim. Leaving `{{BLOCK_NAME}}` in place fails the
-   marker-count gate on every ecosystem.
+   legacy flat `[rust]` shim. Leaving `{{BLOCK_NAME}}` in place is not a marker;
+   the count-gate error names the leftover placeholder.
 
 4. Populate the allow-list. Edit `licences.toml`, then:
 
@@ -120,22 +120,17 @@ and edit one file (`attribution.toml`). No script edits are required.
 
 6. Ship the notice with the artefact you redistribute — not the kit.
    - **npm:** add `ACKNOWLEDGEMENTS.md` to `package.json` `"files"`.
-   - **crates.io:** include the notice and exclude the kit subtree, or
-     `cargo package` will ship scripts, tests, and templates:
+   - **crates.io:** exclude the kit subtree so `cargo package` does not ship
+     scripts, tests, and templates:
 
      ```toml
-     include = [
-       "src/**/*",
-       "Cargo.toml",
-       "Cargo.lock",
-       "README.md",
-       "LICENSE*",
-       "ACKNOWLEDGEMENTS.md",
-     ]
+     exclude = ["tools/starters/**"]
      ```
 
-     or `exclude = ["tools/starters/**"]` plus an explicit include of
-     `ACKNOWLEDGEMENTS.md` if you otherwise filter `*.md`.
+     Cargo `include` and `exclude` are mutually exclusive — do not set both.
+     Prefer `exclude` so you do not have to list every crate file. If you
+     already use `include`, add `ACKNOWLEDGEMENTS.md` to that list instead of
+     adding `exclude`.
 
 7. Wire CI: drop `ci-freshness.yml.snippet` into your existing workflow.
    Uncomment only the setup steps for ecosystems you actually declare.
@@ -151,8 +146,9 @@ tokens and prune the example sections to fit your stack.
 All placeholders use `{{DOUBLE_BRACES}}` so they are easy to grep and replace.
 None of them are interpreted by the generator — they are plain text the template
 author left for you to fill in. `{{BLOCK_NAME}}` is the load-bearing one: if you
-leave it in the marker comments, the generator will not see a real pair and the
-marker-count gate fails.
+leave it in the marker comments, the generator will not see a real pair
+(`{{BLOCK_NAME}}` is not a managed marker name) and the marker-count error tells
+you to replace it with the block `name`.
 
 | Placeholder                 | Replace with                                                                                                                            |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -585,8 +581,11 @@ package, and leaves the on-disk target byte-identical.
 The Python driver expands `--allow-only` with
 `drivers/python-license-aliases.txt` so a SPDX allow-list of `Apache-2.0`
 accepts the classifier name. Do not put classifier strings in `licences.toml`.
-Add a row to the alias table only when a real package reports a stable name the
-table does not yet cover.
+One alias string maps to exactly one SPDX id. Generic Trove names that collapse
+distinct licences (plain `BSD License`, generic GPLv3 / LGPLv3) are omitted so a
+single-variant allow-list cannot fail-open. Add a row to the alias table only
+when a real package reports a stable, unambiguous name the table does not yet
+cover.
 
 CI provisioning (per your existing Python toolchain), e.g.:
 

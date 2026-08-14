@@ -34,19 +34,31 @@ guidance so `cargo package` does not ship the kit.
   `pip-licenses` reports Trove names (`Apache Software License`,
   `Mozilla Public License 2.0 (MPL 2.0)`). The Python driver expands
   `--allow-only` with `drivers/python-license-aliases.txt`. Do not put those
-  strings in `licences.toml`.
+  strings in `licences.toml`. One alias string maps to exactly one SPDX id:
+  generic `BSD License` and generic GPLv3 / LGPLv3 are not aliased, so a
+  single-variant allow-list cannot fail-open.
+- **Leftover `{{BLOCK_NAME}}` names itself.** The placeholder is not a managed
+  marker. The count-gate error now says to replace it with the block `name`
+  instead of reporting `count: 0`.
+- **`go-licenses` "cannot find known license" is not a missing allow-list
+  entry.** The Go driver says so, and the Go cold-adopt fixture now ships a full
+  MIT `LICENSE` so the first-copy path is classifiable.
 
 ### Documentation
 
 - Adoption checklist copies Rust, Node, Go, and Python templates as peers.
   Non-Rust repos still need no `about.toml` / `deny.toml`.
-- Ship the notice, not the kit: npm `"files"` and Cargo `include` / `exclude` so
-  `cargo package` does not publish scripts, tests, and templates.
+- Ship the notice, not the kit: npm `"files"` and Cargo
+  `exclude = ["tools/starters/**"]`. Do not set Cargo `include` and `exclude`
+  together.
+- The public pin example is `v1.2.2`. The freshness snippet's Python block
+  comments a venv + `pip-licenses` install.
 
 ### Tests
 
 - Cold-start fixtures for Rust, Go, and Python copy only shipped templates. A
-  classifier-named Apache package passes on SPDX `Apache-2.0`.
+  classifier-named Apache package passes on SPDX `Apache-2.0`. A generic
+  `BSD License` classifier is rejected when only `BSD-2-Clause` is allowed.
 
 ## [1.2.1] - 2026-08-14
 

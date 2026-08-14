@@ -678,6 +678,14 @@ while IFS= read -r block_json; do
     echo "  '$begin_marker' count: $begin_count (expected 1)" >&2
     echo "  '$end_marker' count: $end_count (expected 1)" >&2
     echo "  markers must be alone on their own line and outside fenced code blocks." >&2
+    # Leftover template placeholders are not managed markers: classify()
+    # only accepts [a-z0-9-]+ names, so {{BLOCK_NAME}} is invisible to
+    # both this gate and the orphan scan. Name it so a first-copy miss
+    # is not "count: 0" with no next step.
+    if grep -q 'AUTO-GENERATED {{BLOCK_NAME}}' "$working_file"; then
+      echo "  leftover '{{BLOCK_NAME}}' is still in the marker comments; replace it with '$label'." >&2
+      echo "  the generator does not interpret placeholders — '{{BLOCK_NAME}}' is not a marker." >&2
+    fi
     exit 1
   fi
 

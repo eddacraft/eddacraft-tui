@@ -29,8 +29,16 @@ acknowledgements-diff:
     # - uses: actions/setup-go@v5 # pin to commit SHA before merging
     # - run: go install github.com/google/go-licenses@v1.6.0
 
-    # Python block: the driver uses the consumer-supplied venv.
+    # Python block: the driver uses the consumer-supplied venv
+    # (`venv_path` in attribution.toml). Uncomment and install
+    # pip-licenses plus your project dependencies into that venv.
     # - uses: actions/setup-python@v5 # pin to commit SHA before merging
+    #   with:
+    #     python-version: '3.12'
+    # - run: |
+    #     python -m venv .venv
+    #     .venv/bin/pip install pip-licenses
+    #     # also install your project's dependencies into that venv
 
     - name: Acknowledgements freshness
       run: |

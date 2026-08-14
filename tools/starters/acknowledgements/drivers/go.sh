@@ -167,8 +167,14 @@ if ! ( cd "$mod_root" && go-licenses check "$module_path" \
   echo "    $allow_line" >&2
   echo "  go-licenses output:" >&2
   sed 's/^/    /' "$strict_err" >&2
-  echo "  fix: add the missing licence to licences.toml + rerun expand-licences.sh," >&2
-  echo "    or remove/replace the offending dependency." >&2
+  if grep -qi 'cannot find known license' "$strict_err"; then
+    echo "  that is not a missing allow-list entry: go-licenses could not classify a LICENSE file." >&2
+    echo "  put a complete, classifiable licence text next to the module" >&2
+    echo "    (a one-line stub is not enough), then rerun." >&2
+  else
+    echo "  fix: add the missing licence to licences.toml + rerun expand-licences.sh," >&2
+    echo "    or remove/replace the offending dependency." >&2
+  fi
   exit 1
 fi
 

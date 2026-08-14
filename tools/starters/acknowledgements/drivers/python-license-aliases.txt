@@ -3,23 +3,25 @@
 # whose SPDX is on the allow-list before calling --allow-only.
 # Tab-separated: SPDX<TAB>alias
 # Do not add these aliases to licences.toml — they are Python-only.
+#
+# One alias string maps to exactly one SPDX id. Generic Trove names
+# that collapse distinct licences (plain "BSD License", generic
+# "GNU General Public License v3 (GPLv3)", generic LGPLv3) are
+# omitted on purpose: mapping them would fail-open if only one
+# variant is on the allow-list.
 
 Apache-2.0	Apache Software License
 Apache-2.0	Apache License 2.0
 Apache-2.0	Apache License, Version 2.0
 MIT	MIT License
-BSD-2-Clause	BSD License
-BSD-3-Clause	BSD License
+BSD-2-Clause	2-Clause BSD License
+BSD-2-Clause	BSD 2-Clause
 BSD-3-Clause	3-Clause BSD License
 BSD-3-Clause	BSD 3-Clause
 ISC	ISC License
 MPL-2.0	Mozilla Public License 2.0 (MPL 2.0)
 MPL-2.0	Mozilla Public License 2.0
 MPL-2.0	Mozilla Public License Version 2.0
-LGPL-3.0	GNU Lesser General Public License v3 (LGPLv3)
-LGPL-3.0-only	GNU Lesser General Public License v3 (LGPLv3)
-GPL-3.0	GNU General Public License v3 (GPLv3)
-GPL-3.0-only	GNU General Public License v3 (GPLv3)
 PSF-2.0	Python Software Foundation License
 Unlicense	The Unlicense
 0BSD	Zero-Clause BSD

@@ -53,11 +53,11 @@ or pull from `main` (above) to track the bleeding edge.
 To pin a **specific, immutable version** instead, adopt or pull from a release
 tag (`vX.Y.Z`). Use the current latest on the
 [Releases page](https://github.com/eddacraft/acknowledgements-starter/releases)
-— do not copy an old tag from an earlier README. This release is `v1.2.0`:
+— do not copy an old tag from an earlier README. This release is `v1.2.2`:
 
 ```bash
 git subtree add --prefix tools/starters/acknowledgements \
-  https://github.com/eddacraft/acknowledgements-starter.git v1.2.0 --squash
+  https://github.com/eddacraft/acknowledgements-starter.git v1.2.2 --squash
 ```
 
 Release tags are append-only — a published `vX.Y.Z` never changes. Each release

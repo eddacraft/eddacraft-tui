@@ -620,10 +620,11 @@ every defect above reproduced.
 - **Expected Outcome:** `attribution.toml.example` has first-class rust,
   node, go, and python stanzas. The adoption checklist copies each
   ecosystem's template, says non-Rust repos need no `about.toml`, and
-  tells Rust crates to `include` the notice and `exclude` the kit
-  subtree so `cargo package` does not ship scripts/tests.
+  tells Rust crates to `exclude = ["tools/starters/**"]` so
+  `cargo package` does not ship scripts/tests. Do not set Cargo
+  `include` and `exclude` together.
 - **Validation:** README and example contain go and python stanzas and
-  a `cargo` include/exclude note; ATTRIB-037 fixtures copy only shipped
+  a Cargo `exclude` note; ATTRIB-037 fixtures copy only shipped
   templates per ecosystem.
 - **Files:** `tools/starters/acknowledgements/README.md`,
   `tools/starters/acknowledgements/attribution.toml.example`.
@@ -635,11 +636,14 @@ every defect above reproduced.
   (`Apache Software License`, `Mozilla Public License 2.0 (MPL 2.0)`)
   can satisfy a SPDX-only `licences.toml`.
 - **Expected Outcome:** `licences.toml` stays SPDX. The Python driver
-  expands `--allow-only` with a kit-owned alias table. No aliases are
-  written into `licences.toml` or the Node/Go/Rust consumers.
+  expands `--allow-only` with a kit-owned alias table. One alias
+  string maps to exactly one SPDX id (generic `BSD License` / GPLv3
+  are omitted). No aliases are written into `licences.toml` or the
+  Node/Go/Rust consumers.
 - **Validation:** A fixture package that reports `Apache Software
   License` passes the strict gate when `licences.toml` has only
-  `Apache-2.0`.
+  `Apache-2.0`. A generic `BSD License` classifier is rejected when
+  only `BSD-2-Clause` is allowed.
 - **Files:** `tools/starters/acknowledgements/drivers/python.sh`,
   `tools/starters/acknowledgements/drivers/python-license-aliases.txt`,
   `tools/starters/acknowledgements/tests/python-driver-aliases.sh`,

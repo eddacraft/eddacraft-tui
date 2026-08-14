@@ -95,3 +95,53 @@ if ! printf '%s' "$block" | grep -q 'fixture-apache'; then
 fi
 
 echo "ok: classifier 'Apache Software License' accepted via SPDX Apache-2.0 alias"
+
+# ── Fail-closed: generic "BSD License" is not aliased ────────────────
+# Mapping that Trove name to both BSD-2-Clause and BSD-3-Clause would
+# let a BSD-2-only allow-list accept a package that might be BSD-3.
+pkg_bsd="$fixture_root/fixture-bsd"
+mkdir -p "$pkg_bsd/fixture_bsd"
+cat >"$pkg_bsd/pyproject.toml" <<'EOF'
+[project]
+name = "fixture-bsd"
+version = "1.0.0"
+classifiers = ["License :: OSI Approved :: BSD License"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+EOF
+echo 'x = 1' >"$pkg_bsd/fixture_bsd/__init__.py"
+
+if ! "$venv/bin/python" -m pip uninstall --quiet -y fixture-apache >/dev/null 2>&1; then
+  echo "skip: could not uninstall fixture-apache before BSD case" >&2
+  exit 0
+fi
+if ! "$venv/bin/python" -m pip install --quiet --disable-pip-version-check "$pkg_bsd" >/dev/null 2>&1; then
+  echo "skip: could not install fixture-bsd" >&2
+  exit 0
+fi
+
+cat >"$fixture_root/licences.python-allow.txt" <<'EOF'
+# BEGIN AUTO-GENERATED FROM licences.toml — python-allow
+BSD-2-Clause
+# END AUTO-GENERATED FROM licences.toml — python-allow
+EOF
+
+cat >"$fixture_root/ACKNOWLEDGEMENTS.md" <<'EOF'
+# Acknowledgements
+
+<!-- BEGIN AUTO-GENERATED python -->
+<!-- END AUTO-GENERATED python -->
+EOF
+
+set +e
+bsd_err="$(cd "$fixture_root" && "$GENERATOR" --config attribution.toml 2>&1)"
+bsd_exit=$?
+set -e
+if [ "$bsd_exit" -eq 0 ]; then
+  echo "fail: BSD-2-Clause-only allow-list accepted generic 'BSD License'" >&2
+  printf '%s\n' "$bsd_err" | sed 's/^/    /' >&2
+  exit 1
+fi
+echo "ok: generic 'BSD License' rejected when only BSD-2-Clause is allowed"
