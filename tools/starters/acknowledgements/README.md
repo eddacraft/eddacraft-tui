@@ -126,7 +126,9 @@ tokens and prune the example sections to fit your stack.
 
 All placeholders use `{{DOUBLE_BRACES}}` so they are easy to grep and replace.
 None of them are interpreted by the generator — they are plain text the template
-author left for you to fill in.
+author left for you to fill in. `{{BLOCK_NAME}}` is the load-bearing one: if you
+leave it in the marker comments, the generator will not see a real pair and the
+marker-count gate fails.
 
 | Placeholder                 | Replace with                                                                                                                            |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
@@ -149,6 +151,7 @@ sed -i \
   -e 's|{{GENERATOR_TOOL_URL}}|https://github.com/EmbarkStudios/cargo-about|g' \
   -e 's|{{LOCKFILE_NAME}}|Cargo.lock|g' \
   -e 's|{{GENERATOR_SCRIPT_PATH}}|tools/starters/acknowledgements/generate-acknowledgements.sh|g' \
+  -e 's|{{BLOCK_NAME}}|rust|g' \
   ACKNOWLEDGEMENTS.md
 ```
 
@@ -226,8 +229,9 @@ The unsuffixed pair (`<!-- BEGIN AUTO-GENERATED -->`) is only for the legacy
 flat `[rust]` shim. Marker text is overridable per project via
 `[project].marker_begin` / `[project].marker_end` in `attribution.toml`.
 
-The generator matches markers via literal substring containment, not regex, so
-the marker text need not be regex-safe.
+A line is a marker only when the trimmed line _is_ the marker — inline mentions,
+code spans, and fenced samples are prose. Matching is literal, not regex, so an
+override containing backslashes needs no escaping.
 
 ### Idempotency
 

@@ -71,7 +71,7 @@ node_allow_path = "licences.node-allow.txt"
 prod_only       = true
 EOF
 
-sed -i \
+sed \
   -e 's|{{PROJECT_NAME}}|Fixture|g' \
   -e 's|{{PROJECT_BINARY}}|fixture|g' \
   -e 's|{{GENERATOR_TOOL}}|license-checker|g' \
@@ -79,7 +79,8 @@ sed -i \
   -e 's|{{LOCKFILE_NAME}}|package-lock.json|g' \
   -e 's|{{GENERATOR_SCRIPT_PATH}}|generate-acknowledgements.sh|g' \
   -e 's|{{BLOCK_NAME}}|node|g' \
-  "$project/ACKNOWLEDGEMENTS.md"
+  "$project/ACKNOWLEDGEMENTS.md" >"$project/ACKNOWLEDGEMENTS.md.tmp"
+mv "$project/ACKNOWLEDGEMENTS.md.tmp" "$project/ACKNOWLEDGEMENTS.md"
 
 if ! (cd "$project" && "$EXPANDER"); then
   echo "fail: expander refused the documented Node-only bootstrap" >&2

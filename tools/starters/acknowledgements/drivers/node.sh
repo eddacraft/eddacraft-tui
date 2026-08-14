@@ -110,10 +110,11 @@ if [ -z "$license_checker" ]; then
 fi
 if [ -z "$license_checker" ]; then
   echo "drivers/node.sh: license-checker not installed." >&2
-  echo "  install it next to the manifest (preferred):" >&2
+  echo "  install it as a devDependency at the workspace root (or next to the" >&2
+  echo "  manifest). The driver looks in node_modules/.bin walking up from" >&2
+  echo "  $manifest_dir, then on PATH:" >&2
   echo "    npm install --save-dev license-checker" >&2
-  echo "  the driver looks in node_modules/.bin walking up from $manifest_dir," >&2
-  echo "  then on PATH. A global install also works: npm install -g license-checker" >&2
+  echo "  A global install also works: npm install -g license-checker" >&2
   exit 1
 fi
 
