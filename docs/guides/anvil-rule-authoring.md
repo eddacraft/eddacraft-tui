@@ -87,7 +87,7 @@ enabled: true
 opt_in: false
 ---
 
-Narrative markdown body. Keep it short — everything above the first `##`
+Narrative markdown body. Keep it short — everything above the first H2
 heading becomes the `nudge`:
 
 1. **What to do instead** — concrete, short, action-focused.
@@ -132,7 +132,10 @@ The markdown body is the _rich definition_ — what a reviewer should read when
 they want to understand the rule beyond the one-line title. Keep it
 action-oriented: "Use X instead of Y", not "this is bad".
 
-The compiler splits the body on H2 (`##`) headings:
+The compiler splits the body on H2 headings. An H2 is a line starting with two
+hashes followed by a space or tab (`extractSections` matches `/^##[ \t]/`), so
+`##Heading` with no space is body text, not a heading — and a heading indented
+by even one space is not recognised either:
 
 - **Everything before the first H2 becomes the `nudge`** — the inline text shown
   on a finding. It is the whole preamble, not just the first paragraph; several
