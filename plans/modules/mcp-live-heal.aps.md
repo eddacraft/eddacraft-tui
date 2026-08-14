@@ -145,7 +145,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-004: Daemon auto-recycle on CLI/daemon version skew
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-14 via PR #3899
 - **Intent:** Recycle the Anvil-owned intercept daemon when its version differs
   from the CLI without requiring harness restart.
 - **Expected Outcome:** Refresh (and/or ensure) path stops the skewed daemon,
