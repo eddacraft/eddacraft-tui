@@ -187,7 +187,7 @@ pub(crate) fn convert_and_write(
 fn source_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
     let config = load_project_config(root)?;
     if config.label == "defaults" {
-        bail!("no project config to convert (run `anvil init` or `anvil migrate format`)");
+        bail!("no project config to convert (run `anvil init`)");
     }
     Ok(config)
 }

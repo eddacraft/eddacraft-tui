@@ -53,7 +53,7 @@ pub struct FormatArgs {
     #[arg(long)]
     pub force: bool,
 
-    /// Remove the legacy `.anvilrc` after writing the new file.
+    /// Delete the source file when the destination is a different path.
     #[arg(long)]
     pub remove_old: bool,
 }
@@ -117,9 +117,9 @@ pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
         None => {
             eprintln!(
                 "anvil: `anvil migrate` now has subcommands; running `format` for \
-                 back-compat. Prefer `anvil migrate format` (legacy `.anvilrc` \
-                 conversion) or `anvil migrate schema` (cross-version config \
-                 reconciliation)."
+                 back-compat. Prefer `anvil migrate format` (convert to \
+                 `.anvil.<ext>`) or `anvil migrate schema` (cross-version \
+                 config reconciliation)."
             );
             run_format_in(&FormatArgs::default(), root)
         }
@@ -127,7 +127,7 @@ pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
-// `anvil migrate format` — MLP2-040 filename/encoding migration.
+// `anvil migrate format` — UCFG-015 any-to-any canonical conversion.
 // ---------------------------------------------------------------------------
 
 pub(crate) fn run_format_in(args: &FormatArgs, root: &Path) -> Result<()> {
@@ -582,7 +582,7 @@ mod tests {
     }
 
     #[test]
-    fn errors_when_no_anvilrc_present() {
+    fn errors_when_no_project_config_present() {
         let tmp = TempDir::new().unwrap();
         let err = run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap_err();
         assert!(err.to_string().contains("no project config"), "{err}");

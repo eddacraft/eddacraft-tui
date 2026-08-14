@@ -21,7 +21,8 @@ where the extension names the format: `.anvil.yaml` (the default), `.anvil.yml`,
 `planning_dir`).
 
 `.anvilrc` is the legacy name. It is still read as a fallback everywhere, but no
-command creates one; convert it with `anvil migrate format`.
+command creates one; convert it with `anvil migrate format` or
+`anvil config convert --to yaml`.
 
 ## Migration bridges
 

@@ -48,7 +48,7 @@ several checks match reality.
 
 - **Migration and doctor coverage for the older config names.**
   `anvil migrate format` and `anvil config convert --to` write any discovered
-  project file to `.anvil.yaml` / `.json` / `.toml` (never `.anvilrc`).
+  project file to `.anvil.yaml` / `.yml` / `.json` / `.toml` (never `.anvilrc`).
   `--remove-old` deletes the source when the dest is a different path;
   `--stdout` on convert still prints only. `anvil migrate gate-config` and
   `anvil migrate architecture` preview by default and write with `--apply`.
