@@ -1,12 +1,12 @@
 # Acknowledgements Starter Kit Release — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                   |
-| ------- | ------------- | ------ | ------ | ------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | First filed 2026-06-08 alongside ATTRIB-017 |
+| Type    | Authority     | Owner  | Status | Freshness                                                         |
+| ------- | ------------- | ------ | ------ | ----------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-08-14 — verify step checks published `LICENSE` |
 
-| Upstream                                                                                                                                                                                                                                                                                                                            | Downstream                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [acknowledgements-starter-releases module](../../plans/archive/modules/acknowledgements-starter-releases.aps.md), [release spec](../../plans/specs/2026-06-08-acknowledgements-starter-releases.md), [ATTRIB-017 actions](../../plans/execution/ATTRIB-017.actions.md), [eddacraft-tui release runbook](./eddacraft-tui-release.md) | [`.github/workflows/release-acknowledgements-starter.yml`](../../.github/workflows/release-acknowledgements-starter.yml), [`.github/workflows/mirror-acknowledgements-starter.yml`](../../.github/workflows/mirror-acknowledgements-starter.yml), [`tools/starters/acknowledgements/VERSION`](../../tools/starters/acknowledgements/VERSION), [`tools/starters/acknowledgements/CHANGELOG.md`](../../tools/starters/acknowledgements/CHANGELOG.md) |
+| Upstream                                                                                                                                                                                                                                                                                                                            | Downstream                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [acknowledgements-starter-releases module](../../plans/archive/modules/acknowledgements-starter-releases.aps.md), [release spec](../../plans/specs/2026-06-08-acknowledgements-starter-releases.md), [ATTRIB-017 actions](../../plans/execution/ATTRIB-017.actions.md), [eddacraft-tui release runbook](./eddacraft-tui-release.md) | [`.github/workflows/release-acknowledgements-starter.yml`](../../.github/workflows/release-acknowledgements-starter.yml), [`.github/workflows/mirror-acknowledgements-starter.yml`](../../.github/workflows/mirror-acknowledgements-starter.yml), [`tools/starters/acknowledgements/VERSION`](../../tools/starters/acknowledgements/VERSION), [`tools/starters/acknowledgements/CHANGELOG.md`](../../tools/starters/acknowledgements/CHANGELOG.md), [`tools/starters/acknowledgements/LICENSE`](../../tools/starters/acknowledgements/LICENSE) |
 
 ## TL;DR
 
@@ -116,7 +116,12 @@ gh run watch "$(gh run list --workflow=release-acknowledgements-starter.yml -L1 
 ```bash
 gh release view vX.Y.Z --repo eddacraft/acknowledgements-starter
 gh api repos/eddacraft/acknowledgements-starter/git/refs/tags/vX.Y.Z --jq .ref
+gh api repos/eddacraft/acknowledgements-starter/contents/LICENSE --jq .name
 ```
+
+The last check is the licence grant: the published tree must include `LICENSE`
+(Apache-2.0). GitHub's own `license.spdx_id` field can lag detection; the file's
+presence is the consumer-facing fact.
 
 Optional round-trip proof that a consumer can pin the release:
 

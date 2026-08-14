@@ -17,8 +17,8 @@ with a legacy flat `[rust]` config keep working unchanged via a back-compat shim
 (see "Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
-copy this directory wholesale and edit one file (`attribution.toml`) — no script
-edits required.
+copy this directory wholesale — including [`LICENSE`](./LICENSE) (Apache-2.0) —
+and edit one file (`attribution.toml`). No script edits are required.
 
 ## What ships in this kit
 
@@ -38,6 +38,9 @@ edits required.
 | `ACKNOWLEDGEMENTS.md.template`       | Bootstrap target file with markers in place                                                  |
 | `ci-freshness.yml.snippet`           | GitHub Actions freshness-gate job                                                            |
 | `tests/`                             | Self-tests pinning the kit's invariants                                                      |
+| `LICENSE`                            | Apache License 2.0 grant for this kit                                                        |
+| `VERSION`                            | Kit semver; must match the newest `CHANGELOG.md` heading                                     |
+| `CHANGELOG.md`                       | Consumer-facing release notes                                                                |
 | `README.md`                          | This file (the marker-splice contract)                                                       |
 
 ## Adoption checklist (downstream consumer)
@@ -732,7 +735,7 @@ Alongside the rolling `main` mirror, deliberate releases are cut as immutable
 `vX.Y.Z` tags + GitHub Releases on the mirror, so external consumers can pin a
 known-good version and be notified of updates. The kit's version lives in
 [`VERSION`](./VERSION) and [`CHANGELOG.md`](./CHANGELOG.md); both travel into
-the mirror.
+the mirror, as does [`LICENSE`](./LICENSE) (Apache-2.0).
 
 To cut one: bump `VERSION` + add a `CHANGELOG.md` entry (PR), then tag the merge
 commit `acknowledgements-starter-vX.Y.Z` and push it.
@@ -773,3 +776,9 @@ out.
 If you adopted this kit from the public mirror, copy `kit-tests.yml.snippet`
 into your own `.github/workflows/` to get the same gate, including the pinned
 scanner versions the driver tests expect.
+
+## Licence
+
+This kit is licensed under the [Apache License 2.0](./LICENSE). Keep that file
+when you copy or subtree-add the directory — it is the grant that lets you adopt
+the kit.

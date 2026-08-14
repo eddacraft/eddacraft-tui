@@ -21,11 +21,27 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 - **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
-## [1.2.0] - 2026-08-05
+## [1.2.0] - 2026-08-14
 
 Reproduces every distinct copyright notice instead of one per licence family.
 The Rust template previously dropped most attributions — **if you generate a
-file you redistribute, upgrade and regenerate.**
+file you redistribute, upgrade and regenerate.** This is also the first cut that
+ships a licence grant; pin this release (or later), not `v1.0.0` / `v1.1.x`.
+
+### Added
+
+- **The kit ships an Apache License 2.0 grant.** The published mirror previously
+  had no `LICENSE`, so GitHub reported `NOASSERTION` and a third party following
+  the adoption instructions had no licence to copy the kit under. `LICENSE` now
+  travels with the subtree.
+
+### Documentation
+
+- The public pin example now uses `v1.2.0`, not `v1.0.0`. The older tag still
+  carries the silent splice-delete and stale-`--check` defects; pinning it is
+  not a safe starting point.
+- The kit README lists `LICENSE`, `VERSION`, and `CHANGELOG.md` among what
+  ships, and states the Apache-2.0 grant.
 
 ### Fixed
 

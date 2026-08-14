@@ -11,6 +11,8 @@ hand-maintained bundled binaries — splicing each driver's output between
 `ACKNOWLEDGEMENTS.md`). Hand-curated content above, between, and below the
 markers is preserved verbatim.
 
+This kit is licensed under the [Apache License 2.0](./LICENSE).
+
 > **This repository is a read-only mirror.** The canonical source lives in a
 > private upstream repository and is force-pushed here whenever it changes.
 > Direct commits to `main` here will be overwritten on the next sync. Please
@@ -49,20 +51,22 @@ Or just `cp -r` the directory in if you don't want subtree tracking.
 or pull from `main` (above) to track the bleeding edge.
 
 To pin a **specific, immutable version** instead, adopt or pull from a release
-tag (`vX.Y.Z`):
+tag (`vX.Y.Z`). Use the current latest on the
+[Releases page](https://github.com/eddacraft/acknowledgements-starter/releases)
+— do not copy an old tag from an earlier README. This release is `v1.2.0`:
 
 ```bash
 git subtree add --prefix tools/starters/acknowledgements \
-  https://github.com/eddacraft/acknowledgements-starter.git v1.0.0 --squash
+  https://github.com/eddacraft/acknowledgements-starter.git v1.2.0 --squash
 ```
 
 Release tags are append-only — a published `vX.Y.Z` never changes. Each release
 has a GitHub Release with notes drawn from [`CHANGELOG.md`](./CHANGELOG.md);
-**watch this repository's releases** to be notified when the kit updates, and
-see the
-[Releases page](https://github.com/eddacraft/acknowledgements-starter/releases)
-for the version history. Versions follow [SemVer](https://semver.org/): a major
-bump signals a breaking change to the kit's contract.
+**watch this repository's releases** to be notified when the kit updates.
+Versions follow [SemVer](https://semver.org/): a major bump signals a breaking
+change to the kit's contract. `v1.0.0` and `v1.1.x` remain available for
+history, but they are not the recommended pin: `v1.0.0` can silently delete
+curated prose, and `v1.1.x` drops most Rust copyright notices.
 
 ## Design history
 

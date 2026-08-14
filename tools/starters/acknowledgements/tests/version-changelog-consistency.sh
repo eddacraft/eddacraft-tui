@@ -11,6 +11,8 @@
 #   1b. The REAL kit with a prefixed `--tag` — the exact call the release
 #       workflow makes; also covers the default-dir symlink-resolution
 #       path the `--dir` fixtures bypass.
+#   1c. The REAL kit ships an Apache-2.0 `LICENSE` — the grant a public
+#       consumer needs; missing it is a publish defect, not a style nit.
 #   2.  Fixture where VERSION disagrees with the changelog heading →
 #       exit 1, stderr names both versions.
 #   3.  Fixture with a malformed VERSION → exit 1, stderr says so.
@@ -60,6 +62,18 @@ if [ "$exit1b" -ne 0 ]; then
   exit 1
 fi
 echo "ok scenario 1b: real kit + prefixed --tag (release-workflow call) accepted"
+
+# ── Scenario 1c: the published kit carries an Apache-2.0 grant ──────
+license_file="$SCRIPT_DIR/../LICENSE"
+if [ ! -f "$license_file" ]; then
+  echo "fail scenario 1c: LICENSE is missing at $license_file" >&2
+  exit 1
+fi
+if ! grep -q 'Apache License' "$license_file" || ! grep -q 'Version 2.0' "$license_file"; then
+  echo "fail scenario 1c: LICENSE does not look like Apache-2.0" >&2
+  exit 1
+fi
+echo "ok scenario 1c: LICENSE is present and Apache-2.0"
 
 # ── Scenario 2: VERSION disagrees with the changelog heading ─────────
 d2="$fixture_root/mismatch"
