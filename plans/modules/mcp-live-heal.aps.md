@@ -140,15 +140,18 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-004: Daemon auto-recycle on CLI/daemon version skew
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Recycle the Anvil-owned intercept daemon when its version differs
   from the CLI without requiring harness restart.
 - **Expected Outcome:** Refresh (and/or ensure) path stops the skewed daemon,
   waits for PID exit, starts the current binary, and reports before/after
   versions. Matches existing stop → wait → start guidance but automated under
   refresh `--daemon auto` (default when skew detected).
-- **Files:** `crates/anvil-cli/src/commands/ensure.rs`, intercept status helpers,
-  refresh integration
+- **Files:** `crates/anvil-cli/src/commands/daemon_recycle.rs`,
+  `crates/anvil-cli/src/commands/ensure.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-intercept/src/lib.rs`
 - **Validation:** integration or unit test with mocked/status-double versions
   asserts stop+start sequence is invoked on skew and skipped when matched
 - **Confidence:** high
