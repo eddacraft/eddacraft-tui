@@ -95,11 +95,17 @@ pub(crate) fn recycle_daemon_if_version_skew(
     let pid = match hooks.stop_daemon() {
         Ok(Some(pid)) => pid,
         Ok(None) => {
-            return DaemonRecycleOutcome::Failed {
-                before: Some(before),
-                recovery: "could not stop the skewed daemon (no PID file); \
-                           run `anvil intercept stop` then `anvil start`"
-                    .to_owned(),
+            // Race: the daemon can exit between the version probe and stop.
+            // Re-probe; if it is gone, fall through to ordinary ensure.
+            return if hooks.running_daemon().is_none() {
+                DaemonRecycleOutcome::NotRunning
+            } else {
+                DaemonRecycleOutcome::Failed {
+                    before: Some(before),
+                    recovery: "could not stop the skewed daemon (no PID file); \
+                               run `anvil intercept stop` then `anvil start`"
+                        .to_owned(),
+                }
             };
         }
         Err(recovery) => {
@@ -196,7 +202,7 @@ impl DaemonRecycleHooks for LiveDaemonRecycleHooks {
 
     fn start_current_binary(&self) -> Result<String, String> {
         match crate::commands::intercept::launch_save_time_daemon(StartCapability::MaySpawn) {
-            EnsureOutcome::Started | EnsureOutcome::Reused => Ok(query_version_or_cli()),
+            EnsureOutcome::Started | EnsureOutcome::Reused => Ok(query_version_or_unknown()),
             EnsureOutcome::Failed { recovery } => Err(recovery),
             EnsureOutcome::NoStart { reason } => {
                 Err(format!("daemon not started ({})", reason.as_str()))
@@ -206,11 +212,9 @@ impl DaemonRecycleHooks for LiveDaemonRecycleHooks {
 }
 
 #[cfg(any(unix, windows))]
-fn query_version_or_cli() -> String {
-    crate::commands::intercept::query_daemon_status().map_or_else(
-        |_| env!("CARGO_PKG_VERSION").to_owned(),
-        |status| status.health.version,
-    )
+fn query_version_or_unknown() -> String {
+    crate::commands::intercept::query_daemon_status()
+        .map_or_else(|_| "unknown".to_owned(), |status| status.health.version)
 }
 
 /// Human-readable ensure line, including before/after versions when recycled.
@@ -249,6 +253,7 @@ mod tests {
         stop_pid: Option<u32>,
         stop_err: Option<String>,
         wait_ok: bool,
+        gone_after_stop: bool,
         start_after: Result<String, String>,
         calls: RefCell<Vec<RecycleCall>>,
     }
@@ -260,6 +265,7 @@ mod tests {
                 stop_pid: None,
                 stop_err: None,
                 wait_ok: false,
+                gone_after_stop: false,
                 start_after: Err("start not configured".into()),
                 calls: RefCell::new(Vec::new()),
             }
@@ -295,6 +301,9 @@ mod tests {
 
     impl DaemonRecycleHooks for RecordingHooks {
         fn running_daemon(&self) -> Option<RunningDaemon> {
+            if self.gone_after_stop && self.calls.borrow().contains(&RecycleCall::Stop) {
+                return None;
+            }
             self.running.clone()
         }
 
@@ -365,6 +374,28 @@ mod tests {
         let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
         assert_eq!(outcome, DaemonRecycleOutcome::NotRunning);
         assert!(hooks.calls().is_empty());
+    }
+
+    #[test]
+    fn stop_none_when_daemon_already_gone_is_not_running() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.stop_pid = None;
+        hooks.gone_after_stop = true;
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert_eq!(outcome, DaemonRecycleOutcome::NotRunning);
+        assert_eq!(hooks.calls(), vec![RecycleCall::Stop]);
+    }
+
+    #[test]
+    fn stop_none_while_daemon_still_visible_fails() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.stop_pid = None;
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(
+            matches!(outcome, DaemonRecycleOutcome::Failed { .. }),
+            "{outcome:?}"
+        );
+        assert_eq!(hooks.calls(), vec![RecycleCall::Stop]);
     }
 
     #[test]
