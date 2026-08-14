@@ -214,6 +214,19 @@ assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("markdo
 assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("unit-tests") == null' 'agent skill allowlist does NOT require unit tests'
 assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("typecheck") == null' 'agent skill allowlist does NOT require typecheck'
 
+# CIB-335: the compiled pattern registry parity gate lives as a step in the
+# `Unit Tests` job (ci.yml), so it only runs when `unit-tests` is required.
+# Both surfaces that can break parity must therefore keep mapping to
+# `unit-tests`: the `.anvil` sources plus the compiled registry, and the
+# compiler script itself. `patterns/**` has no class of its own and reaches
+# `unit-tests` through the conservative `unknown` fallback — pin that here so a
+# future classifier change cannot silently unhook the gate.
+patterns=$(run_case patterns patterns/guardrail-suppression/AP-001.anvil patterns/compiled/registry.json)
+assert_json_contains "${patterns}" '.requiredChecks | index("unit-tests")' 'pattern sources require unit tests (CIB-335 parity gate)'
+
+patterns_compiler=$(run_case patterns-compiler packages/anvil/core/scripts/compile-patterns.ts)
+assert_json_contains "${patterns_compiler}" '.requiredChecks | index("unit-tests")' 'pattern compiler requires unit tests (CIB-335 parity gate)'
+
 empty=$(run_case empty)
 assert_json_contains "${empty}" '.pathClasses == []' 'empty path set has no path classes'
 assert_json_contains "${empty}" '.warnings == ["no-changed-paths"]' 'empty path set warns no changed paths'

@@ -868,6 +868,34 @@ jobs:
         with:
           nx-shas: true
 
+      # CIB-335: `patterns/compiled/registry.json` is what the Rust scanner
+      # enforces — `crates/anvil-checks/src/antipattern/registry_loader.rs`
+      # embeds it with `include_str!`, so it ships inside the binary. Nothing
+      # verified it still matched the `.anvil` sources it is generated from, so
+      # a hand-edit or a forgotten recompile was invisible until a user hit a
+      # rule that no longer exists in `patterns/`.
+      #
+      # Why a step in THIS job rather than a new top-level job: the classifier
+      # already sets `unit-tests-required` for both surfaces that can break
+      # parity. The compiler is TypeScript (the `ts` class), and `patterns/**`
+      # has no class of its own so it takes the conservative `unknown`
+      # fallback, which also requires unit-tests. Both mappings are pinned by
+      # fixtures in `scripts/ci/classify-changes.test.sh`, so a later
+      # classifier change cannot silently unhook this gate. A new gated job
+      # would need the CIB-038 filler-success shape to avoid a required context
+      # that sometimes never reports; a step in a job that already runs on
+      # these paths needs none of that.
+      #
+      # `--check` never writes. It fails on compile errors or on registry
+      # drift; the nine by-design legacy `AP` prefix-collision warnings are
+      # reported advisorily and do not fail the run (`--strict` opts into
+      # warnings-as-errors).
+      - name: Check compiled pattern registry parity (CIB-335)
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.unit-tests-required == 'true'
+        run: pnpm --filter @eddacraft/anvil-core patterns:check
+
       - name: Install OPA
         if:
           needs.detect-changes.result != 'success' ||

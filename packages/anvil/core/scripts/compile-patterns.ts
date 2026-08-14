@@ -3,16 +3,22 @@
  * ANVFMT — `.anvil` → compiled pattern registry CLI.
  *
  * Usage:
- *   tsx scripts/compile-patterns.ts [--input <dir>] [--output <file>] [--check]
+ *   tsx scripts/compile-patterns.ts [--input <dir>] [--output <file>]
+ *                                   [--check] [--strict]
  *
  * Defaults assume invocation from the repository root:
  *   --input   patterns
  *   --output  patterns/compiled/registry.json
  *
  * Flags:
- *   --check   Do not write; exit non-zero if any errors or warnings surface
- *             or if the existing registry on disk does not match a fresh
- *             compile. Intended for CI drift detection.
+ *   --check   Do not write. Exit non-zero on compile ERRORS or when the
+ *             registry on disk does not match a fresh compile. Compiler
+ *             warnings are reported but are advisory — see `--strict`.
+ *             Intended for CI drift detection.
+ *   --strict  Escalate compiler warnings to failures. Off by default: the
+ *             `patterns/` tree emits nine by-design legacy `AP` prefix
+ *             collision warnings on every run, and conflating those with
+ *             registry drift made `--check` unable to pass (CIB-335).
  */
 
 import { existsSync, promises as fs } from 'node:fs';
@@ -29,7 +35,15 @@ interface CliArgs {
   input: string;
   output: string;
   check: boolean;
+  strict: boolean;
+  help: boolean;
   workspaceRoot: string;
+}
+
+/** Output sinks, injected so the CLI is testable without spawning a process. */
+export interface CompilePatternsIo {
+  stdout: (chunk: string) => void;
+  stderr: (chunk: string) => void;
 }
 
 /**
@@ -61,6 +75,8 @@ function parseArgs(argv: string[], workspaceRoot: string): CliArgs {
     input: path.join(workspaceRoot, 'patterns'),
     output: path.join(workspaceRoot, 'patterns', 'compiled', 'registry.json'),
     check: false,
+    strict: false,
+    help: false,
     workspaceRoot,
   };
 
@@ -84,12 +100,13 @@ function parseArgs(argv: string[], workspaceRoot: string): CliArgs {
       case '--check':
         args.check = true;
         break;
+      case '--strict':
+        args.strict = true;
+        break;
       case '--help':
-      case '-h': {
-        process.stdout.write(usage());
-        process.exit(0);
-      }
-      // eslint-disable-next-line no-fallthrough -- process.exit never returns
+      case '-h':
+        args.help = true;
+        break;
       default:
         throw new Error(`unknown argument: ${arg}`);
     }
@@ -99,14 +116,14 @@ function parseArgs(argv: string[], workspaceRoot: string): CliArgs {
 }
 
 function usage(): string {
-  return `Usage: compile-patterns [--input <dir>] [--output <file>] [--check]\n`;
+  return `Usage: compile-patterns [--input <dir>] [--output <file>] [--check] [--strict]\n`;
 }
 
-function printIssues(label: string, issues: AnvilCompileIssue[]): void {
+function printIssues(io: CompilePatternsIo, label: string, issues: AnvilCompileIssue[]): void {
   if (issues.length === 0) return;
-  process.stderr.write(`${label}:\n`);
+  io.stderr(`${label}:\n`);
   for (const issue of issues) {
-    process.stderr.write(`  [${issue.path}] ${issue.detail}\n`);
+    io.stderr(`  [${issue.path}] ${issue.detail}\n`);
   }
 }
 
@@ -120,36 +137,184 @@ async function readExisting(outputPath: string): Promise<string | null> {
   }
 }
 
-/**
- * Compare two serialised registries for equality, ignoring the non-
- * deterministic `compiled_at` timestamp. Operates on parsed JSON rather
- * than raw strings so whitespace, key order, or future additional
- * non-deterministic fields can be added without a regex rewrite.
- */
-function registriesMatch(existing: string, fresh: string): boolean {
-  let a: Record<string, unknown>;
-  let b: Record<string, unknown>;
-  try {
-    a = JSON.parse(existing) as Record<string, unknown>;
-    b = JSON.parse(fresh) as Record<string, unknown>;
-  } catch {
-    return false;
-  }
-  delete a.compiled_at;
-  delete b.compiled_at;
-  return JSON.stringify(a) === JSON.stringify(b);
+interface RegistryRecord {
+  id?: unknown;
+  [key: string]: unknown;
 }
 
-async function main(): Promise<void> {
+interface RegistryShape {
+  patterns?: unknown;
+  families?: unknown;
+  prefixes?: unknown;
+  [key: string]: unknown;
+}
+
+/** Cap on reported drift lines so a wholesale regeneration stays readable. */
+const MAX_DRIFT_LINES = 25;
+
+/**
+ * Recursively sort object keys so two structurally identical values serialise
+ * identically. Array order is preserved — the compiler sorts patterns and
+ * families deliberately for stable diffs, so a reordered array IS drift.
+ *
+ * Flagged twice by CLAWPATCH audits (2026-05-20, 2026-05-31): comparing raw
+ * `JSON.stringify` output made key order significant, so a re-serialised
+ * registry with identical values reported drift.
+ */
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === 'object') {
+    const source = value as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+    for (const key of Object.keys(source).sort()) sorted[key] = sortKeysDeep(source[key]);
+    return sorted;
+  }
+  return value;
+}
+
+/** Order-insensitive serialisation used for every drift comparison. */
+function canonical(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value));
+}
+
+function asRecords(value: unknown): RegistryRecord[] {
+  return Array.isArray(value) ? (value as RegistryRecord[]) : [];
+}
+
+function byId(value: unknown): Map<string, RegistryRecord> {
+  const map = new Map<string, RegistryRecord>();
+  for (const entry of asRecords(value)) {
+    if (entry && typeof entry.id === 'string') map.set(entry.id, entry);
+  }
+  return map;
+}
+
+/** Name the first field on which two registry records disagree. */
+function firstDifferingField(a: RegistryRecord, b: RegistryRecord): string {
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])].sort();
+  for (const key of keys) {
+    if (canonical(a[key]) !== canonical(b[key])) return key;
+  }
+  return '<unknown>';
+}
+
+function diffCollection(label: string, existing: unknown, fresh: unknown): string[] {
+  const lines: string[] = [];
+  const before = byId(existing);
+  const after = byId(fresh);
+
+  for (const id of after.keys()) {
+    if (!before.has(id)) lines.push(`${label} "${id}" is missing from the committed registry`);
+  }
+  for (const id of before.keys()) {
+    if (!after.has(id)) {
+      lines.push(`${label} "${id}" is in the committed registry but no longer compiles`);
+    }
+  }
+  for (const [id, afterEntry] of after) {
+    const beforeEntry = before.get(id);
+    if (!beforeEntry) continue;
+    if (canonical(beforeEntry) !== canonical(afterEntry)) {
+      lines.push(
+        `${label} "${id}" differs (first change: ${firstDifferingField(beforeEntry, afterEntry)})`
+      );
+    }
+  }
+  return lines;
+}
+
+/**
+ * Describe how the committed registry differs from a fresh compile.
+ * Returns an empty array when they agree.
+ *
+ * Comparison is on PARSED JSON, not text: the compiler emits expanded
+ * `JSON.stringify(..., 2)` while the committed `registry.json` is
+ * oxfmt-normalised (short arrays collapsed onto one line), so a text
+ * comparison reports drift on an identical registry. The non-deterministic
+ * `compiled_at` timestamp is excluded for the same reason.
+ */
+export function describeRegistryDrift(existingText: string, freshText: string): string[] {
+  let before: RegistryShape;
+  let after: RegistryShape;
+  try {
+    before = JSON.parse(existingText) as RegistryShape;
+  } catch {
+    return ['the committed registry is not valid JSON'];
+  }
+  try {
+    after = JSON.parse(freshText) as RegistryShape;
+  } catch {
+    return ['the freshly compiled registry is not valid JSON'];
+  }
+
+  delete before.compiled_at;
+  delete after.compiled_at;
+  if (canonical(before) === canonical(after)) return [];
+
+  const lines: string[] = [];
+
+  const structural = new Set(['patterns', 'families', 'prefixes']);
+  const scalarKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter((key) => !structural.has(key))
+    .sort();
+  for (const key of scalarKeys) {
+    if (canonical(before[key]) !== canonical(after[key])) {
+      lines.push(`${key}: ${JSON.stringify(before[key])} → ${JSON.stringify(after[key])}`);
+    }
+  }
+
+  lines.push(...diffCollection('pattern', before.patterns, after.patterns));
+  lines.push(...diffCollection('family', before.families, after.families));
+
+  if (canonical(before.prefixes) !== canonical(after.prefixes)) {
+    lines.push(`prefixes: ${JSON.stringify(before.prefixes)} → ${JSON.stringify(after.prefixes)}`);
+  }
+
+  if (lines.length === 0) {
+    // Same values, different array element order — still drift (the compiler
+    // sorts deliberately), but nothing field-level to point at.
+    lines.push('registry contents match but their element order differs');
+  }
+
+  if (lines.length > MAX_DRIFT_LINES) {
+    const overflow = lines.length - MAX_DRIFT_LINES;
+    return [...lines.slice(0, MAX_DRIFT_LINES), `…and ${overflow} further difference(s)`];
+  }
+  return lines;
+}
+
+/**
+ * Run the CLI and return the process exit code. Kept separate from `main()`
+ * so tests can drive real CLI semantics without spawning a process.
+ */
+export async function runCompilePatternsCli(
+  argv: string[],
+  io: CompilePatternsIo,
+  workspaceRootOverride?: string
+): Promise<number> {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const workspaceRoot = findWorkspaceRoot(scriptDir);
-  const args = parseArgs(process.argv.slice(2), workspaceRoot);
+  const workspaceRoot = workspaceRootOverride ?? findWorkspaceRoot(scriptDir);
+
+  let args: CliArgs;
+  try {
+    args = parseArgs(argv, workspaceRoot);
+  } catch (err) {
+    io.stderr(`compile-patterns: ${err instanceof Error ? err.message : String(err)}\n`);
+    io.stderr(usage());
+    return 1;
+  }
+
+  if (args.help) {
+    io.stdout(usage());
+    return 0;
+  }
+
   const inputDir = path.resolve(args.input);
   const outputFile = path.resolve(args.output);
 
   if (!existsSync(inputDir)) {
-    process.stderr.write(`compile-patterns: input directory does not exist: ${inputDir}\n`);
-    process.exit(1);
+    io.stderr(`compile-patterns: input directory does not exist: ${inputDir}\n`);
+    return 1;
   }
 
   const result: AnvilCompileResult = await compilePatterns({
@@ -157,47 +322,68 @@ async function main(): Promise<void> {
     referenceRoot: args.workspaceRoot,
   });
 
-  printIssues('errors', result.errors);
-  printIssues('warnings', result.warnings);
+  printIssues(io, 'errors', result.errors);
+  printIssues(io, 'warnings', result.warnings);
 
-  if (!result.registry) {
-    process.stderr.write(`\ncompile failed: ${result.errors.length} error(s)\n`);
-    process.exit(1);
+  if (!result.registry || result.errors.length > 0) {
+    io.stderr(`\ncompile failed: ${result.errors.length} error(s)\n`);
+    return 1;
+  }
+
+  // Warnings are advisory by default. The `patterns/` tree emits nine legacy
+  // `AP` prefix-collision warnings by design; treating them as failures made
+  // the parity gate permanently red regardless of registry state (CIB-335).
+  if (result.warnings.length > 0) {
+    if (args.strict) {
+      io.stderr(
+        `\n--strict: compile produced ${result.warnings.length} warning(s); failing as requested.\n`
+      );
+      return 1;
+    }
+    io.stderr(
+      `\nnote: ${result.warnings.length} warning(s) above are advisory and do not fail this run; pass --strict to escalate them.\n`
+    );
   }
 
   const serialised = JSON.stringify(result.registry, null, 2) + '\n';
 
   if (args.check) {
-    if (result.warnings.length > 0) {
-      process.stderr.write(
-        `\n--check: compile produced ${result.warnings.length} warning(s); treating as drift.\n`
-      );
-      process.exit(1);
-    }
     const existing = await readExisting(outputFile);
     if (existing === null) {
-      process.stderr.write(
+      io.stderr(
         `\n--check: no compiled registry at ${args.output}; run without --check to generate.\n`
       );
-      process.exit(1);
+      return 1;
     }
-    if (!registriesMatch(existing, serialised)) {
-      process.stderr.write(
-        `\n--check: compiled registry at ${args.output} is stale; rerun the compiler.\n`
+    const drift = describeRegistryDrift(existing, serialised);
+    if (drift.length > 0) {
+      io.stderr(
+        `\n--check: compiled registry at ${args.output} is stale — ${drift.length} difference(s) vs a fresh compile:\n`
       );
-      process.exit(1);
+      for (const line of drift) io.stderr(`  ${line}\n`);
+      io.stderr(`\nRegenerate with: pnpm --filter @eddacraft/anvil-core patterns:compile\n`);
+      return 1;
     }
-    process.stdout.write(
+    io.stdout(
       `compile-patterns: ${result.registry.patterns.length} patterns in ${result.registry.families.length} families — in sync\n`
     );
-    return;
+    return 0;
   }
 
   await fs.mkdir(path.dirname(outputFile), { recursive: true });
   await fs.writeFile(outputFile, serialised, 'utf8');
-  process.stdout.write(
+  io.stdout(
     `compile-patterns: wrote ${result.registry.patterns.length} patterns (${result.registry.families.length} families) → ${path.relative(process.cwd(), outputFile)}\n`
   );
+  return 0;
+}
+
+async function main(): Promise<void> {
+  const code = await runCompilePatternsCli(process.argv.slice(2), {
+    stdout: (chunk) => process.stdout.write(chunk),
+    stderr: (chunk) => process.stderr.write(chunk),
+  });
+  if (code !== 0) process.exit(code);
 }
 
 const invokedDirectly =
