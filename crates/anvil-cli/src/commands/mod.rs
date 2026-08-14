@@ -14,6 +14,7 @@ pub(crate) mod daemon_recycle;
 pub mod dashboard;
 pub mod defaults;
 pub mod doctor;
+pub(crate) mod doctor_leftover;
 pub mod drift;
 pub mod edda;
 pub mod ember;

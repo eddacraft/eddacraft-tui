@@ -39,7 +39,10 @@ refuses to overwrite an existing `.anvil.<ext>` without `--force`).
 `anvil doctor` reports the legacy states above: its `config-variants` check
 warns when more than one config file exists (naming the winner under
 discover-first precedence), and legacy `camelCase` keys surface as a deprecation
-note on both `anvil config show` and doctor's `config-valid` check.
+note on both `anvil config show` and doctor's `config-valid` check. On a TTY
+(not `--json`, and not CI or a git hook) doctor then offers to migrate a lone
+`.anvilrc`, remove the shadowed leftover, fold `.anvil/gate-config.json`, or
+record `architecture.source`. A single healthy canonical file is not prompted.
 
 A malformed `gate` section is a loud error on both `anvil gate` and
 `anvil check` — the shared reader refuses to run rather than silently skipping

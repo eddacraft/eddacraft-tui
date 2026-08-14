@@ -52,7 +52,11 @@ several checks match reality.
   `--remove-old` deletes the source when the dest is a different path;
   `--stdout` on convert still prints only. `anvil migrate gate-config` and
   `anvil migrate architecture` preview by default and write with `--apply`.
-  `anvil doctor` reports dual-file and legacy-key states.
+  `anvil doctor` reports dual-file and legacy-key states. On a TTY (not
+  `--json`, not CI or git hooks) it then offers to migrate a lone `.anvilrc`,
+  remove a shadowed leftover file, fold `.anvil/gate-config.json`, or record
+  `architecture.source`. A single healthy `.anvil.yaml` / `.json` / `.toml` is
+  not prompted.
 
 - **GitHub Actions checks see compact YAML mappings.** Trigger and `uses:` forms
   written as `{ pull_request_target: … }` or `- { uses: owner/repo@branch }` are

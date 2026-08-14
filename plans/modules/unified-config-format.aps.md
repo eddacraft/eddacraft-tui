@@ -517,7 +517,7 @@ Change status to **Ready** when:
 
 #### UCFG-016: doctor TTY offers migrate / remove leftover config
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Interactive `anvil doctor` (TTY, not `--json`) offers to migrate
   or remove leftover dual-config / gate-config / unrecorded architecture
   states. Non-TTY stays warn-only. Problem states only — a single healthy
@@ -525,7 +525,8 @@ Change status to **Ready** when:
 - **Expected Outcome:** TTY doctor can apply the UCFG-015 writer or delete the
   shadowed file after explicit choice; CI and hooks never prompt
 - **Validation:** `cargo test -p eddacraft-anvil -- doctor`
-- **Files:** `crates/anvil-cli/src/commands/doctor.rs`
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/commands/doctor_leftover.rs`
 - **Confidence:** Medium
 - **Priority:** Medium
 - **Dependencies:** UCFG-015

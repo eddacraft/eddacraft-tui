@@ -11,6 +11,9 @@ use anvil_tui::surfaces::doctor::{CheckStatus, DiagnosticCheck, DoctorState, Rem
 use serde::Serialize;
 
 use crate::GlobalArgs;
+use crate::commands::doctor_leftover::{
+    leftover_offers_in, run_offers_on_stdio, should_offer_leftover_cleanup,
+};
 use crate::commands::hooks::{
     ConfigHookRuntime, HookInterpreterStatus, config_hook_runtime, config_hooks_enabled,
     hook_interpreter_status, list_config_hook_commands, min_config_hook_git_label,
@@ -91,6 +94,20 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             break;
         }
         checks = state.checks;
+    }
+
+    // UCFG-016: TTY-only leftover cleanup. Never --json, never CI/hooks.
+    if should_offer_leftover_cleanup(
+        global.json,
+        std::io::stdin().is_terminal() && std::io::stderr().is_terminal(),
+        crate::is_non_interactive_env(),
+    ) {
+        let root = Path::new(".");
+        let offers = leftover_offers_in(root);
+        if !offers.is_empty() {
+            run_offers_on_stdio(root, &offers)?;
+            checks = run_all_checks();
+        }
     }
 
     let has_failures = checks.iter().any(|c| c.status == CheckStatus::Fail);
