@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 263/324  |
+| CIB | —     | In Progress | 267/326  |
 
 ## Purpose
 
@@ -9708,23 +9708,25 @@ RETEST-2). Do not re-file those.
 
 | Dave ID | Disposition | Tracking |
 | --- | --- | --- |
-| PY008-FP | net-new FP we created by shipping SEC-COV-1 | **CIB-322** Ready P1 |
+| PY008-FP | net-new FP we created by shipping SEC-COV-1 | **CIB-322** In Progress on #3880 |
 | B14 | PY-008 `explanation` is family boilerplate | **Absorbed** into CIB-322 |
-| SEC-CARD-1 | card rule on URL path digit runs | **CIB-323** Ready P2 |
-| UPD-1 / UPD-2 / UPD-3 *(pack 06)* | Windows `update` honesty (exit 0 / advice while current / winget on cargo-dist) | **CIB-324** Ready P2 |
-| SEC-INST-1 | downloaded installer.ps1 dies on `$Args` | **CIB-325** Ready P2 |
-| B4 / REPORTFP-1 | `report-fp` rejects the ids `check` prints | **CIB-326** Ready P2 |
-| C3 / B10 | unparseable architecture.yaml silently disables import-boundaries | **CIB-327** Draft P2 (verify first) |
+| SEC-CARD-1 | card rule on URL path digit runs | **CIB-323** Merged via #3881 |
+| UPD-1 / UPD-2 / UPD-3 *(pack 06)* | Windows `update` honesty (exit 0 / advice while current / winget on cargo-dist) | **CIB-324** Merged via #3882 |
+| SEC-INST-1 | downloaded installer.ps1 dies on `$Args` | **CIB-325** Merged via #3883 |
+| B4 / REPORTFP-1 | `report-fp` rejects the ids `check` prints | **CIB-326** Merged via #3884 |
+| C3 / B10 | unparseable architecture.yaml silently disables import-boundaries | **CIB-327** Draft P2 (narrowed 2026-08-14: gate already fails loud) |
 | SUPPRESS-1 | scanner FP has no scoped escape; grant/commit deadlock | **CIB-328** Draft P2 (deadlock only; L4-only exceptions stay) |
 | UX-3 *(pack 06)* | bare `anvil` on non-TTY becomes `intercept start --foreground` and does not return | **CIB-329** Draft P2 (verify Windows detach) |
+| WC001-FP | `hashlib.sha1(..., usedforsecurity=False)` still fires WC-001 | **CIB-330** Ready P3 |
+| AP017-FP | `RGBColor.from_string(x)` fires AP-017 (name-only) | **CIB-331** Draft P3 |
 | C1 / B1 | MCP `gateUnavailable` → proceed | **Won't change** without an ADR. ADR-002; not fired on 0.9.4 |
 | C2 / B11 | generated hooks `exit 0` if `anvil` missing | **Won't change** without amending ADR-038 D-5 |
 | SUPPRESS-1 `@anvil-ignore` | claimed no-op | **Not filed.** Preceding-line ignore is tested green for PY-004 |
 | B12 | gate vs check secret domains | **Already CIB-255.** Disclosure shipped; do not re-file |
 | B15 | `validate_write` vs `check` on identical bytes | **Won't file as a defect.** Pre-write is a documented subset |
 | B2 / B3 | MCP creds at spawn; `auth login` exit 1 after refresh | **Not filed.** 0.9.2 only; not retested on 0.9.4 |
-| AP017-FP / WC001-FP | `from_string` / `usedforsecurity=False` | **Parked.** Revisit if still loud after CIB-322 |
-| DASH-SUP-1 / DASH-BASE-1 / DASH-WEB-1 | dashboard read-path / CORS | **Parked.** Dashboard is flag-gated; not this window |
+| DASH-SUP-1 | `dashboard suppressions` count 0 vs `exception verify` 1 | **Not filed as a bug.** Different stores: `.anvil/suppressions.json` vs `anvil/exceptions/store.json` |
+| DASH-BASE-1 / DASH-WEB-1 | dashboard drift / CORS | **Parked.** Dashboard is flag-gated; not this window |
 | CAPSULE-EXC-1 | capsule blesses warned grants | **Parked.** Honesty, not a ship gate |
 | SEC-DAEMON-1 / B6 / UX-1 / UX-2 / UX-4 / UX-5 | polish / copy / docs landing | **Won't change** this pass |
 | STATE-1 | kindling vs clean-tree vs doctor | **Question, not a CIB.** ADR-073 |
@@ -9733,7 +9735,9 @@ RETEST-2). Do not re-file those.
 
 ### CIB-322: PY-008 must not fire on Python prefixed string literals
 
-- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Status:** In Progress via PR
+  [#3880](https://github.com/eddacraft/anvil-001/pull/3880) (open, CLEAN,
+  2026-08-14). Operator-authorised intake 2026-08-14 from Dave pack 06
 - **Priority:** P1 — ERROR, blocks commits, we created this by shipping SEC-COV-1
 - **Intent:** `PY-008` decides an argument is dynamic by testing whether the
   first character inside the parens is a quote. A Python prefixed literal
@@ -9765,7 +9769,9 @@ RETEST-2). Do not re-file those.
 
 ### CIB-323: Credit-card rule must not fire on URL path digit runs
 
-- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Status:** Merged via PR
+  [#3881](https://github.com/eddacraft/anvil-001/pull/3881) (merged
+  2026-08-14). Ancestor of `main`. Not yet in a tagged release
 - **Priority:** P2 — same class as the path-shaped entropy exemption shipped
   for SEC-FP-1
 - **Intent:** `SECRET-CREDIT-CARD` is a bare 16-digit run
@@ -9791,7 +9797,9 @@ RETEST-2). Do not re-file those.
 
 ### CIB-324: Windows `anvil update` must match `--check` and the install method
 
-- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Status:** Merged via PR
+  [#3882](https://github.com/eddacraft/anvil-001/pull/3882) (merged
+  2026-08-14). Ancestor of `main`. Not yet in a tagged release
 - **Priority:** P2 — scripted `update && …` and cargo-dist Windows users
 - **Intent:** Three pack-06 observations share the Windows `update` surface
   (new meanings; not pack-01 UPD-1/2/3):
@@ -9828,7 +9836,9 @@ RETEST-2). Do not re-file those.
 
 ### CIB-325: PowerShell installer must run as a downloaded file
 
-- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Status:** Merged via PR
+  [#3883](https://github.com/eddacraft/anvil-001/pull/3883) (merged
+  2026-08-13). Ancestor of `main`. Not yet in a tagged release
 - **Priority:** P2 — penalises the download-verify-inspect path
 - **Intent:** `powershell -File eddacraft-anvil-installer.ps1` dies with
   `$args` unset under `Set-StrictMode` because cargo-dist's generated
@@ -9858,7 +9868,9 @@ RETEST-2). Do not re-file those.
 
 ### CIB-326: `report-fp` must accept the finding ids `check` prints
 
-- **Status:** Ready — operator-authorised intake 2026-08-14 from Dave pack 06
+- **Status:** Merged via PR
+  [#3884](https://github.com/eddacraft/anvil-001/pull/3884) (merged
+  2026-08-14). Ancestor of `main`. Not yet in a tagged release
 - **Priority:** P2 — FP telemetry cannot receive the ids users see
 - **Intent:** `report-fp` validates against the OPSUP-001 check catalogue
   (`ANV-CORE-001` / `secret-detection`). `anvil check` prints rule ids
@@ -9884,35 +9896,45 @@ RETEST-2). Do not re-file those.
 
 ### CIB-327: Unparseable architecture config must not silently disable enforcement
 
-- **Status:** Draft — verify the swallow path before implementation
+- **Status:** Draft — revalidated 2026-08-14; narrowed, do not re-implement
+  the already-loud `gate` path
 - **Priority:** P2 honesty (Dave C3 / B10)
 - **Intent:** Dave reports that an unparseable `.anvil/architecture.yaml`
   (including a hand-written `rules:` block the parser rejects) makes
-  import-boundaries enforce nothing, with no loud failure. The `rules:`
-  schema is unpublished; parser errors (`missing field 'name'`, then
-  `'from'`) invite guessing. The author is most likely to have a broken
-  file at the moment they are adding rules.
+  import-boundaries enforce nothing, with no loud failure. **2026-08-14
+  pin:** `anvil gate`'s `run_check_architecture` already returns
+  `passed: false` on `resolve_architecture` `Err`, and
+  `architecture_invalid_yaml_fails` covers syntactically invalid YAML.
+  `anvil check` never runs architecture / import-boundaries (planless
+  dispatcher; "Use `anvil gate` for config-heavy checks"). Remaining
+  honesty: (1) the `rules:` schema is unpublished; parser errors
+  (`missing field 'name'`, then `'from'`) invite guessing; (2) a user
+  who only runs `anvil check` sees a clean tree while the architecture
+  file is broken; (3) confirm the watch / save-time path does not
+  swallow a present-but-unparseable file into empty layers.
 - **Expected Outcome:** a present-but-unparseable architecture source
-  fails closed for import-boundaries (or the surface names "architecture
-  rules not loaded: <parse error>") rather than looking like a clean
-  tree. Docs show the `rules:` schema or stop implying it. **Not** a
+  cannot look like a clean tree on the surfaces an operator actually
+  runs. Docs show the `rules:` schema or stop implying it. **Not** a
   flip of MCP `gateUnavailable` or hook-missing-binary policy.
 - **Non-scope / do not:** do not file this as "PATTERN-C fail-open"; do
   not change ADR-002 / ADR-038. Do not invent a new architecture DSL in
-  this item.
+  this item. Do not re-work `run_check_architecture`'s existing fail-loud
+  parse path.
 - **Files:** `crates/anvil-architecture/src/yaml_parser.rs`,
-  import-boundaries / architecture check entry, `docs` for the
-  architecture YAML schema
-- **Validation:** fixture with a syntactically invalid or schema-invalid
-  architecture file; `anvil check` / `gate` on import-boundaries is
-  non-success (or prints a cannot-load line that cannot be skimmed as
-  clean). A valid file still enforces.
-- **Identified From:** Dave pack 06 C3 / B10, 2026-08-11. Parser itself
-  returns `Err` on invalid YAML; the swallow is likely at the check
-  entry — confirm before coding.
+  `crates/anvil-cli/src/architecture_source.rs`,
+  `crates/anvil-kernel/src/watch.rs` (`load_architecture_config`),
+  architecture docs for the `rules:` schema
+- **Validation:** (a) `anvil check` on a repo whose only architecture
+  file is invalid is not skim-readable as clean (message or non-zero);
+  (b) watch / save-time does not treat present-but-unparseable as empty
+  layers; (c) `anvil gate` stays red on the existing invalid-YAML
+  fixture. A valid file still enforces.
+- **Identified From:** Dave pack 06 C3 / B10, 2026-08-11. Revalidated
+  2026-08-14 against `gate.rs` + `check.rs` on current `main`.
 - **Coordinates with:** UCFG architecture section, ADR-002 (do not
   conflate)
-- **Confidence:** medium — observed by Dave; swallow site not yet pinned.
+- **Confidence:** high on the gate fail-loud path; medium on remaining
+  check/watch honesty.
 
 ### CIB-328: Landing the first exception store must not require skipping every hook
 
@@ -9969,7 +9991,63 @@ RETEST-2). Do not re-file those.
   launcher) returns; the daemon, if started, is a *child*. Parent exit
   is 0 or a documented non-zero, not a hang. Unix path stays green.
 - **Identified From:** Dave pack 06 UX-3, 2026-08-11, Windows 11.
+  Revalidated 2026-08-14: still unverified on Windows; ADR-114 still
+  allows spawn without a TTY. Keep Draft.
 - **Coordinates with:** ADR-114, ADR-082 / DLIFE
 - **Confidence:** medium — hang is reported; detach-vs-exec not proven
   in-tree.
+
+### CIB-330: WC-001 must honour `hashlib` `usedforsecurity=False`
+
+- **Status:** Ready — operator-authorised 2026-08-14 after pack-06
+  revalidation (parked until CIB-322; still true on current `main`)
+- **Priority:** P3 — warning, language-level non-security declaration
+- **Intent:** `WC-001` matches `hashlib.(md5|sha1)(` with no regard for
+  the Python 3.9+ `usedforsecurity=False` keyword. That keyword is the
+  language-level way to declare a non-security digest (checksums, cache
+  keys). Dave verified both the plain and the keyworded call fire. JS
+  tests already suppress WC-001 with a comment; Python has a first-class
+  declaration the rule should honour.
+- **Expected Outcome:** `hashlib.sha1(data, usedforsecurity=False)` and
+  `hashlib.md5(..., usedforsecurity=False)` do not fire WC-001.
+  `hashlib.sha1(data)` without the keyword still fires. Other
+  construction forms (`createHash('md5')`, `hashlib.new('sha1')`) stay
+  as they are unless they grow an equivalent declaration.
+- **Non-scope / do not:** do not drop WC-001; do not require an AST
+  rewrite if a regex negative lookahead on the same call is enough.
+- **Files:** `patterns/weak-cryptography/WC-001.anvil`, compiled
+  registry, `crates/anvil-checks/tests/insecure_construction.rs`
+- **Validation:** RED-then-green fixture: keyworded `hashlib.sha1`
+  clean; bare `hashlib.sha1(data)` still reports WC-001.
+- **Identified From:** Dave pack 06 WC001-FP, 2026-08-11. Confirmed
+  2026-08-14: pattern is still `hashlib\.(?:md5|sha1)\s*\(`.
+- **Coordinates with:** CIB-322 (same pack; independent rule)
+- **Confidence:** high.
+
+### CIB-331: AP-017 must not treat every `.from_string(` as SSTI
+
+- **Status:** Draft — operator-authorised 2026-08-14 after pack-06
+  revalidation; needs a receiver design, not a one-line skip
+- **Priority:** P3 — ERROR, but the honest fix is receiver resolution
+- **Intent:** `AP-017` matches `\.from_string(` plus a dynamic first
+  argument. That is the Jinja2 `Environment.from_string` shape, but it
+  also fires on `RGBColor.from_string(x)` (python-docx colour
+  constructor) and any other `from_string` method. Dave's mechanism is
+  still the compiled pattern on current `main`.
+- **Expected Outcome:** non-template `from_string` receivers do not
+  fire. True SSTI shapes (`env.from_string(user_template)`,
+  `render_template_string(...)`, `nunjucks.renderString(...)`) still
+  fire when the body is dynamic.
+- **Non-scope / do not:** do not drop AP-017; do not special-case only
+  `RGBColor` as the whole fix (the class is name-only matching).
+- **Files:** `patterns/dynamic-execution/AP-017.anvil`, compiled
+  registry, `crates/anvil-checks/tests/insecure_construction.rs`
+- **Validation:** `RGBColor.from_string(x)` clean; `env.from_string(user)`
+  still AP-017. Existing SSTI fixtures stay green.
+- **Identified From:** Dave pack 06 AP017-FP, 2026-08-11. Confirmed
+  2026-08-14: pattern is still
+  `(?:render_template_string|\.from_string|nunjucks\.renderString)\s*\(`.
+- **Coordinates with:** CIB-322 (same pack; independent rule)
+- **Confidence:** high on the match; medium on the smallest product
+  shape (allowlist vs AST).
 

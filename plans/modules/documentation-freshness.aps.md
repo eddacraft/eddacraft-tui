@@ -5,7 +5,7 @@
 
 | ID        | Owner | Priority | Status | Progress |
 | --------- | ----- | -------- | ------ | -------- |
-| DOCFRESH  | —     | high     | In Progress | 6/8 |
+| DOCFRESH  | —     | high     | In Progress | 7/8 |
 
 **Last reviewed:** 2026-08-13 — DOCFRESH-008 **Merged via PR #3868**. ADR-122
 splits public sections by product source of truth: edda-stack is in-tree and
