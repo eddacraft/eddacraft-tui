@@ -105,8 +105,10 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         let root = Path::new(".");
         let offers = leftover_offers_in(root);
         if !offers.is_empty() {
-            run_offers_on_stdio(root, &offers)?;
-            checks = run_all_checks();
+            let applied = run_offers_on_stdio(root, &offers)?;
+            if !applied.is_empty() {
+                checks = run_all_checks();
+            }
         }
     }
 

@@ -55,8 +55,8 @@ several checks match reality.
   `anvil doctor` reports dual-file and legacy-key states. On a TTY (not
   `--json`, not CI or git hooks) it then offers to migrate a lone `.anvilrc`,
   remove a shadowed leftover file, fold `.anvil/gate-config.json`, or record
-  `architecture.source`. A single healthy `.anvil.yaml` / `.json` / `.toml` is
-  not prompted.
+  `architecture.source`. A single healthy `.anvil.yaml` / `.yml` / `.json` /
+  `.toml` is not prompted.
 
 - **GitHub Actions checks see compact YAML mappings.** Trigger and `uses:` forms
   written as `{ pull_request_target: … }` or `- { uses: owner/repo@branch }` are
