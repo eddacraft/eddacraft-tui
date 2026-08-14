@@ -312,6 +312,67 @@ describe('compile-patterns CLI — --check parity gate', () => {
     expect(code).toBe(1);
     expect(strict.err).toMatch(/--strict: compile produced 1 warning\(s\)/);
   });
+
+  // Review of #3892: the drift walker indexed the parsed payload as an object.
+  // Valid JSON that is not an object (`null`, an array, a scalar) parses
+  // cleanly and then threw a raw TypeError out of `delete`/property reads. The
+  // gate still failed closed, but on a stack trace rather than a message an
+  // operator can act on.
+  it.each([
+    ['null', 'null'],
+    ['array', '[]'],
+    ['scalar', '42'],
+    ['string', '"registry"'],
+  ])('reports a clear failure when the committed registry is %s', async (label, payload) => {
+    const { input, output } = await warningTree(`nonobject-${label}`);
+    await runCompilePatternsCli(['--input', input, '--output', output], makeIo(), tmp);
+    await writeFile(output, payload, 'utf8');
+
+    const io = makeIo();
+    const code = await runCompilePatternsCli(
+      ['--input', input, '--output', output, '--check'],
+      io,
+      tmp
+    );
+
+    expect(code).toBe(1);
+    expect(io.err, `stderr:\n${io.err}`).toMatch(/not a registry object/);
+    // A stack trace is not an actionable message.
+    expect(io.err).not.toMatch(/TypeError|Cannot convert|at Object\./);
+  });
+
+  // Review of #3892: the header counted the reported *lines*, but the list is
+  // truncated at MAX_DRIFT_LINES with a "…and N further" notice appended — so
+  // a wholesale regeneration claimed "26 difference(s)" whether 30 or 300
+  // fields had moved. The count must describe the drift, not the report.
+  it('reports the true difference count when the drift list is truncated', async () => {
+    const { input, output } = await warningTree('truncated');
+    await runCompilePatternsCli(['--input', input, '--output', output], makeIo(), tmp);
+
+    const committed = JSON.parse(await readFile(output, 'utf8')) as {
+      patterns: Record<string, unknown>[];
+    };
+    const template = committed.patterns[0]!;
+    for (let i = 0; i < 40; i++) {
+      committed.patterns.push({ ...template, id: `ZZ-${String(i).padStart(3, '0')}` });
+    }
+    await writeFile(output, JSON.stringify(committed, null, 2) + '\n', 'utf8');
+
+    const io = makeIo();
+    const code = await runCompilePatternsCli(
+      ['--input', input, '--output', output, '--check'],
+      io,
+      tmp
+    );
+
+    expect(code).toBe(1);
+    const header = /is stale — (\d+) difference\(s\)/.exec(io.err);
+    expect(header, `stderr:\n${io.err}`).not.toBeNull();
+    // 40 phantom rules — the header must not collapse to the display cap.
+    expect(Number(header![1])).toBe(40);
+    expect(io.err).toMatch(/showing first 25/);
+    expect(io.err).toMatch(/…and 15 further difference\(s\)/);
+  });
 });
 
 describe('compile-patterns CLI — real patterns/ tree', () => {

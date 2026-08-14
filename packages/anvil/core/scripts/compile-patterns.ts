@@ -149,8 +149,39 @@ interface RegistryShape {
   [key: string]: unknown;
 }
 
+/**
+ * Drift report. `total` is the real number of differences found; `lines` may be
+ * truncated for readability, so callers must not infer a count from its length
+ * (the truncation notice is itself a line, which would overstate by one while
+ * understating the remainder).
+ */
+export interface RegistryDrift {
+  total: number;
+  lines: string[];
+}
+
 /** Cap on reported drift lines so a wholesale regeneration stays readable. */
 const MAX_DRIFT_LINES = 25;
+
+/**
+ * Parse a registry payload, rejecting valid JSON that is not a JSON object.
+ * `null`, arrays, and scalars all parse cleanly but are not registries, and
+ * the field-level diff below indexes them as objects — so reject here with a
+ * message rather than throwing from `delete` or a property read.
+ */
+function parseRegistryObject(text: string): RegistryShape {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('is not valid JSON');
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const kind = parsed === null ? 'null' : Array.isArray(parsed) ? 'an array' : typeof parsed;
+    throw new Error(`is valid JSON but ${kind}, not a registry object`);
+  }
+  return parsed as RegistryShape;
+}
 
 /**
  * Recursively sort object keys so two structurally identical values serialise
@@ -233,23 +264,23 @@ function diffCollection(label: string, existing: unknown, fresh: unknown): strin
  * comparison reports drift on an identical registry. The non-deterministic
  * `compiled_at` timestamp is excluded for the same reason.
  */
-export function describeRegistryDrift(existingText: string, freshText: string): string[] {
+export function describeRegistryDrift(existingText: string, freshText: string): RegistryDrift {
   let before: RegistryShape;
   let after: RegistryShape;
   try {
-    before = JSON.parse(existingText) as RegistryShape;
-  } catch {
-    return ['the committed registry is not valid JSON'];
+    before = parseRegistryObject(existingText);
+  } catch (error) {
+    return { total: 1, lines: [`the committed registry ${(error as Error).message}`] };
   }
   try {
-    after = JSON.parse(freshText) as RegistryShape;
-  } catch {
-    return ['the freshly compiled registry is not valid JSON'];
+    after = parseRegistryObject(freshText);
+  } catch (error) {
+    return { total: 1, lines: [`the freshly compiled registry ${(error as Error).message}`] };
   }
 
   delete before.compiled_at;
   delete after.compiled_at;
-  if (canonical(before) === canonical(after)) return [];
+  if (canonical(before) === canonical(after)) return { total: 0, lines: [] };
 
   const lines: string[] = [];
 
@@ -276,11 +307,15 @@ export function describeRegistryDrift(existingText: string, freshText: string): 
     lines.push('registry contents match but their element order differs');
   }
 
-  if (lines.length > MAX_DRIFT_LINES) {
-    const overflow = lines.length - MAX_DRIFT_LINES;
-    return [...lines.slice(0, MAX_DRIFT_LINES), `…and ${overflow} further difference(s)`];
+  const total = lines.length;
+  if (total > MAX_DRIFT_LINES) {
+    const overflow = total - MAX_DRIFT_LINES;
+    return {
+      total,
+      lines: [...lines.slice(0, MAX_DRIFT_LINES), `…and ${overflow} further difference(s)`],
+    };
   }
-  return lines;
+  return { total, lines };
 }
 
 /**
@@ -356,11 +391,15 @@ export async function runCompilePatternsCli(
       return 1;
     }
     const drift = describeRegistryDrift(existing, serialised);
-    if (drift.length > 0) {
+    if (drift.total > 0) {
+      const shown =
+        drift.total > drift.lines.length || drift.lines.length > MAX_DRIFT_LINES
+          ? ` (showing first ${MAX_DRIFT_LINES})`
+          : '';
       io.stderr(
-        `\n--check: compiled registry at ${args.output} is stale — ${drift.length} difference(s) vs a fresh compile:\n`
+        `\n--check: compiled registry at ${args.output} is stale — ${drift.total} difference(s)${shown} vs a fresh compile:\n`
       );
-      for (const line of drift) io.stderr(`  ${line}\n`);
+      for (const line of drift.lines) io.stderr(`  ${line}\n`);
       io.stderr(`\nRegenerate with: pnpm --filter @eddacraft/anvil-core patterns:compile\n`);
       return 1;
     }
