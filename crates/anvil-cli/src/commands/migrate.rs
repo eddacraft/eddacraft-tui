@@ -1,9 +1,8 @@
 //! `anvil migrate` — config migration, split into two subcommands:
 //!
-//! - `format` (MLP2-040): migrate a legacy `.anvilrc` to the multi-format
-//!   `.anvil.<ext>` surface from MLP-011 (yaml / yml / json / toml). This
-//!   is a *filename/encoding* migration; existing `.anvilrc` projects keep
-//!   working through `gate.rs`'s fallback path.
+//! - `format` (UCFG-015): convert the discovered project config to
+//!   `.anvil.<ext>` (yaml / yml / json / toml). `.anvilrc` is accepted as
+//!   a source only; the command never writes one.
 //! - `schema` (DISTRIB-005): reconcile the *contents* of an existing
 //!   `.anvil.<ext>` config across anvil minor versions, applying any
 //!   registered schema migration for the version delta (dry-run by
@@ -28,8 +27,8 @@ pub struct MigrateArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum MigrateCommand {
-    /// Migrate a legacy `.anvilrc` to the multi-format `.anvil.<ext>`
-    /// surface (yaml / yml / json / toml).
+    /// Convert the discovered project config to `.anvil.<ext>`
+    /// (yaml / yml / json / toml). Never writes `.anvilrc`.
     Format(FormatArgs),
     /// Reconcile an existing config's schema across anvil versions,
     /// applying any registered migration for the version delta.
@@ -46,7 +45,7 @@ pub enum MigrateCommand {
 
 #[derive(Debug, Args)]
 pub struct FormatArgs {
-    /// Target format for the new config file. Defaults to `yaml`.
+    /// Destination format for `.anvil.<ext>`. Defaults to `yaml`. Never `anvilrc`.
     #[arg(long, default_value = "yaml")]
     pub format: String,
 
@@ -132,87 +131,17 @@ pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
 // ---------------------------------------------------------------------------
 
 pub(crate) fn run_format_in(args: &FormatArgs, root: &Path) -> Result<()> {
-    // DISTRIB-006 (ADR-060): rewriting the project config (`.anvil.<ext>` /
-    // `.anvilrc`) is a durable per-project mutation. Refuse under a gated
-    // ANVIL_HOME without `--touch-project-state`.
-    crate::install_root::ensure_project_write_allowed("migrate format")?;
-
-    let format = parse_target_format(&args.format)?;
-
-    let old = root.join(".anvilrc");
-    if !old.exists() {
-        bail!(
-            "no legacy `.anvilrc` to migrate at {} (nothing to do)",
-            old.display()
-        );
-    }
-
-    let new = root.join(format!(".anvil.{}", format.extension()));
-    if new.exists() && !args.force {
-        bail!(
-            "refusing to overwrite existing {}; pass --force",
-            new.display()
-        );
-    }
-
-    let contents =
-        std::fs::read_to_string(&old).with_context(|| format!("reading {}", old.display()))?;
-    let mut value = detect_and_parse(&contents, &old)?;
-    // ADR-120 pt 3: the conversion is an owned write — legacy camelCase
-    // keys are rewritten to canonical snake_case on the way through.
-    let renamed = anvil_config::normalize_legacy_keys(&mut value);
-    if let Some(note) = anvil_config::legacy_keys_deprecation_note(&renamed) {
-        println!("anvil: {note} (rewritten during migration)");
-    }
-
-    let serialised = serialise_to_format(&value, format)
-        .with_context(|| format!("serialising config as {}", format.extension()))?;
-    crate::util::atomic_write(&new, serialised.as_bytes())
-        .with_context(|| format!("writing {}", new.display()))?;
-
-    if args.remove_old {
-        std::fs::remove_file(&old).with_context(|| format!("removing {}", old.display()))?;
-        println!(
-            "anvil: migrated {} → {} (legacy file removed)",
-            old.display(),
-            new.display()
-        );
-    } else {
-        println!(
-            "anvil: migrated {} → {} (legacy file kept; pass --remove-old to delete)",
-            old.display(),
-            new.display()
-        );
-    }
+    // UCFG-015: any discovered project config → any canonical dest.
+    // Shared writer with `anvil config convert`; never writes `.anvilrc`.
+    let message = crate::commands::config::convert_and_write(
+        root,
+        &args.format,
+        args.force,
+        args.remove_old,
+        "migrate format",
+    )?;
+    println!("{message}");
     Ok(())
-}
-
-fn parse_target_format(raw: &str) -> Result<ConfigFormat> {
-    match raw.to_ascii_lowercase().as_str() {
-        "yaml" => Ok(ConfigFormat::Yaml),
-        "yml" => Ok(ConfigFormat::Yml),
-        "json" => Ok(ConfigFormat::Json),
-        "toml" => Ok(ConfigFormat::Toml),
-        other => bail!("unsupported format `{other}`; expected yaml, yml, json, or toml"),
-    }
-}
-
-/// Detect the legacy `.anvilrc` format by trying JSON, then TOML, then
-/// YAML. The first parser that produces an object wins. Mirrors the
-/// pre-MLP2-040 reader in `commands/gate.rs` so a project that worked
-/// under the old reader migrates cleanly.
-fn detect_and_parse(contents: &str, path: &Path) -> Result<serde_json::Value> {
-    for format in [ConfigFormat::Json, ConfigFormat::Toml, ConfigFormat::Yaml] {
-        if let Ok(value) = anvil_config::parse_str(contents, format, path)
-            && value.is_object()
-        {
-            return Ok(value);
-        }
-    }
-    Err(anyhow::anyhow!(
-        "failed to parse {} as JSON, YAML, or TOML",
-        path.display()
-    ))
 }
 
 fn serialise_to_format(value: &serde_json::Value, format: ConfigFormat) -> Result<String> {
@@ -656,7 +585,20 @@ mod tests {
     fn errors_when_no_anvilrc_present() {
         let tmp = TempDir::new().unwrap();
         let err = run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap_err();
-        assert!(err.to_string().contains("no legacy"));
+        assert!(err.to_string().contains("no project config"), "{err}");
+    }
+
+    #[test]
+    fn converts_canonical_yaml_to_json() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
+        run_format_in(&format_args("json", false, false), tmp.path()).unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap())
+                .unwrap();
+        assert_eq!(parsed["checks"][0], "lint");
+        assert!(tmp.path().join(".anvil.yaml").exists());
+        assert!(!tmp.path().join(".anvilrc").exists());
     }
 
     #[test]
@@ -712,29 +654,25 @@ mod tests {
     #[test]
     fn refuses_to_overwrite_without_force() {
         let tmp = TempDir::new().unwrap();
-        write_anvilrc(tmp.path(), r#"{"checks":[]}"#);
-        std::fs::write(tmp.path().join(".anvil.yaml"), "pre-existing\n").unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
+        std::fs::write(tmp.path().join(".anvil.json"), "pre-existing\n").unwrap();
 
-        let err = run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap_err();
+        let err = run_format_in(&format_args("json", false, false), tmp.path()).unwrap_err();
         assert!(err.to_string().contains("refusing to overwrite"));
-        // Pre-existing file must be intact.
-        let unchanged = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
+        let unchanged = std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap();
         assert_eq!(unchanged, "pre-existing\n");
     }
 
     #[test]
     fn force_overwrites_existing_target() {
         let tmp = TempDir::new().unwrap();
-        write_anvilrc(tmp.path(), r#"{"checks":["x"]}"#);
-        std::fs::write(tmp.path().join(".anvil.yaml"), "garbage\n").unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - x\n").unwrap();
+        std::fs::write(tmp.path().join(".anvil.json"), "garbage\n").unwrap();
 
-        run_format_in(&format_args("yaml", true, false), tmp.path()).unwrap();
-        let new = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
-        assert!(new.contains("checks:"));
-        // serde_yaml may emit `- x` (unquoted) or `- "x"`; the contract
-        // is that the value survives, not the quoting style.
-        assert!(new.contains("- x") || new.contains("\"x\""), "got:\n{new}");
-        // Pre-existing garbage must NOT remain.
+        run_format_in(&format_args("json", true, false), tmp.path()).unwrap();
+        let new = std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&new).unwrap();
+        assert_eq!(parsed["checks"][0], "x");
         assert!(!new.contains("garbage"), "got:\n{new}");
     }
 
@@ -743,7 +681,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         write_anvilrc(tmp.path(), r#"{"checks":[]}"#);
         let err = run_format_in(&format_args("ini", false, false), tmp.path()).unwrap_err();
-        assert!(err.to_string().contains("unsupported format"));
+        assert!(
+            err.to_string().contains("unsupported") || err.to_string().contains("expected yaml"),
+            "{err}"
+        );
     }
 
     #[test]

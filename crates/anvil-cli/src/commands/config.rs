@@ -26,10 +26,20 @@ pub enum ConfigCommand {
     Show,
     /// Set a rule mode in the project config.
     Set { rule: String, mode: String },
-    /// Convert the project config to another format and print it.
+    /// Convert the project config to another canonical format.
     Convert {
+        /// Destination format: yaml, yml, json, or toml. Never `.anvilrc`.
         #[arg(long)]
         to: String,
+        /// Print the converted config instead of writing `.anvil.<ext>`.
+        #[arg(long)]
+        stdout: bool,
+        /// Overwrite an existing destination file.
+        #[arg(long)]
+        force: bool,
+        /// Delete the source file when the destination is a different path.
+        #[arg(long)]
+        remove_old: bool,
     },
 }
 
@@ -41,7 +51,21 @@ pub fn run(args: &ConfigArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
             set_rule_mode(root, rule, mode)?;
             println!("set {rule}={mode}");
         }
-        ConfigCommand::Convert { to } => print!("{}", convert_config(root, to)?),
+        ConfigCommand::Convert {
+            to,
+            stdout,
+            force,
+            remove_old,
+        } => {
+            if *stdout {
+                print!("{}", convert_config(root, to)?);
+            } else {
+                println!(
+                    "{}",
+                    convert_and_write(root, to, *force, *remove_old, "config convert")?
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -103,6 +127,71 @@ fn convert_config(root: &Path, format: &str) -> anyhow::Result<String> {
     serialize_config(&config.value, format)
 }
 
+/// Write the discovered project config as `.anvil.<ext>` (UCFG-015).
+///
+/// Source is the discover winner, or leftover `.anvilrc`. Destination is
+/// never `.anvilrc`. `--remove-old` deletes the source only when dest is
+/// a different path.
+pub(crate) fn convert_and_write(
+    root: &Path,
+    to: &str,
+    force: bool,
+    remove_old: bool,
+    write_gate: &str,
+) -> anyhow::Result<String> {
+    crate::install_root::ensure_project_write_allowed(write_gate)?;
+
+    let dest_format = parse_output_format(to)?;
+    let source = source_project_config(root)?;
+    let dest = root.join(format!(".anvil.{}", dest_format.extension()));
+
+    let same_path = source.writable_path == dest;
+    if dest.exists() && !same_path && !force {
+        bail!(
+            "refusing to overwrite existing {}; pass --force",
+            dest.display()
+        );
+    }
+
+    let mut value = source.value;
+    let renamed = anvil_config::normalize_legacy_keys(&mut value);
+    if let Some(note) = anvil_config::legacy_keys_deprecation_note(&renamed) {
+        eprintln!("anvil: {note} (rewritten during conversion)");
+    }
+
+    let text = serialize_config(&value, dest_format)?;
+    crate::util::atomic_write(&dest, text.as_bytes())
+        .with_context(|| format!("writing {}", dest.display()))?;
+
+    if remove_old && !same_path {
+        std::fs::remove_file(&source.writable_path)
+            .with_context(|| format!("removing {}", source.writable_path.display()))?;
+        return Ok(format!(
+            "anvil: converted {} → {} (source file removed)",
+            source.writable_path.display(),
+            dest.display()
+        ));
+    }
+
+    if same_path {
+        return Ok(format!("anvil: rewrote {}", dest.display()));
+    }
+
+    Ok(format!(
+        "anvil: converted {} → {} (source kept; pass --remove-old to delete)",
+        source.writable_path.display(),
+        dest.display()
+    ))
+}
+
+fn source_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
+    let config = load_project_config(root)?;
+    if config.label == "defaults" {
+        bail!("no project config to convert (run `anvil init` or `anvil migrate format`)");
+    }
+    Ok(config)
+}
+
 pub(crate) fn load_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
     if let Some(discovered) = discover(root, ".anvil")? {
         let value = parse_file(&discovered.path)?;
@@ -123,13 +212,7 @@ pub(crate) fn load_project_config(root: &Path) -> anyhow::Result<ProjectConfig> 
     let rc_path = root.join(".anvilrc");
     match std::fs::read_to_string(&rc_path) {
         Ok(contents) => {
-            let (value, writable_format) = match serde_json::from_str(&contents) {
-                Ok(value) => (value, ConfigFormat::Json),
-                Err(_) => (
-                    parse_str(&contents, ConfigFormat::Yaml, &rc_path)?,
-                    ConfigFormat::Yaml,
-                ),
-            };
+            let (value, writable_format) = detect_anvilrc(&contents, &rc_path)?;
             Ok(ProjectConfig {
                 label: String::from(".anvilrc"),
                 value,
@@ -176,8 +259,23 @@ fn ensure_rule_mode(value: &mut Value, rule: &str, mode: &str) {
     );
 }
 
-fn parse_output_format(raw: &str) -> anyhow::Result<ConfigFormat> {
+/// Detect embedded format of a legacy `.anvilrc` (JSON, then TOML, then YAML).
+fn detect_anvilrc(contents: &str, path: &Path) -> anyhow::Result<(Value, ConfigFormat)> {
+    for format in [ConfigFormat::Json, ConfigFormat::Toml, ConfigFormat::Yaml] {
+        if let Ok(value) = parse_str(contents, format, path)
+            && value.is_object()
+        {
+            return Ok((value, format));
+        }
+    }
+    bail!("failed to parse {} as JSON, YAML, or TOML", path.display())
+}
+
+pub(crate) fn parse_output_format(raw: &str) -> anyhow::Result<ConfigFormat> {
     match raw.to_ascii_lowercase().as_str() {
+        "anvilrc" | ".anvilrc" | "rc" => {
+            bail!("refusing to write `.anvilrc`; expected yaml, yml, json, or toml")
+        }
         "yaml" => Ok(ConfigFormat::Yaml),
         "yml" => Ok(ConfigFormat::Yml),
         "json" => Ok(ConfigFormat::Json),
@@ -281,6 +379,65 @@ mod tests {
 
         assert!(output.contains("[enforcement.rules.new-dependency-introduction]"));
         assert!(output.contains("mode = \"off\""));
+        assert!(
+            !tmp.path().join(".anvil.toml").exists(),
+            "--stdout path must not write"
+        );
+    }
+
+    #[test]
+    fn convert_writes_canonical_dest_and_never_anvilrc() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
+
+        let msg = convert_and_write(tmp.path(), "json", false, false, "config convert").unwrap();
+        assert!(msg.contains(".anvil.json"), "{msg}");
+        assert!(tmp.path().join(".anvil.json").exists());
+        assert!(tmp.path().join(".anvil.yaml").exists());
+        assert!(!tmp.path().join(".anvilrc").exists());
+        let parsed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap())
+                .unwrap();
+        assert_eq!(parsed["checks"][0], "lint");
+    }
+
+    #[test]
+    fn convert_refuses_anvilrc_dest() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks: []\n").unwrap();
+        let err =
+            convert_and_write(tmp.path(), "anvilrc", false, false, "config convert").unwrap_err();
+        assert!(err.to_string().contains(".anvilrc"), "{err}");
+        assert!(!tmp.path().join(".anvilrc").exists());
+    }
+
+    #[test]
+    fn convert_remove_old_deletes_source_when_dest_differs() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
+        convert_and_write(tmp.path(), "toml", false, true, "config convert").unwrap();
+        assert!(tmp.path().join(".anvil.toml").exists());
+        assert!(!tmp.path().join(".anvil.yaml").exists());
+    }
+
+    #[test]
+    fn convert_remove_old_keeps_file_on_same_format_rewrite() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "schemaVersion: \"1.0.0\"\n").unwrap();
+        convert_and_write(tmp.path(), "yaml", false, true, "config convert").unwrap();
+        assert!(tmp.path().join(".anvil.yaml").exists());
+        let body = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
+        assert!(body.contains("schema_version"), "{body}");
+        assert!(!body.contains("schemaVersion"), "{body}");
+    }
+
+    #[test]
+    fn convert_write_errors_when_no_config() {
+        let tmp = TempDir::new().unwrap();
+        let err =
+            convert_and_write(tmp.path(), "yaml", false, false, "config convert").unwrap_err();
+        assert!(err.to_string().contains("no project config"), "{err}");
+        assert!(!tmp.path().join(".anvil.yaml").exists());
     }
 
     // ── UCFG-002 pins ───────────────────────────────────────────

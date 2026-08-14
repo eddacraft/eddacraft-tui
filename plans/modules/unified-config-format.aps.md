@@ -492,6 +492,46 @@ Change status to **Ready** when:
 
 ---
 
+#### UCFG-015: migrate format and config convert write any canonical format
+
+- **Status:** In Progress
+- **Intent:** `anvil migrate format` and `anvil config convert --to` share one
+  writer that converts the discovered project config (`.anvil.yaml` / `.yml` /
+  `.json` / `.toml`, or leftover `.anvilrc`) to any of those dest formats.
+  Neither command ever writes `.anvilrc`. `config convert --stdout` keeps the
+  previous print-only path. `--remove-old` deletes the source only when dest is
+  a different path. `--force` overwrites an existing dest. Doctor TTY offers
+  remain UCFG-016.
+- **Expected Outcome:** yaml↔json↔toml↔yml conversions write `.anvil.<ext>`;
+  `.anvilrc` is a source only; `--stdout` does not write; empty trees error on
+  write; same-format convert rewrites in place (snake_case) and does not delete
+- **Validation:** `cargo test -p eddacraft-anvil -- migrate::tests config::tests`
+- **Files:** `crates/anvil-cli/src/commands/migrate.rs`,
+  `crates/anvil-cli/src/commands/config.rs`,
+  `docs/public/anvil/operations/config.md`
+- **Confidence:** High
+- **Priority:** High
+- **Dependencies:** UCFG-002
+
+---
+
+#### UCFG-016: doctor TTY offers migrate / remove leftover config
+
+- **Status:** Draft
+- **Intent:** Interactive `anvil doctor` (TTY, not `--json`) offers to migrate
+  or remove leftover dual-config / gate-config / unrecorded architecture
+  states. Non-TTY stays warn-only. Problem states only — a single healthy
+  canonical file is not prompted.
+- **Expected Outcome:** TTY doctor can apply the UCFG-015 writer or delete the
+  shadowed file after explicit choice; CI and hooks never prompt
+- **Validation:** `cargo test -p eddacraft-anvil -- doctor`
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs`
+- **Confidence:** Medium
+- **Priority:** Medium
+- **Dependencies:** UCFG-015
+
+---
+
 ## Parallel Execution
 
 ```

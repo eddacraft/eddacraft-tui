@@ -21,7 +21,8 @@ several checks match reality.
 - **Project config has one canonical filename.** Fresh `anvil init` writes
   `.anvil.yaml` by default (or `.anvil.json` / `.anvil.toml` if you pick those
   formats). `.anvilrc` is still read as a fallback, but no command creates one.
-  Convert with `anvil migrate format`.
+  Convert with `anvil migrate format` or `anvil config convert --to yaml` (pass
+  `--remove-old` to delete the source when dest is a different path).
 
 - **Config keys are `snake_case`.** Owned writes (`anvil init`,
   `anvil config set`, migrate) emit keys such as `schema_version`. Older
@@ -46,7 +47,10 @@ several checks match reality.
 ### Added
 
 - **Migration and doctor coverage for the older config names.**
-  `anvil migrate format` renames `.anvilrc`; `anvil migrate gate-config` and
+  `anvil migrate format` and `anvil config convert --to` write any discovered
+  project file to `.anvil.yaml` / `.json` / `.toml` (never `.anvilrc`).
+  `--remove-old` deletes the source when the dest is a different path;
+  `--stdout` on convert still prints only. `anvil migrate gate-config` and
   `anvil migrate architecture` preview by default and write with `--apply`.
   `anvil doctor` reports dual-file and legacy-key states.
 

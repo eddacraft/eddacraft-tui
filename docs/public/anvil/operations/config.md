@@ -27,7 +27,7 @@ command creates one; convert it with `anvil migrate format`.
 
 | Situation                                    | Bridge                                                                                                                                                                                                                                                                              |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Legacy `.anvilrc` file                       | `anvil migrate format` writes `.anvil.<ext>` with `snake_case` keys (add `--remove-old` to delete the legacy file)                                                                                                                                                                  |
+| Legacy `.anvilrc` file                       | `anvil migrate format` or `anvil config convert --to yaml` writes `.anvil.yaml` with `snake_case` keys (add `--remove-old` to delete the source file)                                                                                                                               |
 | Legacy `camelCase` keys (`schemaVersion`, …) | Still accepted on read; any owned write (`anvil config set`, `anvil migrate format`) rewrites them. (`anvil migrate schema --apply` applies registered migrations by version delta — the casing migration fires for pre-`0.10.0-beta` projects once running `0.10.0-beta` or later) |
 | Retired `.anvil/gate-config.json`            | Ignored by gate runs; `anvil migrate gate-config --apply` folds it into this file and removes it                                                                                                                                                                                    |
 | Standalone `.anvil/architecture.yaml`        | Still valid as a legacy fallback; `anvil migrate architecture --apply` records it as the `architecture.source`                                                                                                                                                                      |
@@ -70,14 +70,25 @@ Prefer a focused command over hand-editing unfamiliar fields.
 
 ## Convert formats
 
-Preview a conversion on standard output:
+Write the discovered project config as another canonical file (never
+`.anvilrc`):
+
+```text
+anvil config convert --to json
+anvil migrate format --format toml
+```
+
+Both commands share the same writer. `--remove-old` deletes the source when the
+destination is a different path. `--force` overwrites an existing destination.
+`--stdout` on `config convert` prints the converted text and writes nothing (the
+previous default).
 
 ```text
 anvil config convert --help
+anvil migrate format --help
 ```
 
-Review the result before replacing the existing file. Keep one project
-configuration format unless the installed help explicitly documents precedence.
+Keep one project configuration format unless you are mid-conversion.
 
 ## Choose a format during first activation
 

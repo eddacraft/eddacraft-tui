@@ -280,8 +280,8 @@ enum Commands {
     Telemetry(commands::telemetry::TelemetryArgs),
     /// Migrate anvil config to a new format or schema version.
     ///
-    /// `format` converts a legacy `.anvilrc` to the multi-format
-    /// `.anvil.<ext>` surface; `schema` reconciles an existing config
+    /// `format` converts the discovered project config to `.anvil.<ext>`
+    /// (never `.anvilrc`); `schema` reconciles an existing config
     /// across anvil versions. Bare `anvil migrate` runs `format` for
     /// back-compat.
     Migrate(commands::migrate::MigrateArgs),
