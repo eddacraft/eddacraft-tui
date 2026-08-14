@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 268/329  |
+| CIB | —     | In Progress | 268/330  |
 
 ## Purpose
 
@@ -10184,3 +10184,56 @@ RETEST-2). Do not re-file those.
   documented and traps pinned in PR #3888; the hard error is this item.
 - **Coordinates with:** CIB-322
 - **Confidence:** high — mechanism read from source and pinned by tests.
+
+### CIB-335: Compiled-registry parity has no working CI gate
+
+- **Status:** Ready
+- **Priority:** P2 — no live defect, but `patterns/compiled/registry.json` is
+  a trust boundary with nothing guarding it
+- **Intent:** `registry.json` is what the Rust scanner actually enforces —
+  `crates/anvil-checks/src/antipattern/registry_loader.rs` embeds it with
+  `include_str!`, so it ships inside the binary. Nothing verifies it matches
+  the `.anvil` sources it is generated from. Two independent faults:
+  1. **Not wired to CI.** `patterns:check` / `compile-patterns` appear in
+     none of the 33 files under `.github/workflows/`.
+  2. **The gate cannot pass even if wired.**
+     `packages/anvil/core/scripts/compile-patterns.ts` exits 1 on *any*
+     compiler warning **before** it reads the existing registry or calls
+     `registriesMatch` (the `if (args.check)` block, ~L170-176). The nine
+     legacy `AP`-prefix collision warnings are emitted by design on every
+     run, so `--check` fails identically whether the registry is in sync or
+     badly stale — the drift comparison is unreachable.
+
+  A hand-edited or simply un-regenerated `registry.json` therefore merges
+  with no signal, and a correct `.anvil` source edit can ship inert. This was
+  a manual check on both #3880 and #3889; it should not be.
+- **Expected Outcome:**
+  - `--check` fails on compile **errors** or on **registry drift**, and
+    reports warnings advisorily. If warnings-as-errors is wanted, put it
+    behind a separate `--strict` flag rather than conflating the two.
+  - A CI job runs the parity check on any change touching `patterns/**`.
+  - Regenerating and comparing is reproducible for an agent in a fresh
+    worktree.
+- **Non-scope / do not:** do not "fix" this by silencing the legacy `AP`
+  prefix warnings — they are load-bearing information about a real prefix
+  collision. The bug is that a warning is treated as drift, not that the
+  warning exists. Do not renumber the `AP-*` rules.
+- **Secondary defect to fix in the same pass:** `tsx` is not a dependency of
+  `@eddacraft/anvil-core` (neither `dependencies` nor `devDependencies`), so
+  `pnpm --filter @eddacraft/anvil-core patterns:check` dies with
+  `spawn ENOENT` in a fresh worktree. Both #3880 and #3889 had to invoke the
+  compiler through `node_modules/.pnpm/node_modules/.bin/tsx` by hand. A gate
+  that cannot be run by the person being gated is not a gate. Note the
+  compiler writes expanded JSON and the committed file is oxfmt-normalised,
+  so any comparison must format before diffing, or compare parsed JSON.
+- **Files:** `packages/anvil/core/scripts/compile-patterns.ts`,
+  `packages/anvil/core/package.json`, a workflow under `.github/workflows/`
+- **Validation:** with the registry deliberately stale by one byte,
+  `patterns:check` fails and names the drift; with it in sync, it passes
+  despite the nine legacy `AP` warnings; the command runs from a clean
+  worktree checkout without hand-resolving a binary.
+- **Identified From:** Council review of PR #3880, 2026-08-14 (session
+  `council-58f62fc5`) — raised by the operations reviewer, re-confirmed
+  while landing #3889.
+- **Coordinates with:** CIB-322, CIB-332
+- **Confidence:** high — both faults read from source and reproduced.
