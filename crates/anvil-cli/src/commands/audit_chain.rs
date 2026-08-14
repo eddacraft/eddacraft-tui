@@ -12,6 +12,8 @@
 //! - Returns a `degraded:audit-drift` marker when drift meets or
 //!   exceeds the configured `--threshold` (inclusive, so
 //!   `--threshold 5` flips on the 5th unwitnessed commit).
+//!   `--threshold` must be at least 1: zero is rejected at parse time
+//!   because `0 >= 0` would mark a clean (empty) drift set as degraded.
 //!
 //! Output format: JSON when `--json` is passed **or** stdout is not a
 //! terminal (so pipes and CI get machine-readable output); the plain
@@ -76,6 +78,20 @@ pub fn audit_workflow_template() -> &'static str {
     include_str!("../templates/anvil-audit-workflow.yml")
 }
 
+/// Parse `--threshold`, rejecting zero so a clean audit cannot trip
+/// `unwitnessed.len() >= 0`.
+fn parse_audit_threshold(raw: &str) -> Result<usize, String> {
+    let value: usize = raw
+        .parse()
+        .map_err(|_| format!("`{raw}` is not a valid --threshold"))?;
+    if value == 0 {
+        return Err(
+            "--threshold must be at least 1 (0 would mark a clean audit as degraded)".to_owned(),
+        );
+    }
+    Ok(value)
+}
+
 #[derive(Debug, Args)]
 pub struct AuditChainArgs {
     /// Branch tip to walk back from. Defaults to `HEAD`.
@@ -88,8 +104,8 @@ pub struct AuditChainArgs {
     #[arg(long)]
     since: Option<String>,
     /// Drift threshold for the `degraded:audit-drift` marker. Default
-    /// 5 — matches the nightly-workflow default.
-    #[arg(long, default_value_t = 5)]
+    /// 5 — matches the nightly-workflow default. Must be at least 1.
+    #[arg(long, default_value_t = 5, value_parser = parse_audit_threshold)]
     threshold: usize,
     /// Re-run the rule engine across history in addition to checking
     /// witness presence. Reports commits that today's rules would
@@ -836,6 +852,26 @@ mod tests {
             rule_drift: Vec::new(),
         };
         assert!(r.degraded_audit_drift);
+    }
+
+    #[test]
+    fn parse_audit_threshold_rejects_zero() {
+        let err = parse_audit_threshold("0").expect_err("zero must be rejected");
+        assert!(
+            err.contains("at least 1"),
+            "error must explain the clean-audit footgun, got: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_audit_threshold_accepts_positive() {
+        assert_eq!(parse_audit_threshold("1").unwrap(), 1);
+        assert_eq!(parse_audit_threshold("5").unwrap(), 5);
+    }
+
+    #[test]
+    fn parse_audit_threshold_rejects_non_numeric() {
+        assert!(parse_audit_threshold("nope").is_err());
     }
 
     #[test]
