@@ -10080,6 +10080,20 @@ RETEST-2). Do not re-file those.
 - **Non-scope / do not:** do not gate `eval` or `exec` on the receiver. Do
   not fix the one-column match-offset shift the gate introduces — that is
   CIB-333, and the same shift already ships in PY-006.
+- **Known limitation shipped deliberately:** the gate is byte-level, so it
+  cannot distinguish `builtins.compile(user_input, "<s>", "exec")` — which
+  really is the builtin, reached through its module — from `re.compile`.
+  That shape goes from firing to clean. Inherent to receiver gating without
+  import resolution; named in the rule body rather than papered over. A
+  syntactic fix needs the AST tier, which is Rust-only today
+  (`crates/anvil-checks-ast` is hardcoded to `rust_language()`), so it is not
+  a near-term option for a Python rule.
+- **Gate class must stay Unicode-aware:** spell it `[^.\w]`, not
+  `[^A-Za-z0-9_.]`. Python 3 allows Unicode identifiers (PEP 3131), so the
+  ASCII spelling false-fires on `précompile(x, y, z)`. This was caught by
+  independent verification after the first cut shipped the ASCII class, and
+  is pinned by
+  `py008_receiver_gate_does_not_false_fire_on_unicode_identifiers`.
 - **Files:** `patterns/python-reliability/PY-008.anvil`,
   `patterns/compiled/registry.json` (regenerate; never hand-edit),
   `crates/anvil-checks/tests/python_antipatterns.rs`
