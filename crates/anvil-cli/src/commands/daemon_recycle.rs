@@ -133,7 +133,7 @@ pub(crate) fn recycle_daemon_if_version_skew(
     }
 }
 
-/// Ensure the save-time daemon, recycling first when MaySpawn and versions diverge.
+/// Ensure the save-time daemon, recycling first when `MaySpawn` and versions diverge.
 pub(crate) fn ensure_save_time_daemon_with_recycle(
     capability: StartCapability,
     cli_version: &str,
@@ -207,9 +207,10 @@ impl DaemonRecycleHooks for LiveDaemonRecycleHooks {
 
 #[cfg(any(unix, windows))]
 fn query_version_or_cli() -> String {
-    crate::commands::intercept::query_daemon_status()
-        .map(|status| status.health.version)
-        .unwrap_or_else(|_| env!("CARGO_PKG_VERSION").to_owned())
+    crate::commands::intercept::query_daemon_status().map_or_else(
+        |_| env!("CARGO_PKG_VERSION").to_owned(),
+        |status| status.health.version,
+    )
 }
 
 /// Human-readable ensure line, including before/after versions when recycled.
