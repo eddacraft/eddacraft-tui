@@ -99,7 +99,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-002: Self-heal re-exec in `mcp serve`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-14 via PR #3901
 - **Intent:** Long-lived MCP children recycle themselves to the preferred binary
   under a live harness stdio pipe so agents need not restart sessions after
   upgrade.
