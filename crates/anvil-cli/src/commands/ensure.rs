@@ -112,10 +112,12 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     let next = next_action_line(protection, &mcp_line);
 
     if global.json {
-        let (daemon_version_before, daemon_version_after) = daemon_outcome.recycle.as_ref().map_or(
-            (None, None),
-            |recycle| (Some(recycle.before.clone()), Some(recycle.after.clone())),
-        );
+        let (daemon_version_before, daemon_version_after) = daemon_outcome
+            .recycle
+            .as_ref()
+            .map_or((None, None), |recycle| {
+                (Some(recycle.before.clone()), Some(recycle.after.clone()))
+            });
         let doc = EnsureJsonReport {
             surface: "ensure",
             protection: protection.label().to_string(),
