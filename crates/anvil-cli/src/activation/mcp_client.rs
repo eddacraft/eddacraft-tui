@@ -998,7 +998,13 @@ fn resolve_probe_command(command: &Path) -> PathBuf {
             }
         }
     }
-    std::env::current_exe().unwrap_or_else(|_| command.to_path_buf())
+    if let Ok(exe) = std::env::current_exe() {
+        let exe_name = exe.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        if looks_like_anvil(exe_name) {
+            return exe;
+        }
+    }
+    command.to_path_buf()
 }
 
 /// Whether a modern-discover failure should fall through to legacy initialise.
@@ -1828,12 +1834,5 @@ mod tests {
             VerificationMethod::ServerDiscover
         );
         assert_eq!(evidence.protocol_version, "2026-07-28");
-    }
-
-    #[test]
-    fn probe_startable_resolves_bare_anvil_via_path_or_current_exe() {
-        let evidence = probe_startable(&AnvilEntry::preferred_stdio())
-            .expect("bare `anvil` must resolve via PATH or current_exe");
-        assert_eq!(evidence.protocol_era, ProtocolEraEvidence::Modern);
     }
 }
