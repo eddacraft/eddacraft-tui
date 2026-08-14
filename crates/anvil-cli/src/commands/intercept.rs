@@ -410,22 +410,52 @@ pub(crate) fn query_daemon_status_with_timeout(
 }
 
 /// DLIFE-003: the thin CLI entry point for the DLIFE-002 daemon ensure
-/// primitive. `anvil start` (DLIFE-003) and `anvil watch` (DLIFE-004)
-/// call this to bring up the per-user save-time daemon, passing the
-/// [`StartCapability`] they decided from their own flags/context. The
-/// primitive itself (probe → same-user lock → re-probe → detached spawn
-/// → bound-wait) lives in `anvil_intercept::ensure`; this wrapper only
-/// builds the platform launcher that re-execs *this* binary as
-/// `anvil intercept start --foreground` (the operator daemon surface
-/// the bail at [`run_start`] still guards for direct callers).
-///
-/// On Unix and Windows the launcher is a [`DetachedCommandLauncher`] over
-/// `current_exe()`; if `current_exe()` cannot be resolved the ensure
-/// degrades to [`EnsureOutcome::Failed`] with an actionable hint rather
-/// than spawning a daemon from an unknown path. Other platforms forward
-/// the deterministic [`NoStartReason::PlatformUnsupported`] outcome.
-#[cfg(unix)]
+/// primitive, plus MCPLH-004 version-skew recycle when `capability` is
+/// [`anvil_intercept::ensure::StartCapability::MaySpawn`]. `anvil start`
+/// and `anvil watch` pass the capability they decided from flags/context.
+/// Callers that need before/after versions should use
+/// [`ensure_save_time_daemon_report`].
 pub(crate) fn ensure_save_time_daemon(
+    capability: anvil_intercept::ensure::StartCapability,
+) -> anvil_intercept::ensure::EnsureOutcome {
+    ensure_save_time_daemon_report(capability).ensure
+}
+
+/// Ensure the save-time daemon, recycling a live mismatched daemon first.
+///
+/// Recycle uses the existing detached ensure launcher (`intercept start
+/// --foreground`), never a new background daemonizer, and never signals
+/// harness MCP children.
+pub(crate) fn ensure_save_time_daemon_report(
+    capability: anvil_intercept::ensure::StartCapability,
+) -> crate::commands::daemon_recycle::SaveTimeDaemonOutcome {
+    #[cfg(any(unix, windows))]
+    {
+        crate::commands::daemon_recycle::ensure_save_time_daemon_with_recycle(
+            capability,
+            env!("CARGO_PKG_VERSION"),
+            &crate::commands::daemon_recycle::LiveDaemonRecycleHooks,
+            launch_save_time_daemon,
+        )
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        crate::commands::daemon_recycle::SaveTimeDaemonOutcome::from_ensure(
+            launch_save_time_daemon(capability),
+        )
+    }
+}
+
+/// Detached launch only — start if down, reuse if live. Does not recycle
+/// a version-skewed daemon; [`ensure_save_time_daemon_report`] layers that
+/// policy on top so MCP refresh can call recycle independently.
+///
+/// Builds a [`anvil_intercept::ensure::DetachedCommandLauncher`] over
+/// `current_exe()` that re-execs this binary as `anvil intercept start
+/// --foreground`. If `current_exe()` cannot be resolved, degrades to
+/// [`anvil_intercept::ensure::EnsureOutcome::Failed`].
+#[cfg(unix)]
+pub(crate) fn launch_save_time_daemon(
     capability: anvil_intercept::ensure::StartCapability,
 ) -> anvil_intercept::ensure::EnsureOutcome {
     use anvil_intercept::ensure::{DetachedCommandLauncher, EnsureOutcome, ensure_daemon};
@@ -451,7 +481,7 @@ pub(crate) fn ensure_save_time_daemon(
 /// Windows entry: same detached re-exec launcher as Unix, probing the
 /// per-user named pipe (CIB-072 / GH #2609).
 #[cfg(windows)]
-pub(crate) fn ensure_save_time_daemon(
+pub(crate) fn launch_save_time_daemon(
     capability: anvil_intercept::ensure::StartCapability,
 ) -> anvil_intercept::ensure::EnsureOutcome {
     use anvil_intercept::ensure::{DetachedCommandLauncher, EnsureOutcome, ensure_daemon};
@@ -476,7 +506,7 @@ pub(crate) fn ensure_save_time_daemon(
 
 /// Platforms without a detached launcher implementation.
 #[cfg(all(not(unix), not(windows)))]
-pub(crate) fn ensure_save_time_daemon(
+pub(crate) fn launch_save_time_daemon(
     _capability: anvil_intercept::ensure::StartCapability,
 ) -> anvil_intercept::ensure::EnsureOutcome {
     anvil_intercept::ensure::platform_unsupported_outcome()
@@ -1383,8 +1413,9 @@ mod tests {
     /// launch is reached through `anvil start` / `anvil watch` via the
     /// DLIFE-002 ensure primitive (`anvil_intercept::ensure::ensure_daemon`),
     /// wired into `anvil start` in DLIFE-003 through
-    /// [`ensure_save_time_daemon`] (with `anvil watch` following in
-    /// DLIFE-004), so this operator bail stays. A future change that wires
+    /// [`ensure_save_time_daemon`] / [`launch_save_time_daemon`] (with
+    /// `anvil watch` following in DLIFE-004), so this operator bail stays.
+    /// A future change that wires
     /// backgrounding into this operator command must update this test.
     #[test]
     fn run_start_without_foreground_bails_with_actionable_message() {

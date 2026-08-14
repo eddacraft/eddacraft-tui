@@ -38,6 +38,10 @@ struct EnsureJsonReport {
     protection: String,
     config: String,
     daemon: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    daemon_version_before: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    daemon_version_after: Option<String>,
     worktree: String,
     mcp: String,
     next: Option<String>,
@@ -76,7 +80,7 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     {
         eprintln!("anvil: ensuring the per-user save-time daemon is running…");
     }
-    let daemon_outcome = crate::commands::intercept::ensure_save_time_daemon(capability);
+    let daemon_outcome = crate::commands::intercept::ensure_save_time_daemon_report(capability);
     let daemon_line = format_daemon_outcome(&daemon_outcome);
 
     // Durable worktree registration (no project-init writes).
@@ -108,11 +112,18 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     let next = next_action_line(protection, &mcp_line);
 
     if global.json {
+        let (daemon_version_before, daemon_version_after) = daemon_outcome
+            .recycle
+            .as_ref()
+            .map(|recycle| (Some(recycle.before.clone()), Some(recycle.after.clone())))
+            .unwrap_or((None, None));
         let doc = EnsureJsonReport {
             surface: "ensure",
             protection: protection.label().to_string(),
             config: diagnostic.config.label().to_string(),
             daemon: daemon_line,
+            daemon_version_before,
+            daemon_version_after,
             worktree: worktree_line,
             mcp: mcp_line,
             next,
@@ -121,7 +132,7 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
             "{}",
             serde_json::to_string_pretty(&doc).context("serialise ensure report")?
         );
-        if daemon_failed(&daemon_outcome) {
+        if daemon_outcome.failed() {
             return Err(AlreadyReported.into());
         }
         return Ok(());
@@ -137,7 +148,7 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
         println!("  next: {next}");
     }
 
-    if daemon_failed(&daemon_outcome) {
+    if daemon_outcome.failed() {
         return Err(AlreadyReported.into());
     }
     Ok(())
@@ -150,6 +161,8 @@ fn report_not_activated(global: &GlobalArgs, root: &Path) -> anyhow::Result<()> 
             protection: "needs_action".to_string(),
             config: "absent".to_string(),
             daemon: "skipped".to_string(),
+            daemon_version_before: None,
+            daemon_version_after: None,
             worktree: root.display().to_string(),
             mcp: "skipped".to_string(),
             next: Some("run `anvil start` to activate".to_string()),
@@ -171,6 +184,8 @@ fn report_not_registerable(global: &GlobalArgs, root: &Path, reason: &str) -> an
             protection: "needs_action".to_string(),
             config: "valid".to_string(),
             daemon: "skipped".to_string(),
+            daemon_version_before: None,
+            daemon_version_after: None,
             worktree: format!("not registerable ({reason}) at {}", root.display()),
             mcp: "skipped".to_string(),
             next: Some("run bare `anvil` from a git working tree".to_string()),
@@ -194,23 +209,10 @@ fn mcp_opt_out() -> bool {
     std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty())
 }
 
-fn format_daemon_outcome(outcome: &anvil_intercept::ensure::EnsureOutcome) -> String {
-    use anvil_intercept::ensure::EnsureOutcome;
-    match outcome {
-        EnsureOutcome::Reused => "daemon: running".to_string(),
-        EnsureOutcome::Started => "daemon: started".to_string(),
-        EnsureOutcome::NoStart { reason } => {
-            format!("daemon: not started ({})", reason.as_str())
-        }
-        EnsureOutcome::Failed { recovery } => format!("daemon: failed — {recovery}"),
-    }
-}
-
-fn daemon_failed(outcome: &anvil_intercept::ensure::EnsureOutcome) -> bool {
-    matches!(
-        outcome,
-        anvil_intercept::ensure::EnsureOutcome::Failed { .. }
-    )
+fn format_daemon_outcome(
+    outcome: &crate::commands::daemon_recycle::SaveTimeDaemonOutcome,
+) -> String {
+    crate::commands::daemon_recycle::format_save_time_daemon_outcome(outcome)
 }
 
 fn format_worktree_registration(outcome: WorktreeRegistration) -> String {

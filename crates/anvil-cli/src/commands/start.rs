@@ -289,7 +289,8 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             eprintln!("{line}");
         }
     }
-    let daemon_outcome = daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon);
+    let daemon_outcome =
+        daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon_report);
 
     let mcp_policy = mcp_install_policy(args);
     let force_all_mcp_clients = force_all_mcp_clients(args);
@@ -422,7 +423,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             activation_run.as_ref(),
             &diagnostic,
             &install_report,
-            daemon_outcome.as_ref(),
+            daemon_outcome.as_ref().map(|outcome| &outcome.ensure),
         );
 
     if global.json {
@@ -2139,7 +2140,7 @@ fn render_start_human_output(
     read_only: bool,
     diagnostic: &activation::ActivationDiagnostic,
     install_report: &activation::orchestrator::InstallReport,
-    daemon_outcome: Option<&anvil_intercept::ensure::EnsureOutcome>,
+    daemon_outcome: Option<&crate::commands::daemon_recycle::SaveTimeDaemonOutcome>,
     mcp_policy: activation::orchestrator::McpInstallPolicy,
     agent_inventory: &activation::detect_agents::AgentInventory,
     agents_cached: bool,
@@ -2150,12 +2151,15 @@ fn render_start_human_output(
     out.push_str(&render_rule_mode_summary(root));
 
     // DLIFE-003: report the daemon lifecycle action taken this run (started /
-    // reused / opted-out / unsupported / failed). The line is additive and
-    // honest — it reports the action, never a protection claim. Absent under
-    // read-only modes (`daemon_outcome` is `None`), keeping `--verify`
-    // byte-stable.
+    // reused / recycled / opted-out / unsupported / failed). The line is
+    // additive and honest — it reports the action, never a protection claim.
+    // Absent under read-only modes (`daemon_outcome` is `None`), keeping
+    // `--verify` byte-stable.
     if let Some(outcome) = daemon_outcome {
-        out.push_str(&render_daemon_lifecycle_line(outcome));
+        out.push_str(&render_daemon_lifecycle_line_with_recycle(
+            &outcome.ensure,
+            outcome.recycle.as_ref(),
+        ));
     }
 
     // ACTMO-016 (ADR-094 decision 4) + CIB-223 soft path: if cwd is not a
@@ -2452,8 +2456,23 @@ fn start_is_interactive() -> bool {
 /// influenced by a freshly started daemon, which has not yet attested
 /// this worktree. Every non-started path names the scoped fallback so a
 /// user is never left thinking save-time validation silently vanished.
+#[cfg(test)]
 fn render_daemon_lifecycle_line(outcome: &anvil_intercept::ensure::EnsureOutcome) -> String {
+    render_daemon_lifecycle_line_with_recycle(outcome, None)
+}
+
+fn render_daemon_lifecycle_line_with_recycle(
+    outcome: &anvil_intercept::ensure::EnsureOutcome,
+    recycle: Option<&crate::commands::daemon_recycle::DaemonRecycleReport>,
+) -> String {
     use anvil_intercept::ensure::{EnsureOutcome, NoStartReason};
+    if let Some(recycle) = recycle {
+        return format!(
+            "  daemon: recycled the per-user save-time daemon ({} → {}); \
+             it attests this worktree once your editor's MCP client connects.\n",
+            recycle.before, recycle.after
+        );
+    }
     let body = match outcome {
         EnsureOutcome::Started => "started the per-user save-time daemon; \
              it attests this worktree once your editor's MCP client connects."
@@ -2643,7 +2662,7 @@ fn is_repeat_success(
 /// this renderer stays a pure function of its arguments.
 fn render_repeat_start_output(
     diagnostic: &activation::ActivationDiagnostic,
-    daemon_outcome: Option<&anvil_intercept::ensure::EnsureOutcome>,
+    daemon_outcome: Option<&crate::commands::daemon_recycle::SaveTimeDaemonOutcome>,
     extra_line: Option<&str>,
 ) -> String {
     use std::fmt::Write as _;
@@ -2653,7 +2672,10 @@ fn render_repeat_start_output(
     let _ = writeln!(out, "  state: {}", diagnostic.protection_state().label());
     let _ = writeln!(out, "  {}", activation::headline_for_diagnostic(diagnostic));
     if let Some(outcome) = daemon_outcome {
-        out.push_str(&render_daemon_lifecycle_line(outcome));
+        out.push_str(&render_daemon_lifecycle_line_with_recycle(
+            &outcome.ensure,
+            outcome.recycle.as_ref(),
+        ));
     }
     let _ = writeln!(
         out,
@@ -4422,11 +4444,10 @@ mod tests {
         // Snapshot: the collapsed repeat `protecting` bytes. Deterministic —
         // same diagnostic in, same bytes out.
         let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
-        let rendered = render_repeat_start_output(
-            &diag,
-            Some(&anvil_intercept::ensure::EnsureOutcome::Reused),
-            None,
+        let reused = crate::commands::daemon_recycle::SaveTimeDaemonOutcome::from_ensure(
+            anvil_intercept::ensure::EnsureOutcome::Reused,
         );
+        let rendered = render_repeat_start_output(&diag, Some(&reused), None);
         assert_eq!(
             rendered,
             "ACTIVATION\n\
@@ -5981,6 +6002,24 @@ mod tests {
         // It must not blame the opt-out flag — this is a context, not a
         // deliberate opt-out.
         assert!(!line.contains("--no-daemon"), "got: {line}");
+    }
+
+    #[test]
+    fn lifecycle_line_for_recycle_names_before_and_after_versions() {
+        use anvil_intercept::ensure::EnsureOutcome;
+        let recycle = crate::commands::daemon_recycle::DaemonRecycleReport {
+            before: "0.5.1-beta".into(),
+            after: "0.9.2-beta".into(),
+        };
+        let line =
+            render_daemon_lifecycle_line_with_recycle(&EnsureOutcome::Started, Some(&recycle));
+        assert!(line.contains("recycled"), "got: {line}");
+        assert!(line.contains("0.5.1-beta"), "got: {line}");
+        assert!(line.contains("0.9.2-beta"), "got: {line}");
+        assert!(
+            !line.to_lowercase().contains("protect"),
+            "recycle must not claim protection: {line}",
+        );
     }
 
     #[test]

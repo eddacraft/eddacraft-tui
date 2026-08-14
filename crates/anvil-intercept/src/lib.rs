@@ -1322,6 +1322,25 @@ pub(crate) fn process_exists(_pid: u32) -> bool {
     true
 }
 
+/// Poll until `pid` no longer exists or `timeout` elapses.
+///
+/// Used after [`request_daemon_stop`] so a replacement daemon is not
+/// started until the reported PID has exited (CLI/daemon version-skew recycle).
+#[cfg(any(unix, windows))]
+#[must_use]
+pub fn wait_for_pid_exit(pid: u32, timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if !process_exists(pid) {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
 #[cfg(target_os = "linux")]
 pub(crate) fn process_start_time(pid: u32) -> Option<u64> {
     let stat = fs::read_to_string(Path::new("/proc").join(pid.to_string()).join("stat")).ok()?;
