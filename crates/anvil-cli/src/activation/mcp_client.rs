@@ -953,8 +953,9 @@ fn probe_stdio(
     args: &[String],
     env: &BTreeMap<String, String>,
 ) -> Result<ProbeEvidence, ProbeError> {
+    let command = resolve_probe_command(command);
     // Attempt 1: modern discovery on a disposable child.
-    match probe_child_once(command, args, env, ProbeRequest::ModernDiscover) {
+    match probe_child_once(&command, args, env, ProbeRequest::ModernDiscover) {
         Ok(evidence) => return Ok(evidence),
         Err(err) if modern_probe_should_fallback(&err) => {
             tracing::debug!(
@@ -966,7 +967,38 @@ fn probe_stdio(
     }
 
     // Attempt 2: fresh child for legacy initialise (never reuse the modern child).
-    probe_child_once(command, args, env, ProbeRequest::LegacyInitialize)
+    probe_child_once(&command, args, env, ProbeRequest::LegacyInitialize)
+}
+
+/// Resolve a bare `anvil` / `anvil.exe` command the way an editor would:
+/// first `PATH`, then this process's `current_exe()` so `anvil status`
+/// can handshake the binary that just wrote the PATH-stable entry.
+fn resolve_probe_command(command: &Path) -> PathBuf {
+    if command.components().count() != 1 {
+        return command.to_path_buf();
+    }
+    let name = command
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    if !name.eq_ignore_ascii_case("anvil") && !name.eq_ignore_ascii_case("anvil.exe") {
+        return command.to_path_buf();
+    }
+    if let Some(paths) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&paths) {
+            let candidate = dir.join(command);
+            if candidate.is_file() {
+                return candidate;
+            }
+            if cfg!(windows) {
+                let exe = dir.join(command).with_extension("exe");
+                if exe.is_file() {
+                    return exe;
+                }
+            }
+        }
+    }
+    std::env::current_exe().unwrap_or_else(|_| command.to_path_buf())
 }
 
 /// Whether a modern-discover failure should fall through to legacy initialise.
@@ -1796,5 +1828,12 @@ mod tests {
             VerificationMethod::ServerDiscover
         );
         assert_eq!(evidence.protocol_version, "2026-07-28");
+    }
+
+    #[test]
+    fn probe_startable_resolves_bare_anvil_via_path_or_current_exe() {
+        let evidence = probe_startable(&AnvilEntry::preferred_stdio())
+            .expect("bare `anvil` must resolve via PATH or current_exe");
+        assert_eq!(evidence.protocol_era, ProtocolEraEvidence::Modern);
     }
 }
