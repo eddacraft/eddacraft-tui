@@ -414,7 +414,7 @@ mod tests {
             ReexecDecision::Reexec { preferred } => {
                 assert_eq!(preferred, PathBuf::from("/opt/homebrew/bin/anvil"));
             }
-            other => panic!("expected re-exec, got {other:?}"),
+            stay @ ReexecDecision::Stay { .. } => panic!("expected re-exec, got {stay:?}"),
         }
     }
 
@@ -559,7 +559,7 @@ mod tests {
     }
 
     fn write_fake_anvil(dir: &std::path::Path, name: &str) -> PathBuf {
-        let file_name = if cfg!(windows) && !name.ends_with(".exe") {
+        let file_name = if cfg!(windows) && std::path::Path::new(name).extension().is_none() {
             format!("{name}.exe")
         } else {
             name.to_string()
