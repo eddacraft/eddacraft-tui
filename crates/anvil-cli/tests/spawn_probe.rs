@@ -83,11 +83,6 @@ fn install_cursor_entry_pointing_at_test_bin(home: &Path) {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn install_claude_code_entry_pointing_at_bare_anvil(home: &Path) {
-    install_claude_code_entry_pointing_at_command(home, "anvil");
-}
-
-#[cfg(not(target_os = "windows"))]
 fn install_claude_code_entry_pointing_at_command(home: &Path, command: &str) {
     let cfg = serde_json::json!({
         "mcpServers": {
