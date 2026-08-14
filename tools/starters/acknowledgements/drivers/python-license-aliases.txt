@@ -1,7 +1,7 @@
-# Classifier / metadata names pip-licenses reports → SPDX.
+# SPDX → classifier / metadata name pip-licenses reports.
 # licences.toml stays SPDX. The Python driver appends every alias
 # whose SPDX is on the allow-list before calling --allow-only.
-# Tab-separated: SPDX<TAB>alias
+# Tab-separated: SPDX<TAB>alias  (SPDX first, classifier second)
 # Do not add these aliases to licences.toml — they are Python-only.
 #
 # One alias string maps to exactly one SPDX id. Generic Trove names

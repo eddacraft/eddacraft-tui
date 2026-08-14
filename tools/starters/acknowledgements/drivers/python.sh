@@ -115,10 +115,13 @@ if ! "$pip_licenses" --allow-only "$allow_for_tool" >/dev/null 2>"$strict_err"; 
   echo "    $allow_line" >&2
   echo "  pip-licenses output:" >&2
   sed 's/^/    /' "$strict_err" >&2
-  echo "  fix: add the missing licence's SPDX id to licences.toml + rerun" >&2
-  echo "    expand-licences.sh, or remove/replace the offending dependency." >&2
-  echo "  classifier names such as 'Apache Software License' are accepted when" >&2
-  echo "    their SPDX form is already on the allow-list." >&2
+  echo "  fix: if pip-licenses printed an SPDX id, add it to licences.toml" >&2
+  echo "    and rerun expand-licences.sh. If it printed a classifier name" >&2
+  echo "    whose SPDX is already allowed, add an unambiguous alias row" >&2
+  echo "    (SPDX<TAB>classifier) to drivers/python-license-aliases.txt." >&2
+  echo "    Otherwise remove or replace the offending dependency." >&2
+  echo "  do not alias generic names that collapse distinct licences" >&2
+  echo "    (plain 'BSD License', generic GPLv3 / LGPLv3)." >&2
   exit 1
 fi
 
