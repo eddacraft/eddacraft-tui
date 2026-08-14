@@ -96,7 +96,12 @@ impl McpClient for ClaudeCode {
         let Ok(fresh_value) = build_entry(fresh) else {
             return McpTier::ConfigPresent;
         };
-        if entries_equivalent(existing, &fresh_value) {
+        if entries_equivalent(existing, &fresh_value)
+            || matches!(
+                classify_drift_by_args(existing, fresh),
+                DriftClass::SafeDrift { .. }
+            )
+        {
             McpTier::RestartRequired
         } else {
             McpTier::ConfigPresent

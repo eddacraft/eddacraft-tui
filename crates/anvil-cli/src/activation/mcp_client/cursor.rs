@@ -99,14 +99,17 @@ impl McpClient for Cursor {
         let Ok(fresh_value) = build_entry(fresh) else {
             return McpTier::ConfigPresent;
         };
-        if entries_equivalent(existing, &fresh_value) {
-            // Always RestartRequired on a fresh write — we can't observe
-            // restart from anvil.
+        if entries_equivalent(existing, &fresh_value)
+            || matches!(
+                classify_drift_by_args(existing, fresh),
+                DriftClass::SafeDrift { .. }
+            )
+        {
+            // Owned anvil-shaped entries stay RestartRequired so status
+            // can handshake the *installed* command. Path drift vs
+            // preferred `anvil` is still SafeDrift for install rewrite.
             McpTier::RestartRequired
         } else {
-            // Some anvil-shaped entry exists, but it doesn't match what
-            // we'd install. Drift handling is separate from the tier
-            // ladder.
             McpTier::ConfigPresent
         }
     }
@@ -259,12 +262,12 @@ mod tests {
     }
 
     #[test]
-    fn verify_config_tier_different_anvil_entry_is_config_present() {
+    fn verify_config_tier_owned_path_drift_is_restart_required() {
         let raw = r#"{"mcpServers": {"anvil": {"command": "/different/path/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         let parsed = Cursor.parse(raw).unwrap();
         assert_eq!(
             Cursor.verify_config_tier(Some(&parsed), &fresh()),
-            McpTier::ConfigPresent
+            McpTier::RestartRequired
         );
     }
 }
