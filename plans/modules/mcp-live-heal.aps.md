@@ -99,7 +99,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-002: Self-heal re-exec in `mcp serve`
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Long-lived MCP children recycle themselves to the preferred binary
   under a live harness stdio pipe so agents need not restart sessions after
   upgrade.
@@ -108,8 +108,10 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
   mcp serve --stdio` at most once per process (anti-loop env); kill-switch
   `ANVIL_MCP_NO_REEXEC=1`. Never re-exec mid-frame or mid-response. Unix first;
   Windows demotes to honest skew reporting if re-exec is unsafe.
-- **Files:** `crates/anvil-cli/src/commands/mcp.rs` (and MCP serve entry),
-  `crates/anvil-cli/src/main.rs` if shared re-exec helpers, process tests
+- **Files:** `crates/anvil-cli/src/mcp/reexec.rs`,
+  `crates/anvil-cli/src/commands/mcp.rs`,
+  `crates/anvil-cli/tests/mcp_reexec.rs`,
+  `crates/anvil-cli/tests/mcp_serve_stdio.rs`
 - **Validation:** `cargo test -p eddacraft-anvil -- mcp_reexec` (or equivalent);
   unit tests for anti-loop and between-message gate; process test proves
   preferred version after forced skew when platform allows
