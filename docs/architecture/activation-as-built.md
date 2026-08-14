@@ -189,12 +189,12 @@ orchestrator executes seven main ordered steps:
    `ANVIL_NO_MCP` is non-empty, the orchestrator builds
    `AnvilEntry::preferred_stdio` (PATH-stable `command: anvil`, never
    `current_exe()` / Cellar; MCPLH-001 / spec §6), then calls
-   `install::install_for_clients` (`orchestrator/mod.rs`) for clients selected
-   interactively or via `--mcp-client` / `--all-mcp-clients` against the full
-   `AgentClientId` registry (Claude Code, Cursor, Codex, OpenCode, Gemini CLI,
-   VS Code, and others — `anvil mcp install --help`). The install step is
-   idempotent (`UpToDate` → skip), refuses to overwrite `UnsafeDrift`, and
-   offers `NotPresent` / `SafeDrift` candidates unticked (CIB-184). With MCP
+   `install::install_for_clients` (`orchestrator/install.rs`) for clients
+   selected interactively or via `--mcp-client` / `--all-mcp-clients` against
+   the full `AgentClientId` registry (Claude Code, Cursor, Codex, OpenCode,
+   Gemini CLI, VS Code, and others — `anvil mcp install --help`). The install
+   step is idempotent (`UpToDate` → skip), refuses to overwrite `UnsafeDrift`,
+   and offers `NotPresent` / `SafeDrift` candidates unticked (CIB-184). With MCP
    install skipped, daemon-backed worktree registration still runs and the human
    output prints an explicit skipped-install line. See
    [MCP install (LAUNCH-009)](#mcp-install-launch-009) below.
