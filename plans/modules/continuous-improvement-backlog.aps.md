@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 267/326  |
+| CIB | —     | In Progress | 268/329  |
 
 ## Purpose
 
@@ -9735,9 +9735,12 @@ RETEST-2). Do not re-file those.
 
 ### CIB-322: PY-008 must not fire on Python prefixed string literals
 
-- **Status:** In Progress via PR
-  [#3880](https://github.com/eddacraft/anvil-001/pull/3880) (open, CLEAN,
-  2026-08-14). Operator-authorised intake 2026-08-14 from Dave pack 06
+- **Status:** Merged via PR
+  [#3880](https://github.com/eddacraft/anvil-001/pull/3880) (merged
+  2026-08-14, rebase — ancestor of `main` verified by content, not SHA). Not
+  yet in a tagged release. Operator-authorised intake 2026-08-14 from Dave
+  pack 06. Scope delivered is the **prefixed-literal half only**; the
+  dotted-receiver half of the same false-positive class is CIB-332
 - **Priority:** P1 — ERROR, blocks commits, we created this by shipping SEC-COV-1
 - **Intent:** `PY-008` decides an argument is dynamic by testing whether the
   first character inside the parens is a quote. A Python prefixed literal
@@ -10051,3 +10054,119 @@ RETEST-2). Do not re-file those.
 - **Confidence:** high on the match; medium on the smallest product
   shape (allowlist vs AST).
 
+
+### CIB-332: PY-008 must not fire on a dotted `compile` receiver
+
+- **Status:** In Progress via PR
+  [#3889](https://github.com/eddacraft/anvil-001/pull/3889) (open,
+  2026-08-14). Operator-authorised 2026-08-14 from the #3880 council review
+- **Priority:** P1 — ERROR, blocks commits; the remaining half of the
+  false-positive class CIB-322 was filed for
+- **Intent:** CIB-322 fixed the inline prefixed-literal shape
+  (`re.compile(r'^\d+$')`) but not the far more common named-constant
+  idiom: define a regex as a module constant, then `re.compile(DATE_RE)`.
+  `re.compile(pattern_var)`, `torch.compile(model)` and `self.compile(src)`
+  all still fire at ERROR — a dotted receiver is not the builtin
+  `compile`. Sustained ERROR-severity noise on a security rule is itself a
+  security cost: it trains people to suppress PY-008, which is how a real
+  `eval(payload)` gets waved through.
+- **Expected Outcome:**
+  - A dotted `compile` receiver does not fire: `re.compile(pattern_var)`,
+    `re.compile(user_supplied_regex, re.I)`, `torch.compile(model)`,
+    `self.compile(src)`, `Pattern.compile(name)`.
+  - Attribute access on `eval` / `exec` still fires — `builtins.eval(x)` is
+    the builtin under another name, and `df.eval(expr)` (pandas) is a
+    genuine execution surface.
+- **Non-scope / do not:** do not gate `eval` or `exec` on the receiver. Do
+  not fix the one-column match-offset shift the gate introduces — that is
+  CIB-333, and the same shift already ships in PY-006.
+- **Files:** `patterns/python-reliability/PY-008.anvil`,
+  `patterns/compiled/registry.json` (regenerate; never hand-edit),
+  `crates/anvil-checks/tests/python_antipatterns.rs`
+- **Validation:** the five dotted shapes above go clean; unqualified
+  `compile(src, '<str>', 'exec')` still fires (CIB-322's Non-scope clause
+  requires receiver resolution not be the only fix); `builtins.eval(x)` /
+  `df.eval(expr)` / `obj.exec(cmd)` still fire; the CIB-322 prefixed-literal
+  cases stay clean. Prove RED against the pre-change pattern.
+- **Identified From:** Council review of PR #3880, 2026-08-14 (session
+  `council-58f62fc5`, gate BLOCK). Not from Dave pack 06 — found while
+  verifying the CIB-322 fix.
+- **Coordinates with:** CIB-322 (same rule, same FP class), CIB-333
+- **Confidence:** high — measured on the real engine across both patterns.
+
+### CIB-333: Scanner should report the rule token's column, not the match start
+
+- **Status:** Ready
+- **Priority:** P3 — cosmetic today; blocks nothing, but it is a
+  correctness wart that will be re-litigated every time a rule needs a
+  receiver gate
+- **Intent:** RE2 has no lookbehind, so a rule that must exclude a dotted
+  receiver has to consume the preceding byte —
+  `(^|[^.\w])print\s*\(` in PY-006 today, and the same shape in PY-008
+  under CIB-332. `find_match_columns`
+  (`crates/anvil-checks/src/antipattern/scanner.rs`) reports
+  `matched.start()`, the whole-match start, so for any non-start-of-line
+  finding the reported column lands one byte left — on the character
+  before the rule token. Measured on `main`: PY-006 on
+  `    print(value)` reports `column = 3`, pointing at the space.
+- **Expected Outcome:** the reported column points at the rule token.
+  Simplest route is to report capture group 1's start when the pattern has
+  one, falling back to whole-match start otherwise. Fixes PY-006's existing
+  shift as well as PY-008's under CIB-332.
+- **Non-scope / do not:** do not rewrite rule patterns to avoid the
+  consuming prefix — RE2 leaves no alternative, and the scanner's existing
+  `PostFilter` mechanism only filters on `matched.end()`, so it cannot
+  express a preceding-byte constraint.
+- **Prior question to settle first:** decide whether `column` should be
+  surfaced at all. It is currently dropped by the JSON renderer and
+  deliberately omitted from SARIF (line-only regions,
+  `crates/anvil-cli/src/commands/check.rs`), so the only consumer is the
+  miette source-excerpt underline via `compute_span`. If the answer is "no",
+  this item closes by deleting the field instead.
+- **Files:** `crates/anvil-checks/src/antipattern/scanner.rs`
+  (`find_match_columns`, the AP-001 dual-regex branch, and the column
+  assertions in its test module), `crates/anvil-checks/src/antipattern/types.rs`
+- **Validation:** PY-006 on an indented `print(value)` and PY-008 on an
+  indented dotted-gate `compile(...)` both report the column of the rule
+  token. Existing column assertions updated with rationale, not deleted.
+  All 47 compiled patterns still resolve; legacy `AP-*` unaffected.
+- **Identified From:** Council review of PR #3880, 2026-08-14. The council
+  initially held CIB-332 behind this item; that was wrong — PY-006 already
+  ships the same shift, so CIB-332 is independent and this is a standalone
+  quality fix.
+- **Coordinates with:** CIB-332
+- **Confidence:** high on the mechanism (measured); medium on the product
+  answer to the prior question.
+
+### CIB-334: `.anvil` compiler should reject a stray or leading rule-body H2
+
+- **Status:** Ready
+- **Priority:** P3 — no shipped rule triggers it today; it is a latent trap
+  for the next rule author
+- **Intent:** PR #3880 taught the compiler to let a rule body override the
+  family-level `explanation` with a `## Why It's Harmful` section. The
+  matching is exact-heading and unvalidated, so two silent failures exist:
+  an H2 with any other heading is parsed and then read by nothing (it
+  reaches neither `nudge` nor `explanation`, with no compiler error), and a
+  body that opens with an H2 has an empty preamble, so `nudge` falls back
+  to the raw body and literal `##` markdown leaks into the inline text a
+  developer sees on a finding. `CompiledPatternSchema.nudge` is only
+  `z.string().min(1)`, so nothing downstream catches either.
+- **Expected Outcome:** the compiler errors on a rule-body H2 that is not a
+  recognised override heading, and on a rule body whose preamble is empty.
+  Both messages name the file and the offending heading.
+- **Non-scope / do not:** do not add required sections to rule bodies —
+  only family `definition.anvil` files have a required-section contract.
+- **Files:** `packages/anvil/core/src/anvil-format/compile.ts`,
+  `packages/anvil/core/src/anvil-format/compile.test.ts`,
+  `docs/guides/anvil-rule-authoring.md`
+- **Validation:** the two characterisation tests added in PR
+  [#3888](https://github.com/eddacraft/anvil-001/pull/3888)
+  (`currently leaks raw ## markdown into nudge when a rule body has no
+  preamble`, `currently discards an unrecognised rule-body H2 with no
+  error`) are the RED to flip — rewrite them to assert the error instead of
+  the silent drop. All 47 existing rules still compile unchanged.
+- **Identified From:** Council review of PR #3880, 2026-08-14. Contract
+  documented and traps pinned in PR #3888; the hard error is this item.
+- **Coordinates with:** CIB-322
+- **Confidence:** high — mechanism read from source and pinned by tests.
