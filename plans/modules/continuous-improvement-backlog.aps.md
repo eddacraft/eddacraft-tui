@@ -9693,7 +9693,7 @@ Source: operator-held
 (plus the local scratch
 `.scratch/dave-feedback-reconciliation.md` in the operator checkout).
 One tester, mainly their agent, Windows 11, often no TTY. Severity and
-PATTERN-C framing are theirs, not product truth. Ids `UPD-*` and `UX-*`
+PATTERN-C framing are theirs, not product truth. IDs `UPD-*` and `UX-*`
 collide with pack 01 — always qualify by pack.
 
 **Baseline preserved:** packs 01–04 stay on CIB-228..267 / 301 / 302 / 315.

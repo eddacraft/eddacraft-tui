@@ -85,8 +85,8 @@ not bump the module header or the index `N/M`.
 **Earlier — 2026-08-12** — ADR-119 **Accepted**, so the execution authority this
 module was waiting on now exists. The Draft hold recorded on 2026-08-11 is
 lifted: -002/-003/-004/-005/-007 promoted to **Ready**. DOCFRESH-006 stays Draft
-behind its -005 dependency, and DOCFRESH-008 stays Draft because it needs its
-own decision rather than execution.
+behind its -005 dependency. DOCFRESH-008 was still Draft then (it needed its
+own decision); it merged via #3868 on 2026-08-13.
 
 **Earlier — 2026-08-11** — Module created to execute
 [ADR-119](../decisions/119-documentation-freshness-from-declared-upstream.md).
