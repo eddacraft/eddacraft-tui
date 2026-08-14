@@ -84,11 +84,16 @@ fn install_cursor_entry_pointing_at_test_bin(home: &Path) {
 
 #[cfg(not(target_os = "windows"))]
 fn install_claude_code_entry_pointing_at_bare_anvil(home: &Path) {
+    install_claude_code_entry_pointing_at_command(home, "anvil");
+}
+
+#[cfg(not(target_os = "windows"))]
+fn install_claude_code_entry_pointing_at_command(home: &Path, command: &str) {
     let cfg = serde_json::json!({
         "mcpServers": {
             "anvil": {
                 "type": "stdio",
-                "command": "anvil",
+                "command": command,
                 "args": ["mcp", "serve", "--stdio"],
                 "env": {},
             }
@@ -293,14 +298,13 @@ fn hanging_handshake_times_out_without_promotion() {
 #[test]
 fn handshake_promotion_is_per_client() {
     // Cursor points at the exact test binary and should promote. Claude Code
-    // uses a bare `anvil`; with PATH set to an empty tempdir, that installed
-    // entry is still equivalent for config matching but cannot handshake, so
-    // it must remain at restart_required.
+    // points at a missing owned anvil path so handshake fails independently
+    // (bare `anvil` would fall back to this process's current_exe).
     let workdir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let empty_path = tempfile::tempdir().unwrap();
     install_cursor_entry_pointing_at_test_bin(home.path());
-    install_claude_code_entry_pointing_at_bare_anvil(home.path());
+    install_claude_code_entry_pointing_at_command(home.path(), "/nonexistent/anvil");
 
     let out = run_status_verify_with_path(workdir.path(), home.path(), Some(empty_path.path()));
 
