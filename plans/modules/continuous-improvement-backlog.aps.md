@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 268/330  |
+| CIB | —     | In Progress | 269/330  |
 
 ## Purpose
 
@@ -10057,9 +10057,14 @@ RETEST-2). Do not re-file those.
 
 ### CIB-332: PY-008 must not fire on a dotted `compile` receiver
 
-- **Status:** In Progress via PR
-  [#3889](https://github.com/eddacraft/anvil-001/pull/3889) (open,
-  2026-08-14). Operator-authorised 2026-08-14 from the #3880 council review
+- **Status:** Merged via PR
+  [#3889](https://github.com/eddacraft/anvil-001/pull/3889) (merged
+  2026-08-14, rebase — ancestor of `main` verified by content, not SHA). Not
+  yet in a tagged release. Operator-authorised 2026-08-14 from the #3880
+  council review. Delivered wider than filed: independent verification found
+  the first cut of the gate false-fired on Unicode identifiers
+  (`précompile(x, y, z)`), and review found `builtins.compile` had become
+  exempt while `builtins.eval` still fired — both closed in the same PR
 - **Priority:** P1 — ERROR, blocks commits. CIB-322 was filed against this
   false-positive class; this is the half of it that PR #3880 did not close
 - **Intent:** CIB-322 fixed the inline prefixed-literal shape
