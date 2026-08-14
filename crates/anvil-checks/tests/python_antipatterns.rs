@@ -379,6 +379,88 @@ fn py008_eval_with_dynamic_argument_fires() {
     assert!(fires("src/app.py", "exec(f\"{user_input}\")\n", "PY-008"));
 }
 
+/// Council review of PR #3880: the assertions above all terminate the first
+/// identifier with one of `,` `)` `(` `.` `[`, so they mirrored the detector's
+/// delimiter class instead of the injection shapes the rule exists to catch —
+/// the suite stayed green (33/33) while the rule silently stopped firing on
+/// every operator form. Each case below fired on the pre-#3880 rule, went
+/// clean on the first #3880 pattern, and must fire again. Reverting
+/// `PY-008.anvil`'s pattern to
+/// `\b(eval|exec|compile)\s*\(\s*(?:[fF]['"]|[A-Za-z_][A-Za-z0-9_]*\s*[,().\[])`
+/// turns every assertion in this test RED.
+#[test]
+fn py008_composed_and_operator_terminated_arguments_fire() {
+    // Symbolic operators — concatenating or formatting untrusted input into
+    // the payload is the canonical eval-injection shape.
+    assert!(fires("src/app.py", "eval(a + b)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(a+b)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(user + \"x\")\n", "PY-008"));
+    assert!(fires("src/app.py", "exec(code % vars)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(base**exp)\n", "PY-008"));
+
+    // Keyword operators are identifier-shaped, so the terminator has to allow
+    // the space before them — an allowlist of punctuation silently misses all
+    // of these.
+    assert!(fires(
+        "src/app.py",
+        "eval(cmd if trusted else safe)\n",
+        "PY-008"
+    ));
+    assert!(fires("src/app.py", "eval(x and y)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(x or fallback)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(not flag)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(x is None)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(x in allowed)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(await coro)\n", "PY-008"));
+    assert!(fires("src/app.py", "eval(target := build())\n", "PY-008"));
+
+    // Keyword arguments and unpacking.
+    assert!(fires("src/app.py", "eval(code, key=val)\n", "PY-008"));
+    assert!(fires(
+        "src/app.py",
+        "compile(source=src, filename=\"<s>\", mode=\"exec\")\n",
+        "PY-008"
+    ));
+    assert!(fires("src/app.py", "eval(*args)\n", "PY-008"));
+    assert!(fires("src/app.py", "exec(**kwargs)\n", "PY-008"));
+
+    // Python identifiers may hold non-ASCII characters; the terminator must
+    // treat the first non-ASCII byte as "not an identifier char", not give up.
+    assert!(fires("src/app.py", "eval(naïve_input)\n", "PY-008"));
+
+    // A hand-wrapped call whose first argument ends the line. The scanner
+    // matches per line, so end-of-line has to count as a terminator.
+    assert!(fires(
+        "src/app.py",
+        "value = eval(user_input\n             + suffix)\n",
+        "PY-008"
+    ));
+}
+
+/// f-strings interpolate at run time, so every prefix ordering is dynamic.
+/// The first #3880 pattern matched only a bare `f`/`F`, so `rf"{user_input}"`
+/// fell through to the identifier arm, hit the quote, and was classified
+/// static — while the rule body shipped in the same commit promised the
+/// opposite.
+#[test]
+fn py008_f_string_prefixes_fire_in_every_ordering() {
+    for src in [
+        "eval(f\"{user_input}\")\n",
+        "eval(F\"{user_input}\")\n",
+        "eval(rf\"{user_input}\")\n",
+        "eval(fr\"{user_input}\")\n",
+        "eval(Rf'{user_input}')\n",
+        "eval(fR\"{user_input}\")\n",
+        "eval(FR\"{user_input}\")\n",
+        "eval(RF\"{user_input}\")\n",
+    ] {
+        assert!(
+            fires("src/app.py", src, "PY-008"),
+            "f-string prefix must fire (it interpolates at run time): {src:?}"
+        );
+    }
+}
+
 #[test]
 fn py008_eval_with_string_literal_does_not_fire() {
     assert!(!fires("src/app.py", "result = eval(\"1 + 1\")\n", "PY-008"));
@@ -402,6 +484,27 @@ fn py008_prefixed_string_literals_do_not_fire() {
     ));
     assert!(!fires("src/app.py", "eval(u\"1\")\n", "PY-008"));
     assert!(!fires("src/app.py", "eval(b'1')\n", "PY-008"));
+    // Every raw/bytes/unicode ordering and casing, not just `rb`. A terminator
+    // class that excludes quotes but not identifier characters re-fires all of
+    // these: the engine backtracks the prefix to one letter and accepts the
+    // second letter as the terminator.
+    for src in [
+        "eval(R\"x\")\n",
+        "eval(U\"x\")\n",
+        "eval(B'x')\n",
+        "eval(rb'x')\n",
+        "eval(br\"x\")\n",
+        "eval(Rb\"x\")\n",
+        "eval(bR\"x\")\n",
+        "eval(BR\"x\")\n",
+        "eval(RB\"x\")\n",
+        "eval(Br'x')\n",
+    ] {
+        assert!(
+            !fires("src/app.py", src, "PY-008"),
+            "prefixed literal is static and must not fire: {src:?}"
+        );
+    }
 }
 
 #[test]

@@ -15,10 +15,21 @@ allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**
 
 detection:
   type: regex
-  # RE2 has no lookahead. Static: bare quotes and r/b/u/rb prefixes.
-  # Dynamic: identifier then `,` `)` `(` `.` `[`, or an f-string (f-strings
-  # interpolate). Do not subtract prefix letters from the identifier class.
-  pattern: '\b(eval|exec|compile)\s*\(\s*(?:[fF][''"]|[A-Za-z_][A-Za-z0-9_]*\s*[,().\[])'
+  # RE2 has no lookahead, so "identifier that is not a string prefix" is
+  # expressed positively. Static (no fire): bare quotes, and r/b/u prefixes in
+  # any order or case (`r`, `b`, `u`, `rb`, `br`, `Rb`, `BR`, ...) — an
+  # identifier followed immediately by a quote can only be a prefixed literal.
+  # Dynamic (fire): `*`/`**` unpacking; any f-carrying prefix (`f`, `rf`, `fr`,
+  # and case variants) since f-strings interpolate at run time; and an
+  # identifier terminated by anything that is not an identifier char or a
+  # quote — which covers `,` `)` `(` `.` `[` but also operators (`+`, `%`,
+  # `**`, `:=`), keyword operators reached across a space (`if`, `and`, `or`,
+  # `not`, `is`, `in`, `await`), keyword arguments, and non-ASCII identifier
+  # bytes. `$` catches a call whose first argument ends the line (wrapped
+  # calls); the scanner matches per line, so nothing else reaches them.
+  # Do NOT narrow the terminator to an allowlist of punctuation: that silently
+  # drops every operator form, which is the canonical injection shape.
+  pattern: '\b(eval|exec|compile)\s*\(\s*(?:\*|(?:[fF][rR]?|[rR][fF])[''"]|[A-Za-z_][A-Za-z0-9_]*(?:[^A-Za-z0-9_''"]|$))'
 
 related: [AP-008, PY-009]
 enabled: true
@@ -34,10 +45,16 @@ pydantic / attrs schema for data validation, or a restricted interpreter
 (`ast.literal_eval` for literals only, RestrictedPython, a subprocess with a
 clean env) if you genuinely need to run untrusted code.
 
-If the argument is a string literal you control end-to-end (e.g. `eval("1 + 1")`
-or a raw/bytes/unicode prefix such as `re.compile(r'^\d+$')`,
-`compile(rb"...", "<s>", "exec")`, `eval(u"1")`), the rule skips you. f-strings
-are not treated as static — they can interpolate run-time values.
+A bare string literal you control end-to-end (`eval("1 + 1")`) or a raw, bytes,
+or unicode prefixed literal (`re.compile(r'^\d+$')`, `compile(rb"...", "<s>",
+"exec")`, `eval(u"1")`) does not fire. f-strings do fire in every prefix
+ordering (`f`, `rf`, `fr`) — they interpolate run-time values.
+
+A literal first argument is **not** proof the call is safe: the rule reads only
+the first token after `(` on a single line, so a formatted or concatenated
+literal (`exec("DELETE FROM %s" % table)`, `eval("{}".format(x))`,
+`eval("x" + user)`), a parenthesised expression, and a call whose argument
+starts on a later line are blind spots you must review by hand.
 
 ## Why It's Harmful
 
@@ -45,9 +62,13 @@ are not treated as static — they can interpolate run-time values.
 process's full privilege. When the first argument is an identifier, static
 analysis cannot see the payload — it may be attacker-controlled.
 
-Raw, bytes, and unicode prefixes (`r`, `b`, `u`, `rb`) are treated as static,
-the same as a bare quote. Forms such as `re.compile(r'^\d+$')`,
-`compile(rb"...", "<s>", "exec")`, and `eval(u"1")` do not fire. f-strings
-and true dynamic arguments (`eval(user_input)`, `eval(user_input.strip())`,
-`eval(user_input[0])`, `exec(payload)`, `compile(src, '<str>', 'exec')`)
-still do.
+Raw, bytes, and unicode prefixes (`r`, `b`, `u`, and two-letter combinations
+such as `rb`/`br`, in any case) are treated as static, the same as a bare
+quote, so `re.compile(r'^\d+$')`, `compile(rb"...", "<s>", "exec")`, and
+`eval(u"1")` do not fire. Everything else does: f-strings in any ordering
+(`exec(f"{user_input}")`, `eval(rf"{user_input}")`), plain identifiers
+(`eval(user_input)`, `eval(user_input.strip())`, `eval(user_input[0])`),
+composed payloads (`eval(prefix + user_input)`, `exec(tmpl % vars)`,
+`eval(cmd if trusted else default)`), keyword arguments
+(`compile(source=src, filename="<s>", mode="exec")`), and unpacking
+(`eval(*args)`).
