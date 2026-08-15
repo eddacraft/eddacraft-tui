@@ -133,8 +133,12 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
   install-scoped refresh generation so live serves re-check,
   (4) report config actions + process inventory grouped by parent.
   Default process mode is report-only; no kill of live parents' children.
-- **Files:** `crates/anvil-cli/src/commands/mcp.rs` (or new refresh module),
-  help/runbook snippets, CLI tests
+- **Files:** `crates/anvil-cli/src/commands/mcp.rs`,
+  `crates/anvil-cli/src/commands/mcp_refresh.rs`,
+  `crates/anvil-cli/src/commands/mcp_generation.rs`,
+  `crates/anvil-cli/src/commands/mcp_inventory.rs`,
+  `crates/anvil-cli/src/mcp/reexec.rs`,
+  `crates/anvil-cli/tests/mcp_refresh.rs`
 - **Validation:** `cargo test -p eddacraft-anvil -- mcp_refresh`; dry-run does
   not mutate; real run rewrites a fixture drifted entry and bumps generation
 - **Confidence:** medium

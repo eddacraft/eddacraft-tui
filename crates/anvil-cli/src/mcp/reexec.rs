@@ -12,7 +12,7 @@
 use std::env;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use serde_json::Value;
 
@@ -27,6 +27,8 @@ pub(crate) const PREFERRED_ENV: &str = "ANVIL_MCP_PREFERRED";
 
 /// Process-local anti-loop if `exec` returns (crate forbids `set_var`).
 static REEXEC_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+/// Last consumed install-scoped refresh generation (MCPLH-003).
+static LAST_SEEN_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 const TRIGGER_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 
@@ -122,6 +124,8 @@ pub(crate) struct ReexecProbe {
     pub gate: ReexecGate,
     pub current_exe: Option<PathBuf>,
     pub preferred: Option<PathBuf>,
+    /// True when the install-scoped refresh generation is newer than last seen.
+    pub generation_bumped: bool,
 }
 
 #[must_use]
@@ -143,7 +147,14 @@ pub(crate) fn decide(probe: &ReexecProbe) -> ReexecDecision {
 
     let skewed = is_skewed(probe.current_exe.as_deref(), probe.preferred.as_deref());
 
-    match probe.gate {
+    // A refresh generation bump is an operator poke: re-check preferred
+    // and allow one more recycle even if this image already attempted.
+    let gate = match (probe.generation_bumped, probe.gate) {
+        (true, ReexecGate::AlreadyAttempted) => ReexecGate::Allowed,
+        (_, gate) => gate,
+    };
+
+    match gate {
         ReexecGate::KillSwitch => return stay(StayReason::KillSwitch, skewed),
         ReexecGate::AlreadyAttempted => return stay(StayReason::AlreadyReexeced, skewed),
         ReexecGate::PlatformDemoted => return stay(StayReason::PlatformDemoted, skewed),
@@ -266,6 +277,19 @@ pub(crate) fn probe_from_process(method: Option<&str>, phase: FramePhase) -> Ree
         gate: gate_from_process(),
         current_exe: env::current_exe().ok(),
         preferred: resolve_preferred_executable(override_path.as_deref(), path_var.as_deref()),
+        generation_bumped: consume_generation_bump(),
+    }
+}
+
+/// Treat generation greater than last seen as a preferred-binary re-check.
+fn consume_generation_bump() -> bool {
+    let current = crate::commands::mcp_generation::current_generation();
+    let last = LAST_SEEN_GENERATION.load(Ordering::SeqCst);
+    if current > last {
+        LAST_SEEN_GENERATION.store(current, Ordering::SeqCst);
+        true
+    } else {
+        false
     }
 }
 
@@ -380,7 +404,41 @@ mod tests {
                 "/opt/homebrew/Cellar/anvil/0.9.2-beta/bin/anvil",
             )),
             preferred: Some(PathBuf::from("/opt/homebrew/bin/anvil")),
+            generation_bumped: false,
         }
+    }
+
+    #[test]
+    fn mcp_reexec_generation_bump_rechecks_preferred_and_reexecs_if_skewed() {
+        let mut probe = skewed_probe();
+        probe.gate = ReexecGate::AlreadyAttempted;
+        probe.generation_bumped = true;
+
+        match decide(&probe) {
+            ReexecDecision::Reexec { preferred } => {
+                assert_eq!(preferred, PathBuf::from("/opt/homebrew/bin/anvil"));
+            }
+            stay @ ReexecDecision::Stay { .. } => {
+                panic!(
+                    "generation bump must re-check preferred and re-exec when skewed, got {stay:?}"
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn mcp_reexec_generation_bump_stays_when_preferred_matches() {
+        let mut probe = skewed_probe();
+        probe.current_exe = probe.preferred.clone();
+        probe.gate = ReexecGate::AlreadyAttempted;
+        probe.generation_bumped = true;
+        assert_eq!(
+            decide(&probe),
+            ReexecDecision::Stay {
+                reason: StayReason::NotSkewed,
+                skewed: false,
+            }
+        );
     }
 
     #[test]

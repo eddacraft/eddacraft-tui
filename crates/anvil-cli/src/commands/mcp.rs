@@ -31,6 +31,8 @@ enum McpCommand {
     Install(McpInstallArgs),
     /// Start an MCP server.
     Serve(McpServeArgs),
+    /// Rewrite owned MCP configs, recycle a skewed daemon, and poke live heal.
+    Refresh(super::mcp_refresh::McpRefreshArgs),
 }
 
 #[derive(Debug, Args)]
@@ -71,12 +73,13 @@ pub fn run(args: &McpArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         McpCommand::Install(install) => run_install(install, global),
         McpCommand::Serve(serve) => run_serve(serve),
+        McpCommand::Refresh(refresh) => super::mcp_refresh::run(refresh, global),
     }
 }
 
 pub fn auth_gate_name(args: &McpArgs) -> &'static str {
     match &args.command {
-        McpCommand::Install(_) => "mcp-install",
+        McpCommand::Install(_) | McpCommand::Refresh(_) => "mcp-install",
         McpCommand::Serve(_) => "mcp-serve",
     }
 }
