@@ -220,22 +220,26 @@ fn scan_proc(preferred: Option<&Path>) -> Vec<McpProcess> {
     found
 }
 
+#[cfg(any(unix, test))]
 fn classify(parent_alive: bool, exe: Option<&Path>, preferred: Option<&Path>) -> ProcessClass {
     if !parent_alive {
         return ProcessClass::Orphan;
     }
     match (exe, preferred) {
+        (_, None) => ProcessClass::Current,
         (Some(exe), Some(preferred)) if identities_match(exe, preferred) => ProcessClass::Current,
         _ => ProcessClass::Skewed,
     }
 }
 
+#[cfg(any(unix, test))]
 fn identities_match(left: &Path, right: &Path) -> bool {
     let left = dunce::canonicalize(left).unwrap_or_else(|_| left.to_path_buf());
     let right = dunce::canonicalize(right).unwrap_or_else(|_| right.to_path_buf());
     left == right
 }
 
+#[cfg(any(unix, test))]
 fn looks_like_anvil_mcp_serve(args: &[String]) -> bool {
     let has_mcp = args.iter().any(|arg| arg == "mcp");
     let has_serve = args.iter().any(|arg| arg == "serve");
@@ -249,6 +253,7 @@ fn looks_like_anvil_mcp_serve(args: &[String]) -> bool {
     })
 }
 
+#[cfg(any(unix, test))]
 fn command_basename(command: &str) -> String {
     match PathBuf::from(command).file_name() {
         Some(name) => name.to_string_lossy().into_owned(),
@@ -284,7 +289,7 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        McpProcess, ProcessClass, ProcessMode, ProcessSignalSink, apply_process_mode,
+        McpProcess, ProcessClass, ProcessMode, ProcessSignalSink, apply_process_mode, classify,
         looks_like_anvil_mcp_serve, summarise,
     };
 
@@ -332,6 +337,15 @@ mod tests {
         assert_eq!(reported.skewed, 1);
         assert_eq!(reported.by_parent[0].command, "grok");
         assert_eq!(reported.by_parent[0].parent_pids, vec![10]);
+    }
+
+    #[test]
+    fn unknown_preferred_is_not_skewed() {
+        assert_eq!(
+            classify(true, Some(Path::new("/opt/homebrew/bin/anvil")), None),
+            ProcessClass::Current,
+            "missing preferred must match re-exec: not skewed"
+        );
     }
 
     #[test]

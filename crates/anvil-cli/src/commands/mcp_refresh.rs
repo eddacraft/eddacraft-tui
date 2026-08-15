@@ -299,7 +299,7 @@ fn refresh_client(
                     scope: scope.label().to_owned(),
                     path: path.display().to_string(),
                     command: command.to_owned(),
-                    drifted: false,
+                    drifted: true,
                     action: "skipped-foreign".to_owned(),
                 });
             }
