@@ -7,21 +7,121 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft — The Assistant-Facing Graph: GCTX Tools & Resources, Graph V2 Registry, Call Graph, Python Support & Usage Analytics
+## [Unreleased] — Draft — Config unification, MCP live-heal, and product deep clean
 
-Draft / unreleased. Technical work landed on `main` since `v0.8.2-beta`. This is
-the `v0.9.0-beta` "Assistant-Facing Graph" window, delivered end to end: Graph
-V2 Phase 1 substrate and the multi-graph registry complete (GV2 Done, 21/21),
-the **GCTX assistant-facing graph** ships its full tool and resource surface
-behind a sealed daemon-side egress projector with the CE-1..CE-12 privacy gates,
-a new **call graph** (GCALL) lifts cross-symbol call edges at save time,
-**Python** joins the first-tier languages (PYLAN), the daemon gains a
+Draft / unreleased. Technical work landed on `main` since `v0.9.4-beta`. The
+locked `v0.9.5-beta` claim is **config unification and product deep clean**
+([ADR-120](./plans/decisions/120-config-surface-consolidation.md), UCFG-001..016
+on `main`) plus the **MCP live-heal** operator path (MCPLH-001..006 on `main`;
+001/002/004 Merged, 003/005/006 code landed). Supervisor/proxy (MCPLH-007) stays
+Draft until re-exec soak evidence. Settings (`SETCON`+) and Graph Trust Surfaces
+remain beside this window, not the cut claim.
+
+### Config surface consolidation (ADR-120, UCFG)
+
+- **One project-config store.** `anvil init` writes canonical `.anvil.yaml` /
+  `.json` / `.toml`. `.anvilrc` is read-only fallback; no command creates one.
+  `anvil migrate format` and `anvil config convert --to` share a writer that
+  never emits `.anvilrc`. TTY `anvil doctor` offers migrate / remove leftover
+  dual-config, fold `.anvil/gate-config.json`, or record `architecture.source`
+  (UCFG-015/016).
+- **Canonical `snake_case` keys.** Owned writes emit `schema_version` and
+  friends; camelCase still loads. Registry + migrate/set/init share one
+  normalisation path (UCFG-003).
+- **`gate` and `architecture` as sections.** Gate composition lives in the
+  project file; `.anvil/gate-config.json` is folded, not authoritative
+  (UCFG-004/005). Architecture is inline or `SectionOrSource` delegated
+  (UCFG-006/007). Gate / watch / architecture commands read the resolved section
+  (UCFG-008); watch-time enforcement for section configs plus a descriptor-bound
+  reader so a FIFO config cannot hang the process (UCFG-013/014).
+- **One discovery layer.** Policy discovery, MCP resources, config summary, and
+  doctor inspect the same `anvil_config::discover` surface (UCFG-009/010). Docs
+  and fixtures pinned to the canonical layout (UCFG-011/012).
+- **Legacy read fallbacks stay** for at least one minor (ADR-120). Dual-truth is
+  a doctor warning, not a silent merge.
+
+### MCP live-heal (MCPLH)
+
+- **PATH-stable install (MCPLH-001).** Managed entries write `command: anvil`
+  - `mcp serve --stdio`, not a Homebrew Cellar / versioned absolute. Handshake
+    rewrites owned path-drift. `--command` remains for side-by-side.
+- **In-process re-exec (MCPLH-002).** Unix `mcp serve` `execve`s the preferred
+  binary between JSON-RPC frames (`initialize` / `tools/list` / `tools/call`).
+  Anti-loop `ANVIL_MCP_REEXECED`; kill-switch `ANVIL_MCP_NO_REEXEC`. Windows
+  demotes to honest skew reporting.
+- **Operator cascade (MCPLH-003).** `anvil mcp refresh` rewrites owned configs,
+  recycles a skewed daemon (`--daemon auto|restart|reuse`), bumps an
+  install-scoped generation so live children re-check, and reports. `--dry-run`
+  / `--json`. Default `--processes report` never signals live parents.
+- **Daemon recycle (MCPLH-004).** Bare `anvil`, `anvil start`, and refresh stop
+  a version-mismatched intercept daemon, wait for PID exit, start the current
+  binary. Harness MCP children are not signalled.
+- **Split readiness (MCPLH-005).** `anvil status` / `--verify` expose MCP
+  process inventory, `mcp_skew`, and separate `protecting` / `agent_ready` /
+  `graph_ready`. `agent_ready` is pre-write attach + current MCP, not graph
+  (spec OQ-4).
+- **Opt-in orphan reap (MCPLH-006).** `--processes orphan-reap` SIGTERMs
+  same-user `anvil mcp serve --stdio` children whose parent PID is gone (Unix;
+  same-uid gate). `force-skewed` is rejected.
+
+### Honesty, reliability, and adjacent engineering
+
+- **Deep-clean residuals.** Claude project MCP writes `.mcp.json`; live
+  validation is per MCP client; capsule verify binds the witness to the attested
+  range; refresh-token rotation takes an exclusive lock; policy-suite timeout
+  kills the process group.
+- **Check precision.** PY-008 no longer treats a dotted `compile` receiver as
+  the builtin and does catch f-string / attribute forms. Credit-card rules
+  ignore 16-digit runs in `https` URL paths (host required). Compiled-registry
+  parity is a real CI gate. Threat-model rule tests are labelled data.
+- **Windows / install honesty.** `anvil update` exits non-zero on decline and
+  prints only the WinGet/installer remedy that matches `--check`. Install
+  symlink-swap races closed on Windows and delegated config sources.
+- **Docs freshness (ADR-119 / DOCFRESH).** Report-only docs-owed probe,
+  granularity split, and CI on any code change.
+- **Account activity (BACT) and DEVACC.** Beta account-activity metrics and
+  admin surfaces; developer-acceleration bench suite (agent-free Tier B).
+- **Acknowledgements starter.** Cold-adopt across ecosystems; Apache-2.0 grant
+  on the kit.
+
+See [RELEASE-PLAN.md](./RELEASE-PLAN.md) for the `v0.9.5-beta` cut bar.
+Remaining cut work is changelog promotion and the standing release bar, not more
+claim implementation.
+
+## Interim published tags (not backfilled here)
+
+This log was last drafted for the `v0.9.0-beta` window and was **not** promoted
+at that cut or at the later patches. Customer notes and operator records are
+authoritative; do not treat the missing sections as “those tags did not ship”.
+
+| Tag           | Date       | Theme                                  | Record                                                                  |
+| ------------- | ---------- | -------------------------------------- | ----------------------------------------------------------------------- |
+| `v0.9.4-beta` | 2026-08-10 | Install honesty + quieter false alarms | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.4-beta.md) |
+| `v0.9.3-beta` | 2026-08-07 | Honesty + Windows path                 | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.3-beta.md) |
+| `v0.9.2-beta` | 2026-08-03 | MCP 2.0 reconnect                      | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.2-beta.md) |
+| `v0.9.1-beta` | 2026-08-02 | Daily path + MCP 2.0                   | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.1-beta.md) |
+
+`v0.8.1-beta` (2026-06-11, headless GitHub login) and the `v0.8.2-beta` Windows
+daemon-ensure hotfix (2026-06-22, not a promoted headline) also shipped without
+a section in this file. See [CHANGELOG](./CHANGELOG.md) and
+[v0.8.1-beta](./plans/releases/v0.8.1-beta.md).
+
+## [0.9.0-beta] — 2026-07-12 — First-Run Wins and the Assistant Graph
+
+Shipped 2026-07-12. Technical work landed on `main` since `v0.8.1-beta` (the
+pre-cut draft said `v0.8.2-beta`; that hotfix tag is not a promoted window).
+This is the `v0.9.0-beta` "Assistant-Facing Graph" window, delivered end to end:
+Graph V2 Phase 1 substrate and the multi-graph registry complete (GV2 Done,
+21/21), the **GCTX assistant-facing graph** ships its full tool and resource
+surface behind a sealed daemon-side egress projector with the CE-1..CE-12
+privacy gates, a new **call graph** (GCALL) lifts cross-symbol call edges at
+save time, **Python** joins the first-tier languages (PYLAN), the daemon gains a
 **full-scan executor** and opt-in **warm-start persistence**, the **USAGE/KDS**
 analytics foundation lands on-device, four **governance scan surfaces** (Docker,
 GitHub Actions, shell, SQL) graduate, and CIB-071 migrates user warnings to
 `miette` with spans. The ADR-075 entry gates cleared 2026-06-15 (ADR-083 + the
 PV-9 egress review); the scoped feature work completed over the following two
-weeks.
+weeks. Record: [plans/releases/v0.9.0-beta.md](./plans/releases/v0.9.0-beta.md).
 
 ### Graph V2 consumer layer and multi-graph registry (GV2-013, GV2-014, GV2-020, GV2-023, GV2-026, GV2-030, GV2-031, GV2-032)
 
@@ -261,19 +361,18 @@ weeks.
 - **APS index & module state.** Continuous index refreshes, CIB count bumps,
   USAGE/MLP2/GV2/GCTX state alignment before and after the window transition.
 
-See the active [RELEASE-PLAN.md](./RELEASE-PLAN.md) for the v0.9.0-beta scope
-and cut criteria (ADR-031 latency gate, cross matrix, egress conditions). The
-feature scope is complete; the window awaits the cut.
+Shipped as [v0.9.0-beta](./plans/releases/v0.9.0-beta.md). Later patch themes
+are listed in the interim table above; do not read this section as the current
+window.
 
-## [0.8.0-beta] — TBD — The Save-Time Daemon
+## [0.8.0-beta] — 2026-06-11 — The Save-Time Daemon
 
-Draft / unreleased. Technical work landed on `main` since `v0.7.4-beta`; release
-date pending the tag. The headline is architectural: save-time governance starts
-moving off per-save cold-spawned `check` and onto a persistent intercept daemon
-that validates deltas
-([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md), Accepted
-2026-06-01). Sub-phase A and the A-W Windows parity slice are now merged; A′/B
-remain sequenced behind Graph V2 foundations.
+Shipped 2026-06-11. Technical work landed on `main` since `v0.7.4-beta`. The
+headline is architectural: save-time governance starts moving off per-save
+cold-spawned `check` and onto a persistent intercept daemon that validates
+deltas ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md),
+Accepted 2026-06-01). Sub-phase A and the A-W Windows parity slice are now
+merged; A′/B remain sequenced behind Graph V2 foundations.
 
 ### Daemon save-time validation (DSV / ADR-061, ADR-063, ADR-064, ADR-067)
 
