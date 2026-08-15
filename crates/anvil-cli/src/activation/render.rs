@@ -223,6 +223,9 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
                 reason: SkipReason::AlreadyUpToDate,
             } => "skipped — already up to date".to_string(),
             InstallOutcome::Skipped {
+                reason: SkipReason::HealPinned,
+            } => "skipped — MCP auto-heal pinned (anvil mcp unpin)".to_string(),
+            InstallOutcome::Skipped {
                 reason: SkipReason::UserDeselected,
             } => "skipped — not selected".to_string(),
             InstallOutcome::Skipped {

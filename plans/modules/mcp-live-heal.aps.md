@@ -220,6 +220,37 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ---
 
+### MCPLH-008: Daily self-heal with easy pin
+
+- **Status:** In Progress
+- **Intent:** MCP updates happen on the daily paths (`anvil`, `anvil start`,
+  `anvil doctor`) without operators memorising `mcp refresh`. Refresh stays
+  the emergency verb. People who hate auto-updates can pin easily.
+- **Expected Outcome:** When configs, the CLI, or the daemon are stale, daily
+  paths rewrite owned MCP entries and poke live children. `anvil mcp pin`
+  / `ANVIL_MCP_PIN` freezes daily heal and in-process re-exec; `anvil mcp
+  unpin` or `ANVIL_MCP_PIN=0` resumes. First-time `NotPresent` install on
+  `anvil start` still works while pinned. Emergency `mcp refresh` still
+  runs when pinned and says so.
+- **Files:** `crates/anvil-cli/src/commands/mcp_heal.rs`,
+  `crates/anvil-cli/src/commands/mcp_generation.rs`,
+  `crates/anvil-cli/src/commands/mcp.rs`,
+  `crates/anvil-cli/src/commands/ensure.rs`,
+  `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/mcp/reexec.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/install.rs`,
+  `crates/anvil-cli/tests/mcp_heal.rs`,
+  `docs/runbooks/cli-surface.md`
+- **Validation:** `cargo test -p eddacraft-anvil -- mcp_heal`; doctor check
+  is registered; pin blocks daily poke; emergency refresh still bumps
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** MCPLH-003 (generation + refresh), MCPLH-002 (re-exec)
+- **Design ref:** spec §9 / OQ-3 (daily poke); pin is the auto-update opt-out
+
+---
+
 ## Stretch (not Ready)
 
 ### MCPLH-007: Supervisor/proxy if re-exec fails soak (Draft)

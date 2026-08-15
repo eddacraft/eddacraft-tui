@@ -94,10 +94,23 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
         let fresh = AnvilEntry::preferred_stdio();
         let home = util::user_home_dir();
         let summary = ensure_existing_mcp_entries(root, home.as_deref(), &fresh);
-        format_mcp_line(
+        let rewritten = summary
+            .report
+            .per_client
+            .values()
+            .any(|outcome| matches!(outcome, InstallOutcome::Installed { .. }));
+        let recycled = daemon_outcome.recycle.is_some();
+        let poke = crate::commands::mcp_heal::poke_if_needed(
+            crate::commands::mcp_heal::PokeReason::Changed {
+                configs_rewritten: rewritten,
+                daemon_recycled: recycled,
+            },
+        );
+        format_mcp_line_with_poke(
             &summary.report,
             summary.managed,
             summary.absent_for_recovery,
+            poke.ok().as_ref(),
         )
     };
 
@@ -228,6 +241,21 @@ fn format_worktree_registration(outcome: WorktreeRegistration) -> String {
             format!("worktree: registration rejected — {message}")
         }
     }
+}
+
+fn format_mcp_line_with_poke(
+    report: &activation::orchestrator::InstallReport,
+    managed: usize,
+    absent_for_recovery: usize,
+    poke: Option<&crate::commands::mcp_heal::PokeOutcome>,
+) -> String {
+    if poke.is_some_and(|outcome| outcome.skipped_pin) {
+        return format!(
+            "mcp: auto-heal pinned ({})",
+            crate::commands::mcp_heal::heal_policy().summary()
+        );
+    }
+    format_mcp_line(report, managed, absent_for_recovery)
 }
 
 fn format_mcp_line(

@@ -37,6 +37,7 @@ pub mod lsp;
 pub mod mcp;
 pub mod mcp_config;
 pub(crate) mod mcp_generation;
+pub(crate) mod mcp_heal;
 pub(crate) mod mcp_installer;
 pub(crate) mod mcp_inventory;
 pub(crate) mod mcp_refresh;

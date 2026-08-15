@@ -52,6 +52,9 @@ pub enum SkipReason {
     UnsafeDrift(String),
     /// Existing entry already matches what we'd write.
     AlreadyUpToDate,
+    /// Daily MCP self-heal is pinned; drifted owned entries are left
+    /// unchanged. First-time `NotPresent` installs still proceed.
+    HealPinned,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -222,8 +225,11 @@ pub(crate) fn ensure_existing_mcp_entries(
     for candidate in &candidates {
         match &candidate.drift {
             DriftClass::SafeDrift { .. } => {
-                selected.insert(candidate.id, candidate.clone());
                 managed += 1;
+                if crate::commands::mcp_heal::heal_policy().is_pinned() {
+                    continue;
+                }
+                selected.insert(candidate.id, candidate.clone());
             }
             DriftClass::UpToDate => {
                 managed += 1;
@@ -368,6 +374,14 @@ fn install_candidate_outcome(
                 expected.target_path.display(),
                 candidate.target_path.display(),
             ),
+        };
+    }
+
+    if matches!(candidate.drift, DriftClass::SafeDrift { .. })
+        && crate::commands::mcp_heal::heal_policy().is_pinned()
+    {
+        return InstallOutcome::Skipped {
+            reason: SkipReason::HealPinned,
         };
     }
 

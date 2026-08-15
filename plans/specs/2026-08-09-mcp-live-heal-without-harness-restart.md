@@ -441,7 +441,7 @@ heal mechanics rather than replacing its non-kill rule.
 | - | -------- | -------------------- |
 | OQ-1 | Re-exec always-on vs opt-in for first release? | Always-on with kill-switch |
 | OQ-2 | Identity probe: version string only vs inode/mtime/hash? | Version string + preferred path mismatch |
-| OQ-3 | Should bare `anvil` bump generation on ensure? | Yes if daemon or CLI changed since last bump |
+| OQ-3 | Should bare `anvil` bump generation on ensure? | **Resolved (MCPLH-008):** yes on daily `anvil` / `anvil start` / `anvil doctor` when configs, daemon, or CLI changed. `anvil mcp pin` / `ANVIL_MCP_PIN` opts out. |
 | OQ-4 | `agent_ready` include graph? | No — split `graph_ready` |
 | OQ-5 | Windows v1 demote vs block? | Demote honestly; ship Unix heal |
 | OQ-6 | New ADR vs module note only? | ADR if re-exec becomes cross-cutting contract; else APS + this spec |

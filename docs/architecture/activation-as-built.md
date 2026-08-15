@@ -1,8 +1,8 @@
 # Activation Orchestrator — As-Built
 
-| Type     | Authority | Owner        | Status | Freshness                                                                                                                                                                                                      |
-| -------- | --------- | ------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | LAUNCH/MCP26 | Live   | Last reviewed 2026-07-29 against the dual-era MCP verification probe and additive diagnostic evidence; prior client-registry review 2026-07-14 and activation-spine review 2026-07-02 against main `d1fded280` |
+| Type     | Authority | Owner        | Status | Freshness                                                                                                    |
+| -------- | --------- | ------------ | ------ | ------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | LAUNCH/MCP26 | Live   | Last reviewed 2026-08-15 against MCPLH-008 daily MCP self-heal and pin; prior dual-era MCP review 2026-07-29 |
 
 | Upstream                                                                                    | Downstream                                                                                   |
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -196,7 +196,12 @@ orchestrator executes seven main ordered steps:
    step is idempotent (`UpToDate` → skip), refuses to overwrite `UnsafeDrift`,
    and offers `NotPresent` / `SafeDrift` candidates unticked (CIB-184). With MCP
    install skipped, daemon-backed worktree registration still runs and the human
-   output prints an explicit skipped-install line. See
+   output prints an explicit skipped-install line. After install, daily paths
+   (`anvil`, `anvil start`, `anvil doctor`) poke live MCP children when configs,
+   the daemon, or the CLI version changed (MCPLH-008). `anvil mcp pin` /
+   `ANVIL_MCP_PIN` freeze that self-heal and skip `SafeDrift` rewrites;
+   first-time `NotPresent` installs still proceed. Emergency `anvil mcp refresh`
+   still runs when pinned. See
    [MCP install (LAUNCH-009)](#mcp-install-launch-009) below.
 
 6. **Re-probe.** A second `verify_with_home` call (`orchestrator/mod.rs:346`)

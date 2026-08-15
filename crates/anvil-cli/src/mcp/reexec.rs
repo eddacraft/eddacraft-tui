@@ -65,6 +65,7 @@ pub(crate) enum StayReason {
     NotSkewed,
     PreferredUnresolved,
     PlatformDemoted,
+    Pinned,
 }
 
 impl StayReason {
@@ -96,6 +97,12 @@ impl StayReason {
                  Retry a tool call after anvil is first on PATH, \
                  or reconnect MCP for this client.",
             ),
+            Self::Pinned => Some(
+                "MCP auto-heal is pinned, so this process will not recycle \
+                 to the preferred anvil binary. Run `anvil mcp unpin` \
+                 (or unset ANVIL_MCP_PIN) and retry a tool call, \
+                 or reconnect MCP for this client.",
+            ),
             Self::NotATrigger | Self::MidFrame | Self::NotSkewed => None,
         }
     }
@@ -117,6 +124,7 @@ pub(crate) enum ReexecGate {
     KillSwitch,
     AlreadyAttempted,
     PlatformDemoted,
+    Pinned,
 }
 
 /// Injectable inputs for [`decide`]. Production builds these from the
@@ -163,6 +171,7 @@ pub(crate) fn decide(probe: &ReexecProbe) -> ReexecDecision {
         ReexecGate::KillSwitch => return stay(StayReason::KillSwitch, skewed),
         ReexecGate::AlreadyAttempted => return stay(StayReason::AlreadyReexeced, skewed),
         ReexecGate::PlatformDemoted => return stay(StayReason::PlatformDemoted, skewed),
+        ReexecGate::Pinned => return stay(StayReason::Pinned, skewed),
         ReexecGate::Allowed => {}
     }
     let Some(preferred) = probe.preferred.as_ref() else {
@@ -313,6 +322,8 @@ fn consume_generation_bump_from(current: u64, seen: &AtomicBool, last_seen: &Ato
 fn gate_from_process() -> ReexecGate {
     if env_flag_set(NO_REEXEC_ENV) {
         ReexecGate::KillSwitch
+    } else if crate::commands::mcp_heal::heal_policy().is_pinned() {
+        ReexecGate::Pinned
     } else if env_flag_set(REEXECED_ENV) || REEXEC_ATTEMPTED.load(Ordering::SeqCst) {
         ReexecGate::AlreadyAttempted
     } else if cfg!(unix) {
@@ -576,6 +587,7 @@ mod tests {
             StayReason::AlreadyReexeced,
             StayReason::PlatformDemoted,
             StayReason::PreferredUnresolved,
+            StayReason::Pinned,
         ] {
             let hint = reason
                 .recovery_hint()

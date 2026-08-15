@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                           |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-15 updates for `anvil mcp refresh` (`--processes orphan-reap` opt-in) and installed help copy vs `main.rs` / `commands/` (GH #3921); not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                         |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-15 update for daily MCP self-heal and `anvil mcp pin` (MCPLH-008); not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -143,7 +143,8 @@ $ anvil check --since main --severity warning
 
 **Class:** User-explicit **Purpose:** Run diagnostic checks on your environment.
 **When to use:** When Anvil is behaving unexpectedly or a setup step failed.
-Also useful as a pre-flight in CI.
+Also useful as a pre-flight in CI. Doctor also runs daily MCP self-heal (rewrite
+drifted owned entries and poke live children) unless MCP heal is pinned.
 
 **Synopsis:** `anvil doctor [--fix]`
 
@@ -953,12 +954,14 @@ $ anvil mcp-config --target cursor --transport http --port 7616 --write
 
 ## anvil mcp
 
-**Class:** Background (serve) / User-explicit (install, refresh) **Purpose:**
-Manage and serve MCP integrations. **When to use:** `serve` is invoked by
-editors automatically as `anvil mcp serve --stdio`. `install` wires the MCP
-config for a supported client. After an upgrade, `refresh` rewrites owned
-configs, recycles a skewed daemon, and pokes live MCP children so they re-check
-the preferred binary.
+**Class:** Background (serve) / User-explicit (install, refresh, pin)
+**Purpose:** Manage and serve MCP integrations. **When to use:** `serve` is
+invoked by editors automatically as `anvil mcp serve --stdio`. `install` wires
+the MCP config for a supported client. Daily `anvil`, `anvil start`, and
+`anvil doctor` rewrite drifted owned entries and poke live children when the
+CLI, daemon, or configs are stale. `refresh` is the emergency cascade. `pin` /
+`unpin` freeze or resume that daily self-heal (`ANVIL_MCP_PIN` is the session
+override).
 
 **When to use (`serve`):** To serve anvil's MCP tools over stdin/stdout. Editors
 launch this automatically as `anvil mcp serve --stdio`. `--stdio` is required.
@@ -966,10 +969,13 @@ launch this automatically as `anvil mcp serve --stdio`. `--stdio` is required.
 **When to use (`install`):** To preview, write, or verify anvil MCP
 configuration for a supported editor.
 
-**When to use (`refresh`):** After an upgrade, rewrite owned configs, recycle a
-skewed daemon, and poke live MCP children.
+**When to use (`refresh`):** Emergency cascade after an upgrade when daily
+self-heal is not enough, or when heal is pinned and you still want a rewrite.
 
-**Synopsis:** `anvil mcp <install|serve|refresh>`
+**When to use (`pin` / `unpin`):** Freeze daily MCP updates if you do not want
+auto-heal; unpin to resume.
+
+**Synopsis:** `anvil mcp <install|serve|refresh|pin|unpin>`
 
 **Subcommands:**
 
@@ -977,7 +983,9 @@ skewed daemon, and poke live MCP children.
 | --------------------------- | --------------------------------------------------------------- |
 | `install --client <client>` | Install Anvil MCP configuration for a client.                   |
 | `serve --stdio`             | Serve anvil MCP tools over stdin/stdout. `--stdio` is required. |
-| `refresh`                   | Bulk rewrite, daemon recycle, and live poke.                    |
+| `refresh`                   | Emergency bulk rewrite, daemon recycle, and live poke.          |
+| `pin [version]`             | Freeze daily MCP self-heal and in-process recycle.              |
+| `unpin`                     | Resume daily MCP self-heal.                                     |
 
 **`refresh` flags:**
 
@@ -1011,6 +1019,9 @@ $ anvil mcp install --client copilot-cli --verify
 $ anvil mcp serve --stdio
 $ anvil mcp refresh --dry-run
 $ anvil mcp refresh --processes orphan-reap
+$ anvil mcp pin
+$ anvil mcp pin 0.9.2-beta
+$ anvil mcp unpin
 ```
 
 ---

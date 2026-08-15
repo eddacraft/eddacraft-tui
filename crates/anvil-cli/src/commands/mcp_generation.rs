@@ -56,6 +56,14 @@ pub(crate) fn bump_generation(path: &Path) -> Result<u64> {
 }
 
 fn write_generation(path: &Path, value: u64) -> Result<()> {
+    write_generation_sidecar(path, format!("{value}\n").as_bytes())
+        .with_context(|| format!("writing refresh generation {}", path.display()))
+}
+
+/// Write an install-scoped sidecar next to the generation file (pin,
+/// last-poked CLI version). Creates the parent directory and locks it
+/// down the same way as the generation counter.
+pub(crate) fn write_generation_sidecar(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("creating generation directory {}", parent.display()))?;
@@ -71,8 +79,7 @@ fn write_generation(path: &Path, value: u64) -> Result<()> {
             })?;
         }
     }
-    atomic_write_nofollow(path, format!("{value}\n").as_bytes())
-        .with_context(|| format!("writing refresh generation {}", path.display()))
+    atomic_write_nofollow(path, bytes).with_context(|| format!("writing {}", path.display()))
 }
 
 #[cfg(test)]

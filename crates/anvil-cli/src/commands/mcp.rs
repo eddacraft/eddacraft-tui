@@ -33,6 +33,10 @@ enum McpCommand {
     Serve(McpServeArgs),
     /// Rewrite owned MCP configs, recycle a skewed daemon, and poke live heal.
     Refresh(super::mcp_refresh::McpRefreshArgs),
+    /// Freeze daily MCP self-heal and in-process recycle.
+    Pin(McpPinArgs),
+    /// Resume daily MCP self-heal.
+    Unpin,
 }
 
 #[derive(Debug, Args)]
@@ -71,11 +75,19 @@ struct McpServeArgs {
     stdio: bool,
 }
 
+#[derive(Debug, Args)]
+struct McpPinArgs {
+    /// Optional version label to record (display-only). Omit to freeze current.
+    version: Option<String>,
+}
+
 pub fn run(args: &McpArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         McpCommand::Install(install) => run_install(install, global),
         McpCommand::Serve(serve) => run_serve(serve),
         McpCommand::Refresh(refresh) => super::mcp_refresh::run(refresh, global),
+        McpCommand::Pin(pin) => run_pin(pin, global),
+        McpCommand::Unpin => run_unpin(global),
     }
 }
 
@@ -83,6 +95,7 @@ pub fn auth_gate_name(args: &McpArgs) -> &'static str {
     match &args.command {
         McpCommand::Install(_) | McpCommand::Refresh(_) => "mcp-install",
         McpCommand::Serve(_) => "mcp-serve",
+        McpCommand::Pin(_) | McpCommand::Unpin => "mcp-pin",
     }
 }
 
@@ -229,6 +242,46 @@ fn run_vscode_profile_install(args: &McpInstallArgs, global: &GlobalArgs) -> Res
     } else {
         println!("Delegated VS Code profile installation to `code --add-mcp`.");
         println!("Trust and start the anvil server in VS Code's MCP UI.");
+    }
+    Ok(())
+}
+
+fn run_pin(args: &McpPinArgs, global: &GlobalArgs) -> Result<()> {
+    let path = super::mcp_heal::write_pin(args.version.as_deref())?;
+    if global.json {
+        println!(
+            "{}",
+            json!({
+                "ok": true,
+                "pinned": true,
+                "version": args.version,
+                "path": path.display().to_string(),
+            })
+        );
+    } else {
+        match args.version.as_deref() {
+            Some(version) => println!(
+                "MCP auto-heal pinned to {version}. Daily `anvil` / `anvil start` / `anvil doctor` will not update MCP. Run `anvil mcp unpin` to resume."
+            ),
+            None => println!(
+                "MCP auto-heal pinned. Daily `anvil` / `anvil start` / `anvil doctor` will not update MCP. Run `anvil mcp unpin` to resume."
+            ),
+        }
+    }
+    Ok(())
+}
+
+fn run_unpin(global: &GlobalArgs) -> Result<()> {
+    let removed = super::mcp_heal::clear_pin()?;
+    if global.json {
+        println!(
+            "{}",
+            json!({ "ok": true, "pinned": false, "removed": removed })
+        );
+    } else if removed {
+        println!("MCP auto-heal resumed. Daily paths will update drifted MCP again.");
+    } else {
+        println!("MCP auto-heal was not pinned.");
     }
     Ok(())
 }

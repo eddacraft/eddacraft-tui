@@ -21,7 +21,7 @@ use crate::commands::daemon_recycle::{
     DaemonRecycleHooks, DaemonRecycleOutcome, recycle_daemon_if_version_skew,
 };
 use crate::commands::mcp_config::default_client_config_root;
-use crate::commands::mcp_generation::{bump_generation, generation_path, read_generation};
+use crate::commands::mcp_generation::{generation_path, read_generation};
 use crate::commands::mcp_installer;
 use crate::commands::mcp_inventory::{
     NoopSignals, ProcessInventory, ProcessMode, ProcessSignalSink, apply_process_mode,
@@ -113,6 +113,13 @@ pub fn run(args: &McpRefreshArgs, global: &GlobalArgs) -> Result<()> {
     let hooks = UnsupportedDaemonHooks;
     let mut signals = production_signal_sink(process_mode, args.dry_run);
     let report = refresh(args, process_mode, CLI_VERSION, &hooks, signals.as_mut())?;
+    let policy = crate::commands::mcp_heal::heal_policy();
+    if policy.is_pinned() && !global.json {
+        eprintln!(
+            "anvil: MCP auto-heal is {}; this emergency refresh still runs.",
+            policy.summary()
+        );
+    }
     emit_report(&report, global.json)?;
     if report.ok {
         Ok(())
@@ -506,11 +513,13 @@ fn refresh_generation(dry_run: bool) -> Result<GenerationReport> {
             bumped: false,
         });
     }
-    let value = bump_generation(&path)?;
+    let poke = crate::commands::mcp_heal::poke_if_needed(
+        crate::commands::mcp_heal::PokeReason::Emergency,
+    )?;
     Ok(GenerationReport {
         path: path.display().to_string(),
-        value,
-        bumped: true,
+        value: poke.generation,
+        bumped: poke.bumped,
     })
 }
 

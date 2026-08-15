@@ -146,6 +146,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_project_id(),
         check_state_boundary(),
         check_managed_skills(),
+        check_mcp_heal(),
     ]
 }
 
@@ -1506,6 +1507,140 @@ fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
             truncated,
         }),
         _ => None,
+    }
+}
+
+/// Daily MCP self-heal: rewrite drifted owned entries and poke live children.
+fn check_mcp_heal() -> DiagnosticCheck {
+    let home = crate::util::user_home_dir();
+    let project = std::env::current_dir().ok();
+    check_mcp_heal_at(home.as_deref(), project.as_deref())
+}
+
+fn check_mcp_heal_at(home: Option<&Path>, project: Option<&Path>) -> DiagnosticCheck {
+    check_mcp_heal_with(
+        home,
+        project,
+        crate::commands::mcp_heal::heal_policy(),
+        true,
+    )
+}
+
+fn check_mcp_heal_with(
+    home: Option<&Path>,
+    project: Option<&Path>,
+    policy: crate::commands::mcp_heal::HealPolicy,
+    poke_live: bool,
+) -> DiagnosticCheck {
+    use crate::activation::mcp_client::AnvilEntry;
+    use crate::activation::orchestrator::install::{InstallOutcome, ensure_existing_mcp_entries};
+    use crate::commands::mcp_heal::{PokeReason, poke_if_needed};
+
+    if std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty()) {
+        return DiagnosticCheck {
+            name: "mcp-heal".to_string(),
+            category: "MCP".to_string(),
+            status: CheckStatus::Skipped,
+            message: "MCP heal skipped (`ANVIL_NO_MCP`)".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    if policy.is_pinned() {
+        return DiagnosticCheck {
+            name: "mcp-heal".to_string(),
+            category: "MCP".to_string(),
+            status: CheckStatus::Pass,
+            message: format!("MCP auto-heal {}; daily updates skipped", policy.summary()),
+            details: Some("Run `anvil mcp unpin` (or unset ANVIL_MCP_PIN) to resume.".to_string()),
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    let workspace = project.unwrap_or_else(|| Path::new("."));
+    let summary = ensure_existing_mcp_entries(workspace, home, &AnvilEntry::preferred_stdio());
+    let mut rewritten = 0usize;
+    let mut failed = 0usize;
+    let mut details = Vec::new();
+    for (client, outcome) in &summary.report.per_client {
+        match outcome {
+            InstallOutcome::Installed { path, .. } => {
+                rewritten += 1;
+                details.push(format!(
+                    "rewrote {}: {}",
+                    client.display_name(),
+                    path.display()
+                ));
+            }
+            InstallOutcome::Failed { error } => {
+                failed += 1;
+                details.push(format!("failed {}: {error}", client.display_name()));
+            }
+            InstallOutcome::Skipped { .. } => {}
+        }
+    }
+
+    let poke = if poke_live {
+        Some(poke_if_needed(PokeReason::Changed {
+            configs_rewritten: rewritten > 0,
+            daemon_recycled: false,
+        }))
+    } else {
+        None
+    };
+    let poked = poke
+        .as_ref()
+        .and_then(|result| result.as_ref().ok())
+        .is_some_and(|outcome| outcome.bumped);
+    if let Some(Err(error)) = poke {
+        details.push(format!("generation poke failed: {error}"));
+    }
+
+    if failed > 0 {
+        return DiagnosticCheck {
+            name: "mcp-heal".to_string(),
+            category: "MCP".to_string(),
+            status: CheckStatus::Fail,
+            message: format!("MCP heal failed for {failed} client(s)"),
+            details: Some(details.join("\n")),
+            auto_fixable: false,
+            remediation: Remediation {
+                summary: "Retry with the emergency cascade, or inspect the failed client config."
+                    .to_string(),
+                command: Some("anvil mcp refresh".to_string()),
+                doc_url: None,
+            },
+        };
+    }
+
+    let message = if rewritten > 0 {
+        format!(
+            "rewrote {rewritten} drifted MCP {} and poked live children",
+            if rewritten == 1 { "entry" } else { "entries" }
+        )
+    } else if poked {
+        "MCP configs current; live children poked after CLI change".to_string()
+    } else if summary.managed > 0 {
+        "MCP configs current".to_string()
+    } else {
+        "no Anvil-owned MCP entries to heal".to_string()
+    };
+
+    DiagnosticCheck {
+        name: "mcp-heal".to_string(),
+        category: "MCP".to_string(),
+        status: CheckStatus::Pass,
+        message,
+        details: if details.is_empty() {
+            None
+        } else {
+            Some(details.join("\n"))
+        },
+        auto_fixable: false,
+        remediation: Remediation::default(),
     }
 }
 
@@ -3988,6 +4123,55 @@ mod tests {
             checks.iter().any(|c| c.name == "managed-skills"),
             "managed-skills must be registered in run_all_checks",
         );
+    }
+
+    #[test]
+    fn run_all_checks_includes_mcp_heal_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks.iter().any(|c| c.name == "mcp-heal"),
+            "mcp-heal must be registered in run_all_checks",
+        );
+    }
+
+    #[test]
+    fn mcp_heal_reports_pinned_without_rewriting() {
+        use crate::commands::mcp_heal::{HealPolicy, PinSource};
+
+        let home = tempfile::tempdir().unwrap();
+        let cursor = home.path().join(".cursor/mcp.json");
+        std::fs::create_dir_all(cursor.parent().unwrap()).unwrap();
+        std::fs::write(
+            &cursor,
+            r#"{
+  "mcpServers": {
+    "anvil": {
+      "command": "/opt/homebrew/Cellar/anvil/0.9.2-beta/bin/anvil",
+      "args": ["mcp", "serve", "--stdio"]
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let before = std::fs::read_to_string(&cursor).unwrap();
+
+        let check = check_mcp_heal_with(
+            Some(home.path()),
+            None,
+            HealPolicy::Pinned {
+                source: PinSource::File,
+                version: Some("0.9.2-beta".into()),
+            },
+            false,
+        );
+        assert_eq!(check.name, "mcp-heal");
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(
+            check.message.contains("pinned"),
+            "pinned message: {}",
+            check.message
+        );
+        assert_eq!(std::fs::read_to_string(&cursor).unwrap(), before);
     }
 
     #[test]

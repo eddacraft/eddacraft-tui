@@ -373,6 +373,21 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             &mut diagnostic,
         );
     }
+    if !read_only {
+        let rewritten = install_report
+            .per_client
+            .values()
+            .any(|outcome| matches!(outcome, InstallOutcome::Installed { .. }));
+        let recycled = daemon_outcome
+            .as_ref()
+            .is_some_and(|outcome| outcome.recycle.is_some());
+        let _ = crate::commands::mcp_heal::poke_if_needed(
+            crate::commands::mcp_heal::PokeReason::Changed {
+                configs_rewritten: rewritten,
+                daemon_recycled: recycled,
+            },
+        );
+    }
 
     // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the
     // diagnostic's `WatchTier::Offered` gate (config valid + no
@@ -1719,6 +1734,9 @@ fn install_outcome_label(outcome: &InstallOutcome) -> String {
         InstallOutcome::Skipped {
             reason: SkipReason::AlreadyUpToDate,
         } => "skipped — already up to date".to_string(),
+        InstallOutcome::Skipped {
+            reason: SkipReason::HealPinned,
+        } => "skipped — MCP auto-heal pinned (anvil mcp unpin)".to_string(),
         InstallOutcome::Failed { error } => format!("failed — {error}"),
     }
 }
@@ -2627,7 +2645,9 @@ fn is_repeat_success(
         matches!(
             outcome,
             InstallOutcome::Skipped {
-                reason: SkipReason::AlreadyUpToDate | SkipReason::EditorNotDetected,
+                reason: SkipReason::AlreadyUpToDate
+                    | SkipReason::EditorNotDetected
+                    | SkipReason::HealPinned,
             }
         )
     });
