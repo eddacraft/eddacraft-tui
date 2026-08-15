@@ -245,6 +245,9 @@ fn scan_proc(preferred: Option<&Path>) -> Vec<McpProcess> {
             Some(args) if looks_like_anvil_mcp_serve(&args) => args,
             _ => continue,
         };
+        if !is_same_user(pid) {
+            continue;
+        }
         let parent_pid = read_ppid(pid).unwrap_or(0);
         let parent_alive =
             parent_pid > 1 && std::path::Path::new(&format!("/proc/{parent_pid}")).exists();
@@ -276,6 +279,9 @@ fn still_orphan_mcp_serve(pid: u32) -> bool {
         return false;
     };
     if !looks_like_anvil_mcp_serve(&args) {
+        return false;
+    }
+    if !is_same_user(pid) {
         return false;
     }
     let parent_pid = read_ppid(pid).unwrap_or(0);
@@ -324,6 +330,30 @@ fn command_basename(command: &str) -> String {
     }
 }
 
+/// Spec §13: orphan reap stays same-user. Compare `/proc/<pid>/status`
+/// real uid to our effective uid so a privileged CLI cannot signal
+/// another user's MCP children.
+#[cfg(unix)]
+fn is_same_user(pid: u32) -> bool {
+    let Some(uid) = read_proc_uid(pid) else {
+        return false;
+    };
+    uid == nix::unistd::Uid::effective().as_raw()
+}
+
+#[cfg(unix)]
+fn read_proc_uid(pid: u32) -> Option<u32> {
+    let status = std::fs::read_to_string(format!("/proc/{pid}/status")).ok()?;
+    parse_status_uid(&status)
+}
+
+fn parse_status_uid(status: &str) -> Option<u32> {
+    status.lines().find_map(|line| {
+        let rest = line.strip_prefix("Uid:")?;
+        rest.split_whitespace().next()?.parse().ok()
+    })
+}
+
 #[cfg(unix)]
 fn read_cmdline(pid: u32) -> Option<Vec<String>> {
     let raw = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
@@ -353,7 +383,7 @@ mod tests {
 
     use super::{
         McpProcess, ProcessClass, ProcessMode, ProcessSignalSink, apply_process_mode, classify,
-        looks_like_anvil_mcp_serve, summarise,
+        looks_like_anvil_mcp_serve, parse_status_uid, summarise,
     };
 
     struct RecordingSink {
@@ -383,6 +413,13 @@ mod tests {
                 class: ProcessClass::Current,
             },
         ]
+    }
+
+    #[test]
+    fn parse_status_uid_reads_real_uid() {
+        let status = "Name:\tanvil\nUid:\t1000\t1000\t1000\t1000\nGid:\t1000\t1000\t1000\t1000\n";
+        assert_eq!(parse_status_uid(status), Some(1000));
+        assert_eq!(parse_status_uid("Name:\tanvil\n"), None);
     }
 
     #[test]
