@@ -732,8 +732,10 @@ pub fn run_watch(
     })
 }
 
-/// Apply a reload result atomically. A failed reload must not keep the
-/// previous valid policy live (#3918 fail-closed).
+/// Apply a reload result atomically. A failed reload drops the previous
+/// in-memory layers so kernel checks do not keep enforcing stale policy.
+/// Empty layers skip kernel cross-layer matches; the CLI preflight is
+/// the fail-closed operator surface (#3918).
 fn apply_architecture_reload(
     current: &mut ArchitectureConfig,
     reloaded: Result<ArchitectureConfig, WatchError>,
