@@ -1252,7 +1252,11 @@ mod tests {
             release: Arc::clone(&release),
         })])
         .expect("registry");
-        let service = ScanBufferService::new(EnforcementPipeline::new(registry));
+        // Duration::MAX: the worker parks on test-controlled barriers, so the
+        // service timeout must never fire — a finite "generous" budget is
+        // itself a wall-clock coin (verification finding on CIB-337).
+        let service =
+            ScanBufferService::with_timeout(EnforcementPipeline::new(registry), Duration::MAX);
 
         let service_clone = service.clone();
         let pin_for_call = pinned.clone();
