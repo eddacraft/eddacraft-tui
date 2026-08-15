@@ -3,7 +3,9 @@
 //! Default refresh process mode is visibility only. This module never
 //! signals or kills a process. Orphan reap lands in MCPLH-006.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(any(unix, test))]
+use std::path::PathBuf;
 
 use serde::Serialize;
 
