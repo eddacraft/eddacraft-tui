@@ -175,7 +175,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-005: status/verify MCP inventory and split readiness claims
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make config, daemon, live MCP binary, and graph readiness
   independently visible so operators and agents do not conflate protecting with
   current tools or graph ready.
