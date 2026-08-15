@@ -813,7 +813,7 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
             });
             if let Some(command) = r.unresolvable_command.as_deref() {
                 entry["unresolvable_command"] = json!(command);
-                entry["repair"] = json!("put anvil on the editor PATH");
+                entry["repair"] = json!("put anvil on the editor's PATH");
             }
             entry
         })

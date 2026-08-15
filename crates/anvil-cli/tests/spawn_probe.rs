@@ -320,10 +320,24 @@ fn handshake_promotion_is_per_client() {
     );
 }
 
-/// Editor PATH used by the #3919 PATH=127 reproduction: `anvil` is absent,
-/// so `command -v anvil` and `anvil --version` fail with 127.
+/// Build a PATH that still has `git` but does not resolve bare `anvil`.
+/// `Command::new("anvil")` does not use a shell, so a missing binary is a
+/// spawn error rather than exit 127.
 #[cfg(not(target_os = "windows"))]
-const EDITOR_PATH_WITHOUT_ANVIL: &str = "/usr/bin:/bin";
+fn editor_path_without_anvil() -> String {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let filtered: Vec<_> = std::env::split_paths(&path)
+        .filter(|dir| !dir.join("anvil").is_file())
+        .collect();
+    assert!(
+        filtered.iter().any(|dir| dir.join("git").is_file()),
+        "need a PATH that includes git but not anvil"
+    );
+    std::env::join_paths(filtered)
+        .expect("join filtered PATH")
+        .into_string()
+        .expect("PATH is utf-8")
+}
 
 /// Stop a hermetic ensure-started daemon even if the test panics.
 #[cfg(not(target_os = "windows"))]
@@ -348,13 +362,11 @@ impl Drop for StopDaemonOnDrop {
 
 #[cfg(not(target_os = "windows"))]
 fn assert_bare_anvil_missing_from_editor_path() {
-    let missing = Command::new("anvil")
-        .arg("--version")
-        .env("PATH", EDITOR_PATH_WITHOUT_ANVIL)
-        .output();
+    let path = editor_path_without_anvil();
+    let missing = Command::new("anvil").arg("--version").env("PATH", &path).output();
     assert!(
-        missing.map_or(true, |out| !out.status.success()),
-        "PATH={EDITOR_PATH_WITHOUT_ANVIL} must not resolve bare `anvil` (exit 127)"
+        missing.is_err() || missing.is_ok_and(|out| !out.status.success()),
+        "filtered PATH must not resolve bare `anvil` (spawn error or failed --version)"
     );
 }
 
@@ -394,7 +406,7 @@ fn run_anvil_on_editor_path(root: &Path, home: &Path, args: &[&str]) -> Output {
         .env("USERPROFILE", home)
         .env("ANVIL_HOME", home)
         .env("XDG_RUNTIME_DIR", home)
-        .env("PATH", EDITOR_PATH_WITHOUT_ANVIL)
+        .env("PATH", editor_path_without_anvil())
         .env_remove("XDG_CONFIG_HOME")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
