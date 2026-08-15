@@ -27,6 +27,11 @@ pub(crate) const PREFERRED_ENV: &str = "ANVIL_MCP_PREFERRED";
 
 /// Process-local anti-loop if `exec` returns (crate forbids `set_var`).
 static REEXEC_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+/// Whether this process has observed the install-scoped generation.
+/// First observation is a baseline, not a poke — otherwise a replacement
+/// image with `LAST_SEEN=0` would treat any existing generation file as
+/// a new bump and bypass `ANVIL_MCP_REEXECED`.
+static GENERATION_SEEN: AtomicBool = AtomicBool::new(false);
 /// Last consumed install-scoped refresh generation (MCPLH-003).
 static LAST_SEEN_GENERATION: AtomicU64 = AtomicU64::new(0);
 
@@ -282,11 +287,23 @@ pub(crate) fn probe_from_process(method: Option<&str>, phase: FramePhase) -> Ree
 }
 
 /// Treat generation greater than last seen as a preferred-binary re-check.
+///
+/// The first observation in a process is a baseline, not a poke. Only a
+/// later increase (operator `anvil mcp refresh` while this image is still
+/// running) retries after `AlreadyAttempted`.
 fn consume_generation_bump() -> bool {
     let current = crate::commands::mcp_generation::current_generation();
-    let last = LAST_SEEN_GENERATION.load(Ordering::SeqCst);
+    consume_generation_bump_from(current, &GENERATION_SEEN, &LAST_SEEN_GENERATION)
+}
+
+fn consume_generation_bump_from(current: u64, seen: &AtomicBool, last_seen: &AtomicU64) -> bool {
+    if !seen.swap(true, Ordering::SeqCst) {
+        last_seen.store(current, Ordering::SeqCst);
+        return false;
+    }
+    let last = last_seen.load(Ordering::SeqCst);
     if current > last {
-        LAST_SEEN_GENERATION.store(current, Ordering::SeqCst);
+        last_seen.store(current, Ordering::SeqCst);
         true
     } else {
         false
@@ -369,10 +386,11 @@ mod tests {
     use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
     use super::{
-        CheckKind, FramePhase, ReexecDecision, ReexecGate, ReexecProbe, StayReason, decide,
-        resolve_preferred_executable,
+        CheckKind, FramePhase, ReexecDecision, ReexecGate, ReexecProbe, StayReason,
+        consume_generation_bump_from, decide, resolve_preferred_executable,
     };
 
     // These imports serve only the `#[cfg(unix)]` test below. On windows-msvc
@@ -455,6 +473,34 @@ mod tests {
                 skewed: true,
             }
         );
+    }
+
+    #[test]
+    fn mcp_reexec_first_generation_observation_is_baseline_not_a_poke() {
+        let seen = AtomicBool::new(false);
+        let last = AtomicU64::new(0);
+        assert!(
+            !consume_generation_bump_from(3, &seen, &last),
+            "existing generation file must not look like a fresh bump on a new image"
+        );
+        assert_eq!(last.load(Ordering::SeqCst), 3);
+        assert!(
+            !consume_generation_bump_from(3, &seen, &last),
+            "unchanged generation must not poke again"
+        );
+        assert!(
+            consume_generation_bump_from(4, &seen, &last),
+            "a later bump while this image is running is a poke"
+        );
+        assert_eq!(last.load(Ordering::SeqCst), 4);
+    }
+
+    #[test]
+    fn mcp_reexec_missing_generation_then_first_bump_is_a_poke() {
+        let seen = AtomicBool::new(false);
+        let last = AtomicU64::new(0);
+        assert!(!consume_generation_bump_from(0, &seen, &last));
+        assert!(consume_generation_bump_from(1, &seen, &last));
     }
 
     #[test]

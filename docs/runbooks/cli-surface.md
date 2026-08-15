@@ -939,11 +939,13 @@ $ anvil mcp-config --target cursor --transport http --port 7616 --write
 
 ## anvil mcp
 
-**Class:** Background (serve) / User-explicit (install) **Purpose:** Manage and
-serve MCP integrations. **When to use:** `serve` is invoked by editors
-automatically. `install` is used to wire the MCP config for a supported client.
+**Class:** Background (serve) / User-explicit (install, refresh) **Purpose:**
+Manage and serve MCP integrations. **When to use:** `serve` is invoked by
+editors automatically. `install` wires the MCP config for a supported client.
+After an upgrade, `refresh` rewrites owned configs, recycles a skewed daemon,
+and pokes live MCP children so they re-check the preferred binary.
 
-**Synopsis:** `anvil mcp <install|serve>`
+**Synopsis:** `anvil mcp <install|serve|refresh>`
 
 **Subcommands:**
 
@@ -951,6 +953,7 @@ automatically. `install` is used to wire the MCP config for a supported client.
 | --------------------------- | --------------------------------------------- |
 | `install --client <client>` | Install Anvil MCP configuration for a client. |
 | `serve --stdio`             | Start an MCP server over stdin/stdout.        |
+| `refresh`                   | Bulk rewrite, daemon recycle, and live poke.  |
 
 **`install` flags:**
 

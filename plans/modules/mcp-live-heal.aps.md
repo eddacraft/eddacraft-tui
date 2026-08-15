@@ -138,7 +138,8 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
   `crates/anvil-cli/src/commands/mcp_generation.rs`,
   `crates/anvil-cli/src/commands/mcp_inventory.rs`,
   `crates/anvil-cli/src/mcp/reexec.rs`,
-  `crates/anvil-cli/tests/mcp_refresh.rs`
+  `crates/anvil-cli/tests/mcp_refresh.rs`,
+  `docs/runbooks/cli-surface.md`
 - **Validation:** `cargo test -p eddacraft-anvil -- mcp_refresh`; dry-run does
   not mutate; real run rewrites a fixture drifted entry and bumps generation
 - **Confidence:** medium

@@ -18,7 +18,7 @@ const CHILD_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[test]
 fn mcp_reexec_unix_lands_on_preferred_after_forced_skew() {
-    let preferred = copy_anvil_as_preferred();
+    let (_dir, preferred) = copy_anvil_as_preferred();
     let mut child = spawn_serve(&[
         ("ANVIL_MCP_PREFERRED", preferred.to_str().expect("utf8")),
         ("ANVIL_MCP_NO_REEXEC", ""),
@@ -42,7 +42,7 @@ fn mcp_reexec_unix_lands_on_preferred_after_forced_skew() {
 
 #[test]
 fn mcp_reexec_kill_switch_stays_on_current_image() {
-    let preferred = copy_anvil_as_preferred();
+    let (_dir, preferred) = copy_anvil_as_preferred();
     let mut child = spawn_serve(&[
         ("ANVIL_MCP_PREFERRED", preferred.to_str().expect("utf8")),
         ("ANVIL_MCP_NO_REEXEC", "1"),
@@ -78,7 +78,7 @@ fn mcp_reexec_kill_switch_stays_on_current_image() {
 
 #[test]
 fn mcp_reexec_anti_loop_stays_when_already_reexeced() {
-    let preferred = copy_anvil_as_preferred();
+    let (_dir, preferred) = copy_anvil_as_preferred();
     let mut child = spawn_serve(&[
         ("ANVIL_MCP_PREFERRED", preferred.to_str().expect("utf8")),
         ("ANVIL_MCP_NO_REEXEC", ""),
@@ -100,9 +100,39 @@ fn mcp_reexec_anti_loop_stays_when_already_reexeced() {
     );
 }
 
-fn copy_anvil_as_preferred() -> PathBuf {
-    let dir = tempfile::tempdir().expect("tempdir").keep();
-    let dest = dir.join("anvil");
+#[test]
+fn mcp_reexec_anti_loop_holds_when_generation_file_already_exists() {
+    let (_dir, preferred) = copy_anvil_as_preferred();
+    let home = tempfile::tempdir().expect("anvil home");
+    std::fs::write(home.path().join("mcp-refresh.generation"), "3\n")
+        .expect("write existing generation");
+    let home_str = home.path().to_str().expect("utf8 home");
+    let preferred_str = preferred.to_str().expect("utf8 preferred");
+    let mut child = spawn_serve(&[
+        ("ANVIL_MCP_PREFERRED", preferred_str),
+        ("ANVIL_MCP_NO_REEXEC", ""),
+        ("ANVIL_MCP_REEXECED", "1"),
+        ("ANVIL_HOME", home_str),
+    ]);
+    let stdout = child.stdout.take().expect("stdout");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    send_initialize(&mut child, &stdout_rx);
+
+    #[cfg(target_os = "linux")]
+    assert_running_image(&child, Path::new(ANVIL_BIN));
+
+    drop(child.stdin.take());
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "serve must exit cleanly after EOF: {status:?}"
+    );
+}
+
+fn copy_anvil_as_preferred() -> (tempfile::TempDir, PathBuf) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let dest = dir.path().join("anvil");
     std::fs::copy(ANVIL_BIN, &dest).expect("copy anvil");
     #[cfg(unix)]
     {
@@ -111,7 +141,7 @@ fn copy_anvil_as_preferred() -> PathBuf {
         perms.set_mode(0o755);
         std::fs::set_permissions(&dest, perms).expect("chmod");
     }
-    dest
+    (dir, dest)
 }
 
 fn spawn_serve(env: &[(&str, &str)]) -> Child {
