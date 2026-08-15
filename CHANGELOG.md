@@ -14,7 +14,9 @@ engineering maintenance are recorded in the
 This window is about trusting the project config anvil reads: one canonical
 file, one key casing, and migrate/doctor paths for the older names — plus a few
 honesty fixes so Claude's project MCP install, live-validation status, and
-several checks match reality.
+several checks match reality. After an upgrade, managed MCP entries prefer a
+PATH-stable `anvil` command, and a skewed intercept daemon recycles itself
+without restarting your agent sessions.
 
 ### Changed
 
@@ -43,6 +45,13 @@ several checks match reality.
 - **When both `anvil/policy.yaml` and `anvil/policy.yml` exist,
   `anvil/policy.yaml` wins.** `anvil doctor` warns when more than one policy or
   project-config variant is present and names the winner.
+
+- **Managed MCP install writes a PATH-stable `anvil` command.** New and
+  rewritten client entries use `anvil mcp serve --stdio` instead of a versioned
+  Homebrew Cellar (or similar) absolute path, so the next upgrade does not leave
+  configs pointing at a deleted binary. Pass `--command` if you need a
+  side-by-side override. Re-run `anvil mcp install` for a client that was
+  installed the old way.
 
 ### Added
 
@@ -98,6 +107,38 @@ several checks match reality.
 - **Commit-protection verify binds the attested range to the evidence.** A
   substituted range or an unrelated valid witness chain no longer passes as if
   it belonged to that capsule.
+
+- **Windows `anvil update` is honest about decline and what to run next.** A
+  declined update no longer exits 0 or prints both winget and the installer. It
+  uses the same current/not-current comparison as `--check`, exits non-zero when
+  it does not update, and prints only the remedy for how this copy was
+  installed.
+
+- **Credit-card checks ignore 16-digit runs in `https` URL paths.** Facebook
+  reel ids and similar path segments no longer trip the card rule. A standalone
+  card number still fires.
+
+- **Python dynamic-execution (PY-008) is more precise.** It no longer treats
+  `something.compile(...)` as the builtin `compile`, and it does catch f-string
+  and attribute forms that used to slip through.
+
+- **`anvil report-fp` accepts the rule ids `anvil check` prints.** IDs such as
+  `PY-008` or `SECRET-*` record against the owning check. Unknown ids still
+  error with a suggestion.
+
+- **A skewed intercept daemon recycles to the current CLI.** When `anvil` and
+  the save-time daemon report different versions, ensure/start stop the old
+  daemon, wait for it to exit, and start the current binary. Agent sessions are
+  not restarted.
+
+- **Long-lived `mcp serve` recycles to the preferred binary on Unix.** After an
+  upgrade, the next `initialize`, `tools/list`, or `tools/call` can replace the
+  child process in place so the harness pipe stays up. Windows reports the skew
+  instead of re-execing.
+
+- **Concurrent auth refresh no longer revokes your session.** Parallel `anvil`
+  processes that rotate the same refresh token now take turns instead of looking
+  like token theft to the server.
 
 ## [0.9.4-beta] — 2026-08-10 — Clearer install advice and quieter false alarms
 
