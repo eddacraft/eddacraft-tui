@@ -1,8 +1,8 @@
 # Authoring `.anvil` Rules
 
-| Type  | Authority     | Owner | Status | Freshness                                                                   |
-| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------- |
-| Guide | Authoritative | SCAN  | Live   | Last reviewed 2026-05-22 against `patterns/` and `crates/anvil-checks/src/` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                  |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | SCAN  | Live   | Last reviewed 2026-08-15 against `patterns/`, `crates/anvil-checks/src/`, and `crates/anvil-checks/tests/` |
 
 | Upstream                                                                               | Downstream                                  |
 | -------------------------------------------------------------------------------------- | ------------------------------------------- |
@@ -309,6 +309,69 @@ like untrusted user input even though the Rust scanner uses the non-backtracking
   artifact readers; never let a single PR body or commit message become an
   unbounded scan unit.
 
+## Testing the rule
+
+**Enumerate the threat model before you write the regex.** List the defect or
+attack shapes the rule exists to catch — the things that must fire — and derive
+every positive fixture from that list, never from the branches of the pattern
+you happen to have written. A suite derived from the pattern is a mirror of the
+implementation: each fixture exercises a branch the regex already takes, so the
+suite structurally cannot fail when the regex narrows. A suite derived from the
+threat model is a specification: when the pattern stops covering a shape, the
+shape's fixture goes red.
+
+For PY-008 (dynamic `eval`/`exec`/`compile` arguments) the threat model is:
+plain identifier, attribute access, indexing, composed payloads via every
+operator family _including keyword operators reached across a space_ (`if`,
+`and`, `or`, `not`, `is`, `in`, `await`), kwargs, walrus, unpacking, every
+interpolating f-string prefix ordering (`f`, `rf`, `fR`, ...), non-ASCII
+identifiers, and wrapped calls whose first argument ends the line. Note that
+none of those entries mentions a regex construct — that is the test: if a list
+item only makes sense with the pattern open in the next pane, it is describing
+the implementation, not the threat.
+
+Write the enumeration down as labelled data. The shared helper
+`assert_rule_fires_on(path, rule, &[(shape_label, fixture)])` in
+`crates/anvil-checks/tests/support/mod.rs` takes exactly this list, so the
+threat model is reviewable in the diff — a reviewer compares the labels against
+the rule body's stated intent, a shape without a fixture is impossible by
+construction, and a narrowing reports every missed shape in one run instead of
+dying on the first assert. `python_antipatterns.rs`'s PY-008 tests are the
+reference consumers.
+
+**Prove every new assertion RED.** An assertion that has never failed proves
+nothing — it may be green because the rule works, or because the fixture cannot
+reach the rule at all. For each new assertion, apply the mutation it guards
+against and watch it fail. For detection rules the mechanism is a patched
+registry copy: copy `patterns/compiled/registry.json` somewhere disposable, edit
+the rule's `detection.pattern` to the narrowed form (for a regression guard, the
+historical bad pattern from git), point `ANVIL_REGISTRY_PATH` at the copy, and
+rerun the suite — the loader honours the override before any upward walk (see
+[Registry integrity](#registry-integrity); this is the sanctioned test-fixture
+use of that env var). The assertions you just wrote must fail; record which
+mutation turned which assertion red in the PR description.
+
+### Worked example: the #3880 regression
+
+PR #3880 narrowed PY-008's dynamic-argument arm to an identifier terminated by
+one of `,` `)` `(` `.` `[` — a delimiter allowlist. The 33-test suite stayed
+green through the change, and "33 passed" was cited as merge evidence, because
+every positive fixture (`eval(user_input)`, `eval(input())`,
+`eval(user_input[0])`, ...) terminated its first identifier with a character
+from that same delimiter class. The tests had been written from the regex, so
+the regex could not narrow out from under them. The rule shipped roughly twenty
+false-negative shapes at `severity: error` — every operator-composed payload,
+`eval(a + b)` included, which is the canonical injection shape.
+
+One threat-model fixture would have caught it: `eval(a + b)` terminates the
+identifier with a space, sits in no delimiter allowlist, and goes red the moment
+the terminator class narrows. That fixture now lives in
+`py008_composed_and_operator_terminated_arguments_fire` alongside the rest of
+the enumerated threat model, and replaying the #3880 pattern via
+`ANVIL_REGISTRY_PATH` turns 18 of its 19 shapes red — the survivor is the
+comma-terminated keyword-argument shape, the one shape the delimiter allowlist
+covered.
+
 ## Checklist before merge
 
 - [ ] New `.anvil` file lives in the correct family directory.
@@ -320,6 +383,10 @@ like untrusted user input even though the Rust scanner uses the non-backtracking
 - [ ] Registry recompiled and committed (`patterns/compiled/registry.json`).
 - [ ] New assertion or snapshot in `patterns.test.ts` / `scanner.test.ts` if the
       rule introduces novel surface area.
+- [ ] Positive fixtures enumerate the rule's threat model as labelled shapes
+      (see [Testing the rule](#testing-the-rule)), not the pattern's branches.
+- [ ] Prove-RED run recorded in the PR: which mutation of the pattern turned
+      which assertion red.
 - [ ] Public docs (`docs/public/anvil/overview.md`,
       `docs/public/anvil/concepts/gates.md`,
       `docs/public/anvil/operations/config.md`) list the new rule.
