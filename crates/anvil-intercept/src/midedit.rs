@@ -508,6 +508,26 @@ mod tests {
         }
     }
 
+    /// CIB-337: await an eventually-true condition with no wall-clock
+    /// deadline.
+    ///
+    /// The worker thread sends its result over the oneshot **before**
+    /// dropping its permit + `InFlightGuard` (see the `drop((permit,
+    /// inflight))` ordering in `scan_buffer_with_pin`), so awaiting the
+    /// caller's join does NOT happen-after the counter decrement — an
+    /// `in_flight() == 0` assert straight after a join is a race, and
+    /// exactly that lost the 2026-08-14 CI coin flip on #3892. The
+    /// worker thread is detached (its `JoinHandle` is discarded), so no
+    /// join edge exists; the only sound observation is the counter
+    /// itself. Yielding without a deadline cannot spuriously fail under
+    /// scheduler load — if the condition can never hold, the test hangs
+    /// and the harness timeout attributes it to this test instead.
+    async fn wait_until(mut condition: impl FnMut() -> bool) {
+        while !condition() {
+            tokio::task::yield_now().await;
+        }
+    }
+
     /// MLP2-025b: pin the wire-additive guard on the new
     /// `spoof_block` field. When `None`, the serialised response
     /// must not include the key — pre-MLP2-025b readers see no
@@ -808,7 +828,12 @@ mod tests {
             barrier: Arc::clone(&barrier),
         })])
         .expect("unique rule");
-        let service = ScanBufferService::new(EnforcementPipeline::new(registry));
+        // CIB-337: the test controls the workers' exit via the shared
+        // barrier, so the service timeout must never participate — the
+        // default 2s budget would time the parked callers out under
+        // scheduler load and fail the success assertions below.
+        let service =
+            ScanBufferService::with_timeout(EnforcementPipeline::new(registry), Duration::MAX);
 
         let first_service = service.clone();
         let first = tokio::spawn(async move { first_service.scan_buffer(secret_request()).await });
@@ -816,12 +841,10 @@ mod tests {
         let second =
             tokio::spawn(async move { second_service.scan_buffer(secret_request()).await });
 
-        for _ in 0..50 {
-            if started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
+        // Both callers hold permits until their workers finish, so both
+        // workers eventually enter the rule — await that with no
+        // wall-clock deadline (CIB-337).
+        wait_until(|| started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS).await;
         assert_eq!(started.load(Ordering::SeqCst), MAX_CONCURRENT_SCAN_BUFFERS);
 
         let err = service
@@ -861,9 +884,16 @@ mod tests {
         // which is unbounded above and would skew p95 wildly. The
         // recording lives on the success branch of the await, so a
         // TimedOut return path skips the record() call.
-        struct SleepingRule;
+        //
+        // CIB-337: the worker parks on a barrier rather than sleeping
+        // 300ms, so TimedOut is guaranteed however late the caller's
+        // timer fires (a caller wake delayed past a fixed sleep would
+        // observe Ok instead — same flake family as #3892).
+        struct ParkedRule {
+            release: Arc<Barrier>,
+        }
 
-        impl InterceptRule for SleepingRule {
+        impl InterceptRule for ParkedRule {
             fn rule_id(&self) -> &'static str {
                 "sleeping-rule"
             }
@@ -882,23 +912,35 @@ mod tests {
                 _mode: &Mode,
                 _limit: usize,
             ) -> Vec<Diagnostic> {
-                std::thread::sleep(std::time::Duration::from_millis(300));
+                self.release.wait();
                 Vec::new()
             }
         }
 
-        let registry = RuleRegistry::with_rules(vec![Box::new(SleepingRule)]).expect("unique rule");
+        let release = Arc::new(Barrier::new(2));
+        let registry = RuleRegistry::with_rules(vec![Box::new(ParkedRule {
+            release: Arc::clone(&release),
+        })])
+        .expect("unique rule");
         let service = ScanBufferService::with_timeout(
             EnforcementPipeline::new(registry),
             std::time::Duration::from_millis(20),
         );
         let outcome = service.scan_buffer(secret_request()).await;
         assert!(matches!(outcome, Err(ScanBufferError::TimedOut)));
-        // Aggregator must remain empty.
+        // Aggregator must remain empty. Deterministic regardless of the
+        // straggler's progress: recording happens only on the caller's
+        // success branch, which the TimedOut return already skipped.
         assert!(
             service.latency().snapshot(Instant::now()).is_none(),
             "TimedOut path must not record into the aggregator",
         );
+        // Unpark the straggler so its thread does not outlive the test.
+        let release_for_wait = Arc::clone(&release);
+        tokio::task::spawn_blocking(move || release_for_wait.wait())
+            .await
+            .expect("release join");
+        wait_until(|| service.in_flight() == 0).await;
     }
 
     #[tokio::test]
@@ -980,16 +1022,15 @@ mod tests {
                 svc.scan_buffer(secret_request()).await
             }));
         }
-        for _ in 0..100 {
-            if started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
+        // Every spawned caller holds its permit until its worker
+        // finishes, so all workers eventually enter the rule — await
+        // that with no wall-clock deadline (CIB-337). The 50ms service
+        // timeout only bounds the callers, not the parked workers.
+        wait_until(|| started.load(Ordering::SeqCst) == MAX_CONCURRENT_SCAN_BUFFERS).await;
         assert_eq!(
             started.load(Ordering::SeqCst),
             MAX_CONCURRENT_SCAN_BUFFERS,
-            "expected {MAX_CONCURRENT_SCAN_BUFFERS} workers to enter the rule before timeout",
+            "expected {MAX_CONCURRENT_SCAN_BUFFERS} workers to enter the rule",
         );
 
         for task in tasks {
@@ -1022,13 +1063,10 @@ mod tests {
         );
 
         // Release stragglers; capacity recovers for a fresh admission.
+        // Await the counter with no deadline (CIB-337): the released
+        // workers finish on their own schedule.
         released.store(true, Ordering::SeqCst);
-        for _ in 0..100 {
-            if service.in_flight() == 0 {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
+        wait_until(|| service.in_flight() == 0).await;
         assert_eq!(
             service.in_flight(),
             0,
@@ -1066,13 +1104,29 @@ mod tests {
 
     /// MLP2-002: in-flight counter reflects evaluations holding a
     /// permit. Zero before, one during, zero after.
+    ///
+    /// Deterministic under arbitrary scheduler load (CIB-337) — no
+    /// polling, no wall-clock deadline. Two happens-before edges do
+    /// the work the old 2s sleep-poll guessed at:
+    /// - "one during": the permit + `InFlightGuard` increment are
+    ///   sequenced before the worker thread spawns, the spawn
+    ///   happens-before the rule body, and `arrived` synchronises the
+    ///   rule body with the test — so once `arrived.wait()` returns,
+    ///   the increment happens-before the `in_flight()` load and the
+    ///   value is exactly 1.
+    /// - "zero after": no such edge exists at the join — the worker
+    ///   sends its result BEFORE dropping the guard — so the exit is
+    ///   observed via `wait_until` on the counter itself (see its doc;
+    ///   this assert is what flaked on #3892).
     #[tokio::test]
     async fn scan_buffer_in_flight_counter_tracks_active_evaluations() {
-        // A rule that blocks on a barrier so the test can observe the
+        // A rule that parks on barriers so the test can observe the
         // counter mid-evaluation. Reaches the worker thread because
-        // `needs_content` is true; releases when the test calls
-        // `barrier.wait()` on the controlling side.
-        struct GateRule(Arc<Barrier>);
+        // `needs_content` is true.
+        struct GateRule {
+            arrived: Arc<Barrier>,
+            release: Arc<Barrier>,
+        }
         impl InterceptRule for GateRule {
             fn rule_id(&self) -> &'static str {
                 "test.gate"
@@ -1081,47 +1135,53 @@ mod tests {
                 true
             }
             fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
-                self.0.wait();
+                // Signal "I'm in evaluate()" then park until released.
+                self.arrived.wait();
+                self.release.wait();
                 RuleDecision::allow()
             }
         }
 
-        let barrier = Arc::new(Barrier::new(2));
-        let registry = RuleRegistry::with_rules(vec![Box::new(GateRule(Arc::clone(&barrier)))])
-            .expect("registry");
-        // Production timeout is 2s — the same window this test may spend
-        // polling for in_flight==1. A late schedule then times the
-        // caller out while the worker is still on the barrier, so
-        // join returns with the counter still 1. Give the evaluation
-        // a longer budget than the poll.
-        let service = ScanBufferService::with_timeout(
-            EnforcementPipeline::new(registry),
-            Duration::from_secs(30),
-        );
+        let arrived = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let registry = RuleRegistry::with_rules(vec![Box::new(GateRule {
+            arrived: Arc::clone(&arrived),
+            release: Arc::clone(&release),
+        })])
+        .expect("registry");
+        // The test controls the worker's exit via `release`, so the
+        // service timeout must never participate in the outcome. Make
+        // it unreachable rather than "generous" — any finite budget is
+        // a wall-clock coin under load, which is the CIB-337 lesson.
+        let service =
+            ScanBufferService::with_timeout(EnforcementPipeline::new(registry), Duration::MAX);
         assert_eq!(service.in_flight(), 0);
 
         let service_clone = service.clone();
         let handle = tokio::spawn(async move { service_clone.scan_buffer(secret_request()).await });
 
-        // Wait until the counter observes the held permit. Pure
-        // `yield_now` polling is racy under heavy CI multi-thread
-        // scheduling (sibling test below documents the same lesson):
-        // the spawned scan_buffer task may not run within a fixed
-        // yield budget. Sleep briefly so the runtime can schedule it.
-        let mut observed = 0;
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
-        while tokio::time::Instant::now() < deadline {
-            observed = service.in_flight();
-            if observed == 1 {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(1)).await;
-        }
-        assert_eq!(observed, 1, "in-flight must observe the held permit");
+        // Park on `arrived` from the blocking pool so the reactor stays
+        // live. When this returns, the worker is provably inside
+        // `evaluate`, past permit + InFlightGuard acquisition.
+        let arrived_for_wait = Arc::clone(&arrived);
+        tokio::task::spawn_blocking(move || arrived_for_wait.wait())
+            .await
+            .expect("arrived join");
+        assert_eq!(
+            service.in_flight(),
+            1,
+            "in-flight must observe the held permit"
+        );
 
-        // Release the barrier so the worker exits.
-        barrier.wait();
-        let _ = handle.await.expect("join");
+        // Release the worker; the caller completes normally.
+        let release_for_wait = Arc::clone(&release);
+        tokio::task::spawn_blocking(move || release_for_wait.wait())
+            .await
+            .expect("release join");
+        handle.await.expect("join").expect("scan_buffer");
+
+        // Exit edge: await the counter, not the join (see wait_until).
+        wait_until(|| service.in_flight() == 0).await;
         assert_eq!(service.in_flight(), 0, "counter must clear after exit");
     }
 
@@ -1243,28 +1303,49 @@ mod tests {
             Some("v-original"),
             "in-flight pin must survive a mid-evaluation cache invalidation"
         );
+
+        // CIB-337: the worker sends the response before dropping its
+        // InFlightGuard, so the join above does not order the
+        // decrement — await the counter itself (see wait_until).
+        wait_until(|| service.in_flight() == 0).await;
         assert_eq!(service.in_flight(), 0, "counter must clear after exit");
     }
 
     /// MLP2-002: `in_flight()` tracks live workers. Immediately after
     /// a `TimedOut` return the straggler still holds the slot; the
     /// counter clears only when the worker finishes.
+    ///
+    /// CIB-337: the straggler parks on a barrier instead of a timed
+    /// sleep. That makes `in_flight() > 0` after `TimedOut` a guarantee,
+    /// not a race: the increment is sequenced before `scan_buffer`
+    /// returns on the caller's own path, and a parked worker cannot
+    /// decrement. (With a 150ms sleep, a caller wake delayed past the
+    /// sleep under load would observe 0 — same flake family as #3892.)
     #[tokio::test]
     async fn scan_buffer_in_flight_clears_after_straggler_worker_finishes() {
-        struct SlowRule;
-        impl InterceptRule for SlowRule {
+        struct ParkedRule {
+            release: Arc<Barrier>,
+        }
+        impl InterceptRule for ParkedRule {
             fn rule_id(&self) -> &'static str {
-                "test.slow"
+                "test.parked"
             }
             fn needs_content(&self) -> bool {
                 true
             }
             fn evaluate(&self, _input: &RuleInput<'_>) -> RuleDecision {
-                std::thread::sleep(Duration::from_millis(150));
+                self.release.wait();
                 RuleDecision::allow()
             }
         }
-        let registry = RuleRegistry::with_rules(vec![Box::new(SlowRule)]).expect("registry");
+        let release = Arc::new(Barrier::new(2));
+        let registry = RuleRegistry::with_rules(vec![Box::new(ParkedRule {
+            release: Arc::clone(&release),
+        })])
+        .expect("registry");
+        // 10ms is a lower bound on test duration, never a pass/fail
+        // race: TimedOut is guaranteed because the worker stays parked
+        // until the test releases it, however late the timer fires.
         let service = ScanBufferService::with_timeout(
             EnforcementPipeline::new(registry),
             Duration::from_millis(10),
@@ -1278,12 +1359,11 @@ mod tests {
             service.in_flight() > 0,
             "straggler worker must still hold in_flight after TimedOut"
         );
-        for _ in 0..50 {
-            if service.in_flight() == 0 {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
+        let release_for_wait = Arc::clone(&release);
+        tokio::task::spawn_blocking(move || release_for_wait.wait())
+            .await
+            .expect("release join");
+        wait_until(|| service.in_flight() == 0).await;
         assert_eq!(
             service.in_flight(),
             0,
