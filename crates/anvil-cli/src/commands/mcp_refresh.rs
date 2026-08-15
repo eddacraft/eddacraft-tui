@@ -679,8 +679,9 @@ mod tests {
     }
 
     impl ProcessSignalSink for RecordingSink {
-        fn signal(&mut self, pid: u32) {
+        fn signal(&mut self, pid: u32) -> bool {
             self.pids.push(pid);
+            true
         }
     }
 

@@ -80,14 +80,17 @@ pub(crate) struct ParentGroup {
 /// Production report/none/dry-run paths must not call [`ProcessSignalSink::signal`].
 /// Live Unix `orphan-reap` sends SIGTERM via a dedicated sink.
 pub(crate) trait ProcessSignalSink {
-    fn signal(&mut self, pid: u32);
+    /// Returns true when a signal was actually sent.
+    fn signal(&mut self, pid: u32) -> bool;
 }
 
 /// No-op sink for report, none, dry-run, and non-Unix orphan-reap.
 pub(crate) struct NoopSignals;
 
 impl ProcessSignalSink for NoopSignals {
-    fn signal(&mut self, _pid: u32) {}
+    fn signal(&mut self, _pid: u32) -> bool {
+        false
+    }
 }
 
 /// Production sink: SIGTERM only, after a last-moment shape and orphan check.
@@ -96,21 +99,21 @@ pub(crate) struct UnixTermSignals;
 
 #[cfg(unix)]
 impl ProcessSignalSink for UnixTermSignals {
-    fn signal(&mut self, pid: u32) {
+    fn signal(&mut self, pid: u32) -> bool {
         use nix::sys::signal::{Signal, kill};
         use nix::unistd::Pid;
 
         if !still_orphan_mcp_serve(pid) {
-            return;
+            return false;
         }
         let Ok(raw) = i32::try_from(pid) else {
-            return;
+            return false;
         };
         if raw <= 1 {
-            return;
+            return false;
         }
-        // Best-effort: ESRCH means the process already exited.
-        let _ = kill(Pid::from_raw(raw), Signal::SIGTERM);
+        // ESRCH means the process already exited — do not count it.
+        kill(Pid::from_raw(raw), Signal::SIGTERM).is_ok()
     }
 }
 
@@ -129,10 +132,13 @@ pub(crate) fn apply_process_mode(
     match mode {
         ProcessMode::Report | ProcessMode::None => inventory,
         ProcessMode::OrphanReap => {
+            let mut signalled = 0_u32;
             for pid in &inventory.orphan_pids {
-                sink.signal(*pid);
+                if sink.signal(*pid) {
+                    signalled = signalled.saturating_add(1);
+                }
             }
-            inventory.signalled = u32::try_from(inventory.orphan_pids.len()).unwrap_or(u32::MAX);
+            inventory.signalled = signalled;
             inventory
         }
     }
@@ -245,9 +251,6 @@ fn scan_proc(preferred: Option<&Path>) -> Vec<McpProcess> {
             Some(args) if looks_like_anvil_mcp_serve(&args) => args,
             _ => continue,
         };
-        if !is_same_user(pid) {
-            continue;
-        }
         let parent_pid = read_ppid(pid).unwrap_or(0);
         let parent_alive =
             parent_pid > 1 && std::path::Path::new(&format!("/proc/{parent_pid}")).exists();
@@ -392,8 +395,9 @@ mod tests {
     }
 
     impl ProcessSignalSink for RecordingSink {
-        fn signal(&mut self, pid: u32) {
+        fn signal(&mut self, pid: u32) -> bool {
             self.pids.push(pid);
+            true
         }
     }
 

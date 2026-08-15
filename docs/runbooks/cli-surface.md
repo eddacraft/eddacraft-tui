@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                          |
-| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------ |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-15 against `crates/anvil-cli/src/commands/mcp_refresh.rs` (`--processes orphan-reap` opt-in) |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                            |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-15 update for `anvil mcp refresh` (`--processes orphan-reap` opt-in); not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
