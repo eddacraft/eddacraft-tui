@@ -8,7 +8,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+#[cfg(any(target_os = "linux", test))]
+use std::path::Path;
+#[cfg(target_os = "linux")]
+use std::path::PathBuf;
 
 use anvil_intercept_proto::protocol::{AssuranceState, WorkspaceAssurance};
 use serde::Serialize;
