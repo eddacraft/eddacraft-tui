@@ -294,7 +294,7 @@ fn hanging_handshake_times_out_without_promotion() {
 fn handshake_promotion_is_per_client() {
     // Cursor points at the exact test binary and should promote. Claude Code
     // points at a missing owned anvil path so handshake fails independently
-    // (bare `anvil` would fall back to this process's current_exe).
+    // (bare `anvil` is not launchable and must not handshake current_exe).
     let workdir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let empty_path = tempfile::tempdir().unwrap();
@@ -317,5 +317,176 @@ fn handshake_promotion_is_per_client() {
     assert!(
         stdout.contains("Claude Code: restart_required"),
         "Claude Code should not promote from Cursor's handshake, got:\n{stdout}"
+    );
+}
+
+/// Editor PATH used by the #3919 PATH=127 reproduction: `anvil` is absent,
+/// so `command -v anvil` and `anvil --version` fail with 127.
+#[cfg(not(target_os = "windows"))]
+const EDITOR_PATH_WITHOUT_ANVIL: &str = "/usr/bin:/bin";
+
+/// Stop a hermetic ensure-started daemon even if the test panics.
+#[cfg(not(target_os = "windows"))]
+struct StopDaemonOnDrop {
+    anvil_home: std::path::PathBuf,
+}
+
+#[cfg(not(target_os = "windows"))]
+impl Drop for StopDaemonOnDrop {
+    fn drop(&mut self) {
+        let _ = Command::new(ANVIL_BIN)
+            .args(["--no-tui", "intercept", "stop"])
+            .env("HOME", &self.anvil_home)
+            .env("USERPROFILE", &self.anvil_home)
+            .env("ANVIL_HOME", &self.anvil_home)
+            .env("XDG_RUNTIME_DIR", &self.anvil_home)
+            .env("ANVIL_DEV", "1")
+            .env("ANVIL_SKIP_WELCOME", "1")
+            .output();
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn assert_bare_anvil_missing_from_editor_path() {
+    let missing = Command::new("anvil")
+        .arg("--version")
+        .env("PATH", EDITOR_PATH_WITHOUT_ANVIL)
+        .output();
+    assert!(
+        missing.map_or(true, |out| !out.status.success()),
+        "PATH={EDITOR_PATH_WITHOUT_ANVIL} must not resolve bare `anvil` (exit 127)"
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+fn write_path_127_project(root: &Path) {
+    let git = Command::new("git")
+        .args(["init", "--quiet"])
+        .current_dir(root)
+        .status()
+        .expect("run git init");
+    assert!(git.success(), "git init failed");
+    fs::write(root.join(".anvil.yaml"), "profile: default\nchecks: []\n").unwrap();
+    fs::write(root.join("app.ts"), "export const value = 1;\n").unwrap();
+    fs::write(
+        root.join(".mcp.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "mcpServers": {
+                "anvil": {
+                    "type": "stdio",
+                    "command": "anvil",
+                    "args": ["mcp", "serve", "--stdio"],
+                    "env": {},
+                }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+}
+
+#[cfg(not(target_os = "windows"))]
+fn run_anvil_on_editor_path(root: &Path, home: &Path, args: &[&str]) -> Output {
+    Command::new(ANVIL_BIN)
+        .args(args)
+        .current_dir(root)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("ANVIL_HOME", home)
+        .env("XDG_RUNTIME_DIR", home)
+        .env("PATH", EDITOR_PATH_WITHOUT_ANVIL)
+        .env_remove("XDG_CONFIG_HOME")
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .unwrap_or_else(|e| panic!("failed to invoke anvil {args:?}: {e}"))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn names_unresolvable_path_repair(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    text.contains("anvil")
+        && lower.contains("path")
+        && (text.contains("unresolvable") || text.contains("not resolvable"))
+}
+
+/// GH #3919: a project MCP entry with `"command": "anvil"` must not become
+/// live evidence when that bare command is missing from the editor PATH.
+/// Verification used to handshake `current_exe` and the unique-client
+/// activation-spine then treated that synthetic handshake as live.
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn path_127_unresolvable_anvil_cannot_claim_live_protection() {
+    assert_bare_anvil_missing_from_editor_path();
+
+    let workdir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let root = workdir.path();
+    write_path_127_project(root);
+    let _stop = StopDaemonOnDrop {
+        anvil_home: home.path().to_path_buf(),
+    };
+
+    let ensure = run_anvil_on_editor_path(root, home.path(), &["--no-tui"]);
+    assert!(
+        ensure.status.success(),
+        "bare ensure failed: stdout={}\nstderr={}",
+        String::from_utf8_lossy(&ensure.stdout),
+        String::from_utf8_lossy(&ensure.stderr)
+    );
+
+    let json_out = run_anvil_on_editor_path(
+        root,
+        home.path(),
+        &["--no-tui", "--json", "status", "--verify"],
+    );
+    assert!(
+        json_out.status.success(),
+        "status --verify --json failed: stderr={}",
+        String::from_utf8_lossy(&json_out.stderr)
+    );
+    let json_stdout = String::from_utf8_lossy(&json_out.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(json_stdout.trim_start_matches('\u{feff}'))
+            .unwrap_or_else(|e| panic!("JSON parse failed: {e}\nstdout:\n{json_stdout}"));
+    assert_ne!(
+        parsed["state"], "protecting",
+        "missing bare `anvil` on PATH must not claim protecting: {parsed}"
+    );
+    let claude = parsed["mcp"]
+        .as_array()
+        .and_then(|mcp| mcp.iter().find(|entry| entry["client"] == "claude-code"))
+        .unwrap_or_else(|| panic!("claude-code row missing: {parsed}"));
+    assert_ne!(
+        claude["tier"], "live_validation",
+        "unresolvable `command: anvil` must not become live_validation: {claude}"
+    );
+    assert_ne!(
+        claude["tier"], "restart_handshake_verified",
+        "handshake must not substitute current_exe for an unresolvable command: {claude}"
+    );
+    assert!(
+        names_unresolvable_path_repair(&parsed.to_string()),
+        "JSON status must name the unresolvable command and PATH repair: {parsed}"
+    );
+
+    let human = run_anvil_on_editor_path(root, home.path(), &["--no-tui", "status", "--verify"]);
+    assert!(
+        human.status.success(),
+        "status --verify failed: stderr={}",
+        String::from_utf8_lossy(&human.stderr)
+    );
+    let human_stdout = String::from_utf8_lossy(&human.stdout);
+    assert!(
+        !human_stdout.contains("state: protecting") && !human_stdout.contains("live_validation"),
+        "human status must not claim live protection: {human_stdout}"
+    );
+    assert!(
+        human_stdout.contains("Claude Code: restart_required"),
+        "Claude Code must stay at restart_required when `anvil` is missing from PATH, got:\n{human_stdout}"
+    );
+    assert!(
+        names_unresolvable_path_repair(&human_stdout),
+        "human status must explain the unresolvable command and name PATH repair:\n{human_stdout}"
     );
 }

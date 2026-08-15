@@ -546,6 +546,11 @@ fn promote_restart_required_after_handshake(
                 );
             }
             Err(e) => {
+                if let super::mcp_client::ProbeError::UnresolvableCommand(cmd) = &e
+                    && let Some(result) = map.get_mut(&client_id)
+                {
+                    result.unresolvable_command = Some(cmd.clone());
+                }
                 tracing::warn!(
                     client = %client_id.label(),
                     error = %e,

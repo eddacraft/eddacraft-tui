@@ -638,6 +638,14 @@ pub struct McpProbeResult {
         rename = "verificationMethod"
     )]
     pub verification_method: Option<VerificationMethod>,
+    /// Configured command that could not be resolved in the client's
+    /// launch PATH. Not live-client evidence. Omitted when unset.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "unresolvable_command"
+    )]
+    pub unresolvable_command: Option<String>,
 }
 
 impl McpProbeResult {
@@ -651,6 +659,7 @@ impl McpProbeResult {
             protocol_era: None,
             protocol_version: None,
             verification_method: None,
+            unresolvable_command: None,
         }
     }
 
@@ -700,6 +709,7 @@ pub fn probe_all(
             protocol_era: None,
             protocol_version: None,
             verification_method: None,
+            unresolvable_command: None,
         };
         out.insert(client.id(), result);
     }
@@ -898,6 +908,10 @@ pub enum ProbeError {
     /// `current_exe()` resolution or the entry's command is non-UTF-8 in
     /// a way that prevents spawning.
     InvalidCommand(String),
+    /// Bare configured command is not resolvable on the client's launch
+    /// PATH. This is not live-client evidence — `current_exe()` must
+    /// not be substituted here.
+    UnresolvableCommand(String),
 }
 
 impl std::fmt::Display for ProbeError {
@@ -920,6 +934,9 @@ impl std::fmt::Display for ProbeError {
             ProbeError::ParseResponse(s) => write!(f, "parse response: {s}"),
             ProbeError::BadResponse(s) => write!(f, "bad response: {s}"),
             ProbeError::InvalidCommand(s) => write!(f, "invalid command: {s}"),
+            ProbeError::UnresolvableCommand(cmd) => {
+                write!(f, "configured command `{cmd}` is not resolvable on PATH")
+            }
         }
     }
 }
@@ -953,7 +970,7 @@ fn probe_stdio(
     args: &[String],
     env: &BTreeMap<String, String>,
 ) -> Result<ProbeEvidence, ProbeError> {
-    let command = resolve_probe_command(command);
+    let command = resolve_probe_command(command, env)?;
     // Attempt 1: modern discovery on a disposable child.
     match probe_child_once(&command, args, env, ProbeRequest::ModernDiscover) {
         Ok(evidence) => return Ok(evidence),
@@ -970,41 +987,52 @@ fn probe_stdio(
     probe_child_once(&command, args, env, ProbeRequest::LegacyInitialize)
 }
 
-/// Resolve a bare `anvil` / `anvil.exe` command the way an editor would:
-/// first `PATH`, then this process's `current_exe()` so `anvil status`
-/// can handshake the binary that just wrote the PATH-stable entry.
-fn resolve_probe_command(command: &Path) -> PathBuf {
+/// Resolve a bare `anvil` / `anvil.exe` the way the editor would launch
+/// it: search the client's launch PATH (entry `env.PATH` if set, else
+/// this process's `PATH`). `current_exe()` is not launchability
+/// evidence — the verifier's own binary is not what the editor runs.
+fn resolve_probe_command(
+    command: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<PathBuf, ProbeError> {
     if command.components().count() != 1 {
-        return command.to_path_buf();
+        return Ok(command.to_path_buf());
     }
     let name = command
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or_default();
     if !name.eq_ignore_ascii_case("anvil") && !name.eq_ignore_ascii_case("anvil.exe") {
-        return command.to_path_buf();
+        return Ok(command.to_path_buf());
     }
-    if let Some(paths) = std::env::var_os("PATH") {
-        for dir in std::env::split_paths(&paths) {
-            let candidate = dir.join(command);
-            if candidate.is_file() {
-                return candidate;
-            }
-            if cfg!(windows) {
-                let exe = dir.join(command).with_extension("exe");
-                if exe.is_file() {
-                    return exe;
-                }
+    if let Some(resolved) = resolve_on_launch_path(command, env) {
+        return Ok(resolved);
+    }
+    Err(ProbeError::UnresolvableCommand(name.to_string()))
+}
+
+fn launch_path_var(env: &BTreeMap<String, String>) -> Option<std::ffi::OsString> {
+    env.get("PATH")
+        .or_else(|| env.get("Path"))
+        .map(std::ffi::OsString::from)
+        .or_else(|| std::env::var_os("PATH"))
+}
+
+fn resolve_on_launch_path(command: &Path, env: &BTreeMap<String, String>) -> Option<PathBuf> {
+    let paths = launch_path_var(env)?;
+    for dir in std::env::split_paths(&paths) {
+        let candidate = dir.join(command);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if cfg!(windows) {
+            let exe = dir.join(command).with_extension("exe");
+            if exe.is_file() {
+                return Some(exe);
             }
         }
     }
-    if let Ok(exe) = std::env::current_exe() {
-        let exe_name = exe.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-        if looks_like_anvil(exe_name) {
-            return exe;
-        }
-    }
-    command.to_path_buf()
+    None
 }
 
 /// Whether a modern-discover failure should fall through to legacy initialise.
@@ -1017,7 +1045,10 @@ fn modern_probe_should_fallback(err: &ProbeError) -> bool {
         // Everything else: timeout, empty, parse, method-not-found shaped
         // bad responses, spawn issues on first attempt shouldn't fallback
         // if we couldn't spawn at all.
-        ProbeError::Spawn(_) | ProbeError::InvalidCommand(_) | ProbeError::NoPipes => false,
+        ProbeError::Spawn(_)
+        | ProbeError::InvalidCommand(_)
+        | ProbeError::UnresolvableCommand(_)
+        | ProbeError::NoPipes => false,
         ProbeError::Write(_)
         | ProbeError::EmptyResponse
         | ProbeError::Timeout
@@ -1721,6 +1752,30 @@ mod tests {
         let err = read_probe_frame(&mut reader).expect_err("oversized frame must fail closed");
 
         assert!(matches!(err, ProbeError::OversizedFrame));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_startable_does_not_treat_current_exe_as_launch_evidence() {
+        // GH #3919: a bare `anvil` missing from the client's launch PATH
+        // must fail closed. Substituting this process's current_exe would
+        // handshake a binary the editor cannot spawn.
+        let mut env = BTreeMap::new();
+        env.insert("PATH".into(), "/no/such/anvil/dir".into());
+        let entry = AnvilEntry::Stdio {
+            command: std::path::PathBuf::from("anvil"),
+            args: vec!["mcp".into(), "serve".into(), "--stdio".into()],
+            env,
+        };
+        let err = probe_startable(&entry).expect_err("unresolvable bare anvil must fail");
+        match err {
+            ProbeError::UnresolvableCommand(ref cmd) => assert_eq!(cmd, "anvil"),
+            other => panic!("expected UnresolvableCommand, got {other:?}"),
+        }
+        assert!(
+            err.to_string().contains("not resolvable on PATH"),
+            "error must name PATH, got {err}"
+        );
     }
 
     #[cfg(unix)]

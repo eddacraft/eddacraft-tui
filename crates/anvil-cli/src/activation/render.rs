@@ -52,6 +52,12 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
                 result.tier.label(),
                 tier_pending_qualifier(state, result.tier),
             );
+            if let Some(command) = result.unresolvable_command.as_deref() {
+                let _ = writeln!(
+                    out,
+                    "      configured command `{command}` is not resolvable on PATH"
+                );
+            }
         }
     }
 
@@ -800,11 +806,16 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
         .mcp
         .iter()
         .map(|(c, r)| {
-            json!({
+            let mut entry = json!({
                 "client": c.label(),
                 "tier": r.tier.label(),
                 "transport": r.transport.label(),
-            })
+            });
+            if let Some(command) = r.unresolvable_command.as_deref() {
+                entry["unresolvable_command"] = json!(command);
+                entry["repair"] = json!("put anvil on the editor PATH");
+            }
+            entry
         })
         .collect();
     let repo_languages: Vec<Value> = d
@@ -850,8 +861,17 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
 /// Concrete, actionable next step for the current state. Returning
 /// `None` means the surface should not append a "next" line — usually
 /// because no actionable hint applies (e.g. already protecting).
+/// Repair copy when a configured MCP command cannot be launched from PATH.
+const UNRESOLVABLE_COMMAND_REPAIR: &str = "configured MCP command is not resolvable on PATH; put anvil on the editor's PATH (or set an absolute command) and re-run `anvil start --verify`.";
+
 fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'static str> {
     use super::daemon_evidence::DaemonAttestation;
+
+    if d.mcp.values().any(|r| r.unresolvable_command.is_some())
+        && !matches!(state, ProtectionState::Protecting)
+    {
+        return Some(UNRESOLVABLE_COMMAND_REPAIR);
+    }
 
     match state {
         ProtectionState::Protecting => None,
@@ -1227,6 +1247,42 @@ mod tests {
         assert!(
             h.contains("restart_handshake_verified (pending restart)"),
             "restart_handshake_verified must carry the pending qualifier under a restart headline: {h}"
+        );
+    }
+
+    /// GH #3919: an unresolvable configured command must name PATH repair
+    /// in both human and JSON status, not claim a live handshake.
+    #[test]
+    fn human_and_json_name_unresolvable_command_and_path_repair() {
+        let mut d = restart_required();
+        d.mcp
+            .get_mut(&McpClientId::ClaudeCode)
+            .expect("claude-code row")
+            .unresolvable_command = Some("anvil".into());
+        let h = render_human(&d);
+        assert!(
+            h.contains("configured command `anvil` is not resolvable on PATH"),
+            "human status must name the unresolvable command: {h}"
+        );
+        assert!(
+            h.contains("put anvil on the editor's PATH"),
+            "human next step must name PATH repair: {h}"
+        );
+        let v = render_json(&d);
+        let claude = v["mcp"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["client"] == "claude-code")
+            .unwrap();
+        assert_eq!(claude["unresolvable_command"], "anvil");
+        assert!(
+            claude["repair"]
+                .as_str()
+                .unwrap_or("")
+                .to_ascii_lowercase()
+                .contains("path"),
+            "JSON repair must name PATH: {claude}"
         );
     }
 
