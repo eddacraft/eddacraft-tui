@@ -325,6 +325,35 @@ mod tests {
     }
 
     #[test]
+    fn parent_alive_classification_is_not_orphan() {
+        let preferred = Path::new("/opt/anvil");
+        assert_ne!(
+            classify(true, None, None),
+            ProcessClass::Orphan,
+            "a live parent must never classify as orphan"
+        );
+        assert_eq!(
+            classify(true, Some(preferred), Some(preferred)),
+            ProcessClass::Current
+        );
+        assert_eq!(
+            classify(true, Some(Path::new("/old/anvil")), Some(preferred)),
+            ProcessClass::Skewed
+        );
+    }
+
+    #[test]
+    fn parent_dead_classification_is_orphan() {
+        let preferred = Path::new("/opt/anvil");
+        assert_eq!(classify(false, None, None), ProcessClass::Orphan);
+        assert_eq!(
+            classify(false, Some(preferred), Some(preferred)),
+            ProcessClass::Orphan,
+            "a dead parent is orphan even when the binary matches preferred"
+        );
+    }
+
+    #[test]
     fn processes_report_never_sends_a_signal() {
         let inventory = summarise(&sample_inventory(), ProcessMode::Report);
         let mut sink = RecordingSink { pids: Vec::new() };
