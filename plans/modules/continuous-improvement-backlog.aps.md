@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 270/330  |
+| CIB | —     | In Progress | 270/333  |
 
 ## Purpose
 
@@ -10252,3 +10252,144 @@ RETEST-2). Do not re-file those.
   while landing #3889.
 - **Coordinates with:** CIB-322, CIB-332
 - **Confidence:** high — both faults read from source and reproduced.
+
+### CIB-336: Detection-rule tests must be derived from the threat model, not the pattern
+
+- **Status:** Ready — operator-authorised 2026-08-15 from the #3880
+  retrospective
+- **Priority:** P2 — class-closure for the defect that let PY-008 regress to
+  ERROR-severity silence behind a fully green suite
+- **Intent:** PY-008's suite passed 33/33 through a real regression because
+  every positive assertion terminated its first identifier with a character
+  from the delimiter class under test — the tests were written *from the
+  regex*, so they structurally could not fail when the regex narrowed. The
+  same authoring pressure exists for every regex rule in the registry: the
+  author writes the pattern, then writes tests that exercise the pattern's
+  branches, and the suite becomes a mirror of the implementation instead of a
+  specification of the threat. The counter-discipline already exists as
+  operator practice — enumerate the attack shapes the rule exists to catch,
+  then prove each new assertion RED by reverting the production change — but
+  it is manual, unenforced, and invisible to the next rule author. "33
+  passed" was cited as merge evidence on #3880 while the rule shipped ~20
+  false negatives; a convention that only lives in one person's habits is not
+  a control.
+- **Expected Outcome:**
+  1. `docs/guides/anvil-rule-authoring.md` gains a "Testing the rule" section
+     stating the convention: positive fixtures enumerate the defect/attack
+     shapes the rule exists to catch, written independently of the regex (for
+     PY-008 that list is: plain identifier, attribute access, indexing,
+     composed payloads via every operator family including keyword operators,
+     kwargs, unpacking, every interpolating f-string prefix ordering,
+     non-ASCII identifiers, wrapped calls). The "Checklist before merge"
+     requires a recorded prove-RED run: which mutation of the pattern turns
+     which assertion red. PY-008/#3880 is written in as the worked example.
+  2. The smallest structural teeth that work, chosen at implementation time —
+     candidates: a shared test-support helper that takes (rule id, list of
+     threat-shape fixtures) so the enumeration is data the reviewer can diff
+     against the rule's stated intent; or a fixture-shape lint that flags a
+     rule whose positive cases all share a single terminator class. Do not
+     gold-plate; a reviewed checklist plus one mechanical check beats an
+     unenforceable taxonomy.
+- **Non-scope / do not:** do not rewrite existing suites wholesale (PY-008 is
+  already converted by #3880/#3889); do not block merges on subjective
+  coverage judgments — warnings over blocks applies to our own gates too.
+- **Files:** `docs/guides/anvil-rule-authoring.md`,
+  `crates/anvil-checks/tests/` (shared helper if that shape is chosen)
+- **Validation:** whatever mechanism is chosen goes demonstrably RED when the
+  historical PY-008 narrowing (the `[,().\[]` delimiter-class pattern) is
+  replayed against the current suite's threat list. The guide section exists
+  and the checklist references it.
+- **Identified From:** Council review of PR #3880 (session `council-58f62fc5`)
+  plus the 2026-08-14 retrospective; the load-bearing observation was the
+  security reviewer's — "a guard test that only exercises the branch the
+  implementation happens to take cannot fail when the implementation narrows."
+- **Coordinates with:** CIB-322, CIB-332 (the worked example), CIB-334
+- **Confidence:** high on the defect class (measured twice in one PR chain);
+  medium on which structural mechanism is the right minimum.
+
+### CIB-337: De-flake the scan_buffer in-flight counter test
+
+- **Status:** Ready — operator-authorised 2026-08-15
+- **Priority:** P2 — known-racy test on the merge path; cost a full
+  diagnostic cycle on #3892
+- **Intent:**
+  `midedit::tests::scan_buffer_in_flight_counter_tracks_active_evaluations`
+  (`crates/anvil-intercept/src/midedit.rs`, ~L1100) polls `in_flight()`
+  against a 2-second wall-clock deadline, and its own comment records the
+  lesson: "Pure `yield_now` polling is racy under heavy CI multi-thread
+  scheduling." On 2026-08-14 it failed in the `Unit Tests` job (1086 passed,
+  1 failed) while the same job was concurrently compiling the entire Rust
+  tree; it passes 5/5 locally in isolation. A test that documents its own
+  raciness instead of fixing it converts every loaded CI run into a coin
+  flip, and each tail loss costs a human a diagnostic cycle to conclude
+  "not my diff".
+- **Expected Outcome:** the test is deterministic under arbitrary scheduler
+  load. Replace the sleep-poll with an explicit synchronisation point — the
+  permit-acquisition path exposes a notification (watch channel or event) the
+  test awaits, or the test runs under paused virtual time — such that no
+  wall-clock deadline remains. Audit the sibling test the comment references
+  ("sibling test below documents the same lesson") in the same pass.
+- **Non-scope / do not:** do not quarantine or skip in CI (the in-flight
+  counter's contract is real and MLP2-gated); do not widen the deadline —
+  that rescales the coin, it does not remove it.
+- **Files:** `crates/anvil-intercept/src/midedit.rs` (test module only)
+- **Validation:** both tests looped a few hundred iterations while a full
+  workspace build runs concurrently, zero failures; the in-code comment
+  updated to describe the deterministic mechanism instead of the sleep
+  rationale.
+- **Identified From:** #3892 CI triage 2026-08-14. Test originates from the
+  MLP2 wave (see `plans/modules/multilayer-protection-v2.aps.md`, which
+  already notes the gating).
+- **Coordinates with:** MLP2, CIB-338
+- **Confidence:** high — failure reproduced in CI, mechanism stated in the
+  test's own comment.
+
+### CIB-338: Path-detection steps must fail open, so "red means broken" again
+
+- **Status:** Ready — operator-authorised 2026-08-15
+- **Priority:** P2 — four distinct infrastructure flake classes in one
+  session made two clean PRs look broken; the signal the merge discipline
+  rests on is eroding
+- **Intent:** 2026-08-14 produced four unrelated red-X classes on PRs whose
+  diffs were sound: (a) four `Set up job` runner-provisioning failures across
+  Format/Clippy/E2E/Analyze; (b) a vitest pool crash (`Worker forks emitted
+  error … Worker exited unexpectedly`) in the `anvil-source:test` task with
+  202/202 test files passing; (c) the self-documented racy intercept timing
+  test (CIB-337); and (d) `dorny/paths-filter` dying on the GitHub `listFiles`
+  API in the `Test` job (run 31786493631, PR #3888) — after which **every
+  downstream step was skipped**, so a docs-only PR went red without a single
+  test executing. Classes (a) is external and only documentable; (c) is
+  CIB-337. This item takes the two legs that are ours to fix.
+- **Expected Outcome:**
+  1. **paths-filter fails open.** The job whose gate step is
+     `dorny/paths-filter` treats a *failed* detection the way `ci.yml`'s
+     `detect-changes` idiom already does — `result != 'success'` routes to
+     running the full work, not to a red job with everything skipped. A
+     path-detection outage should cost minutes of redundant CI, never a
+     false failure.
+  2. **vitest pool crash triaged.** Reproduce or bound the worker exit
+     (memory ceiling on the runner is the likely candidate); apply the
+     narrowest stabiliser (fork memory limit / `maxForks` tuning for the
+     offending project) or, if unreproducible, record it in the item as
+     watch-only with the log signature so the next occurrence is a data
+     point instead of a fresh investigation.
+  3. Runner-provisioning failures documented as external in the same place,
+     with the standing guidance: `gh run rerun <id> --failed`, and treat a
+     `Set up job` failure as never attributable to the diff.
+- **Non-scope / do not:** do not add blanket retries around test execution
+  (retrying real failures hides them); do not mark any currently-optional
+  job required as part of this.
+- **Files:** the workflow carrying the `dorny/paths-filter` gate for the
+  Rust `Test` job, vitest/nx config for `anvil-source` if leg 2 lands a
+  stabiliser
+- **Validation:** leg 1 — simulate detection failure (temporarily point the
+  action at an invalid token/ref in a scratch branch) and show the job runs
+  its work instead of failing; leg 2 — whichever of the two outcomes, it is
+  written down.
+- **Identified From:** review-and-land session 2026-08-14 across #3888,
+  #3889, #3890, #3892 — two full diagnostic cycles spent proving flakes were
+  not diffs.
+- **Coordinates with:** CIB-337, CIB-316 lineage (unfalsifiable/misfiring CI
+  guards)
+- **Confidence:** high on (d) fail-open (mechanism read from the job's step
+  list); medium on (b) — cause not yet reproduced.
