@@ -347,14 +347,21 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{
-        CheckKind, FramePhase, REEXEC_ATTEMPTED, ReexecDecision, ReexecGate, ReexecProbe,
-        StayReason, decide, exec_preferred, resolve_preferred_executable,
+        CheckKind, FramePhase, ReexecDecision, ReexecGate, ReexecProbe, StayReason, decide,
+        resolve_preferred_executable,
     };
-    use std::sync::atomic::Ordering;
 
+    // These imports serve only the `#[cfg(unix)]` test below. On windows-msvc
+    // that test does not exist, so unconditional imports here are unused and
+    // `-D warnings` reds the cross-target Clippy leg (caught on the first two
+    // PRs to rebase past ecb07bd6f). Scope them to the test.
     #[cfg(unix)]
     #[test]
     fn exec_failure_marks_process_already_reexeced() {
+        use std::sync::atomic::Ordering;
+
+        use super::{REEXEC_ATTEMPTED, exec_preferred};
+
         exec_preferred(std::path::Path::new("/nonexistent-anvil-reexec"));
         assert!(
             REEXEC_ATTEMPTED.load(Ordering::SeqCst),
