@@ -183,7 +183,9 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
 ///   the assignment regex otherwise treats as a secret assignment.
 ///
 /// CIB-323 also treats a match that sits in an `http(s)://` URL path as
-/// path-shaped. Named vendor-prefixed rules do not use this helper.
+/// path-shaped, but only when the authority has a syntactically valid host.
+/// Empty-host (`https:///…`) and delimiter-broken authorities are not
+/// path-shaped (#3917). Named vendor-prefixed rules do not use this helper.
 pub(crate) fn is_path_shaped_document_token(
     candidate: &str,
     line: &str,
@@ -243,8 +245,10 @@ pub(crate) fn is_path_shaped_document_token(
 /// True when `match_start` sits in the path of an `http://` or `https://`
 /// URL on this line. Query and fragment matches are left to the card rule
 /// — a PAN in `?card=` is still a finding.
-/// The URL token ends at whitespace, query/fragment, or a quote / markup /
-/// list delimiter so a same-line standalone PAN is not swallowed.
+/// Only a syntactically valid, host-bearing authority earns the exemption
+/// (#3917): `https:///accounts/…` has no host. The URL token ends at
+/// whitespace, query/fragment, or a quote / markup / list delimiter so a
+/// same-line standalone PAN is not swallowed.
 fn is_inside_http_url_path(line: &str, match_start: usize) -> bool {
     let Some(prefix) = line.get(..match_start) else {
         return false;
@@ -269,22 +273,131 @@ fn is_inside_http_url_path(line: &str, match_start: usize) -> bool {
     }
 
     let host_and_maybe_path = &prefix[after_scheme..];
-    let Some(path_slash) = host_and_maybe_path.find('/') else {
+    let Some((authority, path)) = split_http_authority_and_path(host_and_maybe_path) else {
         return false;
     };
-    // A terminator in the host (`href="https://example.com" /reel/...`)
-    // means the later slash is not this URL's path.
-    if host_and_maybe_path[..path_slash]
-        .chars()
-        .any(url_path_ended)
-    {
+    if !http_authority_has_valid_host(authority) {
         return false;
     }
-    let after_path_start = &host_and_maybe_path[path_slash..];
-    if after_path_start.chars().any(url_path_ended) {
+    if path.chars().any(url_path_ended) {
         return false;
     }
     true
+}
+
+/// Split `host[:port]/path` or `[ipv6][:port]/path` after `http(s)://`.
+fn split_http_authority_and_path(after_scheme: &str) -> Option<(&str, &str)> {
+    if after_scheme.starts_with('[') {
+        let close = after_scheme.find(']')?;
+        let after_bracket = &after_scheme[close + 1..];
+        let path_rel = after_bracket.find('/')?;
+        return Some((
+            &after_scheme[..close + 1 + path_rel],
+            &after_scheme[close + 1 + path_rel..],
+        ));
+    }
+    let slash = after_scheme.find('/')?;
+    Some((&after_scheme[..slash], &after_scheme[slash..]))
+}
+
+/// HTTP(S) special-scheme host: non-empty reg-name / IPv4, or bracketed IPv6.
+/// Empty authority (`https:///…`), userinfo with no host, port-only, and
+/// empty/unclosed IPv6 brackets do not count.
+fn http_authority_has_valid_host(authority: &str) -> bool {
+    let Some(hostport) = authority_hostport(authority) else {
+        return false;
+    };
+    if hostport.starts_with('[') {
+        return bracketed_ipv6_authority_valid(hostport);
+    }
+    if hostport.chars().any(url_path_ended) {
+        return false;
+    }
+    let Some(host) = strip_http_port(hostport) else {
+        return false;
+    };
+    is_http_reg_name(host)
+}
+
+fn authority_hostport(authority: &str) -> Option<&str> {
+    if let Some(at) = last_at_outside_brackets(authority) {
+        let hostport = &authority[at + 1..];
+        if hostport.is_empty() {
+            return None;
+        }
+        return Some(hostport);
+    }
+    Some(authority)
+}
+
+fn last_at_outside_brackets(value: &str) -> Option<usize> {
+    let mut depth = 0_i32;
+    let mut last = None;
+    for (index, character) in value.char_indices() {
+        match character {
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            '@' if depth == 0 => last = Some(index),
+            _ => {}
+        }
+    }
+    last
+}
+
+fn bracketed_ipv6_authority_valid(hostport: &str) -> bool {
+    let Some(rest) = hostport.strip_prefix('[') else {
+        return false;
+    };
+    let Some((addr, after)) = rest.split_once(']') else {
+        return false;
+    };
+    if addr.is_empty()
+        || !addr
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() || matches!(c, ':' | '.' | '%'))
+    {
+        return false;
+    }
+    if after.is_empty() {
+        return true;
+    }
+    after.strip_prefix(':').is_some_and(is_http_port)
+}
+
+fn strip_http_port(hostport: &str) -> Option<&str> {
+    match hostport.rsplit_once(':') {
+        Some((host, port)) if is_http_port(port) => {
+            if host.is_empty() {
+                None
+            } else {
+                Some(host)
+            }
+        }
+        Some((_, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => None,
+        _ => Some(hostport),
+    }
+}
+
+fn is_http_port(port: &str) -> bool {
+    if port.is_empty() || port.len() > 5 {
+        return false;
+    }
+    port.parse::<u32>().is_ok_and(|n| n <= 65_535)
+}
+
+fn is_http_reg_name(host: &str) -> bool {
+    if host.is_empty() {
+        return false;
+    }
+    let mut saw_alnum = false;
+    for character in host.chars() {
+        if character.is_ascii_alphanumeric() {
+            saw_alnum = true;
+        } else if !matches!(character, '.' | '-' | '_') {
+            return false;
+        }
+    }
+    saw_alnum
 }
 
 fn url_path_ended(c: char) -> bool {
@@ -863,5 +976,56 @@ const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
                 .any(|finding| finding.pattern_name == "High Entropy String"),
             "same KSUID-looking value outside validator context must still flag: {credential_findings:?}"
         );
+    }
+
+    fn visa_test_pan() -> String {
+        ["4111", "1111", "1111", "1111"].concat()
+    }
+
+    fn path_shaped(line: &str, digits: &str) -> bool {
+        let start = line.find(digits).expect("digits in fixture");
+        super::is_path_shaped_document_token(digits, line, start, start + digits.len())
+    }
+
+    #[test]
+    fn empty_or_malformed_http_host_is_not_path_shaped() {
+        let digits = visa_test_pan();
+        let cases = [
+            format!("https:///accounts/{digits}/events"),
+            format!("http:///accounts/{digits}/events"),
+            format!("https:////accounts/{digits}"),
+            format!("https:/accounts/{digits}"),
+            format!("https://user@/accounts/{digits}"),
+            format!("https://[]/accounts/{digits}"),
+            format!("https://[::1/accounts/{digits}"),
+            format!("https://:443/accounts/{digits}"),
+        ];
+        for line in cases {
+            assert!(
+                !path_shaped(&line, &digits),
+                "malformed host must not earn the URL-path exemption: {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn valid_http_hosts_remain_path_shaped() {
+        let digits = visa_test_pan();
+        let cases = [
+            format!("https://www.facebook.com/reel/{digits}"),
+            format!("http://www.facebook.com/reel/{digits}"),
+            format!("https://pay.example.com:443/accounts/{digits}"),
+            format!("https://127.0.0.1/accounts/{digits}"),
+            format!("https://[::1]/accounts/{digits}"),
+            format!("https://[::1]:8443/accounts/{digits}"),
+            format!("https://user:pass@pay.example.com/accounts/{digits}"),
+            format!("https://localhost/accounts/{digits}"),
+        ];
+        for line in cases {
+            assert!(
+                path_shaped(&line, &digits),
+                "valid host-bearing URL path must stay path-shaped: {line}"
+            );
+        }
     }
 }

@@ -266,6 +266,144 @@ fn still_flags_standalone_card_after_url_on_same_line() {
     );
 }
 
+/// Visa test PAN assembled at runtime so the source never contains a
+/// 16-digit run (write-gate / `CodeQL`).
+fn visa_test_pan() -> String {
+    ["4111", "1111", "1111", "1111"].concat()
+}
+
+fn assert_credit_card_finding(label: &str, content: &str) {
+    let digits = visa_test_pan();
+    let findings = scan_content(content, "src/payments.ts", &config_without_entropy());
+    let card = findings.iter().find(|f| f.pattern_name == "Credit Card");
+    assert!(
+        card.is_some(),
+        "{label} must report Credit Card, line={content:?}, got: {:?}",
+        findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>(),
+    );
+    let card = card.expect("Credit Card finding");
+    assert!(
+        card.redacted_line.contains("[REDACTED]"),
+        "{label}: human/JSON/hook/gate line must keep [REDACTED]"
+    );
+    assert!(
+        !card.redacted_line.contains(&digits),
+        "{label}: redacted_line must not contain the raw PAN"
+    );
+    assert!(
+        !card.redacted_match.contains(&digits),
+        "{label}: redacted_match must not contain the raw PAN"
+    );
+}
+
+#[test]
+fn malformed_url_hosts_do_not_suppress_secret_credit_card() {
+    // #3917: only a syntactically valid, host-bearing http(s) path earns
+    // the CIB-323 exemption. Empty / missing / delimiter-broken authority
+    // is not a URL path. Shapes are the URL-parser threat model, not the
+    // classifier's current branches.
+    let digits = visa_test_pan();
+    let threat_shapes: &[(&str, String)] = &[
+        (
+            "empty-host https authority",
+            format!("const emptyHost = \"https:///accounts/{digits}/events\";"),
+        ),
+        (
+            "empty-host http authority",
+            format!("const emptyHost = \"http:///accounts/{digits}/events\";"),
+        ),
+        (
+            "extra-slash empty authority",
+            format!("const url = \"https:////accounts/{digits}\";"),
+        ),
+        (
+            "missing-host one-slash delimiter",
+            format!("const url = \"https:/accounts/{digits}\";"),
+        ),
+        (
+            "empty host after userinfo",
+            format!("const url = \"https://user@/accounts/{digits}\";"),
+        ),
+        (
+            "empty host after userinfo and password",
+            format!("const url = \"https://user:pass@/accounts/{digits}\";"),
+        ),
+        (
+            "empty IPv6 brackets",
+            format!("const url = \"https://[]/accounts/{digits}\";"),
+        ),
+        (
+            "unclosed IPv6 host",
+            format!("const url = \"https://[::1/accounts/{digits}\";"),
+        ),
+        (
+            "port-only authority",
+            format!("const url = \"https://:443/accounts/{digits}\";"),
+        ),
+        (
+            "delimiter-broken quoted host",
+            format!(r#"href="https://example.com" /reel/{digits}"#),
+        ),
+    ];
+
+    assert!(
+        !threat_shapes.is_empty(),
+        "enumerate the URL-parser shapes that must not earn the path exemption"
+    );
+    for (label, content) in threat_shapes {
+        assert_credit_card_finding(label, content);
+    }
+}
+
+#[test]
+fn valid_host_http_url_paths_keep_secret_credit_card_exemption() {
+    let digits = visa_test_pan();
+    let keepers: &[(&str, String)] = &[
+        (
+            "https DNS host path",
+            format!("const reel = 'https://www.facebook.com/reel/{digits}';"),
+        ),
+        (
+            "http DNS host path",
+            format!("const reel = 'http://www.facebook.com/reel/{digits}';"),
+        ),
+        (
+            "host with port",
+            format!("const url = 'https://pay.example.com:443/accounts/{digits}';"),
+        ),
+        (
+            "IPv4 host",
+            format!("const url = 'https://127.0.0.1/accounts/{digits}';"),
+        ),
+        (
+            "IPv6 host",
+            format!("const url = 'https://[::1]/accounts/{digits}';"),
+        ),
+        (
+            "IPv6 host with port",
+            format!("const url = 'https://[::1]:8443/accounts/{digits}';"),
+        ),
+        (
+            "userinfo plus host",
+            format!("const url = 'https://user:pass@pay.example.com/accounts/{digits}';"),
+        ),
+        (
+            "localhost host",
+            format!("const url = 'https://localhost/accounts/{digits}';"),
+        ),
+    ];
+
+    let config = config_without_entropy();
+    for (label, content) in keepers {
+        let findings = scan_content(content, "src/share.ts", &config);
+        assert!(
+            !findings.iter().any(|f| f.pattern_name == "Credit Card"),
+            "{label} must keep the CIB-323 path exemption, line={content:?}, got: {:?}",
+            findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>(),
+        );
+    }
+}
+
 #[test]
 fn does_not_flag_hex_hashes_via_shape_allowlist() {
     // CLAWP-063: exercise the entropy path AND the hex-shape allowlist
