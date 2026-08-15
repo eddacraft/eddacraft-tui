@@ -102,8 +102,9 @@ fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Comma
     // whatever tooling the authoring host happens to run (claude/cursor/
     // codex on a dev box; nothing on CI) and fail everywhere else. Scrub
     // every detection env var and, on Unix, restrict PATH to a shim dir
-    // containing only `git` (the sole external binary these flows invoke)
-    // so detection is deterministically empty in every environment.
+    // containing only `git` and `anvil` so detection is deterministically
+    // empty. `anvil` must stay resolvable: MCP handshake uses PATH only
+    // (not current_exe).
     for var in [
         "ANTHROPIC_API_KEY",
         "CLAUDE_CODE_HOME",
@@ -120,10 +121,11 @@ fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Comma
     cmd
 }
 
-/// Build a PATH shim directory inside the per-test `home` containing a
-/// single `git` symlink, so the spawned `anvil` can still run worktree
-/// probes while agent-binary detection (claude/cursor/aider/windsurf/
-/// codex on the host PATH) deterministically finds nothing.
+/// Build a PATH shim directory inside the per-test `home` containing
+/// `git` and `anvil` only. `git` covers worktree probes; `anvil` is the
+/// configured MCP command, so handshake can resolve it on PATH without
+/// treating `current_exe` as live. Agent-binary detection still finds
+/// nothing else.
 #[cfg(unix)]
 fn git_only_path_shim(home: &std::path::Path) -> std::path::PathBuf {
     let shim = home.join("path-shim");
@@ -138,6 +140,10 @@ fn git_only_path_shim(home: &std::path::Path) -> std::path::PathBuf {
     let link = shim.join("git");
     if !link.exists() {
         std::os::unix::fs::symlink(&git, &link).expect("symlink git into PATH shim");
+    }
+    let anvil_link = shim.join("anvil");
+    if !anvil_link.exists() {
+        std::os::unix::fs::symlink(ANVIL_BIN, &anvil_link).expect("symlink anvil into PATH shim");
     }
     shim
 }
