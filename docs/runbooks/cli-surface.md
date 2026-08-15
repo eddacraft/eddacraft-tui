@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                            |
-| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-15 update for `anvil mcp refresh` (`--processes orphan-reap` opt-in); not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                           |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-15 updates for `anvil mcp refresh` (`--processes orphan-reap` opt-in) and installed help copy vs `main.rs` / `commands/` (GH #3921); not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -169,18 +169,28 @@ $ anvil doctor --json | jq .checks
 ## anvil config
 
 **Class:** Admin **Purpose:** Show, set, and convert Anvil project config.
-**When to use:** To inspect or modify rule modes in the project config
-(`.anvil.<ext>`; a legacy `.anvilrc` is still read as a fallback).
+**When to use:** To inspect the project config, change an enforcement rule mode,
+or convert `.anvil.<ext>` (a leftover `.anvilrc` is still read as a fallback).
+
+**When to use (`show`):** To print the effective project config and current rule
+modes.
+
+**When to use (`set`):** To set one enforcement rule mode in the project config.
+Rules: `public-api-expansion`, `new-dependency-introduction`,
+`cross-layer-violation`, `privilege-expansion`. Modes: `off`, `warn`, `enforce`.
+
+**When to use (`convert`):** To rewrite the discovered project config as
+`.anvil.<ext>` (`yaml`, `yml`, `json`, or `toml`). Never writes `.anvilrc`.
 
 **Synopsis:** `anvil config <show|set <rule> <mode>|convert --to <fmt>>`
 
 **Subcommands:**
 
-| Subcommand           | Description                                   |
-| -------------------- | --------------------------------------------- |
-| `show`               | Show the effective Anvil config.              |
-| `set <rule> <mode>`  | Set a rule mode in the project config.        |
-| `convert --to <fmt>` | Convert the project config to another format. |
+| Subcommand           | Description                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `show`               | Show the effective Anvil config.                                                                                                                                |
+| `set <rule> <mode>`  | Set a rule mode. Rules: `public-api-expansion`, `new-dependency-introduction`, `cross-layer-violation`, `privilege-expansion`. Modes: `off`, `warn`, `enforce`. |
+| `convert --to <fmt>` | Convert the project config to another canonical format. Never writes `.anvilrc`.                                                                                |
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
@@ -188,7 +198,7 @@ $ anvil doctor --json | jq .checks
 
 ```
 $ anvil config show
-$ anvil config set secret-detection warn
+$ anvil config set cross-layer-violation warn
 $ anvil config convert --to yaml
 ```
 
@@ -731,16 +741,20 @@ the local intercept daemon that enables pre-write MCP validation.
 
 | Subcommand | Description                                                                                  |
 | ---------- | -------------------------------------------------------------------------------------------- |
-| `start`    | Start the intercept daemon. Use `--foreground` to keep it in the terminal.                   |
+| `start`    | Start the intercept daemon in the foreground. `--foreground` is required.                    |
 | `status`   | Print the daemon's status snapshot (sessions, fences, latency).                              |
 | `unblock`  | Clear fence state from the daemon.                                                           |
 | `stop`     | Stop the per-user daemon recorded in the daemon PID file; idempotent when no daemon is live. |
 
+**When to use (`start`):** To start the intercept daemon in this terminal.
+`--foreground` is required; use `anvil start` or `anvil watch` when you want the
+daemon ensured in the background.
+
 **`start` flags:**
 
-| Flag           | Description                                           |
-| -------------- | ----------------------------------------------------- |
-| `--foreground` | Stay in the foreground; logs stream to stdout/stderr. |
+| Flag           | Description                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--foreground` | Required. Stay in the foreground; logs stream to stdout/stderr. This command does not background the process. |
 
 **`status` flags:**
 
@@ -941,19 +955,29 @@ $ anvil mcp-config --target cursor --transport http --port 7616 --write
 
 **Class:** Background (serve) / User-explicit (install, refresh) **Purpose:**
 Manage and serve MCP integrations. **When to use:** `serve` is invoked by
-editors automatically. `install` wires the MCP config for a supported client.
-After an upgrade, `refresh` rewrites owned configs, recycles a skewed daemon,
-and pokes live MCP children so they re-check the preferred binary.
+editors automatically as `anvil mcp serve --stdio`. `install` wires the MCP
+config for a supported client. After an upgrade, `refresh` rewrites owned
+configs, recycles a skewed daemon, and pokes live MCP children so they re-check
+the preferred binary.
+
+**When to use (`serve`):** To serve anvil's MCP tools over stdin/stdout. Editors
+launch this automatically as `anvil mcp serve --stdio`. `--stdio` is required.
+
+**When to use (`install`):** To preview, write, or verify anvil MCP
+configuration for a supported editor.
+
+**When to use (`refresh`):** After an upgrade, rewrite owned configs, recycle a
+skewed daemon, and poke live MCP children.
 
 **Synopsis:** `anvil mcp <install|serve|refresh>`
 
 **Subcommands:**
 
-| Subcommand                  | Description                                   |
-| --------------------------- | --------------------------------------------- |
-| `install --client <client>` | Install Anvil MCP configuration for a client. |
-| `serve --stdio`             | Start an MCP server over stdin/stdout.        |
-| `refresh`                   | Bulk rewrite, daemon recycle, and live poke.  |
+| Subcommand                  | Description                                                     |
+| --------------------------- | --------------------------------------------------------------- |
+| `install --client <client>` | Install Anvil MCP configuration for a client.                   |
+| `serve --stdio`             | Serve anvil MCP tools over stdin/stdout. `--stdio` is required. |
+| `refresh`                   | Bulk rewrite, daemon recycle, and live poke.                    |
 
 **`refresh` flags:**
 
@@ -1211,15 +1235,15 @@ pipelines, or on-demand code quality checks with full profile support.
 
 **Flags:**
 
-| Flag                     | Description                                                               |
-| ------------------------ | ------------------------------------------------------------------------- |
-| `plan`                   | Plan file to run gates against (positional; omit for full codebase scan). |
-| `--profile <p>`          | Gate profile: `dev`, `ci`, `production`, `ai`.                            |
-| `--skip-checks <checks>` | Comma-separated list of checks to skip.                                   |
-| `--only-checks <checks>` | Run only the specified checks (comma-separated).                          |
-| `--fail-fast`            | Stop on first check failure.                                              |
-| `--progress`             | Show real-time progress.                                                  |
-| `--format <fmt>`         | Output format: `auto`, `tui`, `plain`, `json`, `sarif`.                   |
+| Flag                     | Description                                                                                                                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan`                   | Plan file to run gates against (positional; omit for full codebase scan).                                                                                                                          |
+| `--profile <p>`          | Gate profile: `dev`, `ci`, `production`, `ai`.                                                                                                                                                     |
+| `--skip-checks <checks>` | Comma-separated list of checks to skip.                                                                                                                                                            |
+| `--only-checks <checks>` | Run only these checks (comma-separated canonical names or aliases). `architecture` is an alias of `import-boundaries`; results use the canonical name. `secret` is an alias of `secret-detection`. |
+| `--fail-fast`            | Stop on first check failure.                                                                                                                                                                       |
+| `--progress`             | Show real-time progress.                                                                                                                                                                           |
+| `--format <fmt>`         | Output format: `auto`, `tui`, `plain`, `json`, `sarif`.                                                                                                                                            |
 
 **Exit codes:** 0 (all checks passed), 2 (one or more checks failed), 1 (error),
 3 (auth required)
@@ -1230,8 +1254,12 @@ pipelines, or on-demand code quality checks with full profile support.
 $ anvil gate
 $ anvil gate --profile ci
 $ anvil gate --only-checks secret-detection,antipattern-scan
+$ anvil gate --only-checks architecture
 $ anvil gate --format sarif > results.sarif
 ```
+
+`--only-checks architecture` selects the `import-boundaries` check; gate output
+uses that canonical name.
 
 ---
 
@@ -1525,8 +1553,9 @@ to use:** To validate or inspect the project's architecture definition. Both
 subcommands resolve the main config's `architecture` section first (inline, or
 delegated via `architecture.source`), falling back to a standalone
 `.anvil/architecture.yaml` (legacy form, still valid); `--file` inspects an
-explicit path instead. Watch-time architecture enforcement still reads the
-standalone file, not the section.
+explicit path instead. Save-time watch uses the same resolution: the main config
+for an inline section, the delegated `source` file, or the standalone file when
+no section is present.
 
 **Synopsis:** `anvil architecture <validate|show>`
 

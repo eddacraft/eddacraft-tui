@@ -250,11 +250,11 @@ enum Commands {
     Exception(commands::exception::ExceptionArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
-    /// Activate anvil in this repository. Writes `.anvilrc` if missing and
-    /// offers MCP install for every supported client (interactive consent;
-    /// nothing is written until you select a client). Pass `--verify` for a
-    /// read-only probe, or `--mcp-client` / `--all-mcp-clients` for scripted
-    /// multi-client install.
+    /// Activate anvil in this repository. Writes `.anvil.yaml` if missing
+    /// (or `.anvil.<ext>` with `--format`) and offers MCP install for every
+    /// supported client (interactive consent; nothing is written until you
+    /// select a client). Pass `--verify` for a read-only probe, or
+    /// `--mcp-client` / `--all-mcp-clients` for scripted multi-client install.
     Start(commands::start::StartArgs),
     /// Interactive guided tutorial.
     Tutorial(commands::tutorial::TutorialArgs),
@@ -343,6 +343,11 @@ enum Commands {
     /// locally verifiable review capsule.
     Capsule(commands::capsule::CapsuleArgs),
     /// Manage architecture boundary definitions.
+    ///
+    /// `validate` and `show` resolve the project-config `architecture`
+    /// section first (inline or `architecture.source`), then fall back to
+    /// standalone `.anvil/architecture.yaml`. Save-time watch uses the same
+    /// resolution.
     Architecture(commands::architecture::ArchitectureArgs),
     /// Authenticate with the anvil service.
     Auth(commands::auth::AuthArgs),
@@ -1612,6 +1617,25 @@ mod tests {
         assert!(
             help.contains("WHEN TO USE:"),
             "missing when-to-use:\n{help}"
+        );
+    }
+
+    #[test]
+    fn start_help_names_canonical_config_not_anvilrc() {
+        let mut command = augmented_cli_command();
+        let help = command.render_long_help().to_string();
+        assert!(
+            !help.contains("Writes `.anvilrc`"),
+            "root help must not say start writes .anvilrc:\n{help}"
+        );
+        let start = command
+            .find_subcommand_mut("start")
+            .expect("start command exists")
+            .render_long_help()
+            .to_string();
+        assert!(
+            start.contains(".anvil.yaml") || start.contains(".anvil.<ext>"),
+            "start help must name the canonical config:\n{start}"
         );
     }
 

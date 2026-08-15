@@ -40,8 +40,8 @@ impl InterceptArgs {
 
 #[derive(Debug, Subcommand)]
 enum InterceptCommand {
-    /// Start the intercept daemon. Use `--foreground` to keep it in
-    /// the terminal; logs stream to stdout/stderr.
+    /// Start the intercept daemon. Requires `--foreground`; this command
+    /// does not background the process.
     Start(StartArgs),
     /// Print the daemon's status snapshot — sessions, fences, and
     /// the mid-edit validation-service latency rollup.
@@ -66,10 +66,12 @@ enum InterceptCommand {
 }
 
 #[derive(Debug, Args)]
+#[command(override_usage = "anvil intercept start --foreground")]
 struct StartArgs {
-    /// Stay in the foreground; logs stream to stdout/stderr.
-    /// Ctrl+C (and SIGTERM on Unix) stops the daemon cleanly. Demo
-    /// runbook §4.1 fallback path.
+    /// Required. Run in the foreground; logs stream to stdout/stderr.
+    /// Ctrl+C (and SIGTERM on Unix) stops the daemon cleanly. Background
+    /// start is not available here — use `anvil start` or `anvil watch`
+    /// to ensure the daemon.
     #[arg(long)]
     foreground: bool,
 }

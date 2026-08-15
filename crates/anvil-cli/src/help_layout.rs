@@ -68,7 +68,14 @@ fn append_after_long_help(command: &mut Command, addition: &str) {
 
 fn when_to_use(path: &[String]) -> Option<String> {
     let top_level = path.get(1)?;
-    let base = runbook_section(top_level).and_then(extract_when_to_use)?;
+    let section = runbook_section(top_level)?;
+    if path.len() > 2
+        && let Some(specific) =
+            extract_labelled_when_to_use(section, path.last().map(String::as_str))
+    {
+        return Some(specific);
+    }
+    let base = extract_when_to_use(section)?;
     if path.len() <= 2 {
         Some(base)
     } else {
@@ -90,7 +97,16 @@ fn learn_more_pointer(path: &[String]) -> Option<String> {
 
 fn runbook_section(top_level: &str) -> Option<&'static str> {
     let heading = format!("## anvil {top_level}");
-    let start = CLI_SURFACE_RUNBOOK.find(&heading)?;
+    // Match a full heading line so `mcp` does not bind `mcp-config`.
+    let start = CLI_SURFACE_RUNBOOK
+        .match_indices(&heading)
+        .find_map(|(idx, text)| {
+            let after = idx + text.len();
+            match CLI_SURFACE_RUNBOOK.as_bytes().get(after) {
+                None | Some(b'\n' | b'\r') => Some(idx),
+                _ => None,
+            }
+        })?;
     let body = &CLI_SURFACE_RUNBOOK[start..];
     let end = body[heading.len()..]
         .find("\n## anvil ")
@@ -99,6 +115,10 @@ fn runbook_section(top_level: &str) -> Option<&'static str> {
 }
 
 fn extract_when_to_use(section: &str) -> Option<String> {
+    extract_labelled_when_to_use(section, None)
+}
+
+fn extract_labelled_when_to_use(section: &str, command: Option<&str>) -> Option<String> {
     // Collapse soft line wraps so markdown reflow (e.g. "**When\nto use:**")
     // does not hide the field. Paragraph breaks survive as a sentinel token.
     let collapsed = section
@@ -106,7 +126,8 @@ fn extract_when_to_use(section: &str) -> Option<String> {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    let marker = "**When to use:**";
+    let labelled = command.map(|name| format!("**When to use (`{name}`):**"));
+    let marker = labelled.as_deref().unwrap_or("**When to use:**");
     let start = collapsed.find(marker)? + marker.len();
     let rest = collapsed[start..].trim_start();
     // The field ends at the paragraph sentinel or the next bold field marker.
@@ -334,4 +355,54 @@ fn internal_identifiers(help: &str) -> Vec<String> {
     hits.sort();
     hits.dedup();
     hits
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_when_to_use_prefers_subcommand_label() {
+        let section = "\
+## anvil config
+**When to use:** Parent guidance about rule modes.
+
+**When to use (`convert`):** Convert to `.anvil.<ext>`.
+";
+        assert_eq!(
+            extract_labelled_when_to_use(section, Some("convert")).as_deref(),
+            Some("Convert to `.anvil.<ext>`.")
+        );
+        assert_eq!(
+            extract_when_to_use(section).as_deref(),
+            Some("Parent guidance about rule modes.")
+        );
+    }
+
+    #[test]
+    fn when_to_use_uses_labelled_subcommand_before_parent() {
+        assert!(
+            when_to_use(&["anvil".into(), "config".into(), "convert".into()])
+                .is_some_and(|text| !text.to_ascii_lowercase().contains("rule mode")),
+            "config convert must not inherit parent rule-mode guidance"
+        );
+        assert!(
+            when_to_use(&["anvil".into(), "mcp".into(), "serve".into()])
+                .is_some_and(|text| text.to_ascii_lowercase().contains("stdio")),
+            "mcp serve must describe stdio serving"
+        );
+    }
+
+    #[test]
+    fn runbook_section_does_not_bind_mcp_to_mcp_config() {
+        let section = runbook_section("mcp").expect("mcp section");
+        assert!(
+            !section.contains("older command surface"),
+            "mcp must not inherit the mcp-config section:\n{section}"
+        );
+        assert!(
+            section.contains("serve"),
+            "mcp section must mention serve:\n{section}"
+        );
+    }
 }

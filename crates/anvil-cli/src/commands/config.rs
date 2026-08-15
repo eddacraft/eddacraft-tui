@@ -25,8 +25,19 @@ pub enum ConfigCommand {
     /// Show the effective anvil config.
     Show,
     /// Set a rule mode in the project config.
-    Set { rule: String, mode: String },
+    Set {
+        /// Rule to set: `public-api-expansion`, `new-dependency-introduction`,
+        /// `cross-layer-violation`, or `privilege-expansion`.
+        #[arg(value_name = "RULE")]
+        rule: String,
+        /// Mode to apply: `off`, `warn`, or `enforce`.
+        #[arg(value_name = "MODE")]
+        mode: String,
+    },
     /// Convert the project config to another canonical format.
+    ///
+    /// Rewrites the discovered project config as `.anvil.<ext>`. This does
+    /// not change rule modes.
     Convert {
         /// Destination format: yaml, yml, json, or toml. Never `.anvilrc`.
         #[arg(long)]

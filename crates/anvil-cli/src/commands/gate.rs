@@ -35,7 +35,9 @@ pub struct GateArgs {
     #[arg(long)]
     skip_checks: Option<String>,
 
-    /// Only run specified checks (comma-separated)
+    /// Only run these checks (comma-separated canonical names or aliases).
+    /// `architecture` is an alias of `import-boundaries`; results use the
+    /// canonical name. `secret` is an alias of `secret-detection`.
     #[arg(long)]
     only_checks: Option<String>,
 

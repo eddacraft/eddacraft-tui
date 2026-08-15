@@ -29,7 +29,7 @@ pub struct McpArgs {
 enum McpCommand {
     /// Install anvil MCP configuration for an editor.
     Install(McpInstallArgs),
-    /// Start an MCP server.
+    /// Serve anvil MCP tools over stdin/stdout for editor and agent clients.
     Serve(McpServeArgs),
     /// Rewrite owned MCP configs, recycle a skewed daemon, and poke live heal.
     Refresh(super::mcp_refresh::McpRefreshArgs),
@@ -63,8 +63,10 @@ struct McpInstallArgs {
 }
 
 #[derive(Debug, Args)]
+#[command(override_usage = "anvil mcp serve --stdio")]
 struct McpServeArgs {
-    /// Serve MCP over stdin/stdout.
+    /// Required. Serve MCP over stdin/stdout. Editors launch
+    /// `anvil mcp serve --stdio`.
     #[arg(long)]
     stdio: bool,
 }
