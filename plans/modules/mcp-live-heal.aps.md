@@ -124,7 +124,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-003: `anvil mcp refresh` bulk cascade
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Give operators one verb that rewrites owned configs, pokes live
   MCP heal, and reports residual skew without walking every session UI.
 - **Expected Outcome:** `anvil mcp refresh [--dry-run] [--json]` implements the
