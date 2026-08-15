@@ -14,9 +14,10 @@ engineering maintenance are recorded in the
 This window is about trusting the project config anvil reads: one canonical
 file, one key casing, and migrate/doctor paths for the older names — plus a few
 honesty fixes so Claude's project MCP install, live-validation status, and
-several checks match reality. After an upgrade, managed MCP entries prefer a
-PATH-stable `anvil` command, and a skewed intercept daemon recycles itself
-without restarting your agent sessions.
+several checks match reality. After an upgrade, run `anvil mcp refresh` to
+rewrite owned MCP configs, recycle a skewed daemon, and poke live `mcp serve`
+children so the next tool call can heal in place. You do not need to restart
+agent sessions.
 
 ### Changed
 
@@ -79,6 +80,21 @@ without restarting your agent sessions.
   `env -S "rm -rf /"` is treated as the inner command, so the same
   dangerous-command rules apply.
 
+- **`anvil mcp refresh` heals MCP after an upgrade without restarting agents.**
+  It rewrites Anvil-owned client entries to the PATH-stable `anvil` command,
+  recycles a version-skewed intercept daemon, and bumps a refresh generation so
+  live `mcp serve` children re-check on the next tool call. `--dry-run`
+  previews; `--json` prints the report. Default `--processes report` only lists
+  children by parent. `--processes orphan-reap` sends SIGTERM to same-user
+  orphans whose parent is gone (Unix). Children of live sessions are never
+  signalled.
+
+- **`anvil status` and `--verify` split attach from graph readiness.** Human and
+  `--json` output can show MCP process inventory, `mcp_skew`, and separate
+  `protecting` / `agent_ready` / `graph_ready` claims. A current MCP binary no
+  longer implies the graph is ready. Skewed children print `anvil mcp refresh`
+  as the recovery, not “restart your editor”.
+
 ### Fixed
 
 - **Claude Code project MCP install writes `.mcp.json`.** Project-scoped install
@@ -109,27 +125,27 @@ without restarting your agent sessions.
   it belonged to that capsule.
 
 - **Windows `anvil update` is honest about decline and what to run next.** A
-  declined update no longer exits 0 or prints both winget and the installer. It
+  declined update no longer exits 0 or prints both WinGet and the installer. It
   uses the same current/not-current comparison as `--check`, exits non-zero when
   it does not update, and prints only the remedy for how this copy was
   installed.
 
 - **Credit-card checks ignore 16-digit runs in `https` URL paths.** Facebook
-  reel ids and similar path segments no longer trip the card rule. A standalone
+  reel IDs and similar path segments no longer trip the card rule. A standalone
   card number still fires.
 
 - **Python dynamic-execution (PY-008) is more precise.** It no longer treats
   `something.compile(...)` as the builtin `compile`, and it does catch f-string
   and attribute forms that used to slip through.
 
-- **`anvil report-fp` accepts the rule ids `anvil check` prints.** IDs such as
-  `PY-008` or `SECRET-*` record against the owning check. Unknown ids still
+- **`anvil report-fp` accepts the rule IDs `anvil check` prints.** IDs such as
+  `PY-008` or `SECRET-*` record against the owning check. Unknown IDs still
   error with a suggestion.
 
 - **A skewed intercept daemon recycles to the current CLI.** When `anvil` and
-  the save-time daemon report different versions, ensure/start stop the old
-  daemon, wait for it to exit, and start the current binary. Agent sessions are
-  not restarted.
+  the save-time daemon report different versions, bare `anvil`, `anvil start`,
+  and `anvil mcp refresh` stop the old daemon, wait for it to exit, and start
+  the current binary. Agent sessions are not restarted.
 
 - **Long-lived `mcp serve` recycles to the preferred binary on Unix.** After an
   upgrade, the next `initialize`, `tools/list`, or `tools/call` can replace the
