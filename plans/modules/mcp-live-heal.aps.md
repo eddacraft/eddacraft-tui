@@ -201,7 +201,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-006: Opt-in orphan MCP process reap
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Clean same-user `anvil mcp serve` processes whose parent PID is
   gone without touching children of live harnesses.
 - **Expected Outcome:** `anvil mcp refresh --processes orphan-reap` (or
