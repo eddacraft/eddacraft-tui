@@ -3163,105 +3163,6 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
     }
 }
 
-/// Extract import edges from source files using the kernel's tree-sitter parser.
-///
-/// When `source_files` is provided, only those files are parsed (avoids a
-/// redundant directory walk). Otherwise falls back to walking `project_root`.
-fn extract_import_edges(
-    project_root: &Path,
-    source_files: Option<&[String]>,
-) -> Vec<anvil_architecture::ImportEdge> {
-    let mut parser = anvil_kernel::parser::Parser::new();
-    let mut edges = Vec::new();
-
-    // RSTLAN-005 / PYLAN-006: `.rs` and `.py` join the JS/TS family so Rust
-    // crates and Python packages participate in architecture/boundary analysis.
-    // The kernel parser dispatches by extension, so `parse_bytes` handles `.rs`
-    // via the Rust extractor (RSTLAN-002) and `.py` via the Python extractor
-    // (PYLAN-002).
-    // LANGTAIL: tail-wave extensions join too, kept in step with
-    // `Language::from_path`. Their symbols flow into the graph; cross-file
-    // import-edge *resolvers* for these languages are T2 work, so edges may
-    // resolve to `None` until then — parsing them now is correct and harmless.
-    let include_extensions = [
-        "ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py", "pyi", "dart", "go", "java", "kt",
-        "kts", "cs", "c", "h", "cpp", "cc", "cxx", "c++", "hpp", "hh", "hxx", "h++",
-    ];
-
-    // Collect file paths to parse — either from the pre-collected list or via walkdir.
-    let owned_paths: Vec<String>;
-    let file_paths: &[String] = if let Some(files) = source_files {
-        files
-    } else {
-        owned_paths = walk_source_files(project_root, &include_extensions);
-        &owned_paths
-    };
-
-    for rel_path in file_paths {
-        // Filter to parseable languages — the pre-collected list from
-        // collect_source_files may include other file types matched by
-        // architecture layer globs.
-        let ext = std::path::Path::new(rel_path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
-        if !include_extensions.contains(&ext) {
-            continue;
-        }
-
-        let path = project_root.join(rel_path);
-
-        let Ok(content) = std::fs::read(&path) else {
-            continue;
-        };
-
-        let Ok(parse_result) = parser.parse_bytes(&path, &content) else {
-            continue;
-        };
-
-        let file_symbols =
-            anvil_kernel::parser::extract::extract_symbols(&parse_result.tree, &content, &path, 0);
-
-        for import in &file_symbols.imports {
-            // Resolution is language-aware on the importing file's extension: a
-            // Python relative import (`.sibling`) and a TS relative specifier
-            // (`./sibling`) both begin with `.` but resolve under different
-            // rules, and a Python absolute import (`foo.bar`) must resolve
-            // against the package tree rather than be dropped.
-            //
-            // - `.py` / `.pyi` → Python module resolution (PYLAN-006: relative
-            //   dot prefixes against the file's package, absolute against
-            //   flat/`src` roots; stdlib/third-party drop out). Stub files
-            //   (`.pyi`) share Python's import grammar, so they must take this
-            //   path too — not the TS/Rust fallback.
-            // - else: TS/JS relative specifiers (`./`, `../`) resolve lexically;
-            //   Rust module paths (containing `::`) resolve against the owning
-            //   crate's module tree. Everything else (bare npm packages,
-            //   `std::`/external crates) targets code outside the workspace and
-            //   is skipped — never a boundary violation.
-            let resolved = if ext == "py" || ext == "pyi" {
-                anvil_architecture::resolve_python_import(project_root, rel_path, &import.to_source)
-            } else if import.to_source.starts_with('.') {
-                resolve_import(rel_path, &import.to_source)
-            } else if import.to_source.contains("::") {
-                anvil_architecture::resolve_rust_import(project_root, rel_path, &import.to_source)
-            } else {
-                None
-            };
-
-            if let Some(to_file) = resolved {
-                edges.push(anvil_architecture::ImportEdge {
-                    from_file: rel_path.clone(),
-                    to_file,
-                    line: import.line,
-                });
-            }
-        }
-    }
-
-    edges
-}
-
 /// Walk the workspace directory and collect source file paths (relative).
 ///
 /// When `extensions` is non-empty, only files with a matching extension are
@@ -3306,134 +3207,42 @@ fn walk_source_files(project_root: &Path, extensions: &[&str]) -> Vec<String> {
     files
 }
 
-/// Resolve a relative import specifier to a workspace-relative path.
-///
-/// Given `from_file = "src/app/service.ts"` and `specifier = "../core/entity"`,
-/// returns `"src/core/entity"`. Does not verify the file exists on disk;
-/// the validator matches against assigned files by prefix.
-///
-/// Returns `None` if the specifier traverses above the workspace root
-/// (e.g. `"../../../outside"`). These imports are silently excluded from
-/// boundary analysis since they reference external code.
-fn resolve_import(from_file: &str, specifier: &str) -> Option<String> {
-    let from_dir = from_file.rsplit_once('/').map_or("", |(dir, _)| dir);
-
-    // Combine from_dir with the specifier and normalise.
-    let combined = if from_dir.is_empty() {
-        specifier.to_string()
-    } else {
-        format!("{from_dir}/{specifier}")
-    };
-
-    // Normalise path segments (resolve .. and .).
-    let mut parts: Vec<&str> = Vec::new();
-    for segment in combined.split('/') {
-        match segment {
-            "." | "" => {}
-            ".." => {
-                // Returns None if traversal goes above workspace root.
-                parts.pop()?;
-            }
-            s => parts.push(s),
-        }
-    }
-
-    if parts.is_empty() {
-        return None;
-    }
-
-    Some(parts.join("/"))
-}
-
 fn run_check_architecture(project_root: &Path) -> CheckResult {
-    // UCFG-008: the resolved architecture (main-config section, inline
-    // or source-delegated, with the standalone yaml as legacy
-    // fallback) replaces the direct file read.
-    let definition = match crate::architecture_source::resolve_architecture(project_root) {
-        Ok(None) => {
-            return CheckResult {
-                name: "architecture".to_string(),
-                passed: true,
-                score: 100.0,
-                message: "No architecture config found (architecture section or \
-                          .anvil/architecture.yaml). Skipping."
-                    .to_string(),
-                requires_config: false,
-            };
-        }
-        Ok(Some((definition, _origin))) => definition,
-        Err(e) => {
-            return CheckResult {
-                name: "architecture".to_string(),
-                passed: false,
-                score: 0.0,
-                message: format!("Architecture validation failed: {e:#}"),
-                requires_config: false,
-            };
-        }
-    };
+    use crate::architecture_check::ArchitectureCheckOutcome;
 
-    let diagnostics = anvil_architecture::diagnose_definition(&definition);
-    let errors = diagnostics
-        .iter()
-        .filter(|diagnostic| diagnostic.is_error())
-        .collect::<Vec<_>>();
-    if !errors.is_empty() {
-        return CheckResult {
-            name: "architecture".to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!(
-                "Architecture config preflight failed:\n{}",
-                errors
-                    .iter()
-                    .map(|diagnostic| diagnostic.message.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            ),
-            requires_config: false,
-        };
-    }
-
-    // Collect source files once and share between edge extraction and validation
-    // to avoid redundant directory walks (RCLI-053).
-    let source_files = anvil_architecture::collect_source_files(project_root, &definition);
-    let edges = extract_import_edges(project_root, Some(&source_files));
-
-    let result =
-        anvil_architecture::validate_with_files_and_edges(&definition, &source_files, &edges);
-
-    if result.valid {
-        CheckResult {
+    match crate::architecture_check::check_architecture(project_root, None) {
+        ArchitectureCheckOutcome::Skipped { message }
+        | ArchitectureCheckOutcome::Passed { message } => CheckResult {
             name: "architecture".to_string(),
             passed: true,
             score: 100.0,
-            message: "Architecture config is valid".to_string(),
+            message,
             requires_config: false,
-        }
-    } else {
-        let msgs: Vec<String> = result
-            .violations
-            .iter()
-            .map(|v| {
-                let boundary_name = v.boundary.as_ref().map_or("unknown", |b| b.name.as_str());
-                let message = v
-                    .boundary
-                    .as_ref()
-                    .map_or("boundary violation", |b| b.message.as_str());
-                format!("{}: {} ({})", boundary_name, message, v.edge.from)
-            })
-            .collect();
-        CheckResult {
+        },
+        ArchitectureCheckOutcome::Failed { message } => CheckResult {
             name: "architecture".to_string(),
             passed: false,
             score: 0.0,
-            message: format!(
-                "{} violation(s):\n{}",
-                result.violations.len(),
-                msgs.join("\n")
-            ),
+            message,
             requires_config: false,
+        },
+        ArchitectureCheckOutcome::Violations { findings } => {
+            let msgs: Vec<String> = findings
+                .iter()
+                .map(|finding| {
+                    format!(
+                        "{}: {} ({})",
+                        finding.policy_id, finding.message, finding.file
+                    )
+                })
+                .collect();
+            CheckResult {
+                name: "architecture".to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("{} violation(s):\n{}", findings.len(), msgs.join("\n")),
+                requires_config: false,
+            }
         }
     }
 }
@@ -5105,6 +4914,7 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::architecture_check::{extract_import_edges, resolve_import};
     use clap::Parser;
 
     #[derive(Parser)]

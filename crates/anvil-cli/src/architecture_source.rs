@@ -108,6 +108,29 @@ pub(crate) fn architecture_config_from_definition(
     ArchitectureConfig { layers }
 }
 
+/// Map a definition only after preflight succeeds. Watch must not load
+/// or reload a policy that `anvil architecture validate` would reject.
+pub(crate) fn mapped_architecture_from_definition(
+    definition: &ArchitectureDefinition,
+) -> Result<ArchitectureConfig> {
+    let diagnostics = anvil_architecture::diagnose_definition(definition);
+    let errors = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.is_error())
+        .collect::<Vec<_>>();
+    if !errors.is_empty() {
+        anyhow::bail!(
+            "Architecture config preflight failed:\n{}",
+            errors
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+    Ok(architecture_config_from_definition(definition))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,6 +298,19 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn mapped_architecture_rejects_unknown_depends_on() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvil.yaml"),
+            "architecture:\n  schema_version: \"0.1.0\"\n  layers:\n    app:\n      patterns: [\"src/app/**\"]\n      depends_on: [missing]\n",
+        )
+        .unwrap();
+        let (definition, _) = resolve_architecture(tmp.path()).unwrap().unwrap();
+        let err = mapped_architecture_from_definition(&definition).unwrap_err();
+        assert!(format!("{err:#}").contains("unknown layer"), "got: {err:#}");
     }
 
     #[test]

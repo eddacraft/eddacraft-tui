@@ -368,9 +368,8 @@ fn watch_loop(
                 } else {
                     load_architecture_config(architecture.path)
                 };
-                match reloaded {
-                    Ok(reloaded) => {
-                        *architecture.config = reloaded;
+                match apply_architecture_reload(architecture.config, reloaded) {
+                    Ok(()) => {
                         state.engine.clear_seen();
                     }
                     Err(err) => {
@@ -733,6 +732,24 @@ pub fn run_watch(
     })
 }
 
+/// Apply a reload result atomically. A failed reload must not keep the
+/// previous valid policy live (#3918 fail-closed).
+fn apply_architecture_reload(
+    current: &mut ArchitectureConfig,
+    reloaded: Result<ArchitectureConfig, WatchError>,
+) -> Result<(), WatchError> {
+    match reloaded {
+        Ok(reloaded) => {
+            *current = reloaded;
+            Ok(())
+        }
+        Err(err) => {
+            *current = ArchitectureConfig { layers: Vec::new() };
+            Err(err)
+        }
+    }
+}
+
 fn load_architecture_config(path: Option<&Path>) -> Result<ArchitectureConfig, WatchError> {
     match path {
         Some(path) => {
@@ -829,6 +846,31 @@ architecture:
         let config = load_architecture_config(Some(&config_path)).unwrap();
         assert_eq!(config.layers.len(), 1);
         assert_eq!(config.layers[0].name, "core");
+    }
+
+    #[test]
+    fn architecture_reload_failure_clears_stale_policy() {
+        let mut current = ArchitectureConfig::from_yaml(
+            r#"
+layers:
+  - name: core
+    paths: ["src/core/*"]
+    allowed_imports: []
+"#,
+        )
+        .unwrap();
+        assert_eq!(current.layers.len(), 1);
+
+        let err = apply_architecture_reload(
+            &mut current,
+            Err(WatchError::ConfigReload("preflight failed".into())),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("preflight"));
+        assert!(
+            current.layers.is_empty(),
+            "invalid reload must not keep the previous layers"
+        );
     }
 
     #[test]

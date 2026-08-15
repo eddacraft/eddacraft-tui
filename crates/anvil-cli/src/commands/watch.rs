@@ -1853,7 +1853,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         match crate::architecture_source::resolve_architecture(&workspace_root) {
             Ok(Some((definition, _))) => {
                 let mapped =
-                    crate::architecture_source::architecture_config_from_definition(&definition);
+                    crate::architecture_source::mapped_architecture_from_definition(&definition)?;
                 let root = workspace_root.clone();
                 let reloader: anvil_kernel::watch::ArchitectureReloader =
                     std::sync::Arc::new(move || {
@@ -1869,11 +1869,10 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                                         "architecture section disappeared".into(),
                                     )
                                 })?;
-                        Ok(
-                            crate::architecture_source::architecture_config_from_definition(
-                                &definition,
-                            ),
-                        )
+                        crate::architecture_source::mapped_architecture_from_definition(&definition)
+                            .map_err(|err| {
+                                anvil_kernel::watch::WatchError::ConfigReload(format!("{err:#}"))
+                            })
                     });
                 (Some(mapped), Some(reloader))
             }
@@ -2025,10 +2024,21 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                                 "[watching] ready — {files_watched} files watched (initial scan complete)"
                             );
                         }
-                        if let Some(d) = dispatcher.as_ref()
-                            && snapshot_count > 1
-                        {
-                            d.on_snapshot(snapshot_changed_path(&event));
+                        if snapshot_count > 1 {
+                            let emitted = emit_watch_architecture_check(
+                                &workspace_root,
+                                snapshot_changed_path(&event),
+                                output_mode,
+                                global.json,
+                                json_emitter.as_ref(),
+                            )
+                            .context("emitting watch architecture check")?;
+                            if !emitted {
+                                break;
+                            }
+                            if let Some(d) = dispatcher.as_ref() {
+                                d.on_snapshot(snapshot_changed_path(&event));
+                            }
                         }
                     }
                 }
@@ -2136,6 +2146,106 @@ pub(crate) fn snapshot_changed_path(event: &anvil_kernel_types::EngineEvent) -> 
     match &event.payload {
         anvil_kernel_types::EventPayload::Snapshot { changed_path, .. } => changed_path.as_deref(),
         _ => None,
+    }
+}
+
+fn repo_relative_changed_path(workspace_root: &std::path::Path, changed_path: &str) -> String {
+    let path = std::path::Path::new(changed_path);
+    if let Ok(rel) = path.strip_prefix(workspace_root) {
+        return rel.to_string_lossy().replace('\\', "/");
+    }
+    if let (Ok(canon), Ok(root)) = (path.canonicalize(), workspace_root.canonicalize())
+        && let Ok(rel) = canon.strip_prefix(root)
+    {
+        return rel.to_string_lossy().replace('\\', "/");
+    }
+    changed_path.replace('\\', "/")
+}
+
+fn emit_watch_architecture_check(
+    workspace_root: &std::path::Path,
+    changed_path: Option<&str>,
+    output_mode: WatchOutputMode,
+    json: bool,
+    json_emitter: Option<&WatchJsonEmitter>,
+) -> Result<bool> {
+    let scoped = changed_path.map(|path| repo_relative_changed_path(workspace_root, path));
+    let files = scoped.as_ref().map(|path| vec![path.clone()]);
+    let outcome = crate::architecture_check::check_architecture(workspace_root, files.as_deref());
+    emit_architecture_outcome(outcome, output_mode, json, json_emitter)
+}
+
+fn emit_architecture_outcome(
+    outcome: crate::architecture_check::ArchitectureCheckOutcome,
+    output_mode: WatchOutputMode,
+    json: bool,
+    json_emitter: Option<&WatchJsonEmitter>,
+) -> Result<bool> {
+    use crate::architecture_check::ArchitectureCheckOutcome;
+    use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode, ErrorPayload, EventPayload};
+
+    if matches!(output_mode, WatchOutputMode::Driver) {
+        return Ok(true);
+    }
+
+    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    match outcome {
+        ArchitectureCheckOutcome::Skipped { .. } | ArchitectureCheckOutcome::Passed { .. } => {
+            Ok(true)
+        }
+        ArchitectureCheckOutcome::Violations { findings } => {
+            for finding in findings {
+                if json {
+                    let Some(emitter) = json_emitter else {
+                        continue;
+                    };
+                    let event = EngineEvent::new(
+                        0,
+                        timestamp.clone(),
+                        EngineId::Rust,
+                        EventPayload::Violation {
+                            policy_id: finding.policy_id,
+                            file: finding.file,
+                            symbol: String::new(),
+                            message: finding.message,
+                        },
+                    );
+                    if !continue_after_watch_json_emit(emitter.emit_kernel_event(&event))? {
+                        return Ok(false);
+                    }
+                } else {
+                    println!(
+                        "[violation] [{}] {}: {}",
+                        finding.policy_id, finding.file, finding.message
+                    );
+                }
+            }
+            Ok(true)
+        }
+        ArchitectureCheckOutcome::Failed { message } => {
+            if json {
+                let Some(emitter) = json_emitter else {
+                    return Ok(true);
+                };
+                let event = EngineEvent::new(
+                    0,
+                    timestamp,
+                    EngineId::Rust,
+                    EventPayload::Error(ErrorPayload {
+                        code: ErrorCode::ConfigError,
+                        file: None,
+                        message,
+                        recoverable: true,
+                    }),
+                );
+                Ok(continue_after_watch_json_emit(
+                    emitter.emit_kernel_event(&event),
+                )?)
+            } else {
+                eprintln!("[error] Error: {message}");
+                Ok(true)
+            }
+        }
     }
 }
 
