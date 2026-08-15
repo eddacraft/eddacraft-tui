@@ -207,7 +207,10 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 - **Expected Outcome:** `anvil mcp refresh --processes orphan-reap` (or
   equivalent) SIGTERMs only shape-checked orphans; default remains report.
   Documented; tested with fake parent-dead PIDs where the platform allows.
-- **Files:** refresh process policy, tests
+- **Files:** `crates/anvil-cli/src/commands/mcp_refresh.rs`,
+  `crates/anvil-cli/src/commands/mcp_inventory.rs`,
+  `crates/anvil-cli/tests/mcp_refresh.rs`,
+  `docs/runbooks/cli-surface.md`
 - **Validation:** unit tests for parent-alive vs parent-dead classification;
   dry-run lists orphans without signalling
 - **Confidence:** medium

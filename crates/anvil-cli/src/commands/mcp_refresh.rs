@@ -1,7 +1,8 @@
 //! `anvil mcp refresh` — config rewrite, daemon recycle, generation poke.
 //!
 //! Cascade (spec §9.2): CONFIG → DAEMON → SIGNAL → REPORT. Default process
-//! mode is report-only. Live parents' MCP children are never signalled.
+//! mode is report-only. `--processes orphan-reap` SIGTERMs same-user orphans
+//! whose parent is gone. Live parents' MCP children are never signalled.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -26,6 +27,9 @@ use crate::commands::mcp_inventory::{
     NoopSignals, ProcessInventory, ProcessMode, ProcessSignalSink, apply_process_mode,
     collect_inventory,
 };
+
+#[cfg(unix)]
+use crate::commands::mcp_inventory::UnixTermSignals;
 use crate::mcp::reexec::resolve_preferred_executable;
 
 const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -44,7 +48,8 @@ pub struct McpRefreshArgs {
     #[arg(long, value_enum, default_value_t = DaemonMode::Auto)]
     pub daemon: DaemonMode,
 
-    /// Live MCP child policy. `report` lists by parent; `none` skips the scan.
+    /// Live MCP child policy. `report` lists by parent (default); `orphan-reap`
+    /// SIGTERMs same-user orphans (parent gone); `none` skips the scan.
     #[arg(long, default_value = "report")]
     pub processes: String,
 
@@ -106,8 +111,8 @@ pub fn run(args: &McpRefreshArgs, global: &GlobalArgs) -> Result<()> {
     let hooks = crate::commands::daemon_recycle::LiveDaemonRecycleHooks;
     #[cfg(not(any(unix, windows)))]
     let hooks = UnsupportedDaemonHooks;
-    let mut signals = NoopSignals;
-    let report = refresh(args, process_mode, CLI_VERSION, &hooks, &mut signals)?;
+    let mut signals = production_signal_sink(process_mode, args.dry_run);
+    let report = refresh(args, process_mode, CLI_VERSION, &hooks, signals.as_mut())?;
     emit_report(&report, global.json)?;
     if report.ok {
         Ok(())
@@ -116,17 +121,36 @@ pub fn run(args: &McpRefreshArgs, global: &GlobalArgs) -> Result<()> {
     }
 }
 
+fn production_signal_sink(mode: ProcessMode, dry_run: bool) -> Box<dyn ProcessSignalSink> {
+    match (mode, dry_run) {
+        (ProcessMode::OrphanReap, false) => {
+            #[cfg(unix)]
+            {
+                Box::new(UnixTermSignals)
+            }
+            #[cfg(not(unix))]
+            {
+                Box::new(NoopSignals)
+            }
+        }
+        _ => Box::new(NoopSignals),
+    }
+}
+
 fn parse_process_mode(raw: &str) -> Result<ProcessMode> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "report" => Ok(ProcessMode::Report),
         "none" => Ok(ProcessMode::None),
-        "orphan-reap" => {
-            bail!("--processes orphan-reap is not available in this slice (MCPLH-006)")
-        }
+        "orphan-reap" => Ok(ProcessMode::OrphanReap),
         "force-skewed" => {
-            bail!("--processes force-skewed is not available in this slice (MCPLH-006)")
+            bail!(
+                "--processes force-skewed is not offered (forbidden as a default; \
+                 it would signal children of live parents)"
+            )
         }
-        other => bail!("unknown --processes value `{other}`; expected report or none"),
+        other => {
+            bail!("unknown --processes value `{other}`; expected report, orphan-reap, or none")
+        }
     }
 }
 
@@ -180,7 +204,7 @@ fn refresh(
 
     let preferred = resolve_preferred_executable(None, std::env::var_os("PATH").as_deref());
     let scanned = collect_inventory(process_mode, preferred.as_deref());
-    let processes = apply_process_mode(process_mode, scanned, signals);
+    let processes = apply_process_mode(process_mode, scanned, signals, args.dry_run);
 
     Ok(RefreshReport {
         ok,
@@ -542,8 +566,12 @@ fn emit_report(report: &RefreshReport, json_mode: bool) -> Result<()> {
     );
     for group in &report.processes.by_parent {
         println!(
-            "  {}: pids {:?} — {} skewed",
-            group.command, group.parent_pids, group.skewed_children
+            "  {}: pids {:?} — {} skewed, {} current, {} orphan",
+            group.command,
+            group.parent_pids,
+            group.skewed_children,
+            group.current_children,
+            group.orphan_children
         );
     }
     if report.processes.skewed > 0 {
@@ -699,8 +727,35 @@ mod tests {
             ProcessMode::Report,
             inventory,
             &mut sink,
+            false,
         );
         assert!(sink.pids.is_empty());
         assert_eq!(reported.signalled, 0);
+    }
+
+    #[test]
+    fn parse_process_mode_accepts_orphan_reap() {
+        assert_eq!(
+            super::parse_process_mode("orphan-reap").unwrap(),
+            ProcessMode::OrphanReap
+        );
+        assert_eq!(
+            super::parse_process_mode("REPORT").unwrap(),
+            ProcessMode::Report
+        );
+    }
+
+    #[test]
+    fn parse_process_mode_rejects_force_skewed() {
+        let err = super::parse_process_mode("force-skewed").unwrap_err();
+        let message = err.to_string();
+        assert!(
+            message.contains("force-skewed"),
+            "error should name the rejected mode: {message}"
+        );
+        assert!(
+            message.contains("not offered") || message.contains("forbidden"),
+            "error should say force-skewed is not offered: {message}"
+        );
     }
 }

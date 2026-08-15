@@ -260,7 +260,57 @@ fn mcp_refresh_json_includes_config_daemon_and_processes() {
 }
 
 #[test]
-fn mcp_refresh_rejects_orphan_reap_in_this_slice() {
+fn mcp_refresh_dry_run_orphan_reap_lists_without_signalling() {
+    let home = tempfile::tempdir().unwrap();
+    write_cursor_anvil(home.path(), "anvil", None);
+    fs::write(generation_path(home.path()), "2\n").unwrap();
+    let before = fs::read_to_string(cursor_config(home.path())).unwrap();
+
+    let output = run_refresh_json(
+        home.path(),
+        &[
+            "--dry-run",
+            "--clients",
+            "cursor",
+            "--daemon",
+            "reuse",
+            "--processes",
+            "orphan-reap",
+        ],
+    );
+    assert_success(&output);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let parsed: Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|err| {
+        panic!("expected JSON report, got {stdout:?}: {err}");
+    });
+    assert_eq!(
+        parsed["processes"]["mode"].as_str().unwrap_or(""),
+        "orphan-reap"
+    );
+    assert_eq!(
+        parsed["processes"]["signalled"].as_u64().unwrap_or(99),
+        0,
+        "dry-run orphan-reap must not signal: {parsed}"
+    );
+    assert!(
+        parsed["processes"].get("orphan").is_some(),
+        "dry-run must still list orphan counts: {parsed}"
+    );
+    assert_eq!(
+        fs::read_to_string(cursor_config(home.path())).unwrap(),
+        before,
+        "dry-run must not rewrite configs"
+    );
+    assert_eq!(
+        fs::read_to_string(generation_path(home.path())).unwrap(),
+        "2\n",
+        "dry-run must not bump generation"
+    );
+}
+
+#[test]
+fn mcp_refresh_rejects_force_skewed() {
     let home = tempfile::tempdir().unwrap();
     write_cursor_anvil(home.path(), "anvil", None);
     fs::write(generation_path(home.path()), "2\n").unwrap();
@@ -268,18 +318,19 @@ fn mcp_refresh_rejects_orphan_reap_in_this_slice() {
 
     let output = run_refresh(
         home.path(),
-        &["--clients", "cursor", "--processes", "orphan-reap"],
+        &["--clients", "cursor", "--processes", "force-skewed"],
     );
     assert!(
         !output.status.success(),
-        "orphan-reap must fail closed in this slice\nstdout: {}\nstderr: {}",
+        "force-skewed must stay rejected\nstdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("not") && (stderr.contains("slice") || stderr.contains("MCPLH-006")),
-        "orphan-reap error must say it is not in this slice: {stderr}"
+        stderr.contains("force-skewed")
+            && (stderr.contains("not offered") || stderr.contains("forbidden")),
+        "force-skewed error must say it is not offered: {stderr}"
     );
     assert_eq!(
         fs::read_to_string(cursor_config(home.path())).unwrap(),

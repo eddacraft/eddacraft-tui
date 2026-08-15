@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                          |
-| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-14 against `crates/anvil-cli/src/commands/update.rs` (Windows decline exit) and `{init,migrate,gate_config,architecture}.rs` |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                          |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-15 against `crates/anvil-cli/src/commands/mcp_refresh.rs` (`--processes orphan-reap` opt-in) |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -955,6 +955,16 @@ and pokes live MCP children so they re-check the preferred binary.
 | `serve --stdio`             | Start an MCP server over stdin/stdout.        |
 | `refresh`                   | Bulk rewrite, daemon recycle, and live poke.  |
 
+**`refresh` flags:**
+
+| Flag                 | Description                                                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dry-run`          | Preview config, daemon, and generation actions without mutating them. With `--processes orphan-reap`, lists orphans and does not signal.                                                                        |
+| `--clients <ids>`    | `all` (default), `detected`, or one or more registry ids.                                                                                                                                                       |
+| `--daemon <mode>`    | `auto` (default), `restart`, or `reuse`.                                                                                                                                                                        |
+| `--processes <mode>` | `report` (default, no signals), `orphan-reap` (opt-in: SIGTERM same-user `anvil mcp serve --stdio` children whose parent PID is gone), or `none`. `force-skewed` is rejected. Live parents are never signalled. |
+| `--workspace <path>` | Override the client config roots.                                                                                                                                                                               |
+
 **`install` flags:**
 
 | Flag                 | Description                                                                      |
@@ -975,6 +985,8 @@ $ anvil mcp install --client codex
 $ anvil mcp install --client zed --scope project
 $ anvil mcp install --client copilot-cli --verify
 $ anvil mcp serve --stdio
+$ anvil mcp refresh --dry-run
+$ anvil mcp refresh --processes orphan-reap
 ```
 
 ---

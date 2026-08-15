@@ -1,7 +1,8 @@
-//! Report-only inventory of live `anvil mcp serve` children (MCPLH-003).
+//! Inventory of live `anvil mcp serve` children (MCPLH-003 / MCPLH-006).
 //!
-//! Default refresh process mode is visibility only. This module never
-//! signals or kills a process. Orphan reap lands in MCPLH-006.
+//! Default refresh process mode is report-only. `orphan-reap` SIGTERMs
+//! same-user, shape-checked children whose parent PID is gone. Live
+//! parents' children are never signalled.
 
 use std::path::Path;
 #[cfg(any(unix, test))]
@@ -14,6 +15,7 @@ use serde::Serialize;
 pub(crate) enum ProcessMode {
     Report,
     None,
+    OrphanReap,
 }
 
 impl ProcessMode {
@@ -21,6 +23,7 @@ impl ProcessMode {
         match self {
             Self::Report => "report",
             Self::None => "none",
+            Self::OrphanReap => "orphan-reap",
         }
     }
 }
@@ -45,7 +48,7 @@ pub(crate) struct McpProcess {
     pub class: ProcessClass,
 }
 
-/// Report-only snapshot of live MCP children.
+/// Snapshot of live MCP children.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ProcessInventory {
@@ -56,6 +59,9 @@ pub(crate) struct ProcessInventory {
     pub current: usize,
     pub orphan: usize,
     pub by_parent: Vec<ParentGroup>,
+    /// Child PIDs classified as [`ProcessClass::Orphan`]. Not serialised.
+    #[serde(skip)]
+    orphan_pids: Vec<u32>,
 }
 
 /// Parent-grouped residual skew for the operator report.
@@ -71,29 +77,64 @@ pub(crate) struct ParentGroup {
 
 /// Sink used so tests can prove report mode never signals.
 ///
-/// Production report/none modes must not call [`ProcessSignalSink::signal`].
-/// MCPLH-006 will use this for orphan-reap.
+/// Production report/none/dry-run paths must not call [`ProcessSignalSink::signal`].
+/// Live Unix `orphan-reap` sends SIGTERM via a dedicated sink.
 pub(crate) trait ProcessSignalSink {
-    #[allow(dead_code)] // reserved for MCPLH-006; report/none must not call it
     fn signal(&mut self, pid: u32);
 }
 
-/// No-op sink for the production refresh path.
+/// No-op sink for report, none, dry-run, and non-Unix orphan-reap.
 pub(crate) struct NoopSignals;
 
 impl ProcessSignalSink for NoopSignals {
     fn signal(&mut self, _pid: u32) {}
 }
 
-/// Apply the process policy. Report and none never call [`ProcessSignalSink::signal`].
+/// Production sink: SIGTERM only, after a last-moment shape and orphan check.
+#[cfg(unix)]
+pub(crate) struct UnixTermSignals;
+
+#[cfg(unix)]
+impl ProcessSignalSink for UnixTermSignals {
+    fn signal(&mut self, pid: u32) {
+        use nix::sys::signal::{Signal, kill};
+        use nix::unistd::Pid;
+
+        if !still_orphan_mcp_serve(pid) {
+            return;
+        }
+        let Ok(raw) = i32::try_from(pid) else {
+            return;
+        };
+        if raw <= 1 {
+            return;
+        }
+        // Best-effort: ESRCH means the process already exited.
+        let _ = kill(Pid::from_raw(raw), Signal::SIGTERM);
+    }
+}
+
+/// Apply the process policy. Report, none, and dry-run never call the sink.
+/// `orphan-reap` SIGTERMs only [`ProcessClass::Orphan`] PIDs.
 #[must_use]
 pub(crate) fn apply_process_mode(
     mode: ProcessMode,
-    inventory: ProcessInventory,
-    _sink: &mut dyn ProcessSignalSink,
+    mut inventory: ProcessInventory,
+    sink: &mut dyn ProcessSignalSink,
+    dry_run: bool,
 ) -> ProcessInventory {
+    if dry_run {
+        return inventory;
+    }
     match mode {
         ProcessMode::Report | ProcessMode::None => inventory,
+        ProcessMode::OrphanReap => {
+            for pid in &inventory.orphan_pids {
+                sink.signal(*pid);
+            }
+            inventory.signalled = u32::try_from(inventory.orphan_pids.len()).unwrap_or(u32::MAX);
+            inventory
+        }
     }
 }
 
@@ -102,7 +143,7 @@ pub(crate) fn apply_process_mode(
 pub(crate) fn collect_inventory(mode: ProcessMode, preferred: Option<&Path>) -> ProcessInventory {
     match mode {
         ProcessMode::None => empty_inventory(ProcessMode::None),
-        ProcessMode::Report => summarise(&scan_live(preferred), ProcessMode::Report),
+        ProcessMode::Report | ProcessMode::OrphanReap => summarise(&scan_live(preferred), mode),
     }
 }
 
@@ -116,6 +157,7 @@ pub(crate) fn empty_inventory(mode: ProcessMode) -> ProcessInventory {
         current: 0,
         orphan: 0,
         by_parent: Vec::new(),
+        orphan_pids: Vec::new(),
     }
 }
 
@@ -130,10 +172,12 @@ pub(crate) fn summarise(processes: &[McpProcess], mode: ProcessMode) -> ProcessI
         .iter()
         .filter(|proc| proc.class == ProcessClass::Current)
         .count();
-    let orphan = processes
+    let orphan_pids: Vec<u32> = processes
         .iter()
         .filter(|proc| proc.class == ProcessClass::Orphan)
-        .count();
+        .map(|proc| proc.pid)
+        .collect();
+    let orphan = orphan_pids.len();
     ProcessInventory {
         mode: mode.as_str(),
         signalled: 0,
@@ -142,6 +186,7 @@ pub(crate) fn summarise(processes: &[McpProcess], mode: ProcessMode) -> ProcessI
         current,
         orphan,
         by_parent: group_by_parent(processes),
+        orphan_pids,
     }
 }
 
@@ -220,6 +265,22 @@ fn scan_proc(preferred: Option<&Path>) -> Vec<McpProcess> {
     }
     found.sort_by_key(|proc| proc.pid);
     found
+}
+
+#[cfg(unix)]
+fn still_orphan_mcp_serve(pid: u32) -> bool {
+    if pid <= 1 || pid == std::process::id() {
+        return false;
+    }
+    let Some(args) = read_cmdline(pid) else {
+        return false;
+    };
+    if !looks_like_anvil_mcp_serve(&args) {
+        return false;
+    }
+    let parent_pid = read_ppid(pid).unwrap_or(0);
+    let parent_alive = parent_pid > 1 && Path::new(&format!("/proc/{parent_pid}")).exists();
+    !parent_alive
 }
 
 #[cfg(any(unix, test))]
@@ -357,7 +418,7 @@ mod tests {
     fn processes_report_never_sends_a_signal() {
         let inventory = summarise(&sample_inventory(), ProcessMode::Report);
         let mut sink = RecordingSink { pids: Vec::new() };
-        let reported = apply_process_mode(ProcessMode::Report, inventory, &mut sink);
+        let reported = apply_process_mode(ProcessMode::Report, inventory, &mut sink, false);
         assert!(
             sink.pids.is_empty(),
             "report mode must not signal: {:?}",
@@ -368,6 +429,50 @@ mod tests {
         assert_eq!(reported.skewed, 1);
         assert_eq!(reported.by_parent[0].command, "grok");
         assert_eq!(reported.by_parent[0].parent_pids, vec![10]);
+    }
+
+    fn mixed_inventory() -> Vec<McpProcess> {
+        let mut processes = sample_inventory();
+        processes.push(McpProcess {
+            pid: 13,
+            ppid: 99,
+            command: "anvil".into(),
+            parent_command: "unknown".into(),
+            class: ProcessClass::Orphan,
+        });
+        processes
+    }
+
+    #[test]
+    fn orphan_reap_signals_only_orphan_pids() {
+        let inventory = summarise(&mixed_inventory(), ProcessMode::OrphanReap);
+        let mut sink = RecordingSink { pids: Vec::new() };
+        let reported = apply_process_mode(ProcessMode::OrphanReap, inventory, &mut sink, false);
+        assert_eq!(
+            sink.pids,
+            vec![13],
+            "orphan-reap must signal only orphan PIDs"
+        );
+        assert_eq!(reported.signalled, 1);
+        assert_eq!(reported.orphan, 1);
+        assert_eq!(reported.skewed, 1);
+        assert_eq!(reported.current, 1);
+        assert_eq!(reported.mode, "orphan-reap");
+    }
+
+    #[test]
+    fn orphan_reap_dry_run_does_not_signal() {
+        let inventory = summarise(&mixed_inventory(), ProcessMode::OrphanReap);
+        let mut sink = RecordingSink { pids: Vec::new() };
+        let reported = apply_process_mode(ProcessMode::OrphanReap, inventory, &mut sink, true);
+        assert!(
+            sink.pids.is_empty(),
+            "dry-run orphan-reap must not signal: {:?}",
+            sink.pids
+        );
+        assert_eq!(reported.signalled, 0);
+        assert_eq!(reported.orphan, 1);
+        assert_eq!(reported.mode, "orphan-reap");
     }
 
     #[test]
