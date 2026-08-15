@@ -363,7 +363,10 @@ impl Drop for StopDaemonOnDrop {
 #[cfg(not(target_os = "windows"))]
 fn assert_bare_anvil_missing_from_editor_path() {
     let path = editor_path_without_anvil();
-    let missing = Command::new("anvil").arg("--version").env("PATH", &path).output();
+    let missing = Command::new("anvil")
+        .arg("--version")
+        .env("PATH", &path)
+        .output();
     assert!(
         missing.is_err() || missing.is_ok_and(|out| !out.status.success()),
         "filtered PATH must not resolve bare `anvil` (spawn error or failed --version)"
