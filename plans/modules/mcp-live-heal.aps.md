@@ -184,8 +184,10 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
   grouping when available, and split claims (`protecting` / pre-write attach vs
   `graph_ready` or equivalent blocker list). Extends CIB-242 visibility; does
   not auto-kill.
-- **Files:** `crates/anvil-cli/src/commands/` status/verify render paths,
-  process inventory helpers, tests for skew disclosure
+- **Files:** `crates/anvil-cli/src/commands/status.rs`,
+  `crates/anvil-cli/src/commands/status_mcp.rs`,
+  `crates/anvil-cli/src/commands/mod.rs`,
+  `schemas/anvil-status.v1.json`
 - **Validation:** `cargo test -p eddacraft-anvil -- status` (or targeted
   status_render / verify tests); fixture with mismatched versions prints skew
   guidance without claiming false agent-ready

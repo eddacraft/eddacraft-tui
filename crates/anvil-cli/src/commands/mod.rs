@@ -50,6 +50,7 @@ pub mod skill;
 pub mod skill_state;
 pub mod start;
 pub mod status;
+pub(crate) mod status_mcp;
 pub mod telemetry;
 pub mod tutorial;
 pub mod uninstall;

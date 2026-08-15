@@ -18,6 +18,7 @@ use crate::commands::hooks::{
     config_hooks_enabled, is_config_mode_hook_path, list_config_hook_commands,
 };
 use crate::commands::protection_claim_section;
+use crate::commands::status_mcp;
 use crate::commands::watch_save_time;
 use crate::config_summary::render_rule_mode_summary;
 
@@ -49,6 +50,19 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // the off posture explicitly; explicit opt-in preserves the older
     // daemon-absent fallback surface; operator opt-out hides the line.
     let save_time = gather_save_time();
+    let cli_version = env!("CARGO_PKG_VERSION");
+    let mcp_inventory = status_mcp::gather_mcp_inventory(cli_version);
+    let graph = status_mcp::graph_from_assurance(save_time.assurance().map(|s| &s.assurance));
+    let protecting = matches!(
+        activation.protection_state(),
+        activation::state::ProtectionState::Protecting,
+    );
+    let mcp = status_mcp::status_mcp_json(
+        cli_version,
+        protecting,
+        mcp_inventory.as_ref(),
+        graph.as_ref(),
+    );
 
     // DISTRIB-002: surface an update-available hint when one is
     // detected and the 24h rate-limit gate allows it. `--json` is
@@ -123,13 +137,21 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             daemon_snapshot.as_ref(),
             &worktree,
             save_time.assurance(),
+            mcp,
         )?;
     } else if status_prefers_tui(global) {
         let state = StatusState::new(data);
         crate::tui::run_surface(state)?;
     } else {
         warn_if_status_tui_unavailable(global);
-        print_plain(&data, &activation, save_time);
+        print_plain(
+            &data,
+            &activation,
+            save_time,
+            cli_version,
+            mcp_inventory.as_ref(),
+            graph.as_ref(),
+        );
     }
 
     Ok(())
@@ -142,12 +164,38 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 /// the start command.
 fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let activation = activation::verify(Path::new("."));
+    let cli_version = env!("CARGO_PKG_VERSION");
+    let mcp_inventory = status_mcp::gather_mcp_inventory(cli_version);
+    let save_time = gather_save_time();
+    let graph = status_mcp::graph_from_assurance(save_time.assurance().map(|s| &s.assurance));
+    let protecting = matches!(
+        activation.protection_state(),
+        activation::state::ProtectionState::Protecting,
+    );
     if global.json {
-        let json = serde_json::to_string_pretty(&activation::render_json(&activation))?;
+        let mut value = activation::render_json(&activation);
+        if let Some(mcp) = status_mcp::status_mcp_json(
+            cli_version,
+            protecting,
+            mcp_inventory.as_ref(),
+            graph.as_ref(),
+        ) {
+            merge_status_mcp_json(&mut value, &mcp);
+        }
+        let json = serde_json::to_string_pretty(&value)?;
         println!("{json}");
     } else {
         print!("{}", activation::render_human(&activation));
         print!("{}", render_rule_mode_summary(Path::new(".")));
+        print!(
+            "{}",
+            status_mcp::render_status_mcp_plain(
+                cli_version,
+                protecting,
+                mcp_inventory.as_ref(),
+                graph.as_ref(),
+            )
+        );
         // MLP2-051g — verbose tier-evidence on stderr. Suppressed
         // under `--json` (consumers expect a single JSON document on
         // stdout; the stderr block does not change that contract,
@@ -158,6 +206,21 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn merge_status_mcp_json(value: &mut serde_json::Value, mcp: &status_mcp::StatusMcpJson) {
+    let Ok(extra) = serde_json::to_value(mcp) else {
+        return;
+    };
+    let Some(obj) = value.as_object_mut() else {
+        return;
+    };
+    let Some(map) = extra.as_object() else {
+        return;
+    };
+    for (key, extra_value) in map {
+        obj.insert(key.clone(), extra_value.clone());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -583,6 +646,9 @@ fn print_plain(
     data: &StatusData,
     activation_diag: &activation::ActivationDiagnostic,
     save_time: SaveTimePosture,
+    cli_version: &str,
+    mcp_inventory: Option<&status_mcp::McpProcessInventory>,
+    graph: Option<&status_mcp::GraphReadiness>,
 ) {
     // Resolve the repo root once so the witness chain at
     // `<repo-root>/anvil/witness/active.ndjson` is found even when
@@ -608,6 +674,14 @@ fn print_plain(
     print!(
         "{}",
         render_registered_worktrees(registered_snapshot.as_ref(), cwd.as_deref())
+    );
+    let protecting = matches!(
+        activation_diag.protection_state(),
+        activation::state::ProtectionState::Protecting,
+    );
+    print!(
+        "{}",
+        status_mcp::render_status_mcp_plain(cli_version, protecting, mcp_inventory, graph)
     );
     // DISTRIB-002 update hint, INSIGHTS-004 nudge, and the UJ-010
     // what's-new line share the single footer line in plain output.
@@ -1652,6 +1726,12 @@ struct StatusOutput {
     /// otherwise so v1 output stays unchanged (`additionalProperties: true`).
     #[serde(skip_serializing_if = "Option::is_none")]
     save_time_driver: Option<&'static str>,
+
+    /// MCPLH-005: MCP inventory + split readiness claims. Flattened so each
+    /// field is omitted independently when absent (same posture as
+    /// `save_time`).
+    #[serde(flatten)]
+    mcp: status_mcp::StatusMcpJson,
 }
 
 #[derive(Serialize)]
@@ -1684,6 +1764,7 @@ fn print_json(
     daemon_snapshot: Option<&DaemonStatusV1>,
     worktree: &Path,
     save_time: Option<&SaveTimeRender>,
+    mcp: Option<status_mcp::StatusMcpJson>,
 ) -> anyhow::Result<()> {
     let claim = protection_claim_section::resolve_protection_claim(
         activation_diag,
@@ -1756,6 +1837,7 @@ fn print_json(
                 .find(|w| w.worktree == worktree)
                 .map(|w| save_time_driver_str(w.save_time_driver))
         }),
+        mcp: mcp.unwrap_or_default(),
     };
 
     let json = serde_json::to_string_pretty(&output)?;
@@ -3554,7 +3636,11 @@ mod tests {
     /// for the local-derivation path. Both are unused in the
     /// daemon-snapshot branch but must be supplied for the call sig.
     fn unprotected_diag_and_layers() -> (activation::ActivationDiagnostic, LayerSummary) {
-        let diag = activation::verify(Path::new("/nonexistent-anvil-status-test-path"));
+        // Synthetic: live `activation::verify` on a missing path still
+        // reads the operator HOME MCP configs and can yield
+        // `ReadyRestartRequired` (Warming) on a machine with anvil
+        // installed. These tests only need a local-only fallback diag.
+        let diag = test_activation_diagnostic();
         let layers = LayerSummary {
             l0_mcp: LayerState::Off,
             l1_mid_edit: LayerState::Unknown,
@@ -3649,6 +3735,85 @@ mod tests {
             protection_claim_section::resolve_protection_claim(&diag, Some(&snapshot), queried);
         assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
         assert!(claim.surfaces.is_empty());
+    }
+
+    fn status_output_for_mcp_test(mcp: status_mcp::StatusMcpJson) -> StatusOutput {
+        StatusOutput {
+            schema_version: STATUS_SCHEMA_VERSION,
+            activation: serde_json::json!({
+                "state": "protecting",
+                "headline": "Protecting",
+                "config": "valid",
+                "mcp": [],
+                "watch": "not_requested"
+            }),
+            hooks: vec![],
+            profile: ProfileOutput {
+                name: "test".into(),
+                checks: vec![],
+                path: String::new(),
+            },
+            recent_runs: vec![],
+            claim: ProtectionClaim::new(WorktreeClaimState::PreWriteDaemon, vec![]),
+            install_root: None,
+            project_writes_gated: None,
+            save_time: None,
+            save_time_driver: None,
+            mcp,
+        }
+    }
+
+    #[test]
+    fn status_json_omits_mcp_inventory_when_empty() {
+        let value = serde_json::to_value(status_output_for_mcp_test(
+            status_mcp::StatusMcpJson::default(),
+        ))
+        .expect("serialize");
+        for key in [
+            "cli_version",
+            "mcp_skew",
+            "mcp_processes",
+            "graph",
+            "agent_ready",
+            "graph_ready",
+            "protecting",
+        ] {
+            assert!(
+                value.get(key).is_none(),
+                "empty inventory must omit {key}: {value}"
+            );
+        }
+    }
+
+    #[test]
+    fn status_json_includes_split_claims_when_inventory_present() {
+        let inventory = status_mcp::classify_inventory(
+            "0.9.5-beta",
+            &[status_mcp::McpProcessRecord {
+                pid: 200,
+                parent_pid: Some(100),
+                parent_command: "grok".into(),
+                version: Some("0.9.2-beta".into()),
+                current: false,
+                orphan: false,
+            }],
+        );
+        let graph = status_mcp::GraphReadiness {
+            state: status_mcp::GraphState::Stale,
+            reason: Some("scan-timeout".into()),
+        };
+        let mcp = status_mcp::status_mcp_json("0.9.5-beta", true, Some(&inventory), Some(&graph))
+            .expect("mcp json");
+        let value = serde_json::to_value(status_output_for_mcp_test(mcp)).expect("serialize");
+        assert_eq!(value["cli_version"], "0.9.5-beta");
+        assert_eq!(value["mcp_skew"], true);
+        assert_eq!(value["mcp_processes"]["total"], 1);
+        assert_eq!(value["mcp_processes"]["skewed"], 1);
+        assert_eq!(value["agent_ready"], false);
+        assert_eq!(value["graph_ready"], false);
+        assert_eq!(value["protecting"], true);
+        assert_eq!(value["graph"]["state"], "stale");
+        assert_eq!(value["graph"]["reason"], "scan-timeout");
     }
 
     // ── INSIGHTS-004 first-week hint tests (drive the nudge in status) ──

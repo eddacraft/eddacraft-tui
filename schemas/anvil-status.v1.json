@@ -154,6 +154,67 @@
       "description": "DSV-049: the current worktree's headless save-time driver state from the daemon snapshot. Present only when a daemon answered AND the current worktree is registered, so consumers can distinguish 'no daemon evidence' (key omitted) from an explicit 'absent'. `unknown` is the forward-compat fallback a consumer surfaces for a driver state emitted by a newer daemon; treat it fail-safe as 'absent' (no attachment evidence). Additive-optional under `additionalProperties: true`; a renamed or removed value requires a schema-version bump.",
       "type": "string",
       "enum": ["attached", "absent", "failed", "unknown"]
+    },
+    "cli_version": {
+      "description": "MCPLH-005: this CLI's version string. Present only when an MCP process inventory was gathered.",
+      "type": "string"
+    },
+    "mcp_skew": {
+      "description": "MCPLH-005: true when at least one inventoried MCP process does not match this CLI. Omitted when no inventory was gathered. Report-only; never implies a kill.",
+      "type": "boolean"
+    },
+    "mcp_processes": {
+      "description": "MCPLH-005: best-effort same-user inventory of `anvil mcp serve` processes. Omitted when the probe found none or failed. Report-only.",
+      "type": "object",
+      "required": ["total", "skewed", "current", "orphan", "by_parent"],
+      "additionalProperties": true,
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "skewed": { "type": "integer", "minimum": 0 },
+        "current": { "type": "integer", "minimum": 0 },
+        "orphan": { "type": "integer", "minimum": 0 },
+        "by_parent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["command", "parent_pids", "skewed_children"],
+            "additionalProperties": true,
+            "properties": {
+              "command": { "type": "string" },
+              "parent_pids": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 }
+              },
+              "skewed_children": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "graph": {
+      "description": "MCPLH-005: graph readiness reused from save-time assurance. Omitted when no assurance snapshot is available.",
+      "type": "object",
+      "required": ["state"],
+      "additionalProperties": true,
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["ready", "warming", "stale", "unavailable"]
+        },
+        "reason": { "type": "string" }
+      }
+    },
+    "agent_ready": {
+      "description": "MCPLH-005 / OQ-4: pre-write attach plus current MCP binaries. Does not include graph readiness.",
+      "type": "boolean"
+    },
+    "graph_ready": {
+      "description": "MCPLH-005 / OQ-4: true only when graph.state is ready. Independent of protecting / agent_ready.",
+      "type": "boolean"
+    },
+    "protecting": {
+      "description": "MCPLH-005: true when activation protection state is protecting (pre-write attach). Independent of graph_ready.",
+      "type": "boolean"
     }
   }
 }
