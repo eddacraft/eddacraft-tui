@@ -124,7 +124,9 @@ fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<()> {
 fn convert_config(root: &Path, format: &str) -> anyhow::Result<String> {
     let config = load_project_config(root)?;
     let format = parse_output_format(format)?;
-    serialize_config(&config.value, format)
+    let mut value = config.value;
+    align_format_metadata(&mut value, format);
+    serialize_config(&value, format)
 }
 
 /// Write the discovered project config as `.anvil.<ext>` (UCFG-015).
@@ -158,6 +160,7 @@ pub(crate) fn convert_and_write(
     if let Some(note) = anvil_config::legacy_keys_deprecation_note(&renamed) {
         eprintln!("anvil: {note} (rewritten during conversion)");
     }
+    align_format_metadata(&mut value, dest_format);
 
     let text = serialize_config(&value, dest_format)?;
     crate::util::atomic_write(&dest, text.as_bytes())
@@ -281,6 +284,24 @@ pub(crate) fn parse_output_format(raw: &str) -> anyhow::Result<ConfigFormat> {
         "json" => Ok(ConfigFormat::Json),
         "toml" => Ok(ConfigFormat::Toml),
         other => bail!("unsupported config format `{other}`; expected yaml, yml, json, or toml"),
+    }
+}
+
+/// Rewrite top-level `format` metadata to the destination extension.
+///
+/// Discovery treats the filename as authoritative. The embedded field is
+/// init/start metadata and must not retain a source spelling after an
+/// owned conversion (issue #3914). Absent keys stay absent so legacy
+/// files without the field do not gain one.
+fn align_format_metadata(value: &mut Value, dest_format: ConfigFormat) {
+    let Some(obj) = value.as_object_mut() else {
+        return;
+    };
+    if obj.contains_key("format") {
+        obj.insert(
+            "format".to_string(),
+            Value::String(dest_format.extension().to_string()),
+        );
     }
 }
 
@@ -509,5 +530,160 @@ mod tests {
         .unwrap();
         let shown = show_config(tmp.path()).unwrap();
         assert!(!shown.contains("deprecated"), "{shown}");
+    }
+
+    const CONVERT_FORMATS: &[&str] = &["yaml", "yml", "json", "toml"];
+
+    fn write_format_fixture(root: &Path, format: ConfigFormat, format_meta: &str) {
+        let value = serde_json::json!({
+            "schema_version": "1.0.0",
+            "planning_dir": "plans",
+            "format": format_meta,
+            "checks": ["lint"],
+        });
+        std::fs::write(
+            root.join(format!(".anvil.{}", format.extension())),
+            serialize_config(&value, format).unwrap(),
+        )
+        .unwrap();
+    }
+
+    fn parsed_format_field(root: &Path, format: ConfigFormat) -> Option<String> {
+        let path = root.join(format!(".anvil.{}", format.extension()));
+        anvil_config::parse_file(&path).unwrap()["format"]
+            .as_str()
+            .map(str::to_owned)
+    }
+
+    /// Issue #3914: pairwise conversion must not keep the source `format`
+    /// spelling in the destination body.
+    #[test]
+    fn convert_rewrites_embedded_format_metadata_pairwise() {
+        for src in CONVERT_FORMATS {
+            for dest in CONVERT_FORMATS {
+                let tmp = TempDir::new().unwrap();
+                let src_fmt = parse_output_format(src).unwrap();
+                let dest_fmt = parse_output_format(dest).unwrap();
+                write_format_fixture(tmp.path(), src_fmt, src_fmt.extension());
+
+                convert_and_write(tmp.path(), dest, false, true, "config convert").unwrap();
+
+                assert_eq!(
+                    parsed_format_field(tmp.path(), dest_fmt).as_deref(),
+                    Some(dest_fmt.extension()),
+                    "{src} → {dest} retained stale format metadata"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn convert_stdout_rewrites_embedded_format_metadata() {
+        let tmp = TempDir::new().unwrap();
+        write_format_fixture(tmp.path(), ConfigFormat::Yml, "yml");
+
+        let output = convert_config(tmp.path(), "json").unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["format"], "json", "{output}");
+        assert!(
+            !tmp.path().join(".anvil.json").exists(),
+            "--stdout path must not write"
+        );
+    }
+
+    #[test]
+    fn convert_rewrites_stale_same_path_format_metadata() {
+        let tmp = TempDir::new().unwrap();
+        write_format_fixture(tmp.path(), ConfigFormat::Yaml, "yml");
+
+        convert_and_write(tmp.path(), "yaml", false, true, "config convert").unwrap();
+
+        assert_eq!(
+            parsed_format_field(tmp.path(), ConfigFormat::Yaml).as_deref(),
+            Some("yaml")
+        );
+    }
+
+    #[test]
+    fn convert_does_not_invent_format_metadata_when_absent() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yml"), "checks:\n  - lint\n").unwrap();
+
+        convert_and_write(tmp.path(), "json", false, true, "config convert").unwrap();
+
+        let parsed = anvil_config::parse_file(&tmp.path().join(".anvil.json")).unwrap();
+        assert!(parsed.get("format").is_none(), "{parsed}");
+        assert_eq!(parsed["checks"][0], "lint");
+    }
+
+    #[test]
+    fn convert_legacy_anvilrc_rewrites_format_metadata() {
+        let tmp = TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            "{\n  \"format\": \"json\",\n  \"checks\": []\n}\n",
+        )
+        .unwrap();
+
+        convert_and_write(tmp.path(), "toml", false, false, "config convert").unwrap();
+
+        let body = std::fs::read_to_string(tmp.path().join(".anvil.toml")).unwrap();
+        assert!(body.contains("format = \"toml\""), "{body}");
+        assert!(!body.contains("format = \"json\""), "{body}");
+    }
+
+    #[test]
+    fn convert_round_trip_does_not_oscillate_format_metadata() {
+        let tmp = TempDir::new().unwrap();
+        write_format_fixture(tmp.path(), ConfigFormat::Yaml, "yaml");
+
+        for dest in ["json", "toml", "yml", "yaml"] {
+            convert_and_write(tmp.path(), dest, false, true, "config convert").unwrap();
+        }
+
+        let parsed = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
+        assert_eq!(parsed["format"], "yaml", "{parsed}");
+        let keys: std::collections::BTreeSet<_> =
+            parsed.as_object().unwrap().keys().cloned().collect();
+        let expected: std::collections::BTreeSet<_> =
+            ["checks", "format", "planning_dir", "schema_version"]
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+        assert_eq!(keys, expected, "{parsed}");
+    }
+
+    #[test]
+    fn convert_init_shaped_file_matches_fresh_init_typed_view() {
+        use crate::commands::init::{AnvilConfig, generate_config};
+        use crate::config_view::InitConfigView;
+
+        let src = TempDir::new().unwrap();
+        generate_config(
+            &AnvilConfig {
+                format: "yaml".to_string(),
+                ..AnvilConfig::default()
+            },
+            src.path(),
+        )
+        .unwrap();
+        convert_and_write(src.path(), "json", false, true, "config convert").unwrap();
+        let converted = anvil_config::parse_file(&src.path().join(".anvil.json")).unwrap();
+        let converted_view = InitConfigView::from_value(&converted).unwrap();
+
+        let fresh = TempDir::new().unwrap();
+        generate_config(
+            &AnvilConfig {
+                format: "json".to_string(),
+                ..AnvilConfig::default()
+            },
+            fresh.path(),
+        )
+        .unwrap();
+        let fresh_value = anvil_config::parse_file(&fresh.path().join(".anvil.json")).unwrap();
+        let fresh_view = InitConfigView::from_value(&fresh_value).unwrap();
+
+        assert_eq!(converted_view, fresh_view);
     }
 }
