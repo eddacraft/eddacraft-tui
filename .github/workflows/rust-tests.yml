@@ -68,8 +68,18 @@ jobs:
       # reports green, so the required `Test` check never blocks a
       # docs/config-only PR. fetch-depth: 0 above lets the action fall back to a
       # git diff on push events where there is no PR API to query.
+      #
+      # CIB-338: `continue-on-error` makes this gate fail OPEN. The filter can
+      # die on the GitHub `listFiles` API (run 31786493631 reddened a docs-only
+      # PR with every downstream step skipped and zero tests executed); when it
+      # does, the job must not abort here — the gate step below treats a
+      # non-success outcome as "run the full work", the step-level analogue of
+      # ci.yml's `needs.detect-changes.result != 'success'` consumers. A
+      # path-detection outage costs redundant CI minutes, never a false failure
+      # on the required `Test` check.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: changes
+        continue-on-error: true
         with:
           filters: |
             rust:
@@ -90,7 +100,13 @@ jobs:
         id: gate
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" != 'pull_request' ] || [ "${{ steps.changes.outputs.rust }}" = 'true' ]; then
+          # Fail open (CIB-338): a non-success filter outcome means path
+          # detection is unavailable, not that the PR is Rust-free — run the
+          # full gate rather than guessing green.
+          if [ "${{ steps.changes.outcome }}" != 'success' ]; then
+            echo "::warning::paths-filter did not complete (outcome=${{ steps.changes.outcome }}); failing open and running the full Rust test gate (CIB-338)."
+          fi
+          if [ "${{ github.event_name }}" != 'pull_request' ] || [ "${{ steps.changes.outcome }}" != 'success' ] || [ "${{ steps.changes.outputs.rust }}" = 'true' ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"

@@ -1,12 +1,12 @@
 # Testing Best Practices
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                           |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-08-14 against `.github/workflows/ci.yml` (CIB-335 added the compiled-registry parity step to the `Unit Tests` job — documented under Package-Specific Guidance) and earlier `.github/workflows/rust.yml`, `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                             |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-08-15 against `.github/workflows/rust-tests.yml` (CIB-338 made the paths-filter gate on the required `Test` check fail open — documented under CI Flake Triage) and earlier `.github/workflows/ci.yml` (CIB-335 parity step), `.github/workflows/rust.yml`, `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
 
-| Upstream                                                                                                                                                                  | Downstream                                                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `AGENTS.md`, `plans/project-context.md`, `package.json`, `Cargo.toml`, `apps/e2e/vitest.config.ts`, `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `policies/` | `docs/guides/README.md`, `AGENTS.md`, `pnpm test`, `cargo test --workspace`, `opa test` |
+| Upstream                                                                                                                                                                                                      | Downstream                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `AGENTS.md`, `plans/project-context.md`, `package.json`, `Cargo.toml`, `apps/e2e/vitest.config.ts`, `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `.github/workflows/rust-tests.yml`, `policies/` | `docs/guides/README.md`, `AGENTS.md`, `pnpm test`, `cargo test --workspace`, `opa test` |
 
 This guide covers testing conventions and best practices for the Anvil monorepo.
 TypeScript packages use **Vitest**; Rust crates use **cargo test** with
@@ -484,6 +484,31 @@ Benchmark results are output as HTML reports in `target/criterion/`.
 - `unsafe_code = "forbid"` — no unsafe code allowed
 - `clippy all = "deny"` — all clippy warnings are errors
 - All kernel errors are structured events — no panics across boundaries
+
+---
+
+## CI Flake Triage
+
+Not every red X is the diff's fault. Known infrastructure failure classes
+(CIB-338):
+
+- **`Set up job` failures are runner provisioning.** They are external and never
+  attributable to the diff. Rerun only the failed jobs with
+  `gh run rerun <run-id> --failed`.
+- **Path-detection outages fail open.** The required `Test` check
+  (`.github/workflows/rust-tests.yml`) gates its heavy steps behind a
+  `dorny/paths-filter` step; since CIB-338 a filter failure (`continue-on-error`
+  plus an outcome check in the gate step) runs the full Rust gate instead of
+  redding the job with every step skipped. A red `Test` therefore means real
+  work failed, not that detection died. The contract is pinned by
+  `scripts/ci/rust-tests-fail-open.test.sh`.
+- **Vitest pool crash — watch-only.** Signature:
+  `[vitest-pool]: Worker forks emitted error … Worker exited unexpectedly` in
+  the `anvil-source:test` task with all test files passing (first seen in run
+  31782134751). Not yet reproduced; no worker or memory stabiliser is applied —
+  the root `vitest.config.ts` sets no `poolOptions` and no repo convention caps
+  `maxForks`, so any tuning would be a guess. If it recurs, capture the run id
+  and runner memory context before changing pool settings.
 
 ---
 
