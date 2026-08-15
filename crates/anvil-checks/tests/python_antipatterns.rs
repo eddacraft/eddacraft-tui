@@ -11,6 +11,8 @@ use anvil_checks::antipattern::{
     AntipatternCheckConfig, ScanOptions, registry_compile_diagnostics, scan_file,
 };
 
+mod support;
+
 fn fires(path: &str, content: &str, id: &str) -> bool {
     scan_file(path, content, None)
         .warnings
@@ -388,53 +390,55 @@ fn py008_eval_with_dynamic_argument_fires() {
 /// `PY-008.anvil`'s pattern to
 /// `\b(eval|exec|compile)\s*\(\s*(?:[fF]['"]|[A-Za-z_][A-Za-z0-9_]*\s*[,().\[])`
 /// turns every assertion in this test RED.
+///
+/// CIB-336: the shapes are labelled threat-model data (see
+/// `tests/support/mod.rs`) — diff the list against the rule body's stated
+/// intent, not against the pattern.
 #[test]
 fn py008_composed_and_operator_terminated_arguments_fire() {
-    // Symbolic operators — concatenating or formatting untrusted input into
-    // the payload is the canonical eval-injection shape.
-    assert!(fires("src/app.py", "eval(a + b)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(a+b)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(user + \"x\")\n", "PY-008"));
-    assert!(fires("src/app.py", "exec(code % vars)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(base**exp)\n", "PY-008"));
-
-    // Keyword operators are identifier-shaped, so the terminator has to allow
-    // the space before them — an allowlist of punctuation silently misses all
-    // of these.
-    assert!(fires(
+    support::assert_rule_fires_on(
         "src/app.py",
-        "eval(cmd if trusted else safe)\n",
-        "PY-008"
-    ));
-    assert!(fires("src/app.py", "eval(x and y)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(x or fallback)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(not flag)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(x is None)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(x in allowed)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(await coro)\n", "PY-008"));
-    assert!(fires("src/app.py", "eval(target := build())\n", "PY-008"));
-
-    // Keyword arguments and unpacking.
-    assert!(fires("src/app.py", "eval(code, key=val)\n", "PY-008"));
-    assert!(fires(
-        "src/app.py",
-        "compile(source=src, filename=\"<s>\", mode=\"exec\")\n",
-        "PY-008"
-    ));
-    assert!(fires("src/app.py", "eval(*args)\n", "PY-008"));
-    assert!(fires("src/app.py", "exec(**kwargs)\n", "PY-008"));
-
-    // Python identifiers may hold non-ASCII characters; the terminator must
-    // treat the first non-ASCII byte as "not an identifier char", not give up.
-    assert!(fires("src/app.py", "eval(naïve_input)\n", "PY-008"));
-
-    // A hand-wrapped call whose first argument ends the line. The scanner
-    // matches per line, so end-of-line has to count as a terminator.
-    assert!(fires(
-        "src/app.py",
-        "value = eval(user_input\n             + suffix)\n",
-        "PY-008"
-    ));
+        "PY-008",
+        &[
+            // Symbolic operators — concatenating or formatting untrusted
+            // input into the payload is the canonical eval-injection shape.
+            ("composed via + (spaced)", "eval(a + b)\n"),
+            ("composed via + (unspaced)", "eval(a+b)\n"),
+            ("identifier + literal", "eval(user + \"x\")\n"),
+            ("%-formatting", "exec(code % vars)\n"),
+            ("** operator", "eval(base**exp)\n"),
+            // Keyword operators are identifier-shaped, so the terminator has
+            // to allow the space before them — an allowlist of punctuation
+            // silently misses all of these.
+            ("conditional if/else", "eval(cmd if trusted else safe)\n"),
+            ("keyword operator and", "eval(x and y)\n"),
+            ("keyword operator or", "eval(x or fallback)\n"),
+            ("keyword operator not", "eval(not flag)\n"),
+            ("keyword operator is", "eval(x is None)\n"),
+            ("keyword operator in", "eval(x in allowed)\n"),
+            ("await expression", "eval(await coro)\n"),
+            ("walrus assignment", "eval(target := build())\n"),
+            // Keyword arguments and unpacking.
+            ("keyword argument", "eval(code, key=val)\n"),
+            (
+                "all-keyword call",
+                "compile(source=src, filename=\"<s>\", mode=\"exec\")\n",
+            ),
+            ("*args unpacking", "eval(*args)\n"),
+            ("**kwargs unpacking", "exec(**kwargs)\n"),
+            // Python identifiers may hold non-ASCII characters; the
+            // terminator must treat the first non-ASCII byte as "not an
+            // identifier char", not give up.
+            ("non-ASCII identifier", "eval(naïve_input)\n"),
+            // A hand-wrapped call whose first argument ends the line. The
+            // scanner matches per line, so end-of-line has to count as a
+            // terminator.
+            (
+                "wrapped call, argument ends the line",
+                "value = eval(user_input\n             + suffix)\n",
+            ),
+        ],
+    );
 }
 
 /// f-strings interpolate at run time, so every prefix ordering is dynamic.
@@ -444,21 +448,20 @@ fn py008_composed_and_operator_terminated_arguments_fire() {
 /// opposite.
 #[test]
 fn py008_f_string_prefixes_fire_in_every_ordering() {
-    for src in [
-        "eval(f\"{user_input}\")\n",
-        "eval(F\"{user_input}\")\n",
-        "eval(rf\"{user_input}\")\n",
-        "eval(fr\"{user_input}\")\n",
-        "eval(Rf'{user_input}')\n",
-        "eval(fR\"{user_input}\")\n",
-        "eval(FR\"{user_input}\")\n",
-        "eval(RF\"{user_input}\")\n",
-    ] {
-        assert!(
-            fires("src/app.py", src, "PY-008"),
-            "f-string prefix must fire (it interpolates at run time): {src:?}"
-        );
-    }
+    support::assert_rule_fires_on(
+        "src/app.py",
+        "PY-008",
+        &[
+            ("f-string, bare f", "eval(f\"{user_input}\")\n"),
+            ("f-string, bare F", "eval(F\"{user_input}\")\n"),
+            ("f-string, rf prefix", "eval(rf\"{user_input}\")\n"),
+            ("f-string, fr prefix", "eval(fr\"{user_input}\")\n"),
+            ("f-string, Rf prefix", "eval(Rf'{user_input}')\n"),
+            ("f-string, fR prefix", "eval(fR\"{user_input}\")\n"),
+            ("f-string, FR prefix", "eval(FR\"{user_input}\")\n"),
+            ("f-string, RF prefix", "eval(RF\"{user_input}\")\n"),
+        ],
+    );
 }
 
 #[test]
