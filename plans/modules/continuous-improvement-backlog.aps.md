@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 270/333  |
+| CIB | —     | In Progress | 273/333  |
 
 ## Purpose
 
@@ -10255,7 +10255,18 @@ RETEST-2). Do not re-file those.
 
 ### CIB-336: Detection-rule tests must be derived from the threat model, not the pattern
 
-- **Status:** Ready — operator-authorised 2026-08-15 from the #3880
+- **Status:** Merged via PR
+  [#3906](https://github.com/eddacraft/anvil-001/pull/3906) (merged
+  2026-08-15, rebase — ancestor of `main` verified by content). Not yet in a
+  tagged release. Delivered as: the "Testing the rule" guide section with
+  the #3880 worked example and two checklist lines, plus
+  `assert_rule_fires_on` in `crates/anvil-checks/tests/support/mod.rs` with
+  PY-008's two threat-shape suites as reference consumers (19/19 + 8/8
+  fixtures byte-identical to before, verified). Mechanism demonstrated RED
+  against the actual #3880-era pattern: missed 18 of 19 / 6 of 8 with
+  labels. Review added rule-scoped scanning (explicit selection bypasses
+  `opt_in`, so opt-in rules can adopt with no plumbing); verification added
+  the empty-list guard. Operator-authorised 2026-08-15 from the #3880
   retrospective
 - **Priority:** P2 — class-closure for the defect that let PY-008 regress to
   ERROR-severity silence behind a fully green suite
@@ -10309,7 +10320,25 @@ RETEST-2). Do not re-file those.
 
 ### CIB-337: De-flake the scan_buffer in-flight counter test
 
-- **Status:** Ready — operator-authorised 2026-08-15
+- **Status:** Merged via PR
+  [#3905](https://github.com/eddacraft/anvil-001/pull/3905) (merged
+  2026-08-15, rebase — ancestor of `main` verified by content). Not yet in a
+  tagged release. Root cause differed from the filed hypothesis: the CI
+  failure was the EXIT assertion — production sends before dropping
+  `(permit, inflight)` with a detached JoinHandle, so no join edge exists.
+  Fixed with an arrived-barrier entry edge and an unbounded-yield
+  `wait_until` exit observation; sibling plus four more sleep-vs-timeout
+  patterns converted in the same pass. Evidence: old shape 113/400 failures
+  under load, new shape 0/500 and 0/300; amplification differential
+  reproduced independently (old 10/10 fail, new 0/20). The test flaked one
+  final time in the wild — on sibling PR #3906 before it rebased past this
+  fix, at exactly the predicted line. **Recorded residual:** a genuine
+  counter leak now hangs rather than fails, currently bounded only by the
+  6-hour GitHub job default — `.config/nextest.toml` has no
+  `terminate-after` and the nextest job no `timeout-minutes`; nextest SLOW
+  lines attribute the test by name, so diagnosis survives. Bounding the
+  harness is follow-up material (workflow config, outside this item's
+  test-module-only Files clause). Operator-authorised 2026-08-15
 - **Priority:** P2 — known-racy test on the merge path; cost a full
   diagnostic cycle on #3892
 - **Intent:**
@@ -10346,7 +10375,22 @@ RETEST-2). Do not re-file those.
 
 ### CIB-338: Path-detection steps must fail open, so "red means broken" again
 
-- **Status:** Ready — operator-authorised 2026-08-15
+- **Status:** Merged via PR
+  [#3904](https://github.com/eddacraft/anvil-001/pull/3904) (merged
+  2026-08-15, rebase — ancestor of `main` verified by content). Not yet in
+  a tagged release. Leg 1 delivered: the required `Test` job's
+  `dorny/paths-filter` gate fails open (`continue-on-error` + outcome
+  disjunct, ci.yml idiom), pinned by
+  `scripts/ci/rust-tests-fail-open.test.sh` wired into CI, proven RED both
+  ways. `rust.yml` deliberately untouched — trigger-level paths filtering,
+  no required contexts (verified against the live ruleset), and
+  `cross-compile-gate` fail-loud is a CICD-011 council decision. Leg 2:
+  vitest pool crash recorded **watch-only** — no `pool`/`maxForks`
+  convention exists to tune (verified by grep) and the item forbids
+  guess-tuning; signature in `docs/guides/testing.md`. Leg 3: runner flakes
+  documented external with rerun guidance. Residual: live-outage behaviour
+  proven by documented `continue-on-error` semantics and the pin, not yet
+  witnessed in a real Actions outage. Operator-authorised 2026-08-15
 - **Priority:** P2 — four distinct infrastructure flake classes in one
   session made two clean PRs look broken; the signal the merge discipline
   rests on is eroding
