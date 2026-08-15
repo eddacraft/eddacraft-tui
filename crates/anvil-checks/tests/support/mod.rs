@@ -23,6 +23,12 @@ use anvil_checks::antipattern::scan_file;
 /// scanned at `path`. On failure, every missed shape is reported — one run
 /// shows the full extent of a narrowing, not just its first casualty.
 pub fn assert_rule_fires_on(path: &str, rule: &str, threat_shapes: &[(&str, &str)]) {
+    // A helper that exists to prevent vacuously-green suites must not pass
+    // vacuously itself (verification advisory on CIB-336).
+    assert!(
+        !threat_shapes.is_empty(),
+        "{rule}: empty threat-shape list — enumerate the shapes the rule exists to catch"
+    );
     let missed: Vec<String> = threat_shapes
         .iter()
         .filter(|(_, fixture)| {
