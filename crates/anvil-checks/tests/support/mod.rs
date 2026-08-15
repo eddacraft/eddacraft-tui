@@ -14,7 +14,7 @@
 //! without a fixture is impossible by construction. See
 //! `docs/guides/anvil-rule-authoring.md` ("Testing the rule").
 
-use anvil_checks::antipattern::scan_file;
+use anvil_checks::antipattern::{ScanOptions, scan_file};
 
 /// Assert that `rule` fires on every labelled threat shape.
 ///
@@ -29,10 +29,20 @@ pub fn assert_rule_fires_on(path: &str, rule: &str, threat_shapes: &[(&str, &str
         !threat_shapes.is_empty(),
         "{rule}: empty threat-shape list — enumerate the shapes the rule exists to catch"
     );
+    // Scope the scan to the rule under test (review suggestion on #3906):
+    // the helper already knows which rule it is exercising, so there is no
+    // reason to run the full catalogue per fixture. Explicit selection also
+    // bypasses `enabled`/`opt_in` gating in `select_antipatterns`, which is
+    // what a rule-under-test wants — opt-in rules get threat-model coverage
+    // without `include_opt_in` plumbing.
+    let options = ScanOptions {
+        patterns: Some(vec![rule.to_string()]),
+        include_opt_in: false,
+    };
     let missed: Vec<String> = threat_shapes
         .iter()
         .filter(|(_, fixture)| {
-            !scan_file(path, fixture, None)
+            !scan_file(path, fixture, Some(&options))
                 .warnings
                 .iter()
                 .any(|w| w.id == rule)
