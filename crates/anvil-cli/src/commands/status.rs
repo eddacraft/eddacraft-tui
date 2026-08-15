@@ -51,8 +51,14 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // daemon-absent fallback surface; operator opt-out hides the line.
     let save_time = gather_save_time();
     let cli_version = env!("CARGO_PKG_VERSION");
-    let mcp_inventory = status_mcp::gather_mcp_inventory(cli_version);
     let graph = status_mcp::graph_from_assurance(save_time.assurance().map(|s| &s.assurance));
+    // /proc inventory is only rendered on JSON and plain surfaces.
+    // Skip the scan on the interactive TUI path (Copilot review).
+    let mcp_inventory = if global.json || !status_prefers_tui(global) {
+        status_mcp::gather_mcp_inventory(cli_version)
+    } else {
+        None
+    };
     let protecting = matches!(
         activation.protection_state(),
         activation::state::ProtectionState::Protecting,

@@ -156,10 +156,10 @@ pub(crate) fn split_readiness_claims(
     inventory: Option<&McpProcessInventory>,
     graph: Option<&GraphReadiness>,
 ) -> SplitReadinessClaims {
-    let mcp_skew = inventory.is_some_and(|inv| inv.skewed > 0);
+    let mcp_current = inventory.is_some_and(|inv| inv.skewed == 0);
     SplitReadinessClaims {
         protecting,
-        agent_ready: protecting && !mcp_skew,
+        agent_ready: protecting && mcp_current,
         graph_ready: graph.is_some_and(|g| g.state == GraphState::Ready),
     }
 }
@@ -181,7 +181,7 @@ pub(crate) fn status_mcp_json(
         mcp_skew: inventory.map(|inv| inv.skewed > 0),
         mcp_processes: inventory.cloned(),
         graph: graph.cloned(),
-        agent_ready: Some(claims.agent_ready),
+        agent_ready: inventory.map(|_| claims.agent_ready),
         graph_ready: graph.map(|g| g.state == GraphState::Ready),
         protecting: Some(claims.protecting),
     })
@@ -338,7 +338,8 @@ fn process_is_skewed(cli_version: &str, process: &McpProcessRecord) -> bool {
     true
 }
 
-/// Shape-check argv for `anvil mcp serve` (any later flags allowed).
+/// Shape-check argv for `anvil mcp serve` (leading flags allowed).
+#[cfg(any(target_os = "linux", test))]
 #[must_use]
 pub(crate) fn is_anvil_mcp_serve_cmdline(args: &[String]) -> bool {
     let Some(argv0) = args.first() else {
@@ -347,25 +348,20 @@ pub(crate) fn is_anvil_mcp_serve_cmdline(args: &[String]) -> bool {
     if !looks_like_anvil(argv0) {
         return false;
     }
-    let mut seen_mcp = false;
-    for arg in args.iter().skip(1) {
-        if !seen_mcp {
-            if arg == "mcp" {
-                seen_mcp = true;
-            }
-            continue;
-        }
-        if arg == "serve" {
-            return true;
-        }
-        if arg.starts_with('-') {
-            continue;
-        }
-        return false;
+    let mut rest = args.iter().skip(1).peekable();
+    while rest.peek().is_some_and(|arg| arg.starts_with('-')) {
+        rest.next();
     }
-    false
+    matches!(
+        (
+            rest.next().map(String::as_str),
+            rest.next().map(String::as_str)
+        ),
+        (Some("mcp"), Some("serve"))
+    )
 }
 
+#[cfg(any(target_os = "linux", test))]
 fn looks_like_anvil(argv0: &str) -> bool {
     let name = Path::new(argv0)
         .file_name()
@@ -376,6 +372,7 @@ fn looks_like_anvil(argv0: &str) -> bool {
 }
 
 /// Best-effort Homebrew Cellar version from an absolute path.
+#[cfg(any(target_os = "linux", test))]
 #[must_use]
 pub(crate) fn version_hint_from_path(path: &Path) -> Option<String> {
     let parts: Vec<_> = path.iter().map(|s| s.to_string_lossy()).collect();
@@ -537,17 +534,12 @@ fn process_command(pid: u32) -> Option<String> {
     }
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn same_identity(left: &Path, right: &Path) -> bool {
     use std::os::unix::fs::MetadataExt;
     if let (Ok(left_meta), Ok(right_meta)) = (left.metadata(), right.metadata()) {
         return left_meta.dev() == right_meta.dev() && left_meta.ino() == right_meta.ino();
     }
-    dunce::canonicalize(left).ok() == dunce::canonicalize(right).ok()
-}
-
-#[cfg(not(unix))]
-fn same_identity(left: &Path, right: &Path) -> bool {
     dunce::canonicalize(left).ok() == dunce::canonicalize(right).ok()
 }
 
@@ -735,13 +727,17 @@ mod tests {
         let claims = split_readiness_claims(true, None, Some(&stale_graph()));
         assert!(claims.protecting);
         assert!(
-            claims.agent_ready,
-            "protecting with no MCP skew is agent_ready"
+            !claims.agent_ready,
+            "no inventory means we cannot claim current MCP binaries"
         );
         assert!(!claims.graph_ready);
         let json = status_mcp_json(CLI, true, None, Some(&stale_graph())).unwrap();
         assert_eq!(json.protecting, Some(true));
         assert_eq!(json.graph_ready, Some(false));
+        assert_eq!(
+            json.agent_ready, None,
+            "no inventory: omit agent_ready rather than claim true"
+        );
         assert!(
             json.mcp_processes.is_none(),
             "no inventory: omit mcp_processes"
@@ -853,6 +849,24 @@ mod tests {
             "anvil".into(),
             "status".into()
         ]));
+        assert!(
+            is_anvil_mcp_serve_cmdline(&[
+                "anvil".into(),
+                "--no-tui".into(),
+                "mcp".into(),
+                "serve".into(),
+            ]),
+            "leading flags before mcp serve are allowed"
+        );
+        assert!(
+            !is_anvil_mcp_serve_cmdline(&[
+                "anvil".into(),
+                "status".into(),
+                "mcp".into(),
+                "serve".into(),
+            ]),
+            "first non-flag argument must be mcp, not a later token"
+        );
     }
 
     #[test]
