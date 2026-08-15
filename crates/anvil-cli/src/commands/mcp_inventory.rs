@@ -347,6 +347,7 @@ fn read_proc_uid(pid: u32) -> Option<u32> {
     parse_status_uid(&status)
 }
 
+#[cfg(any(unix, test))]
 fn parse_status_uid(status: &str) -> Option<u32> {
     status.lines().find_map(|line| {
         let rest = line.strip_prefix("Uid:")?;
