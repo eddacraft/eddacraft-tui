@@ -12,7 +12,7 @@
 use std::env;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
 use serde_json::Value;
 
@@ -27,6 +27,8 @@ pub(crate) const PREFERRED_ENV: &str = "ANVIL_MCP_PREFERRED";
 
 /// Process-local anti-loop if `exec` returns (crate forbids `set_var`).
 static REEXEC_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+/// Recovery conditions already surfaced by this process.
+static REPORTED_RECOVERY_HINTS: AtomicU8 = AtomicU8::new(0);
 /// Whether this process has observed the install-scoped generation.
 /// First observation is a baseline, not a poke — otherwise a replacement
 /// image with `LAST_SEEN=0` would treat any existing generation file as
@@ -103,6 +105,17 @@ impl StayReason {
                  (or unset ANVIL_MCP_PIN) and retry a tool call, \
                  or reconnect MCP for this client.",
             ),
+            Self::NotATrigger | Self::MidFrame | Self::NotSkewed => None,
+        }
+    }
+
+    const fn recovery_hint_bit(self) -> Option<u8> {
+        match self {
+            Self::KillSwitch => Some(1 << 0),
+            Self::AlreadyReexeced => Some(1 << 1),
+            Self::PlatformDemoted => Some(1 << 2),
+            Self::PreferredUnresolved => Some(1 << 3),
+            Self::Pinned => Some(1 << 4),
             Self::NotATrigger | Self::MidFrame | Self::NotSkewed => None,
         }
     }
@@ -357,12 +370,20 @@ fn apply_decision(decision: &ReexecDecision) {
     match decision {
         ReexecDecision::Reexec { preferred } => exec_preferred(preferred),
         ReexecDecision::Stay { reason, skewed } if *skewed => {
-            if let Some(hint) = reason.recovery_hint() {
+            if let Some(hint) = recovery_hint_once(*reason) {
                 eprintln!("anvil mcp serve: {hint}");
             }
         }
         ReexecDecision::Stay { .. } => {}
     }
+}
+
+fn recovery_hint_once(reason: StayReason) -> Option<&'static str> {
+    let hint = reason.recovery_hint()?;
+    let bit = reason
+        .recovery_hint_bit()
+        .expect("a recovery hint must have a deduplication bit");
+    (REPORTED_RECOVERY_HINTS.fetch_or(bit, Ordering::Relaxed) & bit == 0).then_some(hint)
 }
 
 fn exec_preferred(preferred: &Path) {

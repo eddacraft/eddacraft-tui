@@ -130,6 +130,55 @@ fn mcp_reexec_anti_loop_holds_when_generation_file_already_exists() {
     );
 }
 
+#[test]
+fn mcp_reexec_recovery_warning_is_once_per_condition_across_trigger_flow() {
+    let (_dir, preferred) = copy_anvil_as_preferred();
+    let preferred = preferred.to_str().expect("utf8 preferred");
+    let cases = [
+        (
+            "kill-switch",
+            "1",
+            "",
+            "Re-exec is disabled (ANVIL_MCP_NO_REEXEC).",
+        ),
+        (
+            "already-reexeced",
+            "",
+            "1",
+            "The session still runs a stale image.",
+        ),
+    ];
+
+    for (condition, no_reexec, reexeced, warning) in cases {
+        let mut child = spawn_serve(&[
+            ("ANVIL_MCP_PREFERRED", preferred),
+            ("ANVIL_MCP_NO_REEXEC", no_reexec),
+            ("ANVIL_MCP_REEXECED", reexeced),
+        ]);
+        let stdout = child.stdout.take().expect("stdout");
+        let stderr = child.stderr.take().expect("stderr");
+        let stdout_rx = spawn_stdout_reader(stdout);
+        let stderr_rx = spawn_stdout_reader(stderr);
+
+        send_initialize(&mut child, &stdout_rx);
+        send_tools_list(&mut child, &stdout_rx);
+
+        drop(child.stdin.take());
+        let status = wait_for_exit(&mut child);
+        assert!(
+            status.success(),
+            "{condition} serve must exit cleanly after EOF: {status:?}"
+        );
+
+        let stderr = drain_lines(&stderr_rx);
+        assert_eq!(
+            stderr.matches(warning).count(),
+            1,
+            "{condition} warning must remain visible but emit once across startup, initialize, and tools/list: {stderr}"
+        );
+    }
+}
+
 fn copy_anvil_as_preferred() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().expect("tempdir");
     let dest = dir.path().join("anvil");
@@ -190,6 +239,27 @@ fn send_initialize(child: &mut Child, rx: &Receiver<std::io::Result<String>>) {
         parsed["result"]["serverInfo"]["version"],
         env!("CARGO_PKG_VERSION"),
         "preferred image must still be this crate's version: {parsed}"
+    );
+}
+
+fn send_tools_list(child: &mut Child, rx: &Receiver<std::io::Result<String>>) {
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("stdin");
+        writeln!(stdin, "{request}").expect("write tools/list");
+    }
+    let line = recv_stdout_line(child, rx);
+    let parsed: Value = serde_json::from_str(line.trim()).unwrap_or_else(|err| {
+        panic!("tools/list must be JSON-RPC JSON, got {line:?}: {err}");
+    });
+    assert!(
+        parsed["result"]["tools"].is_array(),
+        "tools/list must return the tools array: {parsed}"
     );
 }
 
