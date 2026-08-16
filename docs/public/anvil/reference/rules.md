@@ -6,7 +6,7 @@ owner: DOCSYNC
 upstream:
   - patterns/compiled/registry.json
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.4-beta
+verified_against: 0.9.5-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -14,7 +14,7 @@ verified_against: 0.9.4-beta
 # Compiled pattern catalogue
 
 This catalogue covers source-pattern rules in the compiled registry shipped with
-anvil 0.9.4-beta. Secrets, architecture, policy, command-safety, and other gate
+anvil 0.9.5-beta. Secrets, architecture, policy, command-safety, and other gate
 checks have separate engines and are not listed here. The registry contains **47
 enabled rules across 11 families**.
 

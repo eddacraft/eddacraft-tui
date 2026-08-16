@@ -75,7 +75,7 @@ status, graph search on large repos, and several checks match reality.
   or `ANVIL_MCP_PIN=0` resumes. First-time install on `anvil start` still works
   while pinned.
 
-- **`anvil mcp refresh` is the emergency cascade.** It rewrites Anvil-owned
+- **`anvil mcp refresh` is the emergency cascade.** It rewrites anvil-owned
   client entries to the PATH-stable `anvil` command, recycles a version-skewed
   intercept daemon, and always bumps a refresh generation so live children
   re-check on the next tool call — even when heal is pinned. `--dry-run`

@@ -7,7 +7,7 @@ upstream:
   - crates/anvil-cli/src/main.rs
   - crates/anvil-cli/src/commands/start.rs
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.4-beta
+verified_against: 0.9.5-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -15,7 +15,7 @@ verified_against: 0.9.4-beta
 # CLI command reference
 
 This page is generated from the command definitions shipped with anvil
-0.9.4-beta. Use `anvil <command> --help` for flags, examples, and subcommands
+0.9.5-beta. Use `anvil <command> --help` for flags, examples, and subcommands
 for your installed version.
 
 For a first installation, use the [quickstart](../quickstart.md).
@@ -64,7 +64,7 @@ It does not install clients you skipped or rewrite configuration — use
 | `anvil new`          | Scaffold a new project from a template                                    |
 | `anvil plan`         | Inspect planning files written in APS, a Markdown-based plan format       |
 | `anvil policy`       | Manage and evaluate policies                                              |
-| `anvil report-fp`    | Report a false positive against a check                                   |
+| `anvil report-fp`    | Report a false positive against a check or a printed finding id           |
 | `anvil skill`        | Install and verify bundled Agent Skills                                   |
 | `anvil start`        | Activate anvil in this repository                                         |
 | `anvil status`       | Show project status and health                                            |
