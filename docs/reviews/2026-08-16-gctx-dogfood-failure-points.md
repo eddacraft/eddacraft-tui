@@ -1,8 +1,8 @@
 # GCTX dogfood failure points (2026-08-16)
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                     |
-| ----- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | CIB   | Live   | 2026-08-16 — measured against anvil 0.9.4-beta intercept pid 1387799, `anvil start --verify --json`, `anvil intercept status --json`, `anvil_search_symbols`, and `~/.local/state/anvil/intercept.daemon.log` |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                         |
+| ----- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | CIB   | Live   | 2026-08-17 — re-reviewed against CIB-343 (`activation/mcp_client.rs` first-wave handshake ladder). Original measurement 2026-08-16 against anvil 0.9.4-beta intercept pid 1387799 |
 
 | Upstream                                                                                                                                                                                                                                                                                     | Downstream   |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
@@ -85,7 +85,9 @@ Measured on this Grok session:
   MCP handshake session
 
 CIB-227 already shipped the copy fix ("do not imply only Claude Code and
-Cursor"). This leftover is the runtime ladder, not the wording.
+Cursor"). CIB-343 implements the runtime ladder: every first-wave
+`AgentClientId` participates in `probe_all` / `anvil start --verify`. This note
+keeps the 2026-08-16 measurement as evidence of the pre-fix state.
 
 ### 4. Stale MCP shims and produce-locks are never reaped (CIB-344)
 

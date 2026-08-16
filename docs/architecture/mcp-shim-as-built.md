@@ -1,8 +1,8 @@
 # anvil MCP Shim — As-Built
 
-| Type     | Authority | Owner      | Status | Freshness                                                                                                                                                                                                |
-| -------- | --------- | ---------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RMCP/MCP26 | Live   | Last reviewed 2026-07-29 against ADR-113 and the dual-era adapter under `crates/anvil-cli/src/mcp/protocol/`; prior client-registry review 2026-07-14 against ADR-106 and `activation/agent_registry.rs` |
+| Type     | Authority | Owner      | Status | Freshness                                                                                                                                                                                                                          |
+| -------- | --------- | ---------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RMCP/MCP26 | Live   | Last reviewed 2026-08-17 against CIB-343 (`activation/mcp_client.rs` first-wave handshake ladder) and ADR-113 dual-era adapter under `crates/anvil-cli/src/mcp/protocol/`; prior client-registry review 2026-07-14 against ADR-106 |
 
 | Upstream                                                                                                | Downstream                                                            |
 | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |

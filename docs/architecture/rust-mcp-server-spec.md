@@ -1,8 +1,8 @@
 # Rust MCP Server Parity Spec
 
-| Type | Authority     | Owner       | Status | Freshness                                                                                                                                                                                       |
-| ---- | ------------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | RMCPF/MCP26 | Live   | Last reviewed 2026-07-29 against ADR-113, the MCP26 dual-era design, and `crates/anvil-cli/src/mcp/protocol/`; prior parity review 2026-05-14 against `plans/modules/rust-mcp-full-port.aps.md` |
+| Type | Authority     | Owner       | Status | Freshness                                                                                                                                                   |
+| ---- | ------------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | RMCPF/MCP26 | Live   | Last reviewed 2026-08-17 against CIB-343 handshake ladder in `docs/architecture/mcp-shim-as-built.md` §10; prior ADR-113 / MCP26 dual-era review 2026-07-29 |
 
 | Upstream                                                                                                             | Downstream                                                                    |
 | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
