@@ -44,6 +44,7 @@ packages:
   - crates/anvil-checks-napi
 
 overrides:
+  '@docusaurus/mdx-loader@3.10.1>image-size': '-'
   'glob': '^13.0.0'
   'braces': '3.0.3'
   'micromatch': '4.0.8'
@@ -140,7 +141,13 @@ overrides:
   '@types/react': '19.2.17'
   '@types/react-dom': '19.2.3'
 
+packageExtensions:
+  '@docusaurus/mdx-loader@3.10.1':
+    dependencies:
+      image-dimensions: '2.5.1'
+
 patchedDependencies:
+  '@docusaurus/mdx-loader@3.10.1': 'patches/@docusaurus__mdx-loader@3.10.1.patch'
   'gray-matter@4.0.3': 'patches/gray-matter@4.0.3.patch'
   minimatch@3.1.5: patches/minimatch@3.1.5.patch
   minimatch@5.1.9: patches/minimatch@5.1.9.patch

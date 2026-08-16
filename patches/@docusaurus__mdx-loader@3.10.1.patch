@@ -1,0 +1,27 @@
+diff --git a/lib/remark/transformImage/index.js b/lib/remark/transformImage/index.js
+--- a/lib/remark/transformImage/index.js
++++ b/lib/remark/transformImage/index.js
+@@ -12,6 +12,5 @@ const fs_extra_1 = tslib_1.__importDefault(require("fs-extra"));
+ const utils_1 = require("@docusaurus/utils");
+ const escape_html_1 = tslib_1.__importDefault(require("escape-html"));
+-const fromFile_1 = require("image-size/fromFile");
+ const logger_1 = tslib_1.__importDefault(require("@docusaurus/logger"));
+ const utils_2 = require("../utils");
+ function asFunction(onBrokenMarkdownImages) {
+@@ -68,7 +67,15 @@ async function toImageRequireNode([node], imagePath, context) {
+         });
+     }
+     try {
+-        const size = (await (0, fromFile_1.imageSizeFromFile)(imagePath));
++        const [{ imageDimensionsFromStream }, { Readable }] = await Promise.all([
++            import("image-dimensions"),
++            import("node:stream"),
++        ]);
++        const imageStream = fs_extra_1.default.createReadStream(imagePath, { end: 512 * 1024 - 1 });
++        const size = await imageDimensionsFromStream(Readable.toWeb(imageStream));
++        if (!size) {
++            throw new Error(`Could not determine image dimensions for ${imagePath}`);
++        }
+         if (size.width) {
+             attributes.push({
+                 type: 'mdxJsxAttribute',

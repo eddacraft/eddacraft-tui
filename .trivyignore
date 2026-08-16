@@ -1,6 +1,0 @@
-# image-size@2.0.2 is pulled only by @docusaurus/mdx-loader. Docusaurus is
-# repository docs tooling and is excluded from anvil release artefacts and
-# runtime paths. No fixed upstream release exists; replacement and removal of
-# these exceptions are tracked in https://github.com/eddacraft/anvil-001/issues/3702.
-CVE-2025-71329
-CVE-2025-71330
