@@ -7478,27 +7478,41 @@ scanned — with expansion deferred to `v0.9.4`.
 - **Identified From:** Dave pack-02 TUI-7.
 - **Confidence:** high.
 
-### CIB-267: Pre-push silent exit 0 under partial activation (PUSH-1) — needs reproduction
+### CIB-267: Pre-push silent pass leftovers — hook PATH and git argv (PUSH-1 rescoped)
 
 - **Status:** Proposed
-- **Priority:** not a ship gate until reproduced with full activation
-- **Intent:** With local bare remote, pre-push hook runs (GIT_TRACE), emits
-  nothing, exits 0; `l4-validate` silent; audit-chain witnessed 0/10. **Dave
-  confidence: plausible only.** Activation was partial (`init` +
-  `start --no-mcp`) on a worktree that never registered (**WS-1**). May be
-  entirely downstream of incomplete activation rather than L4 logic.
-- **Also note:** invoking `anvil hook pre-push testremote <url>` like git's
-  argv fails with unexpected argument — shipped shim strips argv so not a live
-  bug, but GIT_TRACE copypaste misleads operators (docs only).
-- **Expected Outcome:** After reproduction with durable worktree + full
-  activation + a real remote path, pre-push either blocks/validates with a
-  stated reason or documents intentional pass conditions. Until reproduced,
-  **do not treat as a confirmed L4 regression**.
-- **Validation:** blocked on CIB-252 (and full activation); then controlled
-  push matrix.
+- **Priority:** P3 docs / hook argv — not an L4 ship gate
+- **Rescope (2026-08-16):** Investigation after CIB-252 shipped. Dave pack-02
+  PUSH-1 (silent pre-push `exit 0`, silent `l4-validate`, audit-chain
+  witnessed 0/10, partial `init` + `start --no-mcp`) is **not an L4
+  regression**. It matches designed no-op paths: no `anvil/policy.*` →
+  `run_pre_push` / `l4-validate` admit with no stderr (`pre_push_no_policy_exits_zero_with_no_output`);
+  empty witness chain is L3, not a pre-push miss. Workspace registration
+  (CIB-252) is not consulted by `anvil hook pre-push`. Do **not** promote
+  this item to Ready as an L4 bug.
+- **Remaining Proposed work:**
+  1. Document that a silent pre-push `exit 0` means no policy (or no
+     project-id), a clean allowed range, **or** the hook `command -v anvil`
+     guard firing because Git's hook PATH does not contain `anvil` (Windows
+     Git vs interactive pwsh is the likely Dave path).
+  2. Accept git's pre-push positionals (`remote`, `url`) on
+     `anvil hook pre-push`. Current `shell_template` forwards `"$@"`;
+     `PrePush(SilentArgs)` has no positionals, so a manual
+     `anvil hook pre-push origin <url>` clap-errors. The older "shim strips
+     argv" note is stale.
+- **Expected Outcome:** Help / hook docs state the silent-pass conditions;
+  `anvil hook pre-push` accepts git's remote/URL argv (stdin contract
+  unchanged). No change to Serena admit-on-internal-error or the no-policy
+  no-op.
+- **Non-scope:** Re-opening CIB-252; forcing L4 policy onto `anvil init`;
+  treating `witnessed 0/N` as a pre-push defect.
+- **Validation:** docs or process test that `hook pre-push origin url` plus
+  stdin is not a clap error; docs name the silent-pass conditions.
 - **Identified From:** Dave pack-02 PUSH-1.
-- **Coordinates with:** CIB-252, CIB-216 pre-push runtime
-- **Confidence:** low–medium — plausible; caveat may explain all of it.
+- **Coordinates with:** CIB-216 pre-push runtime, CIB-252 (closed as a
+  dependency — shipped, not an L4 unlock), ADR-038 noise / Serena rules
+- **Confidence:** high on the explanation; remaining work is the PATH docs
+  and argv acceptance, not reproduction of a missing block.
 
 ### CIB-250 collision closeout (2026-08-04) / pack-03 claim (2026-08-05)
 
