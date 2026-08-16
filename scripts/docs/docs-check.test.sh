@@ -1623,12 +1623,39 @@ else
   fail "expected match to pass (status ${status}); got: ${out}"
 fi
 
+# Cut window: newest heading is untagged; pin may stay on previous published release.
+cat >"${pin_root}/.github/workflows/ci.yml" <<'EOF'
+      - name: Install the public-doc command truth binary
+        env:
+          ANVIL_DOCS_VERSION: 0.9.4-beta
+EOF
+cat >"${pin_root}/docs/public/anvil/releases/changelog.md" <<'EOF'
+## 0.9.5-beta — 16 August 2026 — MCP live-heal
+
+## 0.9.4-beta — 10 August 2026 — Clearer install advice
+EOF
+git -C "${pin_root}" init -q
+git -C "${pin_root}" config user.email "docs-check@example.com"
+git -C "${pin_root}" config user.name "docs-check"
+git -C "${pin_root}" add .github docs
+git -C "${pin_root}" commit -q -m "fixture"
+git -C "${pin_root}" tag v0.9.4-beta
+set +e
+out="$(node "${pin_script}" --root "${pin_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]] && echo "${out}" | grep -q "0.9.4-beta matches newest published changelog heading"; then
+  pass "cut-window pin may stay on previous published release"
+else
+  fail "expected cut-window pin to pass (status ${status}); got: ${out}"
+fi
+
 set +e
 out="$(cd "${repo_root}" && node "${pin_script}" 2>&1)"
 status=$?
 set -e
 if [[ "${status}" -eq 0 ]]; then
-  pass "live pin matches newest changelog heading"
+  pass "live pin matches expected published changelog heading"
 else
   fail "live pin disagrees with changelog; got: ${out}"
 fi

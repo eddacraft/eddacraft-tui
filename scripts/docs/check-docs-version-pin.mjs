@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// DOCFRESH-007 (ADR-119 D7): ANVIL_DOCS_VERSION must track the
-// newest heading in the public changelog. Command-probe authority is only
-// as good as the binary it runs; a stale pin silently validates against
-// an old release.
+// DOCFRESH-007 (ADR-119 D7): ANVIL_DOCS_VERSION must track the newest
+// *published* public-changelog heading — the binary command-probe can actually
+// download. During a release cut, prepare may promote the next version into the
+// public changelog before the tag/assets exist; the pin stays on the previous
+// published release until closeout bumps it.
 //
 // Exit codes follow the docs-check taxonomy (CIB-278): 0 clean, 1 content
 // defect, 2 the check could not run.
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -37,6 +39,24 @@ function readOrExit(path) {
   }
 }
 
+function publishedVersions(repoRoot) {
+  try {
+    const out = execFileSync('git', ['-C', repoRoot, 'tag', '--list', 'v*'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return new Set(
+      out
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((tag) => tag.replace(/^v/, ''))
+    );
+  } catch {
+    // Fixtures and non-git roots fall back to newest-heading matching.
+    return null;
+  }
+}
+
 const workflow = readOrExit(workflowPath);
 const changelog = readOrExit(changelogPath);
 
@@ -55,16 +75,24 @@ if (headings.length === 0) {
   console.error(`[${SURFACE}] ERROR: ${rel(changelogPath)} — no version headings found`);
   process.exit(1);
 }
-const newest = headings[0];
 
-if (pin !== newest) {
+const tags = publishedVersions(root);
+const newest = headings[0];
+const expected =
+  tags && tags.size > 0 ? (headings.find((version) => tags.has(version)) ?? newest) : newest;
+const expectedLabel =
+  expected === newest
+    ? 'newest changelog heading'
+    : `newest published changelog heading (top heading ${newest} is not tagged yet)`;
+
+if (pin !== expected) {
   console.error(
-    `[${SURFACE}] ERROR: ${rel(workflowPath)} — ANVIL_DOCS_VERSION is ${pin}, newest changelog heading is ${newest}`
+    `[${SURFACE}] ERROR: ${rel(workflowPath)} — ANVIL_DOCS_VERSION is ${pin}, ${expectedLabel} is ${expected}`
   );
   process.exit(1);
 }
 
-console.log(`[${SURFACE}] ok: ANVIL_DOCS_VERSION ${pin} matches newest changelog heading`);
+console.log(`[${SURFACE}] ok: ANVIL_DOCS_VERSION ${pin} matches ${expectedLabel}`);
 process.exit(0);
 
 function rel(path) {
