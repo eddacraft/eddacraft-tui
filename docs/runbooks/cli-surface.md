@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                      |
-| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 update for the CLI-wide `--json` contract (#3947 operator decision A), after the per-surface repairs on `config` (#3938/#3943) and `migrate format` (#3946); not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                   |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 updates for the CLI-wide `--json` contract (#3947 operator decision A), the per-surface repairs on `config` (#3938/#3943) and `migrate format` (#3946), and the #3962 canonical YAML metadata correction; not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -256,10 +256,13 @@ Three things a parser should know:
   emits the config in the _target_ format, which would break the
   one-JSON-document contract for every non-JSON target, so the converted text
   travels inside the `converted` field instead.
-- `format` is the bare format token, not a dotted suffix: it echoes the value
-  passed to `--to` (`yaml`, `yml`, `json`, or `toml`) and matches the extension
-  of the file `convert` would write. `yml` is **not** normalised to `yaml` —
-  `--to yml` reports `"format": "yml"` and writes `.anvil.yml`.
+- Destination spelling and metadata are intentionally distinct. `--to yml`
+  writes `.anvil.yml`, while `--to yaml` writes `.anvil.yaml`; for either
+  spelling, existing embedded `format` metadata is rewritten to canonical
+  `yaml`. `migrate format --format yml|yaml` follows the same owned-write rule.
+  The existing `convert --stdout --json` `format` field likewise reports
+  `"yaml"` for either spelling; the stable three-field write-mode JSON envelope
+  does not gain a `format` field.
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 

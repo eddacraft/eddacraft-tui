@@ -96,7 +96,7 @@ pub fn run(args: &ConfigArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     // for every non-JSON target (issue #3938). The converted
                     // text travels inside the document instead.
                     crate::output::json::print(&serde_json::json!({
-                        "format": parse_output_format(to)?.extension(),
+                        "format": canonical_format_metadata(parse_output_format(to)?),
                         "converted": converted,
                     }))?;
                 } else {
@@ -438,11 +438,23 @@ pub(crate) fn parse_output_format(raw: &str) -> anyhow::Result<ConfigFormat> {
     }
 }
 
-/// Rewrite top-level `format` metadata to the destination extension.
+/// Canonical spelling for embedded and machine-readable format metadata.
+///
+/// Both `.yaml` and `.yml` remain supported destination filenames, but the
+/// metadata contract has one stable YAML spelling (issue #3962).
+fn canonical_format_metadata(format: ConfigFormat) -> &'static str {
+    match format {
+        ConfigFormat::Yaml | ConfigFormat::Yml => "yaml",
+        ConfigFormat::Json => "json",
+        ConfigFormat::Toml => "toml",
+    }
+}
+
+/// Rewrite top-level `format` metadata to the canonical destination spelling.
 ///
 /// Discovery treats the filename as authoritative. The embedded field is
 /// init/start metadata and must not retain a source spelling after an
-/// owned conversion (issue #3914). Absent keys stay absent so legacy
+/// owned conversion (issues #3914/#3962). Absent keys stay absent so legacy
 /// files without the field do not gain one.
 fn align_format_metadata(value: &mut Value, dest_format: ConfigFormat) {
     let Some(obj) = value.as_object_mut() else {
@@ -451,7 +463,7 @@ fn align_format_metadata(value: &mut Value, dest_format: ConfigFormat) {
     if obj.contains_key("format") {
         obj.insert(
             "format".to_string(),
-            Value::String(dest_format.extension().to_string()),
+            Value::String(canonical_format_metadata(dest_format).to_string()),
         );
     }
 }
@@ -708,8 +720,9 @@ mod tests {
             .map(str::to_owned)
     }
 
-    /// Issue #3914: pairwise conversion must not keep the source `format`
-    /// spelling in the destination body.
+    /// Issues #3914/#3962: pairwise conversion must not keep the source
+    /// `format` spelling in the destination body, and both YAML filename
+    /// spellings use canonical `yaml` metadata.
     #[test]
     fn convert_rewrites_embedded_format_metadata_pairwise() {
         for src in CONVERT_FORMATS {
@@ -721,9 +734,17 @@ mod tests {
 
                 convert_and_write(tmp.path(), dest, false, true, "config convert").unwrap();
 
+                let expected_metadata = match *dest {
+                    "yml" | "yaml" => "yaml",
+                    other => other,
+                };
+                assert!(
+                    tmp.path().join(format!(".anvil.{dest}")).is_file(),
+                    "{src} → {dest} did not retain the requested filename extension"
+                );
                 assert_eq!(
                     parsed_format_field(tmp.path(), dest_fmt).as_deref(),
-                    Some(dest_fmt.extension()),
+                    Some(expected_metadata),
                     "{src} → {dest} retained stale format metadata"
                 );
             }
