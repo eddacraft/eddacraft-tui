@@ -101,10 +101,11 @@
 
 ## CIB
 
-| Document                                                                                               | Path                                        | Type  | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ----- | ------------- | ----- | ------ |
-| [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                          | `docs/guides/continuous-improvement-log.md` | Guide | Authoritative | CIB   | Live   |
-| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md`       | Spec  | Authoritative | CIB   | Live   |
+| Document                                                                                                 | Path                                                     | Type  | Authority     | Owner | Status |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                            | `docs/guides/continuous-improvement-log.md`              | Guide | Authoritative | CIB   | Live   |
+| [GCTX dogfood failure points (2026-08-16)](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md) | `docs/reviews/2026-08-16-gctx-dogfood-failure-points.md` | Guide | Advisory      | CIB   | Live   |
+| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md)   | `docs/specs/policy-eval-output-v1.md`                    | Spec  | Authoritative | CIB   | Live   |
 
 ## CIB, FLEET-007, BACT
 

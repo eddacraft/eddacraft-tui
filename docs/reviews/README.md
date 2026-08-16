@@ -2,7 +2,7 @@
 
 | Type   | Authority | Owner  | Status | Freshness                                                                  |
 | ------ | --------- | ------ | ------ | -------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-12 against `docs/guides/documentation-governance.md` |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-16 against `docs/guides/documentation-governance.md` |
 
 | Upstream                                  | Downstream            |
 | ----------------------------------------- | --------------------- |
@@ -20,6 +20,10 @@ Use `docs/reviews/` for:
 - shipped product code-review map and session tracker
   (`shipped-codebase-review-checklist.md`): chunked checklist over the pure-Rust
   binary and related surfaces
+- GCTX dogfood failure points (2026-08-16) —
+  (`2026-08-16-gctx-dogfood-failure-points.md`): measured `not_ready` /
+  scan-timeout / graph-base spawn / two-client handshake leftovers; executable
+  follow-up is CIB-341..344
 
 Move review documents to `docs/archive/reviews/` once their follow-up work is
 merged, superseded, or no longer actionable.

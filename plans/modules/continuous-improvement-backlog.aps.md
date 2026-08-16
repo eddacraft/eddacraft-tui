@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 273/335  |
+| CIB | —     | In Progress | 273/339  |
 
 ## Purpose
 
@@ -10516,3 +10516,134 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
   10k random mixed-case 24-char tokens classified as code.
 - **Coordinates with:** SEC-FP-1 entropy path, CIB-339
 - **Confidence:** high — mechanism measured.
+
+### CIB-341: Large-repo full scan 60s budget leaves GCTX generation-0
+
+- **Status:** Ready
+- **Priority:** P1 — dogfood GCTX stays `not_ready` / stale on anvil-001
+- **Intent:** The intercept full scan hard-caps at 60 seconds
+  (`SCAN_TIMEOUT` in `full_scan_executor.rs`). On a large workspace the
+  pass never completes, so `generation` stays 0, GCTX flickers
+  `not_ready` while `running`, then serves a `stale{scan-timeout}`
+  partial graph. On-demand re-warm from `not_ready` restarts the same
+  timeout loop.
+- **Expected Outcome:** a first completed scan of anvil-001 (or a
+  documented, operator-visible bound) reaches `generation >= 1` and
+  GCTX `ready` without requiring a retry-after-timeout. Stale rustc-path
+  `Module` identities are not the served shape after a completed scan.
+  Budget or decompose so the dogfood repo can finish; do not just
+  lengthen the timeout blindly if compose-from-base (CIB-342) is the
+  real path.
+- **Non-scope / do not:** do not disable GCTX; do not treat
+  `ANVIL_GCTX_EGRESS=0` as the fix; do not paper over with copy that
+  says "retry shortly" as the only product answer for this repo.
+- **Files:** `crates/anvil-intercept/src/full_scan_executor.rs`,
+  `crates/anvil-intercept/src/save_time.rs`,
+  `crates/anvil-cli/src/mcp/tools/search_symbols.rs`
+- **Validation:** on anvil-001, `anvil_search_symbols` returns `ready`
+  with `generation >= 1` (or `stale` only after a *completed* generation
+  that later drifted). Daemon log has no repeating 60s
+  `scan-timeout` for that workspace in a quiet minute after warm-up.
+- **Identified From:** 2026-08-16 Grok dogfood session; evidence in
+  [`docs/reviews/2026-08-16-gctx-dogfood-failure-points.md`](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md).
+- **Coordinates with:** CIB-342, GBASE, DSV, MCPLH (large-repo graph
+  warm called out of that module)
+- **Confidence:** high — measured live; log line and 60s const match.
+
+### CIB-342: graph-base production spawn ENOENT serves cold
+
+- **Status:** Ready
+- **Priority:** P1 — cold scans are why CIB-341 cannot finish
+- **Intent:** `CurrentExeSpawner` re-execs `current_exe()` as
+  `anvil graph-base build --repo <git-dir>`. On this host that spawn
+  returns `No such file or directory` and the daemon serves cold, even
+  when a matching `*.base` artefact for HEAD already exists. Stale
+  `.producing/*.lock` files from weeks earlier remain.
+- **Expected Outcome:** a live daemon on anvil-001 either reuses the
+  existing HEAD base or successfully produces one. The
+  `failed to spawn base-production subprocess; serving cold` warning
+  stops repeating for a repo whose `.git` and `anvil` binary both
+  exist. Spawn failures name the missing path, not a generic ENOENT.
+- **Non-scope / do not:** do not delete operator graph-cache as the
+  fix; do not require a daemon restart as the only recovery.
+- **Files:** `crates/anvil-intercept/src/graph_base_trigger.rs`,
+  `crates/anvil-intercept/src/graph_base_warm_start.rs`
+- **Validation:** `anvil graph-base build --repo <anvil-001/.git>`
+  succeeds from the same binary the daemon runs; after a ref event or
+  GCTX miss, the daemon log shows a compose/warm-start, not a spawn
+  ENOENT storm. `rg 'serving cold' ~/.local/state/anvil/intercept.daemon.log`
+  is quiet for a new minute on this repo.
+- **Identified From:** 2026-08-16 Grok dogfood session; same review
+  note as CIB-341.
+- **Coordinates with:** CIB-341, CIB-344 (stale produce-locks), GBASE
+- **Confidence:** high — log + `CurrentExeSpawner` + extant `.base`
+  artefact.
+
+### CIB-343: Live handshake still Claude Code and Cursor only
+
+- **Status:** Ready
+- **Priority:** P1 — twelve-client install, two-client attestation
+- **Intent:** `AgentClientId` and `anvil mcp install` already cover
+  twelve first-wave clients (MCPX). The activation diagnostic that can
+  reach `restart_handshake_verified` / live-validation still uses
+  `all_clients() -> &[&cursor::Cursor, &claude_code::ClaudeCode]`.
+  Grok (and the other ten) therefore stay `ready_restart_required` /
+  `daemon: not attesting` even when their stdio MCP tools work. This
+  is the runtime leftover CIB-227 did not close — that item shipped
+  copy only.
+- **Expected Outcome:** every installable `AgentClientId` can complete
+  the same handshake/attestation ladder, or `anvil start --verify`
+  states a client-specific cap instead of implying a pending restart
+  of Cursor/Claude. A Grok stdio session that is calling GCTX tools is
+  not reported as MCP-unattached.
+- **Non-scope / do not:** do not reopen CIB-227 copy inventory; do not
+  claim live-validation for a client that has no daemon attestation
+  path; do not treat Grok-only as the whole matrix.
+- **Files:** `crates/anvil-cli/src/activation/mcp_client.rs`,
+  `crates/anvil-cli/src/activation/mcp_client/cursor.rs`,
+  `crates/anvil-cli/src/activation/mcp_client/claude_code.rs`,
+  `crates/anvil-cli/src/activation/agent_registry.rs`,
+  `docs/architecture/mcp-shim-as-built.md` §10
+- **Validation:** `rg 'all_clients' crates/anvil-cli/src/activation/mcp_client.rs`
+  no longer returns a two-element Cursor/Claude slice, or each
+  remaining exclusive pair is documented as a true capability cap.
+  `anvil start --verify --json` on a Grok-wired workspace reports that
+  Grok client rather than only cursor + claude-code handshake tiers.
+- **Identified From:** 2026-08-16 Grok dogfood session; operator
+  request to file the Claude/Cursor leftover after MCPX's twelve-client
+  ship. Distinct from CIB-227 (Released/Shipped via v0.9.3-beta).
+- **Coordinates with:** MCPX (Done), CIB-227, ACTMO, LAUNCH, CIB-180,
+  CIB-244
+- **Confidence:** high — registry vs `all_clients()` slice read in
+  source; verify JSON measured.
+
+### CIB-344: Reap stale MCP shims and graph-base locks as a matter of course
+
+- **Status:** Ready
+- **Priority:** P2 — standing operator debris; not the GCTX `not_ready`
+  cause
+- **Intent:** `anvil doctor` / `anvil start` / `anvil intercept status`
+  do not reap leftover `anvil mcp serve --stdio` processes (including
+  older-version images) or stale `graph-cache/base/.producing/*.lock`
+  files. MCPLH re-exec heals the current stdio child only. This host
+  had weeks-old shims and month-old produce-locks sitting beside a
+  live 0.9.4-beta daemon.
+- **Expected Outcome:** a routine operator command (`doctor` and/or
+  intercept start/status) reports and, with an explicit safe default,
+  reaps orphan `anvil mcp serve` processes that are not the live
+  client's child, and clears produce-locks whose pid is dead. Live
+  editor/agent shims and an in-flight producer are left alone.
+- **Non-scope / do not:** do not SIGKILL a process whose parent is a
+  current MCP client; do not wipe the whole graph-cache; do not make
+  reap the only fix for CIB-341/342.
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-intercept/src/graph_base_trigger.rs`
+- **Validation:** with a planted dead-pid produce-lock and a leftover
+  `anvil mcp serve` whose parent is gone, `anvil doctor` names both
+  and a documented heal flag or start/doctor path removes them.
+  A live Grok/Cursor shim pid is retained.
+- **Identified From:** 2026-08-16 Grok dogfood session; operator
+  request to clean stale items as a matter of course.
+- **Coordinates with:** CIB-342, MCPLH, CIB-242
+- **Confidence:** high — `ps` inventory and lock timestamps measured.
