@@ -116,6 +116,37 @@ checks match reality.
   on `check`, `gate`, `gate-config`, `watch` startup, and `architecture`.
   Runtime and missing-file failures still exit 1.
 
+- **`--json` on config, GCTX egress, capsule create, and migrate format is JSON
+  only.** Successful `config show`, `config set`, `config convert`,
+  `gctx egress enable`/`disable`, `capsule create`, and `migrate format` print
+  one JSON document to stdout when `--json` is set. Human output without the
+  flag is unchanged. A remaining CLI-wide `--json` sweep is still open (#3947).
+
+- **`anvil config convert` rewrites destination format metadata.** Converting
+  YAML to JSON no longer leaves `"format": "yml"` (and the same for other
+  pairs). `migrate format` shares the rule.
+
+- **`anvil watch` enforces architecture on save and reloads policy.** A new
+  forbidden dependency now appears in watch the same way as
+  `anvil gate --only-checks architecture`. Editing the active architecture
+  source reloads or fails closed instead of keeping a stale layer.
+
+- **MCP status does not call a missing `anvil` live protection.** A client whose
+  configured command is not on that client's PATH is not `live_validation` or
+  `protecting`. Status names the unresolvable command.
+
+- **Empty-host URLs no longer skip credit-card detection.** A string such as
+  `https:///accounts/4111…/events` is not treated as a safe URL path. Valid
+  host-bearing HTTP(S) paths still get the path exemption.
+
+- **Activation recovery is one story.** A missing daemon no longer both
+  recommends and rejects an editor restart. Stale-image warnings print once.
+
+- **Read-only MCP diagnostics work before you log in.** `mcp install --dry-run`,
+  `mcp install --verify`, and `mcp-config --verify` (and the no-`--write`
+  preview) no longer require account authentication. Real install and `--write`
+  still do.
+
 - **Claude Code project MCP install writes `.mcp.json`.** Project-scoped install
   used to write workspace `.claude.json`, which Claude does not load for MCP.
   User and local scope stay on `~/.claude.json`. Re-run

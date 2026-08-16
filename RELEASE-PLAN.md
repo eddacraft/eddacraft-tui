@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                           |
-| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-16: **`v0.9.5-beta` claim re-locked** — MCP live-heal primary (MCPLH-001..006+008); config unification + honesty secondary. Feature release on the v0.9 line (not `v0.10.0`). Not cut-ready until changelog + standing bar. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                      |
+| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Release plan | Derived   | APS modules | Live   | 2026-08-16: **`v0.9.5-beta` claim re-locked** — MCP live-heal primary; config + honesty secondary. #3925 P1 repair queue closed on `main`. Remaining cut work: finish changelog, standing bar, optional #3947, then preflight. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -55,8 +55,10 @@ heal so typical sessions stay attached — plus the already-landed config
 unification and honesty pass.
 
 **Status:** **Claim locked; not cut-ready.** Primary and secondary claim items
-are Merged on `main`. Remaining cut work is changelog curation, standing base
-bar, and preflight → prepare → readiness → tag.
+are Merged on `main`. The #3925 P1 acceptance-repair queue is closed. Remaining
+cut work is finishing `[Unreleased]` curation (hygiene pass 2026-08-16), the
+standing base bar, optional CLI-wide `--json` (#3947), then preflight → prepare
+→ readiness → tag.
 
 **Customer one-liner:** Upgrade anvil and keep coding — MCP heals itself; pin if
 you do not want that. One config file story comes with it.
@@ -145,8 +147,8 @@ for Released/Shipped → Complete.
 | **Claim lock**     | Freeze primary/secondary IDs for `v0.9.5-beta`                 | Done 2026-08-13 (UCFG primary)                                          |
 | **Claim re-lock**  | Align claim to the landed `main` diff                          | Done 2026-08-16 (MCPLH primary; keep `v0.9.5-beta`, not `v0.10.0-beta`) |
 | **Implement**      | Primary MCPLH Ready wave + secondary UCFG + deep clean         | Done — all claim rows Merged on `main`                                  |
-| **Changelog**      | Curate `[Unreleased]` for live-heal, then config, then honesty | Next                                                                    |
-| **Cut**            | Preflight → prepare → readiness → tag                          | Not scheduled                                                           |
+| **Changelog**      | Curate `[Unreleased]` for live-heal, then config, then honesty | In progress — 2026-08-16 hygiene pass added #3925 honesty fixes         |
+| **Cut**            | Preflight → prepare → readiness → tag                          | Not scheduled — do not run `prepare.sh` until standing bar + preflight  |
 
 ### Cut criteria
 
