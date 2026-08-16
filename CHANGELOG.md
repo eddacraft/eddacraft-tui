@@ -14,10 +14,10 @@ engineering maintenance are recorded in the
 This window is about trusting the project config anvil reads: one canonical
 file, one key casing, and migrate/doctor paths for the older names — plus a few
 honesty fixes so Claude's project MCP install, live-validation status, and
-several checks match reality. After an upgrade, run `anvil mcp refresh` to
-rewrite owned MCP configs, recycle a skewed daemon, and poke live `mcp serve`
-children so the next tool call can heal in place. You do not need to restart
-agent sessions.
+several checks match reality. After an upgrade, daily `anvil`, `anvil start`,
+and `anvil doctor` rewrite owned MCP configs and poke live children. Use
+`anvil mcp refresh` if you need the full cascade now. You do not need to restart
+agent sessions. Pin with `anvil mcp pin` if you do not want auto-heal.
 
 ### Changed
 
@@ -80,10 +80,17 @@ agent sessions.
   `env -S "rm -rf /"` is treated as the inner command, so the same
   dangerous-command rules apply.
 
-- **`anvil mcp refresh` heals MCP after an upgrade without restarting agents.**
-  It rewrites Anvil-owned client entries to the PATH-stable `anvil` command,
-  recycles a version-skewed intercept daemon, and bumps a refresh generation so
-  live `mcp serve` children re-check on the next tool call. `--dry-run`
+- **Daily `anvil` / `anvil start` / `anvil doctor` heal MCP unless you pin.**
+  When owned client entries, the CLI, or the daemon are stale, those paths
+  rewrite the entries and poke live `mcp serve` children. `anvil mcp pin` (or
+  `ANVIL_MCP_PIN`) freezes daily heal and in-process recycle; `anvil mcp unpin`
+  or `ANVIL_MCP_PIN=0` resumes. First-time install on `anvil start` still works
+  while pinned.
+
+- **`anvil mcp refresh` is the emergency cascade.** It rewrites Anvil-owned
+  client entries to the PATH-stable `anvil` command, recycles a version-skewed
+  intercept daemon, and always bumps a refresh generation so live children
+  re-check on the next tool call — even when heal is pinned. `--dry-run`
   previews; `--json` prints the report. Default `--processes report` only lists
   children by parent. `--processes orphan-reap` sends SIGTERM to same-user
   orphans whose parent is gone (Unix). Children of live sessions are never

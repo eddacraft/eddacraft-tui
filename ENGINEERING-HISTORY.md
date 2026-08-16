@@ -12,10 +12,11 @@ delivery changes behind each release. For end-user feature summaries, see the
 Draft / unreleased. Technical work landed on `main` since `v0.9.4-beta`. The
 locked `v0.9.5-beta` claim is **config unification and product deep clean**
 ([ADR-120](./plans/decisions/120-config-surface-consolidation.md), UCFG-001..016
-on `main`) plus the **MCP live-heal** operator path (MCPLH-001..006 on `main`;
-001/002/004 Merged, 003/005/006 code landed). Supervisor/proxy (MCPLH-007) stays
-Draft until re-exec soak evidence. Settings (`SETCON`+) and Graph Trust Surfaces
-remain beside this window, not the cut claim.
+on `main`) plus the **MCP live-heal** path (MCPLH-001..006 and MCPLH-008 on
+`main`). Supervisor/proxy (MCPLH-007) stays Draft until re-exec soak evidence.
+APS Merged bookkeeping for 003/005/006/008 is
+[#3933](https://github.com/eddacraft/anvil-001/pull/3933). Settings (`SETCON`+)
+and Graph Trust Surfaces remain beside this window, not the cut claim.
 
 ### Config surface consolidation (ADR-120, UCFG)
 
@@ -63,6 +64,12 @@ remain beside this window, not the cut claim.
 - **Opt-in orphan reap (MCPLH-006).** `--processes orphan-reap` SIGTERMs
   same-user `anvil mcp serve --stdio` children whose parent PID is gone (Unix;
   same-uid gate). `force-skewed` is rejected.
+- **Daily self-heal + pin (MCPLH-008).** Bare `anvil`, `anvil start`, and
+  `anvil doctor` rewrite drifted owned entries and poke live children when
+  configs, CLI, or daemon change. `anvil mcp pin` / `ANVIL_MCP_PIN` freeze daily
+  heal and in-process re-exec; `anvil mcp unpin` or `ANVIL_MCP_PIN=0` resume.
+  Emergency `mcp refresh` still runs while pinned and says so. First-time
+  `NotPresent` install on `anvil start` is allowed while pinned.
 
 ### Honesty, reliability, and adjacent engineering
 
