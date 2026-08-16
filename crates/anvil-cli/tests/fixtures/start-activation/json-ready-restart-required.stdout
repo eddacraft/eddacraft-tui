@@ -6,12 +6,62 @@
   "config": "valid",
   "mcp": [
     {
+      "client": "claude-code",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
       "client": "cursor",
       "tier": "restart_handshake_verified",
       "transport": "stdio"
     },
     {
-      "client": "claude-code",
+      "client": "codex",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "opencode",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "gemini-cli",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "antigravity",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "openclaw",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "vscode",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "copilot-cli",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "grok",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "warp",
+      "tier": "restart_handshake_verified",
+      "transport": "stdio"
+    },
+    {
+      "client": "zed",
       "tier": "restart_handshake_verified",
       "transport": "stdio"
     }
@@ -22,5 +72,5 @@
   "last_error": null,
   "all_languages_unsupported": false,
   "repo_languages": [],
-  "unclassified_files_seen": 2
+  "unclassified_files_seen": 4
 }

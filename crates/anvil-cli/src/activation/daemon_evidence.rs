@@ -449,11 +449,11 @@ fn client_identity_tokens(client: McpClientId) -> &'static [&'static str] {
         ],
         McpClientId::Cursor => &["cursor"],
         McpClientId::Codex => &["codex"],
-        McpClientId::OpenCode => &["opencode"],
+        McpClientId::OpenCode => &["opencode", "open-code", "open_code"],
         McpClientId::GeminiCli => &["gemini-cli"],
         McpClientId::Antigravity => &["antigravity"],
-        McpClientId::OpenClaw => &["openclaw"],
-        McpClientId::VsCode => &["vscode"],
+        McpClientId::OpenClaw => &["openclaw", "open-claw", "open_claw"],
+        McpClientId::VsCode => &["vscode", "vs-code", "vs_code"],
         McpClientId::CopilotCli => &["copilot-cli"],
         McpClientId::Grok => &["grok"],
         McpClientId::Warp => &["warp"],
@@ -1038,6 +1038,10 @@ mod tests {
             "test-driver/test-agent#9000",
             McpClientId::ClaudeCode,
         ));
+        assert!(surface_attests_client("open-code", McpClientId::OpenCode));
+        assert!(surface_attests_client("opencode", McpClientId::OpenCode));
+        assert!(surface_attests_client("open-claw", McpClientId::OpenClaw));
+        assert!(surface_attests_client("vs-code", McpClientId::VsCode));
     }
 
     #[test]

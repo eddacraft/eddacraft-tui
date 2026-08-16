@@ -21,14 +21,34 @@ ACTIVATION
   meaning: An anvil MCP entry is present, but the local intercept daemon is not reachable. Protection cannot graduate until the daemon answers this worktree.
   config: valid
   mcp:
-    Cursor: restart_handshake_verified (pending restart)
     Claude Code: restart_handshake_verified (pending restart)
+    Cursor: restart_handshake_verified (pending restart)
+    Codex: restart_handshake_verified (pending restart)
+    OpenCode: restart_handshake_verified (pending restart)
+    Gemini CLI: restart_handshake_verified (pending restart)
+    Antigravity: restart_handshake_verified (pending restart)
+    OpenClaw: restart_handshake_verified (pending restart)
+    VS Code: restart_handshake_verified (pending restart)
+    GitHub Copilot CLI: restart_handshake_verified (pending restart)
+    Grok Build: restart_handshake_verified (pending restart)
+    Warp: restart_handshake_verified (pending restart)
+    Zed: restart_handshake_verified (pending restart)
   watch: not_requested
   baseline: absent
   next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.
   install:
-    Cursor: installed at <HOME>/.cursor/mcp.json (fresh)
     Claude Code: installed at <HOME>/.claude.json (fresh)
+    Cursor: installed at <HOME>/.cursor/mcp.json (fresh)
+    Codex: installed at <HOME>/.codex/config.toml (fresh)
+    OpenCode: installed at <HOME>/.config/opencode/opencode.json (fresh)
+    Gemini CLI: installed at <HOME>/.gemini/settings.json (fresh)
+    Antigravity: installed at <HOME>/.gemini/config/mcp_config.json (fresh)
+    OpenClaw: installed at <HOME>/.openclaw/openclaw.json (fresh)
+    VS Code: installed at ./.vscode/mcp.json (fresh)
+    GitHub Copilot CLI: installed at <HOME>/.copilot/mcp-config.json (fresh)
+    Grok Build: installed at <HOME>/.grok/config.toml (fresh)
+    Warp: installed at <HOME>/.warp/.mcp.json (fresh)
+    Zed: installed at ./.zed/settings.json (fresh)
   rule modes: public-api-expansion=warn, new-dependency-introduction=warn, cross-layer-violation=warn, privilege-expansion=warn
   rule source: .anvil.yaml
   daemon: not started (--no-daemon); save-time validation uses the scoped fallback.
@@ -42,7 +62,7 @@ verify:
     1. echo 'const KEY = "AKIAQRSTUVWXYZ123456";' >> .anvil-smoke-test.ts
     2. expect: `anvil check .anvil-smoke-test.ts` reports a secret-detection finding
     3. rm .anvil-smoke-test.ts when done
-  AI tools detected: claude-code, cursor
+  AI tools detected: claude-code, cursor, codex
 
   Anonymous usage telemetry
   anvil sends at most one anonymous beacon per day so active installs

@@ -4,8 +4,18 @@ ACTIVATION
   meaning: An anvil MCP entry is present, but the local intercept daemon is not reachable. Protection cannot graduate until the daemon answers this worktree.
   config: valid
   mcp:
-    Cursor: restart_handshake_verified (pending restart)
     Claude Code: restart_handshake_verified (pending restart)
+    Cursor: restart_handshake_verified (pending restart)
+    Codex: restart_handshake_verified (pending restart)
+    OpenCode: restart_handshake_verified (pending restart)
+    Gemini CLI: restart_handshake_verified (pending restart)
+    Antigravity: restart_handshake_verified (pending restart)
+    OpenClaw: restart_handshake_verified (pending restart)
+    VS Code: restart_handshake_verified (pending restart)
+    GitHub Copilot CLI: restart_handshake_verified (pending restart)
+    Grok Build: restart_handshake_verified (pending restart)
+    Warp: restart_handshake_verified (pending restart)
+    Zed: restart_handshake_verified (pending restart)
   watch: not_requested
   baseline: absent
   next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.
