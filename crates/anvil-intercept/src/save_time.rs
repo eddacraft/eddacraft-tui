@@ -1316,7 +1316,7 @@ fn publish_restored_generation(
     key: &WorktreeKey,
     machine: &Mutex<AssuranceMachine>,
 ) {
-    if !cache.contains(key) || cache.warm_files(key).is_empty() {
+    if !cache.has_warm_nodes(key) {
         return;
     }
     let mut m = machine.lock().unwrap_or_else(PoisonError::into_inner);

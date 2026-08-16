@@ -667,6 +667,14 @@ impl KernelGraphCache {
         self.lock().map.keys().cloned().collect()
     }
 
+    /// True when `key` has at least one symbol node. Cheap emptiness check
+    /// (no file-list allocation).
+    #[must_use]
+    pub fn has_warm_nodes(&self, key: &WorktreeKey) -> bool {
+        self.with_graphs(key, |sym, _dep| sym.inner().node_count() > 0)
+            .unwrap_or(false)
+    }
+
     /// The distinct files present in `key`'s warm symbol graph (DSV-030 reconcile:
     /// the executor diffs this against the walked set and `Delete`s any file no
     /// longer on disk, so a deleted-while-down file is pruned before `Clean`).

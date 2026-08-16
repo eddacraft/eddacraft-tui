@@ -735,7 +735,7 @@ fn workspace_relative(root: &Path, abs: &Path) -> Option<String> {
 /// `true` when `key` holds at least one file/symbol — a graph GCTX can serve
 /// as stale rather than `not_ready`.
 fn resident_graph_is_readable(cache: &KernelGraphCache, key: &WorktreeKey) -> bool {
-    cache.contains(key) && !cache.warm_files(key).is_empty()
+    cache.has_warm_nodes(key)
 }
 
 /// An empty [`FileSymbols`] for `file` — the `Delete` payload the reconcile prune

@@ -119,7 +119,7 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
     // succeed. Best-effort and fire-and-forget; the daemon-side executor
     // (DSV-045) drives and coalesces the scan. CIB-341: do not restart a
     // scan-timeout loop when a populated generation is already published.
-    if should_rewarm(&response.outcome, &response.workspace_assurance) {
+    if should_rewarm(&response.outcome) {
         let _ = crate::commands::watch_save_time::warm_up_root(&workspace_path);
     }
 
@@ -127,27 +127,24 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
 }
 
 /// Whether a search outcome warrants an on-demand re-warm (GCTX-010 C1). Only a
-/// `NotReady` graph with no published generation benefits: `Ready` is already
-/// populated, `Unavailable` has no live daemon to enqueue against, `Disabled`
-/// is an operator switch we must not fight (`ANVIL_GCTX_EGRESS=0`), and
-/// `InvalidQuery` is the caller's bug.
+/// `NotReady` graph benefits: `Ready` is already populated (including a
+/// published scan-timeout/restore generation served as stale), `Unavailable`
+/// has no live daemon to enqueue against, `Disabled` is an operator switch we
+/// must not fight (`ANVIL_GCTX_EGRESS=0`), and `InvalidQuery` is the caller's
+/// bug.
 ///
-/// CIB-341: a published generation (`>= 1`) means a populated graph was already
-/// settled (snapshot restore or `Stale(ScanTimeout)`). Re-warming that state
-/// restarts the 60s full-scan timeout loop. Only re-warm when truly empty /
-/// cold / `Running` with no published pair (`generation == 0`).
+/// CIB-341: do not gate re-warm on `generation`. Eviction can bump generation
+/// while the cache is empty; that still returns `NotReady` and must re-warm.
+/// A populated timeout-stale graph is `Ready`, so it does not reach here.
 ///
 /// Written as an exhaustive match (not `matches!`) so a future
 /// [`SearchSymbolsOutcome`](anvil_gctx_types::SearchSymbolsOutcome) variant —
 /// e.g. a Phase-2 `Bounded`/budget state — forces a compile error here rather
 /// than silently defaulting to "do not re-warm".
-fn should_rewarm(
-    outcome: &anvil_gctx_types::SearchSymbolsOutcome,
-    assurance: &WorkspaceAssurance,
-) -> bool {
+fn should_rewarm(outcome: &anvil_gctx_types::SearchSymbolsOutcome) -> bool {
     use anvil_gctx_types::SearchSymbolsOutcome as Outcome;
     match outcome {
-        Outcome::NotReady { .. } => assurance.generation == 0,
+        Outcome::NotReady { .. } => true,
         Outcome::Ready(_)
         | Outcome::Unavailable
         | Outcome::Disabled
@@ -267,99 +264,40 @@ mod tests {
         );
     }
 
-    fn cold_assurance() -> WorkspaceAssurance {
-        WorkspaceAssurance {
-            state: AssuranceState::Stale,
-            reason: Some(StaleReason::CrossFileResolutionNeeded),
-            generation: 0,
-            last_full_scan: None,
-            scan_coverage: None,
-        }
-    }
-
     #[test]
     fn rewarm_fires_only_on_not_ready() {
         use anvil_gctx_types::{RedactionSummary, SearchSymbolsOutcome, SearchSymbolsProjection};
 
-        let cold = cold_assurance();
-
         // The one recoverable state: a warming / cold-but-unpopulated graph.
-        assert!(should_rewarm(
-            &SearchSymbolsOutcome::NotReady {
-                recovery_hint: "warming".into(),
-            },
-            &cold
-        ));
+        assert!(should_rewarm(&SearchSymbolsOutcome::NotReady {
+            recovery_hint: "warming".into(),
+        }));
 
         // Every other outcome must NOT trigger a re-warm.
-        assert!(!should_rewarm(
-            &SearchSymbolsOutcome::Ready(SearchSymbolsProjection {
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Ready(
+            SearchSymbolsProjection {
                 symbols: Vec::new(),
                 next_cursor: None,
                 redaction_summary: RedactionSummary::default(),
-            }),
-            &cold
-        ));
-        assert!(!should_rewarm(&SearchSymbolsOutcome::Unavailable, &cold));
-        assert!(!should_rewarm(&SearchSymbolsOutcome::Disabled, &cold));
-        assert!(!should_rewarm(
-            &SearchSymbolsOutcome::InvalidQuery {
-                reason: "bad".into(),
-            },
-            &cold
-        ));
+            }
+        )));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Unavailable));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Disabled));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::InvalidQuery {
+            reason: "bad".into(),
+        }));
     }
 
     #[test]
-    fn rewarm_skips_published_scan_timeout_generation() {
+    fn rewarm_still_fires_when_generation_is_nonzero_and_not_ready() {
         use anvil_gctx_types::SearchSymbolsOutcome;
 
-        // A timeout-stale graph with a published generation is already readable
-        // as stale — do not restart the 60s scan loop.
-        let published = WorkspaceAssurance {
-            state: AssuranceState::Stale,
-            reason: Some(StaleReason::ScanTimeout),
-            generation: 1,
-            last_full_scan: None,
-            scan_coverage: None,
-        };
-        assert!(!should_rewarm(
-            &SearchSymbolsOutcome::NotReady {
-                recovery_hint: "warming".into(),
-            },
-            &published
-        ));
-
-        // Running with a published generation (restore already populated the
-        // graph) is also not a re-warm — the pair is readable as stale.
-        let running_published = WorkspaceAssurance {
-            state: AssuranceState::Running,
-            reason: None,
-            generation: 1,
-            last_full_scan: None,
-            scan_coverage: None,
-        };
-        assert!(!should_rewarm(
-            &SearchSymbolsOutcome::NotReady {
-                recovery_hint: "warming".into(),
-            },
-            &running_published
-        ));
-
-        // Truly empty / cold / Running with no pair still re-warms.
-        let running_cold = WorkspaceAssurance {
-            state: AssuranceState::Running,
-            reason: None,
-            generation: 0,
-            last_full_scan: None,
-            scan_coverage: None,
-        };
-        assert!(should_rewarm(
-            &SearchSymbolsOutcome::NotReady {
-                recovery_hint: "warming".into(),
-            },
-            &running_cold
-        ));
+        // Eviction can bump generation while the cache is empty. That is still
+        // NotReady and must re-warm. A populated timeout-stale graph is Ready
+        // in save_time, so it never reaches should_rewarm.
+        assert!(should_rewarm(&SearchSymbolsOutcome::NotReady {
+            recovery_hint: "warming".into(),
+        }));
     }
 
     #[test]
