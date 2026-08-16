@@ -75,7 +75,7 @@ fn tutorial_refusal_message(
 pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if args.reset {
         let progress_path = progress_file_path()?;
-        return reset_progress(&progress_path);
+        return reset_progress(&progress_path, global.json);
     }
 
     if let Some(message) = tutorial_refusal_message(
@@ -84,6 +84,17 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         std::io::stdout().is_terminal(),
     ) {
         return Err(anyhow::anyhow!(message));
+    }
+
+    // Issue #3947: the tutorial is interactive-only — on a real terminal
+    // `--json` refuses with a structured error (the same class of refusal
+    // as the gates above, which keep their cause-specific copy) instead
+    // of drawing a raw-mode TUI on a stdout the caller wants to parse.
+    if global.json {
+        return Err(anyhow::anyhow!(
+            "Tutorial is interactive and has no JSON form; run it without --json \
+             (or reset progress with `anvil tutorial --reset --json`)."
+        ));
     }
 
     if args.autoplay {
@@ -384,11 +395,19 @@ pub(crate) fn progress_file_path() -> anyhow::Result<PathBuf> {
     Ok(home.join(".anvil").join("tutorial-progress.json"))
 }
 
-fn reset_progress(path: &PathBuf) -> anyhow::Result<()> {
-    if path.exists() {
+fn reset_progress(path: &PathBuf, json_mode: bool) -> anyhow::Result<()> {
+    let existed = path.exists();
+    if existed {
         std::fs::remove_file(path).context("failed to remove progress file")?;
     }
-    println!("Tutorial progress reset.");
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "reset": true,
+            "progress_existed": existed,
+        }))?;
+    } else {
+        println!("Tutorial progress reset.");
+    }
     Ok(())
 }
 
@@ -951,7 +970,7 @@ mod tests {
         std::fs::write(&path, "{}").unwrap();
         assert!(path.exists());
 
-        reset_progress(&path).unwrap();
+        reset_progress(&path, false).unwrap();
         assert!(!path.exists());
     }
 
@@ -959,7 +978,7 @@ mod tests {
     fn reset_nonexistent_file_succeeds() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("progress.json");
-        reset_progress(&path).unwrap();
+        reset_progress(&path, false).unwrap();
     }
 
     #[test]

@@ -28,12 +28,25 @@ pub struct LicensesArgs {
     pub format: Format,
 }
 
-// `run` keeps the `Result<()>` signature to match the dispatch contract in
-// `main.rs`, even though the current implementation cannot fail.
-#[allow(clippy::unnecessary_wraps)]
 pub fn run(args: &LicensesArgs, global: &GlobalArgs) -> anyhow::Result<()> {
-    let output = render(args.format, supports_colour(global.no_tui));
-    print!("{output}");
+    // Issue #3947: an accepted `--json` means the whole of stdout is one
+    // document; the licence text travels inside it (the `config convert
+    // --stdout --json` envelope precedent). Colour is disabled so the
+    // embedded text carries no ANSI escapes.
+    if global.json {
+        let format = match args.format {
+            Format::Plain => "plain",
+            Format::Markdown => "markdown",
+        };
+        crate::output::json::print(&serde_json::json!({
+            "version": env!("CARGO_PKG_VERSION"),
+            "format": format,
+            "text": render(args.format, false),
+        }))?;
+    } else {
+        let output = render(args.format, supports_colour(global.no_tui));
+        print!("{output}");
+    }
     Ok(())
 }
 

@@ -93,8 +93,10 @@ enum BaselineCommand {
     Verify,
 }
 
-pub fn run(args: &BaselineArgs, _global: &GlobalArgs) -> Result<()> {
+pub fn run(args: &BaselineArgs, global: &GlobalArgs) -> Result<()> {
     let repo_root = std::env::current_dir().context("resolve repo root")?;
+    // Issue #3947: every terminal outcome honours the global `--json`.
+    let json_mode = global.json;
     match &args.command {
         Some(BaselineCommand::Verify) => {
             if args.new_identity {
@@ -102,7 +104,7 @@ pub fn run(args: &BaselineArgs, _global: &GlobalArgs) -> Result<()> {
                     "`--new-identity` is incompatible with `verify` — verify is read-only"
                 );
             }
-            run_verify(&repo_root)
+            run_verify(&repo_root, json_mode)
         }
         None => {
             // MLP2-035: assemble the suspicion thresholds from any
@@ -123,6 +125,7 @@ pub fn run(args: &BaselineArgs, _global: &GlobalArgs) -> Result<()> {
                 &thresholds,
                 args.accept_suspicious,
                 args.scan_budget.unwrap_or(DEFAULT_SCAN_BUDGET),
+                json_mode,
             )
         }
     }
@@ -132,6 +135,9 @@ pub fn run(args: &BaselineArgs, _global: &GlobalArgs) -> Result<()> {
 // orchestrator pass; splitting out micro-helpers obscures the
 // lifecycle.
 #[allow(clippy::too_many_lines)]
+// The json flag joins four pre-existing mode bools; a param struct here
+// would only relocate the same six call-site literals (issue #3947).
+#[allow(clippy::fn_params_excessive_bools)]
 fn run_create_or_refresh(
     repo_root: &Path,
     refresh: bool,
@@ -139,6 +145,7 @@ fn run_create_or_refresh(
     suspicion_thresholds: &SuspicionThresholds,
     accept_suspicious: bool,
     scan_budget: usize,
+    json_mode: bool,
 ) -> Result<()> {
     // DISTRIB-006 (ADR-060): `anvil baseline` create/refresh is a durable
     // per-project mutation command. Refuse the WHOLE flow under a non-default
@@ -204,9 +211,15 @@ fn run_create_or_refresh(
             _ => None,
         };
         if let Some(reason) = drift_reason {
-            println!(
+            // Advisory, not the terminal outcome — stderr under `--json`.
+            let restart_note = format!(
                 "anvil: baseline restart triggered ({reason}). Discarding the partial cursor and rescanning from the start so new files before the cursor are not silently skipped."
             );
+            if json_mode {
+                eprintln!("{restart_note}");
+            } else {
+                println!("{restart_note}");
+            }
             is_partial_resume = false;
             // Treat the drift restart as an implicit refresh so the
             // existing-baseline guard below doesn't short-circuit
@@ -215,7 +228,17 @@ fn run_create_or_refresh(
         }
     }
     if existing.is_some() && !refresh && !new_identity && !is_partial_resume {
-        println!("anvil: baseline already exists at anvil/baseline.json — use --refresh to update");
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "already-exists",
+                "baseline": "anvil/baseline.json",
+                "next": "anvil baseline --refresh",
+            }))?;
+        } else {
+            println!(
+                "anvil: baseline already exists at anvil/baseline.json — use --refresh to update"
+            );
+        }
         return Ok(());
     }
 
@@ -303,10 +326,19 @@ fn run_create_or_refresh(
         && !is_partial_resume
         && !accept_suspicious
     {
-        println!(
-            "anvil: {REFRESH_DEGRADED_REASON} — `--refresh` with `--scan-budget {scan_budget}` would replace the complete prior baseline with a partial snapshot covering only the budgeted prefix. \
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "refused-partial-refresh",
+                "reason": REFRESH_DEGRADED_REASON,
+                "scan_budget": scan_budget,
+                "next": "anvil baseline --refresh --accept-suspicious",
+            }))?;
+        } else {
+            println!(
+                "anvil: {REFRESH_DEGRADED_REASON} — `--refresh` with `--scan-budget {scan_budget}` would replace the complete prior baseline with a partial snapshot covering only the budgeted prefix. \
 Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-run with `--accept-suspicious` if you're deliberately re-adopting this monorepo incrementally, or raise `--scan-budget` to cover the full tree."
-        );
+            );
+        }
         return Ok(());
     }
 
@@ -327,11 +359,26 @@ Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-r
         } = analyze_refresh(prior_findings, &baseline.findings, suspicion_thresholds)
     {
         if accept_suspicious {
-            println!(
+            let ack_note = format!(
                 "anvil: {REFRESH_DEGRADED_REASON} acknowledged — refresh removed {removed_count} of {old_total} prior findings ({pct:.0}% drop ≥ {thr_pct:.0}% threshold). Proceeding with rewrite per `--accept-suspicious`.",
                 pct = removed_ratio * 100.0,
                 thr_pct = threshold.removed_ratio_threshold * 100.0,
             );
+            // Advisory before the terminal document — stderr under `--json`.
+            if json_mode {
+                eprintln!("{ack_note}");
+            } else {
+                println!("{ack_note}");
+            }
+        } else if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "refused-suspicious",
+                "reason": REFRESH_DEGRADED_REASON,
+                "removed": removed_count,
+                "prior_total": old_total,
+                "next": "anvil baseline --refresh --accept-suspicious",
+            }))?;
+            return Ok(());
         } else {
             println!(
                 "anvil: {REFRESH_DEGRADED_REASON} — refresh would remove {removed_count} of {old_total} prior findings ({pct:.0}% drop ≥ {thr_pct:.0}% threshold). \
@@ -358,16 +405,18 @@ Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-r
         (false, false, true) => "created (partial)",
         (false, false, false) => "created",
     };
-    if let Some(cursor) = baseline.continuation.as_deref() {
-        println!(
-            "anvil: baseline {action} (current posture — {} findings, baselined as-is; resume from `{cursor}` with another `anvil baseline`)", // CIB-016 pairs with "new regressions — M findings since baseline" in subsequent check/gate/activation scans (see activation/render.rs)
-            baseline.findings.len(),
-        );
-    } else {
-        println!(
-            "anvil: baseline {action} (current posture — {} findings, baselined as-is)",
-            baseline.findings.len(),
-        );
+    if !json_mode {
+        if let Some(cursor) = baseline.continuation.as_deref() {
+            println!(
+                "anvil: baseline {action} (current posture — {} findings, baselined as-is; resume from `{cursor}` with another `anvil baseline`)", // CIB-016 pairs with "new regressions — M findings since baseline" in subsequent check/gate/activation scans (see activation/render.rs)
+                baseline.findings.len(),
+            );
+        } else {
+            println!(
+                "anvil: baseline {action} (current posture — {} findings, baselined as-is)",
+                baseline.findings.len(),
+            );
+        }
     }
 
     // MLP2-031 ↔ -032: pin the cutoff into `anvil/policy.{yml,…}` so
@@ -376,24 +425,44 @@ Refusing to overwrite anvil/baseline.json without explicit acknowledgement. Re-r
     // file emits a hint and does not fail the orchestrator. Skipped
     // while the baseline is partial — pinning a cutoff against an
     // incomplete record would lock in a half-state.
-    if let Some(sha) = cutoff
+    let cutoff_pin = if let Some(sha) = cutoff
         && !baseline.partial
     {
-        try_pin_cutoff(repo_root, &sha);
+        Some(try_pin_cutoff(repo_root, &sha, json_mode))
+    } else {
+        None
+    };
+
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "outcome": action,
+            "findings": baseline.findings.len(),
+            "partial": baseline.partial,
+            "continuation": baseline.continuation.as_deref(),
+            "cutoff_pin": cutoff_pin,
+        }))?;
     }
 
     Ok(())
 }
 
-fn run_verify(repo_root: &Path) -> Result<()> {
+fn run_verify(repo_root: &Path, json_mode: bool) -> Result<()> {
     let baseline = load_baseline(repo_root)
         .context("load baseline")?
         .context("no baseline at anvil/baseline.json — run `anvil baseline` first")?;
-    println!(
-        "anvil: baseline ok (current posture — {} findings, baselined as-is; cutoff={})",
-        baseline.findings.len(),
-        baseline.cutoff_commit.as_deref().unwrap_or("<none>"),
-    );
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "outcome": "ok",
+            "findings": baseline.findings.len(),
+            "cutoff": baseline.cutoff_commit.as_deref(),
+        }))?;
+    } else {
+        println!(
+            "anvil: baseline ok (current posture — {} findings, baselined as-is; cutoff={})",
+            baseline.findings.len(),
+            baseline.cutoff_commit.as_deref().unwrap_or("<none>"),
+        );
+    }
     Ok(())
 }
 
@@ -657,24 +726,30 @@ fn collect_scannable_files(repo_root: &Path, extensions: &[String]) -> Vec<Strin
 /// symlink, malformed cutoff) is reported as a hint and does NOT
 /// fail the orchestrator. Adoption must not break because the
 /// operator hasn't yet bootstrapped a policy file.
-fn try_pin_cutoff(repo_root: &Path, cutoff: &str) {
+fn try_pin_cutoff(repo_root: &Path, cutoff: &str, json_mode: bool) -> serde_json::Value {
     let Some(DiscoveredConfig {
         path: policy_path, ..
     }) = find_policy_file(repo_root)
     else {
-        println!(
-            "anvil: cutoff_commit recorded in baseline.json but no anvil/policy.{{yaml,yml,json,toml}} found — run `anvil init` to materialise a policy file before pinning"
-        );
-        return;
+        if !json_mode {
+            println!(
+                "anvil: cutoff_commit recorded in baseline.json but no anvil/policy.{{yaml,yml,json,toml}} found — run `anvil init` to materialise a policy file before pinning"
+            );
+        }
+        return serde_json::json!({ "pinned": false, "reason": "no-policy-file" });
     };
+    let shown_policy = policy_path
+        .strip_prefix(repo_root)
+        .unwrap_or(&policy_path)
+        .display()
+        .to_string();
     match pin_cutoff_commit(&policy_path, cutoff) {
-        Ok(()) => println!(
-            "anvil: cutoff_commit {cutoff} pinned into {}",
-            policy_path
-                .strip_prefix(repo_root)
-                .unwrap_or(&policy_path)
-                .display(),
-        ),
+        Ok(()) => {
+            if !json_mode {
+                println!("anvil: cutoff_commit {cutoff} pinned into {shown_policy}");
+            }
+            serde_json::json!({ "pinned": true, "cutoff": cutoff, "policy": shown_policy })
+        }
         Err(err) => {
             let label = match &err {
                 PolicyPinError::Io(_) => "io",
@@ -684,13 +759,17 @@ fn try_pin_cutoff(repo_root: &Path, cutoff: &str) {
                 PolicyPinError::Serialise { .. } => "serialise",
                 PolicyPinError::SymlinkRefusal { .. } => "symlink refusal",
             };
-            println!(
-                "anvil: cutoff_commit recorded in baseline.json but pin into {} skipped ({label}: {err})",
-                policy_path
-                    .strip_prefix(repo_root)
-                    .unwrap_or(&policy_path)
-                    .display(),
-            );
+            if !json_mode {
+                println!(
+                    "anvil: cutoff_commit recorded in baseline.json but pin into {shown_policy} skipped ({label}: {err})"
+                );
+            }
+            serde_json::json!({
+                "pinned": false,
+                "reason": label,
+                "detail": err.to_string(),
+                "policy": shown_policy,
+            })
         }
     }
 }
@@ -748,6 +827,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let identity_path = tmp.path().join("anvil/project-id");
@@ -773,6 +853,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -792,6 +873,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
@@ -803,6 +885,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let second = load_baseline(tmp.path()).unwrap().unwrap();
@@ -819,6 +902,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -832,6 +916,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
@@ -852,6 +937,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -865,6 +951,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
 
@@ -894,6 +981,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -907,6 +995,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
 
@@ -943,6 +1032,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
 
@@ -966,6 +1056,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -979,6 +1070,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1005,6 +1097,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1037,6 +1130,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1051,6 +1145,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1070,15 +1165,16 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
-        run_verify(tmp.path()).unwrap();
+        run_verify(tmp.path(), false).unwrap();
     }
 
     #[test]
     fn verify_returns_error_when_no_baseline() {
         let tmp = TempDir::new().unwrap();
-        let err = run_verify(tmp.path()).unwrap_err();
+        let err = run_verify(tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("no baseline"));
     }
 
@@ -1100,6 +1196,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let parent_uuid = load_baseline(tmp.path())
@@ -1115,6 +1212,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
 
@@ -1149,6 +1247,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let first = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1162,6 +1261,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let second = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1186,6 +1286,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1199,6 +1300,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
 
@@ -1223,6 +1325,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let project_id_text = fs::read_to_string(tmp.path().join("anvil/project-id")).unwrap();
@@ -1247,6 +1350,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let mut baseline = load_baseline(root).unwrap().unwrap();
@@ -1279,6 +1383,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false, // no acknowledgement
             DEFAULT_SCAN_BUDGET,
+            false,
         );
         assert!(result.is_ok(), "suspicious refresh must not error");
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1302,6 +1407,7 @@ mod tests {
             &SuspicionThresholds::default(),
             true, // explicit ack
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1329,6 +1435,7 @@ mod tests {
             &lenient,
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1349,7 +1456,16 @@ mod tests {
             removed_ratio_threshold: 1.0,
             minimum_removed: 10,
         };
-        run_create_or_refresh(tmp.path(), true, false, &edge, false, DEFAULT_SCAN_BUDGET).unwrap();
+        run_create_or_refresh(
+            tmp.path(),
+            true,
+            false,
+            &edge,
+            false,
+            DEFAULT_SCAN_BUDGET,
+            false,
+        )
+        .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
             after.findings, prior_findings,
@@ -1372,6 +1488,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1410,6 +1527,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1440,6 +1558,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             3, // budget
+            false,
         )
         .unwrap();
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1479,6 +1598,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             4,
+            false,
         )
         .unwrap();
         let after_r1 = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1496,6 +1616,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             3,
+            false,
         )
         .unwrap();
         let after_r2 = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1511,6 +1632,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             5,
+            false,
         )
         .unwrap();
         let after_r3 = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1539,6 +1661,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             4,
+            false,
         )
         .unwrap();
         let after_r1 = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1567,6 +1690,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             20, // big enough to finish the full tree
+            false,
         )
         .unwrap();
         let after_r2 = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1601,6 +1725,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             2,
+            false,
         )
         .unwrap();
         let mut legacy = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1616,6 +1741,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             20,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1644,6 +1770,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             2,
+            false,
         )
         .unwrap();
         let after_r1 = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1659,6 +1786,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             2,
+            false,
         )
         .unwrap();
         let after_r2 = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1699,6 +1827,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         // Chunked: 3 + 3 + 1.
@@ -1710,6 +1839,7 @@ mod tests {
                 &SuspicionThresholds::default(),
                 false,
                 3,
+                false,
             )
             .unwrap();
         }
@@ -1756,6 +1886,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1819,6 +1950,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         let prior = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1835,6 +1967,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false, // no ack
             2,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1859,6 +1992,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
 
@@ -1869,6 +2003,7 @@ mod tests {
             &SuspicionThresholds::default(),
             true, // ack
             2,
+            false,
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
@@ -1903,6 +2038,7 @@ mod tests {
             &SuspicionThresholds::default(),
             false,
             DEFAULT_SCAN_BUDGET,
+            false,
         )
         .unwrap();
         // The baseline is now complete (no remaining files past

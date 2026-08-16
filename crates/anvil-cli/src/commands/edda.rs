@@ -81,7 +81,7 @@ struct ShowArgs {
 
 pub fn run(args: &EddaArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
-        EddaCommand::List(list_args) => run_list(list_args),
+        EddaCommand::List(list_args) => run_list(list_args, global),
         EddaCommand::Show(show_args) => run_show(show_args, global),
     }
 }
@@ -213,7 +213,12 @@ struct MemoryRecord {
 // Run
 // ---------------------------------------------------------------------------
 
-fn run_list(args: &ListArgs) -> Result<()> {
+fn run_list(args: &ListArgs, global: &GlobalArgs) -> Result<()> {
+    // Issue #3947: the subcommand-local `--json` shares its clap id with the
+    // global flag, which stops clap propagating the global into this
+    // subcommand — `anvil --json edda list` used to print the prose table.
+    // The `||` covers both placements, matching `edda show` / `ember list`.
+    let json_output = args.json || global.json;
     let storage_path = workspace_storage_path();
     let parsed_status = parse_memory_status(&args.status)?;
     let parsed_types = parse_csv(args.types.as_deref(), parse_memory_type)?;
@@ -229,7 +234,7 @@ fn run_list(args: &ListArgs) -> Result<()> {
             args.since.as_deref(),
             args.limit,
         );
-        if args.json {
+        if json_output {
             println!("{envelope}");
         } else {
             println!("No Edda storage found at {}", storage_path.display());
@@ -269,7 +274,7 @@ fn run_list(args: &ListArgs) -> Result<()> {
     let displayed_entries: Vec<&MemoryIndexEntry> = filtered.iter().take(limit).copied().collect();
     let has_more = total > displayed_entries.len();
 
-    if args.json {
+    if json_output {
         let memories: Vec<Value> = displayed_entries
             .iter()
             .map(|entry| match read_memory(&storage_path, entry) {

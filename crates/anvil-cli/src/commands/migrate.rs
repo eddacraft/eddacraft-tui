@@ -109,11 +109,18 @@ pub fn run(args: &MigrateArgs, global: &GlobalArgs) -> Result<()> {
 pub(crate) fn run_in(args: &MigrateArgs, root: &Path, json_mode: bool) -> Result<()> {
     match &args.command {
         Some(MigrateCommand::Format(format_args)) => run_format_in(format_args, root, json_mode),
-        Some(MigrateCommand::Schema(schema_args)) => {
-            run_schema_in(schema_args, root, &anvil_config::production_migrations())
+        Some(MigrateCommand::Schema(schema_args)) => run_schema_in(
+            schema_args,
+            root,
+            &anvil_config::production_migrations(),
+            json_mode,
+        ),
+        Some(MigrateCommand::GateConfig(gate_args)) => {
+            run_gate_config_in(gate_args, root, json_mode)
         }
-        Some(MigrateCommand::GateConfig(gate_args)) => run_gate_config_in(gate_args, root),
-        Some(MigrateCommand::Architecture(arch_args)) => run_architecture_in(arch_args, root),
+        Some(MigrateCommand::Architecture(arch_args)) => {
+            run_architecture_in(arch_args, root, json_mode)
+        }
         None => {
             // The deprecation notice stays on stderr, so the back-compat
             // route keeps the `--json` stdout contract intact.
@@ -175,10 +182,14 @@ fn serialise_to_format(value: &serde_json::Value, format: ConfigFormat) -> Resul
 /// the migration registry so tests can inject a tempdir + fixture
 /// migrations (the production registry carries the ADR-120 casing rename,
 /// introduced in `0.10.0-beta`).
+// Linear plan-then-apply with one json/human branch per terminal
+// outcome (issue #3947); each phase is a distinct migration concern.
+#[allow(clippy::too_many_lines)]
 pub(crate) fn run_schema_in(
     args: &SchemaArgs,
     root: &Path,
     migrations: &[anvil_config::SchemaMigration],
+    json_mode: bool,
 ) -> Result<()> {
     let installed = env!("CARGO_PKG_VERSION");
 
@@ -189,12 +200,22 @@ pub(crate) fn run_schema_in(
         .context("reading anvil/project-id")?
         .and_then(|id| id.created_by_version);
     let Some(origin) = origin else {
-        println!(
-            "anvil: cannot determine the anvil version that created this project \
-             (no `created_by_version` in anvil/project-id). Run `anvil start` to \
-             establish project identity, or review your config against the current \
-             schema manually."
-        );
+        // Issue #3947: each terminal outcome of this command emits either
+        // one JSON document or its historical prose, never both.
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "unknown-origin",
+                "installed": installed,
+                "next": "anvil start",
+            }))?;
+        } else {
+            println!(
+                "anvil: cannot determine the anvil version that created this project \
+                 (no `created_by_version` in anvil/project-id). Run `anvil start` to \
+                 establish project identity, or review your config against the current \
+                 schema manually."
+            );
+        }
         return Ok(());
     };
 
@@ -205,9 +226,17 @@ pub(crate) fn run_schema_in(
         })?;
 
     if steps.is_empty() {
-        println!(
-            "anvil: config schema is current — no migration needed for {origin} → {installed}."
-        );
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "current",
+                "origin": origin,
+                "installed": installed,
+            }))?;
+        } else {
+            println!(
+                "anvil: config schema is current — no migration needed for {origin} → {installed}."
+            );
+        }
         return Ok(());
     }
 
@@ -226,20 +255,35 @@ pub(crate) fn run_schema_in(
     let mut value = anvil_config::parse_file(&discovered.path)
         .with_context(|| format!("parsing {}", discovered.path.display()))?;
 
-    println!(
-        "anvil: {} schema migration(s) apply to {} ({origin} → {installed}):",
-        steps.len(),
-        discovered.path.display()
-    );
-    for step in &steps {
-        println!("  • {}", step.description);
+    let step_descriptions: Vec<String> =
+        steps.iter().map(|step| step.description.clone()).collect();
+    if !json_mode {
+        println!(
+            "anvil: {} schema migration(s) apply to {} ({origin} → {installed}):",
+            steps.len(),
+            discovered.path.display()
+        );
+        for step in &steps {
+            println!("  • {}", step.description);
+        }
     }
 
     if !args.apply {
-        println!(
-            "anvil: dry-run — no changes written. Re-run `anvil migrate schema --apply` to \
-             write them."
-        );
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "dry-run",
+                "origin": origin,
+                "installed": installed,
+                "config": discovered.path.display().to_string(),
+                "steps": step_descriptions,
+                "next": "anvil migrate schema --apply",
+            }))?;
+        } else {
+            println!(
+                "anvil: dry-run — no changes written. Re-run `anvil migrate schema --apply` to \
+                 write them."
+            );
+        }
         return Ok(());
     }
 
@@ -258,11 +302,21 @@ pub(crate) fn run_schema_in(
     crate::util::atomic_write(&discovered.path, serialised.as_bytes())
         .with_context(|| format!("writing {}", discovered.path.display()))?;
 
-    println!(
-        "anvil: migrated {} ({origin} → {installed}, {} step(s) applied).",
-        discovered.path.display(),
-        steps.len()
-    );
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "outcome": "applied",
+            "origin": origin,
+            "installed": installed,
+            "config": discovered.path.display().to_string(),
+            "steps": step_descriptions,
+        }))?;
+    } else {
+        println!(
+            "anvil: migrated {} ({origin} → {installed}, {} step(s) applied).",
+            discovered.path.display(),
+            steps.len()
+        );
+    }
     Ok(())
 }
 
@@ -279,7 +333,11 @@ pub(crate) fn run_schema_in(
 /// weakens enforcement and requires `--accept-weakening` (ADR-120
 /// pt 4 diff-and-confirm). On `--apply` the legacy file is removed.
 #[allow(clippy::too_many_lines)] // Linear plan-then-apply; each phase is a distinct fold concern.
-pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> Result<()> {
+pub(crate) fn run_gate_config_in(
+    args: &GateConfigMigrateArgs,
+    root: &Path,
+    json_mode: bool,
+) -> Result<()> {
     use crate::commands::gate_config as gc;
 
     let Some(legacy) = gc::load_legacy_gate_config(root)? else {
@@ -389,38 +447,63 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
     }
 
     if folded.is_empty() {
-        println!(
-            "Nothing to fold: every gate-config.json field is already present in {}.",
-            project.label
-        );
+        let mut legacy_removed = false;
         if args.apply {
             std::fs::remove_file(root.join(gc::LEGACY_GATE_CONFIG_REL))?;
-            println!("Removed {}.", gc::LEGACY_GATE_CONFIG_REL);
+            legacy_removed = true;
+        }
+        // Issue #3947: one document (or the historical prose) per outcome.
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "nothing-to-fold",
+                "config": project.label,
+                "legacy_removed": legacy_removed,
+            }))?;
+        } else {
+            println!(
+                "Nothing to fold: every gate-config.json field is already present in {}.",
+                project.label
+            );
+            if legacy_removed {
+                println!("Removed {}.", gc::LEGACY_GATE_CONFIG_REL);
+            }
         }
         return Ok(());
     }
 
-    println!(
-        "Fold plan ({} -> {}):",
-        gc::LEGACY_GATE_CONFIG_REL,
-        project.label
-    );
-    for key in &folded {
-        println!("  + {key}");
-    }
-    // NOTE: thresholds join the weakening set the day a gate run
-    // consumes gate.thresholds (reserved today — ADR-120 pt 4 names
-    // "lowered thresholds" explicitly).
-    if !weakened.is_empty() {
+    if !json_mode {
         println!(
-            "  ! WEAKENS enforcement — currently-effective checks would be \
-             deselected: {}",
-            weakened.join(", ")
+            "Fold plan ({} -> {}):",
+            gc::LEGACY_GATE_CONFIG_REL,
+            project.label
         );
+        for key in &folded {
+            println!("  + {key}");
+        }
+        // NOTE: thresholds join the weakening set the day a gate run
+        // consumes gate.thresholds (reserved today — ADR-120 pt 4 names
+        // "lowered thresholds" explicitly).
+        if !weakened.is_empty() {
+            println!(
+                "  ! WEAKENS enforcement — currently-effective checks would be \
+                 deselected: {}",
+                weakened.join(", ")
+            );
+        }
     }
 
     if !args.apply {
-        println!("Dry-run only; pass --apply to write.");
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "dry-run",
+                "config": project.label,
+                "folded": folded,
+                "weakens": weakened,
+                "next": "anvil migrate gate-config --apply",
+            }))?;
+        } else {
+            println!("Dry-run only; pass --apply to write.");
+        }
         return Ok(());
     }
 
@@ -490,11 +573,21 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
     let text = crate::commands::config::serialize_config(&project.value, project.writable_format)?;
     crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
     std::fs::remove_file(root.join(gc::LEGACY_GATE_CONFIG_REL))?;
-    println!(
-        "Folded into {} and removed {}.",
-        project.writable_path.display(),
-        gc::LEGACY_GATE_CONFIG_REL
-    );
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "outcome": "applied",
+            "config": project.writable_path.display().to_string(),
+            "folded": folded,
+            "weakens": weakened,
+            "legacy_removed": true,
+        }))?;
+    } else {
+        println!(
+            "Folded into {} and removed {}.",
+            project.writable_path.display(),
+            gc::LEGACY_GATE_CONFIG_REL
+        );
+    }
     Ok(())
 }
 
@@ -509,7 +602,11 @@ pub(crate) fn run_gate_config_in(args: &GateConfigMigrateArgs, root: &Path) -> R
 /// style are not preserved (the plan output says so). The standalone
 /// file stays where it is (it is the delegation target); consumers
 /// resolve it through the hardened delegation pipeline afterwards.
-pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -> Result<()> {
+pub(crate) fn run_architecture_in(
+    args: &ArchitectureMigrateArgs,
+    root: &Path,
+    json_mode: bool,
+) -> Result<()> {
     if !anvil_architecture::yaml_parser::architecture_yaml_exists(root) {
         bail!(
             "no standalone .anvil/architecture.yaml at {} (nothing to do)",
@@ -533,13 +630,25 @@ pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -
     }
 
     let rel = ".anvil/architecture.yaml";
-    println!(
-        "Plan: add `architecture.source = \"{rel}\"` to {}.",
-        project.label
-    );
-    println!("Note: the config is re-serialised — comments are not preserved.");
+    if !json_mode {
+        println!(
+            "Plan: add `architecture.source = \"{rel}\"` to {}.",
+            project.label
+        );
+        println!("Note: the config is re-serialised — comments are not preserved.");
+    }
     if !args.apply {
-        println!("Dry-run only; pass --apply to write.");
+        // Issue #3947: one document (or the historical prose) per outcome.
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": "dry-run",
+                "config": project.label,
+                "source": rel,
+                "next": "anvil migrate architecture --apply",
+            }))?;
+        } else {
+            println!("Dry-run only; pass --apply to write.");
+        }
         return Ok(());
     }
 
@@ -559,10 +668,18 @@ pub(crate) fn run_architecture_in(args: &ArchitectureMigrateArgs, root: &Path) -
 
     let text = crate::commands::config::serialize_config(&project.value, project.writable_format)?;
     crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
-    println!(
-        "Wrote architecture source line to {}.",
-        project.writable_path.display()
-    );
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "outcome": "applied",
+            "config": project.writable_path.display().to_string(),
+            "source": rel,
+        }))?;
+    } else {
+        println!(
+            "Wrote architecture source line to {}.",
+            project.writable_path.display()
+        );
+    }
     Ok(())
 }
 
@@ -800,7 +917,7 @@ mod tests {
         )
         .unwrap();
         // No anvil/project-id written.
-        run_schema_in(&schema_args(true), tmp.path(), &marker_migration()).unwrap();
+        run_schema_in(&schema_args(true), tmp.path(), &marker_migration(), false).unwrap();
         // Config untouched (we never reached a write).
         let after = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
         assert!(!after.contains("migrated_marker"), "got:\n{after}");
@@ -821,6 +938,7 @@ mod tests {
             &schema_args(true),
             tmp.path(),
             &anvil_config::production_migrations(),
+            false,
         )
         .unwrap();
         let after = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
@@ -837,7 +955,7 @@ mod tests {
         )
         .unwrap();
 
-        run_schema_in(&schema_args(false), tmp.path(), &marker_migration()).unwrap();
+        run_schema_in(&schema_args(false), tmp.path(), &marker_migration(), false).unwrap();
 
         // Dry-run: the marker must NOT be on disk.
         let after = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
@@ -857,7 +975,7 @@ mod tests {
         )
         .unwrap();
 
-        run_schema_in(&schema_args(true), tmp.path(), &marker_migration()).unwrap();
+        run_schema_in(&schema_args(true), tmp.path(), &marker_migration(), false).unwrap();
 
         // Apply: the transform is on disk and the file still parses, with
         // the original key preserved.
@@ -874,7 +992,8 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         write_project_id(tmp.path(), "0.1.0");
         // Migration applies, but there is no .anvil.<ext> to migrate.
-        let err = run_schema_in(&schema_args(true), tmp.path(), &marker_migration()).unwrap_err();
+        let err =
+            run_schema_in(&schema_args(true), tmp.path(), &marker_migration(), false).unwrap_err();
         assert!(
             err.to_string().contains("no") && err.to_string().contains(".anvil.<ext>"),
             "got: {err}"
@@ -890,7 +1009,8 @@ mod tests {
             "checks: [secret-detection]\n",
         )
         .unwrap();
-        let err = run_schema_in(&schema_args(false), tmp.path(), &marker_migration()).unwrap_err();
+        let err =
+            run_schema_in(&schema_args(false), tmp.path(), &marker_migration(), false).unwrap_err();
         assert!(
             err.to_string().contains("comparing project version"),
             "got: {err}"
@@ -934,7 +1054,7 @@ mod tests {
             tmp.path(),
             r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":true}],"thresholds":{"overall_score":90}}"#,
         );
-        run_gate_config_in(&gate_args(false, false), tmp.path()).unwrap();
+        run_gate_config_in(&gate_args(false, false), tmp.path(), false).unwrap();
         assert!(tmp.path().join(".anvil/gate-config.json").exists());
         assert!(!tmp.path().join(".anvil.yaml").exists());
     }
@@ -948,7 +1068,7 @@ mod tests {
             tmp.path(),
             r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":true},{"name":"secret-detection","description":"","enabled":false}],"thresholds":{}}"#,
         );
-        let err = run_gate_config_in(&gate_args(true, false), tmp.path()).unwrap_err();
+        let err = run_gate_config_in(&gate_args(true, false), tmp.path(), false).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("weaken"), "{msg}");
         assert!(msg.contains("secret-detection"), "{msg}");
@@ -956,7 +1076,7 @@ mod tests {
         // Nothing changed on refusal.
         assert!(tmp.path().join(".anvil/gate-config.json").exists());
 
-        run_gate_config_in(&gate_args(true, true), tmp.path()).unwrap();
+        run_gate_config_in(&gate_args(true, true), tmp.path(), false).unwrap();
         let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
         let checks: Vec<&str> = value["checks"]
             .as_array()
@@ -980,7 +1100,7 @@ mod tests {
             tmp.path(),
             r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":true,"config":{"max_warnings":0}}],"thresholds":{"overall_score":50,"minimum":10}}"#,
         );
-        run_gate_config_in(&gate_args(true, false), tmp.path()).unwrap();
+        run_gate_config_in(&gate_args(true, false), tmp.path(), false).unwrap();
         let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
         // Explicit selection untouched (present, not absent).
         let checks: Vec<&str> = value["checks"]
@@ -1015,7 +1135,7 @@ mod tests {
             tmp.path(),
             r#"{"version":1,"checks":[{"name":"coverage","description":"","enabled":false,"config":{"minimum":50}}],"thresholds":{}}"#,
         );
-        run_gate_config_in(&gate_args(true, false), tmp.path()).unwrap();
+        run_gate_config_in(&gate_args(true, false), tmp.path(), false).unwrap();
         let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
         // Explicit list materialised from the section keys.
         let checks: Vec<&str> = value["checks"]
@@ -1043,7 +1163,7 @@ mod tests {
             tmp.path(),
             r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":false}],"thresholds":{}}"#,
         );
-        let err = run_gate_config_in(&gate_args(false, false), tmp.path()).unwrap_err();
+        let err = run_gate_config_in(&gate_args(false, false), tmp.path(), false).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("disables every check"), "{msg}");
         assert!(tmp.path().join(".anvil/gate-config.json").exists());
@@ -1052,7 +1172,7 @@ mod tests {
     #[test]
     fn gate_fold_without_legacy_file_is_a_clear_error() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let err = run_gate_config_in(&gate_args(false, false), tmp.path()).unwrap_err();
+        let err = run_gate_config_in(&gate_args(false, false), tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("nothing to do"), "{err}");
     }
 
@@ -1078,11 +1198,11 @@ mod tests {
         .unwrap();
 
         // Dry-run writes nothing.
-        run_architecture_in(&arch_migrate_args(false), tmp.path()).unwrap();
+        run_architecture_in(&arch_migrate_args(false), tmp.path(), false).unwrap();
         let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
         assert!(value.get("architecture").is_none());
 
-        run_architecture_in(&arch_migrate_args(true), tmp.path()).unwrap();
+        run_architecture_in(&arch_migrate_args(true), tmp.path(), false).unwrap();
         let value = anvil_config::parse_file(&tmp.path().join(".anvil.yaml")).unwrap();
         assert_eq!(value["architecture"]["source"], ".anvil/architecture.yaml");
         // Nothing else touched; standalone file kept (delegation target).
@@ -1094,7 +1214,7 @@ mod tests {
     #[test]
     fn architecture_migrate_refuses_when_section_exists_or_no_file() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let err = run_architecture_in(&arch_migrate_args(false), tmp.path()).unwrap_err();
+        let err = run_architecture_in(&arch_migrate_args(false), tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("nothing to do"), "{err}");
 
         std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
@@ -1108,7 +1228,7 @@ mod tests {
             "architecture:\n  layers: {}\n",
         )
         .unwrap();
-        let err = run_architecture_in(&arch_migrate_args(true), tmp.path()).unwrap_err();
+        let err = run_architecture_in(&arch_migrate_args(true), tmp.path(), false).unwrap_err();
         assert!(
             err.to_string()
                 .contains("already has an `architecture` section"),

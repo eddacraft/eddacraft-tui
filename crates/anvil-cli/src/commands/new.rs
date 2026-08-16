@@ -94,13 +94,24 @@ pub fn run(args: &NewArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(&output_path, rendered)?;
-    println!(
-        "Created {} from template \"{}\"\n",
-        output_path.display(),
-        template.name
-    );
-    println!("Next steps:");
-    println!("  anvil doctor");
+    // Issue #3947: the scaffold path used to ignore an accepted `--json`
+    // and print the human lines; the next-step hint rides as a field.
+    if global.json {
+        crate::output::json::print(&serde_json::json!({
+            "template": template.id,
+            "template_name": template.name,
+            "output": output_path.display().to_string(),
+            "next_steps": ["anvil doctor"],
+        }))?;
+    } else {
+        println!(
+            "Created {} from template \"{}\"\n",
+            output_path.display(),
+            template.name
+        );
+        println!("Next steps:");
+        println!("  anvil doctor");
+    }
 
     Ok(())
 }

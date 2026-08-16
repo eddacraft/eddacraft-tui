@@ -128,7 +128,7 @@ struct BootstrapArgs {
     witness_recent: bool,
 }
 
-pub fn run(args: &HookArgs, _global: &GlobalArgs) -> Result<()> {
+pub fn run(args: &HookArgs, global: &GlobalArgs) -> Result<()> {
     let repo_root = std::env::current_dir().context("resolve repo root")?;
     install_panic_catcher();
     // One suppression log lives for the lifetime of the hook process
@@ -159,7 +159,7 @@ pub fn run(args: &HookArgs, _global: &GlobalArgs) -> Result<()> {
         HookCommand::PostRewrite(a) => {
             run_post_rewrite(&repo_root, a, &mut sup, &post_hook_emitter)
         }
-        HookCommand::Bootstrap(a) => run_bootstrap(&repo_root, a),
+        HookCommand::Bootstrap(a) => run_bootstrap(&repo_root, a, global.json),
     }));
     match result {
         Ok(inner) => inner,
@@ -1058,10 +1058,35 @@ fn run_post_rewrite(
     Ok(())
 }
 
-fn run_bootstrap(repo_root: &Path, args: &BootstrapArgs) -> Result<()> {
+fn run_bootstrap(repo_root: &Path, args: &BootstrapArgs, json_mode: bool) -> Result<()> {
     let framework = detect_framework(repo_root);
     let plan = build_bootstrap_plan(framework);
     if args.dry_run {
+        // Issue #3947: the dry-run preview is the only `hook` path with
+        // stdout success output, so it honours `--json` with one document.
+        if json_mode {
+            let (kind, files): (&str, Vec<String>) = match &plan {
+                BootstrapPlan::HuskyRegenerate { files } => (
+                    "husky-regenerate",
+                    files.iter().map(|f| f.relative_path.clone()).collect(),
+                ),
+                BootstrapPlan::InstallPlain { files } => (
+                    "install-plain",
+                    files
+                        .iter()
+                        .map(|f| format!(".git/hooks/{}", f.filename))
+                        .collect(),
+                ),
+                BootstrapPlan::NothingToDo { .. } => ("nothing-to-do", Vec::new()),
+            };
+            crate::output::json::print(&serde_json::json!({
+                "dry_run": true,
+                "framework": framework.id(),
+                "plan": kind,
+                "files": files,
+            }))?;
+            return Ok(());
+        }
         println!(
             "anvil hook bootstrap (dry-run): framework={}",
             framework.id()
@@ -2154,6 +2179,7 @@ mod tests {
                 dry_run: true,
                 witness_recent: false,
             },
+            false,
         )
         .unwrap();
         assert!(!root.join(".git").join("hooks").exists());
@@ -2168,6 +2194,7 @@ mod tests {
                 dry_run: false,
                 witness_recent: false,
             },
+            false,
         )
         .unwrap();
         for kind in [
@@ -3397,6 +3424,7 @@ branches:
                 dry_run: false,
                 witness_recent: true,
             },
+            false,
         )
         .unwrap();
         let witnessed = collect_witnessed_shas(&root).unwrap();
@@ -3434,6 +3462,7 @@ branches:
                 dry_run: false,
                 witness_recent: true,
             },
+            false,
         )
         .unwrap();
         let after = collect_witnessed_shas(&root).unwrap();
@@ -3462,6 +3491,7 @@ branches:
                 dry_run: false,
                 witness_recent: true,
             },
+            false,
         )
         .unwrap();
         let after_first =
@@ -3477,6 +3507,7 @@ branches:
                 dry_run: false,
                 witness_recent: true,
             },
+            false,
         )
         .unwrap();
         let after_second =
@@ -3515,6 +3546,7 @@ branches:
                 dry_run: false,
                 witness_recent: true,
             },
+            false,
         )
         .unwrap();
         // No bootstrap-recovery lines were written (no commits to

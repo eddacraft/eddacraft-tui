@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                      |
-| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 update for the `anvil config` `--json` document shapes (#3949, verified against `origin/main` @ `a9dffb6e1`), after the `--json` stdout repairs on `config show` / `gctx egress` / `capsule create` (#3915); not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                      |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 update for the CLI-wide `--json` contract (#3947 operator decision A), after the per-surface repairs on `config` (#3938/#3943) and `migrate format` (#3946); not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -15,11 +15,47 @@ where relevant.
 
 **Global flags** available on every command:
 
-| Flag               | Description                                            |
-| ------------------ | ------------------------------------------------------ |
-| `--json`           | Output results as JSON instead of human-readable text. |
-| `--no-tui`         | Disable TUI rendering; use plain text output.          |
-| `--verbose` / `-v` | Enable verbose logging.                                |
+| Flag               | Description                                                        |
+| ------------------ | ------------------------------------------------------------------ |
+| `--json`           | Success stdout is exactly one JSON document (CLI-wide, see below). |
+| `--no-tui`         | Disable TUI rendering; use plain text output.                      |
+| `--verbose` / `-v` | Enable verbose logging.                                            |
+
+### The CLI-wide `--json` contract (#3947, decision A)
+
+`--json` binds CLI-wide: an accepted flag is a promise, and no command may
+accept it and silently print prose. Both placements are equivalent
+(`anvil --json <command>` and `anvil <command> --json`). On success, stdout is
+exactly **one JSON document** — no leading banners, no trailing hints; facts the
+human output reports survive as fields. Diagnostics, warnings, and progress stay
+on stderr. Runtime failures under `--json` emit a structured `{"error": …}`
+envelope on stderr, and the pre-dispatch auth wall emits its documented
+envelopes on stdout with the documented exit codes.
+
+Bounded deviations, all documented per command below:
+
+- **`--format` surfaces** (`audit`, `check`, `gate`, `capsule verify` /
+  `explain`, ADR-056): `--json` is the compatibility alias for `--format json`;
+  an explicit non-JSON `--format` takes precedence.
+- **Machine streams** keep their stream contracts: `watch --json` is NDJSON (one
+  JSON object per line), `mcp serve` / `lsp` are JSON-RPC protocol servers,
+  `watch --save-time-driver` is silent by contract, and `dashboard --web --json`
+  prints one document then serves.
+- **Silent surfaces** (git-invoked `hook` execution paths, `auth login` device
+  flows, `l4-validate`) have no success stdout to convert; their contracts are
+  exit codes and stderr.
+- **Interactive-only**: `anvil tutorial` refuses `--json` with a structured
+  error (`--reset` still emits a document). Contradictory combinations
+  (`start --watch --json`, `insights --share --json`, …) are refused the same
+  way, never silently ignored.
+- **Delegated children** (`update` via the sidecar or a package manager): the
+  child's stdout is captured or suppressed so anvil's stdout stays one document.
+
+Every terminal command path is classified against this contract in
+`crates/anvil-cli/src/json_surface_audit.rs`; a new command fails that test
+until it is classified, and the process tests in
+`crates/anvil-cli/tests/json_stdout_contract.rs` parse the whole of stdout on
+the repaired surfaces.
 
 > **Class is descriptive, not an auth marker.** The **Class** field below
 > describes _who_ typically runs a command and _when_ (User-explicit, Setup,

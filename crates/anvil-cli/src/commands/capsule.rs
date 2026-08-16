@@ -131,6 +131,7 @@ pub fn run(args: &CapsuleArgs, global: &GlobalArgs) -> Result<()> {
                 prune.root.as_deref(),
                 prune.keep_last as usize,
                 prune.apply,
+                global.json,
             )
         }
         CapsuleCommand::Verify(verify) => {
@@ -1007,7 +1008,15 @@ const DEFAULT_STAGING_ROOT: &str = "anvil/evidence/capsules";
 /// The `prune` flow (ADR-078): plan over the staging root, report on
 /// stdout (would-delete list, one path per line) with warnings on
 /// stderr, and — only under `--apply` — delete via the git index.
-fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: bool) -> Result<()> {
+fn run_prune(
+    repo_root: &Path,
+    root: Option<&Path>,
+    keep_last: usize,
+    apply: bool,
+    json_mode: bool,
+) -> Result<()> {
+    // Issue #3947: under `--json` the path-per-line list becomes one
+    // document; summaries and warnings already live on stderr.
     let staging_root = match root {
         Some(root) => validate_prune_root(repo_root, root)?,
         None => repo_root.join(DEFAULT_STAGING_ROOT),
@@ -1017,6 +1026,9 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
             "staging root {} does not exist — nothing to prune",
             staging_root.display()
         );
+        if json_mode {
+            prune_doc(apply, &[], 0)?;
+        }
         return Ok(());
     }
 
@@ -1029,6 +1041,9 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
             staging_root.display()
         );
         eprintln!("nothing to prune");
+        if json_mode {
+            prune_doc(apply, &[], 0)?;
+        }
         return Ok(());
     }
 
@@ -1037,13 +1052,25 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
             "nothing to prune: {} orderable capsule(s) <= --keep-last {keep_last}",
             plan.keep.len()
         );
+        if json_mode {
+            prune_doc(apply, &[], plan.keep.len() + plan.unordered.len())?;
+        }
         return Ok(());
     }
 
     if !apply {
-        // One sanitised path per line: the only machine-readable surface
-        // until `--json` lands, so a planted newline in a directory name
-        // must not forge extra rows.
+        if json_mode {
+            let paths: Vec<String> = plan
+                .delete
+                .iter()
+                .map(|capsule| one_line(&capsule.dir.display().to_string()))
+                .collect();
+            prune_doc(false, &paths, plan.keep.len() + plan.unordered.len())?;
+            return Ok(());
+        }
+        // One sanitised path per line: the historical line-oriented
+        // machine surface, kept byte-identical without `--json`; a
+        // planted newline in a directory name must not forge extra rows.
         for capsule in &plan.delete {
             println!("{}", one_line(&capsule.dir.display().to_string()));
         }
@@ -1060,9 +1087,17 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
     let failures = apply_prune(repo_root, &plan);
     // List what actually went, not what was planned — on partial failure
     // the stdout set must reflect the resulting state (ADR-078).
-    for capsule in &plan.delete {
-        if !failures.iter().any(|f| f.dir == capsule.dir) {
-            println!("{}", one_line(&capsule.dir.display().to_string()));
+    let deleted: Vec<String> = plan
+        .delete
+        .iter()
+        .filter(|capsule| !failures.iter().any(|f| f.dir == capsule.dir))
+        .map(|capsule| one_line(&capsule.dir.display().to_string()))
+        .collect();
+    if json_mode {
+        prune_doc(true, &deleted, plan.keep.len() + plan.unordered.len())?;
+    } else {
+        for path in &deleted {
+            println!("{path}");
         }
     }
     eprintln!(
@@ -1085,6 +1120,17 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
         );
     }
     Ok(())
+}
+
+/// The one-document `--json` projection of a prune run (issue #3947):
+/// the same sanitised path set the line-oriented surface prints, plus
+/// whether this was a dry run.
+fn prune_doc(applied: bool, paths: &[String], kept: usize) -> Result<()> {
+    crate::output::json::print(&serde_json::json!({
+        "dry_run": !applied,
+        "capsules": paths,
+        "kept": kept,
+    }))
 }
 
 /// Stderr warnings for the parts of a prune plan that need operator
@@ -2699,7 +2745,7 @@ mod tests {
         let root = repo.path().join("anvil/evidence/capsules");
         std::fs::create_dir_all(root.join("not-a-capsule")).unwrap();
         std::fs::write(root.join("not-a-capsule/manifest.json"), b"{}").unwrap();
-        run_prune(repo.path(), None, 1, true).expect("noop with zero candidates");
+        run_prune(repo.path(), None, 1, true, false).expect("noop with zero candidates");
         assert!(
             root.join("not-a-capsule").exists(),
             "non-capsule entries are never deleted"
@@ -2709,8 +2755,8 @@ mod tests {
     #[test]
     fn prune_missing_default_root_is_a_noop() {
         let (repo, _base, _head) = scratch_repo();
-        run_prune(repo.path(), None, 1, false).expect("noop prune");
-        run_prune(repo.path(), None, 1, true).expect("noop apply");
+        run_prune(repo.path(), None, 1, false, false).expect("noop prune");
+        run_prune(repo.path(), None, 1, true, false).expect("noop apply");
     }
 
     #[test]
@@ -2736,13 +2782,13 @@ mod tests {
         let old_dir = write_min_capsule(&root, "cap-old", &old);
         let new_dir = write_min_capsule(&root, "cap-new", &new);
 
-        run_prune(repo.path(), None, 1, false).expect("dry run");
+        run_prune(repo.path(), None, 1, false, false).expect("dry run");
         assert!(
             old_dir.exists() && new_dir.exists(),
             "dry run deletes nothing"
         );
 
-        run_prune(repo.path(), None, 1, true).expect("apply");
+        run_prune(repo.path(), None, 1, true, false).expect("apply");
         assert!(!old_dir.exists(), "oldest capsule deleted on --apply");
         assert!(new_dir.exists(), "newest capsule kept");
     }

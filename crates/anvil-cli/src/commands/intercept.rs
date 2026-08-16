@@ -113,12 +113,15 @@ struct UnblockArgs {
     acknowledge_cascade: bool,
 }
 
-pub fn run(args: &InterceptArgs, _global: &GlobalArgs) -> Result<()> {
+pub fn run(args: &InterceptArgs, global: &GlobalArgs) -> Result<()> {
+    // Issue #3947: every terminal verb honours the global `--json`.
+    // `start --foreground` is the daemon process itself (no stdout
+    // success surface), so it takes no flag.
     match &args.command {
         InterceptCommand::Start(start_args) => run_start(start_args),
-        InterceptCommand::Status(status_args) => run_status(status_args),
-        InterceptCommand::Unblock(unblock_args) => run_unblock(unblock_args),
-        InterceptCommand::Stop => run_stop(),
+        InterceptCommand::Status(status_args) => run_status(status_args, global.json),
+        InterceptCommand::Unblock(unblock_args) => run_unblock(unblock_args, global.json),
+        InterceptCommand::Stop => run_stop(global.json),
     }
 }
 
@@ -128,7 +131,7 @@ pub fn run(args: &InterceptArgs, _global: &GlobalArgs) -> Result<()> {
 /// Idempotent: a missing or stale PID file exits zero with an
 /// informational line, matching the `unblock` no-op convention.
 #[cfg(any(unix, windows))]
-fn run_stop() -> Result<()> {
+fn run_stop(json_mode: bool) -> Result<()> {
     use anvil_intercept::StopOutcome;
 
     // ACTMO-017: best-effort query the registered set BEFORE stopping, so we
@@ -136,7 +139,24 @@ fn run_stop() -> Result<()> {
     // is already down (or unreachable) reports nothing, which is correct.
     let registered = query_daemon_status().map_or(0, |status| status.registered_worktrees().len());
 
-    match anvil_intercept::request_daemon_stop()? {
+    let outcome = anvil_intercept::request_daemon_stop()?;
+    if json_mode {
+        // Issue #3947: one document per outcome; the lose-protection
+        // warning rides as a count field.
+        let (label, pid) = match &outcome {
+            StopOutcome::Signalled { pid } => ("signalled", Some(*pid)),
+            StopOutcome::NotRunning => ("not-running", None),
+            StopOutcome::StaleCleared { pid } => ("stale-cleared", Some(*pid)),
+        };
+        crate::output::json::print(&serde_json::json!({
+            "outcome": label,
+            "pid": pid,
+            "registered_losing_protection":
+                matches!(outcome, StopOutcome::Signalled { .. }).then_some(registered),
+        }))?;
+        return Ok(());
+    }
+    match outcome {
         StopOutcome::Signalled { pid } => {
             println!("{}", stop_success_line(pid));
             if registered > 0 {
@@ -169,19 +189,19 @@ fn stop_success_line(pid: u32) -> String {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn run_stop() -> Result<()> {
+fn run_stop(_json_mode: bool) -> Result<()> {
     anyhow::bail!(
         "`anvil intercept stop` is not supported on this platform yet. Stop a foreground daemon \
          with Ctrl+C.",
     )
 }
 
-fn run_unblock(args: &UnblockArgs) -> Result<()> {
+fn run_unblock(args: &UnblockArgs, json_mode: bool) -> Result<()> {
     let mode = resolve_unblock_mode(args)?;
     let result = match &mode {
-        UnblockMode::Cascade(path) => run_unblock_cascade(path),
-        UnblockMode::PerFence(path) => run_unblock_per_fence(path, args.dry_run),
-        UnblockMode::AllFences => run_unblock_all(args.dry_run),
+        UnblockMode::Cascade(path) => run_unblock_cascade(path, json_mode),
+        UnblockMode::PerFence(path) => run_unblock_per_fence(path, args.dry_run, json_mode),
+        UnblockMode::AllFences => run_unblock_all(args.dry_run, json_mode),
     };
 
     // 094d: a non-dry-run unblock has its CLI `command.invoked` row
@@ -252,7 +272,7 @@ fn resolve_unblock_mode(args: &UnblockArgs) -> Result<UnblockMode> {
     );
 }
 
-fn run_unblock_cascade(worktree: &std::path::Path) -> Result<()> {
+fn run_unblock_cascade(worktree: &std::path::Path, json_mode: bool) -> Result<()> {
     // Canonicalise the path before dispatch. Mirrors the daemon's
     // own `lookup_path` guard so an operator typing `./wt` and
     // an operator typing the absolute path hit the same cascade
@@ -264,7 +284,13 @@ fn run_unblock_cascade(worktree: &std::path::Path) -> Result<()> {
         )
     })?;
     let cleared = dispatch_unblock_cascade(&canonical)?;
-    if cleared {
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "action": "cascade",
+            "worktree": canonical.display().to_string(),
+            "cleared": cleared,
+        }))?;
+    } else if cleared {
         println!("cascade cleared for worktree {}", canonical.display());
     } else {
         println!(
@@ -275,7 +301,7 @@ fn run_unblock_cascade(worktree: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-fn run_unblock_per_fence(worktree: &std::path::Path, dry_run: bool) -> Result<()> {
+fn run_unblock_per_fence(worktree: &std::path::Path, dry_run: bool, json_mode: bool) -> Result<()> {
     let canonical = std::fs::canonicalize(worktree).with_context(|| {
         format!(
             "failed to canonicalise worktree path {}",
@@ -292,7 +318,14 @@ fn run_unblock_per_fence(worktree: &std::path::Path, dry_run: bool) -> Result<()
             .fences
             .iter()
             .any(|fence| fence.worktree == canonical);
-        if engaged {
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "action": "fence",
+                "worktree": canonical.display().to_string(),
+                "dry_run": true,
+                "engaged": engaged,
+            }))?;
+        } else if engaged {
             println!(
                 "dry-run: would clear fence for worktree {}",
                 canonical.display()
@@ -306,7 +339,13 @@ fn run_unblock_per_fence(worktree: &std::path::Path, dry_run: bool) -> Result<()
         return Ok(());
     }
     let cleared = dispatch_unblock_worktree(&canonical)?;
-    if cleared {
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "action": "fence",
+            "worktree": canonical.display().to_string(),
+            "cleared": cleared,
+        }))?;
+    } else if cleared {
         println!("fence cleared for worktree {}", canonical.display());
     } else {
         println!(
@@ -317,7 +356,7 @@ fn run_unblock_per_fence(worktree: &std::path::Path, dry_run: bool) -> Result<()
     Ok(())
 }
 
-fn run_unblock_all(dry_run: bool) -> Result<()> {
+fn run_unblock_all(dry_run: bool, json_mode: bool) -> Result<()> {
     // `--all` is implemented client-side: query the daemon for the
     // current fence list, then issue one unblock per worktree. The
     // alternative (a single daemon-side `unblock-all` verb) would
@@ -327,31 +366,70 @@ fn run_unblock_all(dry_run: bool) -> Result<()> {
     // between query and unblock simply remain — the operator can
     // re-run `--all`.
     let status = query_daemon_status()?;
+    let fence_paths: Vec<String> = status
+        .fences
+        .iter()
+        .map(|fence| fence.worktree.display().to_string())
+        .collect();
     if status.fences.is_empty() {
-        println!("no fences engaged (no-op)");
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "action": "all",
+                "dry_run": dry_run,
+                "fences": fence_paths,
+                "cleared": 0,
+            }))?;
+        } else {
+            println!("no fences engaged (no-op)");
+        }
         return Ok(());
     }
     if dry_run {
-        println!("dry-run: would clear {} fence(s):", status.fences.len());
-        for fence in &status.fences {
-            println!("  {}", fence.worktree.display());
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "action": "all",
+                "dry_run": true,
+                "fences": fence_paths,
+            }))?;
+        } else {
+            println!("dry-run: would clear {} fence(s):", status.fences.len());
+            for fence in &status.fences {
+                println!("  {}", fence.worktree.display());
+            }
         }
         return Ok(());
     }
     let mut cleared = 0_usize;
+    let mut cleared_paths: Vec<String> = Vec::new();
     for fence in &status.fences {
         if dispatch_unblock_worktree(&fence.worktree)? {
             cleared += 1;
-            println!("fence cleared for worktree {}", fence.worktree.display());
+            cleared_paths.push(fence.worktree.display().to_string());
+            if !json_mode {
+                println!("fence cleared for worktree {}", fence.worktree.display());
+            }
         }
     }
-    println!("cleared {cleared} fence(s)");
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "action": "all",
+            "dry_run": false,
+            "fences": fence_paths,
+            "cleared": cleared,
+            "cleared_worktrees": cleared_paths,
+        }))?;
+    } else {
+        println!("cleared {cleared} fence(s)");
+    }
     Ok(())
 }
 
-fn run_status(args: &StatusArgs) -> Result<()> {
+fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
     let snapshot = query_daemon_status()?;
-    if args.json {
+    // The subcommand-local `--json` shares its clap id with the global flag,
+    // which stops clap propagating the global into this subcommand; the `||`
+    // covers both placements (issue #3947, same fix as `edda list`).
+    if args.json || global_json {
         let json = serde_json::to_string_pretty(&snapshot)
             .context("failed to serialise daemon status as JSON")?;
         println!("{json}");
@@ -1462,7 +1540,8 @@ mod tests {
             worktree_arg: Some(tmp.path().to_path_buf()),
             ..unblock_args_default()
         };
-        let err = run_unblock(&args).expect_err("expected bail without --acknowledge-cascade");
+        let err =
+            run_unblock(&args, false).expect_err("expected bail without --acknowledge-cascade");
         let msg = format!("{err}");
         assert!(
             msg.contains("--acknowledge-cascade"),
@@ -1480,7 +1559,7 @@ mod tests {
     #[test]
     fn run_unblock_without_any_target_bails_listing_all_modes() {
         let args = unblock_args_default();
-        let err = run_unblock(&args).expect_err("expected bail without any target");
+        let err = run_unblock(&args, false).expect_err("expected bail without any target");
         let msg = format!("{err}");
         assert!(msg.contains("--worktree"), "got: {msg}");
         assert!(msg.contains("--all"), "got: {msg}");

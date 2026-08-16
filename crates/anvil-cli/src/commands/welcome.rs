@@ -210,6 +210,9 @@ pub struct WelcomeArgs {
     pub reset: bool,
 }
 
+// One linear flow per output mode (skip env, json, plain, TUI); the
+// json document branch (issue #3947) pushed it over the line budget.
+#[allow(clippy::too_many_lines)]
 pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let marker_path = first_run_marker_path()?;
 
@@ -247,12 +250,46 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // Env-var bypass: create marker silently and exit.
     if should_skip_welcome() {
-        if !project_writes_gated && let Err(err) = create_first_run_marker(&marker_path) {
-            eprintln!(
-                "[welcome] warning: failed to create first-run marker at {}: {err}",
-                marker_path.display()
-            );
+        let mut marker_created = false;
+        if !project_writes_gated {
+            if let Err(err) = create_first_run_marker(&marker_path) {
+                eprintln!(
+                    "[welcome] warning: failed to create first-run marker at {}: {err}",
+                    marker_path.display()
+                );
+            } else {
+                marker_created = true;
+            }
         }
+        if global.json {
+            crate::output::json::print(&serde_json::json!({
+                "skipped": true,
+                "first_run": first_run,
+                "marker_created": marker_created,
+            }))?;
+        }
+        return Ok(());
+    }
+
+    // Issue #3947: under `--json` the welcome flow neither draws the TUI
+    // nor prints the plain walkthrough — it performs the same first-run
+    // bookkeeping as the plain path and reports it as one document. The
+    // telemetry notice-shown state is NOT persisted (no human saw it —
+    // the same rule the piped plain path applies), and the once-a-week
+    // insights hint is not consumed for a machine reader.
+    if global.json {
+        let mut marker_created = false;
+        if !project_writes_gated {
+            create_first_run_marker(&marker_path)?;
+            marker_created = true;
+        }
+        crate::output::json::print(&serde_json::json!({
+            "skipped": false,
+            "first_run": first_run,
+            "marker_created": marker_created,
+            "next_step": welcome_next_step(start_prompts_sign_in()),
+            "telemetry_disclosure": crate::telemetry::disclosure_text(),
+        }))?;
         return Ok(());
     }
 

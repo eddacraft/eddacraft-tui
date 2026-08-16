@@ -117,14 +117,19 @@ struct InstallHookArgs {
 }
 
 pub fn run(args: &WorkspaceArgs, global: &GlobalArgs) -> Result<()> {
+    // Issue #3947: every verb honours the global `--json`; `list` always did.
     match &args.command {
-        WorkspaceCommand::Mode(mode_args) => run_mode(mode_args),
-        WorkspaceCommand::Allow(allow_args) => run_allow(allow_args),
-        WorkspaceCommand::Deny(deny_args) => run_deny(deny_args),
-        WorkspaceCommand::Register(register_args) => run_register(register_args),
-        WorkspaceCommand::Unregister(unregister_args) => run_unregister(unregister_args),
+        WorkspaceCommand::Mode(mode_args) => run_mode(mode_args, global.json),
+        WorkspaceCommand::Allow(allow_args) => run_allow(allow_args, global.json),
+        WorkspaceCommand::Deny(deny_args) => run_deny(deny_args, global.json),
+        WorkspaceCommand::Register(register_args) => run_register(register_args, global.json),
+        WorkspaceCommand::Unregister(unregister_args) => {
+            run_unregister(unregister_args, global.json)
+        }
         WorkspaceCommand::List => run_list(global.json),
-        WorkspaceCommand::InstallHook(install_hook_args) => run_install_hook(install_hook_args),
+        WorkspaceCommand::InstallHook(install_hook_args) => {
+            run_install_hook(install_hook_args, global.json)
+        }
     }
 }
 
@@ -138,9 +143,9 @@ fn resolve_target(path: Option<&std::path::PathBuf>) -> Result<std::path::PathBu
     }
 }
 
-fn run_register(args: &RegisterArgs) -> Result<()> {
+fn run_register(args: &RegisterArgs, json_mode: bool) -> Result<()> {
     if args.all {
-        return run_register_all(args.persist);
+        return run_register_all(args.persist, json_mode);
     }
     let target = resolve_target(args.path.as_ref())?;
     // Resolve to the worktree ROOT (like `anvil start`) so registering from a
@@ -148,42 +153,91 @@ fn run_register(args: &RegisterArgs) -> Result<()> {
     // session-id keying consistent across surfaces.
     match registration::registerable_worktree(&target) {
         Ok(root) => {
-            report_registration(&root, registration::register_worktree_with_daemon(&root));
+            let outcome = registration::register_worktree_with_daemon(&root);
+            if json_mode {
+                let (label, detail) = registration_fields(&outcome);
+                let persisted = if args.persist {
+                    Some(persist_register_on_start(&root, true)?)
+                } else {
+                    None
+                };
+                crate::output::json::print(&serde_json::json!({
+                    "worktree": root.display().to_string(),
+                    "outcome": label,
+                    "detail": detail,
+                    "persisted": persisted,
+                }))?;
+                return Ok(());
+            }
+            report_registration(&root, outcome);
             // ACTMO-019: `--persist` records the worktree in `register_on_start`
             // independent of the live outcome — it captures the *intent* to
             // protect this worktree on every startup (e.g. the daemon may be
             // down right now). The startup path skips a fenced/gone entry.
             if args.persist {
-                persist_register_on_start(&root)?;
+                persist_register_on_start(&root, false)?;
             }
         }
         Err(reason) => {
+            if json_mode {
+                crate::output::json::print(&serde_json::json!({
+                    "worktree": target.display().to_string(),
+                    "outcome": "not-registerable",
+                    "detail": reason.to_string(),
+                }))?;
+                return Ok(());
+            }
             println!("Cannot register {}: {reason}.", target.display());
         }
     }
     Ok(())
 }
 
+/// The machine-readable projection of a registration outcome: a stable
+/// label plus the daemon's detail message where one exists.
+fn registration_fields(outcome: &WorktreeRegistration) -> (&'static str, Option<&str>) {
+    match outcome {
+        WorktreeRegistration::Registered => ("registered", None),
+        WorktreeRegistration::Refreshed => ("refreshed", None),
+        WorktreeRegistration::DaemonUnavailable => ("daemon-unavailable", None),
+        WorktreeRegistration::Fenced(message) => ("fenced", Some(message)),
+        WorktreeRegistration::CapExceeded(message) => ("cap-exceeded", Some(message)),
+        WorktreeRegistration::Rejected(message) => ("rejected", Some(message)),
+    }
+}
+
 /// ACTMO-019: record `root` in the `register_on_start` config so the daemon
 /// re-registers it on every startup. Idempotent. `root` is the canonicalised
 /// worktree root the daemon will re-derive the same activation id from.
-fn persist_register_on_start(root: &std::path::Path) -> Result<()> {
+fn persist_register_on_start(root: &std::path::Path, json_mode: bool) -> Result<serde_json::Value> {
     let mut file = confinement::read_config_file().context("read workspace confinement config")?;
     if file.add_register_on_start(root.to_path_buf()) {
         let written = confinement::write_config_file(&file).context("write confinement config")?;
+        if json_mode {
+            return Ok(serde_json::json!({
+                "added": true,
+                "config": written.display().to_string(),
+                "admitted": is_admitted(&file, root),
+            }));
+        }
         println!(
             "Recorded {} in register_on_start ({}); the daemon re-registers it on startup.",
             root.display(),
             written.display()
         );
         warn_if_unadmitted(&file, root);
+    } else if json_mode {
+        return Ok(serde_json::json!({
+            "added": false,
+            "admitted": is_admitted(&file, root),
+        }));
     } else {
         println!(
             "{} is already in register_on_start; nothing to add.",
             root.display()
         );
     }
-    Ok(())
+    Ok(serde_json::Value::Null)
 }
 
 /// ACTMO-019 (Council m-5): in `allowlist` mode, a `register_on_start` worktree
@@ -195,15 +249,7 @@ fn warn_if_unadmitted(file: &confinement::ConfinementConfigFile, root: &std::pat
     if file.admission != AdmissionModeFile::Allowlist {
         return;
     }
-    let canonical = dunce_canonical(root);
-    let admitted = file.allow.iter().any(|entry| {
-        let allowed = dunce_canonical(&entry.path);
-        match entry.kind {
-            MatchKind::Exact => canonical == allowed,
-            MatchKind::Prefix => canonical.starts_with(&allowed),
-        }
-    });
-    if !admitted {
+    if !is_admitted(file, root) {
         println!(
             "Note: admission mode is `allowlist` and {} is not admitted, so it will not be \
              served until you `anvil workspace allow {}`.",
@@ -213,11 +259,36 @@ fn warn_if_unadmitted(file: &confinement::ConfinementConfigFile, root: &std::pat
     }
 }
 
+/// Whether `root` would be admitted under the file's current admission
+/// posture (`open` admits everything).
+fn is_admitted(file: &confinement::ConfinementConfigFile, root: &std::path::Path) -> bool {
+    if file.admission != AdmissionModeFile::Allowlist {
+        return true;
+    }
+    let canonical = dunce_canonical(root);
+    file.allow.iter().any(|entry| {
+        let allowed = dunce_canonical(&entry.path);
+        match entry.kind {
+            MatchKind::Exact => canonical == allowed,
+            MatchKind::Prefix => canonical.starts_with(&allowed),
+        }
+    })
+}
+
 /// ACTMO-019: remove `root` from the `register_on_start` config.
-fn unpersist_register_on_start(root: &std::path::Path) -> Result<()> {
+fn unpersist_register_on_start(
+    root: &std::path::Path,
+    json_mode: bool,
+) -> Result<serde_json::Value> {
     let mut file = confinement::read_config_file().context("read workspace confinement config")?;
-    if file.remove_register_on_start(root) {
+    let removed = file.remove_register_on_start(root);
+    if removed {
         confinement::write_config_file(&file).context("write confinement config")?;
+    }
+    if json_mode {
+        return Ok(serde_json::json!({ "removed": removed }));
+    }
+    if removed {
         println!("Removed {} from register_on_start.", root.display());
     } else {
         println!(
@@ -225,7 +296,7 @@ fn unpersist_register_on_start(root: &std::path::Path) -> Result<()> {
             root.display()
         );
     }
-    Ok(())
+    Ok(serde_json::Value::Null)
 }
 
 /// Print the outcome of a single registration attempt.
@@ -246,16 +317,37 @@ fn report_registration(target: &std::path::Path, outcome: WorktreeRegistration) 
     }
 }
 
-fn run_unregister(args: &UnregisterArgs) -> Result<()> {
+fn run_unregister(args: &UnregisterArgs, json_mode: bool) -> Result<()> {
     let target = resolve_target(args.path.as_ref())?;
     // Resolve to the worktree root so unregistering from a subdirectory targets
     // the same session id `register` keyed on. A removed worktree no longer
     // resolves, so fall back to the raw path (best-effort — the reaper already
     // drops gone worktrees).
     let target = registration::registerable_worktree(&target).unwrap_or(target);
+    let outcome = registration::unregister_worktree_with_daemon(&target);
+    if json_mode {
+        let (label, detail): (&str, Option<&str>) = match &outcome {
+            WorktreeUnregistration::Unregistered => ("unregistered", None),
+            WorktreeUnregistration::NotRegistered => ("not-registered", None),
+            WorktreeUnregistration::DaemonUnavailable => ("daemon-unavailable", None),
+            WorktreeUnregistration::Rejected(message) => ("rejected", Some(message)),
+        };
+        let unpersisted = if args.persist {
+            Some(unpersist_register_on_start(&target, true)?)
+        } else {
+            None
+        };
+        crate::output::json::print(&serde_json::json!({
+            "worktree": target.display().to_string(),
+            "outcome": label,
+            "detail": detail,
+            "unpersisted": unpersisted,
+        }))?;
+        return Ok(());
+    }
     {
         let shown = target.display();
-        match registration::unregister_worktree_with_daemon(&target) {
+        match outcome {
             WorktreeUnregistration::Unregistered => println!("Unregistered {shown}."),
             WorktreeUnregistration::NotRegistered => {
                 println!("{shown} was not registered — nothing to do.");
@@ -271,7 +363,7 @@ fn run_unregister(args: &UnregisterArgs) -> Result<()> {
     // ACTMO-019: `--persist` also drops it from `register_on_start`, so the
     // daemon stops re-registering it on startup.
     if args.persist {
-        unpersist_register_on_start(&target)?;
+        unpersist_register_on_start(&target, false)?;
     }
     Ok(())
 }
@@ -291,10 +383,19 @@ fn absolutise(path: &std::path::Path) -> Result<std::path::PathBuf> {
     })
 }
 
-fn run_mode(args: &ModeArgs) -> Result<()> {
+fn run_mode(args: &ModeArgs, json_mode: bool) -> Result<()> {
     let mut file = confinement::read_config_file().context("read workspace confinement config")?;
     file.admission = args.mode.into();
     let written = confinement::write_config_file(&file).context("write confinement config")?;
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "admission_mode": mode_label(file.admission),
+            "config": written.display().to_string(),
+            "allow_entries": file.allow.len(),
+            "takes_effect": TAKES_EFFECT_NOTE,
+        }))?;
+        return Ok(());
+    }
     println!(
         "Admission mode set to {} ({}).",
         mode_label(file.admission),
@@ -321,7 +422,7 @@ fn run_mode(args: &ModeArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_allow(args: &AllowArgs) -> Result<()> {
+fn run_allow(args: &AllowArgs, json_mode: bool) -> Result<()> {
     let path = absolutise(&args.path)?;
     let kind = if args.prefix {
         MatchKind::Prefix
@@ -331,6 +432,16 @@ fn run_allow(args: &AllowArgs) -> Result<()> {
     let mut file = confinement::read_config_file().context("read workspace confinement config")?;
     file.upsert_allow(path.clone(), kind);
     confinement::write_config_file(&file).context("write confinement config")?;
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "allowed": path.display().to_string(),
+            "kind": kind_label(kind),
+            "admission_mode": mode_label(file.admission),
+            "enforced": file.admission == AdmissionModeFile::Allowlist,
+            "takes_effect": TAKES_EFFECT_NOTE,
+        }))?;
+        return Ok(());
+    }
     println!("Allowed {} ({}).", path.display(), kind_label(kind));
     if file.admission == AdmissionModeFile::Open {
         println!(
@@ -342,11 +453,22 @@ fn run_allow(args: &AllowArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_deny(args: &DenyArgs) -> Result<()> {
+fn run_deny(args: &DenyArgs, json_mode: bool) -> Result<()> {
     let path = absolutise(&args.path)?;
     let mut file = confinement::read_config_file().context("read workspace confinement config")?;
-    if file.remove_allow(&path) {
+    let removed = file.remove_allow(&path);
+    if removed {
         confinement::write_config_file(&file).context("write confinement config")?;
+    }
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "path": path.display().to_string(),
+            "removed": removed,
+            "takes_effect": removed.then_some(TAKES_EFFECT_NOTE),
+        }))?;
+        return Ok(());
+    }
+    if removed {
         println!("Removed allow entry {}.", path.display());
         print_takes_effect_note();
     } else {
@@ -577,19 +699,38 @@ fn daemon_bypassed() -> bool {
 /// worktree. Prefix entries are skipped with a warning (walking them would be
 /// the forbidden filesystem scan); all skips are reported. Bounded strictly by
 /// the operator's curated allowlist — never a scan.
-fn run_register_all(persist: bool) -> Result<()> {
+// Sequential register loop with early-exit outcomes, each rendered as
+// prose or one aggregate document (issue #3947).
+#[allow(clippy::too_many_lines)]
+fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
+    // Issue #3947: under `--json` the per-entry progress lines stay off
+    // stdout and the run reports as one aggregate document.
+    let early = |outcome: &str, message: &str| -> Result<()> {
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "outcome": outcome,
+                "registered": 0,
+            }))?;
+        } else {
+            println!("{message}");
+        }
+        Ok(())
+    };
     if daemon_bypassed() {
-        println!("Registration skipped (ANVIL_NO_DAEMON set).");
-        return Ok(());
+        return early(
+            "daemon-bypassed",
+            "Registration skipped (ANVIL_NO_DAEMON set).",
+        );
     }
     let file = confinement::read_config_file().context("read workspace confinement config")?;
     if file.admission == AdmissionModeFile::Open {
-        println!("No allowlist entries (confinement mode: open).");
-        return Ok(());
+        return early(
+            "open-mode",
+            "No allowlist entries (confinement mode: open).",
+        );
     }
     if file.allow.is_empty() {
-        println!("No allowlist entries to register.");
-        return Ok(());
+        return early("empty-allowlist", "No allowlist entries to register.");
     }
 
     let mut registered = 0usize;
@@ -605,7 +746,9 @@ fn run_register_all(persist: bool) -> Result<()> {
             continue;
         }
         // Per-entry progress so a large allowlist never reads as a hang.
-        println!("Registering {} ...", entry.path.display());
+        if !json_mode {
+            println!("Registering {} ...", entry.path.display());
+        }
         // Register the resolved worktree ROOT, not the raw allow entry, so an
         // entry pointing inside a worktree still keys on the worktree.
         let root = match registration::registerable_worktree(&entry.path) {
@@ -621,12 +764,27 @@ fn run_register_all(persist: bool) -> Result<()> {
                 persist_roots.push(root);
             }
             WorktreeRegistration::DaemonUnavailable => {
-                println!("Daemon unavailable — stopping. Start it with `anvil start` and retry.");
+                if !json_mode {
+                    println!(
+                        "Daemon unavailable — stopping. Start it with `anvil start` and retry."
+                    );
+                }
                 // Council m-1: still persist the intent captured before the
                 // daemon went away, so `--persist` does not silently drop the
                 // worktrees that DID register this run.
-                if persist && !persist_roots.is_empty() {
-                    persist_register_on_start_all(&persist_roots)?;
+                let persisted = if persist && !persist_roots.is_empty() {
+                    Some(persist_register_on_start_all(&persist_roots, json_mode)?)
+                } else {
+                    None
+                };
+                if json_mode {
+                    crate::output::json::print(&serde_json::json!({
+                        "outcome": "daemon-unavailable",
+                        "registered": registered,
+                        "prefix_skipped": prefix_skipped,
+                        "skips": skips,
+                        "persisted": persisted,
+                    }))?;
                 }
                 return Ok(());
             }
@@ -638,31 +796,47 @@ fn run_register_all(persist: bool) -> Result<()> {
         }
     }
 
-    println!(
-        "Registered {registered} worktree{}.",
-        if registered == 1 { "" } else { "s" }
-    );
-    if prefix_skipped > 0 {
+    if !json_mode {
         println!(
-            "{prefix_skipped} prefix entr{} skipped — only exact entries can be registered with --all.",
-            if prefix_skipped == 1 { "y" } else { "ies" }
+            "Registered {registered} worktree{}.",
+            if registered == 1 { "" } else { "s" }
         );
-    }
-    if !skips.is_empty() {
-        println!("Skipped:");
-        for skip in &skips {
-            println!("  {skip}");
+        if prefix_skipped > 0 {
+            println!(
+                "{prefix_skipped} prefix entr{} skipped — only exact entries can be registered with --all.",
+                if prefix_skipped == 1 { "y" } else { "ies" }
+            );
+        }
+        if !skips.is_empty() {
+            println!("Skipped:");
+            for skip in &skips {
+                println!("  {skip}");
+            }
         }
     }
-    if persist && !persist_roots.is_empty() {
-        persist_register_on_start_all(&persist_roots)?;
+    let persisted = if persist && !persist_roots.is_empty() {
+        Some(persist_register_on_start_all(&persist_roots, json_mode)?)
+    } else {
+        None
+    };
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "outcome": "completed",
+            "registered": registered,
+            "prefix_skipped": prefix_skipped,
+            "skips": skips,
+            "persisted": persisted,
+        }))?;
     }
     Ok(())
 }
 
 /// ACTMO-019: add several worktree roots to `register_on_start` in one
 /// read/modify/write, reporting how many were newly recorded.
-fn persist_register_on_start_all(roots: &[std::path::PathBuf]) -> Result<()> {
+fn persist_register_on_start_all(
+    roots: &[std::path::PathBuf],
+    json_mode: bool,
+) -> Result<serde_json::Value> {
     let mut file = confinement::read_config_file().context("read workspace confinement config")?;
     let mut added = 0usize;
     for root in roots {
@@ -672,15 +846,23 @@ fn persist_register_on_start_all(roots: &[std::path::PathBuf]) -> Result<()> {
     }
     if added > 0 {
         let written = confinement::write_config_file(&file).context("write confinement config")?;
+        if json_mode {
+            return Ok(serde_json::json!({
+                "added": added,
+                "config": written.display().to_string(),
+            }));
+        }
         println!(
             "Recorded {added} worktree{} in register_on_start ({}); the daemon re-registers them on startup.",
             if added == 1 { "" } else { "s" },
             written.display()
         );
+    } else if json_mode {
+        return Ok(serde_json::json!({ "added": 0 }));
     } else {
         println!("All registered worktrees were already in register_on_start.");
     }
-    Ok(())
+    Ok(serde_json::Value::Null)
 }
 
 /// CIB-232: what `open` admission actually does, in one plain line.
@@ -723,8 +905,10 @@ fn kind_label(kind: MatchKind) -> &'static str {
     }
 }
 
+const TAKES_EFFECT_NOTE: &str = "Takes effect for new daemon connections; no restart required.";
+
 fn print_takes_effect_note() {
-    println!("Takes effect for new daemon connections; no restart required.");
+    println!("{TAKES_EFFECT_NOTE}");
 }
 
 /// ACTMO-020 (ADR-094 decision 8 / D7): the body of the Git alias that runs
@@ -789,9 +973,23 @@ fn powershell_hook(alias: &str) -> String {
 /// newly-created worktree auto-registers with the daemon. A guided opt-in — it
 /// never silently shims `git`, and on Windows it also prints a PowerShell
 /// equivalent.
-fn run_install_hook(args: &InstallHookArgs) -> Result<()> {
+fn run_install_hook(args: &InstallHookArgs, json_mode: bool) -> Result<()> {
     if args.print {
-        print_hook_recipe(&args.alias);
+        if json_mode {
+            // Issue #3947: the recipe text travels inside one document
+            // (the `config convert --stdout` envelope precedent).
+            crate::output::json::print(&serde_json::json!({
+                "alias": args.alias,
+                "installed": false,
+                "sh_recipe": format!(
+                    "git config --global alias.{} '{}'",
+                    args.alias, WT_ADD_ALIAS_BODY
+                ),
+                "powershell_recipe": powershell_hook(&args.alias),
+            }))?;
+        } else {
+            print_hook_recipe(&args.alias);
+        }
         return Ok(());
     }
 
@@ -814,6 +1012,14 @@ fn run_install_hook(args: &InstallHookArgs) -> Result<()> {
         );
     }
 
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "alias": args.alias,
+            "installed": true,
+            "usage": format!("git {} ../my-worktree", args.alias),
+        }))?;
+        return Ok(());
+    }
     println!(
         "Installed Git alias `{name}`. Create + auto-register a worktree with:\n  \
          git {name} ../my-worktree\n\

@@ -69,7 +69,7 @@ pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         if global.verbose {
             eprintln!("Using sidecar: {}", sidecar.display());
         }
-        return run_sidecar(&sidecar, args);
+        return run_sidecar(&sidecar, args, global.json);
     }
 
     // 3. Library fallback
@@ -517,18 +517,36 @@ fn maybe_warn_sidecar_skip_verify<W: std::io::Write>(
     Ok(())
 }
 
-fn run_sidecar(path: &Path, args: &UpdateArgs) -> anyhow::Result<()> {
+fn run_sidecar(path: &Path, args: &UpdateArgs, json_mode: bool) -> anyhow::Result<()> {
     // Surface a dropped --insecure-skip-verify loudly rather than silently
     // (#1735). `.expect` matches the library path's ADR-045 convention: the
     // security warning is a contract, so a failed stderr write is fatal.
     maybe_warn_sidecar_skip_verify(path, args, &mut std::io::stderr().lock())
         .expect("stderr write for ADR-045 sidecar skip-verify warning");
 
-    let status = build_sidecar_command(path, args)
-        .stdin(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .status()?;
+    // Issue #3947: the sidecar (`eddacraft-anvil-update`) has no JSON mode
+    // and its inherited stdout is prose, which would break the one-document
+    // contract. Under `--json` its stdout is captured and reported inside
+    // the document instead; stderr stays inherited for live diagnostics.
+    let status = if json_mode {
+        let output = build_sidecar_command(path, args)
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .output()?;
+        crate::output::json::print(&serde_json::json!({
+            "updater": "sidecar",
+            "exit_code": output.status.code(),
+            "output": String::from_utf8_lossy(&output.stdout),
+        }))?;
+        output.status
+    } else {
+        build_sidecar_command(path, args)
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .status()?
+    };
 
     if status.success() {
         Ok(())
@@ -673,7 +691,12 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
         Err(e) => return Err(e),
     };
 
-    updater.enable_installer_output();
+    // Issue #3947: the installer child inherits stdout, so its progress
+    // prose would precede the final `--json` document. Keep it quiet in
+    // JSON mode; the final document still reports the outcome.
+    if !global.json {
+        updater.enable_installer_output();
+    }
     perform_update(updater, current, global)
 }
 

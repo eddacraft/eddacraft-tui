@@ -168,12 +168,15 @@ pub(crate) fn apply_leftover_choice(root: &Path, choice: &LeftoverChoice) -> Res
         }
         LeftoverChoice::RemoveShadowedConfigs { names } => remove_shadowed_configs(root, names),
         LeftoverChoice::FoldGateConfig { accept_weakening } => {
+            // json_mode false: this interactive cleanup path is suppressed
+            // under `--json` by `should_offer_leftover_cleanup`.
             crate::commands::migrate::run_gate_config_in(
                 &GateConfigMigrateArgs {
                     apply: true,
                     accept_weakening: *accept_weakening,
                 },
                 root,
+                false,
             )?;
             Ok("folded .anvil/gate-config.json into the project config".to_string())
         }
@@ -181,6 +184,7 @@ pub(crate) fn apply_leftover_choice(root: &Path, choice: &LeftoverChoice) -> Res
             crate::commands::migrate::run_architecture_in(
                 &ArchitectureMigrateArgs { apply: true },
                 root,
+                false,
             )?;
             Ok("recorded architecture.source in the project config".to_string())
         }

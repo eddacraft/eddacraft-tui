@@ -47,13 +47,13 @@ pub fn run(args: &TelemetryArgs, global: &GlobalArgs) -> Result<()> {
     let state_dir = credentials::credentials_dir().context("resolve user state directory")?;
     match &args.command {
         None => status(&state_dir, global),
-        Some(TelemetryCommand::On) => set_enabled(&state_dir, true),
-        Some(TelemetryCommand::Off) => set_enabled(&state_dir, false),
-        Some(TelemetryCommand::ResetId) => reset_id(&state_dir),
+        Some(TelemetryCommand::On) => set_enabled(&state_dir, true, global.json),
+        Some(TelemetryCommand::Off) => set_enabled(&state_dir, false, global.json),
+        Some(TelemetryCommand::ResetId) => reset_id(&state_dir, global.json),
     }
 }
 
-fn set_enabled(state_dir: &Path, enabled: bool) -> Result<()> {
+fn set_enabled(state_dir: &Path, enabled: bool, json_mode: bool) -> Result<()> {
     let update = telemetry::set_enabled_in(state_dir, enabled)?;
     if update.repaired {
         eprintln!(
@@ -65,19 +65,41 @@ fn set_enabled(state_dir: &Path, enabled: bool) -> Result<()> {
         // Explicit opt-in: mint the install id now so the transparency
         // surface has something concrete to show.
         let id = telemetry::load_or_create_install_id_in(state_dir)?;
-        println!("Telemetry is on. Anonymous install id: {id}");
-        println!();
-        println!("{}", telemetry::disclosure_text());
+        // Issue #3947: an accepted `--json` means the whole of stdout is
+        // one document; the disclosure text rides inside it as a field.
+        if json_mode {
+            crate::output::json::print(&serde_json::json!({
+                "telemetry": "on",
+                "install_id": id.to_string(),
+                "disclosure": telemetry::disclosure_text(),
+            }))?;
+        } else {
+            println!("Telemetry is on. Anonymous install id: {id}");
+            println!();
+            println!("{}", telemetry::disclosure_text());
+        }
+    } else if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "telemetry": "off",
+            "install_id": serde_json::Value::Null,
+        }))?;
     } else {
         println!("Telemetry is off. No beacon will be sent.");
     }
     Ok(())
 }
 
-fn reset_id(state_dir: &Path) -> Result<()> {
+fn reset_id(state_dir: &Path, json_mode: bool) -> Result<()> {
     let id = telemetry::rotate_install_id_in(state_dir)?;
-    println!("Anonymous install id rotated: {id}");
-    println!("Previously reported usage can no longer be correlated with this install.");
+    if json_mode {
+        crate::output::json::print(&serde_json::json!({
+            "telemetry_id": "rotated",
+            "install_id": id.to_string(),
+        }))?;
+    } else {
+        println!("Anonymous install id rotated: {id}");
+        println!("Previously reported usage can no longer be correlated with this install.");
+    }
     Ok(())
 }
 

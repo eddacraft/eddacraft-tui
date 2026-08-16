@@ -13,7 +13,7 @@ use clap::{Args, ValueEnum};
 use serde_json::{Map, Value, json};
 
 use crate::GlobalArgs;
-use crate::activation::agent_registry::{AgentClientId, InstallScope};
+use crate::activation::agent_registry::{AgentClientId, InstallScope, McpConfigKind};
 use crate::commands::mcp_installer;
 use crate::output::AlreadyReported;
 use crate::util::atomic_write_nofollow;
@@ -192,12 +192,30 @@ fn run_registry_stdio(
 
     if !args.write && !args.verify {
         let rendered = mcp_installer::preview(args.target, command)?;
-        if !global.json {
-            println!("# Preview — pass --write to install at the target path.");
-            println!("# Target: {}", args.target.label());
-            println!("# Path  : {}", path.display());
+        let toml_kind = matches!(
+            adapter.mcp_kind,
+            Some(McpConfigKind::CodexToml | McpConfigKind::GrokToml)
+        );
+        if global.json && toml_kind {
+            // Issue #3947: for TOML-kind clients (codex, grok) the raw
+            // preview is not JSON, so under `--json` the text travels
+            // inside one document — the `config convert --stdout`
+            // envelope pattern. JSON-kind previews already print one
+            // valid document raw; that existing contract stays as-is.
+            crate::output::json::print(&json!({
+                "target": args.target.label(),
+                "path": path.display().to_string(),
+                "format": "toml",
+                "config": rendered,
+            }))?;
+        } else {
+            if !global.json {
+                println!("# Preview — pass --write to install at the target path.");
+                println!("# Target: {}", args.target.label());
+                println!("# Path  : {}", path.display());
+            }
+            print!("{rendered}");
         }
-        print!("{rendered}");
         return Ok(());
     }
 

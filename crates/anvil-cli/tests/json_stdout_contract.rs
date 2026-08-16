@@ -718,3 +718,425 @@ fn capsule_create_human_output_is_unchanged() {
         "human output must keep the verify hint: {stdout}"
     );
 }
+
+// ── CLI-wide sweep (#3947) ─────────────────────────────────────────
+//
+// Operator decision A on #3947: `--json` binds CLI-wide. These tests
+// cover the surfaces that used to accept the flag and print prose; the
+// clap-tree registry test in `src/json_surface_audit.rs` forces every
+// NEW command to classify itself, and these pin the honoured behaviour
+// for the repaired ones. All parse the whole of stdout.
+
+#[test]
+fn telemetry_on_off_json_emit_only_json_for_both_flag_placements() {
+    for args in [
+        ["telemetry", "on", "--json"].as_slice(),
+        ["--json", "telemetry", "on"].as_slice(),
+    ] {
+        let sandbox = Sandbox::new();
+        let out = sandbox.anvil(args);
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+        assert_eq!(
+            doc.get("telemetry").and_then(serde_json::Value::as_str),
+            Some("on"),
+            "telemetry on must report the new state: {doc}"
+        );
+        assert!(
+            doc.get("install_id")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "telemetry on must carry the minted install id: {doc}"
+        );
+        assert!(
+            doc.get("disclosure")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|text| !text.is_empty()),
+            "the disclosure text must ride inside the document: {doc}"
+        );
+
+        let out = sandbox.anvil(&["telemetry", "off", "--json"]);
+        let doc = parse_only_json(&out, "anvil telemetry off --json");
+        assert_eq!(
+            doc.get("telemetry").and_then(serde_json::Value::as_str),
+            Some("off"),
+            "telemetry off must report the new state: {doc}"
+        );
+    }
+}
+
+#[test]
+fn telemetry_reset_id_json_emits_only_json() {
+    let sandbox = Sandbox::new();
+    sandbox.anvil(&["telemetry", "on"]);
+    let out = sandbox.anvil(&["telemetry", "reset-id", "--json"]);
+    let doc = parse_only_json(&out, "anvil telemetry reset-id --json");
+    assert_eq!(
+        doc.get("telemetry_id").and_then(serde_json::Value::as_str),
+        Some("rotated"),
+        "reset-id must report the rotation: {doc}"
+    );
+}
+
+#[test]
+fn telemetry_human_output_is_unchanged() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["telemetry", "off"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "telemetry off must exit 0: {stdout}");
+    assert_eq!(
+        stdout, "Telemetry is off. No beacon will be sent.\n",
+        "human telemetry off line must be unchanged"
+    );
+}
+
+#[test]
+fn migrate_schema_json_emits_one_document_per_outcome() {
+    // No `anvil/project-id` in the sandbox, so the origin is unknown —
+    // that outcome must be a document, not the historical prose.
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["migrate", "schema", "--json"]);
+    let doc = parse_only_json(&out, "anvil migrate schema --json");
+    assert_eq!(
+        doc.get("outcome").and_then(serde_json::Value::as_str),
+        Some("unknown-origin"),
+        "schema migrate must name its outcome: {doc}"
+    );
+}
+
+#[test]
+fn migrate_architecture_json_reports_the_dry_run_plan() {
+    let sandbox = Sandbox::new();
+    write_json_config(&sandbox);
+    std::fs::create_dir_all(sandbox.repo().join(".anvil")).expect("mkdir .anvil");
+    std::fs::write(
+        sandbox.repo().join(".anvil/architecture.yaml"),
+        "layers: []\n",
+    )
+    .expect("write architecture.yaml");
+
+    let out = sandbox.anvil(&["migrate", "architecture", "--json"]);
+    let doc = parse_only_json(&out, "anvil migrate architecture --json");
+    assert_eq!(
+        doc.get("outcome").and_then(serde_json::Value::as_str),
+        Some("dry-run"),
+        "dry-run must be the named outcome: {doc}"
+    );
+    assert_eq!(
+        doc.get("source").and_then(serde_json::Value::as_str),
+        Some(".anvil/architecture.yaml"),
+        "the planned source line must be a field: {doc}"
+    );
+}
+
+#[test]
+fn migrate_schema_human_output_is_unchanged() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["migrate", "schema"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "migrate schema must exit 0: {stdout}");
+    assert!(
+        stdout.starts_with("anvil: cannot determine the anvil version"),
+        "human unknown-origin prose must be unchanged: {stdout}"
+    );
+}
+
+#[test]
+fn workspace_allow_and_deny_json_emit_only_json_for_both_flag_placements() {
+    for args in [
+        ["workspace", "allow", "/srv/proj", "--json"].as_slice(),
+        ["--json", "workspace", "allow", "/srv/proj"].as_slice(),
+    ] {
+        let sandbox = Sandbox::new();
+        let out = sandbox.anvil(args);
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+        assert!(
+            doc.get("allowed")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|path| path.ends_with("proj")),
+            "allow must name the stored path: {doc}"
+        );
+        assert_eq!(
+            doc.get("kind").and_then(serde_json::Value::as_str),
+            Some("exact"),
+            "allow must report the match kind: {doc}"
+        );
+
+        let out = sandbox.anvil(&["workspace", "deny", "/srv/proj", "--json"]);
+        let doc = parse_only_json(&out, "anvil workspace deny --json");
+        assert_eq!(
+            doc.get("removed"),
+            Some(&serde_json::Value::Bool(true)),
+            "deny must report the removal: {doc}"
+        );
+    }
+}
+
+#[test]
+fn workspace_mode_json_emits_only_json() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["workspace", "mode", "allowlist", "--json"]);
+    let doc = parse_only_json(&out, "anvil workspace mode allowlist --json");
+    assert_eq!(
+        doc.get("admission_mode")
+            .and_then(serde_json::Value::as_str),
+        Some("allowlist"),
+        "mode must report the new admission mode: {doc}"
+    );
+}
+
+#[test]
+fn workspace_allow_human_output_is_unchanged() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["workspace", "allow", "/srv/proj"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "workspace allow must exit 0: {stdout}"
+    );
+    assert!(
+        stdout.starts_with("Allowed ") && stdout.contains("(exact)"),
+        "human allow output must be unchanged: {stdout}"
+    );
+}
+
+#[test]
+fn licenses_json_wraps_the_text_in_one_document() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["licenses", "--json"]);
+    let doc = parse_only_json(&out, "anvil licenses --json");
+    assert_eq!(
+        doc.get("format").and_then(serde_json::Value::as_str),
+        Some("plain"),
+        "licenses must name the rendered format: {doc}"
+    );
+    assert!(
+        doc.get("text")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|text| text.contains("ACKNOWLEDGEMENTS")
+                || text.contains("licence")
+                || text.contains("License")),
+        "the licence text must travel inside the document: {doc}"
+    );
+}
+
+#[test]
+fn gate_list_profiles_json_emits_only_json_for_both_flag_placements() {
+    for args in [
+        ["gate", "--list-profiles", "--json"].as_slice(),
+        ["--json", "gate", "--list-profiles"].as_slice(),
+    ] {
+        let sandbox = Sandbox::new();
+        let out = sandbox.anvil(args);
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+        let profiles = doc
+            .get("profiles")
+            .and_then(serde_json::Value::as_array)
+            .unwrap_or_else(|| panic!("profiles must be an array: {doc}"));
+        assert!(
+            profiles
+                .iter()
+                .any(|p| p.get("name").and_then(serde_json::Value::as_str) == Some("ai")),
+            "the ai profile must be listed: {doc}"
+        );
+    }
+}
+
+#[test]
+fn new_scaffold_json_emits_only_json() {
+    let sandbox = Sandbox::new();
+    let listing = parse_only_json(
+        &sandbox.anvil(&["new", "--list", "--json"]),
+        "anvil new --list --json",
+    );
+    let template_id = listing
+        .get("templates")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|templates| templates.first())
+        .and_then(|t| t.get("id"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_else(|| panic!("template listing must expose ids: {listing}"))
+        .to_owned();
+
+    let out = sandbox.anvil(&["new", &template_id, "--json"]);
+    let doc = parse_only_json(&out, &format!("anvil new {template_id} --json"));
+    assert_eq!(
+        doc.get("template").and_then(serde_json::Value::as_str),
+        Some(template_id.as_str()),
+        "the scaffold document must name the template: {doc}"
+    );
+    let output = doc
+        .get("output")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_else(|| panic!("output must name the written file: {doc}"));
+    assert!(
+        sandbox.repo().join(output).is_file() || Path::new(output).is_file(),
+        "the scaffold must still be written under --json: {output}"
+    );
+}
+
+#[test]
+fn tutorial_reset_json_emits_only_json() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["tutorial", "--reset", "--json"]);
+    let doc = parse_only_json(&out, "anvil tutorial --reset --json");
+    assert_eq!(
+        doc.get("reset"),
+        Some(&serde_json::Value::Bool(true)),
+        "reset must be reported: {doc}"
+    );
+}
+
+#[test]
+fn tutorial_json_refuses_with_empty_stdout() {
+    // Interactive-only surface: under `--json` the refusal is a
+    // structured error (stderr envelope from main), never a TUI or
+    // prose on stdout.
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["tutorial", "--json"]);
+    assert!(!out.status.success(), "tutorial --json must refuse");
+    assert!(
+        out.stdout.is_empty(),
+        "refusal must leave stdout empty: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+}
+
+#[test]
+fn welcome_json_emits_only_json_with_and_without_skip() {
+    let sandbox = Sandbox::new();
+    // The sandbox exports ANVIL_SKIP_WELCOME=1, so the bypass branch runs.
+    let doc = parse_only_json(
+        &sandbox.anvil(&["welcome", "--json"]),
+        "anvil welcome --json (skip env)",
+    );
+    assert_eq!(
+        doc.get("skipped"),
+        Some(&serde_json::Value::Bool(true)),
+        "the env bypass must be reported: {doc}"
+    );
+
+    let out = sandbox
+        .command(&["welcome", "--json"])
+        .env_remove("ANVIL_SKIP_WELCOME")
+        .output()
+        .expect("invoke anvil welcome");
+    let doc = parse_only_json(&out, "anvil welcome --json");
+    assert_eq!(
+        doc.get("skipped"),
+        Some(&serde_json::Value::Bool(false)),
+        "the full welcome flow must report one document: {doc}"
+    );
+    assert!(
+        doc.get("next_step")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|step| step.contains("anvil start")),
+        "the next-step line must survive as a field: {doc}"
+    );
+}
+
+#[test]
+fn baseline_and_verify_json_emit_only_json() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["baseline", "--json"]);
+    let doc = parse_only_json(&out, "anvil baseline --json");
+    assert_eq!(
+        doc.get("outcome").and_then(serde_json::Value::as_str),
+        Some("created"),
+        "baseline create must name its outcome: {doc}"
+    );
+    assert!(
+        doc.get("findings")
+            .and_then(serde_json::Value::as_u64)
+            .is_some(),
+        "the findings count must be a field: {doc}"
+    );
+
+    let out = sandbox.anvil(&["baseline", "verify", "--json"]);
+    let doc = parse_only_json(&out, "anvil baseline verify --json");
+    assert_eq!(
+        doc.get("outcome").and_then(serde_json::Value::as_str),
+        Some("ok"),
+        "verify must report ok: {doc}"
+    );
+}
+
+#[test]
+fn capsule_prune_json_emits_one_document_when_empty() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["capsule", "prune", "--keep-last", "1", "--json"]);
+    let doc = parse_only_json(&out, "anvil capsule prune --json (empty)");
+    assert_eq!(
+        doc.get("dry_run"),
+        Some(&serde_json::Value::Bool(true)),
+        "prune without --apply must report a dry run: {doc}"
+    );
+    assert!(
+        doc.get("capsules")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(std::vec::Vec::is_empty),
+        "an empty staging root must yield an empty capsule list: {doc}"
+    );
+}
+
+#[test]
+fn hook_bootstrap_dry_run_json_emits_only_json() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["hook", "bootstrap", "--dry-run", "--json"]);
+    let doc = parse_only_json(&out, "anvil hook bootstrap --dry-run --json");
+    assert_eq!(
+        doc.get("dry_run"),
+        Some(&serde_json::Value::Bool(true)),
+        "the dry run must be reported: {doc}"
+    );
+    assert!(
+        doc.get("plan")
+            .and_then(serde_json::Value::as_str)
+            .is_some(),
+        "the plan kind must be a field: {doc}"
+    );
+}
+
+// NOTE: `intercept stop --json` has no process test here: the per-user
+// daemon PID file is discovered outside the sandbox `HOME` reroot, so a
+// test invocation signals the developer's real intercept daemon. The
+// JSON projection of `run_stop` shares `registration_fields`-style
+// mapping and is covered by review; do not add a process test without
+// a daemon-path override.
+
+#[test]
+fn edda_list_json_is_identical_for_both_flag_placements() {
+    // The missing-storage envelope exits 1 by design; the contract here
+    // is placement parity — the leading global flag must produce the
+    // same stdout document as the trailing one (the clap propagation
+    // gap this sweep fixed).
+    let sandbox = Sandbox::new();
+    let leading = sandbox.anvil(&["--json", "edda", "list"]);
+    let trailing = sandbox.anvil(&["edda", "list", "--json"]);
+    assert_eq!(
+        String::from_utf8_lossy(&leading.stdout),
+        String::from_utf8_lossy(&trailing.stdout),
+        "both placements must produce the same stdout"
+    );
+    let stdout = String::from_utf8_lossy(&leading.stdout);
+    serde_json::from_str::<serde_json::Value>(&stdout).unwrap_or_else(|err| {
+        panic!("edda list --json stdout must be one JSON document: {err}\n{stdout}")
+    });
+}
+
+#[test]
+fn mcp_config_toml_preview_json_wraps_config_in_one_document() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["mcp-config", "--target", "codex", "--json"]);
+    let doc = parse_only_json(&out, "anvil mcp-config --target codex --json");
+    assert_eq!(
+        doc.get("format").and_then(serde_json::Value::as_str),
+        Some("toml"),
+        "the TOML preview must name its format: {doc}"
+    );
+    assert!(
+        doc.get("config")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|config| config.contains("anvil")),
+        "the rendered config must travel inside the document: {doc}"
+    );
+}

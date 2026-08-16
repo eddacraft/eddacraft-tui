@@ -17,6 +17,8 @@ mod insights;
 mod install_root;
 #[cfg(unix)]
 mod intercept_symbol_parser;
+#[cfg(test)]
+mod json_surface_audit;
 mod kindling_daemon_sink;
 #[cfg(feature = "kindling-embedded-runtime")]
 mod kindling_runtime;
@@ -126,7 +128,9 @@ type AuthCheckResult = Result<(), AuthCheckFailure>;
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Default, Parser)]
 pub struct GlobalArgs {
-    /// Output results as JSON instead of human-readable text.
+    /// Output results as JSON: success stdout is exactly one JSON document
+    /// (or a documented machine stream), on every command. Where a command
+    /// has `--format`, an explicit `--format` takes precedence.
     #[arg(long, global = true)]
     pub json: bool,
 

@@ -4803,7 +4803,24 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
     use crate::output::OutputMode;
 
     if args.list_profiles {
-        list_profiles();
+        // Issue #3947: this early return used to bypass output-mode
+        // resolution entirely, so `--json` (and `--format json`) were
+        // accepted and ignored. The profile list is data — honour them.
+        if global.json || matches!(args.format, Some(crate::output::Format::Json)) {
+            let profiles: Vec<serde_json::Value> = PROFILES
+                .iter()
+                .map(|(name, desc, skips)| {
+                    serde_json::json!({
+                        "name": name,
+                        "description": desc,
+                        "skips": skips,
+                    })
+                })
+                .collect();
+            crate::output::json::print(&serde_json::json!({ "profiles": profiles }))?;
+        } else {
+            list_profiles();
+        }
         return Ok(true);
     }
 
