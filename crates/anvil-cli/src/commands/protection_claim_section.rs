@@ -127,7 +127,7 @@ mod tests {
         SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
     };
 
-    /// Isolated HOME/XDG/ANVIL_HOME so operator MCP entries cannot
+    /// Isolated `HOME`/`XDG`/`ANVIL_HOME` so operator MCP entries cannot
     /// promote a missing project to `ReadyRestartRequired` → `Warming`.
     fn isolated_operator_roots() -> tempfile::TempDir {
         let root = tempfile::tempdir().expect("isolated operator roots");

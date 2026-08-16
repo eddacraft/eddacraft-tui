@@ -98,7 +98,7 @@ fn validate_write_response_carries_protection_claim_when_daemon_serves() {
 /// pass, and do not promote an absent socket to that block.
 ///
 /// Isolation: `ANVIL_HOME` would otherwise steal socket resolution
-/// from the per-test `XDG_RUNTIME_DIR` (ADR-060). HOME / XDG are
+/// from the per-test `XDG_RUNTIME_DIR` (ADR-060). `HOME` / `XDG` are
 /// rerooted so operator MCP entries cannot leak into the child.
 #[test]
 fn validate_write_response_omits_protection_claim_when_daemon_unreachable() {

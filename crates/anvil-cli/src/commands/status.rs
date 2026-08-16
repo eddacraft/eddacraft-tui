@@ -3713,7 +3713,7 @@ mod tests {
     /// surface coverage when there is no daemon evidence.
     ///
     /// Live `activation::verify` still reads operator MCP configs, so
-    /// this test isolates HOME/XDG/ANVIL_HOME and probes a missing
+    /// this test isolates `HOME`/`XDG`/`ANVIL_HOME` and probes a missing
     /// project against an empty fixture home.
     #[test]
     fn resolve_protection_claim_falls_back_when_snapshot_absent() {
