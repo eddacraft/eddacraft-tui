@@ -1216,15 +1216,15 @@ fn run_with_home_and_policy<'a>(
 }
 
 /// Map a detected [`AgentKind`] to its [`McpClientId`], or `None` for
-/// agents anvil detects but does not (yet) install an MCP entry for.
+/// agents anvil detects but does not install an MCP entry for.
 fn agent_to_mcp_client(kind: AgentKind) -> Option<McpClientId> {
     match kind {
         AgentKind::ClaudeCode => Some(McpClientId::ClaudeCode),
         AgentKind::Cursor => Some(McpClientId::Cursor),
-        // Aider / Windsurf / Codex are not part of the legacy layered
-        // diagnostic adapters. Codex configuration is handled by the
-        // first-wave registry instead.
-        AgentKind::Aider | AgentKind::Windsurf | AgentKind::Codex => None,
+        AgentKind::Codex => Some(McpClientId::Codex),
+        // Aider / Windsurf are detected for the "AI tools" line but have
+        // no first-wave MCP adapter.
+        AgentKind::Aider | AgentKind::Windsurf => None,
     }
 }
 
@@ -1262,17 +1262,7 @@ fn extend_enabled_with_explicit_clients(
     enabled: &mut BTreeSet<McpClientId>,
     explicit_clients: &[AgentClientId],
 ) {
-    for client in explicit_clients {
-        match client {
-            AgentClientId::ClaudeCode => {
-                enabled.insert(McpClientId::ClaudeCode);
-            }
-            AgentClientId::Cursor => {
-                enabled.insert(McpClientId::Cursor);
-            }
-            _ => {}
-        }
-    }
+    enabled.extend(explicit_clients.iter().copied());
 }
 
 #[cfg(test)]
@@ -2936,10 +2926,13 @@ verdict: completed"
             agent_to_mcp_client(AgentKind::Cursor),
             Some(McpClientId::Cursor)
         );
-        // Detected for the "AI tools detected" line, but no v1 MCP impl.
+        assert_eq!(
+            agent_to_mcp_client(AgentKind::Codex),
+            Some(McpClientId::Codex)
+        );
+        // Detected for the "AI tools detected" line, but no MCP adapter.
         assert_eq!(agent_to_mcp_client(AgentKind::Aider), None);
         assert_eq!(agent_to_mcp_client(AgentKind::Windsurf), None);
-        assert_eq!(agent_to_mcp_client(AgentKind::Codex), None);
     }
 
     #[test]

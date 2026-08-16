@@ -9,6 +9,7 @@ use super::diagnostic::{McpClientId, McpTier};
 
 pub mod claude_code;
 pub mod cursor;
+pub mod registry;
 
 /// What we install into the editor's config. Today only `Stdio` is
 /// constructed; `RemoteSse` / `RemoteHttp` are reserved for the future
@@ -309,15 +310,43 @@ pub trait McpClient: Send + Sync {
     /// Used by the orchestrator install path (LAUNCH-006 follow-up).
     #[allow(dead_code)]
     fn restart_hint(&self) -> &'static str;
+
+    /// Reconstruct the stdio spawn target from a parsed anvil entry.
+    ///
+    /// Default assumes the Cursor/Claude `{command, args, env}` shape.
+    /// Registry-backed clients override this for OpenCode arrays and
+    /// Zed nested `command.path` entries.
+    fn installed_stdio_entry(&self, parsed: &ParsedConfig) -> Option<AnvilEntry> {
+        parsed
+            .existing_entry
+            .as_ref()
+            .and_then(stdio_entry_from_value)
+    }
 }
 
-/// Static registry of all clients that ship in v1.
+static CURSOR: cursor::Cursor = cursor::Cursor;
+static CLAUDE_CODE: claude_code::ClaudeCode = claude_code::ClaudeCode;
+static CLIENTS: [&dyn McpClient; 12] = [
+    &CURSOR,
+    &CLAUDE_CODE,
+    &registry::CODEX,
+    &registry::OPEN_CODE,
+    &registry::GEMINI_CLI,
+    &registry::ANTIGRAVITY,
+    &registry::OPEN_CLAW,
+    &registry::VS_CODE,
+    &registry::COPILOT_CLI,
+    &registry::GROK,
+    &registry::WARP,
+    &registry::ZED,
+];
+
+/// Static registry of every first-wave MCP client.
 ///
-/// Returns `&dyn McpClient` so callers can iterate over them generically.
-/// Adding a client means: implement the trait in a new submodule and
-/// add a `&` to this slice.
+/// Cursor and Claude Code keep specialised adapters. The remaining
+/// installable `AgentClientId`s use [`registry::RegistryClient`].
 pub fn all_clients() -> &'static [&'static dyn McpClient] {
-    &[&cursor::Cursor, &claude_code::ClaudeCode]
+    &CLIENTS
 }
 
 /// The set of every MCP client id that ships in v1.
@@ -439,6 +468,160 @@ pub(crate) fn render_new_json_mcp(
     root.insert("mcpServers".to_string(), serde_json::Value::Object(servers));
     serde_json::to_string_pretty(&serde_json::Value::Object(root))
         .map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
+/// Parse a JSON MCP document whose server map lives at `keys`.
+pub(crate) fn parse_keyed_json_mcp(
+    raw: &str,
+    keys: &[&str],
+    server_name: &str,
+) -> Result<ParsedConfig, ParseError> {
+    let trimmed = raw.trim_start_matches('\u{feff}').trim();
+    if trimmed.is_empty() {
+        return Err(ParseError::Empty);
+    }
+    let value: serde_json::Value = serde_json::from_str(trimmed)
+        .map_err(|e| ParseError::Invalid(format!("JSON parse error: {e}")))?;
+    if !value.is_object() {
+        return Err(ParseError::UnexpectedShape(
+            "top-level value must be a JSON object".to_string(),
+        ));
+    }
+    let mut cursor = Some(&value);
+    for key in keys {
+        match cursor.and_then(|node| node.get(*key)) {
+            None => {
+                cursor = None;
+                break;
+            }
+            Some(child) if !child.is_object() => {
+                return Err(ParseError::UnexpectedShape(format!(
+                    "`{key}` must be a JSON object; found {}",
+                    shape_label(child)
+                )));
+            }
+            Some(child) => cursor = Some(child),
+        }
+    }
+    let existing = cursor.and_then(|map| map.get(server_name)).cloned();
+    Ok(ParsedConfig {
+        raw: value,
+        existing_entry: existing,
+    })
+}
+
+fn insert_json_entry_at(
+    root: &mut serde_json::Value,
+    keys: &[&str],
+    server_name: &str,
+    entry: serde_json::Value,
+) -> Result<(), RenderError> {
+    let mut cursor = root.as_object_mut().ok_or(RenderError::BadRoot)?;
+    for key in keys {
+        let child = cursor
+            .entry((*key).to_string())
+            .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+        cursor = child.as_object_mut().ok_or(RenderError::BadServersKey)?;
+    }
+    cursor.insert(server_name.to_string(), entry);
+    Ok(())
+}
+
+/// Merge `entry` into a JSON document at `keys.<server_name>`.
+pub(crate) fn merge_json_at(
+    parsed: &ParsedConfig,
+    keys: &[&str],
+    server_name: &str,
+    entry: serde_json::Value,
+) -> Result<String, RenderError> {
+    let mut root = parsed.raw.clone();
+    insert_json_entry_at(&mut root, keys, server_name, entry)?;
+    serde_json::to_string_pretty(&root).map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
+/// Render a fresh JSON document with `entry` at `keys.<server_name>`.
+pub(crate) fn render_new_json_at(
+    keys: &[&str],
+    server_name: &str,
+    entry: serde_json::Value,
+) -> Result<String, RenderError> {
+    let mut root = serde_json::Value::Object(serde_json::Map::new());
+    insert_json_entry_at(&mut root, keys, server_name, entry)?;
+    serde_json::to_string_pretty(&root).map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
+/// Parse a TOML MCP document whose server table lives at `table`.
+pub(crate) fn parse_toml_mcp(
+    raw: &str,
+    table: &str,
+    server_name: &str,
+) -> Result<ParsedConfig, ParseError> {
+    let trimmed = raw.trim_start_matches('\u{feff}').trim();
+    if trimmed.is_empty() {
+        return Err(ParseError::Empty);
+    }
+    let parsed: toml::Value = toml::from_str(trimmed)
+        .map_err(|e| ParseError::Invalid(format!("TOML parse error: {e}")))?;
+    if !parsed.is_table() {
+        return Err(ParseError::UnexpectedShape(
+            "top-level value must be a TOML table".to_string(),
+        ));
+    }
+    if let Some(servers) = parsed.get(table)
+        && !servers.is_table()
+    {
+        return Err(ParseError::UnexpectedShape(format!(
+            "`{table}` must be a TOML table"
+        )));
+    }
+    let existing = parsed
+        .get(table)
+        .and_then(|servers| servers.get(server_name))
+        .and_then(|entry| serde_json::to_value(entry).ok());
+    let raw = serde_json::to_value(&parsed)
+        .map_err(|e| ParseError::Invalid(format!("TOML to JSON: {e}")))?;
+    Ok(ParsedConfig {
+        raw,
+        existing_entry: existing,
+    })
+}
+
+fn json_value_to_toml(value: serde_json::Value) -> Result<toml::Value, RenderError> {
+    toml::Value::try_from(value).map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
+fn render_toml_document(root: serde_json::Value) -> Result<String, RenderError> {
+    let toml_value = json_value_to_toml(root)?;
+    let rendered =
+        toml::to_string_pretty(&toml_value).map_err(|e| RenderError::Serialise(e.to_string()))?;
+    if rendered.ends_with('\n') {
+        Ok(rendered)
+    } else {
+        Ok(format!("{rendered}\n"))
+    }
+}
+
+/// Merge `entry` into a TOML document at `table.<server_name>`.
+pub(crate) fn merge_toml_mcp(
+    parsed: &ParsedConfig,
+    table: &str,
+    server_name: &str,
+    entry: serde_json::Value,
+) -> Result<String, RenderError> {
+    let mut root = parsed.raw.clone();
+    insert_json_entry_at(&mut root, &[table], server_name, entry)?;
+    render_toml_document(root)
+}
+
+/// Render a fresh TOML document with `entry` at `table.<server_name>`.
+pub(crate) fn render_new_toml_mcp(
+    table: &str,
+    server_name: &str,
+    entry: serde_json::Value,
+) -> Result<String, RenderError> {
+    let mut root = serde_json::Value::Object(serde_json::Map::new());
+    insert_json_entry_at(&mut root, &[table], server_name, entry)?;
+    render_toml_document(root)
 }
 
 /// Shared drift classifier: same args + anvil-shaped command path = `SafeDrift`;
@@ -818,10 +1001,7 @@ pub fn installed_restart_required_entries(
             if client.verify_config_tier(Some(&parsed), fresh) != McpTier::RestartRequired {
                 continue;
             }
-            let Some(existing) = parsed.existing_entry.as_ref() else {
-                continue;
-            };
-            if let Some(entry) = stdio_entry_from_value(existing) {
+            if let Some(entry) = client.installed_stdio_entry(&parsed) {
                 entries.insert(client.id(), entry);
                 break;
             }
@@ -833,7 +1013,7 @@ pub fn installed_restart_required_entries(
 /// Best-effort: parse an installed JSON entry back into an
 /// [`AnvilEntry::Stdio`]. Returns `None` if the shape doesn't match
 /// (missing or non-string `command`, args not a string array, etc.).
-fn stdio_entry_from_value(v: &serde_json::Value) -> Option<AnvilEntry> {
+pub(crate) fn stdio_entry_from_value(v: &serde_json::Value) -> Option<AnvilEntry> {
     let obj = v.as_object()?;
     let command = obj.get("command")?.as_str()?;
     if command.is_empty() {
@@ -1321,9 +1501,86 @@ mod tests {
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         let map = probe_all(ws.path(), Some(home.path()), &fresh());
-        assert_eq!(map.len(), 2, "v1 has Cursor + ClaudeCode");
+        assert_eq!(
+            map.len(),
+            super::super::agent_registry::AgentClientId::all().len(),
+            "handshake registry must include every first-wave client"
+        );
         assert!(map.contains_key(&McpClientId::Cursor));
         assert!(map.contains_key(&McpClientId::ClaudeCode));
+        assert!(map.contains_key(&McpClientId::Grok));
+        assert!(map.contains_key(&McpClientId::Codex));
+    }
+
+    #[test]
+    fn all_clients_includes_first_wave_registry_clients() {
+        let ids: Vec<_> = all_clients().iter().map(|c| c.id().label()).collect();
+        assert!(
+            ids.contains(&"grok"),
+            "handshake registry must include Grok, got {ids:?}"
+        );
+        assert!(
+            ids.contains(&"codex"),
+            "handshake registry must include Codex, got {ids:?}"
+        );
+        assert!(
+            ids.contains(&"cursor") && ids.contains(&"claude-code"),
+            "special-cased clients must remain registered, got {ids:?}"
+        );
+        assert!(
+            ids.len() >= 12,
+            "every first-wave AgentClientId should participate, got {ids:?}"
+        );
+        let registry: std::collections::BTreeSet<_> =
+            super::super::agent_registry::AgentClientId::all()
+                .iter()
+                .map(|entry| entry.id.label())
+                .collect();
+        let handshake: std::collections::BTreeSet<_> = ids.into_iter().collect();
+        assert_eq!(
+            handshake, registry,
+            "handshake adapters must be 1:1 with the agent registry"
+        );
+    }
+
+    #[test]
+    fn probe_all_reports_grok_and_codex_when_their_configs_exist() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        fs::create_dir_all(ws.path().join(".grok")).unwrap();
+        fs::write(
+            ws.path().join(".grok/config.toml"),
+            r#"
+[mcp_servers.anvil]
+command = "/usr/local/bin/anvil"
+args = ["mcp", "serve", "--stdio"]
+"#,
+        )
+        .unwrap();
+        fs::create_dir_all(ws.path().join(".codex")).unwrap();
+        fs::write(
+            ws.path().join(".codex/config.toml"),
+            r#"
+[mcp_servers.anvil]
+command = "/usr/local/bin/anvil"
+args = ["mcp", "serve", "--stdio"]
+"#,
+        )
+        .unwrap();
+
+        let map = probe_all(ws.path(), Some(home.path()), &fresh());
+        let grok = map.iter().find(|(id, _)| id.label() == "grok");
+        let codex = map.iter().find(|(id, _)| id.label() == "codex");
+        assert_eq!(
+            grok.map(|(_, r)| r.tier),
+            Some(McpTier::RestartRequired),
+            "Grok-wired workspace must reach the handshake ladder, got {grok:?}"
+        );
+        assert_eq!(
+            codex.map(|(_, r)| r.tier),
+            Some(McpTier::RestartRequired),
+            "Codex-wired workspace must reach the handshake ladder, got {codex:?}"
+        );
     }
 
     #[test]
@@ -1333,6 +1590,8 @@ mod tests {
         let map = probe_all(ws.path(), Some(home.path()), &fresh());
         assert_eq!(map[&McpClientId::Cursor], McpTier::ConfigAbsent.into());
         assert_eq!(map[&McpClientId::ClaudeCode], McpTier::ConfigAbsent.into());
+        assert_eq!(map[&McpClientId::Grok], McpTier::ConfigAbsent.into());
+        assert_eq!(map[&McpClientId::Codex], McpTier::ConfigAbsent.into());
     }
 
     #[test]

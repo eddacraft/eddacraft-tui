@@ -522,9 +522,12 @@ anvil mcp install --client opencode --verify
 canonical identity registry. Skill discovery and MCP configuration remain
 independent capability fields. `crates/anvil-cli/src/commands/mcp_installer.rs`
 owns first-wave path, config-shape, semantic-merge, atomic-write, verification,
-and restart-guidance adapters. Cursor and Claude Code retain the full activation
-diagnostic ladder; `anvil start --mcp-client <client>` installs additional
-first-wave config without promoting a live-protection claim.
+and restart-guidance adapters. Every first-wave `AgentClientId` participates in
+the activation handshake ladder (`probe_all` / `anvil start --verify`). Cursor
+and Claude Code keep specialised adapters; the remaining clients use a
+registry-backed generic adapter driven by `McpConfigKind`. Live-validation
+still requires daemon attestation for that client — handshake success alone
+does not promote a live-protection claim.
 
 The written entry is the canonical Rust stdio shape:
 

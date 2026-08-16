@@ -46,6 +46,30 @@ pub enum McpConfigKind {
     OpenClawJson,
 }
 
+impl McpConfigKind {
+    /// JSON object path that holds named MCP server entries, if this kind is JSON.
+    #[must_use]
+    pub(crate) fn json_object_path(self) -> Option<&'static [&'static str]> {
+        match self {
+            Self::McpServersJson => Some(&["mcpServers"]),
+            Self::ServersJson => Some(&["servers"]),
+            Self::OpenCodeJson => Some(&["mcp"]),
+            Self::ZedContextServersJson => Some(&["context_servers"]),
+            Self::OpenClawJson => Some(&["mcp", "servers"]),
+            Self::CodexToml | Self::GrokToml => None,
+        }
+    }
+
+    /// TOML table that holds named MCP server entries, if this kind is TOML.
+    #[must_use]
+    pub(crate) fn toml_servers_table(self) -> Option<&'static str> {
+        match self {
+            Self::CodexToml | Self::GrokToml => Some("mcp_servers"),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct AgentClient {
     pub id: AgentClientId,
@@ -166,6 +190,11 @@ impl AgentClientId {
     }
 
     #[must_use]
+    pub fn display_name(self) -> &'static str {
+        self.entry().display_name
+    }
+
+    #[must_use]
     pub fn entry(self) -> &'static AgentClient {
         REGISTRY
             .iter()
@@ -176,6 +205,12 @@ impl AgentClientId {
     #[must_use]
     pub fn all() -> &'static [AgentClient] {
         REGISTRY
+    }
+}
+
+impl std::fmt::Display for AgentClientId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label())
     }
 }
 
@@ -364,6 +399,8 @@ mod tests {
         assert_eq!(ids.len(), 12);
         for id in ids {
             assert_eq!(id.entry().id, id);
+            assert_eq!(id.display_name(), id.entry().display_name);
+            assert_eq!(id.to_string(), id.label());
         }
     }
 

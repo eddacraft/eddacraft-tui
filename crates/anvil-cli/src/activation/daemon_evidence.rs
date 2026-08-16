@@ -388,9 +388,9 @@ pub(super) fn evaluate_and_promote(
         .map(|(id, _)| *id)
         .collect();
     let any_known_client_named = participating.iter().any(|identifier| {
-        [McpClientId::ClaudeCode, McpClientId::Cursor]
-            .into_iter()
-            .any(|client| surface_attests_client(identifier, client))
+        crate::activation::agent_registry::AgentClientId::all()
+            .iter()
+            .any(|entry| surface_attests_client(identifier, entry.id))
     });
     let unique_unattributed_fallback = hsv_ids.len() == 1 && !any_known_client_named;
 
@@ -429,8 +429,9 @@ pub(super) fn evaluate_and_promote(
 ///
 /// Identifiers are either `driver/agent#starttime` (from `AgentTag`)
 /// or a raw session id. Matching is token-based on the client's
-/// stable label (`claude-code`, `cursor`) plus a small alias set
-/// used by existing fixtures (`mcp-shim-claude`).
+/// stable label plus a small alias set used by existing fixtures
+/// (`mcp-shim-claude`). Tokens stay long enough to avoid collisions
+/// (`code` would match `claude-code`).
 fn surface_attests_client(identifier: &str, client: McpClientId) -> bool {
     let haystack = identifier.to_ascii_lowercase();
     client_identity_tokens(client)
@@ -447,6 +448,16 @@ fn client_identity_tokens(client: McpClientId) -> &'static [&'static str] {
             "mcp-shim-claude",
         ],
         McpClientId::Cursor => &["cursor"],
+        McpClientId::Codex => &["codex"],
+        McpClientId::OpenCode => &["opencode"],
+        McpClientId::GeminiCli => &["gemini-cli"],
+        McpClientId::Antigravity => &["antigravity"],
+        McpClientId::OpenClaw => &["openclaw"],
+        McpClientId::VsCode => &["vscode"],
+        McpClientId::CopilotCli => &["copilot-cli"],
+        McpClientId::Grok => &["grok"],
+        McpClientId::Warp => &["warp"],
+        McpClientId::Zed => &["zed"],
     }
 }
 

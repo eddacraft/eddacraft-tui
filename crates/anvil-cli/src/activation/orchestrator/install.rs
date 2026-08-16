@@ -1783,10 +1783,15 @@ mod tests {
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         let cs = collect_candidates(ws.path(), Some(home.path()), &fresh());
-        assert_eq!(cs.len(), 2);
+        assert_eq!(
+            cs.len(),
+            crate::activation::agent_registry::AgentClientId::all().len()
+        );
         let ids: Vec<_> = cs.iter().map(|c| c.id).collect();
         assert!(ids.contains(&McpClientId::Cursor));
         assert!(ids.contains(&McpClientId::ClaudeCode));
+        assert!(ids.contains(&McpClientId::Grok));
+        assert!(ids.contains(&McpClientId::Codex));
     }
 
     #[test]

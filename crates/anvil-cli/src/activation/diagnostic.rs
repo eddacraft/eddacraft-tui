@@ -18,40 +18,13 @@ use serde::{Deserialize, Serialize};
 
 use super::state::ProtectionState;
 
-/// Stable v1 identifiers for editors / agents that ship MCP probes.
+/// Stable identifiers for editors / agents that ship MCP probes.
 ///
-/// Held as a typed enum (rather than a free `String`) so callers cannot
-/// silently introduce out-of-scope clients. The v1 release is locked
-/// to Cursor and Claude Code per the council ratification — see
-/// `RELEASE-PLAN.md` Tier A1 "Out-of-scope".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum McpClientId {
-    Cursor,
-    ClaudeCode,
-}
-
-impl McpClientId {
-    pub fn label(self) -> &'static str {
-        match self {
-            McpClientId::Cursor => "cursor",
-            McpClientId::ClaudeCode => "claude-code",
-        }
-    }
-
-    pub fn display_name(self) -> &'static str {
-        match self {
-            McpClientId::Cursor => "Cursor",
-            McpClientId::ClaudeCode => "Claude Code",
-        }
-    }
-}
-
-impl std::fmt::Display for McpClientId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.label())
-    }
-}
+/// Aliased to [`super::agent_registry::AgentClientId`] so the activation
+/// handshake names every first-wave installable client (CIB-343). Cursor
+/// and Claude Code keep specialised adapters; the rest use the
+/// registry-backed generic adapter.
+pub use super::agent_registry::AgentClientId as McpClientId;
 
 /// Tier of MCP attachment for a given client.
 ///
@@ -1123,18 +1096,21 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let d = verify(dir.path());
         assert_eq!(d.config, ConfigStatus::Absent);
-        // LAUNCH-009: the mcp map now always carries one entry per
-        // registered client (Cursor + ClaudeCode in v1). Each entry
-        // reports the tier the client has reached. On a fresh tempdir
-        // workspace the workspace-local probe always returns
-        // ConfigAbsent; the user-global probe may return
-        // ConfigAbsent (no cursor/claude installed) or a higher tier
-        // (the test runner's actual home has anvil already wired). Don't
-        // pin a specific tier here — pin only the structural invariant
-        // that every registered client is present.
-        assert_eq!(d.mcp.len(), 2);
+        // LAUNCH-009 / CIB-343: the mcp map always carries one entry per
+        // first-wave client. Each entry reports the tier the client has
+        // reached. On a fresh tempdir workspace the workspace-local
+        // probe always returns ConfigAbsent; the user-global probe may
+        // return ConfigAbsent or a higher tier (the test runner's actual
+        // home has anvil already wired). Don't pin a specific tier here
+        // — pin only the structural invariant that every registered
+        // client is present.
+        assert_eq!(
+            d.mcp.len(),
+            super::super::agent_registry::AgentClientId::all().len()
+        );
         assert!(d.mcp.contains_key(&McpClientId::Cursor));
         assert!(d.mcp.contains_key(&McpClientId::ClaudeCode));
+        assert!(d.mcp.contains_key(&McpClientId::Grok));
         // LAUNCH-011: watch tier is `Offered` only when config is
         // `Valid` and MCP cannot pre-write attach. On a fresh tempdir
         // (`config: absent`) the offer is suppressed regardless of
@@ -1153,6 +1129,45 @@ mod tests {
         // / Protecting). In a CI env this is the common case.
         // Re-assert via the helper that owns the mapping.
         let _ = d.protection_state();
+    }
+
+    #[test]
+    fn verify_names_grok_when_workspace_is_grok_wired() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(".anvilrc"),
+            r#"{"profile":"default","checks":[]}"#,
+        )
+        .unwrap();
+        fs::create_dir_all(dir.path().join(".grok")).unwrap();
+        fs::write(
+            dir.path().join(".grok/config.toml"),
+            r#"
+[mcp_servers.anvil]
+command = "/usr/local/bin/anvil"
+args = ["mcp", "serve", "--stdio"]
+"#,
+        )
+        .unwrap();
+        let d = verify_with_home(dir.path(), Some(home.path()));
+        let clients: Vec<_> = d.mcp.keys().map(|id| id.label()).collect();
+        assert!(
+            clients.contains(&"grok"),
+            "anvil start --verify must name Grok, clients={clients:?}"
+        );
+        let grok_tier = d
+            .mcp
+            .iter()
+            .find(|(id, _)| id.label() == "grok")
+            .map(|(_, r)| r.tier);
+        assert!(
+            matches!(
+                grok_tier,
+                Some(McpTier::RestartRequired | McpTier::RestartHandshakeVerified)
+            ),
+            "Grok-wired workspace must not stay MCP-unattached, got {grok_tier:?}"
+        );
     }
 
     // legacy-fallback coverage (.anvilrc deliberately): the config-status
