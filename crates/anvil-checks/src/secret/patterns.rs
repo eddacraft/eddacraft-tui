@@ -407,9 +407,9 @@ impl PatternMatcher {
         self.looks_like_structural_code(value) || looks_like_mixed_case_identifier(value)
     }
 
-    /// Calls, URLs, file extensions, and SCREAMING_SNAKE constants.
+    /// Calls, URLs, file extensions, and `SCREAMING_SNAKE` constants.
     /// Entropy uses this set and not mixed-case identifiers (CIB-340).
-    pub fn looks_like_structural_code(&self, value: &str) -> bool {
+    pub(crate) fn looks_like_structural_code(&self, value: &str) -> bool {
         static STRUCTURAL: LazyLock<Vec<Regex>> = LazyLock::new(|| {
             [
                 r"^[a-z][a-zA-Z0-9]*\(",
