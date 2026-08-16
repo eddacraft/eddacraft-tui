@@ -10,34 +10,79 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, Mutex, MutexGuard, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anvil_kernel_types::watch_event::WatchActionResult;
+use nix::sys::signal::{Signal, killpg};
+use nix::unistd::Pid;
 use serde_json::{Value, json};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 const WAIT_BUDGET: Duration = Duration::from_secs(12);
 const SAVE_COUNT: usize = 3;
 const SPY_SHUTDOWN_SENTINEL: &str = "__cib283_spy_shutdown__\n";
+// Linux accounts inotify instances per user, so the four process tests must
+// not burst multiple real watch processes from this binary at once.
+static WATCH_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn configure_private_env(command: &mut Command, home: &Path) {
+    let config_home = home.join("config");
+    let state_home = home.join("state");
+    let runtime_home = home.join("runtime");
+    let temp_home = home.join("tmp");
+    for root in [&config_home, &state_home, &runtime_home, &temp_home] {
+        fs::create_dir_all(root).expect("create isolated watch process state root");
+        fs::set_permissions(root, fs::Permissions::from_mode(0o700))
+            .expect("secure isolated watch process state root");
+    }
     command
         .env("ANVIL_HOME", home)
         .env("HOME", home)
         .env("USERPROFILE", home)
-        .env("XDG_RUNTIME_DIR", home)
-        .env_remove("XDG_CONFIG_HOME")
+        .env("XDG_CONFIG_HOME", config_home)
+        .env("XDG_STATE_HOME", state_home)
+        .env("XDG_RUNTIME_DIR", runtime_home)
+        .env("TMPDIR", temp_home)
+        // This Unix harness has no TCP test server: each daemon endpoint is a
+        // unique <ANVIL_HOME>/intercept.sock. Do not inherit an unrelated API
+        // endpoint (and therefore somebody else's TCP port) into the child.
+        .env_remove("ANVIL_API_URL")
         .env_remove("ANVIL_WATCH_DAEMON")
         .env_remove("ANVIL_NO_PROMPT")
         .env_remove("ANVIL_TOUCH_PROJECT_STATE")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
         .env("ANVIL_DISABLE_UPDATE_HINT", "1");
+}
+
+fn isolate_process_group(command: &mut Command) {
+    // Per-save actions are descendants of the watch process. Giving each
+    // top-level child its own group lets every exit path reap the whole tree.
+    command.process_group(0);
+}
+
+fn terminate_process_group(child: &mut Child) {
+    // Group id equals the leader pid because process_group(0) was applied
+    // before spawn. Signal the group even if the leader exited early: an
+    // action descendant may still be alive and holding watcher resources.
+    if let Ok(pgid) = i32::try_from(child.id()) {
+        let _ = killpg(Pid::from_raw(pgid), Signal::SIGKILL);
+    }
+    // Direct-child fallback and reap; already-exited/reaped children are fine.
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn watch_test_guard() -> MutexGuard<'static, ()> {
+    WATCH_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 struct DaemonGuard {
@@ -51,6 +96,7 @@ impl DaemonGuard {
         let mut command = Command::new(ANVIL_BIN);
         command.args(["intercept", "start", "--foreground"]);
         configure_private_env(&mut command, home);
+        isolate_process_group(&mut command);
         let child = command
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -63,45 +109,66 @@ impl DaemonGuard {
     fn wait_ready(&mut self, home: &Path) {
         let socket = home.join("intercept.sock");
         let deadline = Instant::now() + WAIT_BUDGET;
-        while Instant::now() < deadline {
-            if socket.exists() {
-                return;
-            }
-            if self
+        loop {
+            let status = self
                 .child
                 .as_mut()
                 .expect("daemon child")
                 .try_wait()
-                .expect("poll daemon")
-                .is_some()
-            {
+                .expect("poll daemon");
+            if let Some(status) = status {
+                if let Some(child) = self.child.as_mut() {
+                    terminate_process_group(child);
+                }
+                let stderr = self.drain_stderr();
+                panic!(
+                    "intercept daemon child exited before readiness: status={status}; endpoint={}; stderr={stderr}",
+                    socket.display()
+                );
+            }
+            if UnixStream::connect(&socket).is_ok() {
+                let status = self
+                    .child
+                    .as_mut()
+                    .expect("daemon child")
+                    .try_wait()
+                    .expect("poll daemon after endpoint connection");
+                if status.is_none() {
+                    return;
+                }
+                continue;
+            }
+            if Instant::now() >= deadline {
                 break;
             }
             thread::sleep(Duration::from_millis(50));
         }
 
         if let Some(child) = self.child.as_mut() {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate_process_group(child);
         }
+        let stderr = self.drain_stderr();
+        panic!(
+            "intercept daemon readiness timeout for {} after {WAIT_BUDGET:?}; stderr={stderr}",
+            socket.display()
+        );
+    }
+
+    fn drain_stderr(&mut self) -> String {
         let mut stderr = String::new();
         if let Some(child) = self.child.as_mut()
             && let Some(mut pipe) = child.stderr.take()
         {
             let _ = pipe.read_to_string(&mut stderr);
         }
-        panic!(
-            "private daemon did not bind {} within {WAIT_BUDGET:?}; stderr={stderr}",
-            socket.display()
-        );
+        stderr
     }
 }
 
 impl Drop for DaemonGuard {
     fn drop(&mut self) {
         if let Some(mut child) = self.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate_process_group(&mut child);
         }
     }
 }
@@ -360,6 +427,7 @@ impl WatchProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        isolate_process_group(&mut command);
 
         let mut child = command.spawn().expect("spawn anvil watch");
         let stdout = child.stdout.take().expect("piped watch stdout");
@@ -384,12 +452,12 @@ impl WatchProcess {
             .expect("watch child")
             .try_wait()
             .expect("poll watch");
-        assert!(
-            status.is_none(),
-            "watch exited while waiting for {context}: status={status:?}; stdout={:?}; stderr={:?}",
-            self.stdout,
-            self.stderr
-        );
+        if let Some(status) = status {
+            panic!(
+                "watch child exited before {context}: status={status}; stdout={:?}; stderr={:?}",
+                self.stdout, self.stderr
+            );
+        }
     }
 
     fn drain_stderr(&mut self) {
@@ -413,9 +481,14 @@ impl WatchProcess {
             self.drain_stderr();
             self.assert_alive(context);
             let remaining = deadline.saturating_duration_since(Instant::now());
+            let timeout_kind = if context == "initial watch snapshot" {
+                "readiness timeout"
+            } else {
+                "assertion-event timeout"
+            };
             assert!(
                 !remaining.is_zero(),
-                "timed out waiting for {context}; stdout={:?}; stderr={:?}",
+                "{timeout_kind} waiting for {context}; stdout={:?}; stderr={:?}",
                 self.stdout,
                 self.stderr
             );
@@ -426,10 +499,23 @@ impl WatchProcess {
                 Ok(line) => self.stdout.push(line),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    panic!(
-                        "stdout disconnected waiting for {context}; stdout={:?}; stderr={:?}",
-                        self.stdout, self.stderr
-                    );
+                    self.drain_stderr();
+                    let status = self
+                        .child
+                        .as_mut()
+                        .expect("watch child")
+                        .try_wait()
+                        .expect("poll watch after stdout pipe closure");
+                    match status {
+                        Some(status) => panic!(
+                            "watch child exited before {context}: status={status}; stdout={:?}; stderr={:?}",
+                            self.stdout, self.stderr
+                        ),
+                        None => panic!(
+                            "watch stdout pipe closed before {context} while child remained alive; stdout={:?}; stderr={:?}",
+                            self.stdout, self.stderr
+                        ),
+                    }
                 }
             }
         }
@@ -444,9 +530,14 @@ impl WatchProcess {
             self.drain_stdout();
             self.assert_alive(context);
             let remaining = deadline.saturating_duration_since(Instant::now());
+            let timeout_kind = if context == "initial watch snapshot" {
+                "readiness timeout"
+            } else {
+                "assertion-event timeout"
+            };
             assert!(
                 !remaining.is_zero(),
-                "timed out waiting for {context}; stdout={:?}; stderr={:?}",
+                "{timeout_kind} waiting for {context}; stdout={:?}; stderr={:?}",
                 self.stdout,
                 self.stderr
             );
@@ -457,10 +548,23 @@ impl WatchProcess {
                 Ok(line) => self.stderr.push(line),
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    panic!(
-                        "stderr disconnected waiting for {context}; stdout={:?}; stderr={:?}",
-                        self.stdout, self.stderr
-                    );
+                    self.drain_stdout();
+                    let status = self
+                        .child
+                        .as_mut()
+                        .expect("watch child")
+                        .try_wait()
+                        .expect("poll watch after stderr pipe closure");
+                    match status {
+                        Some(status) => panic!(
+                            "watch child exited before {context}: status={status}; stdout={:?}; stderr={:?}",
+                            self.stdout, self.stderr
+                        ),
+                        None => panic!(
+                            "watch stderr pipe closed before {context} while child remained alive; stdout={:?}; stderr={:?}",
+                            self.stdout, self.stderr
+                        ),
+                    }
                 }
             }
         }
@@ -481,8 +585,7 @@ impl WatchProcess {
 
     fn stop(&mut self) {
         if let Some(mut child) = self.child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate_process_group(&mut child);
         }
         for reader in self.readers.drain(..) {
             let _ = reader.join();
@@ -548,6 +651,7 @@ fn exercise_fallback_route(home: &Path, no_daemon: bool) {
 
 #[test]
 fn json_fallback_check_and_gate_emit_ordered_action_results_without_daemon_evidence() {
+    let _watch_test = watch_test_guard();
     let home = tempfile::tempdir().expect("private ANVIL_HOME");
 
     for (action, expected_exit_code) in [("check", 1), ("gate", 2)] {
@@ -615,6 +719,7 @@ fn json_fallback_check_and_gate_emit_ordered_action_results_without_daemon_evide
 
 #[test]
 fn no_daemon_makes_zero_rpc_calls_to_a_live_daemon_endpoint() {
+    let _watch_test = watch_test_guard();
     let live_home = tempfile::tempdir().expect("live ANVIL_HOME");
     let mut daemon = DaemonGuard::spawn(live_home.path());
     daemon.wait_ready(live_home.path());
@@ -699,6 +804,7 @@ fn no_daemon_makes_zero_rpc_calls_to_a_live_daemon_endpoint() {
 
 #[test]
 fn json_watch_exits_when_consumer_closes_after_triggering_snapshot() {
+    let _watch_test = watch_test_guard();
     let home = tempfile::tempdir().expect("private ANVIL_HOME");
     let (workspace, source) = new_workspace();
     let mut command = Command::new(ANVIL_BIN);
@@ -716,6 +822,7 @@ fn json_watch_exits_when_consumer_closes_after_triggering_snapshot() {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
+    isolate_process_group(&mut command);
     let mut child = command.spawn().expect("spawn JSON watch");
     let stdout = child.stdout.take().expect("piped JSON watch stdout");
     let (snapshot_tx, snapshot_rx) = mpsc::channel();
@@ -769,8 +876,7 @@ fn json_watch_exits_when_consumer_closes_after_triggering_snapshot() {
             break;
         }
         if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
+            terminate_process_group(&mut child);
             panic!("JSON watch did not exit after the action_result consumer closed");
         }
         thread::sleep(Duration::from_millis(20));
@@ -779,6 +885,7 @@ fn json_watch_exits_when_consumer_closes_after_triggering_snapshot() {
 
 #[test]
 fn watch_save_time_routes_remain_family_scoped_and_fallback_safe() {
+    let _watch_test = watch_test_guard();
     let live_home = tempfile::tempdir().expect("live ANVIL_HOME");
     let mut daemon = DaemonGuard::spawn(live_home.path());
     daemon.wait_ready(live_home.path());
