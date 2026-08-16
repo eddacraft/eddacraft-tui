@@ -35,7 +35,7 @@ impl std::error::Error for AuthRequired {}
 /// validation. `main` maps this to `EXIT_CONFIG_ERROR` (4) while still
 /// printing the actionable path/context.
 #[derive(Debug)]
-pub struct InvalidProjectConfig(pub String);
+pub struct InvalidProjectConfig(String);
 
 impl InvalidProjectConfig {
     pub fn new(err: impl std::fmt::Display) -> Self {
