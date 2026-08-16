@@ -984,3 +984,16 @@ never with feature work.
   at drain start; no admin merge, no bypass, no review dismissal.
 - Next: nothing Ready remains in UCFG. aps:index reconcile owed if the
   stored index counts drift.
+
+## Cycle — 2026-08-16 (MCPLH Ready wave + daily pin)
+
+- Item: MCPLH-008 daily self-heal with pin, plus stale 003/005/006
+  status. Outcome: integrated. Merge proofs on `origin/main`:
+  003 `5c7075a68` via #3910; 005 `1515dfda8` via #3911; 006
+  `2e9996394` via #3912; 008 `71553ad33` via #3932. Ancestor check
+  passed for each.
+- Plan changes: those four items → Merged; module 7/8; NBI next action
+  points at CGBDG. MCPLH-007 stays Draft (soak).
+- Checkpoints raised: drain stopped treating `/address-reviews` as a
+  terminal skill; after merge it must return to Orient → Select.
+- Next: CGBDG-001 (discovery). No Ready MCPLH item remains.

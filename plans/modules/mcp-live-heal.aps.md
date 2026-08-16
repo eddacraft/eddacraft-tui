@@ -2,9 +2,10 @@
 
 | ID    | Owner  | Priority | Status | Progress |
 | ----- | ------ | -------- | ------ | -------- |
-| MCPLH | @aneki | high     | Ready  | 0/7      |
+| MCPLH | @aneki | high     | Ready  | 7/8      |
 
-**Last reviewed:** 2026-08-09 — Ready wave filed from design
+**Last reviewed:** 2026-08-16 — Ready wave MCPLH-001..006 and MCPLH-008
+Merged on `main`; MCPLH-007 remains Draft until soak evidence.
 [`plans/specs/2026-08-09-mcp-live-heal-without-harness-restart.md`](../specs/2026-08-09-mcp-live-heal-without-harness-restart.md).
 Exclusive module (feature PRs may flip item `Status:` only; do not bump header
 `N/M` — ADR-053).
@@ -124,7 +125,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-003: `anvil mcp refresh` bulk cascade
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-15 via PR #3910
 - **Intent:** Give operators one verb that rewrites owned configs, pokes live
   MCP heal, and reports residual skew without walking every session UI.
 - **Expected Outcome:** `anvil mcp refresh [--dry-run] [--json]` implements the
@@ -175,7 +176,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-005: status/verify MCP inventory and split readiness claims
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-15 via PR #3911
 - **Intent:** Make config, daemon, live MCP binary, and graph readiness
   independently visible so operators and agents do not conflate protecting with
   current tools or graph ready.
@@ -201,7 +202,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-006: Opt-in orphan MCP process reap
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-15 via PR #3912
 - **Intent:** Clean same-user `anvil mcp serve` processes whose parent PID is
   gone without touching children of live harnesses.
 - **Expected Outcome:** `anvil mcp refresh --processes orphan-reap` (or
@@ -222,7 +223,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-008: Daily self-heal with easy pin
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-16 via PR #3932
 - **Intent:** MCP updates happen on the daily paths (`anvil`, `anvil start`,
   `anvil doctor`) without operators memorising `mcp refresh`. Refresh stays
   the emergency verb. People who hate auto-updates can pin easily.
