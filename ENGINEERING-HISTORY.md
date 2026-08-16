@@ -84,6 +84,22 @@ and Graph Trust Surfaces remain beside this window, not the cut claim.
 - **Windows / install honesty.** `anvil update` exits non-zero on decline and
   prints only the WinGet/installer remedy that matches `--check`. Install
   symlink-swap races closed on Windows and delegated config sources.
+- **CLI-wide `--json` (#3947).** An accepted flag is a promise: success stdout
+  is one JSON document or a documented stream. Silent-ignore surfaces (edda
+  list, telemetry, migrate schema/gate-config/architecture, intercept, workspace
+  mutations, licenses, new, gate `--list-profiles`, mcp-config TOML previews,
+  baseline, hook bootstrap dry-run, capsule prune, tutorial `--reset`, welcome,
+  update sidecar) now emit a document or a structured refuse.
+  `json_surface_audit.rs` classifies every terminal clap path.
+- **GCTX dogfood (CIB-341..343; CIB-344 process half).** Scan-timeout on a
+  populated graph publishes `generation >= 1` Ready+stale (CIB-341). Graph-base
+  spawn prefers a live `current_exe`, else PATH-stable `anvil`, reuses an
+  existing merge-base/HEAD `.base`, and names exe/repo on failure (CIB-342).
+  First-wave handshake is the twelve-client `AgentClientId` ladder, not
+  Cursor+Claude only (CIB-343). `doctor` / `doctor --fix` reaps parentless
+  `mcp serve` shims (CIB-344 process half); produce-lock reap stays open.
+- **YAML dest honesty (#3962).** Convert/migrate keep requested `.yml` / `.yaml`
+  filenames; owned metadata uses one canonical yaml spelling.
 - **Docs freshness (ADR-119 / DOCFRESH).** Report-only docs-owed probe,
   granularity split, and CI on any code change.
 - **Account activity (BACT) and DEVACC.** Beta account-activity metrics and
@@ -92,8 +108,8 @@ and Graph Trust Surfaces remain beside this window, not the cut claim.
   on the kit.
 
 See [RELEASE-PLAN.md](./RELEASE-PLAN.md) for the `v0.9.5-beta` cut bar.
-Remaining cut work is changelog promotion and the standing release bar, not more
-claim implementation.
+Remaining cut work is the standing release bar and promoting `[Unreleased]` at
+tag time, not more claim implementation.
 
 ## [0.9.4-beta] — 2026-08-10 — Clearer install advice and quieter false alarms
 

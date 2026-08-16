@@ -19,8 +19,8 @@ fallback. Use `anvil mcp refresh` if you need the full cascade now. Pin with
 
 The same tag also unifies the project config anvil reads — one canonical file,
 one key casing, and migrate/doctor paths for the older names — plus honesty
-fixes so Claude's project MCP install, live-validation status, and several
-checks match reality.
+fixes so Claude's project MCP install, first-wave handshake, live-validation
+status, graph search on large repos, and several checks match reality.
 
 ### Changed
 
@@ -57,6 +57,13 @@ checks match reality.
   `anvil/policy.yaml` wins.** `anvil doctor` warns when more than one policy or
   project-config variant is present and names the winner.
 
+- **`--json` is a CLI-wide promise.** When a command accepts `--json`, success
+  stdout is exactly one JSON document (or a documented machine stream such as
+  watch NDJSON). Both `anvil --json <command>` and `anvil <command> --json`
+  work. Human output without the flag is unchanged. Interactive-only paths
+  (`anvil tutorial`) and contradictory combinations refuse with a structured
+  error instead of silently printing prose.
+
 ### Added
 
 - **Daily `anvil` / `anvil start` / `anvil doctor` heal MCP unless you pin.**
@@ -74,6 +81,10 @@ checks match reality.
   children by parent. `--processes orphan-reap` sends SIGTERM to same-user
   orphans whose parent is gone (Unix). Children of live sessions are never
   signalled.
+
+- **`anvil doctor` reports leftover MCP shims and `--fix` reaps them.**
+  Parentless `anvil mcp serve --stdio` processes are listed; `--fix` sends
+  SIGTERM to those orphans only. Live editor and agent children are left alone.
 
 - **`anvil status` and `--verify` split attach from graph readiness.** Human and
   `--json` output can show MCP process inventory, `mcp_skew`, and separate
@@ -116,16 +127,10 @@ checks match reality.
   on `check`, `gate`, `gate-config`, `watch` startup, and `architecture`.
   Runtime and missing-file failures still exit 1.
 
-- **`--json` on config, GCTX egress, capsule create, and migrate format is JSON
-  only.** Successful `anvil config show`, `anvil config set`,
-  `anvil config convert`, `anvil gctx egress enable`/`disable`,
-  `anvil capsule create`, and `anvil migrate format` print one JSON document to
-  stdout when `--json` is set. Human output without the flag is unchanged. A
-  remaining CLI-wide `--json` sweep is still open (#3947).
-
 - **`anvil config convert` rewrites destination format metadata.** Converting
   YAML to JSON no longer leaves `"format": "yml"` (and the same for other
-  pairs). `migrate format` shares the rule.
+  pairs). Requested `.yml` / `.yaml` filenames are preserved; owned metadata
+  uses one canonical yaml spelling. `migrate format` shares the rule.
 
 - **`anvil watch` enforces architecture on save and reloads policy.** A new
   forbidden dependency now appears in watch the same way as
@@ -157,6 +162,18 @@ checks match reality.
 - **Live-validation status is per client.** When several MCP clients are
   connected, a participating surface for one of them no longer marks the others
   as live-validated. Status now follows the client that was actually observed.
+
+- **`anvil start --verify` handshakes every first-wave MCP client.** Codex,
+  OpenCode, Gemini CLI, Grok, Warp, Zed, VS Code, and the other installable
+  clients can reach the same attach/attestation ladder as Claude Code and
+  Cursor. A live Grok or Codex session is no longer reported as a leftover
+  Cursor/Claude restart.
+
+- **Graph search on a large repo stays usable after a timed-out scan.** When the
+  first full scan hits its time budget, tools serve the partial graph as
+  ready-but-stale instead of looping on "warming". The daemon also reuses an
+  existing graph-base artefact (or names a real spawn failure) instead of
+  silently serving cold.
 
 - **Windows install has a stable PowerShell short URL.**
   `irm https://install.eddacraft.ai/windows | iex` always fetches the latest
