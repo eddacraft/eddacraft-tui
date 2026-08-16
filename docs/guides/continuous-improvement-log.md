@@ -1,8 +1,8 @@
 # Continuous Improvement Log
 
-| Type  | Authority     | Owner | Status | Freshness                                                |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------- |
-| Guide | Authoritative | CIB   | Live   | 2026-08-05 — CIB backlog bookkeeping-only in feature PRs |
+| Type  | Authority     | Owner | Status | Freshness                                                                              |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------- |
+| Guide | Authoritative | CIB   | Live   | 2026-08-17 — harvested 77 pending notes; CIB-341..343 Merged on the bookkeeping branch |
 
 | Upstream                                                                                                                    | Downstream                                                      |
 | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
