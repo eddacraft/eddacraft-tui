@@ -729,9 +729,15 @@ fn capsule_create_human_output_is_unchanged() {
 
 #[test]
 fn telemetry_on_off_json_emit_only_json_for_both_flag_placements() {
-    for args in [
-        ["telemetry", "on", "--json"].as_slice(),
-        ["--json", "telemetry", "on"].as_slice(),
+    for (args, off_args) in [
+        (
+            ["telemetry", "on", "--json"].as_slice(),
+            ["telemetry", "off", "--json"].as_slice(),
+        ),
+        (
+            ["--json", "telemetry", "on"].as_slice(),
+            ["--json", "telemetry", "off"].as_slice(),
+        ),
     ] {
         let sandbox = Sandbox::new();
         let out = sandbox.anvil(args);
@@ -754,8 +760,8 @@ fn telemetry_on_off_json_emit_only_json_for_both_flag_placements() {
             "the disclosure text must ride inside the document: {doc}"
         );
 
-        let out = sandbox.anvil(&["telemetry", "off", "--json"]);
-        let doc = parse_only_json(&out, "anvil telemetry off --json");
+        let out = sandbox.anvil(off_args);
+        let doc = parse_only_json(&out, &format!("anvil {}", off_args.join(" ")));
         assert_eq!(
             doc.get("telemetry").and_then(serde_json::Value::as_str),
             Some("off"),
@@ -882,6 +888,73 @@ fn workspace_mode_json_emits_only_json() {
         Some("allowlist"),
         "mode must report the new admission mode: {doc}"
     );
+}
+
+#[test]
+fn workspace_register_and_unregister_json_emit_only_json_for_both_flag_placements() {
+    // `ANVIL_HOME` re-roots the daemon socket (DISTRIB-006), so these
+    // runs deterministically see `daemon-unavailable` instead of
+    // reaching the developer's real per-user daemon via
+    // `XDG_RUNTIME_DIR` — the same escape hatch the intercept-stop
+    // incident note above warns about.
+    for placement_leading in [false, true] {
+        let sandbox = Sandbox::new();
+        let anvil_home = sandbox.home.path().join("anvil-home");
+        std::fs::create_dir_all(&anvil_home).expect("mkdir anvil home");
+        // The socket-dir validator requires an owner-only prefix.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&anvil_home, std::fs::Permissions::from_mode(0o700))
+                .expect("chmod anvil home");
+        }
+
+        let mut args: Vec<&str> = Vec::new();
+        if placement_leading {
+            args.push("--json");
+        }
+        args.extend_from_slice(&["workspace", "register"]);
+        if !placement_leading {
+            args.push("--json");
+        }
+        let out = sandbox
+            .command(&args)
+            .env("ANVIL_HOME", &anvil_home)
+            .output()
+            .expect("invoke anvil workspace register");
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+        assert_eq!(
+            doc.get("outcome").and_then(serde_json::Value::as_str),
+            Some("daemon-unavailable"),
+            "register must report the daemon outcome as a field: {doc}"
+        );
+        assert!(
+            doc.get("worktree")
+                .and_then(serde_json::Value::as_str)
+                .is_some(),
+            "register must name the worktree: {doc}"
+        );
+
+        let mut args: Vec<&str> = Vec::new();
+        if placement_leading {
+            args.push("--json");
+        }
+        args.extend_from_slice(&["workspace", "unregister"]);
+        if !placement_leading {
+            args.push("--json");
+        }
+        let out = sandbox
+            .command(&args)
+            .env("ANVIL_HOME", &anvil_home)
+            .output()
+            .expect("invoke anvil workspace unregister");
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+        assert_eq!(
+            doc.get("outcome").and_then(serde_json::Value::as_str),
+            Some("daemon-unavailable"),
+            "unregister must report the daemon outcome as a field: {doc}"
+        );
+    }
 }
 
 #[test]
