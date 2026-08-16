@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 273/333  |
+| CIB | —     | In Progress | 273/335  |
 
 ## Purpose
 
@@ -10437,3 +10437,69 @@ RETEST-2). Do not re-file those.
   guards)
 - **Confidence:** high on (d) fail-open (mechanism read from the job's step
   list); medium on (b) — cause not yet reproduced.
+
+## Pack-07 intake (Dave B16 / B17 / B18 / B7-third, 2026-08-12/13)
+
+Source: operator paste 2026-08-16, not a drop-folder pack. Canonical inbox is
+`/home/aneki/Projects/tmp/anvil-beta/Dave/`. Today's files there are HTML
+rerenders of packs 04/05/05a only (`00-READ-ME-FIRST-not-new-findings.md`).
+Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
+(prefixed literals / CIB-322).
+
+### Pack-07 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| B17 | Git Bash `/c/Users` misses the SEC-FP-1 path exemption | **CIB-339** Ready P2 |
+| B16 | Entropy misses ~half of mixed-case synthetics | **CIB-340** Ready P2, **narrowed** |
+| B18 | PY-008 matches text (comments, strings); misses some compile | **Won't file.** Regex-tier contract; already documented |
+| B7-third | Line break `eval(\\n    arg)` defeats PY-008 | **Absorbed** into B18 / known limitation. Not pack-06 B7 |
+
+### CIB-339: Path-shaped exemption must cover Git Bash `/c/` drives
+
+- **Status:** Ready
+- **Priority:** P2 — same class as SEC-FP-1; live Windows Git Bash FP
+- **Intent:** `is_path_shaped_document_token` exempts a Windows drive only
+  when it sees `X:` before the capture. Git Bash writes `/c/Users/...` (no
+  colon). Separator-alone is deliberately not enough (#3724: opaque tokens
+  contain `/`). A quoted `/c/Users/.../Temp/<hex>` therefore still trips
+  generic entropy.
+- **Expected Outcome:** a token whose first path component is a single
+  ASCII letter (`/c/Users/...`, `/d/Projects/...`) is path-shaped. `C:/Users`
+  stays exempt. `/usr/local/...` (multi-letter first component) is not a
+  drive prefix. Vendor-prefixed rules still fire inside those strings.
+- **Non-scope / do not:** do not exempt on slash count alone; do not
+  disable entropy.
+- **Files:** `crates/anvil-checks/src/secret/entropy.rs`
+- **Validation:** quoted `/c/Users/dave/AppData/Local/Temp/<token>` is
+  clean at a lowered entropy threshold; `/usr/local/share/<token>` is not
+  path-shaped; an opaque high-entropy secret still flags.
+- **Identified From:** Dave pack 07 B17, 2026-08-12, Windows Git Bash.
+  Reproduced on current `main` before the fix.
+- **Coordinates with:** SEC-FP-1, CIB-323
+- **Confidence:** high — mechanism read from the helper and reproduced.
+
+### CIB-340: Entropy must not treat mixed-case tokens as code
+
+- **Status:** Ready
+- **Priority:** P2 — false negative on the generic entropy fallback
+- **Intent:** `looks_like_code` camelCase / PascalCase filters
+  (`^[a-z][a-z0-9]*[A-Z]`, `^[A-Z][a-z]+[A-Z]`) drop about half of random
+  mixed-case opaque tokens. That is Dave B16's "coin flip", and it is not
+  entropy or length. The 4.5 Shannon threshold stays (hex cannot reach it;
+  that is a documented product choice after the v0.5.0 FP flood).
+- **Expected Outcome:** entropy uses only structural `looks_like_code`
+  (calls, URLs, extensions, SCREAMING_SNAKE). A mixed-case opaque token
+  such as `aB3dE7fG9hJ2kL4m` flags. Named-pattern scanning still uses the
+  full `looks_like_code` set. Threshold unchanged.
+- **Non-scope / do not:** do not rewrite the entropy detector; do not
+  lower the default threshold; do not add a hex-specific arm in this item.
+- **Files:** `crates/anvil-checks/src/secret/entropy.rs`,
+  `crates/anvil-checks/src/secret/patterns.rs`
+- **Validation:** mixed-case quoted token fires on entropy at threshold
+  3.5; `looks_like_code` still true for that token; `looks_like_structural_code`
+  is false; existing URL / `fetch(` / Tailwind cases stay clean.
+- **Identified From:** Dave pack 07 B16, 2026-08-12. Reproduced: 55% of
+  10k random mixed-case 24-char tokens classified as code.
+- **Coordinates with:** SEC-FP-1 entropy path, CIB-339
+- **Confidence:** high — mechanism measured.
