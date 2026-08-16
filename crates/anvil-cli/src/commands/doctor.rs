@@ -1521,7 +1521,7 @@ fn check_mcp_heal_at(home: Option<&Path>, project: Option<&Path>) -> DiagnosticC
     check_mcp_heal_with(
         home,
         project,
-        crate::commands::mcp_heal::heal_policy(),
+        &crate::commands::mcp_heal::heal_policy(),
         true,
     )
 }
@@ -1529,43 +1529,86 @@ fn check_mcp_heal_at(home: Option<&Path>, project: Option<&Path>) -> DiagnosticC
 fn check_mcp_heal_with(
     home: Option<&Path>,
     project: Option<&Path>,
-    policy: crate::commands::mcp_heal::HealPolicy,
+    policy: &crate::commands::mcp_heal::HealPolicy,
     poke_live: bool,
 ) -> DiagnosticCheck {
     use crate::activation::mcp_client::AnvilEntry;
-    use crate::activation::orchestrator::install::{InstallOutcome, ensure_existing_mcp_entries};
-    use crate::commands::mcp_heal::{PokeReason, poke_if_needed};
+    use crate::activation::orchestrator::install::ensure_existing_mcp_entries;
 
     if std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty()) {
-        return DiagnosticCheck {
-            name: "mcp-heal".to_string(),
-            category: "MCP".to_string(),
-            status: CheckStatus::Skipped,
-            message: "MCP heal skipped (`ANVIL_NO_MCP`)".to_string(),
-            details: None,
-            auto_fixable: false,
-            remediation: Remediation::default(),
-        };
+        return mcp_heal_check(
+            CheckStatus::Skipped,
+            "MCP heal skipped (`ANVIL_NO_MCP`)",
+            None,
+            Remediation::default(),
+        );
     }
 
     if policy.is_pinned() {
-        return DiagnosticCheck {
-            name: "mcp-heal".to_string(),
-            category: "MCP".to_string(),
-            status: CheckStatus::Pass,
-            message: format!("MCP auto-heal {}; daily updates skipped", policy.summary()),
-            details: Some("Run `anvil mcp unpin` (or unset ANVIL_MCP_PIN) to resume.".to_string()),
-            auto_fixable: false,
-            remediation: Remediation::default(),
-        };
+        return mcp_heal_check(
+            CheckStatus::Pass,
+            format!("MCP auto-heal {}; daily updates skipped", policy.summary()),
+            Some("Run `anvil mcp unpin` (or unset ANVIL_MCP_PIN) to resume.".to_string()),
+            Remediation::default(),
+        );
     }
 
     let workspace = project.unwrap_or_else(|| Path::new("."));
     let summary = ensure_existing_mcp_entries(workspace, home, &AnvilEntry::preferred_stdio());
+    let (rewritten, failed, mut details) = tally_mcp_heal_outcomes(&summary.report);
+    let poked = apply_mcp_heal_poke(poke_live, rewritten > 0, &mut details);
+    if failed > 0 {
+        return mcp_heal_check(
+            CheckStatus::Fail,
+            format!("MCP heal failed for {failed} client(s)"),
+            Some(details.join("\n")),
+            Remediation {
+                summary: "Retry with the emergency cascade, or inspect the failed client config."
+                    .to_string(),
+                command: Some("anvil mcp refresh".to_string()),
+                doc_url: None,
+            },
+        );
+    }
+
+    mcp_heal_check(
+        CheckStatus::Pass,
+        mcp_heal_pass_message(rewritten, poked, summary.managed),
+        if details.is_empty() {
+            None
+        } else {
+            Some(details.join("\n"))
+        },
+        Remediation::default(),
+    )
+}
+
+fn mcp_heal_check(
+    status: CheckStatus,
+    message: impl Into<String>,
+    details: Option<String>,
+    remediation: Remediation,
+) -> DiagnosticCheck {
+    DiagnosticCheck {
+        name: "mcp-heal".to_string(),
+        category: "MCP".to_string(),
+        status,
+        message: message.into(),
+        details,
+        auto_fixable: false,
+        remediation,
+    }
+}
+
+fn tally_mcp_heal_outcomes(
+    report: &crate::activation::orchestrator::InstallReport,
+) -> (usize, usize, Vec<String>) {
+    use crate::activation::orchestrator::install::InstallOutcome;
+
     let mut rewritten = 0usize;
     let mut failed = 0usize;
     let mut details = Vec::new();
-    for (client, outcome) in &summary.report.per_client {
+    for (client, outcome) in &report.per_client {
         match outcome {
             InstallOutcome::Installed { path, .. } => {
                 rewritten += 1;
@@ -1582,65 +1625,43 @@ fn check_mcp_heal_with(
             InstallOutcome::Skipped { .. } => {}
         }
     }
+    (rewritten, failed, details)
+}
 
-    let poke = if poke_live {
-        Some(poke_if_needed(PokeReason::Changed {
-            configs_rewritten: rewritten > 0,
-            daemon_recycled: false,
-        }))
-    } else {
-        None
-    };
-    let poked = poke
-        .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .is_some_and(|outcome| outcome.bumped);
-    if let Some(Err(error)) = poke {
-        details.push(format!("generation poke failed: {error}"));
+fn apply_mcp_heal_poke(
+    poke_live: bool,
+    configs_rewritten: bool,
+    details: &mut Vec<String>,
+) -> bool {
+    use crate::commands::mcp_heal::{PokeReason, poke_if_needed};
+
+    if !poke_live {
+        return false;
     }
-
-    if failed > 0 {
-        return DiagnosticCheck {
-            name: "mcp-heal".to_string(),
-            category: "MCP".to_string(),
-            status: CheckStatus::Fail,
-            message: format!("MCP heal failed for {failed} client(s)"),
-            details: Some(details.join("\n")),
-            auto_fixable: false,
-            remediation: Remediation {
-                summary: "Retry with the emergency cascade, or inspect the failed client config."
-                    .to_string(),
-                command: Some("anvil mcp refresh".to_string()),
-                doc_url: None,
-            },
-        };
+    match poke_if_needed(PokeReason::Changed {
+        configs_rewritten,
+        daemon_recycled: false,
+    }) {
+        Ok(outcome) => outcome.bumped,
+        Err(error) => {
+            details.push(format!("generation poke failed: {error}"));
+            false
+        }
     }
+}
 
-    let message = if rewritten > 0 {
+fn mcp_heal_pass_message(rewritten: usize, poked: bool, managed: usize) -> String {
+    if rewritten > 0 {
         format!(
             "rewrote {rewritten} drifted MCP {} and poked live children",
             if rewritten == 1 { "entry" } else { "entries" }
         )
     } else if poked {
         "MCP configs current; live children poked after CLI change".to_string()
-    } else if summary.managed > 0 {
+    } else if managed > 0 {
         "MCP configs current".to_string()
     } else {
         "no Anvil-owned MCP entries to heal".to_string()
-    };
-
-    DiagnosticCheck {
-        name: "mcp-heal".to_string(),
-        category: "MCP".to_string(),
-        status: CheckStatus::Pass,
-        message,
-        details: if details.is_empty() {
-            None
-        } else {
-            Some(details.join("\n"))
-        },
-        auto_fixable: false,
-        remediation: Remediation::default(),
     }
 }
 
@@ -4158,7 +4179,7 @@ mod tests {
         let check = check_mcp_heal_with(
             Some(home.path()),
             None,
-            HealPolicy::Pinned {
+            &HealPolicy::Pinned {
                 source: PinSource::File,
                 version: Some("0.9.2-beta".into()),
             },

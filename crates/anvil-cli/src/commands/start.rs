@@ -381,12 +381,14 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         let recycled = daemon_outcome
             .as_ref()
             .is_some_and(|outcome| outcome.recycle.is_some());
-        let _ = crate::commands::mcp_heal::poke_if_needed(
+        if let Err(error) = crate::commands::mcp_heal::poke_if_needed(
             crate::commands::mcp_heal::PokeReason::Changed {
                 configs_rewritten: rewritten,
                 daemon_recycled: recycled,
             },
-        );
+        ) {
+            crate::commands::mcp_heal::warn_poke_failure(&error);
+        }
     }
 
     // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the

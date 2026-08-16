@@ -126,12 +126,16 @@ pub(crate) fn heal_policy_from(env_value: Option<&OsStr>, pin_file: Option<&Path
             };
         }
     }
-    match pin_file.and_then(|path| read_pin_file(path)) {
-        Some(version) => HealPolicy::Pinned {
+    match pin_file.map(read_pin_file) {
+        Some(PinFileRead::Freeze) => HealPolicy::Pinned {
             source: PinSource::File,
-            version,
+            version: None,
         },
-        None => HealPolicy::Auto,
+        Some(PinFileRead::Version(version)) => HealPolicy::Pinned {
+            source: PinSource::File,
+            version: Some(version),
+        },
+        Some(PinFileRead::Absent) | None => HealPolicy::Auto,
     }
 }
 
@@ -149,15 +153,24 @@ fn is_falsey(text: &str) -> bool {
     )
 }
 
-fn read_pin_file(path: &Path) -> Option<Option<String>> {
-    let raw = fs::read_to_string(path).ok()?;
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PinFileRead {
+    Absent,
+    Freeze,
+    Version(String),
+}
+
+fn read_pin_file(path: &Path) -> PinFileRead {
+    let Ok(raw) = fs::read_to_string(path) else {
+        return PinFileRead::Absent;
+    };
     let text = raw.lines().next().unwrap_or("").trim();
     if text.is_empty() || is_truthy(text) {
-        Some(None)
+        PinFileRead::Freeze
     } else if is_falsey(text) {
-        None
+        PinFileRead::Absent
     } else {
-        Some(Some(text.to_owned()))
+        PinFileRead::Version(text.to_owned())
     }
 }
 
@@ -194,16 +207,21 @@ pub(crate) fn poke_if_needed(reason: PokeReason) -> Result<PokeOutcome> {
         &generation,
         &cli_version,
         CLI_VERSION,
-        heal_policy(),
+        &heal_policy(),
         reason,
     )
+}
+
+/// Surface a poke failure on stderr so daily paths are not silent.
+pub(crate) fn warn_poke_failure(error: &anyhow::Error) {
+    eprintln!("anvil: failed to poke live MCP children: {error}");
 }
 
 pub(crate) fn poke_if_needed_at(
     generation_file: &Path,
     cli_version_file: &Path,
     cli_version: &str,
-    policy: HealPolicy,
+    policy: &HealPolicy,
     reason: PokeReason,
 ) -> Result<PokeOutcome> {
     if matches!(reason, PokeReason::Changed { .. }) && policy.is_pinned() {
@@ -265,7 +283,8 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        HealPolicy, PinSource, PokeReason, heal_policy_from, poke_if_needed_at, read_pin_file,
+        HealPolicy, PinFileRead, PinSource, PokeReason, heal_policy_from, poke_if_needed_at,
+        read_pin_file,
     };
     use crate::commands::mcp_generation::read_generation;
 
@@ -330,7 +349,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let pin = dir.path().join("mcp-heal.pin");
         write(&pin, "0.9.2-beta\n");
-        assert_eq!(read_pin_file(&pin), Some(Some("0.9.2-beta".into())));
+        assert_eq!(
+            read_pin_file(&pin),
+            PinFileRead::Version("0.9.2-beta".into())
+        );
         assert_eq!(
             heal_policy_from(None, Some(&pin)),
             HealPolicy::Pinned {
@@ -352,7 +374,7 @@ mod tests {
             &generation,
             &cli,
             "0.9.4-beta",
-            HealPolicy::Auto,
+            &HealPolicy::Auto,
             PokeReason::Changed {
                 configs_rewritten: false,
                 daemon_recycled: false,
@@ -377,7 +399,7 @@ mod tests {
             &generation,
             &cli,
             "0.9.4-beta",
-            HealPolicy::Auto,
+            &HealPolicy::Auto,
             PokeReason::Changed {
                 configs_rewritten: false,
                 daemon_recycled: false,
@@ -402,7 +424,7 @@ mod tests {
             &generation,
             &cli,
             "0.9.4-beta",
-            HealPolicy::Auto,
+            &HealPolicy::Auto,
             PokeReason::Changed {
                 configs_rewritten: true,
                 daemon_recycled: false,
@@ -425,7 +447,7 @@ mod tests {
             &generation,
             &cli,
             "0.9.5-beta",
-            HealPolicy::Pinned {
+            &HealPolicy::Pinned {
                 source: PinSource::File,
                 version: None,
             },
@@ -452,7 +474,7 @@ mod tests {
             &generation,
             &cli,
             "0.9.5-beta",
-            HealPolicy::Pinned {
+            &HealPolicy::Pinned {
                 source: PinSource::Env,
                 version: Some("0.9.2-beta".into()),
             },

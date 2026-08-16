@@ -219,6 +219,7 @@ pub(crate) fn ensure_existing_mcp_entries(
     fresh: &AnvilEntry,
 ) -> McpEnsureSummary {
     let candidates = collect_candidates(workspace, home, fresh);
+    let heal_pinned = crate::commands::mcp_heal::heal_policy().is_pinned();
     let mut selected = BTreeMap::new();
     let mut not_present = 0usize;
     let mut managed = 0usize;
@@ -226,7 +227,7 @@ pub(crate) fn ensure_existing_mcp_entries(
         match &candidate.drift {
             DriftClass::SafeDrift { .. } => {
                 managed += 1;
-                if crate::commands::mcp_heal::heal_policy().is_pinned() {
+                if heal_pinned {
                     continue;
                 }
                 selected.insert(candidate.id, candidate.clone());
@@ -285,6 +286,7 @@ fn install_with_selection_and_picker(
 ) -> InstallReport {
     let candidates = collect_candidates(workspace, home, fresh);
     let chosen_ids = resolve_chosen_ids(&candidates, enabled, selection, picker);
+    let heal_pinned = crate::commands::mcp_heal::heal_policy().is_pinned();
 
     let mut per_client = BTreeMap::new();
     // Iterate clients alongside candidates so install_one has the
@@ -296,8 +298,15 @@ fn install_with_selection_and_picker(
             candidate.id,
             "candidate / registry order drift",
         );
-        let outcome =
-            install_candidate_outcome(*client, candidate, fresh, enabled, &chosen_ids, selection);
+        let outcome = install_candidate_outcome(
+            *client,
+            candidate,
+            fresh,
+            enabled,
+            &chosen_ids,
+            selection,
+            heal_pinned,
+        );
         per_client.insert(candidate.id, outcome);
     }
     InstallReport {
@@ -362,6 +371,7 @@ fn install_candidate_outcome(
     enabled: &BTreeSet<McpClientId>,
     chosen_ids: &[McpClientId],
     selection: InstallSelection<'_>,
+    heal_pinned: bool,
 ) -> InstallOutcome {
     if let InstallSelection::Explicit(expected) = selection
         && let Some(expected) = expected
@@ -377,9 +387,7 @@ fn install_candidate_outcome(
         };
     }
 
-    if matches!(candidate.drift, DriftClass::SafeDrift { .. })
-        && crate::commands::mcp_heal::heal_policy().is_pinned()
-    {
+    if matches!(candidate.drift, DriftClass::SafeDrift { .. }) && heal_pinned {
         return InstallOutcome::Skipped {
             reason: SkipReason::HealPinned,
         };

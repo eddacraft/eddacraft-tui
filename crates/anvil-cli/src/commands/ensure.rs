@@ -106,6 +106,9 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
                 daemon_recycled: recycled,
             },
         );
+        if let Err(error) = &poke {
+            crate::commands::mcp_heal::warn_poke_failure(error);
+        }
         format_mcp_line_with_poke(
             &summary.report,
             summary.managed,
@@ -251,7 +254,7 @@ fn format_mcp_line_with_poke(
 ) -> String {
     if poke.is_some_and(|outcome| outcome.skipped_pin) {
         return format!(
-            "mcp: auto-heal pinned ({})",
+            "mcp: auto-heal {}",
             crate::commands::mcp_heal::heal_policy().summary()
         );
     }
