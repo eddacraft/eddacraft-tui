@@ -65,9 +65,10 @@ impl Sandbox {
         );
     }
 
-    /// Run `anvil` in the sandbox repo with operator state rerooted under the
-    /// sandbox `HOME`, so no test touches the developer's real consent store.
-    fn anvil(&self, args: &[&str]) -> Output {
+    /// An `anvil` invocation in the sandbox repo with operator state rerooted
+    /// under the sandbox `HOME`, so no test touches the developer's real
+    /// consent store.
+    fn command(&self, args: &[&str]) -> Command {
         let mut cmd = Command::new(ANVIL_BIN);
         cmd.arg("--no-tui")
             .args(args)
@@ -81,7 +82,22 @@ impl Sandbox {
             .env_remove("ANVIL_HOME")
             .env_remove("XDG_STATE_HOME")
             .env_remove("XDG_CONFIG_HOME");
-        cmd.output().expect("failed to invoke anvil binary")
+        cmd
+    }
+
+    fn anvil(&self, args: &[&str]) -> Output {
+        self.command(args)
+            .output()
+            .expect("failed to invoke anvil binary")
+    }
+
+    /// Same, but with the process-scoped `ANVIL_GCTX_EGRESS` override set —
+    /// the kill-switch the egress docs promise stays visible in JSON.
+    fn anvil_with_egress_env(&self, args: &[&str], value: &str) -> Output {
+        self.command(args)
+            .env("ANVIL_GCTX_EGRESS", value)
+            .output()
+            .expect("failed to invoke anvil binary")
     }
 }
 
@@ -195,59 +211,91 @@ fn config_show_human_output_is_unchanged() {
 
 #[test]
 fn gctx_egress_enable_and_disable_json_emit_only_json() {
+    // Both verbs at both flag placements: the leading global form and the
+    // trailing per-command form are equally documented, so a consumer must
+    // not have to know which one this binary happens to honour.
+    for leading in [false, true] {
+        let sandbox = Sandbox::new();
+
+        let out = sandbox.anvil(&egress_args(
+            leading,
+            &["enable", "--yes", "--touch-project-state"],
+        ));
+        let doc = parse_only_json(&out, "anvil gctx egress enable (json)");
+        assert_eq!(
+            doc.get("egress").and_then(serde_json::Value::as_str),
+            Some("enabled"),
+            "enable must report the resulting state: {doc}"
+        );
+        assert_eq!(
+            doc.get("source").and_then(serde_json::Value::as_str),
+            Some("config"),
+            "enable must report where the state now comes from: {doc}"
+        );
+        assert_eq!(
+            doc.get("action").and_then(serde_json::Value::as_str),
+            Some("enabled"),
+            "enable must report the action it performed: {doc}"
+        );
+
+        // The document `status --json` already emits stays the shape enable
+        // and disable report, so one parser handles the whole verb family.
+        let status = parse_only_json(
+            &sandbox.anvil(&["gctx", "egress", "status", "--json"]),
+            "anvil gctx egress status --json",
+        );
+        assert_eq!(status.get("egress"), doc.get("egress"));
+        assert_eq!(status.get("source"), doc.get("source"));
+
+        let out = sandbox.anvil(&egress_args(leading, &["disable", "--touch-project-state"]));
+        let doc = parse_only_json(&out, "anvil gctx egress disable (json)");
+        assert_eq!(
+            doc.get("egress").and_then(serde_json::Value::as_str),
+            Some("identity-only"),
+            "disable must report the reverted state: {doc}"
+        );
+        assert_eq!(
+            doc.get("action").and_then(serde_json::Value::as_str),
+            Some("disabled"),
+            "disable must report the action it performed: {doc}"
+        );
+    }
+}
+
+/// `anvil --json gctx egress <verb>` when `leading`, else
+/// `anvil gctx egress <verb> … --json`.
+fn egress_args<'a>(leading: bool, verb: &[&'a str]) -> Vec<&'a str> {
+    let mut args = if leading { vec!["--json"] } else { Vec::new() };
+    args.extend_from_slice(&["gctx", "egress"]);
+    args.extend_from_slice(verb);
+    if !leading {
+        args.push("--json");
+    }
+    args
+}
+
+#[test]
+fn gctx_egress_json_reports_the_effective_state_under_the_kill_switch() {
+    // Consent is recorded, but `ANVIL_GCTX_EGRESS=0` still suppresses egress
+    // for this process. Both docs promise the document reports the effective
+    // state, so a consent audit cannot be misled into reading `enabled`.
     let sandbox = Sandbox::new();
-
-    let out = sandbox.anvil(&[
-        "gctx",
-        "egress",
-        "enable",
-        "--yes",
-        "--touch-project-state",
-        "--json",
-    ]);
-    let doc = parse_only_json(&out, "anvil gctx egress enable --json");
-    assert_eq!(
-        doc.get("egress").and_then(serde_json::Value::as_str),
-        Some("enabled"),
-        "enable must report the resulting state: {doc}"
-    );
-    assert_eq!(
-        doc.get("source").and_then(serde_json::Value::as_str),
-        Some("config"),
-        "enable must report where the state now comes from: {doc}"
-    );
-    assert_eq!(
-        doc.get("action").and_then(serde_json::Value::as_str),
-        Some("enabled"),
-        "enable must report the action it performed: {doc}"
-    );
-
-    // The document `status --json` already emits stays the shape enable and
-    // disable report, so one parser handles the whole verb family.
-    let status = parse_only_json(
-        &sandbox.anvil(&["gctx", "egress", "status", "--json"]),
-        "anvil gctx egress status --json",
-    );
-    assert_eq!(status.get("egress"), doc.get("egress"));
-    assert_eq!(status.get("source"), doc.get("source"));
-
-    let out = sandbox.anvil(&[
-        "--json",
-        "gctx",
-        "egress",
-        "disable",
-        "--touch-project-state",
-    ]);
-    let doc = parse_only_json(&out, "anvil --json gctx egress disable");
+    let out = sandbox.anvil_with_egress_env(&["gctx", "egress", "enable", "--yes", "--json"], "0");
+    let doc = parse_only_json(&out, "anvil gctx egress enable --json (kill-switch)");
     assert_eq!(
         doc.get("egress").and_then(serde_json::Value::as_str),
         Some("identity-only"),
-        "disable must report the reverted state: {doc}"
+        "the kill-switch must win over freshly recorded consent: {doc}"
+    );
+    assert_eq!(
+        doc.get("source").and_then(serde_json::Value::as_str),
+        Some("env"),
+        "the override must be named as the source: {doc}"
     );
     assert_eq!(
         doc.get("action").and_then(serde_json::Value::as_str),
-        Some("disabled"),
-        "disable must report the action it performed: {doc}"
+        Some("enabled"),
+        "the consent write still happened and must be reported: {doc}"
     );
 }
 

@@ -1734,7 +1734,10 @@ All three verbs honour `--json` and emit the same document: `egress` (`enabled`
 / `identity-only`) and `source` (`env` / `config` / `default`). `enable` and
 `disable` add `action` (`enabled` / `disabled` / `unchanged`). State and source
 are always the **effective** ones after the write, so consent recorded under an
-`ANVIL_GCTX_EGRESS=0` kill-switch still reports `identity-only`.
+`ANVIL_GCTX_EGRESS=0` kill-switch still reports `identity-only`. `action` names
+the verb that ran, not a state delta: an idempotent `disable` still reports
+`disabled`, and `unchanged` appears only when an interactive operator declines
+the confirmation — never in a non-interactive run, which fails closed instead.
 
 **Exit codes:** 0 (success), 1 (error)
 
