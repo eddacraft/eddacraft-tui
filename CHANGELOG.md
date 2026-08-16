@@ -11,6 +11,8 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+## [0.9.5-beta] — 2026-08-16
+
 This window is about staying attached after an upgrade: daily `anvil`,
 `anvil start`, and `anvil doctor` rewrite owned MCP configs and poke live
 children. Typical upgrades keep sessions attached; a restart remains a residual

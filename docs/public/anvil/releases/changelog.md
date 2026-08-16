@@ -17,6 +17,221 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
+## 0.9.5-beta — 16 August 2026
+
+This window is about staying attached after an upgrade: daily `anvil`,
+`anvil start`, and `anvil doctor` rewrite owned MCP configs and poke live
+children. Typical upgrades keep sessions attached; a restart remains a residual
+fallback. Use `anvil mcp refresh` if you need the full cascade now. Pin with
+`anvil mcp pin` if you do not want auto-heal.
+
+The same tag also unifies the project config anvil reads — one canonical file,
+one key casing, and migrate/doctor paths for the older names — plus honesty
+fixes so Claude's project MCP install, first-wave handshake, live-validation
+status, graph search on large repos, and several checks match reality.
+
+### Changed
+
+- **Managed MCP install writes a PATH-stable `anvil` command.** New and
+  rewritten client entries use `anvil mcp serve --stdio` instead of a versioned
+  Homebrew Cellar (or similar) absolute path, so the next upgrade does not leave
+  configs pointing at a deleted binary. Pass `--command` if you need a
+  side-by-side override. Re-run `anvil mcp install` for a client that was
+  installed the old way.
+
+- **Project config has one canonical filename.** Fresh `anvil init` writes
+  `.anvil.yaml` by default (or `.anvil.json` / `.anvil.toml` if you pick those
+  formats). `.anvilrc` is still read as a fallback, but no command creates one.
+  Convert with `anvil migrate format` or `anvil config convert --to yaml` (pass
+  `--remove-old` to delete the source when dest is a different path).
+
+- **Config keys are `snake_case`.** Owned writes (`anvil init`,
+  `anvil config set`, migrate) emit keys such as `schema_version`. Older
+  `camelCase` files still load; `anvil config show` and `anvil doctor` mention
+  the legacy casing.
+
+- **Gate composition lives in the project config.** `anvil gate-config` reads
+  and writes a `gate` section in that file. A leftover `.anvil/gate-config.json`
+  is no longer used by gate runs; fold it with
+  `anvil migrate gate-config --apply`. A malformed `gate` section is now a loud
+  error on `anvil gate` and `anvil check` instead of being skipped.
+
+- **Architecture can sit in the project file or a pointed-to file.** You can
+  keep `.anvil/architecture.yaml` and record it with
+  `anvil migrate architecture --apply`, or put the definition inline. Unmigrated
+  standalone files still work.
+
+- **When both `anvil/policy.yaml` and `anvil/policy.yml` exist,
+  `anvil/policy.yaml` wins.** `anvil doctor` warns when more than one policy or
+  project-config variant is present and names the winner.
+
+- **`--json` is a CLI-wide promise.** When a command accepts `--json`, success
+  stdout is exactly one JSON document (or a documented machine stream such as
+  watch NDJSON). Both `anvil --json <command>` and `anvil <command> --json`
+  work. Human output without the flag is unchanged. Interactive-only paths
+  (`anvil tutorial`) and contradictory combinations refuse with a structured
+  error instead of silently printing prose.
+
+### Added
+
+- **Daily `anvil` / `anvil start` / `anvil doctor` heal MCP unless you pin.**
+  When owned client entries, the CLI, or the daemon are stale, those paths
+  rewrite the entries and poke live `mcp serve` children. `anvil mcp pin` (or
+  `ANVIL_MCP_PIN`) freezes daily heal and in-process recycle; `anvil mcp unpin`
+  or `ANVIL_MCP_PIN=0` resumes. First-time install on `anvil start` still works
+  while pinned.
+
+- **`anvil mcp refresh` is the emergency cascade.** It rewrites Anvil-owned
+  client entries to the PATH-stable `anvil` command, recycles a version-skewed
+  intercept daemon, and always bumps a refresh generation so live children
+  re-check on the next tool call — even when heal is pinned. `--dry-run`
+  previews; `--json` prints the report. Default `--processes report` only lists
+  children by parent. `--processes orphan-reap` sends SIGTERM to same-user
+  orphans whose parent is gone (Unix). Children of live sessions are never
+  signalled.
+
+- **`anvil doctor` reports leftover MCP shims and `--fix` reaps them.**
+  Parentless `anvil mcp serve --stdio` processes are listed; `--fix` sends
+  SIGTERM to those orphans only. Live editor and agent children are left alone.
+
+- **`anvil status` and `--verify` split attach from graph readiness.** Human and
+  `--json` output can show MCP process inventory, `mcp_skew`, and separate
+  `protecting` / `agent_ready` / `graph_ready` claims. A current MCP binary no
+  longer implies the graph is ready. Skewed children print `anvil mcp refresh`
+  as the recovery, not “restart your editor”.
+
+- **Migration and doctor coverage for the older config names.**
+  `anvil migrate format` and `anvil config convert --to` write any discovered
+  project file to `.anvil.yaml` / `.yml` / `.json` / `.toml` (never `.anvilrc`).
+  `--remove-old` deletes the source when the dest is a different path;
+  `--stdout` on convert still prints only. `anvil migrate gate-config` and
+  `anvil migrate architecture` preview by default and write with `--apply`.
+  `anvil doctor` reports dual-file and legacy-key states. On a TTY (not
+  `--json`, not CI or git hooks) it then offers to migrate a lone `.anvilrc`,
+  remove a shadowed leftover file, fold `.anvil/gate-config.json`, or record
+  `architecture.source`. A single healthy `.anvil.yaml` / `.yml` / `.json` /
+  `.toml` is not prompted.
+
+- **GitHub Actions checks see compact YAML mappings.** Trigger and `uses:` forms
+  written as `{ pull_request_target: … }` or `- { uses: owner/repo@branch }` are
+  no longer invisible to the supply-chain rules.
+
+- **History secret scan covers lockfile URL credentials.** Recognised lockfiles
+  such as `Cargo.lock` and `yarn.lock` are checked for credentials embedded in
+  dependency URLs, instead of being skipped because the path ended in `.lock`.
+
+- **Command-safety unwraps `env -S`.** A wrapped line such as
+  `env -S "rm -rf /"` is treated as the inner command, so the same
+  dangerous-command rules apply.
+
+### Fixed
+
+- **PY-008 human and TUI help names eval/exec/compile.** The rule-specific nudge
+  already shown in JSON now appears as the finding help text instead of the
+  generic Python-family suggestion (type-ignore, `import *`, `Any`).
+
+- **Invalid project configuration exits 4.** Parse and schema failures in the
+  discovered project file now use the documented configuration-error exit code
+  on `check`, `gate`, `gate-config`, `watch` startup, and `architecture`.
+  Runtime and missing-file failures still exit 1.
+
+- **`anvil config convert` rewrites destination format metadata.** Converting
+  YAML to JSON no longer leaves `"format": "yml"` (and the same for other
+  pairs). Requested `.yml` / `.yaml` filenames are preserved; owned metadata
+  uses one canonical yaml spelling. `migrate format` shares the rule.
+
+- **`anvil watch` enforces architecture on save and reloads policy.** A new
+  forbidden dependency now appears in watch the same way as
+  `anvil gate --only-checks architecture`. Editing the active architecture
+  source reloads or fails closed instead of keeping a stale layer.
+
+- **MCP status does not call a missing `anvil` live protection.** A client whose
+  configured command is not on that client's PATH is not `live_validation` or
+  `protecting`. Status names the unresolvable command.
+
+- **Empty-host URLs no longer skip credit-card detection.** A string such as
+  `https:///accounts/4111…/events` is not treated as a safe URL path. Valid
+  host-bearing HTTP(S) paths still get the path exemption.
+
+- **Activation recovery is one story.** A missing daemon no longer both
+  recommends and rejects an editor restart. Stale-image warnings print once.
+
+- **Read-only MCP diagnostics work before you log in.** `mcp install --dry-run`,
+  `mcp install --verify`, and `mcp-config --verify` (and the no-`--write`
+  preview) no longer require account authentication. Real install and `--write`
+  still do.
+
+- **Claude Code project MCP install writes `.mcp.json`.** Project-scoped install
+  used to write workspace `.claude.json`, which Claude does not load for MCP.
+  User and local scope stay on `~/.claude.json`. Re-run
+  `anvil mcp install --client claude-code` (or activation) in a project that was
+  installed the old way.
+
+- **Live-validation status is per client.** When several MCP clients are
+  connected, a participating surface for one of them no longer marks the others
+  as live-validated. Status now follows the client that was actually observed.
+
+- **`anvil start --verify` handshakes every first-wave MCP client.** Codex,
+  OpenCode, Gemini CLI, Grok, Warp, Zed, VS Code, and the other installable
+  clients can reach the same attach/attestation ladder as Claude Code and
+  Cursor. A live Grok or Codex session is no longer reported as a leftover
+  Cursor/Claude restart.
+
+- **Graph search on a large repo stays usable after a timed-out scan.** When the
+  first full scan hits its time budget, tools serve the partial graph as
+  ready-but-stale instead of looping on "warming". The daemon also reuses an
+  existing graph-base artefact (or names a real spawn failure) instead of
+  silently serving cold.
+
+- **Windows install has a stable PowerShell short URL.**
+  `irm https://install.eddacraft.ai/windows | iex` always fetches the latest
+  official installer.
+
+- **Snippet-egress consent is no longer a file in the repo.** A committed or
+  checkout-controlled consent file cannot turn source-text snippets on. Consent
+  lives in your user state and is bound to that workspace; use
+  `anvil gctx egress enable` / `disable` as before.
+
+- **Husky coexistence writes the hook files Git actually runs.** After the Husky
+  runtime directory was missing, bootstrap could leave hooks silently dead. The
+  generated `.husky/_/<hook>` entrypoints now run.
+
+- **Commit-protection verify binds the attested range to the evidence.** A
+  substituted range or an unrelated valid witness chain no longer passes as if
+  it belonged to that capsule.
+
+- **Windows `anvil update` is honest about decline and what to run next.** A
+  declined update no longer exits 0 or prints both WinGet and the installer. It
+  uses the same current/not-current comparison as `--check`, exits non-zero when
+  it does not update, and prints only the remedy for how this copy was
+  installed.
+
+- **Credit-card checks ignore 16-digit runs in `https` URL paths.** Facebook
+  reel IDs and similar path segments no longer trip the card rule. A standalone
+  card number still fires.
+
+- **Python dynamic-execution (PY-008) is more precise.** It no longer treats
+  `something.compile(...)` as the builtin `compile`, and it does catch f-string
+  and attribute forms that used to slip through.
+
+- **`anvil report-fp` accepts the rule IDs `anvil check` prints.** IDs such as
+  `PY-008` or `SECRET-*` record against the owning check. Unknown IDs still
+  error with a suggestion.
+
+- **A skewed intercept daemon recycles to the current CLI.** When `anvil` and
+  the save-time daemon report different versions, bare `anvil`, `anvil start`,
+  and `anvil mcp refresh` stop the old daemon, wait for it to exit, and start
+  the current binary. Agent sessions are not restarted.
+
+- **Long-lived `mcp serve` recycles to the preferred binary on Unix.** After an
+  upgrade, the next `initialize`, `tools/list`, or `tools/call` can replace the
+  child process in place so the harness pipe stays up. Windows reports the skew
+  instead of re-execing.
+
+- **Concurrent auth refresh no longer revokes your session.** Parallel `anvil`
+  processes that rotate the same refresh token now take turns instead of looking
+  like token theft to the server.
+
 ## 0.9.4-beta — 10 August 2026 — Clearer install advice and quieter false alarms
 
 This patch is about trusting what anvil tells you: how you installed it, whether
