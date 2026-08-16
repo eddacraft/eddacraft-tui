@@ -55,14 +55,16 @@ impl<'a, T: Theme> StatusBadge<'a, T> {
     }
 
     fn status_config(&self) -> (char, Style, &'a str) {
-        match self.status {
-            BadgeStatus::Success => ('◆', self.theme.status_ok(), "Passed"),
-            BadgeStatus::Error => ('✖', self.theme.status_error(), "Failed"),
-            BadgeStatus::Warning => ('◈', self.theme.status_warning(), "Warning"),
-            BadgeStatus::Info => ('◇', self.theme.disabled(), "Info"),
-            BadgeStatus::Running => ('●', self.theme.title(), "Running"),
-            BadgeStatus::Skipped => ('○', self.theme.disabled(), "Skipped"),
-        }
+        let (icon, default_label) = match self.status {
+            BadgeStatus::Success => ('◆', "Passed"),
+            BadgeStatus::Error => ('✖', "Failed"),
+            BadgeStatus::Warning => ('◈', "Warning"),
+            BadgeStatus::Info => ('◇', "Info"),
+            BadgeStatus::Running => ('●', "Running"),
+            BadgeStatus::Skipped => ('○', "Skipped"),
+        };
+
+        (icon, self.status.severity_style(self.theme), default_label)
     }
 }
 
@@ -96,6 +98,21 @@ mod tests {
         let mut buf = Buffer::empty(Rect::new(0, 0, 12, 1));
         StatusBadge::new(status, &theme).render(Rect::new(0, 0, 12, 1), &mut buf);
         buf[(0, 0)].symbol().to_string()
+    }
+
+    #[test]
+    fn info_badge_uses_shared_severity_style() {
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 12, 1);
+        let mut actual = Buffer::empty(area);
+        let mut expected = Buffer::empty(area);
+
+        StatusBadge::new(BadgeStatus::Info, &theme).render(area, &mut actual);
+        Line::styled("◇ Info", BadgeStatus::Info.severity_style(&theme))
+            .render(area, &mut expected);
+
+        assert_eq!(actual[(0, 0)].style(), expected[(0, 0)].style());
+        assert_eq!(actual[(2, 0)].style(), expected[(2, 0)].style());
     }
 
     #[test]
