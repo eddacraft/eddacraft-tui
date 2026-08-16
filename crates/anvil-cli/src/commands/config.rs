@@ -297,8 +297,9 @@ impl ConvertOutcome {
     }
 
     /// `source_removed` covers the same-path rewrite too (nothing was
-    /// removed), so consumers get one stable three-field shape.
-    fn to_json(&self) -> Value {
+    /// removed), so consumers get one stable three-field shape. Shared
+    /// with `migrate format --json` (#3946), which uses the same writer.
+    pub(crate) fn to_json(&self) -> Value {
         serde_json::json!({
             "source": self.source.display().to_string(),
             "destination": self.destination.display().to_string(),

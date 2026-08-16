@@ -98,30 +98,32 @@ pub struct SchemaArgs {
     pub apply: bool,
 }
 
-pub fn run(args: &MigrateArgs, _global: &GlobalArgs) -> Result<()> {
-    run_in(args, Path::new("."))
+pub fn run(args: &MigrateArgs, global: &GlobalArgs) -> Result<()> {
+    run_in(args, Path::new("."), global.json)
 }
 
 /// Dispatch `anvil migrate` against `root`. A bare invocation (no
 /// subcommand) routes to `format` with a deprecation notice. Split out
 /// from [`run`] so tests can drive the full dispatch — including the
 /// deprecation path — against a tempdir instead of the process CWD.
-pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
+pub(crate) fn run_in(args: &MigrateArgs, root: &Path, json_mode: bool) -> Result<()> {
     match &args.command {
-        Some(MigrateCommand::Format(format_args)) => run_format_in(format_args, root),
+        Some(MigrateCommand::Format(format_args)) => run_format_in(format_args, root, json_mode),
         Some(MigrateCommand::Schema(schema_args)) => {
             run_schema_in(schema_args, root, &anvil_config::production_migrations())
         }
         Some(MigrateCommand::GateConfig(gate_args)) => run_gate_config_in(gate_args, root),
         Some(MigrateCommand::Architecture(arch_args)) => run_architecture_in(arch_args, root),
         None => {
+            // The deprecation notice stays on stderr, so the back-compat
+            // route keeps the `--json` stdout contract intact.
             eprintln!(
                 "anvil: `anvil migrate` now has subcommands; running `format` for \
                  back-compat. Prefer `anvil migrate format` (convert to \
                  `.anvil.<ext>`) or `anvil migrate schema` (cross-version \
                  config reconciliation)."
             );
-            run_format_in(&FormatArgs::default(), root)
+            run_format_in(&FormatArgs::default(), root, json_mode)
         }
     }
 }
@@ -130,18 +132,24 @@ pub(crate) fn run_in(args: &MigrateArgs, root: &Path) -> Result<()> {
 // `anvil migrate format` — UCFG-015 any-to-any canonical conversion.
 // ---------------------------------------------------------------------------
 
-pub(crate) fn run_format_in(args: &FormatArgs, root: &Path) -> Result<()> {
+pub(crate) fn run_format_in(args: &FormatArgs, root: &Path, json_mode: bool) -> Result<()> {
     // UCFG-015: any discovered project config → any canonical dest.
     // Shared writer with `anvil config convert`; never writes `.anvilrc`.
-    let message = crate::commands::config::convert_and_write(
+    let outcome = crate::commands::config::convert_and_write(
         root,
         &args.format,
         args.force,
         args.remove_old,
         "migrate format",
-    )?
-    .render_human();
-    println!("{message}");
+    )?;
+    // Issue #3946 (per the #3915 contract): an accepted `--json` makes the
+    // whole of stdout the document — the same write-mode shape as
+    // `config convert --json`, because both verbs share the writer.
+    if json_mode {
+        crate::output::json::print(&outcome.to_json())?;
+    } else {
+        println!("{}", outcome.render_human());
+    }
     Ok(())
 }
 
@@ -585,7 +593,7 @@ mod tests {
     #[test]
     fn errors_when_no_project_config_present() {
         let tmp = TempDir::new().unwrap();
-        let err = run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap_err();
+        let err = run_format_in(&format_args("yaml", false, false), tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("no project config"), "{err}");
     }
 
@@ -593,7 +601,7 @@ mod tests {
     fn converts_canonical_yaml_to_json() {
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
-        run_format_in(&format_args("json", false, false), tmp.path()).unwrap();
+        run_format_in(&format_args("json", false, false), tmp.path(), false).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap())
                 .unwrap();
@@ -606,7 +614,7 @@ mod tests {
     fn migrates_json_anvilrc_to_yaml() {
         let tmp = TempDir::new().unwrap();
         write_anvilrc(tmp.path(), r#"{"checks":["secret-detection"]}"#);
-        run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap();
+        run_format_in(&format_args("yaml", false, false), tmp.path(), false).unwrap();
 
         let new = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
         // serde_yaml prefixes scalar lists onto the same line; substring
@@ -622,7 +630,7 @@ mod tests {
     fn migrates_yaml_anvilrc_to_toml() {
         let tmp = TempDir::new().unwrap();
         write_anvilrc(tmp.path(), "checks: [\"a\", \"b\"]\n");
-        run_format_in(&format_args("toml", false, false), tmp.path()).unwrap();
+        run_format_in(&format_args("toml", false, false), tmp.path(), false).unwrap();
 
         let new = std::fs::read_to_string(tmp.path().join(".anvil.toml")).unwrap();
         assert!(new.contains("checks"), "got:\n{new}");
@@ -634,7 +642,7 @@ mod tests {
     fn migrates_toml_anvilrc_to_json() {
         let tmp = TempDir::new().unwrap();
         write_anvilrc(tmp.path(), "checks = [\"secret-detection\"]\n");
-        run_format_in(&format_args("json", false, false), tmp.path()).unwrap();
+        run_format_in(&format_args("json", false, false), tmp.path(), false).unwrap();
 
         let new = std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&new).unwrap();
@@ -646,7 +654,7 @@ mod tests {
     fn removes_legacy_anvilrc_when_flag_set() {
         let tmp = TempDir::new().unwrap();
         write_anvilrc(tmp.path(), r#"{"checks":[]}"#);
-        run_format_in(&format_args("yaml", false, true), tmp.path()).unwrap();
+        run_format_in(&format_args("yaml", false, true), tmp.path(), false).unwrap();
 
         assert!(!tmp.path().join(".anvilrc").exists());
         assert!(tmp.path().join(".anvil.yaml").exists());
@@ -658,7 +666,7 @@ mod tests {
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
         std::fs::write(tmp.path().join(".anvil.json"), "pre-existing\n").unwrap();
 
-        let err = run_format_in(&format_args("json", false, false), tmp.path()).unwrap_err();
+        let err = run_format_in(&format_args("json", false, false), tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("refusing to overwrite"));
         let unchanged = std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap();
         assert_eq!(unchanged, "pre-existing\n");
@@ -670,7 +678,7 @@ mod tests {
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - x\n").unwrap();
         std::fs::write(tmp.path().join(".anvil.json"), "garbage\n").unwrap();
 
-        run_format_in(&format_args("json", true, false), tmp.path()).unwrap();
+        run_format_in(&format_args("json", true, false), tmp.path(), false).unwrap();
         let new = std::fs::read_to_string(tmp.path().join(".anvil.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&new).unwrap();
         assert_eq!(parsed["checks"][0], "x");
@@ -681,7 +689,7 @@ mod tests {
     fn rejects_unknown_format() {
         let tmp = TempDir::new().unwrap();
         write_anvilrc(tmp.path(), r#"{"checks":[]}"#);
-        let err = run_format_in(&format_args("ini", false, false), tmp.path()).unwrap_err();
+        let err = run_format_in(&format_args("ini", false, false), tmp.path(), false).unwrap_err();
         assert!(
             err.to_string().contains("unsupported") || err.to_string().contains("expected yaml"),
             "{err}"
@@ -698,7 +706,7 @@ mod tests {
             r#"{"checks":["secret-detection","import-boundaries"]}"#,
         );
 
-        run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap();
+        run_format_in(&format_args("yaml", false, false), tmp.path(), false).unwrap();
 
         let discovered = anvil_config::discover(tmp.path(), ".anvil")
             .unwrap()
@@ -722,7 +730,7 @@ mod tests {
         // `None` arm to `format` (and prints the deprecation notice).
         let tmp = TempDir::new().unwrap();
         write_anvilrc(tmp.path(), r#"{"checks":["secret-detection"]}"#);
-        run_in(&MigrateArgs { command: None }, tmp.path()).unwrap();
+        run_in(&MigrateArgs { command: None }, tmp.path(), false).unwrap();
         assert!(tmp.path().join(".anvil.yaml").exists());
     }
 
@@ -743,6 +751,7 @@ mod tests {
                 command: Some(MigrateCommand::Schema(SchemaArgs { apply: true })),
             },
             tmp.path(),
+            false,
         )
         .unwrap();
         // Empty production registry → config untouched.
@@ -898,7 +907,7 @@ mod tests {
             r#"{"schemaVersion":"1.0.0","planningDir":"plans","checks":[]}"#,
         )
         .unwrap();
-        run_format_in(&format_args("yaml", false, false), tmp.path()).unwrap();
+        run_format_in(&format_args("yaml", false, false), tmp.path(), false).unwrap();
         let content = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
         assert!(content.contains("schema_version"), "{content}");
         assert!(!content.contains("schemaVersion"), "{content}");

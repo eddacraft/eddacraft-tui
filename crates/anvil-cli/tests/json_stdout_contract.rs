@@ -408,6 +408,112 @@ fn config_convert_human_output_is_unchanged() {
     );
 }
 
+// ── migrate format (#3946) ─────────────────────────────────────────
+
+#[test]
+fn migrate_format_json_emits_only_json_for_both_flag_placements() {
+    // Shares the convert writer #3943 fixed for `config convert`, so the
+    // document is the same write-mode shape.
+    for args in [
+        ["migrate", "format", "--format", "yaml", "--json"].as_slice(),
+        ["--json", "migrate", "format", "--format", "yaml"].as_slice(),
+    ] {
+        let sandbox = Sandbox::new();
+        write_json_config(&sandbox);
+        let out = sandbox.anvil(args);
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+
+        let source = doc
+            .get("source")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_else(|| panic!("source must be present: {doc}"));
+        assert!(
+            source.ends_with(".anvil.json"),
+            "source must name the discovered config: {source}"
+        );
+        let destination = doc
+            .get("destination")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_else(|| panic!("destination must be present: {doc}"));
+        assert!(
+            destination.ends_with(".anvil.yaml"),
+            "destination must name the written file: {destination}"
+        );
+        assert_eq!(
+            doc.get("source_removed"),
+            Some(&serde_json::Value::Bool(false)),
+            "source_removed must be false when the source is kept: {doc}"
+        );
+        assert!(
+            sandbox.repo().join(".anvil.yaml").is_file(),
+            "the destination must still be written under --json"
+        );
+    }
+}
+
+#[test]
+fn migrate_format_json_reports_source_removal() {
+    let sandbox = Sandbox::new();
+    write_json_config(&sandbox);
+    let out = sandbox.anvil(&[
+        "migrate",
+        "format",
+        "--format",
+        "yaml",
+        "--remove-old",
+        "--json",
+    ]);
+    let doc = parse_only_json(
+        &out,
+        "anvil migrate format --format yaml --remove-old --json",
+    );
+    assert_eq!(
+        doc.get("source_removed"),
+        Some(&serde_json::Value::Bool(true)),
+        "source_removed must be true under --remove-old: {doc}"
+    );
+    assert!(
+        !sandbox.repo().join(".anvil.json").exists(),
+        "the source must actually be removed"
+    );
+}
+
+#[test]
+fn bare_migrate_json_routes_to_format_and_keeps_stdout_json_only() {
+    // The deprecated bare `anvil migrate` routes to `format`; its
+    // deprecation notice is stderr, so an accepted `--json` still means
+    // stdout is exactly one document.
+    let sandbox = Sandbox::new();
+    write_json_config(&sandbox);
+    let out = sandbox.anvil(&["migrate", "--json"]);
+    let doc = parse_only_json(&out, "anvil migrate --json (bare back-compat route)");
+    assert!(
+        doc.get("source").is_some() && doc.get("destination").is_some(),
+        "bare migrate must emit the same write-mode document: {doc}"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("now has subcommands"),
+        "the deprecation notice must stay on stderr: {stderr}"
+    );
+}
+
+#[test]
+fn migrate_format_human_output_is_unchanged() {
+    let sandbox = Sandbox::new();
+    write_json_config(&sandbox);
+    let out = sandbox.anvil(&["migrate", "format", "--format", "yaml"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "migrate format must exit 0: {stdout}");
+    assert!(
+        stdout.starts_with("anvil: converted ")
+            && stdout.contains(".anvil.json")
+            && stdout.contains(".anvil.yaml")
+            && stdout.contains("source kept; pass --remove-old to delete"),
+        "human migrate format output must be unchanged: {stdout}"
+    );
+}
+
 // ── gctx egress enable / disable ───────────────────────────────────
 
 #[test]
