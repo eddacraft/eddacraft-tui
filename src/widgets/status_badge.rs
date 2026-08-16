@@ -108,10 +108,16 @@ mod tests {
         let mut expected = Buffer::empty(area);
 
         StatusBadge::new(BadgeStatus::Info, &theme).render(area, &mut actual);
-        Line::styled("◇ Info", BadgeStatus::Info.severity_style(&theme))
-            .render(area, &mut expected);
+        let style = BadgeStatus::Info.severity_style(&theme);
+        Line::from(vec![
+            Span::styled("◇", style),
+            Span::raw(" "),
+            Span::styled("Info", style),
+        ])
+        .render(area, &mut expected);
 
         assert_eq!(actual[(0, 0)].style(), expected[(0, 0)].style());
+        assert_eq!(actual[(1, 0)].style(), expected[(1, 0)].style());
         assert_eq!(actual[(2, 0)].style(), expected[(2, 0)].style());
     }
 
