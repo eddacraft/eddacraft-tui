@@ -7,14 +7,14 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft — Config unification, MCP live-heal, and product deep clean
+## [Unreleased] — Draft — MCP live-heal, config unification, and product deep clean
 
 Draft / unreleased. Technical work landed on `main` since `v0.9.4-beta`. The
-locked `v0.9.5-beta` claim is **config unification and product deep clean**
+locked `v0.9.5-beta` claim is **MCP live-heal** (MCPLH-001..006 and MCPLH-008 on
+`main`) plus **config unification and product deep clean**
 ([ADR-120](./plans/decisions/120-config-surface-consolidation.md), UCFG-001..016
-on `main`) plus the **MCP live-heal** path (MCPLH-001..006 and MCPLH-008 on
-`main`). Supervisor/proxy (MCPLH-007) stays Draft until re-exec soak evidence.
-APS Merged bookkeeping for 003/005/006/008 is
+on `main`). Supervisor/proxy (MCPLH-007) stays Draft until re-exec soak evidence
+and is not this claim. APS Merged bookkeeping for 003/005/006/008 is
 [#3933](https://github.com/eddacraft/anvil-001/pull/3933). Settings (`SETCON`+)
 and Graph Trust Surfaces remain beside this window, not the cut claim.
 

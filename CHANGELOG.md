@@ -11,15 +11,25 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
-This window is about trusting the project config anvil reads: one canonical
-file, one key casing, and migrate/doctor paths for the older names — plus a few
-honesty fixes so Claude's project MCP install, live-validation status, and
-several checks match reality. After an upgrade, daily `anvil`, `anvil start`,
-and `anvil doctor` rewrite owned MCP configs and poke live children. Use
-`anvil mcp refresh` if you need the full cascade now. You do not need to restart
-agent sessions. Pin with `anvil mcp pin` if you do not want auto-heal.
+This window is about staying attached after an upgrade: daily `anvil`,
+`anvil start`, and `anvil doctor` rewrite owned MCP configs and poke live
+children. You do not need to restart agent sessions. Use `anvil mcp refresh` if
+you need the full cascade now. Pin with `anvil mcp pin` if you do not want
+auto-heal.
+
+The same tag also unifies the project config anvil reads — one canonical file,
+one key casing, and migrate/doctor paths for the older names — plus honesty
+fixes so Claude's project MCP install, live-validation status, and several
+checks match reality.
 
 ### Changed
+
+- **Managed MCP install writes a PATH-stable `anvil` command.** New and
+  rewritten client entries use `anvil mcp serve --stdio` instead of a versioned
+  Homebrew Cellar (or similar) absolute path, so the next upgrade does not leave
+  configs pointing at a deleted binary. Pass `--command` if you need a
+  side-by-side override. Re-run `anvil mcp install` for a client that was
+  installed the old way.
 
 - **Project config has one canonical filename.** Fresh `anvil init` writes
   `.anvil.yaml` by default (or `.anvil.json` / `.anvil.toml` if you pick those
@@ -47,14 +57,29 @@ agent sessions. Pin with `anvil mcp pin` if you do not want auto-heal.
   `anvil/policy.yaml` wins.** `anvil doctor` warns when more than one policy or
   project-config variant is present and names the winner.
 
-- **Managed MCP install writes a PATH-stable `anvil` command.** New and
-  rewritten client entries use `anvil mcp serve --stdio` instead of a versioned
-  Homebrew Cellar (or similar) absolute path, so the next upgrade does not leave
-  configs pointing at a deleted binary. Pass `--command` if you need a
-  side-by-side override. Re-run `anvil mcp install` for a client that was
-  installed the old way.
-
 ### Added
+
+- **Daily `anvil` / `anvil start` / `anvil doctor` heal MCP unless you pin.**
+  When owned client entries, the CLI, or the daemon are stale, those paths
+  rewrite the entries and poke live `mcp serve` children. `anvil mcp pin` (or
+  `ANVIL_MCP_PIN`) freezes daily heal and in-process recycle; `anvil mcp unpin`
+  or `ANVIL_MCP_PIN=0` resumes. First-time install on `anvil start` still works
+  while pinned.
+
+- **`anvil mcp refresh` is the emergency cascade.** It rewrites Anvil-owned
+  client entries to the PATH-stable `anvil` command, recycles a version-skewed
+  intercept daemon, and always bumps a refresh generation so live children
+  re-check on the next tool call — even when heal is pinned. `--dry-run`
+  previews; `--json` prints the report. Default `--processes report` only lists
+  children by parent. `--processes orphan-reap` sends SIGTERM to same-user
+  orphans whose parent is gone (Unix). Children of live sessions are never
+  signalled.
+
+- **`anvil status` and `--verify` split attach from graph readiness.** Human and
+  `--json` output can show MCP process inventory, `mcp_skew`, and separate
+  `protecting` / `agent_ready` / `graph_ready` claims. A current MCP binary no
+  longer implies the graph is ready. Skewed children print `anvil mcp refresh`
+  as the recovery, not “restart your editor”.
 
 - **Migration and doctor coverage for the older config names.**
   `anvil migrate format` and `anvil config convert --to` write any discovered
@@ -79,28 +104,6 @@ agent sessions. Pin with `anvil mcp pin` if you do not want auto-heal.
 - **Command-safety unwraps `env -S`.** A wrapped line such as
   `env -S "rm -rf /"` is treated as the inner command, so the same
   dangerous-command rules apply.
-
-- **Daily `anvil` / `anvil start` / `anvil doctor` heal MCP unless you pin.**
-  When owned client entries, the CLI, or the daemon are stale, those paths
-  rewrite the entries and poke live `mcp serve` children. `anvil mcp pin` (or
-  `ANVIL_MCP_PIN`) freezes daily heal and in-process recycle; `anvil mcp unpin`
-  or `ANVIL_MCP_PIN=0` resumes. First-time install on `anvil start` still works
-  while pinned.
-
-- **`anvil mcp refresh` is the emergency cascade.** It rewrites Anvil-owned
-  client entries to the PATH-stable `anvil` command, recycles a version-skewed
-  intercept daemon, and always bumps a refresh generation so live children
-  re-check on the next tool call — even when heal is pinned. `--dry-run`
-  previews; `--json` prints the report. Default `--processes report` only lists
-  children by parent. `--processes orphan-reap` sends SIGTERM to same-user
-  orphans whose parent is gone (Unix). Children of live sessions are never
-  signalled.
-
-- **`anvil status` and `--verify` split attach from graph readiness.** Human and
-  `--json` output can show MCP process inventory, `mcp_skew`, and separate
-  `protecting` / `agent_ready` / `graph_ready` claims. A current MCP binary no
-  longer implies the graph is ready. Skewed children print `anvil mcp refresh`
-  as the recovery, not “restart your editor”.
 
 ### Fixed
 

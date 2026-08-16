@@ -11,10 +11,11 @@
 > Dashboard remains flag-gated. Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is **`v0.9.5-beta`** (claim locked 2026-08-13 —
-> **config unification and product deep clean**; UCFG-001..014 primary). Not
-> cut-ready until changelog + standing bar. Highest-value **programme** track
-> remains Graph Trust Surfaces Wave 0 (**CGBDG**; **CONF-001** schedule). See
+> The active release window is **`v0.9.5-beta`** (claim re-locked 2026-08-16 —
+> **MCP live-heal**; MCPLH-001..006+008 primary; UCFG + honesty secondary).
+> Feature release on the v0.9 line, not `v0.10.0`. Not cut-ready until
+> changelog + standing bar. Highest-value **programme** track remains Graph
+> Trust Surfaces Wave 0 (**CGBDG**; **CONF-001** schedule). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
 ## Contents
@@ -106,10 +107,10 @@ Selection rules:
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
 | 1 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track after `v0.9.4-beta`. Not a release cut claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
-| 2 | MCPLH-001..006+008 — MCP live-heal (agent-ready without session restart) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Ready wave landed on `main` (#3899–#3912, #3932). Restarting agent sessions is residual only. | MCPLH-007 stays Draft until soak. Next programme pick is CGBDG discovery. |
+| 2 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Ready wave is the `v0.9.5-beta` primary claim. Session restart remains residual. | MCPLH-007 stays Draft until soak; do not block the cut. |
 | 3 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
 | 4 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
-| 5 | v0.9.5-beta — config unification + deep clean | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [UCFG](./modules/unified-config-format.aps.md) | Claim locked 2026-08-13; UCFG-001..014 + secondary honesty items Merged on main. | Curate CHANGELOG Unreleased; standing bar; preflight → cut. |
+| 5 | v0.9.5-beta — MCP live-heal + config unification | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [MCPLH](./modules/mcp-live-heal.aps.md), [UCFG](./modules/unified-config-format.aps.md) | Re-locked 2026-08-16; MCPLH-001..006+008 primary; UCFG + honesty secondary. Feature release on the v0.9 line, not `v0.10.0`. | Curate CHANGELOG Unreleased; standing bar; preflight → cut. |
 | 6 | v0.9.4-beta claim set | Released/Shipped | [release record](./releases/v0.9.4-beta.md) | Install honesty + field follow-up published 2026-08-10. | None — historical. |
 | 7 | v0.9.3-beta claim set | Released/Shipped | [release record](./releases/v0.9.3-beta.md), [CIB](./modules/continuous-improvement-backlog.aps.md) | Honesty + Windows window published 2026-08-07; APS items advanced at closeout. | None — historical. |
 ## Release Plan
@@ -125,8 +126,8 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.9.5-beta`** (claim locked — config unification and product
-deep clean), declared in
+window is **`v0.9.5-beta`** (claim locked — MCP live-heal, then config
+unification and product deep clean), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
 
@@ -739,7 +740,7 @@ compatibility on branch `feat/mcp26-dual-era-support` until ratification.
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | In Progress | 12/15 (**Phase 4 validate-write ergonomics:** RMCPF-040..044 Merged 2026-08-09 via #3718/#3722 (Phase 4 ergonomics complete) — design `specs/2026-08-09-agent-facing-validate-write-ergonomics.md`. Prior: RMCPF-001 inventory, RMCPF-002 architecture spec, RMCPF-003 Phase 1 readiness decisions, and RMCPF-010 check/gate/status MCP tool parity slice Complete; `anvil_check` ships as the daemon-RPC translator's correctness-equivalent embedded fallback and `anvil_gate` ships as MCP-driver-local composition with planless in-process and full subprocess modes. RMCPF-011 (fix/suppress/boundary tools) and RMCPF-012 (prompts retired) shipped via PR #1558 (merged 2026-05-14, commit `56d5fd89`); registry now exposes seven tools, `prompts` capability omitted, `prompts/list` returns -32601. **RMCPF-020 (resources port) Merged 2026-06-19 via #2809** — seven `anvil://` resources (baseline/boundaries/patterns/suppressions/config/constraints/drift) advertised in `resources/list` beside the GCTX `graph://` trio, each over its canonical Rust reader; `anvil://file/{path}/warnings` retired into the `anvil_check` tool.) | RMCP, DRVR, `anvil-archive/anvil-mcp-server` (archived per ADR-033 — frozen reference in sibling repo) |
 | [mcp-client-expansion](./modules/mcp-client-expansion.aps.md) | MCPX | Done | 6/6 (MCPX-001 verified first-wave contracts on 2026-07-14. Retain Claude Code/Cursor; add Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code/Copilot, Copilot CLI, Grok, Warp, and project-scoped Zed. Devin remains manual until it exposes a supported local mutation contract. All 6 first-wave items Done 2026-07-14 via PR #3328; Tier 2 clients unscheduled.) | RMCPF, RCLI3-016/-016b, ACTMO-012, SKPKG |
 | [mcp-dual-era-support](./modules/mcp-dual-era-support.aps.md) | MCP26 | In Progress | 12/13 (**MCP26-001..011 Merged 2026-07-30 via PR #3444** — dual-era stdio host for MCP `2026-07-28` on main under `crates/anvil-cli/src/mcp/protocol/`; ADR-113 Accepted. **MCP26-013 Merged 2026-08-03 via PR #3487:** Codex/rmcp legacy request-metadata compatibility restored by distinguishing reserved modern metadata from standard `_meta.progressToken`. **MCP26-012 Ready:** adopt official `rmcp` after bounded transport proof; temporary typed adapter remains.) | RMCPF, MCPX, ACTMO; MCP `2026-07-28`; ADR-113; typed adapter; request-metadata compatibility; `rmcp` follow-up |
-| [mcp-live-heal](./modules/mcp-live-heal.aps.md) | MCPLH | **Ready** | 7/8 (Ready wave Merged 2026-08-14..16: 001 #3900, 002 #3901, 003 #3910, 004 #3899, 005 #3911, 006 #3912, 008 #3932. MCPLH-007 supervisor remains Draft until soak. Large-repo graph warm out of module.) | MCPX, RMCP/RMCPF, DLIFE, CIB-242 posture; exclusive module |
+| [mcp-live-heal](./modules/mcp-live-heal.aps.md) | MCPLH | **Ready** | 7/8 (Ready wave Merged 2026-08-14..16: 001 #3900, 002 #3901, 003 #3910, 004 #3899, 005 #3911, 006 #3912, 008 #3932 — **primary claim of `v0.9.5-beta`**. MCPLH-007 supervisor remains Draft until soak and is not this claim. Large-repo graph warm out of module.) | MCPX, RMCP/RMCPF, DLIFE, CIB-242 posture; exclusive module |
 
 ### Graph Trust Surfaces
 
@@ -814,7 +815,7 @@ compatibility interface on the same resolver — nothing here deprecates it.
 | [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters). **Graph Trust Surfaces** track; Wave 0 = CONF-001 ADR (see [programme](./specs/2026-07-28-graph-trust-surfaces.md)). | Proposed |
 | [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model — reconciled 2026-07-17 with POLRESET/ADR-098: Rust ownership split across kernel types, CLI, architecture/kernel, and policy engine; remains Draft pending product timing and CONF-002 contract co-design. Tier-1 for CONF; not Wave 1. | Draft |
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking — **not** in the Graph Trust Surfaces five-track shortlist; validation commands still need Rust rescope before any execution claim. | Ready |
-| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces — **Done 14/14 Merged**; primary claim of `v0.9.5-beta` (release evidence still owed) | Done |
+| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces — **Done 14/14 Merged**; secondary claim of `v0.9.5-beta` (release evidence still owed) | Done |
 
 ### Dormant: Not Yet Scheduled
 

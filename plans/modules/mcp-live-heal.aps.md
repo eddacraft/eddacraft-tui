@@ -5,7 +5,8 @@
 | MCPLH | @aneki | high     | Ready  | 7/8      |
 
 **Last reviewed:** 2026-08-16 — Ready wave MCPLH-001..006 and MCPLH-008
-Merged on `main`; MCPLH-007 remains Draft until soak evidence.
+Merged on `main` and **primary claim of `v0.9.5-beta`**. MCPLH-007 remains
+Draft until soak evidence and is not this claim.
 [`plans/specs/2026-08-09-mcp-live-heal-without-harness-restart.md`](../specs/2026-08-09-mcp-live-heal-without-harness-restart.md).
 Exclusive module (feature PRs may flip item `Status:` only; do not bump header
 `N/M` — ADR-053).

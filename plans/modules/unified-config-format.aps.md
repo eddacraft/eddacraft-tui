@@ -19,11 +19,11 @@ revision was ever executed, so IDs are reallocated cleanly.
 | ---- | ----- | -------- | -------- | -------- |
 | UCFG | —     | medium   | Done     | 14/14    |
 
-**Last reviewed:** 2026-08-13 — all work items Merged (UCFG-001..014). ADR-120
-Accepted (operator). Primary claim of **`v0.9.5-beta`** (config unification and
-product deep clean — see [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)). Module
-**Done** pending release-tag evidence for Released/Shipped → Complete.
-Council `council-0851e9cb` (2026-08-12) findings were folded before execution.
+**Last reviewed:** 2026-08-16 — all work items Merged (UCFG-001..014). ADR-120
+Accepted (operator). Secondary claim of **`v0.9.5-beta`** (MCP live-heal is
+primary — see [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)). Module **Done**
+pending release-tag evidence for Released/Shipped → Complete. Council
+`council-0851e9cb` (2026-08-12) findings were folded before execution.
 
 > **Activation gate: satisfied 2026-08-13.** ADR-120 Accepted (operator);
 > release window **`v0.9.5-beta`** (claim locked; re-pointed from provisional
@@ -134,7 +134,7 @@ must correlate all of them to understand configuration.
 Change status to **Ready** when:
 
 - [x] ADR-120 Accepted 2026-08-13, operator (ADR-016 Rejected with pointer)
-- [x] Release window named: v0.9.5-beta (claim locked 2026-08-13; was provisional v0.10.0-beta)
+- [x] Release window named: v0.9.5-beta (claim re-locked 2026-08-16 as secondary; was UCFG-primary 2026-08-13; was provisional v0.10.0-beta)
 - [x] Work items reviewed against current `main` (council `council-0851e9cb`,
       2026-08-12)
 
