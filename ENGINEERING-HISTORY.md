@@ -88,23 +88,154 @@ See [RELEASE-PLAN.md](./RELEASE-PLAN.md) for the `v0.9.5-beta` cut bar.
 Remaining cut work is changelog promotion and the standing release bar, not more
 claim implementation.
 
-## Interim published tags (not backfilled here)
+## [0.9.4-beta] — 2026-08-10 — Clearer install advice and quieter false alarms
 
-This log was last drafted for the `v0.9.0-beta` window and was **not** promoted
-at that cut or at the later patches. Customer notes and operator records are
-authoritative; do not treat the missing sections as “those tags did not ship”.
+Shipped 2026-08-10. Patch on the v0.9 line so install method, membership, MCP
+allow payload, and a few field checks match reality. Record:
+[plans/releases/v0.9.4-beta.md](./plans/releases/v0.9.4-beta.md).
 
-| Tag           | Date       | Theme                                  | Record                                                                  |
-| ------------- | ---------- | -------------------------------------- | ----------------------------------------------------------------------- |
-| `v0.9.4-beta` | 2026-08-10 | Install honesty + quieter false alarms | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.4-beta.md) |
-| `v0.9.3-beta` | 2026-08-07 | Honesty + Windows path                 | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.3-beta.md) |
-| `v0.9.2-beta` | 2026-08-03 | MCP 2.0 reconnect                      | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.2-beta.md) |
-| `v0.9.1-beta` | 2026-08-02 | Daily path + MCP 2.0                   | [CHANGELOG](./CHANGELOG.md) · [record](./plans/releases/v0.9.1-beta.md) |
+### Install receipt and membership
 
-`v0.8.1-beta` (2026-06-11, headless GitHub login) and the `v0.8.2-beta` Windows
-daemon-ensure hotfix (2026-06-22, not a promoted headline) also shipped without
-a section in this file. See [CHANGELOG](./CHANGELOG.md) and
-[v0.8.1-beta](./plans/releases/v0.8.1-beta.md).
+- **cargo-dist receipt is the source of install method.** `anvil version` /
+  `anvil update` read the receipt where cargo-dist actually writes it (not a
+  guessed path), so official Windows/macOS installs stop recommending
+  `cargo install`. Upgrade advice is platform-correct (PowerShell on Windows).
+- **Workspace register waits for durable membership.** A successful register
+  that then briefly looked missing no longer prints the same refusal as a real
+  failure (short wait + re-check).
+
+### MCP lean allow and field checks
+
+- **Clean `validate_write` allow is minimal by default.** Agents get a small
+  “allowed” envelope unless they ask for full detail
+  (`ANVIL_MCP_VALIDATE_DETAIL` / tool argument). Findings still travel with an
+  allow when diagnostics exist.
+- **Secret-scan path false positives.** Path-shaped / URL-context tokens are
+  less likely to trip high-entropy “looks like a secret”. Post-commit witness
+  notes bind to HEAD.
+- **Python dynamic-execution catalogue (Dave pack 05).** Extra PY reliability
+  shapes land in audit/gate the same way as existing dynamic-execution rules
+  (CIB-315).
+
+### Delivery
+
+- Checkbox approvals on release tracking issues. nanoid override for
+  GHSA-2v37-7h3g-55p8. First tag attempt needed installer-guard / BSD grep fixes
+  before the cut SHA.
+
+## [0.9.3-beta] — 2026-08-07 — Honesty and Windows path
+
+Shipped 2026-08-07. Daily-path honesty (what anvil says matches what it does)
+plus the Windows install / self-update path for cargo-dist users. Field intake:
+Morgan Deus (CIB-220..227) and Dave packs (CIB-228..276, pack trust 252/254).
+Record: [plans/releases/v0.9.3-beta.md](./plans/releases/v0.9.3-beta.md).
+
+### Windows install and cargo-dist receipts
+
+- Dual-install guard no longer no-ops a clean PowerShell install (CIB-228/229).
+  cargo-dist receipt layout drives `update --check` and honest install-method
+  copy. Public installer banners drop private GitHub issue numbers (CIB-230,
+  CIB-288).
+
+### Activation, start, and MCP honesty
+
+- Project-scoped MCP install on interactive start; no false auth login nag
+  (CIB-220..222). Install rows and grouped consent (CIB-244/245). `--verify`
+  labels match observed meaning (CIB-256). Start states observed MCP-entry
+  presence, not client claims. Welcome/init stop promising unattached save-time.
+
+### Gate, watch, and intercept
+
+- Gate warnings-over-blocks residuals; secret-scan depth cap removed (CIB-280).
+  Watch scopes daemon save-time verdicts (CIB-254). Intercept peer-exe check is
+  portable off Linux (CIB-160). Pre-commit hook fail-closed (CIB-277). Tutorial
+  safety chain (CIB-250).
+
+### TUI / path rendering
+
+- Relative times on the watch dashboard; leap-second `:60` rejected (CIB-266).
+  Autoplay stays in-process and does not render host source. Path/line rendering
+  consistency; audit whole-file line null. Skill `--json` cannot leak `\\?\`
+  prefixes.
+
+~343 commits in the range; claim list is the CIB set in the release record, not
+a bulk sweep of every Merged item on main.
+
+## [0.9.2-beta] — 2026-08-03 — MCP 2.0 reconnect
+
+Shipped 2026-08-03 (tag moved once after an openapi regen). Hotfix patch — the
+operator overrode assess’s `v0.10.0-beta` inference because the product reason
+was reconnect, not a new minor. Record was **backfilled 2026-08-04** (not
+live-at-cut); readiness/release/signing runs were not associated with the tagged
+SHA. Record: [plans/releases/v0.9.2-beta.md](./plans/releases/v0.9.2-beta.md).
+
+### MCP protocol honesty (MCP26-013)
+
+- Legacy initialise-era clients that send normal progress metadata were rejected
+  as if they spoke a newer protocol. `f217100af` preserves that metadata so
+  Codex-class clients list and call tools again; broken modern requests still
+  fail clearly.
+
+### Activation TUI Prove (ACTTUI)
+
+- Result-screen **Prove** (`t`) runs a real secret check on a sample fixture and
+  reports whether the engine caught it. Gated on secret-detection being
+  configured; never claims the editor’s live save guard ran. Quiet re-run
+  consent and settled install honesty landed in the same range.
+
+### Adjacent
+
+- Acknowledgements starter v1.1.0 hardening (ATTRIB-018..024) shipped on its own
+  kit cadence in this range. Kindling embedded-runtime seam prepared.
+
+## [0.9.1-beta] — 2026-08-02 — Daily Path Polish and MCP 2.0 support
+
+Shipped 2026-08-02. Daily ensure + multi-harness MCP. First tag attempt on
+`e24dbe318` failed `build-dashboard-ui` (render `dist/` gitignored) and host ACK
+publish (`jq` ARG_MAX); retaken on `6a9711886` after #3484/#3485. Record:
+[plans/releases/v0.9.1-beta.md](./plans/releases/v0.9.1-beta.md). Dashboard
+`--web` stays flag-gated and is **not** a claim of this tag.
+
+### Bare ensure (ONSW, ADR-114)
+
+- Bare `anvil` is the daily ensure surface: idempotent daemon + spine + existing
+  MCP ensure only. Never installs `NotPresent` MCP/workflows/hooks or re-offers
+  declined picks. Unactivated trees point at `anvil start` / `anvil welcome`.
+  `--json` compact; exit 0/1.
+
+### Dual-era MCP (MCP26, ADR-113)
+
+- Stdio host speaks MCP `2026-07-28` alongside four sealed legacy initialise-era
+  versions. Dual-era verification probe on activation. Twelve-client install
+  registry (Claude Code, Cursor, Codex, OpenCode, Gemini CLI, Antigravity,
+  OpenClaw, VS Code, Copilot CLI, Grok, Warp, Zed) with `--verify` /
+  `--dry-run`. W3C `traceparent` from request `_meta`. `rmcp` product adoption
+  remains MCP26-012 (not this tag).
+
+### Activation TUI default (ACTTUI, ADR-103)
+
+- Interactive `anvil start` opens the consent-first TUI without `--tui`.
+  Scripts, CI, `--json`, `--watch`, `--no-tui`, and non-TTY stay plain. First
+  protecting run celebrates once per project (JOURNEY-008).
+
+### Skills, gate, update, LSP
+
+- `anvil skill install` ships `anvil-developer-functions`; doctor reports
+  managed skill freshness (up to date / edited / missing / broken).
+- Gate: warnings-over-blocks by default; WC-002/003 (broken ciphers, JWT `none`)
+  stay hard errors.
+- `anvil update` delegates to Homebrew / Scoop / WinGet when the receipt says
+  so; direct installs keep the signed download path.
+- `anvil lsp --stdio` advisory graph (symbol_at, references, impact, affected
+  tests) — RTAI-005 / ADR-109; experimental.
+
+### Telemetry and checks
+
+- Opt-out anonymous fleet beacon (FLEET-001/002/005): at most once per day after
+  an interactive notice; no source, paths, args, or findings. `DO_NOT_TRACK=1` /
+  `ANVIL_TELEMETRY=off` / `anvil telemetry off`.
+- FRAG-001 invisible-until-animated presentation. Generated-file exclude via
+  `linguist-generated` and `antipattern.exclude`.
 
 ## [0.9.0-beta] — 2026-07-12 — First-Run Wins and the Assistant Graph
 
@@ -335,8 +466,8 @@ weeks. Record: [plans/releases/v0.9.0-beta.md](./plans/releases/v0.9.0-beta.md).
 - **Window reconciliation.** Across the window the graph modules closed out: GV2
   **Done 21/21**, GCTX **14/14**, GCALL **7/7**, USAGE **5/5**, KDS **5/5**,
   with continuous APS index/Merged-via reconciliation and archive of
-  prior-window modules. The all-Merged modules stay `In Progress` pending the
-  `v0.9.0-beta` tag (the closeout cascade advances them to Complete + archive).
+  prior-window modules. The all-Merged modules were `In Progress` until the
+  `v0.9.0-beta` tag (closeout cascade then Complete + archive).
 - **Release Drafter (#2691).** Automated, label-driven draft release notes wired
   in, complementing the hand-curated changelog + engineering history.
 - **Canonical APS dev loop (#2955).** Installed the canonical APS loop skill set
@@ -361,9 +492,55 @@ weeks. Record: [plans/releases/v0.9.0-beta.md](./plans/releases/v0.9.0-beta.md).
 - **APS index & module state.** Continuous index refreshes, CIB count bumps,
   USAGE/MLP2/GV2/GCTX state alignment before and after the window transition.
 
-Shipped as [v0.9.0-beta](./plans/releases/v0.9.0-beta.md). Later patch themes
-are listed in the interim table above; do not read this section as the current
-window.
+Shipped as [v0.9.0-beta](./plans/releases/v0.9.0-beta.md). Later patches are the
+`v0.9.1-beta`–`v0.9.4-beta` sections above; do not read this section as the
+current window.
+
+## [0.8.2-beta] — 2026-06-22 — Windows daemon ensure (hotfix)
+
+Shipped 2026-06-22. **Not** a promoted headline window — a nine-commit hotfix on
+the v0.8 line so Windows can actually `ensure` the save-time daemon
+([#2937](https://github.com/eddacraft/anvil-001/issues/2937)). No dedicated
+`plans/releases/` record. Customer changelog has no `## [0.8.2-beta]` section.
+
+### What the tag actually contains
+
+- **Idempotent `ensure` primitive** (probe → same-user lock → re-probe →
+  detached spawn → bound-wait). Unix-first, then Windows enabled for CIB-072.
+- **DLIFE-003 / DLIFE-004.** `anvil start` auto-starts the save-time daemon;
+  `anvil watch` offers it (headless fallback). These also appear in the
+  `v0.9.0-beta` section above because that draft was written across this hotfix.
+- Windows `JoinHandle::detach` replaced with drop. Watch-lifecycle review
+  follow-ups.
+
+## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
+
+Shipped 2026-06-11, hours after `v0.8.0-beta` (GHCLIAUTH missed that tag by ~5
+hours). Record:
+[plans/releases/v0.8.1-beta.md](./plans/releases/v0.8.1-beta.md).
+
+### GitHub device-flow login (GHCLIAUTH, ADR-066)
+
+- Default `anvil auth login` is the GitHub Device Authorisation Grant
+  ([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628)), brokered by `anvil-api`
+  (`POST /api/v1/auth/github-device/{start,poll}`). CLI shows a short code +
+  `github.com/login/device`; any device completes it. No local browser, works
+  over SSH/tmux.
+- Closes the un-completable login from #1779 (activation page could not send the
+  auth header the old `/device/confirm` required). Confirm endpoint removed
+  (GHCLIAUTH-008); browser activation retired (GHCLIAUTH-007). `--otp` remains
+  the no-GitHub fallback.
+- Account link by numeric `github_id`. `/health` degrades when CLI OAuth creds
+  are missing. Ungated device-flow ops logs +
+  [github-device-flow runbook](./docs/runbooks/github-device-flow.md).
+  Wiremock-backed headless E2E.
+
+### Operational leftovers (not this tag)
+
+- Legacy `/api/v1/auth/device/start` + `/poll` stay live for older CLIs;
+  `device_codes` table retirement is later intake.
+- WinGet publication still deferred (unsigned Windows binaries). joi pinned to
+  patched 18.x. eddacraft-tui 0.4.0 rolled in.
 
 ## [0.8.0-beta] — 2026-06-11 — The Save-Time Daemon
 
