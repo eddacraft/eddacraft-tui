@@ -222,10 +222,11 @@ pub fn normalise_repo_path(path: &Path) -> PathBuf {
         return path.to_path_buf();
     }
     // `<root>/.git` directory → worktree is the parent.
-    if path.is_dir() && path.file_name().is_some_and(|n| n == ".git") {
-        if let Some(parent) = path.parent() {
-            return parent.to_path_buf();
-        }
+    if path.is_dir()
+        && path.file_name().is_some_and(|n| n == ".git")
+        && let Some(parent) = path.parent()
+    {
+        return parent.to_path_buf();
     }
     // Linked-worktree gitdir (`<common>/worktrees/<name>`): `gitdir` points at
     // `<worktree>/.git`.
@@ -945,7 +946,7 @@ pub fn resolve_graph_base_command(current_exe: Option<&Path>, path_var: Option<&
         .unwrap_or_else(|| PathBuf::from(PREFERRED_GRAPH_BASE_COMMAND))
 }
 
-fn named_spawn_error(err: io::Error, exe: &Path, repo: &Path) -> io::Error {
+fn named_spawn_error(err: &io::Error, exe: &Path, repo: &Path) -> io::Error {
     io::Error::new(
         err.kind(),
         format!(
@@ -973,7 +974,7 @@ pub fn spawn_graph_base_child(exe: &Path, repo: &Path) -> io::Result<std::proces
         // in the daemon log.
         .stdout(Stdio::null())
         .spawn()
-        .map_err(|err| named_spawn_error(err, exe, repo))
+        .map_err(|err| named_spawn_error(&err, exe, repo))
 }
 
 /// If a loadable shared-base artefact already exists for `repo`'s resolved
