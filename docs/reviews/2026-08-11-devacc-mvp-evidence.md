@@ -1,8 +1,8 @@
 # DEVACC MVP evidence note (Tier A + dry-run B)
 
-| Type  | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                      |
-| ----- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Advisory  | DEVACC | Live   | Last reviewed 2026-08-13 against `docs/architecture/dev-acceleration-benchmark-spec.md` — DOCFRESH-005 changed only that spec's Freshness cell (a metadata-only re-date), not its content, so this evidence note is unaffected |
+| Type  | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                                                            |
+| ----- | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | DEVACC | Live   | Last reviewed 2026-08-16 against `docs/architecture/dev-acceleration-benchmark-spec.md` — #3915 changed only that spec's Freshness cell (a metadata-only re-date), not its content, so this evidence note is unaffected. Same finding on 2026-08-13 for DOCFRESH-005 |
 
 | Upstream                                                                                                                                                                               | Downstream                                         |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
