@@ -89,7 +89,7 @@ and Graph Trust Surfaces remain beside this window, not the cut claim.
   list, telemetry, migrate schema/gate-config/architecture, intercept, workspace
   mutations, licenses, new, gate `--list-profiles`, mcp-config TOML previews,
   baseline, hook bootstrap dry-run, capsule prune, tutorial `--reset`, welcome,
-  update sidecar) now emit a document or a structured refuse.
+  update sidecar) now emit a document or a structured error.
   `json_surface_audit.rs` classifies every terminal clap path.
 - **GCTX dogfood (CIB-341..343; CIB-344 process half).** Scan-timeout on a
   populated graph publishes `generation >= 1` Ready+stale (CIB-341). Graph-base
