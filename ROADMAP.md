@@ -106,7 +106,6 @@ browser surface. Immutable records live under
 | `v0.9.1-beta` | Daily Path Polish and MCP 2.0 support  | Bare daily ensure, default activation TUI, twelve-client MCP install, dual-era protocol support, managed skills, and warning-over-block gate honesty. Shipped 2026-08-02. |
 | `v0.9.2-beta` | MCP 2.0 reconnect                      | Patch: MCP reconnect (MCP26-013) + dashboard openapi version fix. Shipped 2026-08-03.                                                                                     |
 | `v0.9.3-beta` | Honesty and Windows path               | Daily-path honesty + Windows install/self-update path (Morgan + Dave field packs). Shipped 2026-08-07.                                                                    |
-| `v0.9.5-beta` | MCP live-heal and config unification   | After upgrade, owned MCP heals without typical session restart; one canonical project config. Shipped 2026-08-16.                                                         |
 | `v0.9.4-beta` | Clearer install advice and quieter FPs | Install method honesty, membership wait, lean MCP allow, path secret FP + Python DE coverage. Shipped 2026-08-10.                                                         |
 | `v0.9.5-beta` | MCP live-heal and config unification   | After upgrade, owned MCP heals without typical session restart; one canonical project config. Shipped 2026-08-16.                                                         |
 
