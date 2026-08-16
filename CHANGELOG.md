@@ -117,10 +117,11 @@ checks match reality.
   Runtime and missing-file failures still exit 1.
 
 - **`--json` on config, GCTX egress, capsule create, and migrate format is JSON
-  only.** Successful `config show`, `config set`, `config convert`,
-  `gctx egress enable`/`disable`, `capsule create`, and `migrate format` print
-  one JSON document to stdout when `--json` is set. Human output without the
-  flag is unchanged. A remaining CLI-wide `--json` sweep is still open (#3947).
+  only.** Successful `anvil config show`, `anvil config set`,
+  `anvil config convert`, `anvil gctx egress enable`/`disable`,
+  `anvil capsule create`, and `anvil migrate format` print one JSON document to
+  stdout when `--json` is set. Human output without the flag is unchanged. A
+  remaining CLI-wide `--json` sweep is still open (#3947).
 
 - **`anvil config convert` rewrites destination format metadata.** Converting
   YAML to JSON no longer leaves `"format": "yml"` (and the same for other

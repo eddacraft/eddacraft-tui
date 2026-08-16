@@ -57,8 +57,8 @@ unification and honesty pass.
 **Status:** **Claim locked; not cut-ready.** Primary and secondary claim items
 are Merged on `main`. The #3925 P1 acceptance-repair queue is closed. Remaining
 cut work is finishing `[Unreleased]` curation (hygiene pass 2026-08-16), the
-standing base bar, optional CLI-wide `--json` (#3947), then preflight → prepare
-→ readiness → tag.
+standing bar, optional CLI-wide `--json` (#3947), then preflight → prepare →
+readiness → tag.
 
 **Customer one-liner:** Upgrade anvil and keep coding — MCP heals itself; pin if
 you do not want that. One config file story comes with it.
@@ -152,7 +152,7 @@ for Released/Shipped → Complete.
 
 ### Cut criteria
 
-- Standing base bar: full Cross matrix, release-readiness on source SHA,
+- Standing bar: full Cross matrix, release-readiness on source SHA,
   ACKNOWLEDGEMENTS fresh, dashboard openapi `check:api` green.
 - Every **primary** claim item Merged with validation evidence (satisfied at
   re-lock; re-confirm on source SHA at preflight).
