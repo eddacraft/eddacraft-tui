@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use animate::{Animate, Lerp, Once};
+use animate_core::{Animate, Lerp, Once};
 use anvil_kernel_types::EngineEvent;
 use eddacraft_tui::keyboard::Action;
 
@@ -15,7 +15,7 @@ fn animated_f64(initial: f64) -> AnimatedF64 {
     Once::new(
         initial,
         OVERLAY_ANIM_DURATION_MS,
-        animate::easing::quad_out as fn(f64) -> f64,
+        animate_core::easing::quad_out as fn(f64) -> f64,
         <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
     )
 }

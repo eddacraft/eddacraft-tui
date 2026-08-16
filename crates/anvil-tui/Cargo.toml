@@ -10,7 +10,7 @@ description = "Anvil TUI surfaces built on eddacraft-tui — watch dashboard, ga
 name = "anvil_tui"
 
 [dependencies]
-animate = { workspace = true }
+animate-core = { workspace = true }
 # json-render: anvil-tui hosts the Anvil-domain catalogue, the .anvil/ data
 # context, and the spec-rendering dashboard surface (ADR-054, TUIDASH).
 # big-text: the JOURNEY-008 first-success celebration banner (BigBanner).

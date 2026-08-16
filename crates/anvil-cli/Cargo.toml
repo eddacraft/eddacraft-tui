@@ -21,7 +21,7 @@ name = "anvil"
 path = "src/main.rs"
 
 [dependencies]
-animate = { workspace = true }
+animate-core = { workspace = true }
 anvil-tui = { path = "../anvil-tui", package = "eddacraft-anvil-tui" }
 # DASH-012: `anvil dashboard --web` serves the browser dashboard in-process, so
 # the read-only API and the embedded UI ship inside the one `anvil` binary the

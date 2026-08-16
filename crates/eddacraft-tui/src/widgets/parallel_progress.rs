@@ -1,7 +1,7 @@
 use std::fmt;
 use std::time::{Duration, Instant};
 
-use animate::Animate;
+use animate_core::Animate;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
@@ -504,7 +504,7 @@ mod tests {
         // Advance past the configured animation duration and re-render.
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let advance = ANIM_DURATION_MS as usize + 1;
-        animate::tick(advance);
+        animate_core::tick(advance);
         ParallelProgress::new(&theme).render(area, &mut buf, &mut state);
 
         assert_eq!(

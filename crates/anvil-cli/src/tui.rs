@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-use animate::is_animating;
+use animate_core::is_animating;
 use anvil_kernel_types::{EngineEvent, EventType};
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::Surface;
@@ -868,7 +868,7 @@ where
         // remainder accumulates into the next iteration so animations still
         // progress when individual loop iterations run faster than 1 ms.
         *last_tick += Duration::from_millis(ms as u64);
-        animate::tick(ms);
+        animate_core::tick(ms);
     }
 
     if !already_dirty && is_animating() {

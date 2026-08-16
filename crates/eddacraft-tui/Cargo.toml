@@ -26,10 +26,11 @@ ratatui = "0.30"
 crossterm = "0.29"
 unicode-width = "0.2"
 textwrap = { version = "0.16", features = ["smawk"] }
-# `animate` is pinned to an exact version because the crate has a small
-# public footprint and ships proc-macro code (build-time RCE surface). Bumps
-# should go through `cargo audit` and a manual review.
-animate = { version = "=0.3.0", features = ["ratatui"] }
+# `animate-core` is pinned to an exact version because the crate has a
+# small public footprint. Bumps should go through `cargo audit` and a
+# manual review. Depend on `-core` directly so the unused
+# `animate-macros` proc-macro never enters the graph.
+animate-core = { version = "=0.3.0" }
 ratatui-image = { version = "11", default-features = false, features = [
   "crossterm",
 ], optional = true }
