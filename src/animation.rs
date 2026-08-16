@@ -4,11 +4,11 @@
 
 /// Advance the animation clock by `delta_ms`. Call once per frame.
 pub fn animate_tick(delta_ms: usize) {
-    animate::tick(delta_ms);
+    animate_core::tick(delta_ms);
 }
 
 /// Whether any tracked value is still easing toward its target.
 #[must_use]
 pub fn is_animating() -> bool {
-    animate::is_animating()
+    animate_core::is_animating()
 }
