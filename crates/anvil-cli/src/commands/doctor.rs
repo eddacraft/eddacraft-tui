@@ -147,6 +147,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_state_boundary(),
         check_managed_skills(),
         check_mcp_heal(),
+        check_mcp_orphans(),
     ]
 }
 
@@ -1511,6 +1512,48 @@ fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
 }
 
 /// Daily MCP self-heal: rewrite drifted owned entries and poke live children.
+fn check_mcp_orphans() -> DiagnosticCheck {
+    check_mcp_orphans_from(&crate::commands::mcp_orphan::list_anvil_mcp_serve())
+}
+
+fn check_mcp_orphans_from(
+    table: &[crate::commands::mcp_orphan::McpServeProcess],
+) -> DiagnosticCheck {
+    let (live, orphans) = crate::commands::mcp_orphan::partition_mcp_shims(table);
+    if orphans.is_empty() {
+        return DiagnosticCheck {
+            name: "mcp-orphans".to_string(),
+            category: "MCP".to_string(),
+            status: CheckStatus::Pass,
+            message: match live.len() {
+                0 => "no anvil mcp serve processes".to_string(),
+                n => format!("{n} live anvil mcp serve process(es)"),
+            },
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+    let pids: Vec<String> = orphans.iter().map(|p| p.pid.to_string()).collect();
+    DiagnosticCheck {
+        name: "mcp-orphans".to_string(),
+        category: "MCP".to_string(),
+        status: CheckStatus::Warn,
+        message: format!(
+            "{} orphan anvil mcp serve process(es); live={}",
+            orphans.len(),
+            live.len()
+        ),
+        details: Some(format!("pids: {}", pids.join(", "))),
+        auto_fixable: true,
+        remediation: Remediation {
+            summary: "send SIGTERM to orphan shims whose parent is gone".to_string(),
+            command: Some("anvil doctor --fix".to_string()),
+            doc_url: None,
+        },
+    }
+}
+
 fn check_mcp_heal() -> DiagnosticCheck {
     let home = crate::util::user_home_dir();
     let project = std::env::current_dir().ok();
@@ -2111,6 +2154,23 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
                     }
                 }
             },
+            "mcp-orphans" => {
+                let table = crate::commands::mcp_orphan::list_anvil_mcp_serve();
+                let (_live, orphans) = crate::commands::mcp_orphan::partition_mcp_shims(&table);
+                let owned: Vec<_> = orphans.into_iter().cloned().collect();
+                let sent = crate::commands::mcp_orphan::reap_orphans(&owned);
+                if sent > 0 {
+                    check.status = CheckStatus::Pass;
+                    check.message =
+                        format!("sent SIGTERM to {sent} orphan anvil mcp serve process(es)");
+                    check.auto_fixable = false;
+                    if speak {
+                        println!("  Fixed: mcp-orphans — sent SIGTERM to {sent} orphan shim(s)");
+                    }
+                } else if speak {
+                    eprintln!("  Failed to fix mcp-orphans: no orphan pids signalled");
+                }
+            }
             "plans-dir" => match std::fs::create_dir_all("plans") {
                 Ok(()) => {
                     check.status = CheckStatus::Pass;
@@ -4153,6 +4213,41 @@ mod tests {
             checks.iter().any(|c| c.name == "mcp-heal"),
             "mcp-heal must be registered in run_all_checks",
         );
+    }
+
+    #[test]
+    fn run_all_checks_includes_mcp_orphans_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks.iter().any(|c| c.name == "mcp-orphans"),
+            "mcp-orphans must be registered in run_all_checks",
+        );
+    }
+
+    #[test]
+    fn mcp_orphans_warns_only_on_parentless_shims() {
+        use crate::commands::mcp_orphan::McpServeProcess;
+        let table = [
+            McpServeProcess {
+                pid: 10,
+                ppid: 50,
+                cmdline: "anvil mcp serve --stdio".into(),
+                parent_cmdline: Some("grok".into()),
+            },
+            McpServeProcess {
+                pid: 11,
+                ppid: 1,
+                cmdline: "anvil mcp serve --stdio".into(),
+                parent_cmdline: None,
+            },
+        ];
+        let check = check_mcp_orphans_from(&table);
+        assert_eq!(check.name, "mcp-orphans");
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.auto_fixable);
+        assert!(check.message.contains("1 orphan"), "{}", check.message);
+        assert!(check.details.as_deref().unwrap_or("").contains("11"));
+        assert!(!check.remediation.summary.is_empty());
     }
 
     #[test]
