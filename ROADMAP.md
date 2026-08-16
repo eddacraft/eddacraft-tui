@@ -108,6 +108,7 @@ browser surface. Immutable records live under
 | `v0.9.3-beta` | Honesty and Windows path               | Daily-path honesty + Windows install/self-update path (Morgan + Dave field packs). Shipped 2026-08-07.                                                                    |
 | `v0.9.5-beta` | MCP live-heal and config unification   | After upgrade, owned MCP heals without typical session restart; one canonical project config. Shipped 2026-08-16.                                                         |
 | `v0.9.4-beta` | Clearer install advice and quieter FPs | Install method honesty, membership wait, lean MCP allow, path secret FP + Python DE coverage. Shipped 2026-08-10.                                                         |
+| `v0.9.5-beta` | MCP live-heal and config unification   | After upgrade, owned MCP heals without typical session restart; one canonical project config. Shipped 2026-08-16.                                                         |
 
 **Latest shipped headline:** `v0.9.5-beta` (2026-08-16). Release record:
 [`plans/releases/v0.9.5-beta.md`](./plans/releases/v0.9.5-beta.md).
