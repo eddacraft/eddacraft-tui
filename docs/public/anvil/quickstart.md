@@ -76,7 +76,7 @@ Open a **new** terminal:
 anvil version
 ```
 
-You should see a version (currently `0.9.4-beta` or newer), the install method,
+You should see a version (currently `0.9.5-beta` or newer), the install method,
 and upgrade guidance when an update exists. Prefer `anvil version` over
 `anvil --version` when you care about how the binary was installed.
 

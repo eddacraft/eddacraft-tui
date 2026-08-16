@@ -7,7 +7,7 @@ owner: DOCSYNC
 upstream:
   - CHANGELOG.md
   - RELEASE-PLAN.md
-verified_against: 0.9.4-beta
+verified_against: 0.9.5-beta
 ---
 
 # Current release notes
@@ -17,7 +17,7 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.5-beta — 16 August 2026
+## 0.9.5-beta — 16 August 2026 — MCP live-heal and config unification
 
 This window is about staying attached after an upgrade: daily `anvil`,
 `anvil start`, and `anvil doctor` rewrite owned MCP configs and poke live
