@@ -69,17 +69,18 @@ From a real project root, in order:
 A clean scan is not a failure. The question is whether the result is explicit,
 repeatable, and recoverable without outside help.
 
-## 0.9.4-beta focus pass
+## 0.9.5-beta focus pass
 
 Exercise the paths that changed in this release when they apply to your setup:
 
-| Focus                        | Exercise                                                                                                                     | Expected evidence                                                                                                                          |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Install method honesty       | On Windows or macOS after a quickstart standalone install (or after upgrade), run `anvil version` and `anvil update --check` | Method is not a false `cargo install` for official installer installs; upgrade advice matches the method (PowerShell on Windows)           |
-| MCP lean allow               | With a protected client, trigger a clean pre-write allow (or inspect tool JSON)                                              | Default allow response is small (`schema` + `decision`); full envelope available with `detail: "full"` or `ANVIL_MCP_VALIDATE_DETAIL=full` |
-| Durable workspace membership | Register a disposable Git worktree with `anvil workspace register -- <path>`, then run `anvil workspace list --json`         | Success only when the JSON list retains the worktree; no false "failed" when membership sticks after a short wait                          |
-| Path false alarms            | Run `anvil check` or `anvil gate` on a tree with long hex-looking path segments in docs or config                            | Path-like tokens are less often reported as high-entropy secrets                                                                           |
-| Python dynamic execution     | In a disposable `.py` file, introduce `eval(name)` or `os.system(...)`, then run `anvil check` or `anvil gate`               | `PY-008` / `PY-009` findings appear for those shapes                                                                                       |
+| Focus                       | Exercise                                                                                                                                   | Expected evidence                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| MCP live-heal after upgrade | Upgrade anvil, leave a protected client open, then run bare `anvil` or `anvil start`                                                       | Owned MCP entries rewrite to PATH-stable `anvil mcp serve --stdio` and live children heal without requiring a full editor restart |
+| Pin freezes heal            | Set `anvil mcp pin` (or `ANVIL_MCP_PIN=1`), make configs skew, run daily ensure                                                            | Daily heal and in-process recycle stay frozen until unpin                                                                         |
+| Emergency cascade           | Run `anvil mcp refresh --json` (and optionally `--processes report`)                                                                       | Report covers rewrite / recycle / poke; default process mode lists orphans without signalling live editor children                |
+| One project config file     | In a disposable project, `anvil init`, then `anvil config show` and `anvil doctor`                                                         | Fresh configs are `.anvil.yaml` (or chosen format); dual-file / legacy-key states are named clearly                               |
+| Migrate older names         | Drop a leftover `.anvilrc` or `.anvil/gate-config.json`, run `anvil migrate format` / `anvil migrate gate-config` (preview then `--apply`) | Destination matches chosen format; gate composition moves into the project file                                                   |
+| Claude project MCP path     | Project-scope `anvil mcp install --client claude-code` in a disposable repo                                                                | Writes project `.mcp.json` (not workspace `.claude.json`) for the scope Claude actually loads                                     |
 
 Use disposable projects and worktrees for the mutating exercises. Do not test
 installer or registration paths against a production checkout.
