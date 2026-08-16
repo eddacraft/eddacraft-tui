@@ -404,27 +404,7 @@ impl PatternMatcher {
     }
 
     pub fn looks_like_code(&self, value: &str) -> bool {
-        self.looks_like_structural_code(value) || looks_like_mixed_case_identifier(value)
-    }
-
-    /// Calls, URLs, file extensions, and `SCREAMING_SNAKE` constants.
-    /// Entropy uses this set and not mixed-case identifiers (CIB-340).
-    pub(crate) fn looks_like_structural_code(&self, value: &str) -> bool {
-        static STRUCTURAL: LazyLock<Vec<Regex>> = LazyLock::new(|| {
-            [
-                r"^[a-z][a-zA-Z0-9]*\(",
-                r"^[a-z][a-zA-Z0-9]*\.[a-z]",
-                r"^https?:\/\/",
-                r"^[a-z]+:\/\/",
-                r"\.(js|ts|css|html|json|md|txt)$",
-                r"^[A-Z][A-Z0-9_]+$",
-            ]
-            .iter()
-            .filter_map(|p| Regex::new(p).ok())
-            .collect()
-        });
-
-        STRUCTURAL.iter().any(|pattern| pattern.is_match(value))
+        looks_like_structural_code(value) || looks_like_mixed_case_identifier(value)
     }
 
     pub fn redact_secret(&self, value: &str) -> String {
@@ -469,6 +449,26 @@ impl PatternMatcher {
 
         format!("{prefix}{}{suffix}", self.redact_line(segment))
     }
+}
+
+/// Calls, URLs, file extensions, and `SCREAMING_SNAKE` constants.
+/// Entropy uses this set and not mixed-case identifiers (CIB-340).
+pub(crate) fn looks_like_structural_code(value: &str) -> bool {
+    static STRUCTURAL: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+        [
+            r"^[a-z][a-zA-Z0-9]*\(",
+            r"^[a-z][a-zA-Z0-9]*\.[a-z]",
+            r"^https?:\/\/",
+            r"^[a-z]+:\/\/",
+            r"\.(js|ts|css|html|json|md|txt)$",
+            r"^[A-Z][A-Z0-9_]+$",
+        ]
+        .iter()
+        .filter_map(|p| Regex::new(p).ok())
+        .collect()
+    });
+
+    STRUCTURAL.iter().any(|pattern| pattern.is_match(value))
 }
 
 fn looks_like_mixed_case_identifier(value: &str) -> bool {
@@ -705,8 +705,8 @@ mod tests {
         assert!(matcher.looks_like_code("service.call"));
         assert!(matcher.looks_like_code("https://eddacraft.dev"));
         assert!(matcher.looks_like_code("aB3dE7fG9hJ2kL4m"));
-        assert!(!matcher.looks_like_structural_code("aB3dE7fG9hJ2kL4m"));
-        assert!(matcher.looks_like_structural_code("fetch("));
+        assert!(!super::looks_like_structural_code("aB3dE7fG9hJ2kL4m"));
+        assert!(super::looks_like_structural_code("fetch("));
         assert!(!matcher.looks_like_code("9xY7qW2vK8mN4pR6"));
     }
 

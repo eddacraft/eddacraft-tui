@@ -118,7 +118,7 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
             // CamelCase / PascalCase used to drop ~half of mixed-case
             // opaque tokens (Dave B16 / CIB-340). Named-pattern scanning
             // still uses the full `looks_like_code` set.
-            if matcher.looks_like_structural_code(candidate) {
+            if crate::secret::patterns::looks_like_structural_code(candidate) {
                 continue;
             }
 
