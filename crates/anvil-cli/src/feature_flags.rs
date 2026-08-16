@@ -60,6 +60,7 @@ pub const CLI_GATED_COMMANDS: &[&str] = &[
     "init",
     "mcp-config",
     "mcp-install",
+    "mcp-pin",
     "new",
     "policy",
     "skill-install",

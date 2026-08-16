@@ -11,6 +11,321 @@ use serde_json::{Value, json};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
+fn run_unauthenticated_mcp(
+    home: &std::path::Path,
+    workspace: &std::path::Path,
+    json: bool,
+    include_workspace_arg: bool,
+    extra: &[&str],
+) -> std::process::Output {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui");
+    if json {
+        cmd.arg("--json");
+    }
+    cmd.arg("mcp").args(extra);
+    if include_workspace_arg {
+        cmd.arg("--workspace").arg(workspace);
+    }
+    cmd.current_dir(workspace)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("XDG_CONFIG_HOME", home.join("xdg"))
+        .env("ANVIL_HOME", home.join("anvil-home"))
+        .env_remove("ANVIL_TOUCH_PROJECT_STATE")
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .env_remove("ANVIL_LOG")
+        .env_remove("RUST_LOG")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_NO_PROMPT", "1");
+    cmd.output().expect("failed to invoke anvil binary")
+}
+
+fn assert_json_auth_required(output: &std::process::Output, context: &str) {
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "{context} must remain auth-gated\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let auth: Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|error| {
+        panic!(
+            "{context} stdout must be one JSON auth envelope ({error}); \
+             stdout={stdout:?} stderr={stderr:?}"
+        )
+    });
+    assert_eq!(auth["state"], "authRequired");
+    assert_eq!(auth["next"], "anvil auth login");
+    assert!(
+        auth.get("error").is_none(),
+        "authRequired must keep the stable informational shape: {auth}"
+    );
+    assert_eq!(
+        stdout.trim().lines().count(),
+        1,
+        "{context} stdout must contain only the JSON auth envelope"
+    );
+    assert!(
+        stderr.trim().is_empty(),
+        "{context} JSON auth failure must not emit human chatter: {stderr}"
+    );
+}
+
+#[test]
+fn mcp_install_read_only_modes_bypass_auth_while_real_install_remains_gated() {
+    let dry_run_home = tempfile::tempdir().unwrap();
+    let dry_run_workspace = tempfile::tempdir().unwrap();
+    let dry_run = run_unauthenticated_mcp(
+        dry_run_home.path(),
+        dry_run_workspace.path(),
+        false,
+        true,
+        &["install", "--client", "codex", "--dry-run"],
+    );
+
+    let verify_home = tempfile::tempdir().unwrap();
+    let verify_workspace = tempfile::tempdir().unwrap();
+    let verify_config = verify_workspace.path().join(".codex/config.toml");
+    fs::create_dir_all(verify_config.parent().unwrap()).unwrap();
+    let expected_config =
+        "[mcp_servers.anvil]\ncommand = \"anvil\"\nargs = [\"mcp\", \"serve\", \"--stdio\"]\n";
+    fs::write(&verify_config, expected_config).unwrap();
+    let verify_tree_before: Vec<_> = fs::read_dir(verify_workspace.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    let verify = run_unauthenticated_mcp(
+        verify_home.path(),
+        verify_workspace.path(),
+        false,
+        true,
+        &["install", "--client", "codex", "--verify"],
+    );
+
+    let install_home = tempfile::tempdir().unwrap();
+    let install_workspace = tempfile::tempdir().unwrap();
+    let install = run_unauthenticated_mcp(
+        install_home.path(),
+        install_workspace.path(),
+        true,
+        true,
+        &["install", "--client", "codex"],
+    );
+
+    assert!(
+        dry_run.status.success(),
+        "unauthenticated dry-run should bypass auth\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&dry_run.stdout),
+        String::from_utf8_lossy(&dry_run.stderr),
+    );
+    assert!(
+        !dry_run_workspace.path().join(".codex/config.toml").exists(),
+        "dry-run must not create the client config"
+    );
+    assert!(
+        fs::read_dir(dry_run_workspace.path())
+            .unwrap()
+            .next()
+            .is_none(),
+        "dry-run must not change the project tree"
+    );
+
+    assert!(
+        verify.status.success(),
+        "unauthenticated verify should bypass auth for a valid entry\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&verify.stdout),
+        String::from_utf8_lossy(&verify.stderr),
+    );
+    assert_eq!(
+        fs::read_to_string(&verify_config).unwrap(),
+        expected_config,
+        "verify must not change the client config"
+    );
+    let verify_tree_after: Vec<_> = fs::read_dir(verify_workspace.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(
+        verify_tree_after, verify_tree_before,
+        "verify must not change the project tree"
+    );
+
+    assert_json_auth_required(&install, "real unauthenticated install");
+    assert!(
+        !install_workspace.path().join(".codex/config.toml").exists(),
+        "gated install must not create the client config"
+    );
+    assert!(
+        fs::read_dir(install_workspace.path())
+            .unwrap()
+            .next()
+            .is_none(),
+        "gated install must not change the project tree"
+    );
+}
+
+#[test]
+fn mcp_pin_and_unpin_remain_auth_gated_without_touching_pin_state() {
+    let pin_home = tempfile::tempdir().unwrap();
+    let pin_workspace = tempfile::tempdir().unwrap();
+    let pin = run_unauthenticated_mcp(pin_home.path(), pin_workspace.path(), true, false, &["pin"]);
+    assert_json_auth_required(&pin, "unauthenticated mcp pin");
+    assert!(
+        !pin_home.path().join("anvil-home/mcp-heal.pin").exists(),
+        "gated pin must not create pin state"
+    );
+    assert!(
+        fs::read_dir(pin_workspace.path()).unwrap().next().is_none(),
+        "gated pin must not change the project tree"
+    );
+
+    let unpin_home = tempfile::tempdir().unwrap();
+    let unpin_workspace = tempfile::tempdir().unwrap();
+    let pin_path = unpin_home.path().join("anvil-home/mcp-heal.pin");
+    fs::create_dir_all(pin_path.parent().unwrap()).unwrap();
+    fs::write(&pin_path, "test-version\n").unwrap();
+    let unpin = run_unauthenticated_mcp(
+        unpin_home.path(),
+        unpin_workspace.path(),
+        true,
+        false,
+        &["unpin"],
+    );
+    assert_json_auth_required(&unpin, "unauthenticated mcp unpin");
+    assert_eq!(
+        fs::read_to_string(&pin_path).unwrap(),
+        "test-version\n",
+        "gated unpin must not remove or change pin state"
+    );
+    assert!(
+        fs::read_dir(unpin_workspace.path())
+            .unwrap()
+            .next()
+            .is_none(),
+        "gated unpin must not change the project tree"
+    );
+}
+
+fn run_unauthenticated_mcp_config(
+    home: &std::path::Path,
+    workspace: &std::path::Path,
+    json: bool,
+    extra: &[&str],
+) -> std::process::Output {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui");
+    if json {
+        cmd.arg("--json");
+    }
+    cmd.arg("mcp-config")
+        .args(extra)
+        .arg("--workspace")
+        .arg(workspace)
+        .current_dir(workspace)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("XDG_CONFIG_HOME", home.join("xdg"))
+        .env("ANVIL_HOME", home.join("anvil-home"))
+        .env_remove("ANVIL_TOUCH_PROJECT_STATE")
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .env_remove("ANVIL_LOG")
+        .env_remove("RUST_LOG")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_NO_PROMPT", "1");
+    cmd.output().expect("failed to invoke anvil binary")
+}
+
+#[test]
+fn mcp_config_read_only_modes_bypass_auth_while_write_remains_gated() {
+    let preview_home = tempfile::tempdir().unwrap();
+    let preview_workspace = tempfile::tempdir().unwrap();
+    let preview = run_unauthenticated_mcp_config(
+        preview_home.path(),
+        preview_workspace.path(),
+        false,
+        &["--target", "codex"],
+    );
+
+    let verify_home = tempfile::tempdir().unwrap();
+    let verify_workspace = tempfile::tempdir().unwrap();
+    let verify_config = verify_workspace.path().join(".codex/config.toml");
+    fs::create_dir_all(verify_config.parent().unwrap()).unwrap();
+    let expected_config =
+        "[mcp_servers.anvil]\ncommand = \"anvil\"\nargs = [\"mcp\", \"serve\", \"--stdio\"]\n";
+    fs::write(&verify_config, expected_config).unwrap();
+    let verify = run_unauthenticated_mcp_config(
+        verify_home.path(),
+        verify_workspace.path(),
+        false,
+        &["--target", "codex", "--verify"],
+    );
+
+    let write_home = tempfile::tempdir().unwrap();
+    let write_workspace = tempfile::tempdir().unwrap();
+    let write = run_unauthenticated_mcp_config(
+        write_home.path(),
+        write_workspace.path(),
+        true,
+        &["--target", "codex", "--write"],
+    );
+
+    assert!(
+        preview.status.success(),
+        "unauthenticated mcp-config preview should bypass auth\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&preview.stdout),
+        String::from_utf8_lossy(&preview.stderr),
+    );
+    assert!(
+        String::from_utf8_lossy(&preview.stdout).contains("[mcp_servers.anvil]"),
+        "preview should render the proposed Codex entry"
+    );
+    assert!(
+        fs::read_dir(preview_workspace.path())
+            .unwrap()
+            .next()
+            .is_none(),
+        "preview must not change the project tree or create client config"
+    );
+
+    assert!(
+        verify.status.success(),
+        "unauthenticated mcp-config verify should bypass auth for a valid entry\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&verify.stdout),
+        String::from_utf8_lossy(&verify.stderr),
+    );
+    assert_eq!(
+        fs::read_to_string(&verify_config).unwrap(),
+        expected_config,
+        "verify must not change the client config"
+    );
+    assert_eq!(
+        fs::read_dir(verify_workspace.path()).unwrap().count(),
+        1,
+        "verify must not add project-root entries"
+    );
+    assert_eq!(
+        fs::read_dir(verify_config.parent().unwrap())
+            .unwrap()
+            .count(),
+        1,
+        "verify must not add client-config entries"
+    );
+
+    assert_json_auth_required(&write, "unauthenticated mcp-config --write");
+    assert!(
+        fs::read_dir(write_workspace.path())
+            .unwrap()
+            .next()
+            .is_none(),
+        "gated write must not change the project tree or create client config"
+    );
+}
+
 fn run(workspace: &std::path::Path, extra: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("--no-tui").arg("mcp-config");

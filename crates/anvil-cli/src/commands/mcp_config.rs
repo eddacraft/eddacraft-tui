@@ -88,6 +88,26 @@ pub enum Transport {
     Http,
 }
 
+/// Whether this parsed configuration command is guaranteed not to write.
+///
+/// clap rejects `--verify --write`; checking the write flag directly also
+/// fails closed if an invalid argument state is ever constructed internally.
+pub fn is_read_only_diagnostic(
+    McpConfigArgs {
+        target: _,
+        scope: _,
+        transport: _,
+        port: _,
+        write,
+        verify: _,
+        workspace: _,
+        command: _,
+        yes: _,
+    }: &McpConfigArgs,
+) -> bool {
+    !*write
+}
+
 pub fn run(args: &McpConfigArgs, global: &GlobalArgs) -> Result<()> {
     let workspace = match &args.workspace {
         Some(p) => p.clone(),

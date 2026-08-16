@@ -497,14 +497,17 @@ fn command_requests_structured_output(cmd: &Commands) -> bool {
     }
 }
 
-/// Read-only activation probes that must work unauthenticated (and
-/// air-gapped): `status --verify` and its documented sibling
-/// `start --verify` (CIB-049). Full (mutating) `start` and plain
-/// `status` stay auth-gated.
-fn skips_auth_for_local_probe(cmd: &Commands) -> bool {
+/// Parsed local diagnostics that must work unauthenticated (and air-gapped).
+///
+/// The top-level command remains enrolled in the licence gate; only explicit
+/// no-write modes bypass it. New MCP subcommands therefore fail closed unless
+/// their parsed arguments are deliberately classified as read-only.
+fn skips_auth_for_local_read_only_diagnostic(cmd: &Commands) -> bool {
     match cmd {
         Commands::Status(args) => args.verify,
         Commands::Start(args) => args.verify,
+        Commands::Mcp(args) => commands::mcp::is_read_only_diagnostic(args),
+        Commands::McpConfig(args) => commands::mcp_config::is_read_only_diagnostic(args),
         _ => false,
     }
 }
@@ -1317,7 +1320,7 @@ fn main() -> ExitCode {
             // as `start`.
             check_auth(&cli.global, true, wants_json)
         }
-        Some(cmd) if requires_auth(cmd) && !skips_auth_for_local_probe(cmd) => {
+        Some(cmd) if requires_auth(cmd) && !skips_auth_for_local_read_only_diagnostic(cmd) => {
             check_auth(&cli.global, allows_interactive_auth_prompt(cmd), wants_json)
         }
         Some(_) => Ok(()),
@@ -2105,29 +2108,73 @@ mod tests {
         ])));
     }
 
-    // ── skips_auth_for_local_probe (CIB-049) ────────────────────────
+    // ── local read-only diagnostic auth bypass ──────────────────────
 
     #[test]
     fn local_probe_skip_matches_status_verify() {
-        assert!(skips_auth_for_local_probe(&parse_command(&[
-            "status", "--verify"
-        ])));
+        assert!(skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["status", "--verify"]
+        )));
     }
 
     #[test]
     fn local_probe_skip_matches_start_verify() {
         // CIB-049: `start --verify` is the documented read-only sibling
         // of `status --verify` and must not hit the auth wall.
-        assert!(skips_auth_for_local_probe(&parse_command(&[
-            "start", "--verify"
-        ])));
+        assert!(skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["start", "--verify"]
+        )));
     }
 
     #[test]
     fn local_probe_skip_excludes_full_start_and_status() {
         // Full (mutating) `start` and plain `status` stay auth-gated.
-        assert!(!skips_auth_for_local_probe(&parse_command(&["start"])));
-        assert!(!skips_auth_for_local_probe(&parse_command(&["status"])));
+        assert!(!skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["start"]
+        )));
+        assert!(!skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["status"]
+        )));
+    }
+
+    #[test]
+    fn local_read_only_diagnostic_matches_mcp_install_dry_run_and_verify() {
+        assert!(skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["mcp", "install", "--client", "codex", "--dry-run",]
+        )));
+        assert!(skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["mcp", "install", "--client", "codex", "--verify",]
+        )));
+    }
+
+    #[test]
+    fn local_read_only_diagnostic_excludes_mutating_mcp_commands() {
+        for args in [
+            &["mcp", "install", "--client", "codex"][..],
+            &["mcp", "refresh"][..],
+            &["mcp", "pin"][..],
+            &["mcp", "unpin"][..],
+        ] {
+            let command = parse_command(args);
+            assert!(requires_auth(&command), "{args:?} must require auth");
+            assert!(
+                !skips_auth_for_local_read_only_diagnostic(&command),
+                "{args:?} must remain auth-gated",
+            );
+        }
+    }
+
+    #[test]
+    fn local_read_only_diagnostic_classifies_mcp_config_by_write_intent() {
+        assert!(skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["mcp-config", "--target", "codex",]
+        )));
+        assert!(skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["mcp-config", "--target", "codex", "--verify",]
+        )));
+        assert!(!skips_auth_for_local_read_only_diagnostic(&parse_command(
+            &["mcp-config", "--target", "codex", "--write",]
+        )));
     }
 
     // ── is_auth_state_probe / auth_required_response (#1822) ────────

@@ -99,6 +99,24 @@ pub fn auth_gate_name(args: &McpArgs) -> &'static str {
     }
 }
 
+/// Whether this parsed MCP command is a local diagnostic that cannot write.
+///
+/// Keep this classification on the parsed command so adding a new MCP
+/// subcommand remains auth-gated unless it is explicitly admitted here.
+pub fn is_read_only_diagnostic(args: &McpArgs) -> bool {
+    match &args.command {
+        McpCommand::Install(McpInstallArgs {
+            client: _,
+            scope: _,
+            verify,
+            command: _,
+            workspace: _,
+            dry_run,
+        }) => *verify || *dry_run,
+        _ => false,
+    }
+}
+
 fn run_install(args: &McpInstallArgs, global: &GlobalArgs) -> Result<()> {
     if args.client == AgentClientId::VsCode && args.scope == InstallScope::Global {
         return run_vscode_profile_install(args, global);
