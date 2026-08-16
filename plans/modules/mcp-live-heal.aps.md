@@ -4,9 +4,9 @@
 | ----- | ------ | -------- | ------ | -------- |
 | MCPLH | @aneki | high     | Ready  | 7/8      |
 
-**Last reviewed:** 2026-08-16 — Ready wave MCPLH-001..006 and MCPLH-008
-Merged on `main` and **primary claim of `v0.9.5-beta`**. MCPLH-007 remains
-Draft until soak evidence and is not this claim.
+**Last reviewed:** 2026-08-17 — Ready wave MCPLH-001..006 and MCPLH-008
+**Released/Shipped** via `v0.9.5-beta` (`5c4b61a7`). MCPLH-007 remains
+Draft until soak evidence and is not that claim.
 [`plans/specs/2026-08-09-mcp-live-heal-without-harness-restart.md`](../specs/2026-08-09-mcp-live-heal-without-harness-restart.md).
 Exclusive module (feature PRs may flip item `Status:` only; do not bump header
 `N/M` — ADR-053).
@@ -75,7 +75,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-001: PATH-stable MCP install command
 
-- **Status:** Merged 2026-08-14 via PR #3900
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** Stop managed installers from pinning versioned absolute paths
   (e.g. Homebrew Cellar) so upgrades do not strand new and existing configs.
 - **Expected Outcome:** Default managed entries use `command: anvil` with args
@@ -101,7 +101,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-002: Self-heal re-exec in `mcp serve`
 
-- **Status:** Merged 2026-08-14 via PR #3901
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** Long-lived MCP children recycle themselves to the preferred binary
   under a live harness stdio pipe so agents need not restart sessions after
   upgrade.
@@ -126,7 +126,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-003: `anvil mcp refresh` bulk cascade
 
-- **Status:** Merged 2026-08-15 via PR #3910
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** Give operators one verb that rewrites owned configs, pokes live
   MCP heal, and reports residual skew without walking every session UI.
 - **Expected Outcome:** `anvil mcp refresh [--dry-run] [--json]` implements the
@@ -154,7 +154,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-004: Daemon auto-recycle on CLI/daemon version skew
 
-- **Status:** Merged 2026-08-14 via PR #3899
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** Recycle the Anvil-owned intercept daemon when its version differs
   from the CLI without requiring harness restart.
 - **Expected Outcome:** Refresh (and/or ensure) path stops the skewed daemon,
@@ -177,7 +177,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-005: status/verify MCP inventory and split readiness claims
 
-- **Status:** Merged 2026-08-15 via PR #3911
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** Make config, daemon, live MCP binary, and graph readiness
   independently visible so operators and agents do not conflate protecting with
   current tools or graph ready.
@@ -203,7 +203,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-006: Opt-in orphan MCP process reap
 
-- **Status:** Merged 2026-08-15 via PR #3912
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** Clean same-user `anvil mcp serve` processes whose parent PID is
   gone without touching children of live harnesses.
 - **Expected Outcome:** `anvil mcp refresh --processes orphan-reap` (or
@@ -224,7 +224,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 
 ### MCPLH-008: Daily self-heal with easy pin
 
-- **Status:** Merged 2026-08-16 via PR #3932
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** MCP updates happen on the daily paths (`anvil`, `anvil start`,
   `anvil doctor`) without operators memorising `mcp refresh`. Refresh stays
   the emergency verb. People who hate auto-updates can pin easily.

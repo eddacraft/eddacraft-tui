@@ -19,10 +19,10 @@ revision was ever executed, so IDs are reallocated cleanly.
 | ---- | ----- | -------- | -------- | -------- |
 | UCFG | —     | medium   | Done     | 16/16    |
 
-**Last reviewed:** 2026-08-16 — all work items Merged (UCFG-001..016). ADR-120
-Accepted (operator). Secondary claim of **`v0.9.5-beta`** (MCP live-heal is
-primary — see [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)). Module **Done**
-pending release-tag evidence for Released/Shipped → Complete. Council
+**Last reviewed:** 2026-08-17 — all work items **Released/Shipped** via
+`v0.9.5-beta` (`5c4b61a7`). ADR-120 Accepted (operator). Secondary claim of
+that tag (MCP live-heal primary — see release record). Module **Done**; item
+Complete transitions remain a separate evidence pass if required. Council
 `council-0851e9cb` (2026-08-12) findings were folded before execution.
 
 > **Activation gate: satisfied 2026-08-13.** ADR-120 Accepted (operator);
@@ -146,7 +146,7 @@ Change status to **Ready** when:
 
 #### UCFG-001: init writes canonical `.anvil.<ext>`
 
-- **Status:** Merged 2026-08-13 via PR #3841
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** `anvil init` writes `.anvil.yaml` by default (ext follows the
   chosen format); stops writing `.anvilrc`. TUI init surface labels updated
   (it currently suppresses `.anvil.*` labels because init never writes them).
@@ -167,7 +167,7 @@ Change status to **Ready** when:
 
 #### UCFG-002: migrate renames `.anvilrc`, doctor flags dual configs
 
-- **Status:** Merged 2026-08-13 via PR #3847
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** `anvil migrate format` converts `.anvilrc` → `.anvil.<ext>`
   in the chosen `--format` (yaml default; pass `--format json/toml` to keep
   a non-yaml body's format — recorded reconciliation of the original
@@ -204,7 +204,7 @@ Change status to **Ready** when:
 
 #### UCFG-003: snake_case canonical key space
 
-- **Status:** Merged 2026-08-13 via PR #3824
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** canonicalise keys to snake_case across yaml/json/toml in
   `anvil-config`; accept legacy camelCase on read via the migrations layer;
   owned writes emit snake_case only. This owns the actual divergent writer
@@ -233,7 +233,7 @@ Change status to **Ready** when:
 
 #### UCFG-004: `gate` section schema in the main config
 
-- **Status:** Merged 2026-08-13 via PR #3832
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** define the `gate` section holding what `gate-config.json`
   carried (check enablement, `overall_score`, global config), reconciled with
   the `checks` key gate runs already read
@@ -250,7 +250,7 @@ Change status to **Ready** when:
 
 #### UCFG-005: gate-config command re-pointed; legacy file folded
 
-- **Status:** Merged 2026-08-13 via PR #3834
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** `anvil gate-config --list/--enable/--disable` reads/writes the
   main-config `gate` section. `anvil migrate` folds a legacy
   `gate-config.json` (only fields absent from the main config; every folded
@@ -282,7 +282,7 @@ Change status to **Ready** when:
 
 #### UCFG-006: `SectionOrSource<T>` in anvil-config
 
-- **Status:** Merged 2026-08-13 via PR #3833
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** implement exclusive inline-XOR-source delegation with clear
   errors (both present, neither, nested delegation, missing target, `../`
   traversal, absolute or Windows drive/UNC path, symlink escaping the
@@ -310,7 +310,7 @@ Change status to **Ready** when:
 
 #### UCFG-007: `architecture` section resolution + migrate
 
-- **Status:** Merged 2026-08-13 via PR #3835
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** `architecture` becomes a main-config section
   (`SectionOrSource<ArchitectureDefinition>`). Existing
   `.anvil/architecture.yaml` keeps working as a delegation target;
@@ -330,7 +330,7 @@ Change status to **Ready** when:
 
 #### UCFG-008: gate / watch / architecture commands read the resolved section
 
-- **Status:** Merged 2026-08-13 via PR #3836
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** replace direct `.anvil/architecture.yaml` reads in `gate.rs`,
   `watch.rs`, and `architecture*.rs` with the resolved section (inline or
   delegated); ADR-102 command-surface semantics unchanged
@@ -358,7 +358,7 @@ Change status to **Ready** when:
 
 #### UCFG-009: policy discovery via anvil_config::discover
 
-- **Status:** Merged 2026-08-13 via PR #3831
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** replace the hand-rolled `anvil/policy.*` candidate lists in
   `hook.rs` and `l4_validate.rs` with `anvil_config::discover`. One
   deliberate behaviour change (ADR-120 pt 6): the hand-rolled lists are
@@ -384,7 +384,7 @@ Change status to **Ready** when:
 
 #### UCFG-010: MCP resources, config summary, doctor on the unified surface
 
-- **Status:** Merged 2026-08-13 via PR #3852
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** `anvil://config`-class MCP resources, `config_summary`, and
   doctor render the resolved unified config (canonical name, gate section,
   resolved architecture, delegation provenance)
@@ -405,7 +405,7 @@ Change status to **Ready** when:
 
 #### UCFG-011: documentation sweep to one canonical name
 
-- **Status:** Merged 2026-08-13 via PR #3851
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** config.md names exactly one canonical filename and the legacy
   fallback story; first-project, quickstart, agent-harness, using-anvil
   skill, and cli-surface runbook updated; gate-config "planning surface"
@@ -431,7 +431,7 @@ Change status to **Ready** when:
 
 #### UCFG-012: fixture and CI sweep
 
-- **Status:** Merged 2026-08-13 via PR #3848
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** convert test fixtures and CI steps referencing `.anvilrc`,
   `gate-config.json`, or direct `architecture.yaml` reads to the canonical
   surface (legacy-fallback fixtures kept deliberately and labelled)
@@ -448,7 +448,7 @@ Change status to **Ready** when:
 
 #### UCFG-013: watch-time architecture enforcement for section configs
 
-- **Status:** Merged 2026-08-13 via PR #3867
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** map the resolved `ArchitectureDefinition` (layers map) into
   the kernel's `ArchitectureConfig` (layers list) in-process, so `anvil
   watch` enforces architecture for inline and source-delegated sections —
@@ -472,7 +472,7 @@ Change status to **Ready** when:
 
 #### UCFG-014: descriptor-bound guard in the shared bounded reader
 
-- **Status:** Merged 2026-08-13 via PR #3867
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** move the non-regular-file guard into
   `anvil_config::read_to_string_bounded` itself using the
   open-nonblocking + fstat-the-held-descriptor pattern (cf. c0aed53f6):
@@ -494,7 +494,7 @@ Change status to **Ready** when:
 
 #### UCFG-015: migrate format and config convert write any canonical format
 
-- **Status:** Merged 2026-08-14 via PR #3893
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** `anvil migrate format` and `anvil config convert --to` share one
   writer that converts the discovered project config (`.anvil.yaml` / `.yml` /
   `.json` / `.toml`, or leftover `.anvilrc`) to any of those dest formats.
@@ -517,7 +517,7 @@ Change status to **Ready** when:
 
 #### UCFG-016: doctor TTY offers migrate / remove leftover config
 
-- **Status:** Merged 2026-08-15 via PR #3898
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Intent:** Interactive `anvil doctor` (TTY, not `--json`) offers to migrate
   or remove leftover dual-config / gate-config / unrecorded architecture
   states. Non-TTY stays warn-only. Problem states only — a single healthy
