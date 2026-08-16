@@ -323,9 +323,16 @@ pub fn prepare_scan(
 
         let already_warm = matches!(m.state(), AssuranceState::Clean | AssuranceState::Bounded)
             && ctx.cache.contains(key);
+        // CIB-341: a scan-timeout that left a populated graph is already
+        // readable as stale. A background re-warm would restart the same 60s
+        // timeout loop; only an explicit Interactive request re-scans.
+        let timeout_stale_readable = m.state() == AssuranceState::Stale
+            && m.reason() == Some(StaleReason::ScanTimeout)
+            && resident_graph_is_readable(&ctx.cache, key);
         // Explicit requests always (re)scan; opportunistic warm-ups skip an
-        // already-warm worktree.
-        let needs = priority == ScanPriority::Interactive || !already_warm;
+        // already-warm (or timeout-stale-but-readable) worktree.
+        let needs =
+            priority == ScanPriority::Interactive || !(already_warm || timeout_stale_readable);
         if needs {
             m.request_full_scan(priority);
         }
@@ -516,11 +523,21 @@ fn run_scan_loop(
             deadline,
         ) {
             SegmentRun::TimedOut { token } => {
-                with_locked_machine_trace(machine, root, |m| m.scan_timeout(token));
+                let populated = resident_graph_is_readable(&ctx.cache, key);
+                with_locked_machine_trace(machine, root, |m| {
+                    m.scan_timeout(token);
+                    // CIB-341: a populated partial graph is readable as
+                    // `Stale(ScanTimeout)` with a published generation, so GCTX
+                    // serves `ready` + stale rather than `not_ready` / gen 0.
+                    if populated {
+                        m.ensure_published_generation();
+                    }
+                });
                 tracing::warn!(
                     target: "anvil_intercept::full_scan",
                     workspace_root = %root.display(),
                     timeout_secs = SCAN_TIMEOUT.as_secs(),
+                    populated,
                     "full scan exceeded its wall-clock budget; marked stale (scan-timeout)",
                 );
                 return;
@@ -713,6 +730,12 @@ fn workspace_relative(root: &Path, abs: &Path) -> Option<String> {
         .collect::<Vec<_>>()
         .join("/");
     (!joined.is_empty()).then_some(joined)
+}
+
+/// `true` when `key` holds at least one file/symbol — a graph GCTX can serve
+/// as stale rather than `not_ready`.
+fn resident_graph_is_readable(cache: &KernelGraphCache, key: &WorktreeKey) -> bool {
+    cache.contains(key) && !cache.warm_files(key).is_empty()
 }
 
 /// An empty [`FileSymbols`] for `file` — the `Delete` payload the reconcile prune
@@ -1306,6 +1329,15 @@ mod tests {
         let snap = lock(&machine).snapshot();
         assert_eq!(snap.state, AssuranceState::Stale);
         assert_eq!(snap.reason, Some(StaleReason::ScanTimeout));
+        assert!(
+            snap.generation >= 1,
+            "a timeout that left a populated graph must publish generation >= 1, got {}",
+            snap.generation
+        );
+        assert!(
+            resident_graph_is_readable(&ctx.cache, &key),
+            "the timeout path applies the in-flight chunk, so the graph is readable as stale"
+        );
     }
 
     /// CIB-095e: the inline deadline (replacing the per-job watchdog OS thread)
@@ -1338,6 +1370,11 @@ mod tests {
             snap.reason,
             Some(StaleReason::ScanTimeout),
             "an overrun past the inline deadline must abort to ScanTimeout",
+        );
+        assert!(
+            snap.generation >= 1,
+            "a timeout that left a populated graph must publish generation >= 1, got {}",
+            snap.generation
         );
         assert!(
             timed_out.load(Ordering::Acquire),
@@ -1584,5 +1621,75 @@ mod tests {
         release.wait();
         scan_thread.join().expect("scan thread");
         assert_eq!(lock(&machine).state(), AssuranceState::Clean);
+    }
+
+    /// CIB-341: after a scan-timeout leaves a populated graph, a background
+    /// first-contact trigger must not enqueue another scan (that would restart
+    /// the 60s timeout loop). An explicit Interactive request still re-scans.
+    #[test]
+    fn background_prepare_skips_timeout_stale_populated_graph() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write(root, "a.ts", "export a");
+
+        let ctx = line_ctx();
+        let key = key_for(root);
+        let machine = machine();
+
+        // Seed a populated graph and settle the machine as ScanTimeout gen 1.
+        let parser = LineParser;
+        let symbols = parser.parse(Path::new("a.ts"), b"export a").expect("parse");
+        ctx.cache.apply_delta(&key, ChangeKind::Create, symbols);
+        {
+            let mut m = lock(&machine);
+            m.request_full_scan(ScanPriority::Background);
+            let token = m.start_scan(now_rfc3339());
+            m.scan_timeout(token);
+            m.ensure_published_generation();
+        }
+        assert_eq!(lock(&machine).reason(), Some(StaleReason::ScanTimeout));
+        assert!(resident_graph_is_readable(&ctx.cache, &key));
+
+        assert!(
+            prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background).is_none(),
+            "a timeout-stale populated graph must not re-scan on a background trigger"
+        );
+        assert_eq!(
+            lock(&machine).state(),
+            AssuranceState::Stale,
+            "skipping the re-scan must leave the machine Stale, not flip it to Pending"
+        );
+        assert_eq!(lock(&machine).generation(), 1);
+
+        assert!(
+            prepare_scan(&ctx, &machine, &key, root, ScanPriority::Interactive).is_some(),
+            "an explicit Interactive request must still be able to re-scan"
+        );
+    }
+
+    /// CIB-341: a scan-timeout that never populated the cache stays generation 0
+    /// and a background trigger may re-warm (the graph is not readable).
+    #[test]
+    fn background_prepare_rewarm_empty_timeout_stale() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write(root, "a.ts", "export a");
+
+        let ctx = line_ctx();
+        let key = key_for(root);
+        let machine = machine();
+        {
+            let mut m = lock(&machine);
+            m.request_full_scan(ScanPriority::Background);
+            let token = m.start_scan(now_rfc3339());
+            m.scan_timeout(token);
+        }
+        assert_eq!(lock(&machine).generation(), 0);
+        assert!(!resident_graph_is_readable(&ctx.cache, &key));
+
+        assert!(
+            prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background).is_some(),
+            "an empty timeout-stale graph is still cold and may re-warm"
+        );
     }
 }

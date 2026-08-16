@@ -172,8 +172,10 @@ pub enum ScanCompletion {
 ///
 /// Invariant (mirrors the wire): `reason` is `Some` exactly when the state is
 /// `Stale`/`Unavailable`; [`snapshot`](Self::snapshot) enforces it. `generation`
-/// is the opaque turnover token that bumps on warm-state eviction / cold
-/// rebuild. `scan_started_at` is internal lifecycle bookkeeping (it has no wire
+/// is the opaque turnover token that bumps on warm-state eviction / cold rebuild,
+/// and is published (`0 → 1`) when a populated graph first becomes readable
+/// (a completed scan, a scan-timeout with resident symbols, or a snapshot
+/// restore). `scan_started_at` is internal lifecycle bookkeeping (it has no wire
 /// field — it rides the tracing mirror per Task 9) and is `Some` only while
 /// `Running`.
 #[derive(Debug, Clone)]
@@ -433,10 +435,12 @@ impl AssuranceMachine {
         if let Some(coverage) = coverage {
             self.state = AssuranceState::Bounded;
             self.scan_coverage = Some(coverage);
+            self.ensure_published_generation();
             ScanCompletion::Bounded
         } else {
             self.state = AssuranceState::Clean;
             self.scan_coverage = None;
+            self.ensure_published_generation();
             ScanCompletion::Clean
         }
     }
@@ -472,6 +476,15 @@ impl AssuranceMachine {
     /// Bump the opaque turnover token on warm-state eviction / cold rebuild.
     pub fn bump_generation(&mut self) {
         self.generation = self.generation.wrapping_add(1);
+    }
+
+    /// Publish generation `0 → 1` once a populated resident graph is first
+    /// readable. Idempotent: later turnovers (eviction) still use
+    /// [`bump_generation`](Self::bump_generation).
+    pub fn ensure_published_generation(&mut self) {
+        if self.generation == 0 {
+            self.bump_generation();
+        }
     }
 }
 
@@ -690,6 +703,11 @@ mod tests {
         let token = m.start_scan("t0".to_string());
         m.complete_scan("t1".to_string(), token);
         assert_eq!(m.state(), AssuranceState::Clean);
+        assert_eq!(
+            m.generation(),
+            1,
+            "a completed scan publishes generation >= 1"
+        );
         assert_eq!(m.snapshot().last_full_scan.as_deref(), Some("t1"));
         assert_eq!(m.scan_started_at(), None);
     }
@@ -724,6 +742,11 @@ mod tests {
         assert_eq!(m.state(), AssuranceState::Stale);
         assert_eq!(m.reason(), Some(StaleReason::ScanTimeout));
         assert_eq!(m.scan_started_at(), None);
+        assert_eq!(
+            m.generation(),
+            0,
+            "scan_timeout itself does not publish generation; the executor does when the graph is populated",
+        );
     }
 
     #[test]
@@ -794,6 +817,7 @@ mod tests {
         let completion = m.complete_scan("t1".to_string(), token);
         assert_eq!(completion, ScanCompletion::Clean);
         assert_eq!(m.state(), AssuranceState::Clean);
+        assert_eq!(m.generation(), 1);
         assert_eq!(m.snapshot().last_full_scan.as_deref(), Some("t1"));
     }
 
@@ -809,6 +833,11 @@ mod tests {
         let completion = m.complete_scan_bounded("t1".to_string(), coverage, token);
         assert_eq!(completion, ScanCompletion::Bounded);
         assert_eq!(m.state(), AssuranceState::Bounded);
+        assert_eq!(
+            m.generation(),
+            1,
+            "a bounded completion also publishes generation"
+        );
         let snap = m.snapshot();
         assert_eq!(snap.state, AssuranceState::Bounded);
         assert_eq!(snap.reason, None, "Bounded is a lifecycle state, no reason");
@@ -870,6 +899,18 @@ mod tests {
         assert_eq!(
             snap.generation, 2,
             "generation bumps on warm-state turnover"
+        );
+    }
+
+    #[test]
+    fn ensure_published_generation_is_idempotent() {
+        let mut m = AssuranceMachine::new();
+        m.ensure_published_generation();
+        m.ensure_published_generation();
+        assert_eq!(
+            m.generation(),
+            1,
+            "publishing is 0 → 1 only; later turnovers use bump_generation"
         );
     }
 

@@ -627,7 +627,11 @@ impl SaveTimeState {
             let Some(dir) = self.snapshot_dir.clone() else {
                 return;
             };
-            if self.cache.contains(key) || self.coordinator.is_enqueued(key) {
+            // CIB-341: a scan already enqueued must not skip restore. Restore
+            // is compare-and-insert (never clobbers a warm pair); blocking it
+            // behind `is_enqueued` hid a populated snapshot behind Running gen 0
+            // until the 60s scan timed out.
+            if self.cache.contains(key) {
                 return;
             }
             // Dedup: claim the per-key in-flight slot before scheduling; a second
@@ -650,6 +654,7 @@ impl SaveTimeState {
             let base_dir = self.resolve_base_dir();
             let key = key.clone();
             let root = canonical_root.to_path_buf();
+            let machine = self.machine_handle(&key);
             self.scheduler.background().spawn(move || {
                 use crate::persistence_route::PersistenceRoute;
                 // Re-entrant route decision (git resolve on the background pool);
@@ -699,17 +704,23 @@ impl SaveTimeState {
                                 &root,
                             );
                         }
+                        // Compose or snapshot — publish a readable generation so
+                        // first contact serves stale, not Running gen 0.
+                        publish_restored_generation(&cache, &key, &machine);
                     }
                     // Uncovered / transient-failure ⇒ the permanent per-worktree
                     // snapshot path (ADR-105 §8).
-                    PersistenceRoute::PerWorktree { .. } => restore_snapshot_into_cache(
-                        &cache,
-                        &coordinator,
-                        &metrics,
-                        &dir,
-                        &key,
-                        &root,
-                    ),
+                    PersistenceRoute::PerWorktree { .. } => {
+                        restore_snapshot_into_cache(
+                            &cache,
+                            &coordinator,
+                            &metrics,
+                            &dir,
+                            &key,
+                            &root,
+                        );
+                        publish_restored_generation(&cache, &key, &machine);
+                    }
                 }
                 inflight
                     .lock()
@@ -1237,21 +1248,26 @@ fn emit_cumulative_snapshot_metrics(metrics: &SnapshotMetricsSnapshot) {
 }
 
 /// Load a snapshot for `key` and restore it into `cache` for reads (DSV-030 /
-/// ADR-069 §3). Re-checks the cold/not-enqueued guard (time may have passed since
-/// the caller checked) so a restore never overwrites a concurrent scan's
-/// authoritative graph. Marks the key restored so the next reconcile scan drops
-/// the read-only entry before its disk-authoritative rebuild. Every load failure
-/// is logged per §10 severity and is a no-op (cold rebuild).
+/// ADR-069 §3). Re-checks the cold-key guard (time may have passed since the
+/// caller checked) so a restore never overwrites a concurrent scan's
+/// authoritative graph. A scan already *enqueued* is not a reason to skip —
+/// `cache.restore` is compare-and-insert. Marks the key restored so the next
+/// reconcile scan drops the read-only entry before its disk-authoritative
+/// rebuild. Every load failure is logged per §10 severity and is a no-op
+/// (cold rebuild).
 #[cfg(unix)]
 fn restore_snapshot_into_cache(
     cache: &KernelGraphCache,
-    coordinator: &ScanCoordinator,
+    _coordinator: &ScanCoordinator,
     metrics: &SnapshotMetrics,
     dir: &Path,
     key: &WorktreeKey,
     canonical_root: &Path,
 ) {
-    if cache.contains(key) || coordinator.is_enqueued(key) {
+    // Compare-and-insert in `cache.restore` is the clobber guard. Do not also
+    // refuse because a scan is enqueued — that hid a populated snapshot behind
+    // Running generation 0 (CIB-341).
+    if cache.contains(key) {
         return;
     }
     let result = crate::snapshot_io::load_snapshot(dir, canonical_root);
@@ -1289,6 +1305,22 @@ fn restore_snapshot_into_cache(
             "warm-start: restored graph from snapshot (stale until reconcile)",
         );
     }
+}
+
+/// CIB-341: a restored (or composed) populated graph must advertise a readable
+/// generation so first-contact GCTX serves `ready` + stale, not `not_ready` /
+/// generation 0. Leaves the machine `Stale` — does not start a scan.
+#[cfg(unix)]
+fn publish_restored_generation(
+    cache: &KernelGraphCache,
+    key: &WorktreeKey,
+    machine: &Mutex<AssuranceMachine>,
+) {
+    if !cache.contains(key) || cache.warm_files(key).is_empty() {
+        return;
+    }
+    let mut m = machine.lock().unwrap_or_else(PoisonError::into_inner);
+    m.ensure_published_generation();
 }
 
 /// Log a snapshot read failure at the ADR-069 §10 severity: a missing snapshot
@@ -2402,10 +2434,12 @@ fn implicit_scan_disabled(raw: Option<&str>) -> bool {
 /// Compute the GCTX search outcome for an admitted root (GCTX-010 / ADR-084).
 ///
 /// CE-7 degradation, by assurance state: `Unavailable` → `Unavailable`;
-/// `Pending`/`Running` (warming) → `NotReady`; `Clean`/`Stale` → read the warm
-/// graph. A `Clean`/`Stale` worktree with no resident warm pair (a fresh session
-/// not yet save-populated — the cache and the assurance machine are non-atomic
-/// by design) also degrades to `NotReady`: there is **no whole-file fallback**.
+/// `Pending`/`Running` (warming) → `NotReady` **unless** a populated generation
+/// has already been published (CIB-341: restore or scan-timeout stale) — then
+/// read the warm graph like `Clean`/`Stale`. A `Clean`/`Stale` worktree with no
+/// resident warm pair (a fresh session not yet save-populated — the cache and
+/// the assurance machine are non-atomic by design) also degrades to `NotReady`:
+/// there is **no whole-file fallback**.
 ///
 /// ADR-084 C2: the matched candidates are collected **under** the cache lock
 /// (inside `with_graphs`) and sorted/paginated/sealed **after** it releases.
@@ -2434,15 +2468,28 @@ fn gctx_search_outcome(
         // it fail-safe; here that means the same "no trustworthy graph" answer
         // as a daemon-absent surface.
         AssuranceState::Unavailable | AssuranceState::Unknown => SearchSymbolsOutcome::Unavailable,
-        AssuranceState::Pending | AssuranceState::Running => SearchSymbolsOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry the search shortly".to_string(),
-        },
+        // CIB-341: a published generation means a populated graph is already
+        // readable (restore or scan-timeout stale). Serving `NotReady` here
+        // hid that graph behind Running gen 0 and the on-demand re-warm
+        // restarted the 60s timeout loop.
+        AssuranceState::Pending | AssuranceState::Running if assurance.generation == 0 => {
+            SearchSymbolsOutcome::NotReady {
+                recovery_hint: "the workspace graph is warming; retry the search shortly"
+                    .to_string(),
+            }
+        }
         // DSV-045: `Bounded` is a *populated* (warm-but-truncated) graph — read
         // like `Clean`/`Stale`, never demoted to `NotReady` (ADR-085 Decision
         // 5). The bounded-result truncation marker on the projection is a
         // GCTX-010 consumer concern; the assurance snapshot already carries
         // `scan_coverage` so the client can surface the bound.
-        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+        // CIB-341: `Pending`/`Running` with a published generation fall through
+        // here too — serve the resident graph as stale rather than flicker.
+        AssuranceState::Clean
+        | AssuranceState::Stale
+        | AssuranceState::Bounded
+        | AssuranceState::Pending
+        | AssuranceState::Running => {
             // C2: collect under the lock, project after release.
             let candidates = state.cache.with_graphs(key, |sym, _dep| {
                 GctxProjector::collect_candidates(sym, query)
@@ -4790,6 +4837,43 @@ mod tests {
         );
     }
 
+    /// CIB-341: once a populated generation is published (restore / timeout
+    /// stale), GCTX serves `Ready` even if a reconcile scan has flipped the
+    /// machine to `Running` — hiding it behind `NotReady` flickers generation 0.
+    #[test]
+    fn gctx_search_ready_while_running_once_generation_published() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "src/a.ts", &["alpha"], 0);
+
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        {
+            let handle = state.machine_handle(&key);
+            let mut m = handle.lock().expect("machine lock");
+            m.ensure_published_generation();
+            m.request_full_scan(ScanPriority::Interactive);
+            let _ = m.start_scan("t0".to_string());
+            assert_eq!(m.state(), AssuranceState::Running);
+            assert!(m.generation() >= 1);
+        }
+
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .search_symbols(&gctx_request(tmp.path()))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::Ready(_)),
+            "a published generation must stay readable while Running: {:?}",
+            resp.outcome
+        );
+        assert!(
+            resp.workspace_assurance.generation >= 1,
+            "first contact must advertise the published generation, got {}",
+            resp.workspace_assurance.generation
+        );
+    }
+
     /// C3 / CE-8: an unadmitted (cross-worktree / unlisted) root is refused
     /// daemon-side before any projection.
     #[test]
@@ -5979,6 +6063,46 @@ mod tests {
             machine.lock().unwrap().state(),
             AssuranceState::Stale,
             "a restored worktree must come up Stale (verdict re-derived)",
+        );
+    }
+
+    /// CIB-341: a successful snapshot restore publishes generation so first
+    /// contact serves stale + `ready`, not Running generation 0.
+    #[cfg(unix)]
+    #[test]
+    fn restore_publishes_generation_so_first_contact_serves_stale() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let root = std::path::PathBuf::from("/ws-cib-341-restore");
+        let key = WorktreeKey::from_canonical(root.clone());
+
+        let writer = state().with_snapshot_dir(dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        writer.persist_all_on_shutdown();
+
+        let state = state().with_snapshot_dir(dir.clone());
+        restore_snapshot_into_cache(
+            &state.cache,
+            state.scan_coordinator(),
+            &state.snapshot_metrics,
+            &dir,
+            &key,
+            &root,
+        );
+        assert!(state.cache.contains(&key), "restore populated the cache");
+
+        let machine = state.machine_handle(&key);
+        publish_restored_generation(&state.cache, &key, &machine);
+        let snap = machine.lock().unwrap().snapshot();
+        assert_eq!(snap.state, AssuranceState::Stale);
+        assert!(
+            snap.generation >= 1,
+            "a populated restore must publish generation, got {}",
+            snap.generation
         );
     }
 

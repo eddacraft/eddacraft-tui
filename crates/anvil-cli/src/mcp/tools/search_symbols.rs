@@ -117,8 +117,9 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
     // warming-but-not-yet-populated) is the one outcome a retry can recover
     // from, so enqueue a full scan to make the *next* query more likely to
     // succeed. Best-effort and fire-and-forget; the daemon-side executor
-    // (DSV-045) drives and coalesces the scan, so firing on every miss is safe.
-    if should_rewarm(&response.outcome) {
+    // (DSV-045) drives and coalesces the scan. CIB-341: do not restart a
+    // scan-timeout loop when a populated generation is already published.
+    if should_rewarm(&response.outcome, &response.workspace_assurance) {
         let _ = crate::commands::watch_save_time::warm_up_root(&workspace_path);
     }
 
@@ -126,18 +127,27 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
 }
 
 /// Whether a search outcome warrants an on-demand re-warm (GCTX-010 C1). Only a
-/// `NotReady` graph benefits: `Ready` is already populated, `Unavailable` has no
-/// live daemon to enqueue against, `Disabled` is an operator switch we must not
-/// fight (`ANVIL_GCTX_EGRESS=0`), and `InvalidQuery` is the caller's bug.
+/// `NotReady` graph with no published generation benefits: `Ready` is already
+/// populated, `Unavailable` has no live daemon to enqueue against, `Disabled`
+/// is an operator switch we must not fight (`ANVIL_GCTX_EGRESS=0`), and
+/// `InvalidQuery` is the caller's bug.
+///
+/// CIB-341: a published generation (`>= 1`) means a populated graph was already
+/// settled (snapshot restore or `Stale(ScanTimeout)`). Re-warming that state
+/// restarts the 60s full-scan timeout loop. Only re-warm when truly empty /
+/// cold / `Running` with no published pair (`generation == 0`).
 ///
 /// Written as an exhaustive match (not `matches!`) so a future
 /// [`SearchSymbolsOutcome`](anvil_gctx_types::SearchSymbolsOutcome) variant —
 /// e.g. a Phase-2 `Bounded`/budget state — forces a compile error here rather
 /// than silently defaulting to "do not re-warm".
-fn should_rewarm(outcome: &anvil_gctx_types::SearchSymbolsOutcome) -> bool {
+fn should_rewarm(
+    outcome: &anvil_gctx_types::SearchSymbolsOutcome,
+    assurance: &WorkspaceAssurance,
+) -> bool {
     use anvil_gctx_types::SearchSymbolsOutcome as Outcome;
     match outcome {
-        Outcome::NotReady { .. } => true,
+        Outcome::NotReady { .. } => assurance.generation == 0,
         Outcome::Ready(_)
         | Outcome::Unavailable
         | Outcome::Disabled
@@ -257,28 +267,99 @@ mod tests {
         );
     }
 
+    fn cold_assurance() -> WorkspaceAssurance {
+        WorkspaceAssurance {
+            state: AssuranceState::Stale,
+            reason: Some(StaleReason::CrossFileResolutionNeeded),
+            generation: 0,
+            last_full_scan: None,
+            scan_coverage: None,
+        }
+    }
+
     #[test]
     fn rewarm_fires_only_on_not_ready() {
         use anvil_gctx_types::{RedactionSummary, SearchSymbolsOutcome, SearchSymbolsProjection};
 
+        let cold = cold_assurance();
+
         // The one recoverable state: a warming / cold-but-unpopulated graph.
-        assert!(should_rewarm(&SearchSymbolsOutcome::NotReady {
-            recovery_hint: "warming".into(),
-        }));
+        assert!(should_rewarm(
+            &SearchSymbolsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            &cold
+        ));
 
         // Every other outcome must NOT trigger a re-warm.
-        assert!(!should_rewarm(&SearchSymbolsOutcome::Ready(
-            SearchSymbolsProjection {
+        assert!(!should_rewarm(
+            &SearchSymbolsOutcome::Ready(SearchSymbolsProjection {
                 symbols: Vec::new(),
                 next_cursor: None,
                 redaction_summary: RedactionSummary::default(),
-            }
-        )));
-        assert!(!should_rewarm(&SearchSymbolsOutcome::Unavailable));
-        assert!(!should_rewarm(&SearchSymbolsOutcome::Disabled));
-        assert!(!should_rewarm(&SearchSymbolsOutcome::InvalidQuery {
-            reason: "bad".into(),
-        }));
+            }),
+            &cold
+        ));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Unavailable, &cold));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Disabled, &cold));
+        assert!(!should_rewarm(
+            &SearchSymbolsOutcome::InvalidQuery {
+                reason: "bad".into(),
+            },
+            &cold
+        ));
+    }
+
+    #[test]
+    fn rewarm_skips_published_scan_timeout_generation() {
+        use anvil_gctx_types::SearchSymbolsOutcome;
+
+        // A timeout-stale graph with a published generation is already readable
+        // as stale — do not restart the 60s scan loop.
+        let published = WorkspaceAssurance {
+            state: AssuranceState::Stale,
+            reason: Some(StaleReason::ScanTimeout),
+            generation: 1,
+            last_full_scan: None,
+            scan_coverage: None,
+        };
+        assert!(!should_rewarm(
+            &SearchSymbolsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            &published
+        ));
+
+        // Running with a published generation (restore already populated the
+        // graph) is also not a re-warm — the pair is readable as stale.
+        let running_published = WorkspaceAssurance {
+            state: AssuranceState::Running,
+            reason: None,
+            generation: 1,
+            last_full_scan: None,
+            scan_coverage: None,
+        };
+        assert!(!should_rewarm(
+            &SearchSymbolsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            &running_published
+        ));
+
+        // Truly empty / cold / Running with no pair still re-warms.
+        let running_cold = WorkspaceAssurance {
+            state: AssuranceState::Running,
+            reason: None,
+            generation: 0,
+            last_full_scan: None,
+            scan_coverage: None,
+        };
+        assert!(should_rewarm(
+            &SearchSymbolsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            &running_cold
+        ));
     }
 
     #[test]
