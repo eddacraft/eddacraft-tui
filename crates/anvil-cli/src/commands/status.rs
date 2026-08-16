@@ -3711,20 +3711,43 @@ mod tests {
     /// derivable worktree state with an explicitly empty `surfaces`
     /// array. The spec permits this — it does not over-claim per-
     /// surface coverage when there is no daemon evidence.
+    ///
+    /// Live `activation::verify` still reads operator MCP configs, so
+    /// this test isolates HOME/XDG/ANVIL_HOME and probes a missing
+    /// project against an empty fixture home.
     #[test]
     fn resolve_protection_claim_falls_back_when_snapshot_absent() {
-        let (diag, _layers) = unprotected_diag_and_layers();
-        let worktree = Path::new("/tmp/wt-resolve-fallback");
-        let claim = protection_claim_section::resolve_protection_claim(&diag, None, worktree);
-        assert!(
-            claim.surfaces.is_empty(),
-            "fallback path must not invent surfaces: {claim:?}",
+        let home = make_temp_dir();
+        let xdg_config = home.join(".config");
+        let xdg_runtime = home.join("runtime");
+        std::fs::create_dir_all(&xdg_config).expect("xdg config");
+        std::fs::create_dir_all(&xdg_runtime).expect("xdg runtime");
+        let home_s = home.to_string_lossy().into_owned();
+        let config_s = xdg_config.to_string_lossy().into_owned();
+        let runtime_s = xdg_runtime.to_string_lossy().into_owned();
+        temp_env::with_vars(
+            [
+                ("HOME", Some(home_s.as_str())),
+                ("XDG_CONFIG_HOME", Some(config_s.as_str())),
+                ("XDG_RUNTIME_DIR", Some(runtime_s.as_str())),
+                ("ANVIL_HOME", Some(home_s.as_str())),
+            ],
+            || {
+                let diag = activation::diagnostic::verify_with_home(
+                    Path::new("/nonexistent-anvil-status-fallback"),
+                    Some(&home),
+                );
+                let worktree = Path::new("/tmp/wt-resolve-fallback");
+                let claim =
+                    protection_claim_section::resolve_protection_claim(&diag, None, worktree);
+                assert!(
+                    claim.surfaces.is_empty(),
+                    "fallback path must not invent surfaces: {claim:?}",
+                );
+                assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
+            },
         );
-        // The local-only derivation collapses to `Unprotected` for a
-        // path that does not exist; pin the worktree state too so a
-        // future refactor of `derive_local_worktree_state` cannot
-        // silently upgrade the fallback claim.
-        assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
+        cleanup(&home);
     }
 
     /// Snapshot present but the queried worktree is unknown to the

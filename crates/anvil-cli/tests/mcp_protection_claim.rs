@@ -12,6 +12,8 @@
 #![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::io::{BufRead, BufReader, Write};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver};
@@ -83,38 +85,78 @@ fn validate_write_response_carries_protection_claim_when_daemon_serves() {
     assert!(parsed.surfaces.is_empty());
 }
 
-/// MLP2-051b: when the daemon socket cannot be reached, the MCP shim
-/// emits the backend-failure envelope (decision = block, error =
-/// validation-backend-unavailable) and must NOT carry a synthesised
-/// `protection_claim`. The absent-field posture is what lets a
-/// driver pin the claim shape only to live daemon snapshots.
+/// Decided contract (issue #3922): an absent daemon socket is
+/// `DaemonStatus::NotWired`, not an operational backend failure.
+/// The MCP shim silently demotes to the embedded validator, still
+/// serves a clean allow, and MUST omit `protection_claim` so a
+/// driver cannot treat the claim as a live daemon snapshot.
 ///
-/// This path is the operationally important one to pin in
-/// integration: an `XDG_RUNTIME_DIR` that points at an empty
-/// `anvil/` directory (no `intercept.sock`) is exactly what an
-/// agent sees when the daemon has not been started yet. The pure
-/// `not-wired` path (no XDG, embedded validator only) is covered
-/// by the inline `protection_claim_omitted_when_daemon_not_wired`
-/// unit test in `validate_write.rs`.
+/// `validation-backend-unavailable` is reserved for true scanner
+/// failure (timeout / parse / peer-cred) — pinned by
+/// `daemon_operational_failure_blocks_without_fallback` in
+/// `validate_write.rs`. Do not weaken that path to make this test
+/// pass, and do not promote an absent socket to that block.
+///
+/// Isolation: `ANVIL_HOME` would otherwise steal socket resolution
+/// from the per-test `XDG_RUNTIME_DIR` (ADR-060). HOME / XDG are
+/// rerooted so operator MCP entries cannot leak into the child.
 #[test]
 fn validate_write_response_omits_protection_claim_when_daemon_unreachable() {
     let workspace = tempfile::tempdir().expect("workspace exists");
     let xdg = tempfile::tempdir().expect("xdg dir exists");
-    std::fs::create_dir_all(xdg.path().join("anvil")).expect("anvil/ subdir");
+    prepare_owner_only_runtime_dir(xdg.path());
 
     let payload =
         run_validate_write_with_daemon(workspace.path(), xdg.path(), CLEAN_PROPOSED_CONTENT);
     let tool = parse_tool_payload(&payload);
 
     assert_eq!(
-        tool["decision"], "block",
-        "backend-failure path must emit decision: block, got: {tool}",
+        tool["correlation"]["backend"], "embedded",
+        "absent socket must fall back to the embedded validator, got: {tool}",
     );
-    assert_eq!(tool["error"]["code"], "validation-backend-unavailable");
-    assert_eq!(tool["correlation"]["daemonStatus"], "unavailable");
+    assert_eq!(
+        tool["correlation"]["daemonStatus"], "not-wired",
+        "absent socket is NotWired, not operational unavailable, got: {tool}",
+    );
+    assert_eq!(
+        tool["decision"], "allow",
+        "clean content must still allow on the embedded fallback, got: {tool}",
+    );
     assert!(
         tool.get("protection_claim").is_none(),
-        "backend-failure responses must not carry a protection_claim, got: {tool}",
+        "embedded-fallback responses must not carry a protection_claim, got: {tool}",
+    );
+}
+
+/// Same isolated unreachable-daemon path, but with a finding. The
+/// embedded fallback must still catch secrets — falling back is not
+/// a silent skip of validation.
+#[test]
+fn validate_write_embedded_fallback_blocks_secret_when_daemon_unreachable() {
+    let workspace = tempfile::tempdir().expect("workspace exists");
+    let xdg = tempfile::tempdir().expect("xdg dir exists");
+    prepare_owner_only_runtime_dir(xdg.path());
+
+    let payload = run_validate_write_with_daemon(
+        workspace.path(),
+        xdg.path(),
+        "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
+    );
+    let tool = parse_tool_payload(&payload);
+
+    assert_eq!(tool["correlation"]["backend"], "embedded");
+    assert_eq!(tool["correlation"]["daemonStatus"], "not-wired");
+    assert_eq!(
+        tool["decision"], "interrupt",
+        "embedded fallback must still interrupt on a secret, got: {tool}",
+    );
+    assert_eq!(
+        tool["diagnostics"][0]["source"]["rule_id"], "secret-detection",
+        "expected secret-detection finding, got: {tool}",
+    );
+    assert!(
+        tool.get("protection_claim").is_none(),
+        "embedded-fallback responses must not carry a protection_claim, got: {tool}",
     );
 }
 
@@ -217,7 +259,23 @@ fn run_validate_write_with_daemon(
         .unwrap_or_else(|err| panic!("response must be JSON-RPC JSON, got {line:?}\nerror: {err}"))
 }
 
+/// Owner-only `anvil/` runtime dir with no socket. A default-umask
+/// `0755` directory is a security refusal (`SocketDirPermissions`),
+/// not "daemon not started"; pin `0700` so this path exercises the
+/// absent-socket embedded fallback rather than fail-closed.
+fn prepare_owner_only_runtime_dir(xdg_runtime_dir: &Path) {
+    let anvil_dir = xdg_runtime_dir.join("anvil");
+    std::fs::create_dir_all(&anvil_dir).expect("anvil/ subdir");
+    std::fs::set_permissions(&anvil_dir, std::fs::Permissions::from_mode(0o700))
+        .expect("anvil/ owner-only");
+}
+
 fn spawn_mcp_server(workspace_root: &Path, xdg_runtime_dir: &Path) -> Child {
+    // Isolate operator state. `ANVIL_HOME` must be cleared so socket
+    // resolution honours this test's `XDG_RUNTIME_DIR` (ADR-060:
+    // a set `ANVIL_HOME` steals the socket path from XDG).
+    let config_home = xdg_runtime_dir.join("config");
+    std::fs::create_dir_all(&config_home).expect("isolated xdg config");
     Command::new(ANVIL_BIN)
         .arg("--no-tui")
         .arg("mcp")
@@ -226,6 +284,9 @@ fn spawn_mcp_server(workspace_root: &Path, xdg_runtime_dir: &Path) -> Child {
         .current_dir(workspace_root)
         .env("ANVIL_DEV", "1")
         .env("ANVIL_MCP_PREFERRED", ANVIL_BIN)
+        .env("HOME", xdg_runtime_dir)
+        .env("XDG_CONFIG_HOME", &config_home)
+        .env_remove("ANVIL_HOME")
         .env("XDG_RUNTIME_DIR", xdg_runtime_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

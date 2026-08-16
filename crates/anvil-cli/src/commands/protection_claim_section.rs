@@ -127,14 +127,72 @@ mod tests {
         SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
     };
 
-    /// Local fallback: no daemon snapshot, diagnostic that cannot
-    /// reach `Protecting` / `Watching` → `Unprotected`, empty surfaces.
+    /// Isolated HOME/XDG/ANVIL_HOME so operator MCP entries cannot
+    /// promote a missing project to `ReadyRestartRequired` → `Warming`.
+    fn isolated_operator_roots() -> tempfile::TempDir {
+        let root = tempfile::tempdir().expect("isolated operator roots");
+        std::fs::create_dir_all(root.path().join(".config")).expect("xdg config");
+        std::fs::create_dir_all(root.path().join("runtime")).expect("xdg runtime");
+        root
+    }
+
+    fn with_isolated_operator_env<T>(root: &Path, body: impl FnOnce() -> T) -> T {
+        let home = root.to_string_lossy().into_owned();
+        let config = root.join(".config").to_string_lossy().into_owned();
+        let runtime = root.join("runtime").to_string_lossy().into_owned();
+        temp_env::with_vars(
+            [
+                ("HOME", Some(home.as_str())),
+                ("XDG_CONFIG_HOME", Some(config.as_str())),
+                ("XDG_RUNTIME_DIR", Some(runtime.as_str())),
+                ("ANVIL_HOME", Some(home.as_str())),
+            ],
+            body,
+        )
+    }
+
+    fn write_restart_required_cursor_fixture(home: &Path) {
+        let cursor = home.join(".cursor");
+        std::fs::create_dir_all(&cursor).expect("cursor config dir");
+        std::fs::write(
+            cursor.join("mcp.json"),
+            r#"{"mcpServers":{"anvil":{"command":"anvil","args":["mcp","serve","--stdio"],"env":{}}}}"#,
+        )
+        .expect("cursor mcp fixture");
+    }
+
+    /// Local fallback: no daemon snapshot, isolated empty operator
+    /// roots, missing project → `Unprotected`, empty surfaces.
     #[test]
     fn local_fallback_yields_unprotected_with_empty_surfaces() {
-        let diag = activation::verify(Path::new("/nonexistent-anvil-pcs-test"));
-        let claim = resolve_protection_claim(&diag, None, Path::new("/tmp/wt-pcs-fallback"));
-        assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
-        assert!(claim.surfaces.is_empty());
+        let roots = isolated_operator_roots();
+        with_isolated_operator_env(roots.path(), || {
+            let diag = activation::diagnostic::verify_with_home(
+                Path::new("/nonexistent-anvil-pcs-test"),
+                Some(roots.path()),
+            );
+            let claim = resolve_protection_claim(&diag, None, Path::new("/tmp/wt-pcs-fallback"));
+            assert_eq!(claim.worktree_state, WorktreeClaimState::Unprotected);
+            assert!(claim.surfaces.is_empty());
+        });
+    }
+
+    /// Same live verify path, but with a representative restart-required
+    /// MCP fixture. Pins that isolation is fixture-controlled: host MCP
+    /// must not leak in, and a seeded entry must surface as `Warming`.
+    #[test]
+    fn local_fallback_yields_warming_for_isolated_restart_required_fixture() {
+        let roots = isolated_operator_roots();
+        write_restart_required_cursor_fixture(roots.path());
+        with_isolated_operator_env(roots.path(), || {
+            let diag = activation::diagnostic::verify_with_home(
+                Path::new("/nonexistent-anvil-pcs-fixture"),
+                Some(roots.path()),
+            );
+            let claim = resolve_protection_claim(&diag, None, Path::new("/tmp/wt-pcs-fixture"));
+            assert_eq!(claim.worktree_state, WorktreeClaimState::Warming);
+            assert!(claim.surfaces.is_empty());
+        });
     }
 
     /// Headline-only render: empty surfaces emit just the
