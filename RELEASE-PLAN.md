@@ -74,14 +74,14 @@ IDs.
 
 ### Phase plan
 
-| Phase              | Scope                                          | State                  |
-| ------------------ | ---------------------------------------------- | ---------------------- |
-| **0.9.5 closeout** | Record + APS advance + prune                   | In progress 2026-08-17 |
-| **Field intake**   | Post-`v0.9.5-beta` signal → theme selection    | Next                   |
-| **Claim lock**     | Freeze primary/secondary IDs for `v0.9.6-beta` | Not started            |
-| **Implement**      | Claim items                                    | Not started            |
-| **Changelog**      | Curate `[Unreleased]`                          | Not started            |
-| **Cut**            | Preflight → prepare → readiness → tag          | Not scheduled          |
+| Phase              | Scope                                          | State           |
+| ------------------ | ---------------------------------------------- | --------------- |
+| **0.9.5 closeout** | Record + APS advance + prune                   | Done 2026-08-17 |
+| **Field intake**   | Post-`v0.9.5-beta` signal → theme selection    | Next            |
+| **Claim lock**     | Freeze primary/secondary IDs for `v0.9.6-beta` | Not started     |
+| **Implement**      | Claim items                                    | Not started     |
+| **Changelog**      | Curate `[Unreleased]`                          | Not started     |
+| **Cut**            | Preflight → prepare → readiness → tag          | Not scheduled   |
 
 ### Cut criteria
 
