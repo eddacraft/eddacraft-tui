@@ -1,6 +1,8 @@
 {
   "state": "ready_restart_required",
   "headline": "Daemon not reachable — protection cannot graduate until the intercept daemon answers this worktree.",
+  "reason": "An anvil MCP entry is present, but the local intercept daemon is not reachable. Protection cannot graduate until the daemon answers this worktree.",
+  "guidance": "no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.",
   "config": "valid",
   "mcp": [
     {

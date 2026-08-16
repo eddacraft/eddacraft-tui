@@ -40,6 +40,6 @@ pub use diagnostic::{ActivationDiagnostic, verify};
 #[allow(unused_imports)] // contract surface for downstream PRs
 pub use language_profile::{CoverageTier, LanguageProfileEntry, RepoLanguageProfile, profile_repo};
 pub use render::{
-    has_repair_hint, headline_for_diagnostic, render_human, render_human_verbose,
-    render_human_with_install, render_json, repair_hint_for,
+    has_repair_hint, headline_for_diagnostic, reason_for_diagnostic, render_human,
+    render_human_verbose, render_human_with_install, render_json, repair_hint_for,
 };

@@ -609,11 +609,11 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
             // CIB-292: this state is reached from the MCP tier alone —
             // the probe verified an entry is *present*, never that any
             // client has read it (the tier can still be "pending
-            // restart"). State observed presence only, mirroring the
-            // CIB-256 `NotProbed` sibling arm; the recovery guidance is
-            // settled by DLIFE-006 and stays verbatim.
+            // restart"). State observed presence only and keep this
+            // reason non-actionable; the single prerequisite-ordered
+            // recovery step is owned by `repair_hint`.
             DaemonAttestation::Unreachable => {
-                "An anvil MCP entry is present, but the local intercept daemon is not reachable. Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again."
+                "An anvil MCP entry is present, but the local intercept daemon is not reachable. Protection cannot graduate until the daemon answers this worktree."
             }
             DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
                 "The intercept daemon is running, but this worktree is not attached to an enforcing session yet. Check `anvil intercept status`, then run `anvil start --verify` again after the editor issues an MCP request."
@@ -745,7 +745,8 @@ fn watching_meaning(d: &ActivationDiagnostic) -> &'static str {
 /// Build the JSON value for embedding inside a parent JSON document
 /// (e.g. `anvil status --json`'s `activation` field).
 ///
-/// The shape is stable contract — keys are: `state`, `headline`,
+/// The shape is stable contract — keys are: `state`, `headline`, `reason`,
+/// `guidance`,
 /// `config`, `mcp` (array of `{client, tier}` objects), `watch`,
 /// `baseline_present`, `last_error`, `all_languages_unsupported`,
 /// `repo_languages` (array of `{name, files_seen, coverage_tier, basis}`),
@@ -849,6 +850,8 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
     json!({
         "state": state.label(),
         "headline": headline_for(state, d),
+        "reason": state_explanation(state, d),
+        "guidance": repair_hint(state, d),
         "config": d.config.label(),
         "mcp": mcp,
         "watch": d.watch.label(),
@@ -1020,6 +1023,13 @@ pub fn repair_hint_for(d: &ActivationDiagnostic) -> Option<&'static str> {
     repair_hint(d.protection_state(), d)
 }
 
+/// Plain-language reason for the final activation state, shared by the human,
+/// TUI, and JSON surfaces. `None` means the headline already tells the whole
+/// story without a subordinate explanation.
+pub fn reason_for_diagnostic(d: &ActivationDiagnostic) -> Option<&'static str> {
+    state_explanation(d.protection_state(), d)
+}
+
 /// CIB-183: the headline both renderers print for this diagnostic,
 /// including the DLIFE-006 daemon-unreachable override. Exposed so the
 /// collapsed repeat-success renderer reuses the exact headline copy
@@ -1164,6 +1174,8 @@ mod tests {
         let expected_keys = [
             "state",
             "headline",
+            "reason",
+            "guidance",
             "config",
             "mcp",
             "watch",
@@ -1810,13 +1822,9 @@ mod tests {
             lower.contains("mcp entry") && lower.contains("present"),
             "Unreachable meaning must state the observed fact — an MCP entry is present: {meaning}"
         );
-        // DLIFE-006: the recovery guidance is settled and must survive
-        // word for word.
         assert!(
-            meaning.contains(
-                "Run `anvil start` in a real terminal (not piped) to auto-start it — for headless recovery use `anvil intercept start --foreground` — then run `anvil start --verify` again."
-            ),
-            "Unreachable meaning must keep the DLIFE-006 recovery guidance verbatim: {meaning}"
+            !meaning.contains("anvil start"),
+            "the reason must describe the missing prerequisite without duplicating the actionable next step: {meaning}"
         );
     }
 

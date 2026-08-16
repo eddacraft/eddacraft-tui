@@ -1170,14 +1170,17 @@ fn activation_verdict_model(
     use anvil_tui::surfaces::activation::{VerdictModel, VerdictSection};
 
     let state = diagnostic.protection_state();
-    let activation_rows = vec![
+    let mut activation_rows = vec![
         format!("state: {}", state.label()),
         // CIB-183: the TUI verdict shares the plain renderers' headline
         // arbitration (incl. the DLIFE-006 daemon-unreachable override)
         // and next-step arbiter — no duplicated copy on either row.
         activation::headline_for_diagnostic(diagnostic).to_string(),
-        arbitrated_next_step(diagnostic),
     ];
+    if let Some(reason) = activation::reason_for_diagnostic(diagnostic) {
+        activation_rows.push(format!("meaning: {reason}"));
+    }
+    activation_rows.push(arbitrated_next_step(diagnostic));
     let mut layer_rows = vec![format!("config: {}", diagnostic.config.label())];
     layer_rows.extend(diagnostic.mcp.iter().map(|(client, probe)| {
         format!(
@@ -2433,7 +2436,7 @@ fn install_first_wave_mcp_clients_at(
         }
         match mcp_installer::install(client, args.mcp_scope, root, command, false, false) {
             Ok(report) => lines.push(format!(
-                "anvil: {} MCP config {} at {}; restart guidance: {}",
+                "anvil: {} MCP config {} at {}",
                 client.entry().display_name,
                 if report.wrote {
                     "installed"
@@ -2441,7 +2444,6 @@ fn install_first_wave_mcp_clients_at(
                     "already configured"
                 },
                 report.path.display(),
-                report.reload_hint
             )),
             Err(error) if !explicit => lines.push(format!(
                 "anvil: skipped {} MCP config: {error:#}",
@@ -5776,6 +5778,70 @@ mod tests {
             diagnostic.protection_state(),
             activation::state::ProtectionState::ReadyRestartRequired,
         );
+    }
+
+    #[test]
+    fn daemon_absent_final_guidance_does_not_recommend_and_reject_editor_restart() {
+        let project = tempfile::TempDir::new().unwrap();
+        let home = tempfile::TempDir::new().unwrap();
+        std::fs::write(project.path().join(".anvil.json"), r#"{"checks":[]}"#).unwrap();
+
+        let mut args = start_args_default();
+        args.mcp_scope = InstallScope::Project;
+        args.mcp_client = vec![AgentClientId::ClaudeCode];
+        let install_lines = install_first_wave_mcp_clients_at(
+            &args,
+            StartRenderMode::Plain,
+            Some(home.path()),
+            project.path(),
+            Path::new(activation::mcp_client::PREFERRED_MCP_COMMAND),
+        )
+        .unwrap();
+
+        let mut diagnostic = restart_required_diagnostic();
+        diagnostic.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
+        let human = format!(
+            "{}\n{}",
+            install_lines.join("\n"),
+            activation::render_human(&diagnostic),
+        );
+        assert!(
+            human.contains("another editor restart will not help"),
+            "the final state must explain why an editor restart is not actionable: {human}",
+        );
+        assert!(
+            !human.contains("Restart Claude Code"),
+            "an install receipt must not compete with final-state daemon guidance: {human}",
+        );
+        assert_eq!(
+            human.matches("anvil intercept start --foreground").count(),
+            1,
+            "the prerequisite daemon repair must be emitted once: {human}",
+        );
+
+        let model = activation_verdict_model(
+            &diagnostic,
+            &activation::orchestrator::InstallReport::default(),
+            &[],
+            None,
+        );
+        let tui_guidance = model
+            .next_guidance
+            .as_deref()
+            .expect("daemon-absent TUI verdict has guidance");
+        let json = activation::render_json(&diagnostic);
+        let json_reason = json["reason"]
+            .as_str()
+            .expect("daemon-absent JSON has a reason");
+        let json_guidance = json["guidance"]
+            .as_str()
+            .expect("daemon-absent JSON has guidance");
+
+        assert_eq!(json["state"], "ready_restart_required");
+        assert!(json_reason.contains("intercept daemon is not reachable"));
+        assert_eq!(tui_guidance, format!("next: {json_guidance}"));
+        assert!(json_guidance.contains("anvil intercept start --foreground"));
+        assert!(!json_guidance.contains("restart your editor"));
     }
 
     #[test]
