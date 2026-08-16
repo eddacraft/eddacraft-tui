@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 273/339  |
+| CIB | —     | In Progress | 276/339  |
 
 ## Purpose
 
@@ -10519,7 +10519,13 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
 
 ### CIB-341: Large-repo full scan 60s budget leaves GCTX generation-0
 
-- **Status:** Ready
+- **Status:** Merged via PR
+  [#3965](https://github.com/eddacraft/anvil-001/pull/3965) (merged
+  2026-08-16, rebase — ancestor of `main` verified by SHA
+  `328bd338d`). Not yet in a tagged release. Timeout plus a populated
+  graph now publishes `generation >= 1` and serves Ready+stale; restore
+  is no longer gated on `is_enqueued`; `should_rewarm` fires on every
+  `NotReady`.
 - **Priority:** P1 — dogfood GCTX stays `not_ready` / stale on anvil-001
 - **Intent:** The intercept full scan hard-caps at 60 seconds
   (`SCAN_TIMEOUT` in `full_scan_executor.rs`). On a large workspace the
@@ -10539,6 +10545,8 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
   says "retry shortly" as the only product answer for this repo.
 - **Files:** `crates/anvil-intercept/src/full_scan_executor.rs`,
   `crates/anvil-intercept/src/save_time.rs`,
+  `crates/anvil-intercept/src/assurance.rs`,
+  `crates/anvil-intercept/src/kernel_cache.rs`,
   `crates/anvil-cli/src/mcp/tools/search_symbols.rs`
 - **Validation:** on anvil-001, `anvil_search_symbols` returns `ready`
   with `generation >= 1` (or `stale` only after a *completed* generation
@@ -10552,7 +10560,14 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
 
 ### CIB-342: graph-base production spawn ENOENT serves cold
 
-- **Status:** Ready
+- **Status:** Merged via PR
+  [#3964](https://github.com/eddacraft/anvil-001/pull/3964) (merged
+  2026-08-16, rebase — ancestor of `main` verified by SHA
+  `e86c6bb74`). Not yet in a tagged release. Spawn failures now name
+  exe and repo; PATH-stable `anvil` is the fallback when
+  `current_exe()` is gone; an existing HEAD/merge-base `.base` is
+  reused; `--repo` accepts a worktree, `.git` dir, or gitfile.
+  Produce-lock reap stays on CIB-344.
 - **Priority:** P1 — cold scans are why CIB-341 cannot finish
 - **Intent:** `CurrentExeSpawner` re-execs `current_exe()` as
   `anvil graph-base build --repo <git-dir>`. On this host that spawn
@@ -10581,7 +10596,13 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
 
 ### CIB-343: Live handshake still Claude Code and Cursor only
 
-- **Status:** Ready
+- **Status:** Merged via PR
+  [#3966](https://github.com/eddacraft/anvil-001/pull/3966) (merged
+  2026-08-16, rebase — ancestor of `main` verified by SHA
+  `4dccc1427`). Not yet in a tagged release. `McpClientId` is now
+  `AgentClientId`; `all_clients()` is the twelve-client first-wave
+  ladder; start-activation fixtures and clap/serde attestation aliases
+  (`open-code`, `open-claw`, `vs-code`) landed with the review address.
 - **Priority:** P1 — twelve-client install, two-client attestation
 - **Intent:** `AgentClientId` and `anvil mcp install` already cover
   twelve first-wave clients (MCPX). The activation diagnostic that can
@@ -10600,9 +10621,11 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
   claim live-validation for a client that has no daemon attestation
   path; do not treat Grok-only as the whole matrix.
 - **Files:** `crates/anvil-cli/src/activation/mcp_client.rs`,
+  `crates/anvil-cli/src/activation/mcp_client/registry.rs`,
   `crates/anvil-cli/src/activation/mcp_client/cursor.rs`,
   `crates/anvil-cli/src/activation/mcp_client/claude_code.rs`,
   `crates/anvil-cli/src/activation/agent_registry.rs`,
+  `crates/anvil-cli/src/activation/daemon_evidence.rs`,
   `docs/architecture/mcp-shim-as-built.md` §10
 - **Validation:** `rg 'all_clients' crates/anvil-cli/src/activation/mcp_client.rs`
   no longer returns a two-element Cursor/Claude slice, or each
@@ -10619,7 +10642,14 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
 
 ### CIB-344: Reap stale MCP shims and graph-base locks as a matter of course
 
-- **Status:** Ready
+- **Status:** Ready — process-orphan half Merged via PR
+  [#3963](https://github.com/eddacraft/anvil-001/pull/3963) (merged
+  2026-08-16, rebase — ancestor of `main` verified by SHA
+  `b71333384`). `anvil doctor` / `anvil doctor --fix` now report and
+  SIGTERM orphan `anvil mcp serve --stdio` processes whose parent is
+  gone (Linux `/proc` walk). Produce-lock reap
+  (`graph-cache/base/.producing/*.lock` whose pid is dead) is still
+  open and stays this item.
 - **Priority:** P2 — standing operator debris; not the GCTX `not_ready`
   cause
 - **Intent:** `anvil doctor` / `anvil start` / `anvil intercept status`
@@ -10637,6 +10667,7 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
   current MCP client; do not wipe the whole graph-cache; do not make
   reap the only fix for CIB-341/342.
 - **Files:** `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/commands/mcp_orphan.rs`,
   `crates/anvil-cli/src/commands/intercept.rs`,
   `crates/anvil-intercept/src/graph_base_trigger.rs`
 - **Validation:** with a planted dead-pid produce-lock and a leftover

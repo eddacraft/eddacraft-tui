@@ -2703,3 +2703,771 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Improvement:** Prefer index module-table-only regex when bulk-updating APS index rows
 - **Follow-up:** none
 
+### 2026-07-31 — codex
+
+- **Task:** Diagnose and correct dogfood pre-push full-scan routing
+- **Outcome:** Managed pre-push now invokes the dedicated L4 pushed-range runtime; old ignored/cache findings no longer block this push surface.
+- **Worked:** Reproducing both anvil gate and anvil hook pre-push exposed the installer/runtime mismatch quickly.
+- **Failed:** Treating every ignored path as scan noise would also hide ignored credential files.
+- **Friction:** The worktree MCP write gate trusted only the primary checkout, so validation used content mode against the trusted root.
+- **Improvement:** Use path-aware, auditable generated-output exclusions while retaining ignored credential scanning.
+- **Follow-up:** owned: CIB-217
+
+### 2026-08-01 — codex
+
+- **Task:** Prepare eddacraft-tui 0.4.2 release candidate
+- **Outcome:** Prepared version, lockfile, changelog, package baseline, and corrected release gate instructions; publish dry-run and required gates passed.
+- **Worked:** Worktrunk isolation, exact publish-workflow comparison, task-owned Cargo caches, and package manifest byte-diff.
+- **Failed:** Initial doctest was blocked by a full /tmp; initial cargo-deny invocations exposed a stale runbook command and a read-only shared advisory cache.
+- **Friction:** The release runbook omitted attribution/deny.toml and --all-features rustdoc flags even though the live publish workflow required them.
+- **Improvement:** Keep local release gate commands aligned with the live publish workflow; corrected in this release-prep diff.
+- **Follow-up:** none
+
+### 2026-08-01 — codex
+
+- **Task:** Open eddacraft-tui release PR
+- **Outcome:** Committed the prepared candidate locally, then stopped before push because Council found four unresolved major release-readiness issues.
+- **Worked:** Live branch and duplicate-PR checks, conventional commit hooks, standard Council review, semver debate, and hermetic release-test rerun.
+- **Failed:** Repository-wide format check included the untracked Council session JSON; tracked files remain formatted. PR publication is pending finding decisions.
+- **Friction:** Release preparation missed acknowledgements regeneration, all-features cargo-deny coverage, a stale 0.2 release template, and stable-trait semver risk.
+- **Improvement:** Resolve Council release findings before publishing the branch.
+- **Follow-up:** session:council-cb649e02
+
+### 2026-08-01 — codex
+
+- **Task:** Prepare eddacraft-tui 0.5.0 release candidate and open its PR
+- **Outcome:** Draft PR #3479 opened from current main after full local gates, converged Council, and independent verification
+- **Worked:** Layered Council plus independent package-surface verification caught semver, supply-chain, acknowledgement, rollback, packaged documentation, security-policy, and rustdoc drift before publication
+- **Failed:** The initial 0.4.2 classification and narrow dependency-example sweep were incomplete and required iterative repair
+- **Friction:** The shared /tmp filesystem was full; task-owned Cargo target, cache, and temporary paths kept verification reliable
+- **Improvement:** Automate release-series consistency checks across packaged README, RELEASE, SECURITY, rustdoc examples, manifest, changelog, and workflow prose
+- **Follow-up:** theme:release-package-docs
+
+### 2026-08-02 — codex
+
+- **Task:** Address PR #3479 review feedback
+- **Outcome:** Two review threads fixed, replied to, and resolved; branch rebased onto current main; full CI green
+- **Worked:** CI-first triage, GraphQL review-thread verification, and full release-package evidence
+- **Failed:** none
+- **Friction:** Long Rust test gate; anvil developer MCP functions unavailable in this harness
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-02 — codex
+
+- **Task:** Plan MCP legacy request-metadata compatibility fix
+- **Outcome:** Diagnosed the era-classifier regression and drafted MCP26-013 pending user approval
+- **Worked:** Live Codex logs plus direct and Claude A/B wire tests isolated progressToken metadata as the trigger
+- **Failed:** anvil MCP developer functions reject the same standard request metadata, so graph and pre-write validation were unavailable
+- **Friction:** The compatibility matrix lacked a supported-client fixture carrying standard request metadata
+- **Improvement:** Add legacy progressToken fixtures for tools/list and tools/call while preserving fail-closed modern namespace validation
+- **Follow-up:** owned: MCP26-013
+
+### 2026-08-02 — codex
+
+- **Task:** KFIT-006 embedded kindling runtime precursor
+- **Outcome:** Prepared an optional kindling-runtime consumption seam behind compile-time and default-off rollout flags without starting or attaching a daemon.
+- **Worked:** Feature-gated dependency graph checks, focused Rust and catalogue tests, and isolated Worktrunk validation.
+- **Failed:** The repo-wide formatter traversed the task-owned Cargo target directory until it was removed.
+- **Friction:** Hermetic Cargo targets inside the worktree are visible to the repo-wide formatter.
+- **Improvement:** Teach repository formatting or ignore rules to exclude task-owned Cargo target directories used for sandbox-safe validation.
+- **Follow-up:** theme: hermetic-target-format-ignore
+
+### 2026-08-02 — codex
+
+- **Task:** MCP26-013: preserve legacy request metadata under MCP 2026 dual-era dispatch
+- **Outcome:** PR #3487 is review-ready with green CI, converged Council review, and zero unresolved threads.
+- **Worked:** Strict reserved-namespace intent detection plus complete-shape validation restored legacy progressToken requests while preserving fail-closed modern parsing.
+- **Failed:** none
+- **Friction:** Refreshing advisory claim heartbeats changes a non-commit ref non-fast-forward, which conflicts with the dev-loop no-force invariant.
+- **Improvement:** Define a fast-forward claim heartbeat representation or a bounded safe-force rule for exact advisory refs.
+- **Follow-up:** theme: claim-ref-refresh
+
+### 2026-08-02 — codex
+
+- **Task:** Address review threads on PR #3487
+- **Outcome:** Replied to and resolved both aggregate-counter threads with repository policy evidence; no code changes were required. PR remains CLEAN and mergeable with terminal green CI.
+- **Worked:** CI-first triage plus GraphQL reviewThreads exposed two duplicate comments; plans/project-context.md established that feature PRs must not edit aggregate N/M cells.
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-03 — codex
+
+- **Task:** File kindling performance evidence and recommended KFIT sequence locally
+- **Outcome:** Review, raw profile, Criterion summary, full local report, and generated docs indexes filed without commit
+- **Worked:** Repository metadata/index rules and Node 24 toolchain produced focused green validation
+- **Failed:** Full docs:check metadata surface hit ELOOP in a separate live .worktrees checkout with recursive node_modules symlinks
+- **Friction:** Documentation globs with gitignore enabled can still traverse linked worktree dependency loops
+- **Improvement:** Exclude .worktrees and recursive node_modules symlink paths from docs metadata discovery
+- **Follow-up:** promote: CIB
+
+### 2026-08-03 — codex
+
+- **Task:** Remediate brace-expansion Dependabot alerts #236 and #237
+- **Outcome:** Opened draft PR #3493 with Dependency Audit passing
+- **Worked:** Task-owned Cargo target plus isolated XDG runtime/config paths separated product evidence from host daemon and read-only cache state
+- **Failed:** Default shared Cargo target was read-only; /tmp is a Git boundary; local Trivy was unavailable
+- **Friction:** Lockfile-only regeneration introduced unrelated resolver drift that required exact removal
+- **Improvement:** Make local validation provision writable Cargo/XDG paths and a temp directory without an ancestor .git boundary
+- **Follow-up:** theme:hermetic-validation
+
+### 2026-08-03 — codex
+
+- **Task:** complete KFIT via dev-loop-codex
+- **Outcome:** Resolved live KFIT truth; paused at the KFIT-001 product and durability design checkpoint
+- **Worked:** Live PR, tag, crates.io, APS, source, and two independent design reviews converged
+- **Failed:** none
+- **Friction:** KFIT is Draft-gated, cross-repository, and requires operator product and retention decisions before implementation
+- **Improvement:** none
+- **Follow-up:** owned: KFIT-001
+
+### 2026-08-03 — codex — CIB-219 documentation pass
+
+- **Task:** Complete internal and public documentation audit after v0.9.1-beta and merge on green
+- **Outcome:** PR #3500 merged the reconciled docs and PR #3501 merged the CIB-219 lifecycle closeout
+- **Worked:** Live release and installed-command truth, isolated Worktrunk branch, focused docs validators, standard Council with focused re-review, terminal CI, GraphQL thread verification, and tree-equality proof for squash merges
+- **Failed:** A monolithic local validate:staged run was environment-sensitive: shared cache permissions and live-daemon state contaminated mutually exclusive test fixtures; scoped clean-room commands and GitHub CI supplied authoritative evidence
+- **Friction:** Full docs CI reruns on a one-file APS closeout; inherited baselined link warnings and single-writer APS count advisories add noise
+- **Improvement:** Retain checksum verification for the pinned public-doc installer and keep lifecycle reconciliation as a minimal post-merge PR
+- **Follow-up:** none
+
+### 2026-08-03 — codex
+
+- **Task:** KFIT-001 contract design and Council repair
+- **Outcome:** Review-ready staged contract with converged Council and green documentation gates
+- **Worked:** Iterative adversarial, security, and general review exposed cross-field identity, gap, migration, prune, and activation contradictions before implementation
+- **Failed:** none
+- **Friction:** The local .council session directory was scanned by the repository-wide formatter and had to be preserved outside the worktree for the official gate
+- **Improvement:** Exclude generated .council session state from repository formatting or store it under the shared Git metadata path by default
+- **Follow-up:** theme:council-session-hygiene
+
+### 2026-08-04 — grok
+
+- **Task:** File Dave 0.9.1 Windows install/update beta feedback
+- **Outcome:** Filed CIB-228..230 Ready + GH #3514; updated index NBI and RELEASE-PLAN v0.9.3 primary claim
+- **Worked:** Verified bugs still live on 0.9.2 installer; created tracking issue; APS + release plan wired alongside Morgan #3510
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** owned: CIB-228
+
+### 2026-08-04 — codex
+
+- **Task:** Resume CIB-248 / PR #3521 through review and integration verification
+- **Outcome:** PR #3521 rebase-merged green with its sole Copilot thread resolved; independent verification identified CIB-271 but anvil blocked out-of-scope implementation
+- **Worked:** Fresh Worktrunk audit, GraphQL thread enumeration, focused Rust and docs checks, and integration-ancestor proof
+- **Failed:** Attempted CIB-271 test write was rejected by the authoritative anvil pre-write gate and was not bypassed
+- **Friction:** PR auto-merged while the resumed audit was running; shared git and pnpm stores were read-only
+- **Improvement:** Surface auto-merge state before beginning a resumed PR repair lane and bind follow-up work authority explicitly
+- **Follow-up:** owned: CIB-271
+
+### 2026-08-04 — codex
+
+- **Task:** CIB-240 and CIB-241 dev-loop implementation and landing
+- **Outcome:** Feature and scoped APS bookkeeping rebase-merged after independent verification and green hosted checks
+- **Worked:** Worktrunk isolation, CAS claims, Council review, exact-head verify-loop, and hosted gate monitoring
+- **Failed:** Initial generated Hakari and acknowledgements artefacts were stale on the feature base; the first bookkeeping patch matched an unrelated status and was corrected before commit
+- **Friction:** Shared pnpm store was read-only, the default Node runtime was below the repository floor, and gh pr merge attempted to switch to a main worktree owned elsewhere after remotely merging
+- **Improvement:** Preflight dependency-generated artefacts after lock updates and use a forge-only rebase-merge path when another Worktrunk worktree owns main
+- **Follow-up:** theme:worktree-ci-environment
+
+### 2026-08-04 — codex
+
+- **Task:** Complete CIB-235 and CIB-236 through dev-loop-codex
+- **Outcome:** Implementation and status-only APS reconciliation rebase-merged via PRs #3544 and #3550
+- **Worked:** Worktrunk isolation, exact APS claims, TDD render matrices, Council review, independent verification, CI-first repairs, and review-thread closeout
+- **Failed:** Initial Clippy test-length failure and generated Hakari/acknowledgements freshness drift required repair cycles
+- **Friction:** Linked-worktree git metadata was read-only in the sandbox; repository hooks also required the Node 24 wrapper; hosted affected Rust tests took about 30 minutes per final cycle
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-04 — codex
+
+- **Task:** Complete CIB-238 and CIB-239 via dev-loop-codex
+- **Outcome:** Feature PR #3556 and scoped APS reconciliation PR #3557 independently verified, green, and rebase-merged.
+- **Worked:** Immutable-range verification, exact claim CAS, and hosted auto-merge gates kept implementation and lifecycle evidence aligned.
+- **Failed:** Fresh-worktree validation initially selected system pnpm under Node 20; sandboxed pnpm project registration also hit EROFS in the shared store.
+- **Friction:** Worktrunk defaulted to a sibling path outside the writable root, requiring the clean new worktree to be moved into .worktrees.
+- **Improvement:** Prefer repository-pinned Node/Corepack and an in-repository Worktrunk path for sandboxed dev-loop lanes.
+- **Follow-up:** none
+
+### 2026-08-05 — codex
+
+- **Task:** Complete CIB-254 via dev-loop-codex in a fresh Worktrunk worktree and merge on green
+- **Outcome:** Feature PR #3577 and APS reconciliation PR #3579 merged; CIB-254 is Merged on origin/main and Draft CIB-283 retains bounded follow-ups.
+- **Worked:** Fresh Worktrunk isolation, vertical-slice TDD, exact family-scope attestation, hard no-daemon routing, ordered daemon action-result events, converged Council, review remediation, and local plus hosted green gates including Windows MSVC.
+- **Failed:** Ambient /tmp/.git contaminated one temp-repository test until TMPDIR moved to clean /var/tmp; the first APS generator invocation hit a read-only shared pnpm project registry before the worktree dependency state healed.
+- **Friction:** The feature Rust CI gate took 31 minutes; gh pr merge --delete-branch merged remotely but failed its local checkout cleanup because main was already attached to the primary worktree.
+- **Improvement:** Use a task-owned clean TMPDIR for repository-boundary tests and omit post-merge local branch deletion when merging from an attached feature worktree.
+- **Follow-up:** owned: CIB-283
+
+### 2026-08-05 — codex
+
+- **Task:** Complete CIB-250 tutorial safety chain
+- **Outcome:** PR #3578 rebase-merged; implementation integrated
+- **Worked:** TDD, Council, independent verification, review repair, current-main rebase, and replacement CI all passed
+- **Failed:** Broad local workspace tests had 9 unrelated MCP daemon-isolation failures; PR CI was fully green
+- **Friction:** Late Windows canonicalisation review arrived after the first green run and required a verified repair plus replacement CI
+- **Improvement:** Use the repository dunce canonicaliser for cross-surface workspace path identity from the first slice
+- **Follow-up:** ready to reconcile: CIB-250 -> Merged via PR #3578
+
+### 2026-08-05 — other
+
+- **Task:** APS bookkeeping reconcile for latest delivered CIB items
+- **Outcome:** reconciled CIB-205/250/253/255/276/280 Merged; PR opened; awaiting green rebase-merge
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-05 — other
+
+- **Task:** APS bookkeeping reconcile PR #3580
+- **Outcome:** Merged via rebase on green: CIB-205/250/253/255/276/280 → Merged; progress 213/279
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-05 — other — CIB-275 closeout
+
+- **Item:** CIB-275 Start result screen — one help bar and a full `next:` line
+- **Branch:** fix/cib-275-start-result-help-next
+- **Change:** Removed in-pane verdict HelpBar (shell j/k only); promoted `next:` to wrapping band on VerdictModel.next_guidance.
+- **Validation:** `cargo test -p eddacraft-anvil-tui --lib surfaces::activation` (64 ok); `cargo test -p eddacraft-anvil --bin anvil -- tui_verdict` (3 ok); clippy/fmt clean.
+- **APS:** CIB multi-writer — feature PR does not edit continuous-improvement-backlog.aps.md; promote Merged on bookkeeping after integration.
+
+### 2026-08-05 — codex
+
+- **Task:** CIB-283 fallback WOUT parity and no-daemon zero-RPC proof
+- **Outcome:** PR #3588 review-ready; CI green; awaiting merge authority
+- **Worked:** Shared serialized WOUT emitter, hermetic no-daemon spy, three-lens Council, and exact-head independent verification
+- **Failed:** Local repo-wide validate:staged was contaminated by shared daemon and credential environment; clean-runner CI supplied terminal integration evidence
+- **Friction:** Long Rust test gate and read-only shared Git metadata required explicit live-state verification
+- **Improvement:** Keep task-owned build targets and use clean-runner CI for environment-sensitive workspace integration
+- **Follow-up:** Merge PR #3588 when authorised, then reconcile the shared CIB APS module
+
+### 2026-08-06 — other — CIB-259
+
+- **Task:** CIB-259 learning-path architecture/CI summary honesty (TUI-8)
+- **Outcome:** PR #3609 opened; unit tests green; awaiting CI then rebase-merge
+- **Worked:** Rewrote architecture + CI path Summary copy; added honesty unit tests; fresh wt + rebase on main
+- **Failed:** none
+- **Friction:** Worktree node_modules copy incomplete blocked pre-commit until full pnpm reinstall
+- **Improvement:** none
+- **Follow-up:** promote: CIB-259 after merge (bookkeeping branch; CIB multi-writer)
+
+### 2026-08-06 — other — CIB-263
+
+- **Task:** CIB-263 init summary lists .gitignore (INIT-1)
+- **Outcome:** PR #3610 open; local tests green; await CI then rebase-merge
+- **Worked:** Plain + TUI summaries name .gitignore when entries appended; own path row on TUI
+- **Failed:** none
+- **Friction:** Executor briefly edited shared CIB APS module; stripped before push
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-263 → Merged via PR #3610
+
+### 2026-08-06 — other — CIB-264
+
+- **Task:** CIB-264 status no project cache side effect (STATUS-3)
+- **Outcome:** PR #3611 open; unit + manual smoke green; await CI then rebase-merge
+- **Worked:** whats_new only writes marker when .anvil/cache already exists
+- **Failed:** none
+- **Friction:** Executor briefly edited shared CIB APS module; stripped before push
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-264 → Merged via PR #3611
+
+### 2026-08-06 — other — CIB-259 integrated
+
+- **Task:** CIB-259 learning-path architecture/CI summary honesty (TUI-8)
+- **Outcome:** Merged PR #3609 via rebase into main @ ca5520ecb; ancestor check pass
+- **Worked:** Integrated honesty copy + unit tests for architecture/CI path summaries
+- **Failed:** none
+- **Friction:** gh pr merge --delete-branch failed due to main worktree lock; used API merge
+- **Improvement:** none
+- **Follow-up:** promote: CIB-259
+
+### 2026-08-06 — other — CIB-263-264 land
+
+- **Task:** CIB-263/264 land complete
+- **Outcome:** Both integrated: #3610 (CIB-263) and #3611 (CIB-264) on origin/main via rebase-merge
+- **Worked:** Parallel wt + TDD; stripped illegal CIB APS edits; fixed clippy/fixture/copilot review; rebase-merge on green
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-263 → Merged via PR #3610; CIB-264 → Merged via PR #3611
+
+### 2026-08-06 — codex
+
+- **Task:** Complete CIB-157 via dev-loop-codex
+- **Outcome:** Feature PR #3630 and APS reconciliation PR #3632 rebase-merged with green CI and integration proof.
+- **Worked:** Fresh Worktrunk isolation, TDD, independent verification, Council convergence, terminal CI/thread audits, and separate shared-APS reconciliation.
+- **Failed:** The remote coordination-claim push was safety-rejected because the claim payload contained sensitive local metadata; the local claim still worked and was released after integration.
+- **Friction:** Claim transport currently couples coordination identity to a payload that can expose workstation-specific metadata.
+- **Improvement:** Make remote claim payloads opaque and repository-safe while retaining compare-and-swap ownership semantics.
+- **Follow-up:** promote: CIB
+
+### 2026-08-06 — codex
+
+- **Task:** Deliver CIB-269 and CIB-270 in parallel through dev-loop-codex, rebase merge, and APS reconciliation
+- **Outcome:** Feature PRs #3617 and #3628 rebase-merged on green; scoped APS reconciliation prepared
+- **Worked:** Fresh Worktrunks, advisory claim CAS, independent verification, Council, review-thread evidence, Windows-target Clippy, and auto-merge fencing
+- **Failed:** Initial CIB-270 Windows harness repair isolated LOCALAPPDATA but not the SID-keyed pipe; post-repair Council caught it before merge
+- **Friction:** Concurrent main traffic required repeated rebases; Worktrunk defaulted outside the writable workspace; gh logs needed a writable XDG cache
+- **Improvement:** Set task-local Worktrunk and GitHub cache paths at Codex session bootstrap
+- **Follow-up:** theme:codex-workspace-paths
+
+### 2026-08-06 — codex
+
+- **Task:** CIB-262 workspace list JSON and tutorial regression closeout
+- **Outcome:** Implemented, independently verified, Council-reviewed, and rebase-merged via PR #3626; prepared separate APS reconciliation in PR #3640.
+- **Worked:** Fresh Worktrunk isolation, replacement CI after base drift, exact diff audits, and separate shared-CIB bookkeeping.
+- **Failed:** Shared daemon made full local CLI absence tests non-hermetic; initial APS patch matched CIB-202 and was caught by diff audit before commit.
+- **Friction:** Hosted Rust tests took about 43 minutes per run; shared pnpm store caused EROFS until node_modules was installed.
+- **Improvement:** Use exact-heading patches for shared APS status flips and keep full diff audits before commit.
+- **Follow-up:** merge PR #3640 when separately authorised
+
+### 2026-08-06 — codex
+
+- **Task:** CIB-257 init honesty delivery
+- **Outcome:** Feature PR #3638 and APS reconciliation PR #3643 rebase-merged with green CI.
+- **Worked:** Fresh Worktrunk isolation, focused init tests, independent verification, Council, and exact origin/main integration proofs.
+- **Failed:** Copilot Autofix rewrote the feature branch after initial CI with malformed Rust formatting; a generic APS status edit initially targeted the wrong nearby CIB item but was caught before staging.
+- **Friction:** Shared CIB moved during bookkeeping CI and required a fresh rebase plus count regeneration.
+- **Improvement:** Treat externally authored commits as a new verification boundary and anchor shared APS edits to the exact item heading before diff review.
+- **Follow-up:** theme: review externally authored patches and exact APS heading anchors
+
+### 2026-08-06 — codex
+
+- **Task:** CIB-281 audit security-scope disclosure in TUI and SARIF
+- **Outcome:** Merged via PR #3652
+- **Worked:** fresh Worktrunk, TDD, Council repair, independent verification, terminal CI, rebase merge
+- **Failed:** none
+- **Friction:** Council found GitHub ignores run.properties and a long-name TUI clipping edge; both repaired before publication; PR review found expanded issue details clipped at 80x24 and the adaptive layout was repaired before landing
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-281 → Merged via PR #3652
+
+### 2026-08-06 — grok
+
+- **Task:** clawpatch 2026-08-06 findings triage
+- **Outcome:** triaged 60 new findings; 1 open high remains (ci-log concurrent writers); 2 FP + 1 known-gap closed
+- **Worked:** —
+- **Failed:** none
+- **Friction:** scanner severity can over-claim (promote-changelog high was FP due to ] in startsWith)
+- **Improvement:** verify high findings against source before fix queue; export audit summary + review doc
+- **Follow-up:** fix: P0 ci-log lock; P1 oauth revoke await + docs-check tooling baseline; promote: CIB for dashboard warning UX cluster
+
+### 2026-08-07 — grok
+
+- **Task:** file clawpatch triage as CIB-305..314
+- **Outcome:** PR #3665 filed 10 Draft CIB items; progress 248/308
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-07 — codex
+
+- **Task:** Harden Windows workspace admission disclosure path comparisons
+- **Outcome:** Committed pure test hardening on fix/windows-admission-path-test; focused, lint, typecheck, and full workspace tests passed
+- **Worked:** Shared dunce canonicalisation helper compares listed and expected paths by filesystem identity while retaining state and cardinality assertions
+- **Failed:** none
+- **Friction:** Worktrunk initially selected a sibling path outside the writable root; pnpm's shared project registry was read-only in the sandbox
+- **Improvement:** Make Worktrunk honour harness writable roots and keep task-owned validation stores straightforward
+- **Follow-up:** none
+
+### 2026-08-08 — codex
+
+- **Task:** Resolve failing Docs Lint on main
+- **Outcome:** Reproduced two docs-check failures; reused PR #3691 for release-plan closeout and refreshed all three generated public reference pages from the shipped v0.9.3-beta tag. Local docs gates are green; publication remains operator-owned.
+- **Worked:** Clean Worktrunk reproduction, existing-PR inspection, generator dry run, and exact CI-equivalent docs validation isolated the stale release provenance.
+- **Failed:** none
+- **Friction:** The MCP pre-write gate trusts only the primary checkout, so linked-worktree writes required content-mode validation against byte-identical main files.
+- **Improvement:** none
+- **Follow-up:** session:commit and push the three generated pages on PR #3691 when authorised
+
+### 2026-08-09 — codex
+
+- **Task:** Remediate nanoid Dependabot alerts 261 and 264
+- **Outcome:** Pinned both JavaScript dependency trees to nanoid 3.3.17 and opened draft PR 3701
+- **Worked:** Frozen installs, focused audit assertions, full build, JS tests, lint, typecheck, attribution verification, and independent verify-loop
+- **Failed:** Initial npm and Rust cache access failed with sandbox EROFS and passed when rerun with approved shared-cache access
+- **Friction:** Worktrunk defaulted outside the writable workspace, requiring an in-repository fallback worktree
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-09 — codex
+
+- **Task:** Scope image-size CVEs out of release scanning for docs-only Docusaurus tooling
+- **Outcome:** Added two-ID Trivy exception on PR #3701; filed issue #3702; both hosted dependency audits pass
+- **Worked:** Narrow CVE-only suppression, exact Trivy 0.70.0 reproduction, independent verification, and hosted check readback
+- **Failed:** Initial container scan ran outside /work and did not discover the repository ignore file; corrected with --workdir /work
+- **Friction:** Docusaurus tooling is always installed, so repository-wide dependency scanning includes packages absent from release artefacts
+- **Improvement:** Teach the release security gate to distinguish shipped artefacts from repository-only tooling while retaining a separate tooling audit
+- **Follow-up:** owned: issue #3702
+
+### 2026-08-09 — codex
+
+- **Task:** Address reviews and synchronise PR #3701
+- **Outcome:** Scoped the npm nanoid override, resolved the sole review thread, synchronised main, and verified the change
+- **Worked:** CI-first GraphQL thread handling; npm resolver evidence; clean TMPDIR rerun; pinned Trivy container
+- **Failed:** Shared /tmp/.git contaminated one temp-directory test; host Trivy was absent
+- **Friction:** Shared temp Git boundary and host-tool absence required a clean TMPDIR and pinned container
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-10 — codex
+
+- **Task:** Conservative local branch and worktree cleanup
+- **Outcome:** Removed 16 proven-integrated standalone branches and the clean tagged release/v0.9.3-beta worktree/branch; preserved seven safety-blocked linked worktrees and all unique/WIP branches.
+- **Worked:** Fresh origin/main fetch, repository cleanup sweep, live PR inventory, ancestry and patch-equivalence proofs, exact-ref deletion, and post-cleanup sweep.
+- **Failed:** Initial sandboxed sweep could not write .git/FETCH_HEAD; reran through the approved Git metadata path.
+- **Friction:** The sweep conservatively blocks ignored agent/session and generated state, so merged linked worktrees remain for owner review rather than force removal.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-10 — codex
+
+- **Task:** Post-v0.9.4 release branch and worktree cleanup
+- **Outcome:** Removed five clean merged worktrees, six associated or obsolete local refs, and retained only open-PR, dirty, or unique-work branches.
+- **Worked:** Verified v0.9.4-beta tag and GitHub release, refreshed origin/main, reran the cleanup sweep, manually compared ignored agent/session state, removed worktrees without force, and revalidated all remaining refs.
+- **Failed:** Worktrunk retained three patch-equivalent branches after removing their worktrees; zero-unique-patch proofs allowed exact local ref deletion.
+- **Friction:** The automatic sweep cannot distinguish duplicated agent state from unique state, so manual byte comparison was required before safe cleanup.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-11 — grok
+
+- **Task:** File CIB-319 for Windows busy anvil.exe upgrade friction (Matt beta)
+- **Outcome:** Draft CIB-319 filed on chore/cib-319-windows-busy-upgrade; answered consent/rename release options
+- **Worked:** Diagnosed Matt busy.png as ERROR_SHARING_VIOLATION; filed CIB-319 with friendly error + consent-gated stop/rename paths
+- **Failed:** none
+- **Friction:** PowerShell installer still surfaces raw cargo-dist lock error; anvil update note only helps if they use that path
+- **Improvement:** Installer inject: detect holders, friendly message, optional consent stop or rename-and-replace
+- **Follow-up:** owned: CIB-319
+
+### 2026-08-11 — claude
+
+- **Task:** Diagnose recurring anvil MCP wall-of-text in agent transcripts despite 0.9.4-beta lean-envelope fix
+- **Outcome:** Confirmed detail:minimal default is live (binary 0.9.4-beta, no env override). Wall had two causes the fix never covered: the calling agent explicitly passed detail:"full" on a routine apply_patch, and the harness echoed the large unifiedDiff request argument (Layer B display lean, per plans/specs/2026-08-09-agent-facing-validate-write-ergonomics.md out of anvil scope). Also replaced a stale unmanaged ~/.claude skill copy with the anvil-managed bundle via anvil skill install.
+- **Worked:** —
+- **Failed:** none
+- **Friction:** Shipped skill wording (crates/anvil-cli/assets/skills/anvil-developer-functions/SKILL.md:149) says 'Use detail: "full" when you need correlation, claim, or tier' — evidence-minded drain-mode agents pattern-match 'need' and opt back into full envelopes on routine edits. Separately, dev-loop routes internal .dev-loop/checkpoints/*.json bookkeeping diffs through anvil_apply_patch, so the request args alone flood the transcript even at detail:minimal.
+- **Improvement:** Proposed: tighten the shipped skill wording to 'omit detail; full is for driver telemetry needing the allow envelope only', and have dev-loop write loop-internal checkpoint files with plain writes instead of anvil_apply_patch since the gate targets source writes.
+- **Follow-up:** promote: CIB if the detail:full opt-in recurs after the skill wording lands
+
+### 2026-08-11 — codex
+
+- **Task:** Rebase-merge benchmark PR #3730 and reconcile TCOV-026
+- **Outcome:** #3730 rebase-merged; #3754 opened for APS reconciliation
+- **Worked:** Live GitHub checks, integration-ancestor proof, and a task-owned pnpm store
+- **Failed:** The anvil MCP rejected the default sibling Worktrunk root; shared pnpm and Git metadata were read-only
+- **Friction:** The default Worktrunk sibling path falls outside the developer-functions MCP workspace root
+- **Improvement:** Allow developer functions to trust linked worktrees from the same Git common directory, or align the worktree path policy with the MCP trust root
+- **Follow-up:** theme:worktree-mcp-root
+
+### 2026-08-12 — codex
+
+- **Task:** Triage Dave beta pack 06 against v0.9.4-beta, current source, APS, and live PR truth
+- **Outcome:** Classified all enumerated findings; reproduced four scanner false-positive families and inline-suppression failure; prepared intake and hold dispositions without editing shared APS
+- **Worked:** Released-binary fixtures plus source, ADR, release, and GitHub duplicate checks separated defects from deliberate policy and terminology collisions
+- **Failed:** The external docs landing page could not be opened by the web fetcher; repository source supplied the current landing-page evidence
+- **Friction:** Pack metadata says 29 IDs but enumerates 20 new and 10 carried IDs; grouped-pattern headings also embed carried IDs
+- **Improvement:** Beta intake should mechanically validate declared ID counts before disposition mapping
+- **Follow-up:** promote: CIB
+
+### 2026-08-12 — codex
+
+- **Task:** Identify a large high-value work item outside the current radar
+- **Outcome:** Recommended a bounded Tier C field-effectiveness programme; no repository files changed
+- **Worked:** Live APS, release, GitHub PR/issue, worktree, roadmap, telemetry, and benchmark truth exposed a direct gap between shipped usage evidence and unverified product success criteria
+- **Failed:** GitHub Projects could not be read because the token lacks read:project; APS remains the repository source of truth
+- **Friction:** none
+- **Improvement:** Consider a new APS module for consented field-effectiveness evidence covering adoption, merge throughput, drift, and suppression resolution
+- **Follow-up:** promote: CIB
+
+### 2026-08-13 — grok
+
+- **Task:** APS reconciliation track (read-only pass)
+- **Outcome:** Identified stale exclusive-module statuses and count drift; BACT already covered by open PR #3844
+- **Worked:** Ran aps doctor, aps audit --no-run, pnpm aps:index:check, aps:drift, aps:active-lint; compared origin/main item statuses to merged PRs since 2026-08-06
+- **Failed:** none
+- **Friction:** Local main is 5 commits behind origin/main; plan-doctor and librarian subagents still running after 7+ minutes on the full plans tree
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-13 — other
+
+- **Task:** DOCFRESH-007
+- **Outcome:** PR #3850 rebase-merged; pin 0.9.4-beta enforced by check-docs-version-pin.mjs
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** package.json is in rust-tests path filter; a one-line script alias queued the required Test job on the single org runner for 40+ minutes. Prefer calling node scripts/... directly from CI and checklists.
+- **Follow-up:** none
+
+### 2026-08-13 — codex
+
+- **Task:** Write the FEFF field-effectiveness APS module
+- **Outcome:** Added a Ready eight-item field-effectiveness programme and placed its protocol/source audit in the next-bets queue.
+- **Worked:** Live source and APS audit, operator-reviewed study choices, isolated Worktrunk branch, and focused APS/docs validation.
+- **Failed:** Initial sandboxed pnpm install could not write the shared package store; the approved escalated install succeeded.
+- **Friction:** Anvil write validation did not trust the linked worktree root; validating the exact worktree path through the trusted repository root allowed the scoped writes.
+- **Improvement:** Recognise repository-registered Worktrunk paths as trusted roots after canonical containment checks.
+- **Follow-up:** theme:worktree-developer-functions
+
+### 2026-08-13 — grok
+
+- **Task:** Apply APS reconciliation bookkeeping (DOCFRESH-004)
+- **Outcome:** Flipped DOCFRESH-004 to Merged via #3804; refreshed counts 0/8 to 6/8; UCFG-001 already on main; BACT already on #3844
+- **Worked:** Isolated chore/aps-docfresh-004-reconcile from origin/main; status + index prose; pnpm aps:index; validated lint/drift/docs:check
+- **Failed:** none
+- **Friction:** Anvil write gate rejects worktree paths (workspaceRoot must be inside MCP server root); used content-mode validation against main checkout
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-13 — codex
+
+- **Task:** Land FEFF field-effectiveness APS module
+- **Outcome:** Council fixed 18 planning findings; PR #3864 passed hosted checks and rebase-merged to main at 9176ac485.
+- **Worked:** Standard Council, scoped re-reviews, anvil write gates, live reviewThreads checks, preservation of Copilot Autofix, hosted CI watch, and post-merge content/ancestry proof.
+- **Failed:** Initial review blocked publication; a later push was correctly rejected after Copilot Autofix advanced the remote branch.
+- **Friction:** The external autofix duplicated the local review commit; fetching and rebasing preserved the remote change without force-push.
+- **Improvement:** none
+- **Follow-up:** owned: FEFF-001
+
+### 2026-08-13 — other
+
+- **Task:** draft unreleased changelog
+- **Outcome:** PR #3870 opened
+- **Worked:** Isolated docs/unreleased-changelog, curated customer-facing Unreleased from v0.9.4-beta..main, validated with anvil_apply_patch + staged lint:md
+- **Failed:** none
+- **Friction:** anvil MCP write-gate only trusts the main checkout; validated there then wrote in the worktree
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-13 — grok
+
+- **Task:** UCFG-013/014 via /dev-loop-grok
+- **Outcome:** integrated PR #3867 (rebase) ancestor c872564f0
+- **Worked:** FIFO nonblocking reader; definition-to-kernel map; watch reload
+- **Failed:** first verify-loop repair-required on ** globs, dead reload, TOML-as-YAML
+- **Friction:** CI blocked on unresolved Copilot threads; intercept midedit flake rerun
+- **Improvement:** Map resolved ArchitectureDefinition for watch; exempt architecture source from FileFilter; do not reparse TOML as YAML
+- **Follow-up:** none
+
+### 2026-08-13 — other
+
+- **Task:** address-reviews PR 3870
+- **Outcome:** review-addressed
+- **Worked:** Named anvil/policy.yaml as winner; replied and resolved Copilot thread; merged main; CI green
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-13 — other — dave pack-06 CIB intake
+
+- **Task:** File Dave pack-06 items we should work on
+- **Outcome:** Filed CIB-322..329 on chore/cib-dave-pack06-intake (36a52fa32). Ready: 322-326. Draft: 327-329. C1/C2/PATTERN-C not filed.
+- **Worked:** Bookkeeping worktree from origin/main to avoid dirty main. Pack-06 disposition map plus eight items. aps:index refreshed CIB 263/315 to 263/324; reverted unrelated DOCFRESH/UCFG count edits.
+- **Failed:** none
+- **Friction:** anvil_validate_write refused the worktree (untrusted-workspace-root); validated in content-mode against the main checkout.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-13 — other — dave pack-06 drain review-ready
+
+- **Task:** Drain Dave pack-06 Ready items CIB-322..326 via /dev-loop-grok
+- **Outcome:** review-ready: PRs #3880 #3881 #3882 #3883 #3884. Draft CIB-327..329 not promoted.
+- **Worked:** Five isolated executors, verify-loop caught PY-008 i-identifier hole and URL-path delimiter hole; repaired. Interactive, no merge.
+- **Failed:** Verifier harness could not run cargo; orchestrator re-ran gates.
+- **Friction:** anvil MCP write-gate untrusted worktree roots; some worktrees had unstaged .claude deletions left uncommitted.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-14 — codex
+
+- **Task:** Revalidate JSON-RPC id-less malformed-frame finding
+- **Outcome:** Finding remains open
+- **Worked:** Confirmed current dispatch ordering and replayed malformed stdio frames
+- **Failed:** none
+- **Friction:** Focused tests omit the id-less missing/non-string method path
+- **Improvement:** none
+- **Follow-up:** promote: CIB
+
+### 2026-08-14 — grok
+
+- **Task:** MCPLH-004 daemon auto-recycle on CLI/daemon version skew
+- **Outcome:** implemented recycle helper on ensure/start MaySpawn path; tests green
+- **Worked:** injected version probe + lifecycle hooks; reused request_daemon_stop + wait_for_pid_exit + detached ensure launcher
+- **Failed:** none
+- **Friction:** anvil_validate_write blocked: untrusted-workspace-root (MCP workspace is /home/aneki/Projects/src/anvil-001, worktree is feat-mcplh-004); proceeded as instructed
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-14 — grok
+
+- **Task:** MCPLH-002 self-heal re-exec in mcp serve
+- **Outcome:** Implemented Unix execve live-heal with anti-loop, kill-switch, and Windows demotion; process test proves preferred image after forced skew.
+- **Worked:** Pure decide() plus startup re-exec before first stdin read so initialize is not consumed; ANVIL_MCP_PREFERRED pins test binaries.
+- **Failed:** none
+- **Friction:** anvil_validate_write only trusts /home/aneki/Projects/src/anvil-001; write-gate degraded and proceeded.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-15 — codex
+
+- **Task:** Scope and file full user-level acceptance repairs
+- **Outcome:** Filed tracker #3925 and twelve bounded repair issues #3913..#3924 with priorities, authority lanes, acceptance criteria, validation and dependencies.
+- **Worked:** Frozen-SHA reproductions plus live open-issue inventory supported deduplication and executable scope.
+- **Failed:** GitHub search rate limit was exhausted after targeted searches; complete open-issue inventory confirmed no matching open repair.
+- **Friction:** none
+- **Improvement:** Promote the tracker-backed CIB candidates through the single-writer bookkeeping lane; keep P1 false-claim and watch parity repairs as explicit pre-cut gates.
+- **Follow-up:** promote: CIB
+
+### 2026-08-15 — grok
+
+- **Task:** fix #3918 watch architecture enforcement and policy reload
+- **Outcome:** watch now reuses gate architecture check; invalid policy reloads fail-closed
+- **Worked:** extract shared check_architecture; diagnose in watch reloader; process tests vs gate across three topologies
+- **Failed:** anvil MCP write-gate rejected this worktree as untrusted-workspace-root (expected sibling anvil-001); watch_save_time honesty flaked once under parallel watchers then passed isolated
+- **Friction:** write-gate MCP is bound to the sibling main worktree, so feature worktrees cannot use anvil_validate_write
+- **Improvement:** document that anvil_validate_write expectedWorkspaceRoot is the MCP server cwd, not the current worktree
+- **Follow-up:** none
+
+### 2026-08-16 — codex
+
+- **Task:** Verify landed v0.9.5-beta acceptance issues on origin/main and close only green items
+- **Outcome:** Fresh focused evidence passed for #3918 #3919 #3917 #3914 #3921; evidence commented, those five closed, and #3925 closeout table posted
+- **Worked:** Execution brief, live issue and PR truth, landed ancestry, and independent focused process tests provided a clear closeout gate
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** owned: #3915 #3922 #3913 #3924 remain open under sibling claims
+
+### 2026-08-16 — codex
+
+- **Task:** Issue #3924 watch honesty flake
+- **Outcome:** PR #3937 review-ready and unmerged
+- **Worked:** Isolated Worktrunk, test-only process ownership, Council repair, repeated targeted verification, and terminal hosted CI
+- **Failed:** Initial long TMPDIR exceeded Unix socket length; later local stress encountered host-wide inotify exhaustion; both were classified as environment evidence
+- **Friction:** Shared host had 124 of 128 inotify instances in use, while the required Rust Tests runner queued behind a sibling wave job
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-16 — codex
+
+- **Task:** Rebase merge issue #3924 on green.
+- **Outcome:** PR #3937 rebase-merged normally; integrated commits are on origin/main; issue #3924 closed and sibling-wave tracker updated.
+- **Worked:** A fresh unresolved-thread check caught late review feedback; isolated XDG cache state, reran focused validation, waited for replacement hosted CI, resolved the thread, and proved integration after merge.
+- **Failed:** none
+- **Friction:** The PR body contained literal escaped newlines, so GitHub did not parse the closing keyword and issue #3924 required explicit closure.
+- **Improvement:** Ensure PR body publication preserves real newlines so closing keywords are recognised.
+- **Follow-up:** none
+
+### 2026-08-16 — grok
+
+- **Task:** Triage Dave pack-07 paste (B16/B17/B18/B7-third) against main
+- **Outcome:** Triaged on operator scratch; B17 agree-file, B16 agree-narrowed, B18 and B7-third won't-file. No CIB intake yet (no drop-folder report).
+- **Worked:** Reproduced entropy looks_like_code camelCase coin-flip (~55% of mixed-case tokens), Git-Bash /c/ path gap vs C:/ drive exemption, PY-008 comment/string fire and eval(\n arg) miss.
+- **Failed:** none
+- **Friction:** Dave files not in /home/aneki/tmp/anvil-beta/Dave/; Outlook search for Dave/Meloncelli empty; id B7 reused from pack 06.
+- **Improvement:** none
+- **Follow-up:** promote: CIB (B17 Git-Bash path-shape; B16 narrowed looks_like_code). Hold until full report or operator says file from paste.
+
+### 2026-08-16 — codex
+
+- **Task:** Wave 2 issue #3920 activation recovery guidance to review-ready
+- **Outcome:** PR #3944 review-ready at 4cb97d1ae; 26 hosted checks passed, Council converged, independent verifier passed, no merge
+- **Worked:** Bounded TDD slices, trusted-base patch validation, sibling-aware rebase, failed-exec adversarial probe, and terminal hosted CI/thread readback
+- **Failed:** Initial linked-worktree content validation was interrupted by unchanged secret fixtures; pre-sibling full suite also failed only in the protected #3922/#3924 areas
+- **Friction:** Developer-functions did not trust the Worktrunk root, while full-content fallback scanned unrelated historical fixtures
+- **Improvement:** Support an explicit trusted-base patch-validation path for linked Worktrunk roots so proposed additions remain gated without rescanning unchanged legacy content
+- **Follow-up:** theme:worktrunk-write-gate
+
+### 2026-08-16 — grok
+
+- **Task:** File and fix Dave pack 07 B17 + narrowed B16
+- **Outcome:** CIB-339/340 filed on #3951. Implementation on #3950 (Git Bash /c/ path-shape; entropy structural-only looks_like_code). B18 and B7-third not filed.
+- **Worked:** TDD in worktree fix/cib-339-340-secret-entropy; 115 secret lib + 25 integration tests green.
+- **Failed:** none
+- **Friction:** anvil MCP write gate blocked worktree path and the B17 fixture itself (the bug).
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-339 CIB-340 → Merged via PR #3950 after merge; intake #3951
+
+### 2026-08-16 — codex
+
+- **Task:** Wave 3 issue #1878 badge Info style consistency.
+- **Outcome:** PR #3955 normally rebase-merged at 808bb49322ae2cc03798ca208b91ddfe3c75c9dc; issue #1878 closed; tracker #3925 updated.
+- **Worked:** Reused the shared severity-style source, proved RED/GREEN with rendered buffer coverage, independently probed a custom theme, converged Council, addressed the late review thread, and enforced simultaneous hosted merge gates.
+- **Failed:** none
+- **Friction:** The serial Rust test runner queued both hosted runs; a late Copilot thread required a test-fixture repair and a fresh full CI cycle.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-16 — other
+
+- **Task:** address-reviews PR 3939 v0.9.5 claim rewrite
+- **Outcome:** review-addressed: softened restart copy, UCFG 16/16, anvil mcp pin; threads resolved
+- **Worked:** GraphQL thread fetch, reply-then-resolve, rebase onto main, focused docs gates
+- **Failed:** none
+- **Friction:** anvil MCP validate-write refuses sibling worktree paths (workspaceRoot must be inside MCP server root)
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-16 — grok
+
+- **Task:** Rebase-merge Dave pack 07 PRs on green
+- **Outcome:** 3951 already merged. 3950 auto rebase-merged after Clippy/Test green. Both ancestors of origin/main.
+- **Worked:** gh pr merge 3950 --rebase --auto; no admin flag.
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-339 CIB-340 → Merged via PR #3950; intake via #3951
+
+### 2026-08-16 — grok
+
+- **Task:** Document GCTX dogfood failure points and file CIB-341..344
+- **Outcome:** Review note plus four Ready CIB items on bookkeeping branch docs/cib-gctx-dogfood-failures
+- **Worked:** Isolated bookkeeping worktree; evidence note at docs/reviews/2026-08-16-gctx-dogfood-failure-points.md; CIB-341 scan-timeout, CIB-342 graph-base ENOENT, CIB-343 12-client vs Claude/Cursor handshake leftover, CIB-344 stale MCP/lock reap
+- **Failed:** none
+- **Friction:** anvil_validate_write from Grok rejects worktree workspaceRoot (expected untrusted-workspace-root); content-mode against main checkout
+- **Improvement:** Live handshake still only Cursor+Claude despite MCPX twelve-client install
+- **Follow-up:** owned: CIB-341, CIB-342, CIB-343, CIB-344
+
+### 2026-08-16 — codex
+
+- **Task:** Create the approved DOCRB documentation re-baseline APS module and design source
+- **Outcome:** DOCRB module, design assessment, and NBI/index entry created and validated in an isolated worktree
+- **Worked:** Live component/document inventory plus APS and docs gates kept the scope evidence-based and release-independent
+- **Failed:** Initial Worktrunk checkout used a sibling path outside the session writable root; it was removed cleanly with the branch retained and recreated under .worktrees before edits
+- **Friction:** Worktrunk user path templates can conflict with sandbox writable roots
+- **Improvement:** Isolation workflows should select a workspace-local Worktrunk path override when the configured template is outside the writable root
+- **Follow-up:** theme:worktree-sandbox-path
+
+### 2026-08-16 — codex
+
+- **Task:** Complete GitHub issue #3962 only
+- **Outcome:** Rebase-merged PR #3967; canonical yaml metadata is on origin/main
+- **Worked:** Worktrunk isolation, vertical-slice TDD, Council convergence, independent verify-loop, and CI-first address-reviews
+- **Failed:** Initial full-suite environment override was invalid and superseded; gh merge local cleanup could not switch to main after the hosted merge
+- **Friction:** Single-machine Rust test queue and cross-worktree local cleanup
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-16 — codex
+
+- **Task:** Plan and land DOCRB documentation re-baseline programme
+- **Outcome:** Merged PR #3968 by rebase after all checks passed and all review threads were resolved.
+- **Worked:** Council and PR review caught stale docs-site topology, incomplete renderer coverage, component-count drift, and unextractable upstream references before landing.
+- **Failed:** gh pr merge completed the hosted merge but returned non-zero when local cleanup could not switch to main because the primary worktree owns it.
+- **Friction:** Sandboxed shared Git refs can make successful remote push or merge operations appear locally failed; hosted state and ancestry require explicit readback.
+- **Improvement:** Keep documentation authority references as repo-relative inline-code paths so docs-owed freshness tooling can extract them.
+- **Follow-up:** theme:docs-authority-drift
+
