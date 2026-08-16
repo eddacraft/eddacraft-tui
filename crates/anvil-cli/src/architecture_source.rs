@@ -41,12 +41,15 @@ pub(crate) fn resolve_architecture(
     let project = crate::commands::config::load_project_config(root)?;
     let resolved =
         anvil_config::resolve_section(&project.value, "architecture", root, &project.writable_path)
-            .map_err(anyhow::Error::new)
-            .context("invalid config")?;
+            .map_err(crate::output::invalid_config)?;
 
     if let Some(section) = resolved {
-        let definition: ArchitectureDefinition = serde_json::from_value(section.value)
-            .context("invalid [architecture] section: does not match the architecture schema")?;
+        let definition: ArchitectureDefinition =
+            serde_json::from_value(section.value).map_err(|err| {
+                crate::output::invalid_config(format!(
+                    "invalid [architecture] section: does not match the architecture schema: {err}"
+                ))
+            })?;
         // Same normalisation as the legacy file parser, so a resolved
         // definition is identical regardless of origin.
         let definition = anvil_architecture::yaml_parser::apply_defaults(definition);
@@ -78,8 +81,7 @@ pub(crate) fn watch_architecture_source_path(root: &Path) -> Result<Option<PathB
     let project = crate::commands::config::load_project_config(root)?;
     if let Some(section) =
         anvil_config::resolve_section(&project.value, "architecture", root, &project.writable_path)
-            .map_err(anyhow::Error::new)
-            .context("invalid config")?
+            .map_err(crate::output::invalid_config)?
     {
         return Ok(Some(match section.provenance {
             SectionProvenance::Inline => project.writable_path,

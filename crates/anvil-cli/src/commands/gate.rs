@@ -4138,8 +4138,7 @@ pub(crate) fn read_anvilrc_checks(
     if let Some(discovered) = anvil_config::discover(workspace_root, ".anvil")
         .with_context(|| format!("scanning {} for .anvil.<ext>", workspace_root.display()))?
     {
-        let value = anvil_config::parse_file(&discovered.path)
-            .with_context(|| format!("failed to parse {}", discovered.path.display()))?;
+        let value = crate::commands::config::parse_discovered_project_config(&discovered.path)?;
         return finalise_checks_from_value(&value);
     }
 
@@ -4167,8 +4166,7 @@ pub(crate) fn read_anvilrc_antipattern_excludes(workspace_root: &Path) -> Result
     let value = if let Some(discovered) = anvil_config::discover(workspace_root, ".anvil")
         .with_context(|| format!("scanning {} for .anvil.<ext>", workspace_root.display()))?
     {
-        anvil_config::parse_file(&discovered.path)
-            .with_context(|| format!("failed to parse {}", discovered.path.display()))?
+        crate::commands::config::parse_discovered_project_config(&discovered.path)?
     } else {
         let path = workspace_root.join(".anvilrc");
         match std::fs::read_to_string(&path) {
@@ -4196,11 +4194,11 @@ fn finalise_checks_from_value(
     value: &serde_json::Value,
 ) -> Result<Option<std::collections::HashSet<String>>> {
     let view = crate::config_view::GateConfigView::from_value(value)
-        .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+        .map_err(crate::output::invalid_config)?;
     // UCFG-004 (ADR-120 pt 4): a malformed `gate` section is a loud
     // config error even when selection comes from the top-level list.
     let gate_section = anvil_config::GateSection::from_config_value(value)
-        .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+        .map_err(crate::output::invalid_config)?;
     let names: Vec<String> = if view.checks.is_empty() {
         // Reconciliation rule: the top-level `checks` list is the
         // selection truth; only when it is absent does selection
@@ -4231,10 +4229,11 @@ fn parse_anvilrc_contents(contents: &str, path: &Path) -> Result<serde_json::Val
             return Ok(value);
         }
     }
-    Err(anyhow::anyhow!(
+    Err(crate::output::InvalidProjectConfig::new(format!(
         "failed to parse {} as JSON, YAML, or TOML",
         path.display()
     ))
+    .into())
 }
 
 fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {

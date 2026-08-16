@@ -138,7 +138,7 @@ pub(crate) fn effective_selection(
 fn build_view(workspace: &Path) -> Result<GateConfigView> {
     let project = load_project_config(workspace)?;
     let section = anvil_config::GateSection::from_config_value(&project.value)
-        .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+        .map_err(crate::output::invalid_config)?;
     let (selected, _) = effective_selection(&project.value, section.as_ref());
 
     let mut thresholds = section
@@ -263,7 +263,7 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
 
     let mut project = load_project_config(workspace)?;
     let section = anvil_config::GateSection::from_config_value(&project.value)
-        .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
+        .map_err(crate::output::invalid_config)?;
     let (mut selected, _) = effective_selection(&project.value, section.as_ref());
 
     if enable {

@@ -1181,6 +1181,24 @@ fn exit_status_to_code(status: std::process::ExitStatus) -> u8 {
     EXIT_ERROR
 }
 
+fn is_invalid_project_config(err: &(dyn std::error::Error + 'static)) -> bool {
+    err.is::<output::InvalidProjectConfig>()
+}
+
+/// Map a dispatched command error to the documented CLI exit code.
+/// Parse/schema failures of discovered project config are 4; auth is 3;
+/// everything else stays the general-error 1 so runtime faults remain
+/// distinguishable.
+fn command_error_exit_code(err: &anyhow::Error) -> u8 {
+    if err.is::<output::AuthRequired>() {
+        EXIT_AUTH_REQUIRED
+    } else if err.chain().any(is_invalid_project_config) {
+        EXIT_CONFIG_ERROR
+    } else {
+        EXIT_ERROR
+    }
+}
+
 fn dispatch_update_result<W: Write>(
     result: anyhow::Result<()>,
     wants_json: bool,
@@ -1389,7 +1407,7 @@ fn main() -> ExitCode {
                 } else {
                     eprintln!("Error: {err:#}");
                 }
-                ExitCode::from(EXIT_ERROR)
+                ExitCode::from(command_error_exit_code(&err))
             }
         };
     }
@@ -1470,7 +1488,7 @@ fn main() -> ExitCode {
             } else {
                 eprintln!("Error: {err:#}");
             }
-            ExitCode::from(EXIT_ERROR)
+            ExitCode::from(command_error_exit_code(&err))
         }
     }
 }
@@ -1494,6 +1512,22 @@ mod tests {
     // Pin the numeric values so silent renumbering can't break CI /
     // tooling that gates on specific exit codes. The contract is
     // documented in plans/specs/2026-05-07-cli-surface-coherence.md §3.
+
+    #[test]
+    fn command_error_exit_code_maps_invalid_project_config() {
+        let err = output::invalid_config("invalid gate.checks: expected table, found string");
+        assert_eq!(command_error_exit_code(&err), EXIT_CONFIG_ERROR);
+        let wrapped = err.context("while loading project config");
+        assert_eq!(command_error_exit_code(&wrapped), EXIT_CONFIG_ERROR);
+        assert_eq!(
+            command_error_exit_code(&anyhow::anyhow!("daemon unreachable")),
+            EXIT_ERROR
+        );
+        assert_eq!(
+            command_error_exit_code(&output::AuthRequired.into()),
+            EXIT_AUTH_REQUIRED
+        );
+    }
 
     #[test]
     fn exit_code_constants_pin_canonical_values() {

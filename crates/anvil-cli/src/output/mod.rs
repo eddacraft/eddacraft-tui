@@ -31,6 +31,32 @@ impl std::fmt::Display for AuthRequired {
 
 impl std::error::Error for AuthRequired {}
 
+/// Sentinel: discovered project configuration failed parse or schema
+/// validation. `main` maps this to `EXIT_CONFIG_ERROR` (4) while still
+/// printing the actionable path/context.
+#[derive(Debug)]
+pub struct InvalidProjectConfig(pub String);
+
+impl InvalidProjectConfig {
+    pub fn new(err: impl std::fmt::Display) -> Self {
+        Self(err.to_string())
+    }
+}
+
+impl std::fmt::Display for InvalidProjectConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for InvalidProjectConfig {}
+
+/// Wrap a schema/shape failure so dispatch can distinguish it from a
+/// runtime tool fault. Preserves the existing `invalid config: …` copy.
+pub fn invalid_config(err: impl std::fmt::Display) -> anyhow::Error {
+    InvalidProjectConfig::new(format!("invalid config: {err}")).into()
+}
+
 /// The output selector (`--format <FORMAT>`), an opt-in value-enum that
 /// supersedes the legacy `--json` / `--no-tui` booleans (ADR-056).
 ///

@@ -104,6 +104,11 @@ agent sessions. Pin with `anvil mcp pin` if you do not want auto-heal.
 
 ### Fixed
 
+- **Invalid project configuration exits 4.** Parse and schema failures in the
+  discovered project file now use the documented configuration-error exit code
+  on `check`, `gate`, `gate-config`, `watch` startup, and `architecture`.
+  Runtime and missing-file failures still exit 1.
+
 - **Claude Code project MCP install writes `.mcp.json`.** Project-scoped install
   used to write workspace `.claude.json`, which Claude does not load for MCP.
   User and local scope stay on `~/.claude.json`. Re-run

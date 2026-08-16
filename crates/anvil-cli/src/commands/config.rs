@@ -252,9 +252,35 @@ fn source_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
     Ok(config)
 }
 
+/// Parse a discovered `.anvil.*` file. Syntax/schema parse failures become
+/// [`crate::output::InvalidProjectConfig`] so dispatch can emit exit 4;
+/// I/O and other runtime faults stay ordinary errors (exit 1).
+pub(crate) fn parse_discovered_project_config(path: &Path) -> anyhow::Result<Value> {
+    parse_file(path).map_err(map_project_parse_error)
+}
+
+fn map_project_parse_error(err: anvil_config::ParseError) -> anyhow::Error {
+    use anvil_config::ParseError;
+    match &err {
+        ParseError::Yaml { .. }
+        | ParseError::Json { .. }
+        | ParseError::Toml { .. }
+        | ParseError::NonFiniteTomlFloat { .. }
+        | ParseError::AliasNotPermitted { .. }
+        | ParseError::DepthExceeded { .. }
+        | ParseError::UnrecognisedExtension { .. } => {
+            crate::output::InvalidProjectConfig::new(err).into()
+        }
+        ParseError::Io { .. }
+        | ParseError::NotARegularFile { .. }
+        | ParseError::Symlink { .. }
+        | ParseError::FileTooLarge { .. } => err.into(),
+    }
+}
+
 pub(crate) fn load_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
     if let Some(discovered) = discover(root, ".anvil")? {
-        let value = parse_file(&discovered.path)?;
+        let value = parse_discovered_project_config(&discovered.path)?;
         let label = discovered
             .path
             .strip_prefix(root)
@@ -328,7 +354,11 @@ fn detect_anvilrc(contents: &str, path: &Path) -> anyhow::Result<(Value, ConfigF
             return Ok((value, format));
         }
     }
-    bail!("failed to parse {} as JSON, YAML, or TOML", path.display())
+    Err(crate::output::InvalidProjectConfig::new(format!(
+        "failed to parse {} as JSON, YAML, or TOML",
+        path.display()
+    ))
+    .into())
 }
 
 pub(crate) fn parse_output_format(raw: &str) -> anyhow::Result<ConfigFormat> {
