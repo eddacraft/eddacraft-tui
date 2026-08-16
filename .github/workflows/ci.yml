@@ -213,8 +213,8 @@ jobs:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         env:
-          ANVIL_DOCS_VERSION: 0.9.4-beta
-          ANVIL_DOCS_INSTALLER_SHA256: d9e0b4fdcdde4bdce9f9ce9aef275110c26344e60016a3ffe7ae68be12b87ffd
+          ANVIL_DOCS_VERSION: 0.9.5-beta
+          ANVIL_DOCS_INSTALLER_SHA256: b8155b81ac4469a13635ee377a331b555395349076b852d47f8b9533f691b1df
         run: |
           installer_path="${RUNNER_TEMP}/eddacraft-anvil-installer.sh"
           curl --proto '=https' --tlsv1.2 -LsSf \
