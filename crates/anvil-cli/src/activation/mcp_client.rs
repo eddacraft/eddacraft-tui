@@ -315,7 +315,7 @@ pub trait McpClient: Send + Sync {
     ///
     /// Default assumes the Cursor/Claude `{command, args, env}` shape.
     /// Registry-backed clients override this for OpenCode arrays and
-    /// Zed nested `command.path` entries.
+    /// Zed nested ``command.path`` entries.
     fn installed_stdio_entry(&self, parsed: &ParsedConfig) -> Option<AnvilEntry> {
         parsed
             .existing_entry
