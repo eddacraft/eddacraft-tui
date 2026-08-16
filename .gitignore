@@ -95,6 +95,12 @@ CLAUDE.local.md
 !.claude/hooks/council-protected-paths
 .claude/council/
 .claude/agent-bus/
+# The council and agent-messaging skills write session state at the REPO ROOT
+# (`<project>/.council/`, `PROJECT_ROOT/.agent-bus/`), not under .claude/ —
+# the two entries above only cover the .claude-scoped variants. Root state is
+# per-session review/message data, never repository content.
+/.council/
+/.agent-bus/
 .claude/settings.json
 .claude/settings.local.json
 .claude/mcp.json
