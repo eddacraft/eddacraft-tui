@@ -399,13 +399,17 @@ fn exec_preferred(preferred: &Path) {
         cmd.env(REEXECED_ENV, "1");
         REEXEC_ATTEMPTED.store(true, Ordering::SeqCst);
         let err = cmd.exec();
-        eprintln!(
-            "anvil mcp serve: failed to re-exec {}: {err}. {}",
-            preferred.display(),
-            StayReason::AlreadyReexeced
-                .recovery_hint()
-                .unwrap_or("Retry a tool call, or reconnect MCP for this client.")
-        );
+        if let Some(hint) = recovery_hint_once(StayReason::AlreadyReexeced) {
+            eprintln!(
+                "anvil mcp serve: failed to re-exec {}: {err}. {hint}",
+                preferred.display()
+            );
+        } else {
+            eprintln!(
+                "anvil mcp serve: failed to re-exec {}: {err}",
+                preferred.display()
+            );
+        }
     }
     #[cfg(not(unix))]
     {

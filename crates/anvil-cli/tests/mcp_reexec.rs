@@ -179,6 +179,52 @@ fn mcp_reexec_recovery_warning_is_once_per_condition_across_trigger_flow() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn mcp_reexec_failed_exec_recovery_warning_is_once_across_trigger_flow() {
+    let dir = tempfile::tempdir().expect("preferred parent");
+    let missing_preferred = dir.path().join("missing-anvil");
+    let mut child = spawn_serve(&[
+        (
+            "ANVIL_MCP_PREFERRED",
+            missing_preferred.to_str().expect("utf8 preferred"),
+        ),
+        ("ANVIL_MCP_NO_REEXEC", ""),
+        ("ANVIL_MCP_REEXECED", ""),
+    ]);
+    let stdout = child.stdout.take().expect("stdout");
+    let stderr = child.stderr.take().expect("stderr");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    let stderr_rx = spawn_stdout_reader(stderr);
+
+    send_initialize(&mut child, &stdout_rx);
+    send_tools_list(&mut child, &stdout_rx);
+    send_tools_list(&mut child, &stdout_rx);
+
+    drop(child.stdin.take());
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "serve must exit cleanly after failed re-exec: {status:?}"
+    );
+
+    let stderr = drain_lines(&stderr_rx);
+    assert!(
+        stderr.contains(&format!(
+            "failed to re-exec {}",
+            missing_preferred.display()
+        )),
+        "failed re-exec must retain its cause details: {stderr}"
+    );
+    assert_eq!(
+        stderr
+            .matches("The session still runs a stale image.")
+            .count(),
+        1,
+        "failed re-exec recovery warning must emit once across startup, initialize, and repeated tools/list: {stderr}"
+    );
+}
+
 fn copy_anvil_as_preferred() -> (tempfile::TempDir, PathBuf) {
     let dir = tempfile::tempdir().expect("tempdir");
     let dest = dir.path().join("anvil");
