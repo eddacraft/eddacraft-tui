@@ -155,12 +155,7 @@ impl PathLeaf<'_> {
 mod tests {
     use super::*;
 
-    fn proc(
-        pid: u32,
-        parent_pid: u32,
-        cmdline: &str,
-        parent_cmd: Option<&str>,
-    ) -> McpServeProcess {
+    fn proc(pid: u32, parent_pid: u32, cmdline: &str, parent_cmd: Option<&str>) -> McpServeProcess {
         McpServeProcess {
             pid,
             ppid: parent_pid,
