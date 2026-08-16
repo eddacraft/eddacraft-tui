@@ -33,10 +33,17 @@ static WATCH_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn configure_private_env(command: &mut Command, home: &Path) {
     let config_home = home.join("config");
+    let cache_home = home.join("cache");
     let state_home = home.join("state");
     let runtime_home = home.join("runtime");
     let temp_home = home.join("tmp");
-    for root in [&config_home, &state_home, &runtime_home, &temp_home] {
+    for root in [
+        &config_home,
+        &cache_home,
+        &state_home,
+        &runtime_home,
+        &temp_home,
+    ] {
         fs::create_dir_all(root).expect("create isolated watch process state root");
         fs::set_permissions(root, fs::Permissions::from_mode(0o700))
             .expect("secure isolated watch process state root");
@@ -46,6 +53,7 @@ fn configure_private_env(command: &mut Command, home: &Path) {
         .env("HOME", home)
         .env("USERPROFILE", home)
         .env("XDG_CONFIG_HOME", config_home)
+        .env("XDG_CACHE_HOME", cache_home)
         .env("XDG_STATE_HOME", state_home)
         .env("XDG_RUNTIME_DIR", runtime_home)
         .env("TMPDIR", temp_home)
