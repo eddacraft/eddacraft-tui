@@ -1,4 +1,4 @@
-use animate::{Lerp, Once};
+use animate_core::{Lerp, Once};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -45,7 +45,7 @@ pub(crate) fn animated_f64(initial: f64) -> AnimatedF64 {
     Once::new(
         initial,
         ANIM_DURATION_MS,
-        animate::easing::quad_out as fn(f64) -> f64,
+        animate_core::easing::quad_out as fn(f64) -> f64,
         <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
     )
 }
@@ -54,7 +54,7 @@ pub(crate) fn animated_u8(initial: u8) -> AnimatedU8 {
     Once::new(
         initial,
         ANIM_DURATION_MS,
-        animate::easing::quad_out as fn(f64) -> f64,
+        animate_core::easing::quad_out as fn(f64) -> f64,
         <u8 as Lerp>::lerp as fn(&u8, &u8, f64) -> u8,
     )
 }

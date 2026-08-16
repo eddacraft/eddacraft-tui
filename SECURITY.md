@@ -58,9 +58,8 @@ We treat dependencies in two trust tiers:
 - **Mature, broadly-vetted ecosystem crates** — `ratatui`, `crossterm`,
   `unicode-width`, `textwrap`, `image`, `ratatui-image`, `tui-big-text`. Tracked
   via `cargo audit` and updated on release.
-- **Lower-bus-factor or proc-macro crates** — currently `animate` (and its
-  `animate-core` / `animate-macros` companion crates). Pinned to exact versions
-  because patch updates can land build-time code execution. Bumps go through
+- **Lower-bus-factor crates** — currently `animate-core`. Pinned to an exact
+  version because the crate has a small public footprint. Bumps go through
   manual review and `cargo audit`. The animation API surface is shimmed via
   [`crate::animation`] so the underlying engine can be swapped without breaking
   downstream callers.

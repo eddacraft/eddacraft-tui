@@ -1,6 +1,6 @@
 # Animations
 
-`eddacraft-tui` uses the [`animate`](https://crates.io/crates/animate) crate to
+`eddacraft-tui` uses the [`animate-core`](https://crates.io/crates/animate-core) crate to
 smooth transitions on `ProgressBar` and `ParallelProgress`. Animation is opt-in
 at the frame level: the library tracks targets and eases toward them, but your
 event loop has to advance the clock and trigger redraws. Without that wiring the
