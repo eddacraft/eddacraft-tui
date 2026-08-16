@@ -176,6 +176,12 @@ anvil gctx egress status     # shows the effective state and where it comes from
 anvil gctx egress disable    # revert to identity-only
 ```
 
+All three verbs accept `--json` and print one document — `egress` (`enabled` /
+`identity-only`) and `source` (`env` / `config` / `default`), with `action`
+added by `enable` and `disable`. State and source describe the effective
+decision after the write, so consent recorded while `ANVIL_GCTX_EGRESS=0` is set
+still reports `identity-only`.
+
 `enable` records consent under the operator-owned state directory
 (`$ANVIL_HOME/gctx-egress/`, else `$XDG_STATE_HOME/anvil/gctx-egress/`, else
 `~/.local/state/anvil/gctx-egress/`, keyed by workspace path — after an explicit

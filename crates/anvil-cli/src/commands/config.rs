@@ -54,10 +54,20 @@ pub enum ConfigCommand {
     },
 }
 
-pub fn run(args: &ConfigArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
+pub fn run(args: &ConfigArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let root = Path::new(".");
     match &args.command {
-        ConfigCommand::Show => print!("{}", show_config(root)?),
+        ConfigCommand::Show => {
+            let view = collect_config_show(root)?;
+            // Issue #3915: `--json` is advertised on this surface, so the
+            // whole of stdout has to be the document — the prose form and
+            // the JSON form are alternatives, never concatenated.
+            if global.json {
+                crate::output::json::print(&view.to_json())?;
+            } else {
+                print!("{}", view.render_human());
+            }
+        }
         ConfigCommand::Set { rule, mode } => {
             set_rule_mode(root, rule, mode)?;
             println!("set {rule}={mode}");
@@ -81,21 +91,57 @@ pub fn run(args: &ConfigArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn show_config(root: &Path) -> anyhow::Result<String> {
+/// What `config show` reports, collected once and rendered as either prose
+/// or JSON — the two forms cannot drift because they read the same fields.
+struct ConfigShow {
+    label: String,
+    modes: RuleModes,
+    note: Option<String>,
+}
+
+impl ConfigShow {
+    fn render_human(&self) -> String {
+        let note = self
+            .note
+            .as_ref()
+            .map(|note| format!("note: {note}\n"))
+            .unwrap_or_default();
+        format!(
+            "config: {label}\nrule modes: {}\n{note}",
+            self.modes.clone().summary(),
+            label = self.label
+        )
+    }
+
+    /// The `--json` document. `note` is always present (null when nothing is
+    /// deprecated) so consumers get one stable shape rather than a key that
+    /// appears only on legacy configs.
+    fn to_json(&self) -> Value {
+        serde_json::json!({
+            "config": self.label,
+            "rule_modes": {
+                "public-api-expansion": self.modes.public_api_expansion.as_str(),
+                "new-dependency-introduction": self.modes.new_dependency_introduction.as_str(),
+                "cross-layer-violation": self.modes.cross_layer_violation.as_str(),
+                "privilege-expansion": self.modes.privilege_expansion.as_str(),
+            },
+            "note": self.note,
+        })
+    }
+}
+
+fn collect_config_show(root: &Path) -> anyhow::Result<ConfigShow> {
     let config = load_project_config(root)?;
     let modes = RuleModes::from_value(&config.value)?;
     // UCFG-002: surface legacy camelCase keys so operators actually see
     // the deprecation (the anvil-config helper had no render path).
     let mut probe = config.value.clone();
     let renamed = anvil_config::normalize_legacy_keys(&mut probe);
-    let note = anvil_config::legacy_keys_deprecation_note(&renamed)
-        .map(|note| format!("note: {note}\n"))
-        .unwrap_or_default();
-    Ok(format!(
-        "config: {label}\nrule modes: {}\n{note}",
-        modes.summary(),
-        label = config.label
-    ))
+    Ok(ConfigShow {
+        label: config.label,
+        modes,
+        note: anvil_config::legacy_keys_deprecation_note(&renamed),
+    })
 }
 
 fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<()> {
@@ -340,7 +386,7 @@ mod tests {
     fn show_reports_default_rule_modes_when_config_is_missing() {
         let tmp = TempDir::new().unwrap();
 
-        let output = show_config(tmp.path()).unwrap();
+        let output = collect_config_show(tmp.path()).unwrap().render_human();
 
         assert!(output.contains("config: defaults"));
         assert!(output.contains("public-api-expansion=warn"));
@@ -352,7 +398,7 @@ mod tests {
 
         set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap();
 
-        let output = show_config(tmp.path()).unwrap();
+        let output = collect_config_show(tmp.path()).unwrap().render_human();
         assert!(output.contains("config: .anvil.yaml"));
         assert!(output.contains("public-api-expansion=enforce"));
     }
@@ -530,7 +576,7 @@ mod tests {
             "schemaVersion: \"1.0.0\"\nchecks: []\n",
         )
         .unwrap();
-        let shown = show_config(tmp.path()).unwrap();
+        let shown = collect_config_show(tmp.path()).unwrap().render_human();
         assert!(shown.contains("deprecated camelCase"), "{shown}");
         assert!(shown.contains("migrate schema"), "{shown}");
 
@@ -539,7 +585,7 @@ mod tests {
             "schema_version: \"1.0.0\"\nchecks: []\n",
         )
         .unwrap();
-        let shown = show_config(tmp.path()).unwrap();
+        let shown = collect_config_show(tmp.path()).unwrap().render_human();
         assert!(!shown.contains("deprecated"), "{shown}");
     }
 

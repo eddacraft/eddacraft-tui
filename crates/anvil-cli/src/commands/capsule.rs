@@ -108,11 +108,21 @@ struct PruneArgs {
     apply: bool,
 }
 
-pub fn run(args: &CapsuleArgs, _global: &GlobalArgs) -> Result<()> {
+pub fn run(args: &CapsuleArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         CapsuleCommand::Create(create) => {
             let repo_root = workspace_root()?;
-            run_create(&repo_root, &create.range, &create.out)
+            let report = run_create(&repo_root, &create.range, &create.out)?;
+            // Issue #3915: `create` had no JSON form, so `anvil --json capsule
+            // create` printed prose onto a stdout the caller was parsing.
+            // Rendering is the caller's job now — the create flow itself only
+            // reports what it wrote.
+            if global.json {
+                println!("{}", serde_json::to_string_pretty(&report.to_json())?);
+            } else {
+                print!("{}", report.render_human());
+            }
+            Ok(())
         }
         CapsuleCommand::Prune(prune) => {
             let repo_root = workspace_root()?;
@@ -162,8 +172,48 @@ pub fn run(args: &CapsuleArgs, _global: &GlobalArgs) -> Result<()> {
     }
 }
 
+/// What `capsule create` wrote — every fact the human line reported, kept
+/// unrendered so `--json` and the prose form cannot drift.
+#[derive(Debug)]
+struct CreateReport {
+    out: PathBuf,
+    base: String,
+    head: String,
+    commit_count: usize,
+    file_count: usize,
+}
+
+impl CreateReport {
+    fn render_human(&self) -> String {
+        format!(
+            "capsule written: {out} ({commits} commit{plural} {base}..{head}, {files} files)\n\
+             verify with: anvil capsule verify {out}\n",
+            out = self.out.display(),
+            commits = self.commit_count,
+            plural = if self.commit_count == 1 { "" } else { "s" },
+            base = &self.base[..12.min(self.base.len())],
+            head = &self.head[..12.min(self.head.len())],
+            files = self.file_count,
+        )
+    }
+
+    /// Full SHAs rather than the human line's 12-character abbreviation:
+    /// truncation is a display concern, and a consumer re-deriving the range
+    /// wants the identifiers the manifest actually carries.
+    fn to_json(&self) -> Value {
+        json!({
+            "schema": CREATE_REPORT_SCHEMA,
+            "out": self.out.display().to_string(),
+            "range": { "base": self.base, "head": self.head },
+            "commit_count": self.commit_count,
+            "file_count": self.file_count,
+            "verify_command": format!("anvil capsule verify {}", self.out.display()),
+        })
+    }
+}
+
 /// The testable create flow: collect, assemble, write, report.
-fn run_create(repo_root: &Path, range: &str, out: &Path) -> Result<()> {
+fn run_create(repo_root: &Path, range: &str, out: &Path) -> Result<CreateReport> {
     let (base, head) = parse_range(range)?;
     refuse_out_inside_git_dir(repo_root, out)?;
 
@@ -208,21 +258,13 @@ fn run_create(repo_root: &Path, range: &str, out: &Path) -> Result<()> {
     };
     let manifest = write_capsule(out, &content).context("writing capsule directory")?;
 
-    println!(
-        "capsule written: {out} ({commits} commit{plural} {base}..{head}, {files} files)",
-        out = out.display(),
-        commits = content.commits.commits.len(),
-        plural = if content.commits.commits.len() == 1 {
-            ""
-        } else {
-            "s"
-        },
-        base = &manifest.range.base[..12.min(manifest.range.base.len())],
-        head = &manifest.range.head[..12.min(manifest.range.head.len())],
-        files = manifest.files.len() + 1, // + manifest.json itself
-    );
-    println!("verify with: anvil capsule verify {}", out.display());
-    Ok(())
+    Ok(CreateReport {
+        out: out.to_path_buf(),
+        base: manifest.range.base.clone(),
+        head: manifest.range.head.clone(),
+        commit_count: content.commits.commits.len(),
+        file_count: manifest.files.len() + 1, // + manifest.json itself
+    })
 }
 
 /// Verify `capsule_dir` against `repo_root`, persist the verdict back
@@ -671,6 +713,11 @@ fn is_display_unsafe(c: char) -> bool {
 
 /// The schema identifier for the `explain --json` summary document.
 const EXPLAIN_SUMMARY_SCHEMA: &str = "anvil.capsule-explain.v1";
+
+/// The schema identifier for the `create --json` report (issue #3915).
+/// Stamped like every other capsule document so a consumer can refuse a
+/// shape it does not understand.
+const CREATE_REPORT_SCHEMA: &str = "anvil.capsule-create.v1";
 
 /// The `verify --json` line: the verification document as canonical JSON
 /// (sorted keys, minimal whitespace — exactly the persisted

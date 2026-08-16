@@ -61,6 +61,10 @@ For machine-readable output:
 anvil config show --json
 ```
 
+Stdout is then a single JSON document and nothing else: `config` (the discovered
+file, or `defaults`), `rule_modes` keyed by rule name, and `note` — the
+legacy-key deprecation warning, or `null` when none applies.
+
 ## Change a rule mode
 
 Use the installed command help so the accepted modes and identifiers match your

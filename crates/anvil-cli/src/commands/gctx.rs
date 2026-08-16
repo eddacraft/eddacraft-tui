@@ -73,17 +73,55 @@ pub fn run(args: &GctxArgs, global: &GlobalArgs) -> Result<()> {
             let root = workspace_root().context("resolve workspace root")?;
             match &egress.action {
                 EgressAction::Status => status(&root, global),
-                EgressAction::Enable(enable) => enable_egress(&root, enable.yes),
-                EgressAction::Disable => disable_egress(&root),
+                EgressAction::Enable(enable) => enable_egress(&root, enable.yes, global),
+                EgressAction::Disable => disable_egress(&root, global),
             }
         }
     }
 }
 
-/// Report the effective snippet-egress state and its source, so a persisted
-/// opt-in is never invisible. Emits JSON under the global `--json` flag for
-/// scripting (e.g. multi-workspace consent audits).
-fn status(root: &Path, global: &GlobalArgs) -> Result<()> {
+/// The effective snippet-egress decision and where it came from, after the
+/// `ANVIL_GCTX_EGRESS` override is folded over any persisted consent.
+struct EffectiveEgress {
+    enabled: bool,
+    source: EgressSource,
+}
+
+impl EffectiveEgress {
+    fn state_key(&self) -> &'static str {
+        if self.enabled {
+            "enabled"
+        } else {
+            "identity-only"
+        }
+    }
+
+    fn source_key(&self) -> &'static str {
+        match self.source {
+            EgressSource::Env => "env",
+            EgressSource::Config => "config",
+            EgressSource::Default => "default",
+        }
+    }
+
+    /// The document every `--json` egress verb emits. `status` reports state
+    /// and source alone; the mutating verbs add the `action` they performed,
+    /// so one parser covers the whole family (issue #3915).
+    fn to_json(&self, action: Option<&str>) -> serde_json::Value {
+        let mut doc = json!({
+            "egress": self.state_key(),
+            "source": self.source_key(),
+        });
+        if let Some(action) = action {
+            doc["action"] = json!(action);
+        }
+        doc
+    }
+}
+
+/// Resolve the state a caller would observe right now: the env override wins
+/// outright, otherwise the persisted per-workspace consent decides.
+fn effective_egress(root: &Path) -> Result<EffectiveEgress> {
     let env_raw = std::env::var(GCTX_EGRESS_ENV).ok();
     let (env_decision, env_source) = resolve_snippet_egress(env_raw.as_deref(), None);
     let (decision, source) = if matches!(env_source, EgressSource::Env) {
@@ -93,20 +131,33 @@ fn status(root: &Path, global: &GlobalArgs) -> Result<()> {
             read_snippet_consent(root).context("read persisted snippet-egress consent")?;
         resolve_snippet_egress(env_raw.as_deref(), persisted)
     };
+    Ok(EffectiveEgress {
+        enabled: matches!(decision, SnippetEgress::Enabled),
+        source,
+    })
+}
 
-    let enabled = matches!(decision, SnippetEgress::Enabled);
-    let source_key = match source {
-        EgressSource::Env => "env",
-        EgressSource::Config => "config",
-        EgressSource::Default => "default",
-    };
+/// Print the JSON document for a mutating verb — the effective state after
+/// the write, so a kill-switch that overrides fresh consent stays visible.
+fn print_egress_json(root: &Path, action: &str) -> Result<()> {
+    let doc = effective_egress(root)?.to_json(Some(action));
+    println!("{}", serde_json::to_string_pretty(&doc)?);
+    Ok(())
+}
+
+/// Report the effective snippet-egress state and its source, so a persisted
+/// opt-in is never invisible. Emits JSON under the global `--json` flag for
+/// scripting (e.g. multi-workspace consent audits).
+fn status(root: &Path, global: &GlobalArgs) -> Result<()> {
+    let effective = effective_egress(root)?;
+    let enabled = effective.enabled;
+    let source = effective.source;
 
     if global.json {
-        let doc = json!({
-            "egress": if enabled { "enabled" } else { "identity-only" },
-            "source": source_key,
-        });
-        println!("{}", serde_json::to_string_pretty(&doc)?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&effective.to_json(None))?
+        );
         return Ok(());
     }
 
@@ -146,7 +197,7 @@ fn status(root: &Path, global: &GlobalArgs) -> Result<()> {
 /// Record the operator's consent to snippet egress for this workspace, behind the
 /// CE-12 consent gate. Never auto-enables: a non-interactive run without `--yes`
 /// fails closed.
-fn enable_egress(root: &Path, yes: bool) -> Result<()> {
+fn enable_egress(root: &Path, yes: bool, global: &GlobalArgs) -> Result<()> {
     crate::install_root::ensure_project_write_allowed("gctx egress enable")?;
 
     if !yes {
@@ -158,12 +209,18 @@ fn enable_egress(root: &Path, yes: bool) -> Result<()> {
         }
         eprintln!("{CONSENT_STATEMENT}\n");
         if !confirm("Enable snippet egress for this workspace?")? {
+            if global.json {
+                return print_egress_json(root, "unchanged");
+            }
             println!("Snippet egress unchanged (still identity-only).");
             return Ok(());
         }
     }
 
     enable_snippet_consent(root).context("persist snippet-egress consent")?;
+    if global.json {
+        return print_egress_json(root, "enabled");
+    }
     println!("Snippet egress enabled for this workspace.");
     println!(
         "Revoke any time with `anvil gctx egress disable`. `ANVIL_GCTX_EGRESS` still overrides \
@@ -174,9 +231,12 @@ fn enable_egress(root: &Path, yes: bool) -> Result<()> {
 
 /// Revoke snippet-egress consent — a clean revert to the CE-1 identity-only
 /// default. Idempotent.
-fn disable_egress(root: &Path) -> Result<()> {
+fn disable_egress(root: &Path, global: &GlobalArgs) -> Result<()> {
     crate::install_root::ensure_project_write_allowed("gctx egress disable")?;
     disable_snippet_consent(root).context("revoke snippet-egress consent")?;
+    if global.json {
+        return print_egress_json(root, "disabled");
+    }
     println!("Snippet egress disabled for this workspace (identity-only).");
     Ok(())
 }

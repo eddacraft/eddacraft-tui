@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                         |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-15 update for daily MCP self-heal and `anvil mcp pin` (MCPLH-008); not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                 |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 update for `--json` stdout on `config show` / `gctx egress` / `capsule create` (#3915); not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -193,12 +193,18 @@ Rules: `public-api-expansion`, `new-dependency-introduction`,
 | `set <rule> <mode>`  | Set a rule mode. Rules: `public-api-expansion`, `new-dependency-introduction`, `cross-layer-violation`, `privilege-expansion`. Modes: `off`, `warn`, `enforce`. |
 | `convert --to <fmt>` | Convert the project config to another canonical format. Never writes `.anvilrc`.                                                                                |
 
+`show --json` emits a single JSON document — `config` (the discovered file, or
+`defaults`), `rule_modes` (one key per rule), and `note` (the legacy-key
+deprecation warning, `null` when none applies). Nothing else reaches stdout, so
+the whole stream parses.
+
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
 **Examples:**
 
 ```
 $ anvil config show
+$ anvil config show --json
 $ anvil config set cross-layer-violation warn
 $ anvil config convert --to yaml
 ```
@@ -1532,6 +1538,11 @@ CI step gates on the exit status and parses the verdict from the same run.
 `explain --json` prints an `anvil.capsule-explain.v1` summary (range, evidence
 states, recorded verdict).
 
+**`--json` (`create`):** the global `--json` flag makes `create` print an
+`anvil.capsule-create.v1` report instead of its two prose lines — `out`, `range`
+(full base/head SHAs), `commit_count`, `file_count`, and `verify_command`. The
+capsule written is identical either way.
+
 **Exit codes (`verify`):** 0 (pass/warn), 1 (block), 2 (degraded), 3 (error).
 `explain` exits 0 on success regardless of the recorded verdict — gate on the
 verdict with `anvil capsule verify`, not `explain`.
@@ -1548,6 +1559,7 @@ verdict with `anvil capsule verify`, not `explain`.
 
 ```
 $ anvil capsule create --range main..HEAD --out ./capsule-dir
+$ anvil --json capsule create --range main..HEAD --out ./capsule-dir
 $ anvil capsule verify ./capsule-dir
 $ anvil capsule verify --json ./capsule-dir
 $ anvil capsule explain --json ./capsule-dir
@@ -1718,13 +1730,21 @@ Consent is recorded per workspace. The `ANVIL_GCTX_EGRESS` environment variable
 overrides the persisted state per process (`1` forces snippets on, `0` is the
 kill-switch).
 
+All three verbs honour `--json` and emit the same document: `egress` (`enabled`
+/ `identity-only`) and `source` (`env` / `config` / `default`). `enable` and
+`disable` add `action` (`enabled` / `disabled` / `unchanged`). State and source
+are always the **effective** ones after the write, so consent recorded under an
+`ANVIL_GCTX_EGRESS=0` kill-switch still reports `identity-only`.
+
 **Exit codes:** 0 (success), 1 (error)
 
 **Examples:**
 
 ```
 $ anvil gctx egress status
+$ anvil gctx egress status --json
 $ anvil gctx egress enable
+$ anvil gctx egress enable --yes --json
 $ anvil gctx egress disable
 ```
 
