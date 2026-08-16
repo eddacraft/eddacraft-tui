@@ -85,8 +85,7 @@ fn signal_term(pid: u32) -> bool {
             .arg("-TERM")
             .arg(pid.to_string())
             .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+            .is_ok_and(|status| status.success())
     }
     #[cfg(not(unix))]
     {
@@ -103,7 +102,7 @@ fn list_anvil_mcp_serve_linux() -> Vec<McpServeProcess> {
     };
     for entry in entries.flatten() {
         let name = entry.file_name();
-        let Some(pid) = name.to_str().and_then(|s| s.parse::<u32>().ok()) else {
+        let Some(child_pid) = name.to_str().and_then(|s| s.parse::<u32>().ok()) else {
             continue;
         };
         let cmdline = match std::fs::read(entry.path().join("cmdline")) {
@@ -113,9 +112,9 @@ fn list_anvil_mcp_serve_linux() -> Vec<McpServeProcess> {
         if !is_anvil_mcp_serve(&cmdline) {
             continue;
         }
-        let ppid = read_ppid(pid).unwrap_or(0);
-        let parent_cmdline = if ppid > 1 {
-            std::fs::read(format!("/proc/{ppid}/cmdline"))
+        let parent_pid = read_ppid(child_pid).unwrap_or(0);
+        let parent_cmdline = if parent_pid > 1 {
+            std::fs::read(format!("/proc/{parent_pid}/cmdline"))
                 .ok()
                 .filter(|b| !b.is_empty())
                 .map(|b| String::from_utf8_lossy(&b).into_owned())
@@ -123,8 +122,8 @@ fn list_anvil_mcp_serve_linux() -> Vec<McpServeProcess> {
             None
         };
         out.push(McpServeProcess {
-            pid,
-            ppid,
+            pid: child_pid,
+            ppid: parent_pid,
             cmdline,
             parent_cmdline,
         });
@@ -156,12 +155,17 @@ impl PathLeaf<'_> {
 mod tests {
     use super::*;
 
-    fn proc(pid: u32, ppid: u32, cmd: &str, parent: Option<&str>) -> McpServeProcess {
+    fn proc(
+        pid: u32,
+        parent_pid: u32,
+        cmdline: &str,
+        parent_cmd: Option<&str>,
+    ) -> McpServeProcess {
         McpServeProcess {
             pid,
-            ppid,
-            cmdline: cmd.to_string(),
-            parent_cmdline: parent.map(str::to_string),
+            ppid: parent_pid,
+            cmdline: cmdline.to_string(),
+            parent_cmdline: parent_cmd.map(str::to_string),
         }
     }
 
