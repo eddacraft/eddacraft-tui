@@ -47,7 +47,8 @@ pub struct BuildArgs {
     #[arg(long)]
     pub default_branch: Option<String>,
 
-    /// Repository root to operate on. Defaults to the current directory.
+    /// Worktree root or git directory (`<root>/.git`) to operate on.
+    /// Defaults to the current directory.
     #[arg(long)]
     pub repo: Option<std::path::PathBuf>,
 }
@@ -128,7 +129,7 @@ fn run_build(build: &BuildArgs) -> anyhow::Result<()> {
     use anvil_intercept::snapshot_io::base_store::{SystemClaimProcs, default_base_dir};
 
     let repo_root = match &build.repo {
-        Some(path) => path.clone(),
+        Some(path) => anvil_intercept::graph_base_trigger::normalise_repo_path(path),
         None => std::env::current_dir()?,
     };
 

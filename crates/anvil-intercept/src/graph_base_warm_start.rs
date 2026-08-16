@@ -13,6 +13,14 @@ use crate::save_time::SymbolParser;
 use crate::snapshot_io::base_store::{BaseLoadOutcome, load_base};
 use crate::workspace_pool::DosCaps;
 
+/// True when a current-epoch base artefact for `sha` is loadable (reuse /
+/// already-present). The production trigger uses this to skip a redundant
+/// spawn instead of serving cold.
+#[must_use]
+pub fn loadable_base_present(base_dir: &Path, sha: &str) -> bool {
+    matches!(load_base(base_dir, sha), BaseLoadOutcome::Loaded(_))
+}
+
 /// The outcome of a per-worktree composed warm-start (GBASE-006). Every variant
 /// other than [`Self::Composed`] leaves the key cold for the ordinary cold-scan
 /// path (all non-fatal, ADR-105 §6).

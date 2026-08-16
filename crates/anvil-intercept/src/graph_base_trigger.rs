@@ -8,12 +8,14 @@
 //! only debounces, spawns, and reaps. Failures are non-fatal (cold scan).
 
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use crate::broadcaster::TelemetryBroadcaster;
+use crate::persistence_route::{GitRouteResolver, RouteMergeBase, RouteResolver};
 use crate::telemetry::{NotificationEnvelope, TelemetryCorrelation, TelemetryEmitter};
 
 /// The **shared** ref-watch descriptor budget per repo (ADR-105 §6): the common
@@ -195,6 +197,50 @@ fn normalise(path: &Path) -> PathBuf {
         }
     }
     out
+}
+
+/// Accept a worktree root or a git directory (`<root>/.git`, a linked-worktree
+/// gitdir, or a linked-worktree `.git` *file*) and return the worktree root when
+/// it is knowable. Plumbing still works if we must pass a git dir through.
+///
+/// The production trigger keys repos by the common gitdir and passes that path
+/// as `--repo`; `git -C <gitdir>` cannot `chdir` into a `.git` *file* and
+/// worktree-only commands (`rev-parse --show-toplevel`) refuse a git dir.
+#[must_use]
+pub fn normalise_repo_path(path: &Path) -> PathBuf {
+    // Worktree root: `.git` exists as a directory or a gitdir-pointer file.
+    if path.join(".git").exists() {
+        return path.to_path_buf();
+    }
+    // Linked worktree `.git` file: `git -C` cannot chdir into a file.
+    if path.is_file() {
+        if path.file_name().is_some_and(|n| n == ".git")
+            && let Some(parent) = path.parent()
+        {
+            return parent.to_path_buf();
+        }
+        return path.to_path_buf();
+    }
+    // `<root>/.git` directory → worktree is the parent.
+    if path.is_dir() && path.file_name().is_some_and(|n| n == ".git") {
+        if let Some(parent) = path.parent() {
+            return parent.to_path_buf();
+        }
+    }
+    // Linked-worktree gitdir (`<common>/worktrees/<name>`): `gitdir` points at
+    // `<worktree>/.git`.
+    if let Ok(raw) = std::fs::read_to_string(path.join("gitdir")) {
+        let pointed = Path::new(raw.trim());
+        let pointed = if pointed.is_absolute() {
+            pointed.to_path_buf()
+        } else {
+            normalise(&path.join(pointed))
+        };
+        if let Some(parent) = pointed.parent() {
+            return parent.to_path_buf();
+        }
+    }
+    path.to_path_buf()
 }
 
 /// Resolve the ref-watch plan for a repo given the primary root and any
@@ -855,34 +901,152 @@ impl Signaller for SystemSignaller {
     }
 }
 
+/// PATH-stable command used when `current_exe()` is missing or unusable.
+/// Same contract as MCP install `PREFERRED_MCP_COMMAND`.
+pub const PREFERRED_GRAPH_BASE_COMMAND: &str = "anvil";
+
+/// Whether `path` exists as a regular file with at least one execute bit.
+/// A dangling Homebrew/Cellar `current_exe` (the CIB-342 ENOENT case) is
+/// unusable and must fall back to [`PREFERRED_GRAPH_BASE_COMMAND`].
+#[must_use]
+pub fn is_spawnable_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    meta.is_file() && (meta.permissions().mode() & 0o111) != 0
+}
+
+fn find_on_path(name: &str, path_var: Option<&OsStr>) -> Option<PathBuf> {
+    let path_var = path_var?;
+    for dir in std::env::split_paths(path_var) {
+        if dir.as_os_str().is_empty() {
+            continue;
+        }
+        let candidate = dir.join(name);
+        if is_spawnable_executable(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// Resolve the `graph-base build` executable.
+///
+/// Prefer `current_exe` when it exists and is spawnable; otherwise fall back
+/// to PATH-stable `anvil`. When PATH cannot be searched, the bare name is
+/// returned so `Command` can search the process environment at spawn time.
+#[must_use]
+pub fn resolve_graph_base_command(current_exe: Option<&Path>, path_var: Option<&OsStr>) -> PathBuf {
+    if let Some(exe) = current_exe.filter(|p| is_spawnable_executable(p)) {
+        return exe.to_path_buf();
+    }
+    find_on_path(PREFERRED_GRAPH_BASE_COMMAND, path_var)
+        .unwrap_or_else(|| PathBuf::from(PREFERRED_GRAPH_BASE_COMMAND))
+}
+
+fn named_spawn_error(err: io::Error, exe: &Path, repo: &Path) -> io::Error {
+    io::Error::new(
+        err.kind(),
+        format!(
+            "failed to spawn graph-base build (exe={}, repo={}): {err}",
+            exe.display(),
+            repo.display(),
+        ),
+    )
+}
+
+/// Spawn `exe graph-base build --repo <repo>`. On failure the `io::Error`
+/// names both the executable and the repo (never a bare ENOENT).
+pub fn spawn_graph_base_child(exe: &Path, repo: &Path) -> io::Result<std::process::Child> {
+    use std::process::{Command, Stdio};
+    Command::new(exe)
+        .arg("graph-base")
+        .arg("build")
+        .arg("--repo")
+        .arg(repo)
+        .stdin(Stdio::null())
+        // stdout (the child's one-line JSON summary) is DISCARDED, not read:
+        // piping it would hand the daemon a pipe to drain, and the reaper
+        // only consumes the exit status — the store outcome is observable
+        // via the artefact itself. Inherit stderr so a producer error lands
+        // in the daemon log.
+        .stdout(Stdio::null())
+        .spawn()
+        .map_err(|err| named_spawn_error(err, exe, repo))
+}
+
+/// If a loadable shared-base artefact already exists for `repo`'s resolved
+/// merge-base (or HEAD when that is the artefact key), return the sha so the
+/// executor can skip a redundant production spawn.
+#[must_use]
+pub fn reusable_base_sha(repo: &Path, base_dir: &Path) -> Option<String> {
+    let repo = normalise_repo_path(repo);
+    let mut candidates = Vec::new();
+    if let RouteMergeBase::Resolved(sha) = GitRouteResolver::new().resolve(&repo) {
+        candidates.push(sha);
+    }
+    if let Some(head) = rev_parse_head(&repo)
+        && !candidates.iter().any(|s| s == &head)
+    {
+        candidates.push(head);
+    }
+    candidates
+        .into_iter()
+        .find(|sha| crate::graph_base_warm_start::loadable_base_present(base_dir, sha))
+}
+
+fn rev_parse_head(repo: &Path) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let sha = String::from_utf8(output.stdout).ok()?;
+    let sha = sha.trim();
+    if sha.is_empty() {
+        return None;
+    }
+    Some(sha.to_string())
+}
+
+fn reusable_base_for_default_store(repo: &Path) -> Option<String> {
+    let base_dir = crate::snapshot_io::base_store::default_base_dir()?;
+    reusable_base_sha(repo, &base_dir)
+}
+
 /// Production [`ProductionSpawner`]: re-exec the daemon's own `current_exe()` as
 /// `anvil graph-base build --repo <root>` (merge-base omitted — the child
-/// resolves it).
+/// resolves it). If `current_exe()` is missing or unusable (dangling
+/// Homebrew/Cellar path), fall back to PATH-stable `anvil`.
 ///
 /// # Assumption
 /// The daemon process **is** the `anvil` CLI binary (production starts it via
-/// `anvil intercept start --foreground`), so `current_exe()` names a binary that
-/// understands the hidden `graph-base build` subcommand — the same re-exec
-/// contract [`crate::save_time_driver::CurrentExeDriverFactory`] relies on.
+/// `anvil intercept start --foreground`), so a spawnable `current_exe()` names
+/// a binary that understands the hidden `graph-base build` subcommand — the
+/// same re-exec contract [`crate::save_time_driver::CurrentExeDriverFactory`]
+/// relies on. The PATH fallback covers the CIB-342 case where that path is
+/// gone after an upgrade.
 pub struct CurrentExeSpawner;
 
 impl ProductionSpawner for CurrentExeSpawner {
     fn spawn(&self, repo: &Path) -> io::Result<SpawnedChild> {
-        use std::process::{Command, Stdio};
-        let exe = std::env::current_exe()?;
-        let child = Command::new(exe)
-            .arg("graph-base")
-            .arg("build")
-            .arg("--repo")
-            .arg(repo)
-            .stdin(Stdio::null())
-            // stdout (the child's one-line JSON summary) is DISCARDED, not read:
-            // piping it would hand the daemon a pipe to drain, and the reaper
-            // only consumes the exit status — the store outcome is observable
-            // via the artefact itself. Inherit stderr so a producer error lands
-            // in the daemon log.
-            .stdout(Stdio::null())
-            .spawn()?;
+        let current = std::env::current_exe().ok();
+        let path_var = std::env::var_os("PATH");
+        let exe = resolve_graph_base_command(current.as_deref(), path_var.as_deref());
+        let repo = normalise_repo_path(repo);
+        let child =
+            spawn_graph_base_child(&exe, &repo).map_err(|err| match current.as_deref() {
+                Some(current) if current != exe.as_path() => io::Error::new(
+                    err.kind(),
+                    format!("{err}; current_exe={} was unusable", current.display()),
+                ),
+                _ => err,
+            })?;
         let pid = child.id();
         Ok(SpawnedChild {
             pid,
@@ -1124,6 +1288,19 @@ impl GraphBaseTrigger {
     }
 
     fn spawn(&self, repo: &Path, spawn_id: u64) {
+        if let Some(sha) = reusable_base_for_default_store(repo) {
+            // A matching artefact is already on disk — skip the subprocess
+            // (reuse / already-present) instead of serving cold on a spawn
+            // failure. Clears the in-flight slot as a clean success would.
+            tracing::info!(
+                target: "anvil_intercept::graph_base_trigger",
+                repo = %repo.display(),
+                sha = %sha,
+                "matching base artefact already present; skipping spawn",
+            );
+            self.lock_core().on_child_succeeded(spawn_id);
+            return;
+        }
         match self.spawner.spawn(repo) {
             Ok(SpawnedChild { pid, child }) => {
                 self.lock_core().on_child_spawned(repo, spawn_id, pid);
@@ -2683,5 +2860,234 @@ mod tests {
             core.has_in_flight(&repo),
             "the live replacement's slot is untouched by the stale exit",
         );
+    }
+
+    // ---- CIB-342: spawn path naming, PATH fallback, --repo normalise, reuse --
+
+    fn chmod_u_plus_x(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(path).unwrap().permissions();
+        perms.set_mode(perms.mode() | 0o111);
+        std::fs::set_permissions(path, perms).unwrap();
+    }
+
+    #[test]
+    fn resolve_graph_base_command_prefers_usable_current_exe() {
+        let exe = std::env::current_exe().expect("current_exe");
+        let resolved = resolve_graph_base_command(Some(&exe), None);
+        assert_eq!(
+            resolved, exe,
+            "a spawnable current_exe must win over PATH-stable anvil",
+        );
+    }
+
+    #[test]
+    fn resolve_graph_base_command_falls_back_to_path_anvil_when_current_exe_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dangling = tmp.path().join("gone-homebrew-cellar-anvil");
+        let bin = tmp.path().join("bin");
+        std::fs::create_dir(&bin).unwrap();
+        let anvil = bin.join(PREFERRED_GRAPH_BASE_COMMAND);
+        std::fs::write(&anvil, b"#!/bin/sh\n").unwrap();
+        chmod_u_plus_x(&anvil);
+
+        let resolved = resolve_graph_base_command(Some(&dangling), Some(bin.as_os_str()));
+        assert_eq!(
+            resolved, anvil,
+            "a missing/dangling current_exe must fall back to PATH-stable anvil",
+        );
+    }
+
+    #[test]
+    fn resolve_graph_base_command_falls_back_when_current_exe_is_not_spawnable() {
+        let tmp = tempfile::tempdir().unwrap();
+        let not_exec = tmp.path().join("anvil-not-exec");
+        std::fs::write(&not_exec, b"not executable").unwrap();
+        let bin = tmp.path().join("bin");
+        std::fs::create_dir(&bin).unwrap();
+        let anvil = bin.join(PREFERRED_GRAPH_BASE_COMMAND);
+        std::fs::write(&anvil, b"#!/bin/sh\n").unwrap();
+        chmod_u_plus_x(&anvil);
+
+        let resolved = resolve_graph_base_command(Some(&not_exec), Some(bin.as_os_str()));
+        assert_eq!(
+            resolved, anvil,
+            "a non-executable current_exe must fall back to PATH-stable anvil",
+        );
+    }
+
+    #[test]
+    fn spawn_failure_names_the_missing_exe_and_repo() {
+        let missing = Path::new("/definitely/not/an/anvil-binary-cib342");
+        let repo = Path::new("/repo/for/cib342/.git");
+        let err = spawn_graph_base_child(missing, repo).expect_err("missing exe must ENOENT");
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        let msg = err.to_string();
+        assert!(
+            msg.contains("/definitely/not/an/anvil-binary-cib342"),
+            "spawn error must name the missing exe, got: {msg}",
+        );
+        assert!(
+            msg.contains("/repo/for/cib342/.git"),
+            "spawn error must name the repo path, got: {msg}",
+        );
+    }
+
+    #[test]
+    fn normalise_repo_path_accepts_worktree_root_and_git_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (wt, git_dir, linked) = make_repo_fixture(tmp.path(), &["wt-a"]);
+        assert_eq!(normalise_repo_path(&wt), wt, "worktree root is unchanged");
+        assert_eq!(
+            normalise_repo_path(&git_dir),
+            wt,
+            "<root>/.git directory must resolve to the worktree root",
+        );
+
+        let sibling = &linked[0];
+        assert_eq!(
+            normalise_repo_path(sibling),
+            *sibling,
+            "linked worktree root is unchanged",
+        );
+        // Real git writes `<gitdir>/gitdir` pointing back at `<worktree>/.git`.
+        let sibling_gitdir = resolve_git_dir(sibling).unwrap();
+        std::fs::write(
+            sibling_gitdir.join("gitdir"),
+            format!("{}/.git\n", sibling.display()),
+        )
+        .unwrap();
+        assert_eq!(
+            normalise_repo_path(&sibling_gitdir),
+            *sibling,
+            "linked-worktree gitdir must resolve to that worktree",
+        );
+        assert_eq!(
+            normalise_repo_path(&sibling.join(".git")),
+            *sibling,
+            "linked-worktree .git file must resolve to that worktree",
+        );
+    }
+
+    fn init_real_git_with_origin(root: &Path) -> String {
+        let git = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(root)
+                .args(args)
+                .output()
+                .expect("git available");
+            assert!(out.status.success(), "git {args:?} failed: {out:?}");
+            out
+        };
+        git(&["init", "-q", "-b", "main"]);
+        git(&["config", "user.email", "test@example.com"]);
+        git(&["config", "user.name", "Test"]);
+        git(&["config", "commit.gpgsign", "false"]);
+        std::fs::write(root.join("README"), b"hi\n").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-q", "-m", "init"]);
+        git(&["remote", "add", "origin", "."]);
+        git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(&[
+            "symbolic-ref",
+            "refs/remotes/origin/HEAD",
+            "refs/remotes/origin/main",
+        ]);
+        String::from_utf8(git(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_string()
+    }
+
+    fn publish_empty_base(base_dir: &Path, sha: &str) {
+        use anvil_graph_cache::snapshot::SnapshotPayload;
+        use anvil_graph_cache::{DependencyGraph, SymbolGraph};
+
+        use crate::snapshot_io::base_store::publish_base;
+
+        let payload = SnapshotPayload::from_graphs(&SymbolGraph::new(), &DependencyGraph::new())
+            .expect("empty payload");
+        publish_base(base_dir, sha, &payload.to_base_bytes()).expect("publish base");
+    }
+
+    #[test]
+    fn reusable_base_sha_finds_existing_artefact_for_git_dir_and_worktree() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir(&repo).unwrap();
+        let sha = init_real_git_with_origin(&repo);
+        let store = tempfile::tempdir().unwrap();
+        let base_dir = store.path().join("base");
+        publish_empty_base(&base_dir, &sha);
+
+        assert_eq!(
+            reusable_base_sha(&repo, &base_dir).as_deref(),
+            Some(sha.as_str()),
+            "a loadable HEAD/merge-base artefact must be reusable from the worktree root",
+        );
+        assert_eq!(
+            reusable_base_sha(&repo.join(".git"), &base_dir).as_deref(),
+            Some(sha.as_str()),
+            "a loadable artefact must also be found when --repo is the .git directory",
+        );
+    }
+
+    #[test]
+    fn reusable_base_sha_is_none_when_no_artefact_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir(&repo).unwrap();
+        let _sha = init_real_git_with_origin(&repo);
+        let store = tempfile::tempdir().unwrap();
+        assert!(
+            reusable_base_sha(&repo, store.path()).is_none(),
+            "no artefact ⇒ must not skip spawn",
+        );
+    }
+
+    #[test]
+    fn trigger_skips_spawn_when_matching_base_already_present() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir(&repo).unwrap();
+        let sha = init_real_git_with_origin(&repo);
+        let home = tempfile::tempdir().unwrap();
+        let base_dir = home.path().join("graph-cache").join("base");
+        publish_empty_base(&base_dir, &sha);
+
+        temp_env::with_var("ANVIL_HOME", Some(home.path()), || {
+            let git_dir = repo.join(".git");
+            let core = Arc::new(Mutex::new(TriggerCore::with_timings(
+                Duration::from_millis(500),
+                Duration::from_secs(5),
+                MAX_RESTARTS_PER_LINEAGE,
+            )));
+            core.lock().unwrap().register_repo(&git_dir, &repo);
+            let seams = Arc::new(RecordingSeams {
+                spawns: AtomicUsize::new(0),
+                terminates: Arc::new(std::sync::Mutex::new(Vec::new())),
+            });
+            let trigger = GraphBaseTrigger::new(
+                Arc::clone(&core),
+                Arc::clone(&seams) as Arc<dyn ProductionSpawner>,
+                Arc::clone(&seams) as Arc<dyn Signaller>,
+                None,
+            );
+
+            let t = t0();
+            trigger.on_ref_event(&git_dir, t);
+            trigger.poll(t + Duration::from_millis(500));
+
+            assert_eq!(
+                seams.spawns.load(Ordering::SeqCst),
+                0,
+                "an existing matching base must skip spawn (reuse / already-present)",
+            );
+            assert!(
+                !core.lock().unwrap().has_in_flight(&git_dir),
+                "skipped spawn must clear the in-flight slot",
+            );
+        });
     }
 }

@@ -120,3 +120,43 @@ fn graph_base_build_prints_deterministic_json_summary() {
         "the same sha against a fresh store must print byte-identical JSON"
     );
 }
+
+#[test]
+fn graph_base_build_accepts_git_dir_as_repo() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    git(root, &["init", "-q", "-b", "main"]);
+    git(root, &["config", "user.email", "test@example.com"]);
+    git(root, &["config", "user.name", "Test"]);
+    git(root, &["config", "commit.gpgsign", "false"]);
+    write_file(root, "src/a.ts", b"export function a() { return 1; }\n");
+    git(root, &["add", "."]);
+    git(root, &["commit", "-q", "-m", "fixture"]);
+    let sha = String::from_utf8(git(root, &["rev-parse", "HEAD"]).stdout)
+        .unwrap()
+        .trim()
+        .to_string();
+
+    let home = tempfile::tempdir().unwrap();
+    let out = Command::new(ANVIL_BIN)
+        .args(["graph-base", "build", "--merge-base", &sha])
+        .arg("--repo")
+        .arg(root.join(".git"))
+        .env("ANVIL_HOME", home.path())
+        .env("ANVIL_DEV", "1")
+        .output()
+        .expect("anvil binary runs");
+    assert!(
+        out.status.success(),
+        "graph-base build --repo <root>/.git exited non-zero: {:?}\nstderr: {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let value: serde_json::Value = serde_json::from_str(json_line(
+        &String::from_utf8(out.stdout).expect("utf8 stdout"),
+    ))
+    .expect("valid JSON");
+    assert_eq!(value["merge_base"], serde_json::Value::String(sha));
+    assert_eq!(value["outcome"], "written", "fresh store persists: {value}");
+    assert_eq!(value["persisted"], true);
+}
