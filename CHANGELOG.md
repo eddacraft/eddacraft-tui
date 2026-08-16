@@ -104,6 +104,10 @@ agent sessions. Pin with `anvil mcp pin` if you do not want auto-heal.
 
 ### Fixed
 
+- **PY-008 human and TUI help names eval/exec/compile.** The rule-specific nudge
+  already shown in JSON now appears as the finding help text instead of the
+  generic Python-family suggestion (type-ignore, `import *`, `Any`).
+
 - **Invalid project configuration exits 4.** Parse and schema failures in the
   discovered project file now use the documented configuration-error exit code
   on `check`, `gate`, `gate-config`, `watch` startup, and `architecture`.

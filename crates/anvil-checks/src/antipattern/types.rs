@@ -121,6 +121,24 @@ pub struct Warning {
     pub spectrum_position: Option<u32>,
 }
 
+/// Human/TUI help text for a finding.
+///
+/// PY-008's compiled family `suggestion` is generic python-reliability
+/// boilerplate (type-ignore, `import *`, `Any`). The useful
+/// eval/exec/compile remediation already lives in `nudge` (issue #3923).
+fn warning_help_text(warning: &Warning) -> Option<&str> {
+    if warning.id == "PY-008"
+        && let Some(nudge) = warning.nudge.as_deref().filter(|text| !text.is_empty())
+    {
+        return Some(nudge);
+    }
+    if warning.suggestion.is_empty() {
+        None
+    } else {
+        Some(warning.suggestion.as_str())
+    }
+}
+
 /// Wrapper that makes a `Warning` renderable via `miette`.
 ///
 /// Phase B: loads the source file at construction time so miette can render
@@ -251,11 +269,7 @@ impl miette::Diagnostic for WarningReport<'_> {
     }
 
     fn help<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
-        if self.warning.suggestion.is_empty() {
-            None
-        } else {
-            Some(Box::new(self.warning.suggestion.as_str()))
-        }
+        warning_help_text(self.warning).map(|text| Box::new(text) as Box<dyn fmt::Display + 'a>)
     }
 
     fn source_code(&self) -> Option<&dyn miette::SourceCode> {
@@ -582,6 +596,41 @@ mod tests {
         let mut w = sample_warning("AP-013", WarningSeverity::Info, None);
         w.suggestion = String::new();
         assert!(WarningReport::new(&w).help().is_none());
+    }
+
+    #[test]
+    fn py008_help_prefers_rule_nudge_over_family_suggestion() {
+        use miette::Diagnostic;
+        let mut w = sample_warning("PY-008", WarningSeverity::Error, None);
+        w.suggestion =
+            "use logging instead of print(); give the value a real type instead of `Any`."
+                .to_string();
+        w.nudge = Some(
+            "Don't call eval/exec/compile with a dynamic argument. Use structured dispatch."
+                .to_string(),
+        );
+        assert_eq!(
+            WarningReport::new(&w)
+                .help()
+                .map(|h| h.to_string())
+                .as_deref(),
+            Some("Don't call eval/exec/compile with a dynamic argument. Use structured dispatch.")
+        );
+    }
+
+    #[test]
+    fn non_py008_help_keeps_family_suggestion() {
+        use miette::Diagnostic;
+        let mut w = sample_warning("PY-004", WarningSeverity::Error, None);
+        w.suggestion = "catch the narrowest exception".to_string();
+        w.nudge = Some("narrow the except".to_string());
+        assert_eq!(
+            WarningReport::new(&w)
+                .help()
+                .map(|h| h.to_string())
+                .as_deref(),
+            Some("catch the narrowest exception")
+        );
     }
 
     #[test]

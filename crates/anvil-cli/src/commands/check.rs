@@ -1495,7 +1495,10 @@ fn render_warning(w: &Warning, verbose: bool) -> String {
     let _ = miette::GraphicalReportHandler::new().render_report(&mut out, &diag);
 
     if verbose {
-        if let Some(nudge) = &w.nudge {
+        // PY-008 already surfaces `nudge` as miette help; do not reprint it.
+        if w.id != "PY-008"
+            && let Some(nudge) = &w.nudge
+        {
             let _ = writeln!(out, "  \u{2192} {nudge}");
         }
         let _ = writeln!(out, "  Why: {}", w.explanation);
