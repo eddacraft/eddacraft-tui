@@ -7,11 +7,14 @@
 | ------ | ---------- | ----------- |
 | ATTRIB | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-08-14 — Node cold-adopt of shipped `v1.2.0` against
-`@eddacraft/nxrust` confirmed the generator core and failed the documented
-first-copy path. ATTRIB-027..-034 authorised the same day (spec
+**Last reviewed:** 2026-08-16 — kit `v1.2.2` published. ATTRIB-027..-038
+Released/Shipped via that tag. Node and Rust cold-adopt were re-run against
+the published artifact, not `main`. ATTRIB-025 (`--version`) stays Proposed.
+
+**Last reviewed (history):** 2026-08-14 — Node cold-adopt of shipped `v1.2.0`
+against `@eddacraft/nxrust` confirmed the generator core and failed the
+documented first-copy path. ATTRIB-027..-034 authorised the same day (spec
 [`2026-08-14-acknowledgements-cold-adopt.md`](../specs/2026-08-14-acknowledgements-cold-adopt.md)).
-ATTRIB-025 (`--version`) stays Proposed and out of this cut.
 
 **Last reviewed (history):** 2026-08-03 — opened from a full read-through of the shipped
 kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
@@ -37,9 +40,9 @@ Status tokens follow
 the items whose deliverable is inside the released kit — ATTRIB-018, -019, -020
 and -022 — read **Released/Shipped via kit `v1.1.0`**. ATTRIB-021 (a CI matrix
 change) and ATTRIB-023 (recorded decisions, no kit code) stay **Merged**,
-because nothing of theirs is in the subtree the release publishes. Module stays
-**In Progress** for ATTRIB-025 (`--version`), still Proposed, and for
-ATTRIB-027..-034 (Node cold-adopt).
+because nothing of theirs is in the subtree the release publishes. ATTRIB-027..-038
+read **Released/Shipped via kit `v1.2.2`**. Module stays **In Progress** for
+ATTRIB-025 (`--version`), still Proposed.
 
 Design contracts:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md),
@@ -508,7 +511,7 @@ every defect above reproduced.
 
 ### ATTRIB-027: Template markers match the named-block contract
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3896
 - **Intent:** Copying the shipped template and example config does not produce
   an orphaned-marker refusal.
 - **Expected Outcome:** `ACKNOWLEDGEMENTS.md.template` uses
@@ -523,7 +526,7 @@ every defect above reproduced.
 
 ### ATTRIB-028: Node-only licence bootstrap works
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3896
 - **Intent:** A Node-only consumer can populate `licences.node-allow.txt`
   without inventing Rust files.
 - **Expected Outcome:** The kit ships `licences.toml.template`.
@@ -538,7 +541,7 @@ every defect above reproduced.
 
 ### ATTRIB-029: Find license-checker next to node_modules
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3896
 - **Intent:** `npm install --save-dev license-checker` then the documented
   generator command works with no PATH surgery.
 - **Expected Outcome:** The Node driver resolves
@@ -552,7 +555,7 @@ every defect above reproduced.
 
 ### ATTRIB-030: Exclude the consumer package automatically
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3896
 - **Intent:** A published package is not attributed to itself.
 - **Expected Outcome:** The driver always `--excludePackages` the manifest's
   own `name@version`. The optional `exclude` key remains for extras. The
@@ -566,7 +569,7 @@ every defect above reproduced.
 
 ### ATTRIB-031: Freshness snippet is ecosystem-neutral
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3896
 - **Intent:** A Node-only consumer can drop in the CI snippet without
   installing cargo-about or running a Rust fixture.
 - **Expected Outcome:** `ci-freshness.yml.snippet` runs generator `--check`
@@ -578,7 +581,7 @@ every defect above reproduced.
 
 ### ATTRIB-032: Adoption tells you to ship the notice
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3896
 - **Intent:** `npm pack` including the notice is a documented step, not a
   surprise.
 - **Expected Outcome:** The adoption checklist says to include
@@ -590,7 +593,7 @@ every defect above reproduced.
 
 ### ATTRIB-033: Documented Node cold-start is a fixture
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3896
 - **Intent:** The documented copy path cannot regress without CI going red.
 - **Expected Outcome:** `tests/node-cold-adopt.sh` copies only shipped
   templates, expands, generates without PATH hacks or Rust files, excludes
@@ -602,7 +605,9 @@ every defect above reproduced.
 
 ### ATTRIB-034: Cut kit 1.2.1
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via
+  PR #3896. `1.2.1` was bumped in-tree and never tagged; the consumer pin
+  is `v1.2.2`.
 - **Intent:** External consumers can pin the cold-adopt fixes.
 - **Expected Outcome:** `VERSION` and `CHANGELOG.md` are `1.2.1`. The
   entry is written for consumers (no work-item ids).
@@ -614,7 +619,7 @@ every defect above reproduced.
 
 ### ATTRIB-035: Marker/bootstrap/packaging are every-ecosystem
 
-- **Status:** Ready (operator authorisation 2026-08-14 — full matrix)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3897
 - **Intent:** The 1.2.1 Node path is not the only documented first-copy
   path. Rust, Go, and Python copy the same marker and expander contract.
 - **Expected Outcome:** `attribution.toml.example` has first-class rust,
@@ -631,7 +636,7 @@ every defect above reproduced.
 
 ### ATTRIB-036: Python allow-list accepts classifier names
 
-- **Status:** Ready (operator authorisation 2026-08-14 — full matrix)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3897
 - **Intent:** A current Python app whose packages report Trove names
   (`Apache Software License`, `Mozilla Public License 2.0 (MPL 2.0)`)
   can satisfy a SPDX-only `licences.toml`.
@@ -651,7 +656,7 @@ every defect above reproduced.
 
 ### ATTRIB-037: Cold-start fixtures for Rust, Go, and Python
 
-- **Status:** Ready (operator authorisation 2026-08-14 — full matrix)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16) — merged via PR #3897
 - **Intent:** Marker/bootstrap regressions cannot hide behind a Node-only
   fixture.
 - **Expected Outcome:** `tests/{rust,go,python}-cold-adopt.sh` copy only
@@ -666,13 +671,24 @@ every defect above reproduced.
 
 ### ATTRIB-038: Cut kit 1.2.2
 
-- **Status:** Ready (operator authorisation 2026-08-14)
+- **Status:** Released/Shipped via kit `v1.2.2` (2026-08-16)
 - **Intent:** Matrix adopt fixes reach pin consumers.
 - **Expected Outcome:** `VERSION` / `CHANGELOG.md` are `1.2.2`.
 - **Validation:** `check-version.sh` is clean.
 - **Files:** `tools/starters/acknowledgements/VERSION`,
   `tools/starters/acknowledgements/CHANGELOG.md`.
 - **Dependencies:** ATTRIB-035..-037.
+- **Release evidence (2026-08-16), verified against the published
+  artifact rather than against `main`:** source tag
+  `acknowledgements-starter-v1.2.2` → `063848bd0`. Automated release run
+  31934113215 failed at the mirror tag push (`MIRROR_PUSH_TOKEN`
+  extraheader was not accepted; git asked for a username). Operator
+  completed the cut: mirror tag `v1.2.2` → `efafeeb36`; GitHub Release
+  published, not draft, not pre-release, `releases/latest` resolves to
+  it; `v1.2.0`, `v1.1.1`, `v1.1.0`, and `v1.0.0` still resolve. A
+  `git subtree add … v1.2.2 --squash` into a scratch repo yields
+  `VERSION` `1.2.2` and `LICENSE`. Node and Rust cold-adopt fixtures
+  passed against that pulled copy.
 
 ## Decisions (2026-08-03)
 
