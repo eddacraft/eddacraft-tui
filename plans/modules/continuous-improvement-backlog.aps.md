@@ -7482,24 +7482,23 @@ scanned — with expansion deferred to `v0.9.4`.
 
 - **Status:** Proposed
 - **Priority:** P3 docs / hook argv — not an L4 ship gate
-- **Rescope (2026-08-16):** Investigation after CIB-252 shipped. Dave pack-02
-  PUSH-1 (silent pre-push `exit 0`, silent `l4-validate`, audit-chain
-  witnessed 0/10, partial `init` + `start --no-mcp`) is **not an L4
-  regression**. It matches designed no-op paths: no `anvil/policy.*` →
-  `run_pre_push` / `l4-validate` admit with no stderr (`pre_push_no_policy_exits_zero_with_no_output`);
-  empty witness chain is L3, not a pre-push miss. Workspace registration
-  (CIB-252) is not consulted by `anvil hook pre-push`. Do **not** promote
-  this item to Ready as an L4 bug.
-- **Remaining Proposed work:**
-  1. Document that a silent pre-push `exit 0` means no policy (or no
-     project-id), a clean allowed range, **or** the hook `command -v anvil`
-     guard firing because Git's hook PATH does not contain `anvil` (Windows
-     Git vs interactive pwsh is the likely Dave path).
-  2. Accept git's pre-push positionals (`remote`, `url`) on
-     `anvil hook pre-push`. Current `shell_template` forwards `"$@"`;
-     `PrePush(SilentArgs)` has no positionals, so a manual
-     `anvil hook pre-push origin <url>` clap-errors. The older "shim strips
-     argv" note is stale.
+- **Intent:** After CIB-252 shipped, Dave pack-02 PUSH-1 (silent pre-push
+  `exit 0`, silent `l4-validate`, audit-chain witnessed 0/10, partial
+  `init` + `start --no-mcp`) is **not an L4 regression**. It matches
+  designed no-op paths: no `anvil/policy.*` → `run_pre_push` /
+  `l4-validate` admit with no stderr
+  (`pre_push_no_policy_exits_zero_with_no_output`); empty witness chain
+  is L3, not a pre-push miss. Workspace registration (CIB-252) is not
+  consulted by `anvil hook pre-push`. Do **not** promote this item to
+  Ready as an L4 bug. Remaining work is only: (1) document that a silent
+  pre-push `exit 0` means no policy (or no project-id), a clean allowed
+  range, **or** the hook `command -v anvil` guard firing because Git's
+  hook PATH does not contain `anvil` (Windows Git vs interactive pwsh is
+  the likely Dave path); (2) accept git's pre-push positionals
+  (`remote`, `url`) on `anvil hook pre-push`. Current `shell_template`
+  forwards `"$@"`; `PrePush(SilentArgs)` has no positionals, so a
+  manual `anvil hook pre-push origin <url>` fails with a clap error.
+  The older "shim strips argv" note is stale.
 - **Expected Outcome:** Help / hook docs state the silent-pass conditions;
   `anvil hook pre-push` accepts git's remote/URL argv (stdin contract
   unchanged). No change to Serena admit-on-internal-error or the no-policy
