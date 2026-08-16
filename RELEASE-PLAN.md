@@ -40,10 +40,10 @@ nothing else.
   `v0.9.1-beta` daily path + MCP 2.0.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** **`v0.9.5-beta`** — MCP live-heal (no session restart after
-  upgrade), plus config unification and product deep clean. Claim **re-locked**
-  2026-08-16. Feature release on the v0.9 line (not a new product minor).
-  Programme work (Graph Trust Surfaces Wave 0, `/settings` SETCON+) runs
+- **Active window:** **`v0.9.5-beta`** — MCP live-heal (typical upgrades keep
+  sessions attached), plus config unification and product deep clean. Claim
+  **re-locked** 2026-08-16. Feature release on the v0.9 line (not a new product
+  minor). Programme work (Graph Trust Surfaces Wave 0, `/settings` SETCON+) runs
   **beside** this window and is not the cut claim.
 
 ---
@@ -51,7 +51,7 @@ nothing else.
 ## Active window — `v0.9.5-beta` (claim locked)
 
 **Theme:** MCP live-heal — after an upgrade, owned MCP configs and live children
-heal so agent sessions do not need a restart — plus the already-landed config
+heal so typical sessions stay attached — plus the already-landed config
 unification and honesty pass.
 
 **Status:** **Claim locked; not cut-ready.** Primary and secondary claim items
@@ -65,21 +65,21 @@ you do not want that. One config file story comes with it.
 MCPLH-008 Merged; MCPLH-007 soak not claimed);
 [design](./plans/specs/2026-08-09-mcp-live-heal-without-harness-restart.md);
 [ADR-120](./plans/decisions/120-config-surface-consolidation.md) and
-[UCFG](./plans/modules/unified-config-format.aps.md) (UCFG-001..014 Merged) as
+[UCFG](./plans/modules/unified-config-format.aps.md) (UCFG-001..016 Merged) as
 the secondary config claim. Settings programme (SETCON/SETINS/SETPREF) is
 **not** this claim — it consumes UCFG later.
 
 ### Primary claim (MCP live-heal)
 
-| ID        | Item                                        | Pri | State        | Notes                                        |
-| --------- | ------------------------------------------- | --- | ------------ | -------------------------------------------- |
-| MCPLH-001 | PATH-stable MCP install command             | P0  | Merged #3900 | `anvil mcp serve --stdio`, not a Cellar path |
-| MCPLH-002 | Self-heal re-exec in `mcp serve`            | P0  | Merged #3901 | Unix in-process; Windows reports skew        |
-| MCPLH-003 | `anvil mcp refresh` bulk cascade            | P0  | Merged #3910 | Rewrite, recycle, poke, report               |
-| MCPLH-004 | Daemon auto-recycle on CLI/daemon skew      | P0  | Merged #3899 | Stop → wait → start on version mismatch      |
-| MCPLH-005 | status/verify inventory and split readiness | P0  | Merged #3911 | `protecting` / `agent_ready` / `graph_ready` |
-| MCPLH-006 | Opt-in orphan MCP process reap              | P1  | Merged #3912 | Default is report; no live-parent kill       |
-| MCPLH-008 | Daily self-heal with easy pin               | P0  | Merged #3932 | `anvil` / `start` / `doctor`; `mcp pin`      |
+| ID        | Item                                        | Pri | State        | Notes                                         |
+| --------- | ------------------------------------------- | --- | ------------ | --------------------------------------------- |
+| MCPLH-001 | PATH-stable MCP install command             | P0  | Merged #3900 | `anvil mcp serve --stdio`, not a Cellar path  |
+| MCPLH-002 | Self-heal re-exec in `mcp serve`            | P0  | Merged #3901 | Unix in-process; Windows reports skew         |
+| MCPLH-003 | `anvil mcp refresh` bulk cascade            | P0  | Merged #3910 | Rewrite, recycle, poke, report                |
+| MCPLH-004 | Daemon auto-recycle on CLI/daemon skew      | P0  | Merged #3899 | Stop → wait → start on version mismatch       |
+| MCPLH-005 | status/verify inventory and split readiness | P0  | Merged #3911 | `protecting` / `agent_ready` / `graph_ready`  |
+| MCPLH-006 | Opt-in orphan MCP process reap              | P1  | Merged #3912 | Default is report; no live-parent kill        |
+| MCPLH-008 | Daily self-heal with easy pin               | P0  | Merged #3932 | `anvil` / `start` / `doctor`; `anvil mcp pin` |
 
 Module disposition at re-lock: **MCPLH Ready 7/8** — Ready wave Merged on
 `main`. **MCPLH-007** (supervisor/proxy) stays Draft until soak and is **not**
@@ -108,6 +108,8 @@ Honesty and trust residuals ship for the same reason.
 | UCFG-012      | Fixture and CI sweep                                  | P0  | Merged #3848 | Tests pin canonical layout                 |
 | UCFG-013      | Watch-time architecture for section configs           | P0  | Merged #3867 | Inline + delegated + standalone            |
 | UCFG-014      | Descriptor-bound guard in bounded reader              | P0  | Merged #3867 | No FIFO hang on config open                |
+| UCFG-015      | migrate format / convert write any dest format        | P0  | Merged #3893 | Never writes `.anvilrc`                    |
+| UCFG-016      | TTY doctor offers migrate / remove leftover           | P1  | Merged #3898 | Non-TTY stays warn-only                    |
 | Deep-MCP-path | Claude workspace MCP → `.mcp.json`                    | P0  | Merged       | Project scope writes the file Claude loads |
 | Deep-LiveVal  | LiveValidation attributed per MCP client              | P0  | Merged #3866 | No mass-promote of unrelated clients       |
 | Deep-Capsule  | Capsule verify binds witness to manifest range        | P0  | Merged       | Range mismatch refuses verify              |
@@ -115,7 +117,7 @@ Honesty and trust residuals ship for the same reason.
 | Deep-PolicyTO | Policy suite timeout kills process group              | P1  | Merged       | No hang on grandchild pipe holds           |
 | Deep-Review   | Post-release review defect batch                      | P1  | Merged #3863 | Residual CLI honesty edges                 |
 
-Module disposition: **UCFG Done (14/14 Merged)** — release evidence still owed
+Module disposition: **UCFG Done (16/16 Merged)** — release evidence still owed
 for Released/Shipped → Complete.
 
 ### Not a claim of this release

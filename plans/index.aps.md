@@ -815,7 +815,7 @@ compatibility interface on the same resolver — nothing here deprecates it.
 | [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters). **Graph Trust Surfaces** track; Wave 0 = CONF-001 ADR (see [programme](./specs/2026-07-28-graph-trust-surfaces.md)). | Proposed |
 | [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model — reconciled 2026-07-17 with POLRESET/ADR-098: Rust ownership split across kernel types, CLI, architecture/kernel, and policy engine; remains Draft pending product timing and CONF-002 contract co-design. Tier-1 for CONF; not Wave 1. | Draft |
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking — **not** in the Graph Trust Surfaces five-track shortlist; validation commands still need Rust rescope before any execution claim. | Ready |
-| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces — **Done 14/14 Merged**; secondary claim of `v0.9.5-beta` (release evidence still owed) | Done |
+| [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces — **Done 16/16 Merged**; secondary claim of `v0.9.5-beta` (release evidence still owed) | Done |
 
 ### Dormant: Not Yet Scheduled
 

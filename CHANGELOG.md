@@ -13,9 +13,9 @@ engineering maintenance are recorded in the
 
 This window is about staying attached after an upgrade: daily `anvil`,
 `anvil start`, and `anvil doctor` rewrite owned MCP configs and poke live
-children. You do not need to restart agent sessions. Use `anvil mcp refresh` if
-you need the full cascade now. Pin with `anvil mcp pin` if you do not want
-auto-heal.
+children. Typical upgrades keep sessions attached; a restart remains a residual
+fallback. Use `anvil mcp refresh` if you need the full cascade now. Pin with
+`anvil mcp pin` if you do not want auto-heal.
 
 The same tag also unifies the project config anvil reads — one canonical file,
 one key casing, and migrate/doctor paths for the older names — plus honesty

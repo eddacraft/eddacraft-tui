@@ -17,9 +17,9 @@ revision was ever executed, so IDs are reallocated cleanly.
 
 | ID   | Owner | Priority | Status   | Progress |
 | ---- | ----- | -------- | -------- | -------- |
-| UCFG | —     | medium   | Done     | 14/14    |
+| UCFG | —     | medium   | Done     | 16/16    |
 
-**Last reviewed:** 2026-08-16 — all work items Merged (UCFG-001..014). ADR-120
+**Last reviewed:** 2026-08-16 — all work items Merged (UCFG-001..016). ADR-120
 Accepted (operator). Secondary claim of **`v0.9.5-beta`** (MCP live-heal is
 primary — see [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)). Module **Done**
 pending release-tag evidence for Released/Shipped → Complete. Council
