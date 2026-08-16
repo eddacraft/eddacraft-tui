@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                 |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 update for `--json` stdout on `config show` / `gctx egress` / `capsule create` (#3915); not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                      |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 update for the `anvil config` `--json` document shapes (#3949, verified against `origin/main` @ `a9dffb6e1`), after the `--json` stdout repairs on `config show` / `gctx egress` / `capsule create` (#3915); not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -193,10 +193,30 @@ Rules: `public-api-expansion`, `new-dependency-introduction`,
 | `set <rule> <mode>`  | Set a rule mode. Rules: `public-api-expansion`, `new-dependency-introduction`, `cross-layer-violation`, `privilege-expansion`. Modes: `off`, `warn`, `enforce`. |
 | `convert --to <fmt>` | Convert the project config to another canonical format. Never writes `.anvilrc`.                                                                                |
 
-`show --json` emits a single JSON document — `config` (the discovered file, or
-`defaults`), `rule_modes` (one key per rule), and `note` (the legacy-key
-deprecation warning, `null` when none applies). Nothing else reaches stdout, so
-the whole stream parses.
+**`--json` (all three subcommands):** each emits exactly one JSON document on
+stdout on success — no banner, no trailing hint — so the whole stream parses.
+Both flag placements work (`anvil --json config <verb>` and
+`anvil config <verb> --json`). Human output is unchanged when `--json` is
+absent.
+
+| Invocation         | Document                                                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `show`             | `config` (the discovered file, or `defaults`), `rule_modes` (one key per rule), `note` (the legacy-key deprecation warning, `null` when none applies) |
+| `set`              | `rule`, `mode`, and `config` — the file the mode was written to                                                                                       |
+| `convert`          | `source`, `destination`, `source_removed`                                                                                                             |
+| `convert --stdout` | `format` (the target extension) and `converted` (the converted config text)                                                                           |
+
+Two things a parser should know about `convert`:
+
+- There is no `rewrote_in_place` field. The in-place rewrite — the case whose
+  human line reads `anvil: rewrote <path>` — appears as `source` equal to
+  `destination` with `source_removed: false`, which keeps one stable three-field
+  shape. `source_removed` is `true` only when `--remove-old` actually deleted a
+  source at a different path.
+- `--stdout --json` does **not** print the converted config raw. `--stdout`
+  emits the config in the _target_ format, which would break the
+  one-JSON-document contract for every non-JSON target, so the converted text
+  travels inside the `converted` field instead.
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
@@ -206,7 +226,10 @@ the whole stream parses.
 $ anvil config show
 $ anvil config show --json
 $ anvil config set cross-layer-violation warn
+$ anvil config set cross-layer-violation warn --json
 $ anvil config convert --to yaml
+$ anvil config convert --to toml --remove-old --json
+$ anvil config convert --to toml --stdout --json
 ```
 
 ---
