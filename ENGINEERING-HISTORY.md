@@ -237,12 +237,15 @@ publish (`jq` ARG_MAX); retaken on `6a9711886` after #3484/#3485. Record:
 - FRAG-001 invisible-until-animated presentation. Generated-file exclude via
   `linguist-generated` and `antipattern.exclude`.
 
-## [0.9.0-beta] — 2026-07-12 — First-Run Wins and the Assistant Graph
+## [0.8.2-beta .. 0.9.0-beta] — 2026-06-22 – 2026-07-12 — First-Run Wins and the Assistant Graph
 
-Shipped 2026-07-12. Technical work landed on `main` since `v0.8.1-beta` (the
-pre-cut draft said `v0.8.2-beta`; that hotfix tag is not a promoted window).
-This is the `v0.9.0-beta` "Assistant-Facing Graph" window, delivered end to end:
-Graph V2 Phase 1 substrate and the multi-graph registry complete (GV2 Done,
+Covers `v0.8.2-beta` through `v0.9.0-beta` (git range
+`v0.8.1-beta..v0.9.0-beta`). `v0.8.2-beta` is the 2026-06-22 Windows
+daemon-ensure hotfix — not a promoted headline — folded here because the pre-cut
+draft was written across it.
+
+Headline window: the `v0.9.0-beta` "Assistant-Facing Graph", delivered end to
+end: Graph V2 Phase 1 substrate and the multi-graph registry complete (GV2 Done,
 21/21), the **GCTX assistant-facing graph** ships its full tool and resource
 surface behind a sealed daemon-side egress projector with the CE-1..CE-12
 privacy gates, a new **call graph** (GCALL) lifts cross-symbol call edges at
@@ -252,7 +255,17 @@ analytics foundation lands on-device, four **governance scan surfaces** (Docker,
 GitHub Actions, shell, SQL) graduate, and CIB-071 migrates user warnings to
 `miette` with spans. The ADR-075 entry gates cleared 2026-06-15 (ADR-083 + the
 PV-9 egress review); the scoped feature work completed over the following two
-weeks. Record: [plans/releases/v0.9.0-beta.md](./plans/releases/v0.9.0-beta.md).
+weeks. Records: [v0.9.0-beta](./plans/releases/v0.9.0-beta.md); `v0.8.2-beta`
+has no `plans/releases/` file (#2937).
+
+### `v0.8.2-beta` hotfix (2026-06-22)
+
+Nine commits so Windows can actually `ensure` the save-time daemon. Idempotent
+ensure primitive (probe → same-user lock → re-probe → detached spawn →
+bound-wait); Unix first, then Windows for CIB-072. DLIFE-003 / DLIFE-004:
+`anvil start` auto-starts the daemon; `anvil watch` offers it (headless
+fallback). Windows `JoinHandle::detach` replaced with drop. No customer
+changelog section for this tag.
 
 ### Graph V2 consumer layer and multi-graph registry (GV2-013, GV2-014, GV2-020, GV2-023, GV2-026, GV2-030, GV2-031, GV2-032)
 
@@ -492,26 +505,9 @@ weeks. Record: [plans/releases/v0.9.0-beta.md](./plans/releases/v0.9.0-beta.md).
 - **APS index & module state.** Continuous index refreshes, CIB count bumps,
   USAGE/MLP2/GV2/GCTX state alignment before and after the window transition.
 
-Shipped as [v0.9.0-beta](./plans/releases/v0.9.0-beta.md). Later patches are the
-`v0.9.1-beta`–`v0.9.4-beta` sections above; do not read this section as the
-current window.
-
-## [0.8.2-beta] — 2026-06-22 — Windows daemon ensure (hotfix)
-
-Shipped 2026-06-22. **Not** a promoted headline window — a nine-commit hotfix on
-the v0.8 line so Windows can actually `ensure` the save-time daemon
-([#2937](https://github.com/eddacraft/anvil-001/issues/2937)). No dedicated
-`plans/releases/` record. Customer changelog has no `## [0.8.2-beta]` section.
-
-### What the tag actually contains
-
-- **Idempotent `ensure` primitive** (probe → same-user lock → re-probe →
-  detached spawn → bound-wait). Unix-first, then Windows enabled for CIB-072.
-- **DLIFE-003 / DLIFE-004.** `anvil start` auto-starts the save-time daemon;
-  `anvil watch` offers it (headless fallback). These also appear in the
-  `v0.9.0-beta` section above because that draft was written across this hotfix.
-- Windows `JoinHandle::detach` replaced with drop. Watch-lifecycle review
-  follow-ups.
+Shipped as [v0.9.0-beta](./plans/releases/v0.9.0-beta.md) (range starts at the
+`v0.8.2-beta` hotfix). Later patches are the `v0.9.1-beta`–`v0.9.4-beta`
+sections above; do not read this section as the current window.
 
 ## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
 
