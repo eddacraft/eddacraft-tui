@@ -1511,7 +1511,7 @@ fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
     }
 }
 
-/// Daily MCP self-heal: rewrite drifted owned entries and poke live children.
+/// Report orphan `anvil mcp serve --stdio` processes; `--fix` reaps them.
 fn check_mcp_orphans() -> DiagnosticCheck {
     check_mcp_orphans_from(&crate::commands::mcp_orphan::list_anvil_mcp_serve())
 }
@@ -1554,6 +1554,7 @@ fn check_mcp_orphans_from(
     }
 }
 
+/// Daily MCP self-heal: rewrite drifted owned entries and poke live children.
 fn check_mcp_heal() -> DiagnosticCheck {
     let home = crate::util::user_home_dir();
     let project = std::env::current_dir().ok();

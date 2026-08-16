@@ -51,7 +51,9 @@ pub(crate) fn partition_mcp_shims(
     (live, orphans)
 }
 
-/// List `anvil mcp serve --stdio` processes on this host. Empty on non-Unix.
+/// List `anvil mcp serve --stdio` processes on this host.
+///
+/// Empty off Linux: the `/proc` walk is Linux-only, so macOS (Unix) is empty too.
 #[must_use]
 pub(crate) fn list_anvil_mcp_serve() -> Vec<McpServeProcess> {
     #[cfg(target_os = "linux")]
