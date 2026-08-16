@@ -199,14 +199,17 @@ Both flag placements work (`anvil --json config <verb>` and
 `anvil config <verb> --json`). Human output is unchanged when `--json` is
 absent.
 
-| Invocation         | Document                                                                                                                                              |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `show`             | `config` (the discovered file, or `defaults`), `rule_modes` (one key per rule), `note` (the legacy-key deprecation warning, `null` when none applies) |
-| `set`              | `rule`, `mode`, and `config` — the file the mode was written to                                                                                       |
-| `convert`          | `source`, `destination`, `source_removed`                                                                                                             |
-| `convert --stdout` | `format` (the target extension) and `converted` (the converted config text)                                                                           |
+| Invocation                | Document                                                                                                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `show --json`             | `config` (the discovered file, or `defaults`), `rule_modes` (one key per rule), `note` (the legacy-key deprecation warning, `null` when none applies) |
+| `set --json`              | `rule`, `mode`, and `config` — the file the mode was written to                                                                                       |
+| `convert --json`          | `source`, `destination`, `source_removed`                                                                                                             |
+| `convert --stdout --json` | `format` and `converted` (the converted config text)                                                                                                  |
 
-Two things a parser should know about `convert`:
+Without `--json` every one of these prints its human line instead; the rows
+above describe the `--json` invocations only.
+
+Three things a parser should know:
 
 - There is no `rewrote_in_place` field. The in-place rewrite — the case whose
   human line reads `anvil: rewrote <path>` — appears as `source` equal to
@@ -217,6 +220,10 @@ Two things a parser should know about `convert`:
   emits the config in the _target_ format, which would break the
   one-JSON-document contract for every non-JSON target, so the converted text
   travels inside the `converted` field instead.
+- `format` is the bare format token, not a dotted suffix: it echoes the value
+  passed to `--to` (`yaml`, `yml`, `json`, or `toml`) and matches the extension
+  of the file `convert` would write. `yml` is **not** normalised to `yaml` —
+  `--to yml` reports `"format": "yml"` and writes `.anvil.yml`.
 
 **Exit codes:** 0 (success), 1 (error), 4 (config error)
 
