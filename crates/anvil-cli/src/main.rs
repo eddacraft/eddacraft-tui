@@ -499,9 +499,9 @@ fn command_requests_structured_output(cmd: &Commands) -> bool {
 
 /// Parsed local diagnostics that must work unauthenticated (and air-gapped).
 ///
-/// The top-level command remains enrolled in the licence gate; only explicit
-/// no-write modes bypass it. New MCP subcommands therefore fail closed unless
-/// their parsed arguments are deliberately classified as read-only.
+/// This predicate only classifies auth-bypass eligibility; gate enrolment is
+/// defined separately by `command_canonical_name` and `CLI_GATED_COMMANDS`.
+/// Only explicit no-write modes bypass a gate they would otherwise encounter.
 fn skips_auth_for_local_read_only_diagnostic(cmd: &Commands) -> bool {
     match cmd {
         Commands::Status(args) => args.verify,

@@ -101,8 +101,10 @@ pub fn auth_gate_name(args: &McpArgs) -> &'static str {
 
 /// Whether this parsed MCP command is a local diagnostic that cannot write.
 ///
-/// Keep this classification on the parsed command so adding a new MCP
-/// subcommand remains auth-gated unless it is explicitly admitted here.
+/// Keep this classification on the parsed command so new MCP subcommands are
+/// never admitted to the auth bypass without an explicit match here. Gate
+/// enrolment remains defined separately by the canonical command name and
+/// `CLI_GATED_COMMANDS`.
 pub fn is_read_only_diagnostic(args: &McpArgs) -> bool {
     match &args.command {
         McpCommand::Install(McpInstallArgs {
