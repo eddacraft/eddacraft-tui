@@ -114,7 +114,11 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
             if is_path_shaped_document_token(candidate, line, match_start, match_end) {
                 continue;
             }
-            if matcher.looks_like_code(candidate) {
+            // Structural only (calls, URLs, extensions, SCREAMING_SNAKE).
+            // CamelCase / PascalCase used to drop ~half of mixed-case
+            // opaque tokens (Dave B16 / CIB-340). Named-pattern scanning
+            // still uses the full `looks_like_code` set.
+            if matcher.looks_like_structural_code(candidate) {
                 continue;
             }
 
@@ -175,12 +179,13 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
 /// rules (`SECRET-STRIPE-KEY`, etc.) still fire when a secret sits inside a
 /// path-shaped string.
 ///
-/// Heuristic (Dave SEC-FP-1, pack 05 / 05a):
+/// Heuristic (Dave SEC-FP-1, pack 05 / 05a; Git Bash drive, CIB-339):
 /// - token contains a path separator (`/` or `\`), **and**
 /// - either the token itself or the characters immediately after the match
 ///   end in a known document extension, **or**
 /// - the match is introduced by a Windows drive-letter colon (`D:…`) which
-///   the assignment regex otherwise treats as a secret assignment.
+///   the assignment regex otherwise treats as a secret assignment, **or**
+/// - the token itself starts with a POSIX / Git Bash drive prefix (`/c/…`).
 ///
 /// CIB-323 also treats a match that sits in an `http(s)://` URL path as
 /// path-shaped, but only when the authority has a syntactically valid host.
@@ -216,6 +221,13 @@ pub(crate) fn is_path_shaped_document_token(
         return true;
     }
 
+    // Git Bash / MSYS / Cygwin: `/c/Users/…` is `C:\Users\…`. The first
+    // path component is a single ASCII letter. `/usr/…` is not a drive.
+    // Separator-alone is still not enough (Copilot on #3724).
+    if is_posix_drive_prefixed(candidate) {
+        return true;
+    }
+
     // Windows drive assignment false positive: `D:/DOCS/…` — the `:` after a
     // single letter is the assignment-pattern trigger, not a secret binding.
     if match_start >= 2 {
@@ -240,6 +252,19 @@ pub(crate) fn is_path_shaped_document_token(
     // contain multiple `/` characters. Extension / drive-letter evidence above
     // is required (Copilot review on #3724).
     false
+}
+
+/// True when `candidate` starts with `/X/` or `\X\` for an ASCII letter `X`.
+/// That is the Git Bash / MSYS / Cygwin spelling of a Windows drive.
+fn is_posix_drive_prefixed(candidate: &str) -> bool {
+    let Some(rest) = candidate.strip_prefix(['/', '\\']) else {
+        return false;
+    };
+    let mut chars = rest.chars();
+    let Some(letter) = chars.next() else {
+        return false;
+    };
+    letter.is_ascii_alphabetic() && matches!(chars.next(), Some('/' | '\\'))
 }
 
 /// True when `match_start` sits in the path of an `http://` or `https://`
@@ -771,6 +796,86 @@ mod tests {
         // Bare filename of the same shape still passes (control).
         let bare = "PROPOSAL_quarterly_revenue_forecast_summary_20260704.md\n";
         assert!(detect_high_entropy_strings(bare, "notes.md", &config).is_empty());
+    }
+
+    fn git_bash_temp_path() -> String {
+        // Assembled so the fixture source is not itself one entropy token.
+        [
+            "/", "c", "/", "Users", "/", "dave", "/", "AppData", "/", "Local", "/", "Temp", "/",
+            "anvil-", "abc123", "def456", "7890ab", "cdef",
+        ]
+        .concat()
+    }
+
+    #[test]
+    fn git_bash_drive_prefix_is_path_shaped() {
+        // Dave B17 / CIB-339: SEC-FP-1 keys off `C:`. Git Bash writes `/c/`.
+        let path = git_bash_temp_path();
+        let line = format!("path = \"{path}\"");
+        assert!(
+            path_shaped(&line, &path),
+            "Git Bash /c/Users path must be path-shaped: {line}"
+        );
+        let d_drive = [
+            "/d",
+            "/",
+            "Projects",
+            "/",
+            "workspace",
+            "/",
+            "long-token-name-here",
+        ]
+        .concat();
+        assert!(
+            path_shaped(&format!("see {d_drive}"), &d_drive),
+            "/d/ drive prefix must also be path-shaped"
+        );
+        let unix = [
+            "/", "usr", "/", "local", "/", "share", "/", "anvil-", "abc123", "def456", "7890ab",
+            "cdef",
+        ]
+        .concat();
+        assert!(
+            !path_shaped(&format!("path = \"{unix}\""), &unix),
+            "Unix path with a multi-letter first component is not a Git Bash drive"
+        );
+    }
+
+    #[test]
+    fn does_not_flag_git_bash_drive_prefixed_paths() {
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.0,
+            ..SecretCheckConfig::default()
+        };
+        let content = format!("path = \"{}\"\n", git_bash_temp_path());
+        let findings = detect_high_entropy_strings(&content, "notes.md", &config);
+        assert!(
+            findings.is_empty(),
+            "Git Bash drive-prefixed path must not trip entropy, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn mixed_case_opaque_token_still_flags_on_entropy() {
+        // Dave B16 / CIB-340: camelCase looks_like_code dropped mixed-case
+        // secrets. Entropy must not treat that shape as code.
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let token = ["aB", "3d", "E7", "fG", "9h", "J2", "kL", "4m"].concat();
+        let content = format!("const apiToken = '{token}';\n");
+        let findings = detect_high_entropy_strings(&content, "src/auth.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.pattern_name == "High Entropy String"),
+            "mixed-case opaque token must still flag: {findings:?}"
+        );
     }
 
     #[test]
