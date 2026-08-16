@@ -3,7 +3,9 @@
 //! Three successful surfaces advertised a JSON mode and then printed human
 //! prose: `config show`, `gctx egress enable` / `disable`, and
 //! `capsule create`. Automation that treats successful stdout as a JSON
-//! document broke on all three.
+//! document broke on all three. Issue #3938 extended the same contract to
+//! the two remaining `config` mutation verbs, `config set` and
+//! `config convert`.
 //!
 //! Every assertion here parses the **whole** of stdout with
 //! `serde_json::from_str`, which is what rejects leading or trailing prose —
@@ -204,6 +206,205 @@ fn config_show_human_output_is_unchanged() {
     assert!(
         stdout.contains("rule modes: public-api-expansion=warn"),
         "human output must keep the `rule modes:` line: {stdout}"
+    );
+}
+
+// ── config set (#3938) ─────────────────────────────────────────────
+
+#[test]
+fn config_set_json_emits_only_json_for_both_flag_placements() {
+    for args in [
+        [
+            "config",
+            "set",
+            "cross-layer-violation",
+            "enforce",
+            "--json",
+        ]
+        .as_slice(),
+        [
+            "--json",
+            "config",
+            "set",
+            "cross-layer-violation",
+            "enforce",
+        ]
+        .as_slice(),
+    ] {
+        let sandbox = Sandbox::new();
+        let out = sandbox.anvil(args);
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+
+        assert_eq!(
+            doc.get("rule").and_then(serde_json::Value::as_str),
+            Some("cross-layer-violation"),
+            "rule must name what was set: {doc}"
+        );
+        assert_eq!(
+            doc.get("mode").and_then(serde_json::Value::as_str),
+            Some("enforce"),
+            "mode must carry the written value: {doc}"
+        );
+        let config = doc
+            .get("config")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_else(|| panic!("config must name the written file: {doc}"));
+        assert!(
+            config.ends_with(".anvil.yaml"),
+            "config must be the canonical file the write created: {config}"
+        );
+        assert!(
+            sandbox.repo().join(".anvil.yaml").is_file(),
+            "the config write must still happen under --json"
+        );
+    }
+}
+
+#[test]
+fn config_set_human_output_is_unchanged() {
+    let sandbox = Sandbox::new();
+    let out = sandbox.anvil(&["config", "set", "cross-layer-violation", "warn"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "config set must exit 0: {stdout}");
+    assert_eq!(
+        stdout, "set cross-layer-violation=warn\n",
+        "human output must stay the single `set rule=mode` line"
+    );
+}
+
+// ── config convert (#3938) ─────────────────────────────────────────
+
+/// A canonical `snake_case` project config with no legacy keys, so convert
+/// tests exercise the happy path without the deprecation side-channel.
+fn write_json_config(sandbox: &Sandbox) {
+    std::fs::write(
+        sandbox.repo().join(".anvil.json"),
+        r#"{"enforcement":{"rules":{"cross-layer-violation":{"mode":"enforce"}}}}"#,
+    )
+    .expect("write .anvil.json");
+}
+
+#[test]
+fn config_convert_json_emits_only_json_for_both_flag_placements() {
+    for args in [
+        ["config", "convert", "--to", "yaml", "--json"].as_slice(),
+        ["--json", "config", "convert", "--to", "yaml"].as_slice(),
+    ] {
+        let sandbox = Sandbox::new();
+        write_json_config(&sandbox);
+        let out = sandbox.anvil(args);
+        let doc = parse_only_json(&out, &format!("anvil {}", args.join(" ")));
+
+        let source = doc
+            .get("source")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_else(|| panic!("source must be present: {doc}"));
+        assert!(
+            source.ends_with(".anvil.json"),
+            "source must name the discovered config: {source}"
+        );
+        let destination = doc
+            .get("destination")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_else(|| panic!("destination must be present: {doc}"));
+        assert!(
+            destination.ends_with(".anvil.yaml"),
+            "destination must name the written file: {destination}"
+        );
+        assert_eq!(
+            doc.get("source_removed"),
+            Some(&serde_json::Value::Bool(false)),
+            "source_removed must be false when the source is kept: {doc}"
+        );
+        assert!(
+            sandbox.repo().join(".anvil.yaml").is_file(),
+            "the destination must still be written under --json"
+        );
+        assert!(
+            sandbox.repo().join(".anvil.json").is_file(),
+            "the source must still be kept without --remove-old"
+        );
+    }
+}
+
+#[test]
+fn config_convert_json_reports_source_removal() {
+    let sandbox = Sandbox::new();
+    write_json_config(&sandbox);
+    let out = sandbox.anvil(&[
+        "config",
+        "convert",
+        "--to",
+        "yaml",
+        "--remove-old",
+        "--json",
+    ]);
+    let doc = parse_only_json(&out, "anvil config convert --to yaml --remove-old --json");
+    assert_eq!(
+        doc.get("source_removed"),
+        Some(&serde_json::Value::Bool(true)),
+        "source_removed must be true under --remove-old: {doc}"
+    );
+    assert!(
+        !sandbox.repo().join(".anvil.json").exists(),
+        "the source must actually be removed"
+    );
+}
+
+#[test]
+fn config_convert_stdout_json_wraps_converted_text_in_an_envelope() {
+    // `--stdout` prints the config in the *target* format, so under `--json`
+    // the raw text would violate the one-JSON-document contract for every
+    // non-JSON target. The converted text moves into a field instead.
+    let sandbox = Sandbox::new();
+    write_json_config(&sandbox);
+    let out = sandbox.anvil(&["config", "convert", "--to", "toml", "--stdout", "--json"]);
+    let doc = parse_only_json(&out, "anvil config convert --to toml --stdout --json");
+
+    assert_eq!(
+        doc.get("format").and_then(serde_json::Value::as_str),
+        Some("toml"),
+        "format must name the destination format: {doc}"
+    );
+    let converted = doc
+        .get("converted")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_else(|| panic!("converted must carry the config text: {doc}"));
+    assert!(
+        converted.contains("cross-layer-violation"),
+        "converted must be the serialised config: {converted}"
+    );
+    assert!(
+        !sandbox.repo().join(".anvil.toml").exists(),
+        "--stdout must still not write a destination file"
+    );
+}
+
+#[test]
+fn config_convert_human_output_is_unchanged() {
+    let sandbox = Sandbox::new();
+    write_json_config(&sandbox);
+
+    let out = sandbox.anvil(&["config", "convert", "--to", "toml", "--stdout"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "convert --stdout must exit 0: {stdout}"
+    );
+    assert!(
+        stdout.contains("cross-layer-violation") && !stdout.trim_start().starts_with('{'),
+        "--stdout without --json must stay raw target-format text: {stdout}"
+    );
+
+    let out = sandbox.anvil(&["config", "convert", "--to", "yaml"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "convert must exit 0: {stdout}");
+    assert!(
+        stdout.starts_with("anvil: converted ")
+            && stdout.contains(".anvil.json")
+            && stdout.contains(".anvil.yaml")
+            && stdout.contains("source kept; pass --remove-old to delete"),
+        "human convert output must be unchanged: {stdout}"
     );
 }
 

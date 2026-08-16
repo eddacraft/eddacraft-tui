@@ -164,6 +164,7 @@ pub(crate) fn apply_leftover_choice(root: &Path, choice: &LeftoverChoice) -> Res
                 *remove_old,
                 "doctor leftover",
             )
+            .map(|outcome| outcome.render_human())
         }
         LeftoverChoice::RemoveShadowedConfigs { names } => remove_shadowed_configs(root, names),
         LeftoverChoice::FoldGateConfig { accept_weakening } => {

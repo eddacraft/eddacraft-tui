@@ -69,8 +69,18 @@ pub fn run(args: &ConfigArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             }
         }
         ConfigCommand::Set { rule, mode } => {
-            set_rule_mode(root, rule, mode)?;
-            println!("set {rule}={mode}");
+            let written = set_rule_mode(root, rule, mode)?;
+            // Issue #3938 (per the #3915 contract): an accepted `--json`
+            // makes the whole of stdout the document, never the human line.
+            if global.json {
+                crate::output::json::print(&serde_json::json!({
+                    "rule": rule,
+                    "mode": mode,
+                    "config": written.display().to_string(),
+                }))?;
+            } else {
+                println!("set {rule}={mode}");
+            }
         }
         ConfigCommand::Convert {
             to,
@@ -79,12 +89,26 @@ pub fn run(args: &ConfigArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             remove_old,
         } => {
             if *stdout {
-                print!("{}", convert_config(root, to)?);
+                let converted = convert_config(root, to)?;
+                if global.json {
+                    // `--stdout` prints the config in the *target* format,
+                    // so raw text would break the one-JSON-document contract
+                    // for every non-JSON target (issue #3938). The converted
+                    // text travels inside the document instead.
+                    crate::output::json::print(&serde_json::json!({
+                        "format": parse_output_format(to)?.extension(),
+                        "converted": converted,
+                    }))?;
+                } else {
+                    print!("{converted}");
+                }
             } else {
-                println!(
-                    "{}",
-                    convert_and_write(root, to, *force, *remove_old, "config convert")?
-                );
+                let outcome = convert_and_write(root, to, *force, *remove_old, "config convert")?;
+                if global.json {
+                    crate::output::json::print(&outcome.to_json())?;
+                } else {
+                    println!("{}", outcome.render_human());
+                }
             }
         }
     }
@@ -144,7 +168,7 @@ fn collect_config_show(root: &Path) -> anyhow::Result<ConfigShow> {
     })
 }
 
-fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<()> {
+fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<std::path::PathBuf> {
     if !matches!(
         rule,
         "public-api-expansion"
@@ -175,7 +199,7 @@ fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<()> {
     let text = serialize_config(&config.value, config.writable_format)?;
     std::fs::write(&config.writable_path, text)
         .with_context(|| format!("writing {}", config.writable_path.display()))?;
-    Ok(())
+    Ok(config.writable_path)
 }
 
 fn convert_config(root: &Path, format: &str) -> anyhow::Result<String> {
@@ -197,7 +221,7 @@ pub(crate) fn convert_and_write(
     force: bool,
     remove_old: bool,
     write_gate: &str,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<ConvertOutcome> {
     crate::install_root::ensure_project_write_allowed(write_gate)?;
 
     let dest_format = parse_output_format(to)?;
@@ -226,22 +250,61 @@ pub(crate) fn convert_and_write(
     if remove_old && !same_path {
         std::fs::remove_file(&source.writable_path)
             .with_context(|| format!("removing {}", source.writable_path.display()))?;
-        return Ok(format!(
-            "anvil: converted {} → {} (source file removed)",
-            source.writable_path.display(),
-            dest.display()
-        ));
+        return Ok(ConvertOutcome {
+            source: source.writable_path,
+            destination: dest,
+            source_removed: true,
+            rewrote_in_place: false,
+        });
     }
 
-    if same_path {
-        return Ok(format!("anvil: rewrote {}", dest.display()));
+    Ok(ConvertOutcome {
+        source: source.writable_path,
+        destination: dest,
+        source_removed: false,
+        rewrote_in_place: same_path,
+    })
+}
+
+/// What `config convert` (write mode) did, collected once and rendered as
+/// either prose or the `--json` document — the `ConfigShow` pattern, so the
+/// two forms cannot drift.
+#[derive(Debug)]
+pub(crate) struct ConvertOutcome {
+    source: std::path::PathBuf,
+    destination: std::path::PathBuf,
+    source_removed: bool,
+    rewrote_in_place: bool,
+}
+
+impl ConvertOutcome {
+    pub(crate) fn render_human(&self) -> String {
+        if self.source_removed {
+            format!(
+                "anvil: converted {} → {} (source file removed)",
+                self.source.display(),
+                self.destination.display()
+            )
+        } else if self.rewrote_in_place {
+            format!("anvil: rewrote {}", self.destination.display())
+        } else {
+            format!(
+                "anvil: converted {} → {} (source kept; pass --remove-old to delete)",
+                self.source.display(),
+                self.destination.display()
+            )
+        }
     }
 
-    Ok(format!(
-        "anvil: converted {} → {} (source kept; pass --remove-old to delete)",
-        source.writable_path.display(),
-        dest.display()
-    ))
+    /// `source_removed` covers the same-path rewrite too (nothing was
+    /// removed), so consumers get one stable three-field shape.
+    fn to_json(&self) -> Value {
+        serde_json::json!({
+            "source": self.source.display().to_string(),
+            "destination": self.destination.display().to_string(),
+            "source_removed": self.source_removed,
+        })
+    }
 }
 
 fn source_project_config(root: &Path) -> anyhow::Result<ProjectConfig> {
@@ -498,7 +561,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
 
-        let msg = convert_and_write(tmp.path(), "json", false, false, "config convert").unwrap();
+        let msg = convert_and_write(tmp.path(), "json", false, false, "config convert")
+            .unwrap()
+            .render_human();
         assert!(msg.contains(".anvil.json"), "{msg}");
         assert!(tmp.path().join(".anvil.json").exists());
         assert!(tmp.path().join(".anvil.yaml").exists());

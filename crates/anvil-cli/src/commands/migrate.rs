@@ -139,7 +139,8 @@ pub(crate) fn run_format_in(args: &FormatArgs, root: &Path) -> Result<()> {
         args.force,
         args.remove_old,
         "migrate format",
-    )?;
+    )?
+    .render_human();
     println!("{message}");
     Ok(())
 }
