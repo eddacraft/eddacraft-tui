@@ -17,7 +17,7 @@ use crate::workspace_pool::DosCaps;
 /// already-present). The production trigger uses this to skip a redundant
 /// spawn instead of serving cold.
 #[must_use]
-pub fn loadable_base_present(base_dir: &Path, sha: &str) -> bool {
+pub(crate) fn loadable_base_present(base_dir: &Path, sha: &str) -> bool {
     matches!(load_base(base_dir, sha), BaseLoadOutcome::Loaded(_))
 }
 

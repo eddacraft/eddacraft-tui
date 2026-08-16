@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 
 use crate::broadcaster::TelemetryBroadcaster;
 use crate::persistence_route::{GitRouteResolver, RouteMergeBase, RouteResolver};
+use crate::snapshot_io::base_gc::{GitRun, run_git};
 use crate::telemetry::{NotificationEnvelope, TelemetryCorrelation, TelemetryEmitter};
 
 /// The **shared** ref-watch descriptor budget per repo (ADR-105 §6): the common
@@ -998,21 +999,14 @@ pub fn reusable_base_sha(repo: &Path, base_dir: &Path) -> Option<String> {
 }
 
 fn rev_parse_head(repo: &Path) -> Option<String> {
-    let output = std::process::Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
+    match run_git(OsStr::new("git"), repo, &["rev-parse", "HEAD"]) {
+        GitRun::Exited {
+            code: 0,
+            stdout: Some(sha),
+            ..
+        } if !sha.is_empty() => Some(sha),
+        _ => None,
     }
-    let sha = String::from_utf8(output.stdout).ok()?;
-    let sha = sha.trim();
-    if sha.is_empty() {
-        return None;
-    }
-    Some(sha.to_string())
 }
 
 fn reusable_base_for_default_store(repo: &Path) -> Option<String> {
