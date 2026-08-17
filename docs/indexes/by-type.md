@@ -111,7 +111,7 @@
 | [Adapter Development Guide](../../docs/guides/adapters/README.md) | `docs/guides/adapters/README.md` | README | Advisory  | DOCGOV | Live   |
 | [Architecture Documentation](../../docs/architecture/README.md)   | `docs/architecture/README.md`    | README | Advisory  | DOCRB  | Live   |
 | [Development Guides](../../docs/guides/README.md)                 | `docs/guides/README.md`          | README | Advisory  | AICON  | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)        | `docs/README.md`                 | README | Advisory  | DOCGOV | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)        | `docs/README.md`                 | README | Advisory  | DOCRB  | Live   |
 
 ## Runbook
 

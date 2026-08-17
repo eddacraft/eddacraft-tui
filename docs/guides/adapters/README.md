@@ -1,8 +1,8 @@
 # Adapter Development Guide
 
-| Type   | Authority | Owner  | Status | Freshness                                                                  |
-| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-12 against `docs/guides/documentation-governance.md` |
+| Type   | Authority | Owner  | Status | Freshness                                                                              |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-17 against ADR-123 and `docs/guides/documentation-governance.md` |
 
 | Upstream                                  | Downstream              |
 | ----------------------------------------- | ----------------------- |

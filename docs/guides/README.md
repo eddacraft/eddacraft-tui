@@ -1,8 +1,8 @@
 # Development Guides
 
-| Type   | Authority | Owner | Status | Freshness                                                                                     |
-| ------ | --------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
-| README | Advisory  | AICON | Live   | Last reviewed 2026-07-07 against `docs/guides/documentation-governance.md` and `docs/guides/` |
+| Type   | Authority | Owner | Status | Freshness                                                                                               |
+| ------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | AICON | Live   | Last reviewed 2026-08-17 against ADR-123, `docs/guides/documentation-governance.md`, and `docs/guides/` |
 
 | Upstream                                  | Downstream                |
 | ----------------------------------------- | ------------------------- |
@@ -37,6 +37,8 @@ How-to guides for developers working on Anvil.
 - [Documentation Governance](documentation-governance.md) — Documentation
   authority model, metadata convention, docs-workflow shape, and closeout
   protocol
+- [Architecture Diagrams](architecture-diagrams.md) — Mermaid vs Draw.io/SVG,
+  when to update, advisory until DOCRB-009
 
 ### Testing & Workflow
 

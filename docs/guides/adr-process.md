@@ -1,8 +1,8 @@
 # ADR Process
 
-| Type  | Authority     | Owner  | Status | Freshness                                                                                              |
-| ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-25 against `scripts/docs/adr-integrity.sh` and `plans/decisions/DECISION-LOG.md` |
+| Type  | Authority     | Owner  | Status | Freshness                                                                                                        |
+| ----- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-08-17 against `scripts/docs/adr-integrity.sh`, ADR-123, and `plans/decisions/DECISION-LOG.md` |
 
 | Upstream                                                                                              | Downstream                                                                   |
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |

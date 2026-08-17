@@ -1,8 +1,8 @@
 # Documentation Tags Catalogue
 
-| Type  | Authority     | Owner  | Status | Freshness                                                                                                        |
-| ----- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-12 against `plans/archive/execution/DOCGOV-005.steps.md` and `pnpm docs:check` v0.6.1-beta |
+| Type  | Authority     | Owner  | Status | Freshness                                                                                                  |
+| ----- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-08-17 against ADR-123, `docs/guides/documentation-governance.md`, and `pnpm docs:check` |
 
 | Upstream                                                                                           | Downstream                                                                                               |
 | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
