@@ -179,13 +179,15 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
 /// rules (`SECRET-STRIPE-KEY`, etc.) still fire when a secret sits inside a
 /// path-shaped string.
 ///
-/// Heuristic (Dave SEC-FP-1, pack 05 / 05a; Git Bash drive, CIB-339):
-/// - token contains a path separator (`/` or `\`), **and**
-/// - either the token itself or the characters immediately after the match
-///   end in a known document extension, **or**
-/// - the match is introduced by a Windows drive-letter colon (`D:…`) which
-///   the assignment regex otherwise treats as a secret assignment, **or**
-/// - the token itself starts with a POSIX / Git Bash drive prefix (`/c/…`).
+/// Heuristic (Dave SEC-FP-1, pack 05 / 05a; Git Bash drive, CIB-339;
+/// bare filename, CIB-348):
+/// - the token itself or the characters immediately after the match end in
+///   a known document extension (a separator is not required — a bare
+///   `quarterly-revenue-forecast-summary.md` is still a document path), **or**
+/// - token contains a path separator (`/` or `\`) and either:
+///   - the match is introduced by a Windows drive-letter colon (`D:…`) which
+///     the assignment regex otherwise treats as a secret assignment, **or**
+///   - the token itself starts with a POSIX / Git Bash drive prefix (`/c/…`).
 ///
 /// CIB-323 also treats a match that sits in an `http(s)://` URL path as
 /// path-shaped, but only when the authority has a syntactically valid host.
@@ -202,12 +204,10 @@ pub(crate) fn is_path_shaped_document_token(
     }
 
     let has_sep = candidate.contains('/') || candidate.contains('\\');
-    if !has_sep {
-        return false;
-    }
 
     // Characters after the regex capture often hold the document extension
-    // (the capture class excludes `.`).
+    // (the capture class excludes `.`). A separator is not required: a bare
+    // `name.md` is still a document path (CIB-348).
     let after = line.get(match_end..).unwrap_or("");
     if document_extension_prefix(after).is_some() {
         return true;
@@ -219,6 +219,10 @@ pub(crate) fn is_path_shaped_document_token(
         .is_some_and(|(_, ext)| is_document_extension(ext))
     {
         return true;
+    }
+
+    if !has_sep {
+        return false;
     }
 
     // Git Bash / MSYS / Cygwin: `/c/Users/…` is `C:\Users\…`. The first
@@ -796,6 +800,80 @@ mod tests {
         // Bare filename of the same shape still passes (control).
         let bare = "PROPOSAL_quarterly_revenue_forecast_summary_20260704.md\n";
         assert!(detect_high_entropy_strings(bare, "notes.md", &config).is_empty());
+    }
+
+    fn high_entropy_hyphenated_stem() -> String {
+        // Assembled so the fixture source is not itself one entropy token.
+        [
+            "abcd",
+            "efgh",
+            "ijkl",
+            "mnop",
+            "qrst",
+            "uvwx",
+            "yz",
+            "-",
+            "quarterly",
+            "-",
+            "review",
+        ]
+        .concat()
+    }
+
+    #[test]
+    fn does_not_flag_hyphenated_document_filenames() {
+        // CIB-348: SEC-FP-1 required a `/` or `\`. A bare hyphenated
+        // dictionary-word `.md` name is still a document path.
+        let config = SecretCheckConfig::default();
+        let filename = "quarterly-revenue-forecast-summary.md";
+        let stem = "quarterly-revenue-forecast-summary";
+
+        assert!(
+            path_shaped(filename, stem),
+            "bare document filename must be path-shaped: {filename}"
+        );
+        let assigned = format!("file = {filename}");
+        assert!(
+            path_shaped(&assigned, stem),
+            "file = document filename must be path-shaped: {assigned}"
+        );
+
+        assert!(
+            detect_high_entropy_strings(filename, "notes.md", &config).is_empty(),
+            "bare hyphenated .md filename must not trip entropy"
+        );
+        assert!(
+            detect_high_entropy_strings(&assigned, "notes.md", &config).is_empty(),
+            "file = hyphenated .md filename must not trip entropy"
+        );
+
+        // Same exemption must hold when the stem itself is above threshold.
+        let high_stem = high_entropy_hyphenated_stem();
+        let high = format!("{high_stem}.md");
+        assert!(
+            path_shaped(&high, &high_stem),
+            "high-entropy document filename must be path-shaped: {high}"
+        );
+        let assigned_high = format!("file = {high}");
+        assert!(
+            detect_high_entropy_strings(&assigned_high, "notes.md", &config).is_empty(),
+            "file = high-entropy hyphenated .md filename must not trip entropy"
+        );
+    }
+
+    #[test]
+    fn hyphen_count_alone_does_not_exempt_opaque_tokens() {
+        // CIB-348 non-scope: do not exempt on hyphen count alone.
+        let config = SecretCheckConfig::default();
+        let token = high_entropy_hyphenated_stem();
+        let content = format!("const apiToken = '{token}';\n");
+        let findings = detect_high_entropy_strings(&content, "src/auth.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.pattern_name == "High Entropy String"),
+            "hyphenated opaque token without a document extension must still flag: {findings:?}"
+        );
     }
 
     fn git_bash_temp_path() -> String {
