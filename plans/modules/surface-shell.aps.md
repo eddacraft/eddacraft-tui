@@ -131,6 +131,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 ### SURFSH-008 — Extend the shared `command_safety` catalogue (shell-only rules)
 
 - **Status:** In Progress
+- **Pull Request:** [#3984](https://github.com/eddacraft/anvil-001/pull/3984)
 - **Design:** [2026-08-17-surfsh-008-shell-catalogue.md](../specs/2026-08-17-surfsh-008-shell-catalogue.md)
   (approved 2026-08-17)
 - **Intent:** Add the shell-only governance patterns SURFSH-002 cannot cover
