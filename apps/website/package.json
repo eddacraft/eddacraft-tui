@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "test:positioning": "node scripts/check-positioning.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.18",
