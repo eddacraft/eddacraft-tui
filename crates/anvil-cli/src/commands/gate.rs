@@ -2589,10 +2589,9 @@ fn run_check_sql_migrations(
     }
 
     let baseline_note = if has_baseline {
-        format!(" ({baselined} baselined)")
+        format!("; {baselined} baselined")
     } else {
-        " (no drift baseline — run `anvil drift snapshot` to baseline existing findings)"
-            .to_string()
+        "; no drift baseline — run `anvil drift snapshot` to baseline existing findings".to_string()
     };
 
     let (passed, score) = surface_finding_verdict(fail_on_warnings);
@@ -7385,6 +7384,11 @@ mod tests {
             r3.message
         );
         assert!(r3.message.contains("1 baselined"), "{}", r3.message);
+        assert!(
+            r3.message.contains("warn-only; 1 baselined"),
+            "posture and baseline must share one pair of parentheses: {}",
+            r3.message
+        );
     }
 
     #[test]
