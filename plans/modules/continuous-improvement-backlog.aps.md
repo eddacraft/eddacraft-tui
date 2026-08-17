@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 276/339  |
+| CIB | —     | In Progress | 276/340  |
 
 ## Purpose
 
@@ -10678,3 +10678,65 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
   request to clean stale items as a matter of course.
 - **Coordinates with:** CIB-342, MCPLH, CIB-242
 - **Confidence:** high — `ps` inventory and lock timestamps measured.
+
+## ISS-028 intake (Dave forwarded agent note, 2026-08-17)
+
+Source: operator paste 2026-08-17. Not a drop-folder pack. Dave ID
+**ISS-028**. Severity and “fail-open” framing are theirs. Mechanism
+read on current `main` before filing. Field coverage (whether the
+embedded fallback actually wrote) is still pending an `ANVIL_LOG=info`
+capture; do not treat this as a lost-witness P0 until that lands.
+
+### ISS-028 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| ISS-028 | Daemon append pipe error on every commit; file-side chain reads stay green | **CIB-345** Ready P2 |
+
+### CIB-345: Hook witness-append must not dump daemon pipe errors when fallback will run
+
+- **Status:** Ready
+- **Priority:** P2 honesty / noise — Dave ISS-028, 2026-08-17. Not a
+  proven lost-witness P0.
+- **Intent:** When the save-time daemon is not listening, every
+  `anvil hook` commit still tries `anvil/witness/append` first. The
+  shared RPC client eprints a raw transport line (Windows:
+  `anvil-daemon: anvil/witness/append pipe connect failed`; Unix:
+  `connect failed` when the socket exists but is dead). Hooks do not
+  auto-start the daemon (DLIFE). The hook then falls back to the
+  embedded writer at `tracing::info!`, which the default `warn` filter
+  hides, and the commit exits 0. File-side witness-chain / `audit-chain`
+  `chain_intact` stays green because it never talks to the daemon. The
+  existing once-per-session `ErrorClass::DaemonUnreachable` verdict is
+  unused on successful fallback. Result: a warning nobody consumes, and
+  a split-brain health picture (reads live, daemon-append dead).
+- **Expected Outcome:** (1) the hook append path does not eprint raw
+  RPC transport failures when it will take the embedded fallback;
+  (2) successful fallback uses the existing once-per-session daemon-down
+  line, not a pipe dump; (3) `anvil doctor` and/or
+  `anvil start --verify --why` names that witness appends are embedded
+  because the daemon is down; (4) `ANVIL_LOG=info` and
+  `ANVIL_TRACE_SINK=file=…` still record the fallback.
+- **Non-scope / do not:** do not auto-start the daemon from hooks
+  (DLIFE); do not redefine `chain_intact` (CIB-233); do not refuse the
+  commit on daemon-down (ADR-038 / Serena); do not treat this as a
+  coverage hole without `audit-chain` evidence that `witnessed` did not
+  increase.
+- **Files:** `crates/anvil-cli/src/mcp/gctx_client.rs`,
+  `crates/anvil-cli/src/commands/hook.rs`,
+  `crates/anvil-hook/src/verdict.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`
+- **Validation:** with the daemon stopped, `anvil hook pre-commit` at
+  the default log filter emits no `pipe connect failed` / `connect
+  failed` line; at most one daemon-down line per session; a witness
+  line still lands via the embedded writer (`audit-chain` `witnessed`
+  increases). `ANVIL_LOG=info` shows the fallback. `doctor` or
+  `--verify --why` names the degrade.
+- **Identified From:** Dave ISS-028, 2026-08-17, forwarded agent note
+  (Windows named-pipe wording). Mechanism read from current `main`:
+  `gctx_client.rs` always eprints on Windows connect fail;
+  `hook.rs` `finish_witness_route` logs fallback at info;
+  `verdict.rs` `DaemonUnreachable` is unused on that path.
+- **Coordinates with:** CIB-233, ADR-038, MLP2-005, DLIFE
+- **Confidence:** high on the noise and split-brain; coverage-loss
+  unproven without a post-commit `audit-chain` capture.
