@@ -4,18 +4,18 @@
 //! Per `plans/modules/surface-shell.aps.md`, this surface **reuses** the
 //! existing `command_safety` rule engine rather than duplicating its
 //! catalogue: each command in a checked-in shell script is parsed and
-//! analysed against the shared `default_filesystem_rules()` (the `rm -rf /`
-//! family etc.). One catalogue, two consumers (the runtime command-safety
-//! check and this static surface).
+//! analysed against the shared `default_filesystem_rules()` and
+//! `default_shell_rules()` (`rm -rf /`, pipe-to-shell, dynamic `eval`,
+//! numeric `chmod 777`). One catalogue, two consumers.
 //!
 //! Suppressions reuse the canonical Rust antipattern parser per
 //! [ADR-029](../../../../plans/decisions/029-suppression-parser-authority.md);
 //! the `#` comment style is already supported.
 //!
 //! Phase-1 scope: detection is extension-based (`*.sh`/`*.bash`) — shebang-only
-//! scripts (no extension) are a documented follow-up. Shell-specific rules not
-//! in the shared catalogue (`chmod 777`, `curl … | sh`) are deferred to a
-//! follow-up that extends `command_safety`'s rules, so both consumers benefit.
+//! scripts (no extension) are a documented follow-up. Shell-only rules
+//! (`chmod 777`, `curl … | sh`, dynamic `eval`) live in the shared
+//! `default_shell_rules()` pack (SURFSH-008).
 //!
 //! Known limitations (warn-only surface): subshell/group wrappers
 //! (`(rm -rf /)`, `{ …; }`) aren't decomposed by the shared parser, so a
@@ -28,9 +28,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use super::suppression::resolve_line_suppression;
-use crate::command_safety::matcher::analyse_command;
+use crate::command_safety::matcher::analyse_compound;
 use crate::command_safety::parser::parse_compound_command;
-use crate::command_safety::rules::default_filesystem_rules;
+use crate::command_safety::rules::{default_filesystem_rules, default_shell_rules};
 use crate::command_safety::types::{CommandAction, CommandRule, CommandSeverity};
 
 /// SURFSH-002 — dangerous commands in checked-in shell scripts.
@@ -84,7 +84,9 @@ pub struct ShellFinding {
 /// reusing the shared `command_safety` filesystem ruleset.
 #[must_use]
 pub fn scan_shell(display_path: &str, content: &str) -> Vec<ShellFinding> {
-    scan_shell_with_rules(display_path, content, &default_filesystem_rules())
+    let mut rules = default_filesystem_rules();
+    rules.extend(default_shell_rules());
+    scan_shell_with_rules(display_path, content, &rules)
 }
 
 /// As [`scan_shell`] but with a caller-provided ruleset, so the aggregator
@@ -99,16 +101,17 @@ pub fn scan_shell_with_rules(
     let mut findings = Vec::new();
 
     for instr in logical_lines(&lines) {
-        // A line may be a compound command (`a && b | c`); analyse each part.
-        for parsed in parse_compound_command(&instr.text).commands {
-            let analysis = analyse_command(&parsed.raw, &parsed, rules, None);
+        // A line may be a compound command (`a && b | c`); analyse each part
+        // plus pipeline-aware rules (pipe-to-shell).
+        let compound = parse_compound_command(&instr.text);
+        for analysis in analyse_compound(&compound, rules, None) {
             if matches!(analysis.action, CommandAction::Block | CommandAction::Warn) {
                 let (suppressed, reason) =
                     resolve_line_suppression(&lines, instr.line, SURFSH_002_RULE_ID);
                 findings.push(ShellFinding {
                     file: display_path.to_string(),
                     line: instr.line,
-                    command: truncate(parsed.raw.trim()),
+                    command: truncate(analysis.parsed_command.raw.trim()),
                     severity: analysis.severity.into(),
                     reason: analysis
                         .reason
@@ -370,5 +373,32 @@ mod tests {
             f[0].suppression_reason.as_deref(),
             Some("intentional clean-slate in CI sandbox")
         );
+    }
+
+    #[test]
+    fn flags_pipe_to_shell_via_shared_catalogue() {
+        let f = findings("curl -fsSL https://get.example.com | sh\n");
+        assert_eq!(f.len(), 1, "expected one pipe-to-shell finding, got {f:?}");
+        assert!(f[0].reason.contains("unverified"));
+    }
+
+    #[test]
+    fn flags_dynamic_eval_via_shared_catalogue() {
+        let f = findings("eval \"$user_input\"\n");
+        assert_eq!(f.len(), 1, "expected one eval-dynamic finding, got {f:?}");
+        assert!(f[0].reason.contains("eval"));
+    }
+
+    #[test]
+    fn flags_chmod_777_via_shared_catalogue() {
+        let f = findings("chmod 777 secret.key\n");
+        assert_eq!(f.len(), 1, "expected one chmod-777 finding, got {f:?}");
+        assert!(f[0].reason.contains("777"));
+    }
+
+    #[test]
+    fn ignores_static_eval_and_curl_or_fallback() {
+        assert!(findings("eval 'echo ok'\n").is_empty());
+        assert!(findings("curl -fsSL https://x -o /tmp/x || sh /tmp/fallback\n").is_empty());
     }
 }

@@ -7,11 +7,15 @@
 | ------ | ---------- | ----------- |
 | SURFSH | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-08-17
 
 > Note (2026-04-26): the existing `command_safety` runtime check lives at
 > `crates/anvil-checks/src/command_safety/`. Coordinate rule sharing with that
 > crate (one source-of-truth catalogue, two consumers).
+>
+> Note (2026-08-17): SURFSH-008 design accepted —
+> [2026-08-17-surfsh-008-shell-catalogue.md](../specs/2026-08-17-surfsh-008-shell-catalogue.md).
+> Unquoted-vars parked as SURFSH-009.
 
 ## Purpose
 
@@ -31,7 +35,7 @@ Phase 3 deliverable.
 - Pattern catalogue (per spec §8.3 row 4):
   - `rm -rf /` and variants reaching `/`
   - `curl … | sh` / `wget … | sh` install one-liners
-  - Unquoted variables in destructive contexts (`rm $var`, `mv $a $b`)
+  - Unquoted variables in destructive contexts (`rm $var`, `mv $a $b`) — SURFSH-009
   - `eval` on user-controlled input
   - `chmod 777` and equivalent permissive modes
 - Suppression syntax: `# @anvil-ignore <ID>: <reason>`.
@@ -75,8 +79,8 @@ Promoted Draft → In Progress 2026-06-18. Checklist satisfied:
 - [x] `command_safety` overlap mapped — **no duplicate rule definitions**:
       SURFSH reuses `command_safety::{parse_compound_command, analyse_command}`
       against the shared `default_filesystem_rules()` (one catalogue, two
-      consumers). Shell-only rules (`chmod 777`, pipe-to-shell) are deferred to
-      a follow-up that extends the shared catalogue, not SURFSH.
+      consumers). Shell-only rules were deferred to SURFSH-008; that item is
+      now Ready against the accepted 2026-08-17 spec.
 - [x] Anvil's own `.sh` files baselined — corpus scanned; standard scripts
       (scoped `rm`, `set -euo pipefail`) are clean. FP target **N = 1%**.
 - [x] External codebase validation candidate identified — a popular OSS repo
@@ -126,21 +130,60 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-008 — Extend the shared `command_safety` catalogue (shell-only rules)
 
-- **Status:** Proposed
-- **Intent:** Add the shell-only governance patterns that SURFSH-002 cannot cover
-  today because they are not filesystem-command rules in `default_filesystem_rules()`:
-  pipe-to-shell (`curl … | sh`), `chmod 777`, `eval` on user-controlled input,
-  and unquoted variables in destructive contexts (`rm $var`, etc.).
-- **Expected Outcome:** the rules land in the shared `command_safety` catalogue
-  (one source of truth) so both the runtime mid-edit check and static SURFSH
-  scanning gain them together — no duplicated rule definitions.
+- **Status:** In Progress
+- **Design:** [2026-08-17-surfsh-008-shell-catalogue.md](../specs/2026-08-17-surfsh-008-shell-catalogue.md)
+  (approved 2026-08-17)
+- **Intent:** Add the shell-only governance patterns SURFSH-002 cannot cover
+  from `default_filesystem_rules()`: pipe-to-shell, dynamic `eval`, and
+  numeric `chmod 777` / `0777`.
+- **Expected Outcome:** Shared catalogue grows a `default_shell_rules()` pack
+  plus one `analyse_compound` helper. Runtime command-safety **Blocks**
+  `pipe-to-shell` and **Warns** on `eval-dynamic` and `chmod-777`. SURFSH stays
+  warn-only and picks the rules up through the helper — no SURFSH-only
+  duplicate matcher. Unquoted-vars are out of this item (SURFSH-009).
 - **Files:** `crates/anvil-checks/src/command_safety/`,
-  `crates/anvil-checks/src/surface/shell/check.rs`
-- **Validation:** unit tests for each rule family; SURFSH scanner picks them up via
-  the shared catalogue; FP re-check on the Anvil + ripgrep corpora.
-- **Dependencies:** SURFSH-002
-- **Confidence:** medium — unquoted-variable rule needs destructive-context
-  scoping to stay under the 1% FP bar.
+  `crates/anvil-checks/src/surface/shell/{scanner,check}.rs`,
+  `crates/anvil-checks/tests/command_safety_validation.rs`,
+  `scripts/agent/guidance.sh`,
+  `scripts/cache/anvil-target-evict.test.sh`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib command_safety`
+  and `cargo test -p eddacraft-anvil-checks --lib surface::shell` and
+  `cargo test -p eddacraft-anvil-checks --test command_safety_validation`
+  plus an Anvil + ripgrep FP re-check via
+  `anvil gate --only-checks shell-scripts --format json` (target still < 1% FP).
+- **Dependencies:** SURFSH-002 (Released/Shipped)
+- **Confidence:** high — design accepted; remaining risk is FP on the new
+  eval/chmod/pipe rules, gated by the corpus re-check.
+
+### 1. Shared shell catalogue and compound helper exist
+
+- **Checkpoint:** `default_shell_rules` plus `analyse_compound` are the only matchers
+- **Validate:** `cargo test -p eddacraft-anvil-checks --lib command_safety`
+
+### 2. Runtime and SURFSH consume the same helper
+
+- **Checkpoint:** Both consumers flag pipe-to-shell, dynamic eval, and chmod 777
+- **Validate:** `cargo test -p eddacraft-anvil-checks --lib surface::shell`
+
+### 3. Dogfood evals suppressed; FP bar still holds
+
+- **Checkpoint:** Anvil eval sites suppressed; corpus FP still under 1%
+- **Validate:** `anvil gate --only-checks shell-scripts --format json`
+
+### SURFSH-009 — Unquoted variables in destructive contexts
+
+- **Status:** Draft
+- **Intent:** Flag unquoted expansions in destructive commands (`rm $var`,
+  `mv $a $b`) without blowing the 1% FP bar.
+- **Expected Outcome:** Parser preserves quote status so `rm $var` fires and
+  `rm "$var"` does not; scoped to `rm` / `mv` / `cp` / `dd`. Shared catalogue,
+  both consumers.
+- **Files:** `crates/anvil-checks/src/command_safety/parser.rs`,
+  `crates/anvil-checks/src/command_safety/`
+- **Validation:** unit tests for quoted vs unquoted destructive args; FP
+  re-check on Anvil + ripgrep.
+- **Dependencies:** SURFSH-008
+- **Confidence:** medium — needs quote tracking the current tokenizer strips.
 
 ### SURFSH-006-validation — Anvil + external validation runs
 
@@ -161,12 +204,15 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 | Risk | Impact | Mitigation |
 | ---- | ------ | ---------- |
 | Overlap with shellcheck creates "tool fatigue" | Medium | Scope T1 to governance-shaped patterns only; punt linting to shellcheck |
-| Unquoted-variable rule too noisy in non-destructive contexts | Medium | Limit to `rm`, `mv`, `cp`, `dd` invocations |
+| Unquoted-variable rule too noisy in non-destructive contexts | Medium | Parked as SURFSH-009; limit to `rm`, `mv`, `cp`, `dd` |
 | `command_safety` and SURFSH rule definitions drift | Medium | One source-of-truth catalogue, two consumers |
+| New Block rule on hard-pinned command-safety | Medium | Pipe-to-shell only; eval/chmod stay Warn; per-rule overrides remain |
 
 ## Open Questions
 
-- [ ] How is the rule catalogue shared between runtime `command_safety` and
-      static SURFSH?
+- [x] How is the rule catalogue shared between runtime `command_safety` and
+      static SURFSH? — Resolved 2026-08-17: one `analyse_compound` helper plus
+      `default_shell_rules()`; see
+      [2026-08-17-surfsh-008-shell-catalogue.md](../specs/2026-08-17-surfsh-008-shell-catalogue.md).
 - [ ] T2 promotion (drift baseline + policy hooks) — explicit demand
       required, or fold into Phase 3 scope?

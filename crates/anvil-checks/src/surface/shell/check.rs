@@ -1,7 +1,7 @@
 //! Aggregator for the SURFSH rule pack.
 //!
-//! `run_surfsh_check` builds the shared `command_safety` filesystem ruleset
-//! once, then scans each shell file against it. Discovery is the caller's
+//! `run_surfsh_check` builds the shared `command_safety` filesystem + shell
+//! ruleset once, then scans each shell file against it. Discovery is the caller's
 //! job: pass `(path, content)` pairs for which
 //! [`is_shell_file`](super::scanner::is_shell_file) is true. Mirrors
 //! [`crate::surface::sql::run_surfsql_check`].
@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use super::scanner::{ShellFinding, scan_shell_with_rules};
-use crate::command_safety::rules::default_filesystem_rules;
+use crate::command_safety::rules::{default_filesystem_rules, default_shell_rules};
 
 /// Aggregated result of running SURFSH against a file set.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -37,8 +37,9 @@ impl SurfshCheckResult {
 /// Run SURFSH against a set of shell scripts.
 #[must_use]
 pub fn run_surfsh_check(shell_files: &[(PathBuf, String)]) -> SurfshCheckResult {
-    // Build the shared filesystem ruleset once, reuse across files.
-    let rules = default_filesystem_rules();
+    // Build the shared filesystem + shell ruleset once, reuse across files.
+    let mut rules = default_filesystem_rules();
+    rules.extend(default_shell_rules());
     let mut result = SurfshCheckResult::default();
     for (path, content) in shell_files {
         let display = path.to_string_lossy();

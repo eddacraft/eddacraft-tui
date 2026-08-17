@@ -139,10 +139,12 @@ add_unique() {
       ;;
   esac
 
+  # @anvil-ignore SURFSH-002 -- whitelist-validated indirect array copy
   eval "local values=(\"\${${target_array}[@]}\")"
   for existing in "${values[@]}"; do
     [[ "$existing" == "$value" ]] && return 0
   done
+  # @anvil-ignore SURFSH-002 -- whitelist-validated indirect array append
   eval "${target_array}+=(\"\$value\")"
 }
 
@@ -310,6 +312,7 @@ json_array() {
       ;;
   esac
 
+  # @anvil-ignore SURFSH-002 -- whitelist-validated indirect array copy
   eval "local values_ref=(\"\${${array_name}[@]}\")"
   printf '['
   local first=true

@@ -1,12 +1,14 @@
 use regex::Regex;
 
-use crate::command_safety::matcher::{MatcherContext, find_matching_rule};
+use crate::command_safety::matcher::MatcherContext;
 use crate::command_safety::parser::CommandParser;
-use crate::command_safety::rules::{default_filesystem_rules, default_git_rules};
+use crate::command_safety::rules::{
+    default_filesystem_rules, default_git_rules, default_shell_rules,
+};
 use crate::command_safety::types::{
-    CommandAction, CommandAnalysisSummary, CommandCategory, CommandRule, CommandRuleOverrideAction,
+    CommandAction, CommandAnalysisSummary, CommandRule, CommandRuleOverrideAction,
     CommandSafetyCheckResult, CommandSafetyConfig, CommandSafetyDetails, CommandSafetyFinding,
-    CommandSafetyResolvedConfigInfo, CommandSeverity, ResolvedCommandSafetyConfig,
+    CommandSafetyResolvedConfigInfo, ResolvedCommandSafetyConfig,
     ResolvedCommandSafetyOutputConfig, ResolvedWorkingDirectoryConfig, ScriptChangeType,
     ScriptPlan, WorkingDirectoryConfig,
 };
@@ -137,7 +139,12 @@ fn extract_commands_from_plan(context: &CommandSafetyCheckContext) -> Vec<Comman
 
 #[must_use]
 fn load_rules(config: &CommandSafetyConfig) -> Vec<CommandRule> {
-    let mut rules = [default_git_rules(), default_filesystem_rules()].concat();
+    let mut rules = [
+        default_git_rules(),
+        default_filesystem_rules(),
+        default_shell_rules(),
+    ]
+    .concat();
 
     if let Some(disabled) = config
         .rules
@@ -412,63 +419,44 @@ fn analyse_command_sources(
 
     for source in command_sources {
         let compound = parser.parse_compound(&source.command);
-        for parsed in compound.commands {
-            if parsed.command.is_empty() && !parsed.unwrap_incomplete {
+        for analysis in crate::command_safety::matcher::analyse_compound(
+            &compound,
+            &resolved.rules,
+            Some(&match_context),
+        ) {
+            if analysis.parsed_command.command.is_empty()
+                && !analysis.parsed_command.unwrap_incomplete
+            {
                 continue;
             }
             aggregate.total_analysed += 1;
 
-            if parsed.unwrap_incomplete {
-                let finding = CommandSafetyFinding {
-                    command: if compound.is_compound {
-                        format!("{} (from: {})", parsed.raw, source.command)
-                    } else {
-                        parsed.raw.clone()
-                    },
-                    rule_id: "cmd-unwrap-incomplete".to_string(),
-                    category: CommandCategory::Shell,
-                    action: CommandAction::Block,
-                    severity: CommandSeverity::Error,
-                    reason: "Command wrapper nesting exceeded analysis depth; refusing to treat as safe"
-                        .to_string(),
-                    suggestion: Some(
-                        "Reduce nested wrappers (env/sudo/bash/...) or rewrite the command so it can be analysed fully."
-                            .to_string(),
-                    ),
-                    references: None,
-                    source: source.source.clone(),
-                };
-                aggregate.blocked.push(finding);
-                continue;
-            }
-
-            let matched_rule = find_matching_rule(&parsed, &resolved.rules, Some(&match_context));
-            let Some(rule) = matched_rule else {
-                aggregate.allowed += 1;
-                continue;
-            };
-            if matches!(rule.action, CommandAction::Allow) {
+            if matches!(analysis.action, CommandAction::Allow) || analysis.matched_rule.is_none() {
                 aggregate.allowed += 1;
                 continue;
             }
 
+            let rule = analysis.matched_rule.as_ref().expect("matched");
             let finding = CommandSafetyFinding {
                 command: if compound.is_compound {
-                    format!("{} (from: {})", parsed.raw, source.command)
+                    format!("{} (from: {})", analysis.parsed_command.raw, source.command)
                 } else {
-                    parsed.raw.clone()
+                    analysis.parsed_command.raw.clone()
                 },
                 rule_id: rule.id.clone(),
                 category: rule.category,
-                action: rule.action,
-                severity: rule.severity,
-                reason: rule.reason.clone(),
-                suggestion: rule.suggestion.clone(),
-                references: rule.references.clone(),
+                action: analysis.action,
+                severity: analysis.severity,
+                reason: analysis
+                    .reason
+                    .clone()
+                    .unwrap_or_else(|| rule.reason.clone()),
+                suggestion: analysis.suggestion.clone(),
+                references: analysis.references.clone(),
                 source: source.source.clone(),
             };
 
-            match rule.action {
+            match analysis.action {
                 CommandAction::Block => aggregate.blocked.push(finding),
                 CommandAction::Warn => aggregate.warnings.push(finding),
                 CommandAction::Allow => aggregate.allowed += 1,

@@ -8,6 +8,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 script="$here/anvil-target-evict.sh"
 fails=0
+# @anvil-ignore SURFSH-002 -- test harness evaluates assertion snippets
 check() { if eval "$2"; then echo "ok: $1"; else echo "FAIL: $1"; fails=$((fails + 1)); fi; }
 
 base="$(mktemp -d)"

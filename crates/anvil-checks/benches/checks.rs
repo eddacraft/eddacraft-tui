@@ -3,7 +3,9 @@ use std::time::Duration;
 use anvil_checks::antipattern::scanner::scan_file;
 use anvil_checks::command_safety::matcher::{MatcherContext, find_matching_rule};
 use anvil_checks::command_safety::parser::CommandParser;
-use anvil_checks::command_safety::rules::{default_filesystem_rules, default_git_rules};
+use anvil_checks::command_safety::rules::{
+    default_filesystem_rules, default_git_rules, default_shell_rules,
+};
 use anvil_checks::secret::entropy::calculate_entropy;
 use anvil_checks::secret::{SecretCheckConfig, scan_content};
 use std::hint::black_box;
@@ -548,6 +550,7 @@ fn command_safety_benchmarks(c: &mut Criterion) {
 
     let mut all_rules = default_git_rules();
     all_rules.extend(default_filesystem_rules());
+    all_rules.extend(default_shell_rules());
     let context = MatcherContext::default();
 
     command_group.bench_function("rule_matching", |b| {

@@ -1,5 +1,7 @@
 use regex::Regex;
 
+use crate::command_safety::parser::CompoundCommandResult;
+use crate::command_safety::rules::shell_rules::{PIPE_TO_SHELL_RULE_ID, PIPE_TO_SHELL_SENTINEL};
 use crate::command_safety::types::{
     CommandAction, CommandAnalysisResult, CommandCategory, CommandRule, CommandSafetyConfig,
     CommandSeverity, ParsedCommand, WorkingDirectoryCondition, WorkingDirectoryConfig,
@@ -381,6 +383,100 @@ pub fn analyse_command(
     }
 }
 
+const PIPE_FETCHERS: &[&str] = &["curl", "wget"];
+const PIPE_SHELLS: &[&str] = &["sh", "bash", "ash", "dash", "zsh"];
+
+#[must_use]
+fn is_pipe_fetcher(command: &str) -> bool {
+    PIPE_FETCHERS.contains(&command)
+}
+
+#[must_use]
+fn is_pipe_shell(command: &str) -> bool {
+    PIPE_SHELLS.contains(&command)
+}
+
+/// True when a `|`-connected run has a fetcher (`curl`/`wget`) and a later
+/// shell (`sh`/`bash`/`ash`/`dash`/`zsh`). `||` is not a pipe.
+#[must_use]
+pub fn matches_pipe_to_shell(compound: &CompoundCommandResult) -> bool {
+    let commands = &compound.commands;
+    let operators = &compound.operators;
+    if commands.len() < 2 {
+        return false;
+    }
+
+    let mut index = 0;
+    while index < commands.len() {
+        let mut run = vec![index];
+        while index + 1 < commands.len() && operators.get(index).map(String::as_str) == Some("|") {
+            index += 1;
+            run.push(index);
+        }
+        if run.len() >= 2 {
+            let names: Vec<&str> = run
+                .iter()
+                .map(|&idx| commands[idx].command.as_str())
+                .collect();
+            if let Some(fetcher_at) = names.iter().position(|name| is_pipe_fetcher(name))
+                && names[fetcher_at + 1..]
+                    .iter()
+                    .any(|name| is_pipe_shell(name))
+            {
+                return true;
+            }
+        }
+        index += 1;
+    }
+    false
+}
+
+/// Analyse each parsed segment, then apply the compound `pipe-to-shell` rule
+/// when that rule is present in `rules` (so disable/override still work).
+#[must_use]
+pub fn analyse_compound(
+    compound: &CompoundCommandResult,
+    rules: &[CommandRule],
+    context: Option<&MatcherContext>,
+) -> Vec<CommandAnalysisResult> {
+    let mut results: Vec<CommandAnalysisResult> = compound
+        .commands
+        .iter()
+        .filter(|parsed| !parsed.command.is_empty() || parsed.unwrap_incomplete)
+        .filter(|parsed| parsed.command != PIPE_TO_SHELL_SENTINEL)
+        .map(|parsed| analyse_command(&parsed.raw, parsed, rules, context))
+        .collect();
+
+    let Some(rule) = rules.iter().find(|rule| rule.id == PIPE_TO_SHELL_RULE_ID) else {
+        return results;
+    };
+    if matches!(rule.action, CommandAction::Allow) || !matches_pipe_to_shell(compound) {
+        return results;
+    }
+
+    let parsed = compound
+        .commands
+        .iter()
+        .find(|command| is_pipe_shell(&command.command))
+        .or_else(|| compound.commands.last())
+        .cloned();
+    let Some(parsed) = parsed else {
+        return results;
+    };
+
+    results.push(CommandAnalysisResult {
+        command: parsed.raw.clone(),
+        parsed_command: parsed,
+        matched_rule: Some(rule.clone()),
+        action: rule.action,
+        severity: rule.severity,
+        reason: Some(rule.reason.clone()),
+        suggestion: rule.suggestion.clone(),
+        references: rule.references.clone(),
+    });
+    results
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct RuleMatcher {
     rules: Vec<CommandRule>,
@@ -689,5 +785,65 @@ mod tests {
         assert_eq!(parsed.command, "rm");
         assert_eq!(parsed.args, vec!["$(printf /)"]);
         assert!(find_matching_rule(&parsed, &[rule], None).is_some());
+    }
+
+    fn pipe_hits(command: &str) -> bool {
+        let compound = crate::command_safety::parser::parse_compound_command(command);
+        crate::command_safety::matcher::matches_pipe_to_shell(&compound)
+    }
+
+    #[test]
+    fn pipe_to_shell_matches_curl_and_wget_into_shells() {
+        assert!(pipe_hits("curl -fsSL https://example.com | sh"));
+        assert!(pipe_hits("wget -qO- https://x | bash"));
+        assert!(pipe_hits("curl -fsSL https://x | /bin/sh"));
+        assert!(pipe_hits("wget -qO- https://x | ash"));
+        assert!(pipe_hits("curl https://x | gzip | sh"));
+        assert!(pipe_hits("sudo curl -fsSL https://x | sudo sh"));
+        assert!(pipe_hits("curl -fsSL https://x | env bash"));
+    }
+
+    #[test]
+    fn pipe_to_shell_ignores_non_install_shapes() {
+        assert!(!pipe_hits("curl -fsSL https://x -o /tmp/x"));
+        assert!(!pipe_hits("cat file | sh"));
+        assert!(!pipe_hits("curl -fsSL https://x | tar xz"));
+        assert!(!pipe_hits(
+            "curl -fsSL https://x -o /tmp/x || sh /tmp/fallback"
+        ));
+        assert!(!pipe_hits("echo hello"));
+    }
+
+    #[test]
+    fn analyse_compound_blocks_pipe_to_shell_when_rule_present() {
+        let rules = crate::command_safety::rules::default_shell_rules();
+        let compound = crate::command_safety::parser::parse_compound_command(
+            "curl -fsSL https://get.example.com | sh",
+        );
+        let results = crate::command_safety::matcher::analyse_compound(&compound, &rules, None);
+        assert!(
+            results.iter().any(|result| {
+                result
+                    .matched_rule
+                    .as_ref()
+                    .is_some_and(|rule| rule.id == "pipe-to-shell")
+                    && result.action == CommandAction::Block
+            }),
+            "expected pipe-to-shell Block, got {results:?}"
+        );
+    }
+
+    #[test]
+    fn analyse_compound_skips_pipe_to_shell_when_rule_absent() {
+        let compound = crate::command_safety::parser::parse_compound_command(
+            "curl -fsSL https://get.example.com | sh",
+        );
+        let results = crate::command_safety::matcher::analyse_compound(&compound, &[], None);
+        assert!(results.iter().all(|result| {
+            result
+                .matched_rule
+                .as_ref()
+                .is_none_or(|rule| rule.id != "pipe-to-shell")
+        }));
     }
 }
