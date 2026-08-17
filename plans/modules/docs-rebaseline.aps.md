@@ -5,7 +5,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 0/10 |
+| DOCRB | — | high | Ready | 2/10 |
 
 **Last reviewed:** 2026-08-16 against the repository component/documentation
 inventory at `c4fd624ce`, current DOCFRESH/DOCSYNC/DSITE ownership, and the
@@ -125,7 +125,7 @@ dependencies and expected evidence are present.
 
 ### DOCRB-001: Ratify the documentation architecture and authority contract
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-17 via PR #3975
 - **Intent:** Establish the durable contract for documentation placement,
   authority, diagram formats, accessibility, maintenance triggers, phased
   enforcement, module coordination, and non-release posture.
@@ -151,7 +151,7 @@ dependencies and expected evidence are present.
 
 ### DOCRB-002: Inventory and disposition the documentation and diagram corpus
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-17 via PR #3976
 - **Intent:** Produce a complete, source-pinned ownership and disposition map
   before moving or deleting documentation.
 - **Expected Outcome:** Every crate, package/group, app, central architecture
