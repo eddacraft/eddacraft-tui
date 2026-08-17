@@ -1,37 +1,36 @@
 import React from 'react';
 import type { Metadata } from 'next';
-import { JetBrains_Mono, Inter } from 'next/font/google';
+import { IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 const _jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
-  variable: '--font-mono',
+  variable: '--font-jetbrains-mono',
 });
-const _inter = Inter({
+const _ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
-  variable: '--font-sans',
+  weight: ['400', '500', '600'],
+  variable: '--font-ibm-plex-sans',
 });
 
 export const metadata: Metadata = {
-  title: 'anvil — Guardrails that ship with your code',
+  title: 'anvil — Trust the code your AI writes',
   description:
-    'Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.',
+    'Independent, deterministic control for AI-assisted software engineering. Understand the change, apply your standards, and stop unsafe work before review.',
   generator: 'eddacraft',
   metadataBase: new URL('https://eddacraft.ai'),
   openGraph: {
-    title: 'anvil — Guardrails that ship with your code',
-    description:
-      'Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.',
+    title: 'anvil — Trust the code your AI writes',
+    description: 'Independent, deterministic control for AI-assisted software engineering.',
     siteName: 'anvil by eddacraft',
     locale: 'en_GB',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'anvil — Guardrails that ship with your code',
-    description:
-      'Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.',
+    title: 'anvil — Trust the code your AI writes',
+    description: 'Independent, deterministic control for AI-assisted software engineering.',
     creator: '@eddacraft',
   },
   icons: {
@@ -62,7 +61,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-GB">
-      <body className={`${_jetbrainsMono.variable} ${_inter.variable} font-sans antialiased`}>
+      <body className={`${_jetbrainsMono.variable} ${_ibmPlexSans.variable} font-sans antialiased`}>
         {children}
         <Analytics />
       </body>

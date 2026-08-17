@@ -30,7 +30,6 @@ async function unlockInstallCommand(accessKey: string): Promise<UnlockResult> {
   if (response.ok && typeof data.command === 'string') {
     return { ok: true, command: data.command };
   }
-
   if (response.status === 503 || data.error === 'access_service_unavailable') {
     return { ok: false, reason: 'service_unavailable' };
   }
@@ -52,15 +51,17 @@ export function HeroSection() {
   const scrollToWaitlist = () => {
     setOpen(false);
     const waitlistSection = document.getElementById('waitlist');
-    if (waitlistSection) {
-      waitlistSection.scrollIntoView({ behavior: 'smooth' });
-      const input = waitlistSection.querySelector('input');
-      if (input) setTimeout(() => input.focus(), 500);
+    if (!waitlistSection) return;
+
+    waitlistSection.scrollIntoView({ behavior: 'smooth' });
+    const input = waitlistSection.querySelector('input');
+    if (input instanceof HTMLInputElement) {
+      window.setTimeout(() => input.focus(), 500);
     }
   };
 
-  const handleAccessSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleAccessSubmit = async (event: FormEvent) => {
+    event.preventDefault();
 
     const trimmedKey = accessKey.trim();
     if (!trimmedKey || status === 'loading') return;
@@ -89,182 +90,149 @@ export function HeroSection() {
   };
 
   return (
-    <section className="lg:min-h-screen pt-14">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24 font-mono">
-        <div className="grid gap-10 md:grid-cols-2 lg:gap-12 items-center">
-          {/* Text Content - Left */}
-          <div className="space-y-6 sm:space-y-8">
-            {/* Product Identity */}
-            <div className="flex items-center gap-3 sm:gap-4">
-              <img
-                src="/images/anvil-brandmark-ember.svg"
-                alt=""
-                aria-hidden="true"
-                width={40}
-                height={40}
-                className="sm:w-12 sm:h-12"
-              />
-              <span className="font-mono text-lg sm:text-xl tracking-[0.2em] sm:tracking-[0.3em] text-anvil">
-                anvil
-              </span>
-            </div>
+    <section id="product" className="pt-14">
+      <div className="site-container grid gap-12 py-16 md:grid-cols-[0.9fr_1.1fr] md:items-center lg:gap-20 lg:py-24">
+        <div>
+          <div className="mb-8 flex items-center gap-3 font-mono text-sm text-anvil">
+            <img
+              src="/images/anvil-brandmark-ember.svg"
+              alt=""
+              aria-hidden="true"
+              width={28}
+              height={28}
+            />
+            <span className="tracking-[0.2em]">anvil</span>
+          </div>
 
-            {/* Comment Line */}
-            <div className="font-mono text-xs sm:text-sm text-text-muted tracking-wider">
-              {'// SHIP_AT_AI_SPEED'}
-            </div>
+          <p className="section-label mb-5">{'// GENERATION_TIME_TRUST'}</p>
+          <h1 className="max-w-2xl font-mono text-4xl font-medium uppercase leading-[1.08] tracking-[-0.04em] text-off-white sm:text-5xl lg:text-6xl">
+            TRUST THE CODE
+            <br />
+            <span className="text-anvil">YOUR AI WRITES.</span>
+          </h1>
 
-            <h1 className="font-mono text-2xl sm:text-4xl lg:text-5xl font-medium uppercase leading-tight tracking-tight text-text-primary text-balance">
-              FORCE PROBABILISTIC TOOLS TO
-              <br />
-              <span className="text-anvil">RESPECT DETERMINISTIC RULES.</span>
-            </h1>
+          <p className="mt-7 max-w-xl font-sans text-lg leading-8 text-off-white">
+            anvil is the independent, deterministic control point for AI-assisted software
+            engineering.
+          </p>
+          <p className="mt-5 max-w-xl font-sans text-base leading-7 text-ghost-grey">
+            Understand the change. Apply your standards. Stop unsafe work before it reaches review.
+          </p>
 
-            <p className="font-sans text-base sm:text-lg leading-relaxed text-text-muted max-w-lg">
-              anvil enforces policy at generation time, not at review.
-            </p>
+          <div className="mt-9 flex max-w-xl flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={scrollToWaitlist}
+              className="border border-anvil bg-anvil px-5 py-3 font-mono text-xs uppercase tracking-wide text-void transition-colors hover:bg-anvil/90"
+            >
+              [ = ] request early access
+            </button>
+            <Link
+              href="https://docs.eddacraft.ai/anvil/overview"
+              className="border border-structure px-5 py-3 font-mono text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:border-border-strong hover:text-off-white"
+            >
+              read the docs
+            </Link>
+          </div>
 
-            {/* Primary CTA - Install Terminal Box */}
-            <div className="flex flex-col gap-3 sm:gap-4">
-              <Dialog.Root open={open} onOpenChange={setOpen}>
-                <Dialog.Trigger asChild>
-                  <button className="w-full max-w-[450px] border border-anvil bg-anvil/5 px-4 sm:px-6 py-4 font-mono text-xs sm:text-sm text-left transition-colors hover:bg-anvil/10 cursor-pointer">
-                    <span className="text-anvil">
-                      $ {installCommand ?? REDACTED_INSTALL_COMMAND}
-                    </span>
-                    <span className="text-text-muted ml-4">
-                      # {installUnlocked ? 'unlocked' : 'auth-required'}
-                    </span>
-                  </button>
-                </Dialog.Trigger>
-                <Dialog.Portal>
-                  <Dialog.Overlay className="fixed inset-0 bg-void/90 z-50" />
-                  <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="bg-surface border border-structure max-w-lg w-full p-6 space-y-6 font-mono">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-2">
-                          <Dialog.Title className="text-lg sm:text-xl text-anvil uppercase tracking-tight">
-                            Early-access gate
-                          </Dialog.Title>
-                          <Dialog.Description className="text-xs sm:text-sm text-text-muted leading-relaxed">
-                            Enter your early-access key to reveal the install address.
-                          </Dialog.Description>
-                        </div>
-                        <Dialog.Close asChild>
-                          <button
-                            type="button"
-                            aria-label="Close"
-                            className="text-text-muted transition-colors hover:text-text-primary"
-                          >
-                            [x]
-                          </button>
-                        </Dialog.Close>
-                      </div>
-
-                      <div className="border border-structure bg-void px-3 py-3 text-xs sm:text-sm">
-                        <span className="text-text-muted">$ </span>
-                        <span className={installUnlocked ? 'text-anvil' : 'text-text-muted'}>
-                          {installCommand ?? REDACTED_INSTALL_COMMAND}
-                        </span>
-                      </div>
-
-                      {installUnlocked ? (
-                        <div className="space-y-4">
-                          <p className="text-sm text-edda">[ OK ] access verified</p>
-                          <p className="text-xs text-text-muted">
-                            Homebrew install is unlocked for this session.
-                          </p>
-                          <Dialog.Close className="border border-edda px-4 py-2 text-xs sm:text-sm text-edda transition-colors hover:bg-edda/10 uppercase tracking-wide">
-                            Close
-                          </Dialog.Close>
-                        </div>
-                      ) : (
-                        <form onSubmit={handleAccessSubmit} className="space-y-4">
-                          <div className="space-y-2">
-                            <label
-                              htmlFor="early-access-key"
-                              className="block text-xs text-text-muted"
-                            >
-                              Early-access key:
-                            </label>
-                            <input
-                              id="early-access-key"
-                              type="password"
-                              value={accessKey}
-                              onChange={(e) => setAccessKey(e.target.value)}
-                              disabled={status === 'loading'}
-                              placeholder="anvil_beta_..."
-                              autoComplete="off"
-                              className="w-full border border-structure bg-void px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted/40 focus:border-anvil focus:outline-none disabled:opacity-50"
-                            />
-                          </div>
-
-                          {status === 'error' && (
-                            <p className="text-xs text-anvil" role="alert">
-                              {errorMessage}
-                            </p>
-                          )}
-
-                          <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                            <button
-                              type="submit"
-                              disabled={status === 'loading'}
-                              className="flex-1 border border-anvil bg-anvil/5 px-4 py-3 text-xs sm:text-sm text-anvil hover:bg-anvil/10 transition-colors uppercase tracking-wide disabled:opacity-50"
-                            >
-                              {status === 'loading' ? 'Checking...' : 'Unlock Install'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={scrollToWaitlist}
-                              className="flex-1 border border-structure px-4 py-3 text-xs sm:text-sm text-text-muted hover:text-text-primary hover:border-text-muted transition-colors uppercase tracking-wide"
-                            >
-                              Request Access
-                            </button>
-                          </div>
-                        </form>
-                      )}
-                    </div>
-                  </Dialog.Content>
-                </Dialog.Portal>
-              </Dialog.Root>
-
-              {/* Secondary - Docs */}
-              <Link
-                href="https://docs.eddacraft.ai/anvil/overview"
-                className="block w-full max-w-[450px] border border-structure bg-transparent px-4 sm:px-6 py-3 font-mono text-xs sm:text-sm text-text-muted transition-colors hover:border-text-muted hover:text-text-primary text-left"
+          <Dialog.Root open={open} onOpenChange={setOpen}>
+            <Dialog.Trigger asChild>
+              <button
+                type="button"
+                className="mt-4 block w-full max-w-xl border border-structure bg-surface px-4 py-3 text-left font-mono text-xs transition-colors hover:border-border-strong"
               >
-                READ THE DOCS
-              </Link>
-            </div>
+                <span className="text-anvil">$ {installCommand ?? REDACTED_INSTALL_COMMAND}</span>
+                <span className="ml-3 text-ghost-grey">
+                  # {installUnlocked ? 'unlocked' : 'auth-required'}
+                </span>
+              </button>
+            </Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 z-50 bg-void/90" />
+              <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="w-full max-w-lg space-y-6 border border-structure bg-surface p-6 font-mono">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <Dialog.Title className="text-lg uppercase text-anvil">
+                        Early-access gate
+                      </Dialog.Title>
+                      <Dialog.Description className="text-xs leading-relaxed text-ghost-grey sm:text-sm">
+                        Enter your early-access key to reveal the install address.
+                      </Dialog.Description>
+                    </div>
+                    <Dialog.Close asChild>
+                      <button type="button" aria-label="Close" className="text-ghost-grey">
+                        [x]
+                      </button>
+                    </Dialog.Close>
+                  </div>
 
-            {/* Stats */}
-            <div className="flex gap-4 sm:gap-8 pt-4 border-t border-structure">
-              <div>
-                <div className="font-mono text-xl sm:text-2xl text-text-primary">10µs</div>
-                <div className="font-mono text-[10px] sm:text-xs text-text-muted uppercase tracking-wider">
-                  save-time check
-                </div>
-              </div>
-              <div>
-                <div className="font-mono text-xl sm:text-2xl text-text-primary">800ns</div>
-                <div className="font-mono text-[10px] sm:text-xs text-text-muted uppercase tracking-wider">
-                  policy eval
-                </div>
-              </div>
-              <div>
-                <div className="font-mono text-xl sm:text-2xl text-edda">14.5ms</div>
-                <div className="font-mono text-[10px] sm:text-xs text-text-muted uppercase tracking-wider">
-                  cold graph build
-                </div>
-              </div>
-            </div>
-          </div>
+                  <div className="border border-structure bg-void px-3 py-3 text-xs sm:text-sm">
+                    <span className="text-ghost-grey">$ </span>
+                    <span className={installUnlocked ? 'text-anvil' : 'text-ghost-grey'}>
+                      {installCommand ?? REDACTED_INSTALL_COMMAND}
+                    </span>
+                  </div>
 
-          {/* Terminal - Right (hidden on mobile) */}
-          <div className="hidden md:block lg:pl-8">
-            <TerminalWindow />
-          </div>
+                  {installUnlocked ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-edda">[ OK ] access verified</p>
+                      <p className="text-xs text-ghost-grey">
+                        Homebrew install is unlocked for this session.
+                      </p>
+                      <Dialog.Close className="border border-edda px-4 py-2 text-xs uppercase tracking-wide text-edda transition-colors hover:bg-edda/10">
+                        Close
+                      </Dialog.Close>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleAccessSubmit} className="space-y-4">
+                      <div className="space-y-2">
+                        <label htmlFor="early-access-key" className="block text-xs text-ghost-grey">
+                          Early-access key:
+                        </label>
+                        <input
+                          id="early-access-key"
+                          type="password"
+                          value={accessKey}
+                          onChange={(event) => setAccessKey(event.target.value)}
+                          disabled={status === 'loading'}
+                          placeholder="anvil_beta_..."
+                          autoComplete="off"
+                          className="w-full border border-structure bg-void px-3 py-2 font-mono text-sm text-off-white placeholder:text-ghost-grey/50 focus:border-anvil focus:outline-none disabled:opacity-50"
+                        />
+                      </div>
+
+                      {status === 'error' ? (
+                        <p className="text-xs text-brick-red" role="alert">
+                          {errorMessage}
+                        </p>
+                      ) : null}
+
+                      <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+                        <button
+                          type="submit"
+                          disabled={status === 'loading'}
+                          className="flex-1 border border-anvil bg-anvil/5 px-4 py-3 text-xs uppercase tracking-wide text-anvil transition-colors hover:bg-anvil/10 disabled:opacity-50"
+                        >
+                          {status === 'loading' ? 'Checking...' : 'Unlock install'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={scrollToWaitlist}
+                          className="flex-1 border border-structure px-4 py-3 text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:border-border-strong hover:text-off-white"
+                        >
+                          Request access
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
         </div>
+
+        <TerminalWindow />
       </div>
     </section>
   );

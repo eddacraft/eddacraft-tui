@@ -2,114 +2,95 @@
 
 import { useEffect, useState } from 'react';
 
+const COMMAND = 'anvil_validate_write  src/secret.ts';
+
 export function TerminalWindow() {
   const [typedCommand, setTypedCommand] = useState('');
   const [showOutput, setShowOutput] = useState(false);
-  const command = 'anvil gate plan.md';
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const reducedMotionTimeout = window.setTimeout(() => {
+        setTypedCommand(COMMAND);
+        setShowOutput(true);
+      }, 0);
+      return () => window.clearTimeout(reducedMotionTimeout);
+    }
+
     let charIndex = 0;
-    let outputTimeout: ReturnType<typeof setTimeout> | undefined;
-    const typeInterval = setInterval(() => {
-      if (charIndex < command.length) {
-        setTypedCommand(command.slice(0, charIndex + 1));
-        charIndex++;
-      } else {
-        clearInterval(typeInterval);
-        outputTimeout = setTimeout(() => setShowOutput(true), 400);
+    let outputTimeout: number | undefined;
+    const typeInterval = window.setInterval(() => {
+      charIndex += 1;
+      setTypedCommand(COMMAND.slice(0, charIndex));
+      if (charIndex >= COMMAND.length) {
+        window.clearInterval(typeInterval);
+        outputTimeout = window.setTimeout(() => setShowOutput(true), 300);
       }
-    }, 80);
+    }, 42);
 
     return () => {
-      clearInterval(typeInterval);
-      if (outputTimeout) {
-        clearTimeout(outputTimeout);
-      }
+      window.clearInterval(typeInterval);
+      if (outputTimeout) window.clearTimeout(outputTimeout);
     };
   }, []);
 
   return (
-    <div className="w-full border border-structure bg-void font-mono text-xs sm:text-sm overflow-x-auto">
-      {/* Terminal Header */}
-      <div className="flex items-center gap-2 border-b border-structure px-3 sm:px-4 py-2">
-        <span className="text-text-muted">anvil</span>
-        <span className="text-structure">—</span>
-        <span className="text-text-muted text-xs">~/project</span>
+    <div className="w-full border border-structure bg-surface font-mono text-[11px] leading-relaxed sm:text-xs">
+      <div className="flex items-center justify-between border-b border-structure px-4 py-2 text-ghost-grey">
+        <span>anvil :: pre-write</span>
+        <span>~/project</span>
       </div>
 
-      {/* Terminal Content */}
-      <div className="p-3 sm:p-4 space-y-3 min-w-0">
-        {/* Command Line */}
-        <div className="flex items-center gap-2">
+      <div className="min-h-[28rem] space-y-4 p-4 sm:p-5">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="text-anvil">$</span>
-          <span className="text-text-primary">{typedCommand}</span>
-          {!showOutput && <span className="cursor-blink text-anvil">▊</span>}
+          <span className="break-all text-off-white">{typedCommand}</span>
+          {!showOutput ? <span className="cursor-blink text-anvil">▊</span> : null}
         </div>
 
-        {/* Output */}
-        {showOutput && (
-          <div className="mt-4 space-y-3 sm:space-y-4 overflow-x-auto">
-            {/* Header */}
-            <div className="text-text-muted whitespace-nowrap">
-              ╭──────────────────────────────╮
-            </div>
-            <div className="pl-2 text-text-muted whitespace-nowrap">
-              │ <span className="text-text-primary">RISK_ANALYSIS</span> :: plan.md
-            </div>
-            <div className="text-text-muted whitespace-nowrap">
-              ├──────────────────────────────┤
+        {showOutput ? (
+          <div className="space-y-4" aria-live="polite">
+            <div className="text-anvil">[ = ] PRE_WRITE_VALIDATION</div>
+
+            <dl className="grid grid-cols-[7rem_1fr] gap-x-3 text-ghost-grey">
+              <dt>path</dt>
+              <dd className="min-w-0 break-all text-off-white">src/secret.ts</dd>
+              <dt>backend</dt>
+              <dd className="text-off-white">daemon</dd>
+              <dt>mode</dt>
+              <dd className="text-off-white">preWrite</dd>
+              <dt>enforcement</dt>
+              <dd className="text-off-white">interrupt</dd>
+            </dl>
+
+            <div className="border-y border-structure py-3">
+              <div className="flex gap-3 text-brick-red">
+                <span>[ ERR ]</span>
+                <span>secret-detection</span>
+              </div>
+              <p className="mt-2 pl-[4.75rem] text-ghost-grey">
+                credential-like token in proposed content
+              </p>
             </div>
 
-            {/* Error */}
-            <div className="pl-2 flex items-start gap-2 whitespace-nowrap">
-              <span className="text-text-muted">│</span>
-              <span className="text-anvil">[ ERR ]</span>
-              <span className="text-text-primary">POLICY_VIOLATION</span>
-            </div>
-            <div className="pl-2 flex items-start gap-2 whitespace-nowrap">
-              <span className="text-text-muted">│</span>
-              <span className="text-text-muted pl-4 sm:pl-8">→ Unreviewed dependency: </span>
-            </div>
-            <div className="pl-2 flex items-start gap-2 whitespace-nowrap">
-              <span className="text-text-muted">│</span>
-              <span className="text-anvil pl-6 sm:pl-10">lodash@4.17.21</span>
-            </div>
+            <dl className="grid grid-cols-[7rem_1fr] gap-x-3">
+              <dt className="text-ghost-grey">decision</dt>
+              <dd className="text-brick-red">interrupt</dd>
+              <dt className="text-ghost-grey">safe_default</dt>
+              <dd className="text-off-white">do-not-write</dd>
+            </dl>
 
-            {/* Divider */}
-            <div className="text-text-muted whitespace-nowrap">
-              ├──────────────────────────────┤
-            </div>
-
-            {/* Success */}
-            <div className="pl-2 flex items-start gap-2 whitespace-nowrap">
-              <span className="text-text-muted">│</span>
-              <span className="text-edda">[ OK ]</span>
-              <span className="text-text-primary">SECURITY_SCAN</span>
-            </div>
-            <div className="pl-2 flex items-start gap-2 whitespace-nowrap">
-              <span className="text-text-muted">│</span>
-              <span className="text-text-muted pl-4 sm:pl-8">→ No secrets detected</span>
-            </div>
-            <div className="pl-2 flex items-start gap-2 whitespace-nowrap">
-              <span className="text-text-muted">│</span>
-              <span className="text-edda pl-6 sm:pl-10">0 vulnerabilities</span>
-            </div>
-
-            {/* Footer */}
-            <div className="text-text-muted whitespace-nowrap">
-              ╰──────────────────────────────╯
-            </div>
-
-            {/* Summary */}
-            <div className="pt-2 flex items-center gap-2 sm:gap-4 text-xs flex-wrap">
-              <span className="text-text-muted">gate:</span>
-              <span className="text-anvil">BLOCKED</span>
-              <span className="text-text-muted">|</span>
-              <span className="text-text-muted">hash:</span>
-              <span className="text-text-muted">a7f3e2d</span>
+            <div className="border-t border-structure pt-3">
+              <div className="text-anvil">[ protection_claim ]</div>
+              <div className="mt-2 grid grid-cols-[7rem_1fr] gap-x-3">
+                <span className="text-ghost-grey">schema</span>
+                <span className="break-all text-off-white">anvil.protection-claim.v1</span>
+                <span className="text-ghost-grey">worktree</span>
+                <span className="text-edda">pre-write-daemon</span>
+              </div>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

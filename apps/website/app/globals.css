@@ -1,108 +1,59 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
-  /* Nordic Terminal Theme */
   --void: #0d0d0f;
   --structure: #2a2a2e;
-  --surface: #141416;
-  --text-primary: #ebebeb;
-  --text-muted: #85858a;
+  --off-white: #ebebeb;
   --anvil: #cc5500;
   --edda: #2e8b57;
+  --ghost-grey: #85858a;
+  --brick-red: #c94a4a;
+  --dull-amber: #d08c38;
+  --surface: #141416;
+  --border-strong: #3a3a3f;
 
-  /* Map to design tokens */
-  --background: var(--void); /* Preserving user's specific background */
-  --foreground: var(--text-primary); /* Preserving user's specific foreground */
-  --card: var(--surface); /* Preserving user's specific card */
-  --card-foreground: var(--text-primary); /* Preserving user's specific card-foreground */
-  --popover: var(--surface); /* Preserving user's specific popover */
-  --popover-foreground: var(--text-primary); /* Preserving user's specific popover-foreground */
-  --primary: var(--anvil); /* Preserving user's specific primary */
-  --primary-foreground: var(--text-primary); /* Preserving user's specific primary-foreground */
-  --secondary: var(--surface); /* Preserving user's specific secondary */
-  --secondary-foreground: var(--text-primary); /* Preserving user's specific secondary-foreground */
-  --muted: var(--surface); /* Preserving user's specific muted */
-  --muted-foreground: var(--text-muted); /* Preserving user's specific muted-foreground */
-  --accent: var(--edda); /* Preserving user's specific accent */
-  --accent-foreground: var(--text-primary); /* Preserving user's specific accent-foreground */
-  --destructive: var(--anvil); /* Preserving user's specific destructive */
-  --destructive-foreground: var(
-    --text-primary
-  ); /* Preserving user's specific destructive-foreground */
-  --border: var(--structure); /* Preserving user's specific border */
-  --input: var(--structure); /* Preserving user's specific input */
-  --ring: var(--anvil); /* Preserving user's specific ring */
-  --radius: 0px; /* Preserving user's specific radius */
-
-  /* Shadcn/ui default additions (keeping user's values where they overlap) */
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  /* Shadcn/ui dark mode variables */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --text-primary: var(--off-white);
+  --text-muted: var(--ghost-grey);
+  --background: var(--void);
+  --foreground: var(--off-white);
+  --card: var(--surface);
+  --card-foreground: var(--off-white);
+  --popover: var(--surface);
+  --popover-foreground: var(--off-white);
+  --primary: var(--anvil);
+  --primary-foreground: var(--void);
+  --secondary: var(--surface);
+  --secondary-foreground: var(--off-white);
+  --muted: var(--surface);
+  --muted-foreground: var(--ghost-grey);
+  --accent: var(--edda);
+  --accent-foreground: var(--void);
+  --destructive: var(--brick-red);
+  --destructive-foreground: var(--off-white);
+  --border: var(--structure);
+  --input: var(--structure);
+  --ring: var(--anvil);
+  --radius: 0px;
 }
 
 @theme inline {
-  --font-sans: 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  --font-sans: var(--font-ibm-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), 'IBM Plex Mono', ui-monospace, monospace;
 
-  /* Nordic Terminal Colors (preserved) */
   --color-void: var(--void);
   --color-structure: var(--structure);
+  --color-off-white: var(--off-white);
   --color-surface: var(--surface);
   --color-text-primary: var(--text-primary);
   --color-text-muted: var(--text-muted);
   --color-anvil: var(--anvil);
   --color-edda: var(--edda);
+  --color-ghost-grey: var(--ghost-grey);
+  --color-brick-red: var(--brick-red);
+  --color-dull-amber: var(--dull-amber);
+  --color-border-strong: var(--border-strong);
 
-  /* Map to semantic tokens (preserved user's mappings) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -123,37 +74,39 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Shadcn/ui default additions for radius and new colors */
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px); /* Using user's --radius */
-  --radius-md: calc(var(--radius) - 2px); /* Using user's --radius */
-  --radius-lg: var(--radius); /* Using user's --radius */
-  --radius-xl: calc(var(--radius) + 4px); /* Using user's --radius */
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: var(--structure);
   }
+
+  html {
+    scroll-behavior: smooth;
+    background: var(--void);
+  }
+
   body {
-    /* Updated to use shadcn-compatible variables, but based on user's theme */
-    @apply bg-background text-foreground;
+    min-width: 320px;
+    background: var(--void);
+    color: var(--off-white);
+  }
+
+  ::selection {
+    background: var(--anvil);
+    color: var(--void);
+  }
+
+  :focus-visible {
+    outline: 1px solid var(--anvil);
+    outline-offset: 4px;
   }
 }
 
-/* Blinking cursor animation */
 @keyframes blink {
   0%,
   50% {
@@ -166,25 +119,39 @@
 }
 
 .cursor-blink {
-  animation: blink 1s infinite;
+  animation: blink 1s steps(1, end) infinite;
 }
 
-/* Typing animation */
-@keyframes typing {
-  from {
-    width: 0;
-  }
-  to {
-    width: 100%;
+.site-section {
+  border-top: 1px solid var(--structure);
+}
+
+.site-container {
+  width: min(100% - 2rem, 80rem);
+  margin-inline: auto;
+}
+
+.section-label {
+  color: var(--ghost-grey);
+  font-family: var(--font-jetbrains-mono), 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 640px) {
+  .site-container {
+    width: min(100% - 3rem, 80rem);
   }
 }
 
-/* Terminal scan line effect */
-@keyframes scanline {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100vh);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

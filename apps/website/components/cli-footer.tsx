@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-const ANVIL_VERSION = 'v0.9.4-beta';
-const ANVIL_BUILD_HASH = '165d33';
+const ANVIL_VERSION = 'v0.9.5-beta';
+const ANVIL_BUILD_HASH = '5c4b61a';
 
 interface ResponseLine {
   text: string;
@@ -22,7 +22,6 @@ interface WaitlistSubmitResult {
   error?: string;
   warning?: string;
   emailSent?: boolean;
-  emailStatus?: string;
   isNewSignup?: boolean;
 }
 
@@ -41,7 +40,6 @@ async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
       error?: string;
       warning?: string;
       emailSent?: boolean;
-      emailStatus?: string;
       isNewSignup?: boolean;
     };
     if (!response.ok) {
@@ -50,7 +48,6 @@ async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
         error: data.error || 'Failed to join waitlist',
         warning: data.warning,
         emailSent: data.emailSent,
-        emailStatus: data.emailStatus,
         isNewSignup: data.isNewSignup,
       };
     }
@@ -59,7 +56,6 @@ async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
       success: true,
       warning: data.warning,
       emailSent: data.emailSent,
-      emailStatus: data.emailStatus,
       isNewSignup: data.isNewSignup,
     };
   } catch {
@@ -73,21 +69,21 @@ function buildResponseLines(
   emailFailed: boolean
 ): ResponseLine[] {
   const lines: ResponseLine[] = [
-    { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
+    { text: 'Verifying...', colorClass: 'text-ghost-grey', delay: 600 },
     { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
     {
       text:
         submitWarning && submitWarning.includes('WARN')
-          ? `Welcome aboard. Access is queued for ${userEmail}`
-          : `Welcome aboard. We'll be in touch at ${userEmail}`,
-      colorClass: 'text-text-muted',
+          ? `Access is queued for ${userEmail}`
+          : `We will be in touch at ${userEmail}`,
+      colorClass: 'text-ghost-grey',
       delay: 0,
     },
   ];
   if (emailFailed) {
     lines.push({
       text: '[ WARN ] Confirmation email could not be sent — you are still on the list',
-      colorClass: 'text-amber-400',
+      colorClass: 'text-dull-amber',
       delay: 300,
     });
   }
@@ -106,53 +102,57 @@ export function CLIFooter() {
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
   const [showPreReleaseModal, setShowPreReleaseModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const showFinalCursor =
-    submitted && currentLineIndex >= buildResponseLines(email, submitWarning, emailFailed).length;
+  const responseLines = useMemo(
+    () => buildResponseLines(email, submitWarning, emailFailed),
+    [email, submitWarning, emailFailed]
+  );
+  const showFinalCursor = submitted && currentLineIndex >= responseLines.length;
 
-  // Typewriter effect
   useEffect(() => {
-    if (!submitted) return;
-
-    const responseLines = buildResponseLines(email, submitWarning, emailFailed);
-
-    if (currentLineIndex >= responseLines.length) {
-      return;
-    }
+    if (!submitted || currentLineIndex >= responseLines.length) return;
 
     const currentLine = responseLines[currentLineIndex];
     const fullText = currentLine.text;
 
-    if (currentCharIndex < fullText.length) {
-      const timeout = setTimeout(() => {
-        setDisplayedLines((prev) => {
-          const newLines = [...prev];
-          if (!newLines[currentLineIndex]) {
-            newLines[currentLineIndex] = {
-              id: currentLine.text,
-              text: '',
-              colorClass: currentLine.colorClass,
-            };
-          }
-          newLines[currentLineIndex] = {
-            ...newLines[currentLineIndex],
-            text: fullText.slice(0, currentCharIndex + 1),
-          };
-          return newLines;
-        });
-        setCurrentCharIndex((prev) => prev + 1);
-      }, 25);
-      return () => clearTimeout(timeout);
-    } else {
-      const timeout = setTimeout(() => {
-        setCurrentLineIndex((prev) => prev + 1);
-        setCurrentCharIndex(0);
-      }, currentLine.delay);
-      return () => clearTimeout(timeout);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const reducedMotionTimeout = window.setTimeout(() => {
+        setDisplayedLines(
+          responseLines.map((line) => ({
+            id: line.text,
+            text: line.text,
+            colorClass: line.colorClass,
+          }))
+        );
+        setCurrentLineIndex(responseLines.length);
+      }, 0);
+      return () => window.clearTimeout(reducedMotionTimeout);
     }
-  }, [submitted, currentLineIndex, currentCharIndex, email, submitWarning, emailFailed]);
 
-  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
-    e?.preventDefault();
+    if (currentCharIndex < fullText.length) {
+      const timeout = window.setTimeout(() => {
+        setDisplayedLines((previous) => {
+          const next = [...previous];
+          next[currentLineIndex] = {
+            id: currentLine.text,
+            text: fullText.slice(0, currentCharIndex + 1),
+            colorClass: currentLine.colorClass,
+          };
+          return next;
+        });
+        setCurrentCharIndex((previous) => previous + 1);
+      }, 25);
+      return () => window.clearTimeout(timeout);
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCurrentLineIndex((previous) => previous + 1);
+      setCurrentCharIndex(0);
+    }, currentLine.delay);
+    return () => window.clearTimeout(timeout);
+  }, [submitted, currentLineIndex, currentCharIndex, responseLines]);
+
+  const handleSubmit = async (event?: React.FormEvent | React.MouseEvent) => {
+    event?.preventDefault();
     const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail) || isSubmitting) return;
@@ -162,7 +162,6 @@ export function CLIFooter() {
     setSubmitWarning(null);
 
     const result = await submitToWaitlist(trimmedEmail);
-
     if (result.success) {
       setSubmitWarning(result.warning || null);
       setEmailFailed(result.emailSent === false && result.isNewSignup === true);
@@ -171,19 +170,6 @@ export function CLIFooter() {
       setSubmitError(result.error || 'Something went wrong');
     }
     setIsSubmitting(false);
-  };
-
-  const handleTerminalClick = () => {
-    if (!submitted && inputRef.current) {
-      inputRef.current.focus();
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape' && !submitted) {
-      setEmail('');
-      inputRef.current?.focus();
-    }
   };
 
   const reset = () => {
@@ -196,224 +182,161 @@ export function CLIFooter() {
     setDisplayedLines([]);
     setCurrentLineIndex(0);
     setCurrentCharIndex(0);
+    window.setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   return (
-    <footer id="waitlist" className="border-t border-structure bg-void font-mono">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24">
-        <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-8">
-          {/* Terminal Section */}
-          <div className="w-full max-w-xl space-y-4">
-            {/* Header Messages */}
-            <div className="text-xs sm:text-sm text-center space-y-1">
-              <p className="text-text-muted">Engineering team onboarding in progress.</p>
-              <p className="text-text-primary">Cohort capacity is limited.</p>
-            </div>
+    <footer id="waitlist" className="site-section bg-surface font-mono">
+      <div className="site-container grid grid-cols-1 gap-8 py-14 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
+        <div className="min-w-0">
+          <p className="section-label mb-5">{'// EARLY_ACCESS'}</p>
+          <h2 className="text-3xl leading-tight text-off-white sm:text-4xl">
+            BUILD WITH SPEED.
+            <br />
+            <span className="text-anvil">SHIP WITH INTEGRITY.</span>
+          </h2>
+          <p className="mt-5 max-w-md font-sans text-sm leading-6 text-ghost-grey">
+            Get early access to anvil and help shape trustworthy AI-assisted software engineering.
+          </p>
+        </div>
 
-            {/* Interactive Terminal Box */}
-            <div
-              onClick={handleTerminalClick}
-              className="bg-surface border border-structure px-4 py-3 space-y-2 cursor-text text-xs sm:text-sm"
-            >
-              {/* Status/Context Line */}
-              <div className="flex items-center gap-2 text-text-muted">
-                <span className="text-edda">-&gt;</span>
-                <span className="text-anvil">~/eddacraft/anvil</span>
-                <span className="text-structure">.</span>
-                <span>main</span>
-              </div>
+        <div className="min-w-0 border border-structure bg-void p-4 text-xs sm:p-5 sm:text-sm">
+          <div className="mb-4 flex items-center gap-2 text-ghost-grey">
+            <span className="text-edda">-&gt;</span>
+            <span className="text-anvil">~/eddacraft/anvil</span>
+            <span className="text-structure">.</span>
+            <span>main</span>
+          </div>
 
-              {/* Input Line */}
-              <form
-                onSubmit={handleSubmit}
-                onKeyDown={handleKeyDown}
-                className="flex items-center gap-3"
-              >
-                <span className="text-text-muted">$</span>
-                <span className="text-text-primary">request access</span>
-                {!submitted ? (
-                  <>
-                    <input
-                      ref={inputRef}
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.dev"
-                      className="flex-1 min-w-0 bg-transparent text-text-primary placeholder:text-text-muted/50 outline-none border-none"
-                      autoComplete="email"
-                      disabled={isSubmitting}
-                    />
-                    {isSubmitting ? (
-                      <span className="text-text-muted animate-pulse">...</span>
-                    ) : (
-                      <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-text-muted">{email}</span>
-                )}
-              </form>
-
-              {/* Error Display */}
-              {submitError && (
-                <div className="flex items-center gap-3">
-                  <span className="text-text-muted opacity-0">$</span>
-                  <span className="text-red-500">[ ERROR ] {submitError}</span>
-                </div>
-              )}
-
-              {/* Warning Display */}
-              {submitted && submitWarning && (
-                <div className="flex items-center gap-3">
-                  <span className="text-text-muted opacity-0">$</span>
-                  <span className="text-amber-400">{submitWarning}</span>
-                </div>
-              )}
-
-              {/* Response Lines with Typewriter */}
-              {displayedLines.map((line, index) => (
-                <div key={line.id} className="flex items-center gap-3">
-                  <span className="text-text-muted opacity-0">$</span>
-                  <span className={line.colorClass}>{line.text}</span>
-                  {index === currentLineIndex &&
-                    currentCharIndex <
-                      buildResponseLines(email, submitWarning, emailFailed)[index]?.text.length && (
-                      <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
-                    )}
-                </div>
-              ))}
-
-              {/* Final Prompt */}
-              {showFinalCursor && (
-                <div className="flex items-center gap-3 mt-2">
-                  <span className="text-text-muted">$</span>
-                  <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
-                </div>
-              )}
-            </div>
-
-            {/* Instructions / Reset */}
-            <div className="text-center text-[10px] sm:text-xs text-text-muted">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label htmlFor="waitlist-email" className="sr-only">
+              Work email
+            </label>
+            <div className="flex min-w-0 flex-1 items-center gap-3 border border-structure bg-surface px-3 py-3 focus-within:border-anvil">
+              <span className="text-anvil">$</span>
+              <span className="whitespace-nowrap text-off-white">request access</span>
               {!submitted ? (
-                <p>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    className="bg-transparent border-none p-0 font-mono text-[10px] sm:text-xs text-text-muted cursor-pointer hover:text-text-primary transition-colors"
-                  >
-                    <span className="text-text-primary">enter</span> submit
-                  </button>
-                  <span className="text-structure mx-2">::</span>
-                  <span className="text-text-primary">esc</span> clear
+                <input
+                  id="waitlist-email"
+                  ref={inputRef}
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      setEmail('');
+                      inputRef.current?.focus();
+                    }
+                  }}
+                  placeholder="you@example.dev"
+                  className="min-w-0 flex-1 border-none bg-transparent text-off-white outline-none placeholder:text-ghost-grey/60"
+                  autoComplete="email"
+                  disabled={isSubmitting}
+                />
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-ghost-grey">{email}</span>
+              )}
+            </div>
+            {!submitted ? (
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="border border-anvil bg-anvil px-5 py-3 text-xs uppercase tracking-wide text-void transition-colors hover:bg-anvil/90 disabled:opacity-50"
+              >
+                {isSubmitting ? 'sending...' : '[ = ] request access'}
+              </button>
+            ) : null}
+          </form>
+
+          {submitError ? (
+            <p className="mt-3 text-brick-red" role="alert">
+              [ ERR ] {submitError}
+            </p>
+          ) : null}
+          {submitted && submitWarning ? (
+            <p className="mt-3 text-dull-amber">{submitWarning}</p>
+          ) : null}
+
+          {displayedLines.length > 0 ? (
+            <div className="mt-4 space-y-1 border-t border-structure pt-4" aria-live="polite">
+              {displayedLines.map((line) => (
+                <p key={line.id} className={line.colorClass}>
+                  {line.text}
                 </p>
-              ) : showFinalCursor ? (
+              ))}
+              {showFinalCursor ? (
                 <button
+                  type="button"
                   onClick={reset}
-                  className="text-text-muted hover:text-text-primary transition-colors"
+                  className="mt-2 text-ghost-grey hover:text-off-white"
                 >
                   [ reset ]
                 </button>
               ) : null}
             </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="border-t border-structure">
+        <div className="site-container flex flex-col gap-4 py-5 text-[10px] uppercase tracking-wide text-ghost-grey sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-5">
+            <a href="https://docs.eddacraft.ai" className="hover:text-off-white">
+              docs
+            </a>
+            <a href="https://github.com/eddacraft" className="hover:text-off-white">
+              github
+            </a>
+            <a href="/security" className="hover:text-off-white">
+              security
+            </a>
+            <a href="/privacy" className="hover:text-off-white">
+              privacy
+            </a>
           </div>
-
-          {/* System Bar - Build Artifact Style */}
-          <div className="flex items-center gap-4 sm:gap-6 pt-6 sm:pt-8 border-t border-structure w-full justify-center flex-wrap text-[10px] sm:text-xs uppercase tracking-wide">
+          <div className="flex flex-wrap items-center gap-4">
             <button
+              type="button"
               onClick={() => setShowPreReleaseModal(true)}
-              className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors"
+              className="hover:text-edda"
             >
-              <span>LATEST:</span>
-              <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">
-                {ANVIL_VERSION}
-              </span>
-              <span className="text-structure">::</span>
-              <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">
-                {ANVIL_BUILD_HASH}
-              </span>
+              {ANVIL_VERSION} :: {ANVIL_BUILD_HASH}
             </button>
-
-            <a
-              href="/security"
-              className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors"
-            >
-              <span>ADVISORIES:</span>
-              <span className="text-edda">NONE</span>
-            </a>
-
-            <a
-              href="https://github.com/eddacraft"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors"
-            >
-              <span>GITHUB:</span>
-              <span className="text-text-primary">eddacraft</span>
-            </a>
-
-            <a href="/privacy" className="text-text-muted hover:text-edda transition-colors">
-              PRIVACY
-            </a>
-
-            <span className="text-text-muted/30">{'// (c) 2026 eddacraft, Inc.'}</span>
+            <span>© 2026 eddacraft</span>
           </div>
         </div>
       </div>
 
-      {/* Pre-Release Modal */}
-      {showPreReleaseModal && (
+      {showPreReleaseModal ? (
         <div
-          className="fixed inset-0 bg-void/90 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-void/90 p-4"
           onClick={() => setShowPreReleaseModal(false)}
         >
           <div
-            className="bg-surface border border-structure max-w-md w-full p-6 space-y-6"
-            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md space-y-5 border border-structure bg-surface p-6"
+            onClick={(event) => event.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="text-xs text-text-muted uppercase tracking-wide">
-              {'// PRE-RELEASE_NOTICE'}
+            <div className="text-xs uppercase tracking-wide text-ghost-grey">
+              {'// PRE_RELEASE_NOTICE'}
             </div>
-
-            {/* Modal Content */}
-            <div className="space-y-4">
-              <h3 className="text-lg sm:text-xl text-anvil tracking-tight">
-                anvil is in pre-release
-              </h3>
-              <p className="text-sm text-text-muted leading-relaxed">
-                We are onboarding engineering teams in controlled cohorts. Request access below to
-                join the next available slot.
-              </p>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
-                onClick={() => {
-                  setShowPreReleaseModal(false);
-                  setTimeout(() => {
-                    inputRef.current?.focus();
-                  }, 100);
-                }}
-                className="flex-1 border border-anvil bg-anvil/5 px-4 py-3 text-xs sm:text-sm text-anvil hover:bg-anvil/10 transition-colors uppercase tracking-wide"
-              >
-                Request Access
-              </button>
-              <button
-                onClick={() => setShowPreReleaseModal(false)}
-                className="flex-1 border border-structure px-4 py-3 text-xs sm:text-sm text-text-muted hover:text-text-primary hover:border-text-muted transition-colors uppercase tracking-wide"
-              >
-                Close
-              </button>
-            </div>
-
-            {/* Version Info */}
-            <div className="text-[10px] text-text-muted/50 pt-2 border-t border-structure">
-              build: {ANVIL_VERSION} :: {ANVIL_BUILD_HASH} :: pre-release
-            </div>
+            <h3 className="text-xl text-anvil">anvil is in pre-release</h3>
+            <p className="font-sans text-sm leading-6 text-ghost-grey">
+              Engineering teams are onboarding in controlled cohorts. Request access to join the
+              next available slot.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setShowPreReleaseModal(false);
+                window.setTimeout(() => inputRef.current?.focus(), 100);
+              }}
+              className="border border-anvil bg-anvil/5 px-4 py-3 text-xs uppercase tracking-wide text-anvil hover:bg-anvil/10"
+            >
+              Request access
+            </button>
           </div>
         </div>
-      )}
+      ) : null}
     </footer>
   );
 }
