@@ -93,33 +93,41 @@ pub(crate) fn shell_code_before_comment(line: &str) -> &str {
     let mut in_single_quote = false;
     let mut in_double_quote = false;
     let mut escaped = false;
-    let mut previous: Option<char> = None;
+    let mut at_word_start = true;
 
     for (index, character) in line.char_indices() {
         if escaped {
             escaped = false;
-            previous = Some(character);
+            at_word_start = false;
             continue;
         }
         if character == '\\' && !in_single_quote {
             escaped = true;
-            previous = Some(character);
+            at_word_start = false;
             continue;
         }
         match character {
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            '#' if !in_single_quote
-                && !in_double_quote
-                && previous.is_none_or(|before| {
-                    before.is_whitespace() || matches!(before, ';' | '|' | '&' | '(' | ')')
-                }) =>
-            {
+            '\'' if !in_double_quote => {
+                in_single_quote = !in_single_quote;
+                at_word_start = false;
+            }
+            '"' if !in_single_quote => {
+                in_double_quote = !in_double_quote;
+                at_word_start = false;
+            }
+            '#' if !in_single_quote && !in_double_quote && at_word_start => {
                 return &line[..index];
             }
-            _ => {}
+            character
+                if !in_single_quote
+                    && !in_double_quote
+                    && (character.is_whitespace()
+                        || matches!(character, ';' | '|' | '&' | '(' | ')')) =>
+            {
+                at_word_start = true;
+            }
+            _ => at_word_start = false,
         }
-        previous = Some(character);
     }
     line
 }
@@ -194,7 +202,7 @@ fn pipeline_wrapper_option_takes_value(wrapper: &str, flag: &str) -> bool {
                 | "--chdir"
                 | "--login-class"
         ),
-        "env" => matches!(flag, "-C" | "--chdir" | "-u" | "--unset"),
+        "env" => matches!(flag, "-C" | "--chdir" | "-u" | "--unset" | "-a" | "--argv0"),
         "nice" => matches!(flag, "-n" | "--adjustment"),
         "time" => matches!(flag, "-f" | "--format" | "-o" | "--output"),
         "strace" => matches!(
@@ -243,7 +251,7 @@ fn skip_pipeline_wrapper(tokens: &[String], index: usize, wrapper: &str) -> usiz
 /// First executable in a pipeline stage after skipping grammar prefixes and
 /// sudo/env/timeout/busybox, but **not** peeling `sh`/`bash -c`.
 #[must_use]
-pub fn pipeline_stage_head(raw: &str) -> String {
+pub(crate) fn pipeline_stage_parts(raw: &str) -> (String, Vec<String>) {
     let tokens = tokenise(raw);
     let mut index = 0;
     while index < tokens.len() {
@@ -271,11 +279,21 @@ pub fn pipeline_stage_head(raw: &str) -> String {
             continue;
         }
         if name_l == "busybox" && index + 1 < tokens.len() {
-            return normalise_command_name(&tokens[index + 1]);
+            return (
+                normalise_command_name(&tokens[index + 1]),
+                tokens[index + 2..].to_vec(),
+            );
         }
-        return name;
+        return (name, tokens[index + 1..].to_vec());
     }
-    String::new()
+    (String::new(), Vec::new())
+}
+
+/// First executable in a pipeline stage after skipping grammar prefixes and
+/// supported wrappers, while retaining shell executables such as `bash -c`.
+#[must_use]
+pub fn pipeline_stage_head(raw: &str) -> String {
+    pipeline_stage_parts(raw).0
 }
 
 #[must_use]
@@ -347,6 +365,54 @@ fn push_current_word(tokens: &mut Vec<ShellToken>, current: &mut String) {
 }
 
 #[must_use]
+fn updated_substitution_depth(depth: usize, character: char) -> usize {
+    match character {
+        '(' => depth + 1,
+        ')' => depth.saturating_sub(1),
+        _ => depth,
+    }
+}
+
+fn consume_single_quoted(
+    character: char,
+    in_single_quote: &mut bool,
+    current: &mut String,
+    preserve_single_quote: &mut bool,
+) -> bool {
+    if !*in_single_quote {
+        return false;
+    }
+    if character == '\'' {
+        *in_single_quote = false;
+        close_single_quote(current, preserve_single_quote);
+    } else {
+        current.push(character);
+    }
+    true
+}
+
+fn consume_double_quoted(
+    character: char,
+    in_double_quote: &mut bool,
+    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
+    current: &mut String,
+) -> bool {
+    if !*in_double_quote {
+        return false;
+    }
+    if character == '\\' {
+        if let Some(next) = chars.next() {
+            current.push(next);
+        }
+    } else if character == '"' {
+        *in_double_quote = false;
+    } else {
+        current.push(character);
+    }
+    true
+}
+
+#[must_use]
 fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut tokens = Vec::new();
     let mut current = String::new();
@@ -354,30 +420,31 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut in_single_quote = false;
     let mut in_double_quote = false;
     let mut preserve_single_quote = false;
+    let mut substitution_depth = 0usize;
 
     while let Some(ch) = chars.next() {
-        if in_single_quote {
-            if ch == '\'' {
-                in_single_quote = false;
-                close_single_quote(&mut current, &mut preserve_single_quote);
-            } else {
-                current.push(ch);
-            }
+        if consume_single_quoted(
+            ch,
+            &mut in_single_quote,
+            &mut current,
+            &mut preserve_single_quote,
+        ) {
             continue;
         }
 
-        if in_double_quote {
-            if ch == '\\' {
-                if let Some(next) = chars.next() {
-                    current.push(next);
-                }
-                continue;
-            }
-            if ch == '"' {
-                in_double_quote = false;
-            } else {
-                current.push(ch);
-            }
+        if consume_double_quoted(ch, &mut in_double_quote, &mut chars, &mut current) {
+            continue;
+        }
+
+        if substitution_depth > 0 {
+            current.push(ch);
+            substitution_depth = updated_substitution_depth(substitution_depth, ch);
+            continue;
+        }
+        if matches!(ch, '$' | '<') && chars.peek() == Some(&'(') {
+            current.push(ch);
+            current.push(chars.next().expect("peeked opening parenthesis"));
+            substitution_depth = 1;
             continue;
         }
 
@@ -516,7 +583,7 @@ fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
 
 #[must_use]
 fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
-    const ENV_OPTIONS_WITH_VALUE: &[&str] = &["-C", "--chdir", "-u", "--unset"];
+    const ENV_OPTIONS_WITH_VALUE: &[&str] = &["-C", "--chdir", "-u", "--unset", "-a", "--argv0"];
 
     let mut start_index = 1;
     while start_index < tokens.len() {
@@ -925,7 +992,12 @@ fn parse_from_tokens(
     let subcommand = extract_subcommand(&command, &rest);
 
     let global_opts = global_options_for(&command);
-    let remaining_args = {
+    let remaining_args = if command == "eval" {
+        rest.iter()
+            .filter(|token| token.as_str() != "--")
+            .cloned()
+            .collect()
+    } else {
         let mut filtered = Vec::new();
         let mut skip_next = false;
         let mut past_separator = false;
@@ -1208,6 +1280,12 @@ mod tests {
     }
 
     #[test]
+    fn escaped_space_does_not_start_a_shell_comment() {
+        let line = r"echo foo\ #not-comment";
+        assert_eq!(super::shell_code_before_comment(line), line);
+    }
+
+    #[test]
     fn parses_compound_commands() {
         let result = parse_compound_command("git add . && git push --force");
         assert!(result.is_compound);
@@ -1386,8 +1464,19 @@ mod tests {
             ("strace -o trace.log curl https://x", "curl"),
             ("timeout -s TERM 5 sh", "sh"),
             ("exec -a installer sh", "sh"),
+            ("env -a installer curl https://x", "curl"),
+            ("env --argv0 shell sh", "sh"),
         ] {
             assert_eq!(super::pipeline_stage_head(raw), expected, "raw={raw}");
+        }
+    }
+
+    #[test]
+    fn eval_preserves_dash_leading_dynamic_operands() {
+        for raw in [r#"eval "-$cmd""#, r#"eval "-$(printf dynamic)""#] {
+            let parsed = parse_command(raw);
+            assert_eq!(parsed.command, "eval");
+            assert_eq!(parsed.args.len(), 1, "raw={raw} parsed={parsed:?}");
         }
     }
 

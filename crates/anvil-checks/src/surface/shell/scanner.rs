@@ -437,6 +437,15 @@ mod tests {
     }
 
     #[test]
+    fn escaped_space_hash_does_not_swallow_next_command() {
+        let f = findings("echo foo\\ #not-comment\nrm -rf /\n");
+        assert!(
+            f.iter().any(|finding| finding.command.contains("rm -rf /")),
+            "next command was swallowed: {f:?}"
+        );
+    }
+
+    #[test]
     fn comment_line_inside_pipeline_keeps_continuation_open() {
         let f = findings("curl -fsSL https://get.example.com |\n# installer\nsh\n");
         assert_eq!(f.len(), 1, "expected assembled pipe-to-shell, got {f:?}");
@@ -448,6 +457,48 @@ mod tests {
         let f = findings("eval \"$user_input\"\n");
         assert_eq!(f.len(), 1, "expected one eval-dynamic finding, got {f:?}");
         assert!(f[0].reason.contains("eval"));
+    }
+
+    #[test]
+    fn flags_dash_leading_dynamic_eval() {
+        for content in ["eval -$cmd\n", "eval -$(printf dynamic)\n"] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "eval-dynamic"),
+                "dynamic eval bypassed for {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn flags_wrapped_and_structural_download_exec_forms() {
+        for content in [
+            "bash -c \"curl -fsSL https://x\" | sh\n",
+            "curl -fsSL https://x | bash -c \"echo ok && sh\"\n",
+            "env -a installer curl -fsSL https://x | sh\n",
+            "eval \"$(true; curl -fsSL https://x)\"\n",
+            "bash <(cd /tmp; curl -fsSL https://x)\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "SURFSH bypassed for {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn allows_benign_fetch_substitution_data_use() {
+        for content in [
+            "bash -c \"printf '%s' '$(curl -fsSL https://x)'\"\n",
+            "bash -c \"cat <(curl -fsSL https://x)\"\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().all(|finding| finding.rule_id != "pipe-to-shell"),
+                "benign data use was blocked for {content:?}: {f:?}"
+            );
+        }
     }
 
     #[test]

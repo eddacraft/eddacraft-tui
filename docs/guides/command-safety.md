@@ -23,7 +23,7 @@ variants from dangerous ones.
 - Semantic command analysis (not just regex matching)
 - 39 default rules for git, filesystem, and shell operations
 - Shell wrapper unwrapping (`bash -c`, `sudo`, `env`)
-- Configurable via `.anvilrc`
+- Configurable for direct Rust API consumers
 - Clear blocking messages with safe alternatives
 
 ## Quick Start
@@ -152,12 +152,16 @@ Found 1 potentially dangerous command(s):
 
 ## Configuration
 
-See [Command Safety Configuration](./command-safety-configuration.md) for:
+Direct Rust API consumers can use
+[Command Safety Configuration](./command-safety-configuration.md) for:
 
 - Disabling specific rules
 - Changing rule severity (block → warn)
 - Adding custom rules
 - Working directory restrictions
+
+`anvil gate` does not currently wire this configuration and hard-pins the check.
+The live gate rollback is `--skip-checks=command-safety`.
 
 ## How Commands Are Extracted
 
@@ -186,16 +190,6 @@ descriptions without code blocks are also checked.
 
 ```bash
 anvil gate plan.md --skip-checks=command-safety
-
-# Profile (dev profile skips some checks)
-anvil gate plan.md --profile=dev
-```
-
-### Environment Variable
-
-```bash
-export ANVIL_SKIP_GATES=command-safety
-anvil gate plan.md
 ```
 
 ### Direct Library Configuration

