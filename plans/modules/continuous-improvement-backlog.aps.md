@@ -10794,7 +10794,7 @@ lost-append claim and confirms **CIB-345**. Finding 2 is new.
 
 ## Pack-08 intake (Dave 0.9.5-beta retest, 2026-08-17)
 
-Source: `/home/aneki/Projects/tmp/anvil-beta/Dave/2026-08-17-anvil-095-retest-result-for-*.md`.
+Source: Dave pack-08 drop (2026-08-17 `anvil-095-retest-result` notes).
 Side-by-side CLI retest (`EDDACRAFT_ANVIL_INSTALL_DIR`, PATH untouched).
 Does not cover witness hooks, install_method, or a 60-token B16 recall.
 
