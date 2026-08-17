@@ -15,12 +15,12 @@
 /// Regex passed to `git config --unset-all` to remove only Anvil-managed
 /// `hook.<event>.command` entries. It recognises the legacy quality-gate
 /// commands and the dedicated L3/L4 runtime commands used by current installs.
-pub const ANVIL_CONFIG_HOOK_PATTERN: &str =
-    "^ANVIL_HOOK=1 anvil (gate([[:space:]]|$)|hook (pre-commit|pre-push)([[:space:]]|$))";
+pub const ANVIL_CONFIG_HOOK_PATTERN: &str = "^ANVIL_HOOK=1 anvil (gate([[:space:]]|$)|hook (pre-commit|post-commit|pre-push)([[:space:]]|$))";
 
 const ANVIL_CONFIG_HOOK_COMMANDS: &[&str] = &[
     "ANVIL_HOOK=1 anvil gate",
     "ANVIL_HOOK=1 anvil hook pre-commit",
+    "ANVIL_HOOK=1 anvil hook post-commit",
     "ANVIL_HOOK=1 anvil hook pre-push",
 ];
 
@@ -56,6 +56,7 @@ mod tests {
         assert!(ANVIL_CONFIG_HOOK_PATTERN.starts_with('^'));
         assert!(ANVIL_CONFIG_HOOK_PATTERN.contains("gate"));
         assert!(ANVIL_CONFIG_HOOK_PATTERN.contains("pre-commit"));
+        assert!(ANVIL_CONFIG_HOOK_PATTERN.contains("post-commit"));
         assert!(ANVIL_CONFIG_HOOK_PATTERN.contains("pre-push"));
     }
 
@@ -66,6 +67,12 @@ mod tests {
             "ANVIL_HOOK=1 anvil gate --progress"
         ));
         assert!(is_anvil_managed_command("ANVIL_HOOK=1 anvil gate"));
+        assert!(is_anvil_managed_command(
+            "ANVIL_HOOK=1 anvil hook pre-commit"
+        ));
+        assert!(is_anvil_managed_command(
+            "ANVIL_HOOK=1 anvil hook post-commit"
+        ));
         assert!(is_anvil_managed_command("ANVIL_HOOK=1 anvil hook pre-push"));
     }
 

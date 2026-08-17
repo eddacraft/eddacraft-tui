@@ -121,8 +121,11 @@ fn hooks_install_config_writes_command_for_pre_commit_and_pre_push() {
     let pre_commit = config_get_all(dir.path(), "hook.pre-commit.command");
     assert_eq!(
         pre_commit,
-        vec!["ANVIL_HOOK=1 anvil gate --progress".to_string()],
-        "pre-commit config-mode entry must round-trip",
+        vec![
+            "ANVIL_HOOK=1 anvil gate --progress".to_string(),
+            "ANVIL_HOOK=1 anvil hook pre-commit".to_string(),
+        ],
+        "pre-commit config-mode must install gate + L3 witness",
     );
 
     let pre_push = config_get_all(dir.path(), "hook.pre-push.command");
@@ -130,6 +133,13 @@ fn hooks_install_config_writes_command_for_pre_commit_and_pre_push() {
         pre_push,
         vec!["ANVIL_HOOK=1 anvil hook pre-push".to_string()],
         "pre-push config-mode entry must round-trip",
+    );
+
+    let post_commit = config_get_all(dir.path(), "hook.post-commit.command");
+    assert_eq!(
+        post_commit,
+        vec!["ANVIL_HOOK=1 anvil hook post-commit".to_string()],
+        "post-commit config-mode must bind HEAD via L3 witness",
     );
 
     // No file-mode hooks should have been written when --config is used.
@@ -140,6 +150,10 @@ fn hooks_install_config_writes_command_for_pre_commit_and_pre_push() {
     assert!(
         !dir.path().join(".git/hooks/pre-push").exists(),
         "config mode must not write .git/hooks/pre-push",
+    );
+    assert!(
+        !dir.path().join(".git/hooks/post-commit").exists(),
+        "config mode must not write .git/hooks/post-commit",
     );
     assert!(
         !dir.path().join(".husky").exists(),
@@ -191,6 +205,10 @@ fn hooks_uninstall_config_clears_command_entries() {
         config_get_all(dir.path(), "hook.pre-push.command").is_empty(),
         "pre-push config-mode entry must be removed",
     );
+    assert!(
+        config_get_all(dir.path(), "hook.post-commit.command").is_empty(),
+        "post-commit config-mode entry must be removed",
+    );
 }
 
 #[test]
@@ -217,7 +235,11 @@ fn hooks_install_config_does_not_stack_duplicates_on_repeat() {
     }
 
     let pre_commit = config_get_all(dir.path(), "hook.pre-commit.command");
-    assert_eq!(pre_commit.len(), 1, "install must be idempotent");
+    assert_eq!(
+        pre_commit.len(),
+        2,
+        "install must be idempotent (gate + L3 witness, no extras)"
+    );
 }
 
 #[test]
@@ -292,7 +314,87 @@ fn hooks_install_config_warns_when_file_mode_hook_already_exists() {
         stdout.contains("Duplicate-execution risk"),
         "expected coexistence warning in stdout, got:\n{stdout}",
     );
-    // And the config entry must still be written.
+    // And the config entries must still be written.
     let pre_commit = config_get_all(dir.path(), "hook.pre-commit.command");
-    assert_eq!(pre_commit.len(), 1);
+    assert_eq!(
+        pre_commit.len(),
+        2,
+        "pre-commit must install gate + witness"
+    );
+    let post_commit = config_get_all(dir.path(), "hook.post-commit.command");
+    assert_eq!(
+        post_commit.len(),
+        1,
+        "--pre-commit-only still installs post-commit"
+    );
+}
+
+/// File-mode `hooks install` writes gate + L3 witness on pre-commit and a
+/// managed post-commit. A full `git commit` + audit-chain fixture is left
+/// to manual/operator verification — this pins the installed hook bodies.
+#[test]
+fn hooks_install_file_mode_writes_gate_and_l3_witness() {
+    let dir = tempfile::tempdir().unwrap();
+    git_init(dir.path());
+
+    let output = Command::new(ANVIL_BIN)
+        .arg("--no-tui")
+        .args(["hooks", "install"])
+        .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
+        .output()
+        .expect("invoking anvil hooks install");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "hooks install must exit 0\nstdout: {stdout}\nstderr: {stderr}",
+    );
+
+    let pre_commit = std::fs::read_to_string(dir.path().join(".git/hooks/pre-commit"))
+        .expect("file-mode pre-commit must be written");
+    assert!(
+        pre_commit.contains("anvil gate --progress"),
+        "file-mode pre-commit must keep the quality gate: {pre_commit}",
+    );
+    assert!(
+        pre_commit.contains("hook pre-commit"),
+        "file-mode pre-commit must run L3 witness: {pre_commit}",
+    );
+
+    let post_commit = std::fs::read_to_string(dir.path().join(".git/hooks/post-commit"))
+        .expect("file-mode post-commit must be written");
+    assert!(
+        post_commit.contains("hook post-commit"),
+        "file-mode post-commit must bind HEAD: {post_commit}",
+    );
+
+    let pre_push = std::fs::read_to_string(dir.path().join(".git/hooks/pre-push"))
+        .expect("file-mode pre-push must be written");
+    assert!(
+        pre_push.contains("hook pre-push"),
+        "file-mode pre-push must stay on the L4 runtime: {pre_push}",
+    );
+
+    assert!(
+        stdout.contains("L3 witness") || stdout.contains("hook pre-commit"),
+        "install summary must name the witness step:\n{stdout}",
+    );
+
+    let status = Command::new(ANVIL_BIN)
+        .arg("--no-tui")
+        .args(["hooks", "status"])
+        .current_dir(dir.path())
+        .env("HOME", dir.path())
+        .env("GIT_CEILING_DIRECTORIES", discovery_ceiling(dir.path()))
+        .output()
+        .expect("invoking anvil hooks status");
+    let status_out = String::from_utf8_lossy(&status.stdout);
+    assert!(status.status.success(), "hooks status must exit 0");
+    assert!(
+        status_out.contains("L3 witness") || status_out.contains("SHA-binding"),
+        "hooks status must name the witness step:\n{status_out}",
+    );
 }

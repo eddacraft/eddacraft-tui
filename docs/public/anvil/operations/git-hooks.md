@@ -2,7 +2,8 @@
 id: git-hooks
 title: Add Git hooks
 description:
-  Install, inspect, and remove anvil-managed pre-commit and pre-push checks.
+  Install, inspect, and remove anvil-managed pre-commit, post-commit, and
+  pre-push checks.
 owner: GHOOK
 upstream:
   - crates/anvil-cli/src/commands/hooks.rs
@@ -17,7 +18,8 @@ verified_against: 0.9.0-beta
 
 **Time:** 5 minutes
 
-**Outcome:** local commits or pushes run anvil-managed checks
+**Outcome:** local commits run the quality gate and L3 witness; pushes run L4
+validation
 
 ## Before you begin
 
@@ -30,7 +32,12 @@ reproduce or recover from.
 anvil hooks install
 ```
 
-This installs the default pre-commit and pre-push hooks. For one event only:
+This installs the default pre-commit, post-commit, and pre-push hooks.
+Pre-commit still runs `anvil gate --progress` and also runs
+`anvil hook pre-commit` (L3 witness append). Post-commit runs
+`anvil hook post-commit` so HEAD is SHA-bound. Pre-push stays on
+`anvil hook pre-push`. `--config` mode installs the same verbs.
+`--pre-commit-only` installs the commit-side pair (pre-commit + post-commit):
 
 ```text
 anvil hooks install --pre-commit-only

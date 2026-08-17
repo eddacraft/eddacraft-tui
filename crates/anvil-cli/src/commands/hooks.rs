@@ -15,7 +15,7 @@ pub struct HooksArgs {
 
 #[derive(Debug, clap::Subcommand)]
 enum HooksCommand {
-    /// Install anvil git hooks (pre-commit and pre-push)
+    /// Install anvil git hooks (pre-commit, post-commit, and pre-push)
     Install {
         /// Overwrite existing hooks
         #[arg(long, short)]
@@ -67,6 +67,8 @@ const HOOK_COMPAT_DOC: &str = "docs/guides/git-hook-compatibility.md";
 /// for uninstall — matched by `ANVIL_CONFIG_HOOK_PATTERN` (re-exported from
 /// `anvil_kernel_types::hooks`).
 const PRE_COMMIT_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate --progress";
+const PRE_COMMIT_WITNESS_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil hook pre-commit";
+const POST_COMMIT_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil hook post-commit";
 const PRE_PUSH_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil hook pre-push";
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
@@ -78,6 +80,19 @@ ANVIL_HOOK=1 anvil gate --progress || {
   echo "anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git commit"
   exit 1
 }
+# L3 witness append — quality-gate-only install leaves audit-chain dark (CIB-346).
+ANVIL_HOOK=1 anvil hook pre-commit || {
+  echo "anvil L3 witness append failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git commit"
+  exit 1
+}
+"#;
+
+const POST_COMMIT_HOOK: &str = r#"#!/bin/sh
+# @anvil-managed
+# anvil post-commit hook — binds HEAD so the pre-commit witness is SHA-bound
+[ "$ANVIL_SKIP_HOOKS" = "1" ] && exit 0
+command -v anvil >/dev/null 2>&1 || { echo "anvil not found on PATH, skipping hook"; exit 0; }
+exec anvil hook post-commit
 "#;
 
 const PRE_PUSH_HOOK: &str = r#"#!/bin/sh
@@ -96,6 +111,17 @@ const SH_LESS_HOOK_WARNING: &str = "No POSIX `sh` interpreter was found on PATH 
      The installed file hooks are `#!/bin/sh` scripts and will not execute in this environment, so \
      commit/push gates will not run. Install Git for Windows (which bundles `sh`) or add `sh` to \
      PATH; on Git 2.54+ you can instead use `anvil hooks install --config`.";
+
+/// Human label for what a managed hook event does. Shared by `hooks status`
+/// so the L3 witness step is named (CIB-346).
+fn hook_event_role(hook: &str) -> &'static str {
+    match hook {
+        "pre-commit" => "quality gate + L3 witness",
+        "post-commit" => "L3 SHA-binding witness",
+        "pre-push" => "L4 pushed-range validation",
+        _ => "",
+    }
+}
 
 /// Advisory warnings for a file-mode `hooks install`, keyed off the detected
 /// hook interpreter status. Only a *definitive* [`HookInterpreterStatus::Missing`]
@@ -182,17 +208,23 @@ fn install_hook(hooks_dir: &Path, name: &str, content: &str, force: bool) -> Res
 
     if existed_before && !force {
         if is_anvil_managed(&path) {
+            let current = std::fs::read_to_string(&path).unwrap_or_default();
+            if current == content {
+                return Ok(HookResult {
+                    hook: name.to_string(),
+                    action: "skipped".to_string(),
+                    message: format!("{name} already installed (anvil-managed)"),
+                });
+            }
+            // Owned hook is stale (e.g. gate-only pre-commit from before
+            // CIB-346). Refresh the body without requiring --force.
+        } else {
             return Ok(HookResult {
                 hook: name.to_string(),
                 action: "skipped".to_string(),
-                message: format!("{name} already installed (anvil-managed)"),
+                message: format!("{name} exists but is not anvil-managed (use --force)"),
             });
         }
-        return Ok(HookResult {
-            hook: name.to_string(),
-            action: "skipped".to_string(),
-            message: format!("{name} exists but is not anvil-managed (use --force)"),
-        });
     }
 
     if existed_before && force {
@@ -590,18 +622,22 @@ pub(crate) fn config_hooks_enabled(workspace_root: &Path, event: &str) -> bool {
     !matches!(raw.as_str(), "false" | "0" | "off" | "no")
 }
 
-/// Install one config-mode hook. Skips when an anvil-managed entry already
-/// exists for `event`, so re-running `install --config` is a no-op.
-fn install_config_hook(
+/// Install the canonical set of anvil-managed commands for `event`.
+///
+/// Skips when every `command` is already present so re-running
+/// `install --config` is a no-op. Missing commands are added without
+/// `--force` so a legacy gate-only install upgrades to gate + L3 witness.
+/// `--force` replaces the whole anvil-managed set for this event.
+fn install_config_event_commands(
     workspace_root: &Path,
     event: &str,
-    command: &str,
+    commands: &[&str],
     force: bool,
 ) -> Result<HookResult> {
     let existing = list_config_hook_commands(workspace_root, event)?;
-    let already_managed = existing.iter().any(|c| is_anvil_managed_command(c));
+    let already_complete = commands.iter().all(|cmd| existing.iter().any(|c| c == cmd));
 
-    if already_managed && !force {
+    if already_complete && !force {
         return Ok(HookResult {
             hook: event.to_string(),
             action: "skipped".to_string(),
@@ -609,8 +645,10 @@ fn install_config_hook(
         });
     }
 
-    if force && already_managed {
-        // Replace the existing anvil-managed entry so we do not stack
+    let had_managed = existing.iter().any(|c| is_anvil_managed_command(c));
+
+    if force && had_managed {
+        // Replace the existing anvil-managed set so we do not stack
         // duplicates after repeated `--force` runs.
         git_config(
             workspace_root,
@@ -620,23 +658,42 @@ fn install_config_hook(
                 ANVIL_CONFIG_HOOK_PATTERN,
             ],
         )?;
+        for command in commands {
+            git_config(
+                workspace_root,
+                &["--add", &format!("hook.{event}.command"), command],
+            )?;
+        }
+    } else {
+        for command in commands {
+            if existing.iter().any(|c| c == command) {
+                continue;
+            }
+            git_config(
+                workspace_root,
+                &["--add", &format!("hook.{event}.command"), command],
+            )?;
+        }
     }
 
-    git_config(
-        workspace_root,
-        &["--add", &format!("hook.{event}.command"), command],
-    )?;
-
-    let action = if already_managed {
-        "updated"
-    } else {
-        "created"
-    };
+    let action = if had_managed { "updated" } else { "created" };
     Ok(HookResult {
         hook: event.to_string(),
         action: action.to_string(),
         message: format!("{event} {action} (config-mode)"),
     })
+}
+
+/// Install one config-mode hook. Kept as a thin wrapper so existing unit
+/// tests can still target a single command.
+#[cfg(test)]
+fn install_config_hook(
+    workspace_root: &Path,
+    event: &str,
+    command: &str,
+    force: bool,
+) -> Result<HookResult> {
+    install_config_event_commands(workspace_root, event, &[command], force)
 }
 
 /// Remove anvil-managed config-mode entries for `event`. User-authored
@@ -964,8 +1021,9 @@ fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_ent
 /// Calls the inner primitives (`uninstall_hook`, `uninstall_config_hook`)
 /// directly across both file-mode locations (`.git/hooks/`, `.husky/`)
 /// and config-mode (Git 2.54 `hook.<event>.command`) for the
-/// pre-commit and pre-push events. Each primitive is a no-op when its
-/// target is not present, so the whole call is idempotent.
+/// pre-commit, post-commit, and pre-push events. Each primitive is a
+/// no-op when its target is not present, so the whole call is
+/// idempotent.
 ///
 /// Returns `Ok(())` when invoked outside a git repository — there is
 /// nothing to remove and that is not an error condition for uninstall.
@@ -988,11 +1046,13 @@ pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
             continue;
         }
         let _ = uninstall_hook(&dir, "pre-commit")?;
+        let _ = uninstall_hook(&dir, "post-commit")?;
         let _ = uninstall_hook(&dir, "pre-push")?;
     }
 
     // Config-mode hooks (Git 2.54 `hook.<event>.command`).
     let _ = uninstall_config_hook(&workspace_root, "pre-commit")?;
+    let _ = uninstall_config_hook(&workspace_root, "post-commit")?;
     let _ = uninstall_config_hook(&workspace_root, "pre-push")?;
 
     Ok(())
@@ -1007,13 +1067,13 @@ pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
 /// write Anvil-managed file-mode hooks under `.git/hooks/`. Existing unmanaged
 /// hooks are preserved by [`install_hook`]'s non-force skip semantics.
 ///
-/// CIB-164: returns whether **both** the commit and push hooks are actually
-/// anvil-managed after the call, so the first-run `verify:` block can claim
-/// L3/L4 hook coverage only when it is real. A non-Git directory, a missing
-/// `.git/hooks/` after a partial install, or a pre-existing *unmanaged* hook
-/// (which [`install_hook`] refuses to overwrite without `--force`) all yield
-/// `false` — the `.git`-exists heuristic previously used at the call site
-/// over-claimed in every one of those cases.
+/// CIB-164: returns whether the commit, SHA-binding, and push hooks are
+/// actually anvil-managed after the call, so the first-run `verify:` block
+/// can claim L3/L4 hook coverage only when it is real. A non-Git directory,
+/// a missing `.git/hooks/` after a partial install, or a pre-existing
+/// *unmanaged* hook (which [`install_hook`] refuses to overwrite without
+/// `--force`) all yield `false` — the `.git`-exists heuristic previously
+/// used at the call site over-claimed in every one of those cases.
 pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<bool> {
     // A non-Git directory has nowhere to install commit/push hooks, and that is
     // an expected, benign state — not an error. Returning `Err` here makes the
@@ -1042,12 +1102,15 @@ pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<b
     };
 
     let _ = install_hook(&hooks_dir, "pre-commit", PRE_COMMIT_HOOK, false)?;
+    let _ = install_hook(&hooks_dir, "post-commit", POST_COMMIT_HOOK, false)?;
     let _ = install_hook(&hooks_dir, "pre-push", PRE_PUSH_HOOK, false)?;
-    // Honest coverage check: the two hooks are only active if both files now
-    // exist AND carry the anvil marker. `install_hook` skips (without error) a
-    // pre-existing unmanaged hook, so a `created`/`updated`/`skipped` action does
-    // not on its own prove anvil owns the hook — read the disk state back.
+    // Honest coverage check: the commit, SHA-binding, and push hooks are
+    // only active if the files now exist AND carry the anvil marker.
+    // `install_hook` skips (without error) a pre-existing unmanaged hook,
+    // so a `created`/`updated`/`skipped` action does not on its own prove
+    // anvil owns the hook — read the disk state back.
     let managed = is_anvil_managed(&hooks_dir.join("pre-commit"))
+        && is_anvil_managed(&hooks_dir.join("post-commit"))
         && is_anvil_managed(&hooks_dir.join("pre-push"));
 
     // CIB-176: the file hooks are `#!/bin/sh` scripts. If this git environment
@@ -1080,6 +1143,7 @@ pub(crate) fn activation_hooks_active(workspace_root: &Path) -> Result<bool> {
         .1
         .unwrap_or_else(|| git_dir.join("hooks"));
     let managed = is_anvil_managed(&hooks_dir.join("pre-commit"))
+        && is_anvil_managed(&hooks_dir.join("post-commit"))
         && is_anvil_managed(&hooks_dir.join("pre-push"));
     Ok(managed && !matches!(hook_interpreter_status(), HookInterpreterStatus::Missing))
 }
@@ -1104,19 +1168,26 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 let mut reports: Vec<CoexistenceReport> = Vec::new();
                 if !*pre_push_only {
                     reports.push(detect_coexistence(&workspace_root, &git_dir, "pre-commit"));
-                    results.push(install_config_hook(
+                    results.push(install_config_event_commands(
                         &workspace_root,
                         "pre-commit",
-                        PRE_COMMIT_CONFIG_COMMAND,
+                        &[PRE_COMMIT_CONFIG_COMMAND, PRE_COMMIT_WITNESS_CONFIG_COMMAND],
+                        *force,
+                    )?);
+                    reports.push(detect_coexistence(&workspace_root, &git_dir, "post-commit"));
+                    results.push(install_config_event_commands(
+                        &workspace_root,
+                        "post-commit",
+                        &[POST_COMMIT_CONFIG_COMMAND],
                         *force,
                     )?);
                 }
                 if !*pre_commit_only {
                     reports.push(detect_coexistence(&workspace_root, &git_dir, "pre-push"));
-                    results.push(install_config_hook(
+                    results.push(install_config_event_commands(
                         &workspace_root,
                         "pre-push",
-                        PRE_PUSH_CONFIG_COMMAND,
+                        &[PRE_PUSH_CONFIG_COMMAND],
                         *force,
                     )?);
                 }
@@ -1164,9 +1235,12 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                         print_coexistence_report(report, managed_count);
                     }
                     crate::output::plain::blank();
-                    println!("  pre-commit: Runs quality gates ({PRE_COMMIT_CONFIG_COMMAND})");
                     println!(
-                        "  pre-push:   Runs L4 pushed-range validation ({PRE_PUSH_CONFIG_COMMAND})"
+                        "  pre-commit:  Runs quality gates and L3 witness ({PRE_COMMIT_CONFIG_COMMAND}; {PRE_COMMIT_WITNESS_CONFIG_COMMAND})"
+                    );
+                    println!("  post-commit: Binds HEAD SHA ({POST_COMMIT_CONFIG_COMMAND})");
+                    println!(
+                        "  pre-push:    Runs L4 pushed-range validation ({PRE_PUSH_CONFIG_COMMAND})"
                     );
                     crate::output::plain::blank();
                     println!("  Bypass: ANVIL_SKIP_HOOKS=1 git commit");
@@ -1199,6 +1273,12 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                     PRE_COMMIT_HOOK,
                     *force,
                 )?);
+                results.push(install_hook(
+                    &hooks_dir,
+                    "post-commit",
+                    POST_COMMIT_HOOK,
+                    *force,
+                )?);
             }
             if !*pre_commit_only {
                 results.push(install_hook(&hooks_dir, "pre-push", PRE_PUSH_HOOK, *force)?);
@@ -1228,8 +1308,11 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                     }
                 }
                 crate::output::plain::blank();
-                println!("  pre-commit: Runs quality gates (anvil gate --progress)");
-                println!("  pre-push:   Runs L4 pushed-range validation (anvil hook pre-push)");
+                println!(
+                    "  pre-commit:  Runs quality gates and L3 witness (anvil gate --progress, anvil hook pre-commit)"
+                );
+                println!("  post-commit: Binds HEAD SHA (anvil hook post-commit)");
+                println!("  pre-push:    Runs L4 pushed-range validation (anvil hook pre-push)");
                 crate::output::plain::blank();
                 println!("  Bypass: ANVIL_SKIP_HOOKS=1 git commit");
 
@@ -1259,6 +1342,8 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 if !*pre_push_only {
                     results.push(uninstall_config_hook(&workspace_root, "pre-commit")?);
                     reports.push(detect_coexistence(&workspace_root, &git_dir, "pre-commit"));
+                    results.push(uninstall_config_hook(&workspace_root, "post-commit")?);
+                    reports.push(detect_coexistence(&workspace_root, &git_dir, "post-commit"));
                 }
                 if !*pre_commit_only {
                     results.push(uninstall_config_hook(&workspace_root, "pre-push")?);
@@ -1302,6 +1387,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 }
                 if !*pre_push_only {
                     results.push(uninstall_hook(&dir, "pre-commit")?);
+                    results.push(uninstall_hook(&dir, "post-commit")?);
                 }
                 if !*pre_commit_only {
                     results.push(uninstall_hook(&dir, "pre-push")?);
@@ -1332,7 +1418,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 if !dir.exists() {
                     continue;
                 }
-                for hook_name in ["pre-commit", "pre-push"] {
+                for hook_name in ["pre-commit", "post-commit", "pre-push"] {
                     let path = dir.join(hook_name);
                     let installed = path.exists();
                     let anvil_managed = installed && is_anvil_managed(&path);
@@ -1352,7 +1438,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
             // `git config`.
             let mut coexistence: Vec<CoexistenceReport> = Vec::new();
             let mut anvil_managed_per_event: Vec<(String, usize)> = Vec::new();
-            for event in ["pre-commit", "pre-push"] {
+            for event in ["pre-commit", "post-commit", "pre-push"] {
                 coexistence.push(detect_coexistence(&workspace_root, &git_dir, event));
                 let managed = list_config_hook_commands(&workspace_root, event)
                     .unwrap_or_default()
@@ -1381,7 +1467,15 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                     } else {
                         "not installed"
                     };
-                    println!("  {}/{}: {indicator}", status.location, status.hook);
+                    let role = hook_event_role(&status.hook);
+                    if role.is_empty() {
+                        println!("  {}/{}: {indicator}", status.location, status.hook);
+                    } else {
+                        println!(
+                            "  {}/{}: {indicator} — {role}",
+                            status.location, status.hook
+                        );
+                    }
                 }
                 for (report, (_event, managed)) in
                     coexistence.iter().zip(anvil_managed_per_event.iter())
@@ -1471,19 +1565,71 @@ mod tests {
     #[test]
     fn hook_scripts_contain_marker() {
         assert!(PRE_COMMIT_HOOK.contains(ANVIL_HOOK_MARKER));
+        assert!(POST_COMMIT_HOOK.contains(ANVIL_HOOK_MARKER));
         assert!(PRE_PUSH_HOOK.contains(ANVIL_HOOK_MARKER));
     }
 
     #[test]
     fn hook_scripts_contain_skip_check() {
         assert!(PRE_COMMIT_HOOK.contains("ANVIL_SKIP_HOOKS"));
+        assert!(POST_COMMIT_HOOK.contains("ANVIL_SKIP_HOOKS"));
         assert!(PRE_PUSH_HOOK.contains("ANVIL_SKIP_HOOKS"));
     }
 
     #[test]
     fn hook_scripts_check_anvil_exists() {
         assert!(PRE_COMMIT_HOOK.contains("command -v anvil"));
+        assert!(POST_COMMIT_HOOK.contains("command -v anvil"));
         assert!(PRE_PUSH_HOOK.contains("command -v anvil"));
+    }
+
+    #[test]
+    fn pre_commit_hook_runs_quality_gate_and_l3_witness() {
+        // CIB-346: stock install must keep the quality gate and also run the
+        // L3 witness append. Gate-only pre-commit leaves audit-chain dark.
+        assert!(
+            PRE_COMMIT_HOOK.contains("anvil gate --progress"),
+            "default pre-commit must keep the quality gate",
+        );
+        assert!(
+            PRE_COMMIT_HOOK.contains("hook pre-commit"),
+            "default pre-commit must also run the L3 witness path",
+        );
+    }
+
+    #[test]
+    fn post_commit_hook_binds_head_sha() {
+        assert!(POST_COMMIT_HOOK.contains(ANVIL_HOOK_MARKER));
+        assert!(POST_COMMIT_HOOK.contains("hook post-commit"));
+        assert!(!POST_COMMIT_HOOK.contains("anvil gate"));
+        assert_eq!(
+            POST_COMMIT_CONFIG_COMMAND,
+            "ANVIL_HOOK=1 anvil hook post-commit"
+        );
+    }
+
+    #[test]
+    fn config_commands_include_gate_and_l3_witness() {
+        assert_eq!(
+            PRE_COMMIT_CONFIG_COMMAND,
+            "ANVIL_HOOK=1 anvil gate --progress"
+        );
+        assert_eq!(
+            PRE_COMMIT_WITNESS_CONFIG_COMMAND,
+            "ANVIL_HOOK=1 anvil hook pre-commit"
+        );
+        assert_eq!(
+            POST_COMMIT_CONFIG_COMMAND,
+            "ANVIL_HOOK=1 anvil hook post-commit"
+        );
+        assert_eq!(PRE_PUSH_CONFIG_COMMAND, "ANVIL_HOOK=1 anvil hook pre-push");
+    }
+
+    #[test]
+    fn hook_event_role_names_the_witness_step() {
+        assert_eq!(hook_event_role("pre-commit"), "quality gate + L3 witness");
+        assert_eq!(hook_event_role("post-commit"), "L3 SHA-binding witness");
+        assert_eq!(hook_event_role("pre-push"), "L4 pushed-range validation");
     }
 
     #[test]
@@ -1540,6 +1686,19 @@ mod tests {
         assert!(result.message.contains("already installed"));
     }
 
+    #[test]
+    fn install_hook_refreshes_stale_managed_pre_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let stale = "#!/bin/sh\n# @anvil-managed\nANVIL_HOOK=1 anvil gate --progress\n";
+        std::fs::write(dir.path().join("pre-commit"), stale).unwrap();
+
+        let result = install_hook(dir.path(), "pre-commit", PRE_COMMIT_HOOK, false).unwrap();
+        assert_eq!(result.action, "updated");
+        let installed = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        assert!(installed.contains("hook pre-commit"));
+        assert!(installed.contains("anvil gate --progress"));
+    }
+
     /// CIB-164: on a fresh Git repo both hooks are written and marked, so
     /// the honest coverage bool is `true` — the first-run `verify:` block may
     /// claim L3/L4 hook coverage.
@@ -1554,7 +1713,13 @@ mod tests {
             "a fresh Git repo must report both hooks anvil-managed"
         );
         assert!(is_anvil_managed(&dir.path().join(".git/hooks/pre-commit")));
+        assert!(is_anvil_managed(&dir.path().join(".git/hooks/post-commit")));
         assert!(is_anvil_managed(&dir.path().join(".git/hooks/pre-push")));
+        let pre_commit = std::fs::read_to_string(dir.path().join(".git/hooks/pre-commit")).unwrap();
+        assert!(
+            pre_commit.contains("hook pre-commit"),
+            "activation pre-commit must run the L3 witness path"
+        );
     }
 
     /// CIB-164: outside a Git repo there is nowhere to install hooks. The
@@ -1812,6 +1977,8 @@ mod tests {
         // Re-using the same predicate for install + uninstall keeps the
         // two paths in sync. This guards the predicate's behaviour.
         assert!(is_anvil_managed_command(PRE_COMMIT_CONFIG_COMMAND));
+        assert!(is_anvil_managed_command(PRE_COMMIT_WITNESS_CONFIG_COMMAND));
+        assert!(is_anvil_managed_command(POST_COMMIT_CONFIG_COMMAND));
         assert!(is_anvil_managed_command(PRE_PUSH_CONFIG_COMMAND));
         // A user-authored command that happens to set ANVIL_HOOK=1 but
         // does not invoke `anvil gate` must not be claimed as ours.
@@ -1826,6 +1993,8 @@ mod tests {
         // the marker prefix without updating the other, this trips first.
         let pattern = regex::Regex::new(ANVIL_CONFIG_HOOK_PATTERN).unwrap();
         assert!(pattern.is_match(PRE_COMMIT_CONFIG_COMMAND));
+        assert!(pattern.is_match(PRE_COMMIT_WITNESS_CONFIG_COMMAND));
+        assert!(pattern.is_match(POST_COMMIT_CONFIG_COMMAND));
         assert!(pattern.is_match(PRE_PUSH_CONFIG_COMMAND));
         assert!(!pattern.is_match("npm run lint-staged"));
     }
@@ -1903,6 +2072,39 @@ mod tests {
         // Idempotent uninstall: repeating returns "none".
         let none = uninstall_config_hook(dir.path(), "pre-commit").unwrap();
         assert_eq!(none.action, "none");
+    }
+
+    /// CIB-346: a legacy gate-only config install must gain the L3 witness
+    /// command on a subsequent `install --config` without `--force`.
+    #[test]
+    fn config_install_upgrades_gate_only_pre_commit_to_include_witness() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false).unwrap();
+        assert_eq!(
+            list_config_hook_commands(dir.path(), "pre-commit").unwrap(),
+            vec![PRE_COMMIT_CONFIG_COMMAND.to_string()]
+        );
+
+        let upgraded = install_config_event_commands(
+            dir.path(),
+            "pre-commit",
+            &[PRE_COMMIT_CONFIG_COMMAND, PRE_COMMIT_WITNESS_CONFIG_COMMAND],
+            false,
+        )
+        .unwrap();
+        assert_eq!(upgraded.action, "updated");
+        assert_eq!(
+            list_config_hook_commands(dir.path(), "pre-commit").unwrap(),
+            vec![
+                PRE_COMMIT_CONFIG_COMMAND.to_string(),
+                PRE_COMMIT_WITNESS_CONFIG_COMMAND.to_string(),
+            ]
+        );
     }
 
     /// User-authored `hook.<event>.command` entries must NOT be removed by
