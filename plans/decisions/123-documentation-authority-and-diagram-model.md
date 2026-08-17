@@ -11,7 +11,7 @@ ADR-122; does not supersede them.
 
 ## Context
 
-anvil's documentation grew as a central corpus around a fast-moving monorepo.
+Anvil's documentation grew as a central corpus around a fast-moving monorepo.
 Readers must cross architecture guides, dated as-built documents, package
 READMEs, public pages, ADRs, and APS modules without a consistent rule for
 where a concern lives. The result is predictable:
