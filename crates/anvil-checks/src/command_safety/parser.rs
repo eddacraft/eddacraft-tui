@@ -5,11 +5,13 @@ use crate::command_safety::types::ParsedCommand;
 
 const MAX_UNWRAP_DEPTH: usize = 5;
 
-const SHELL_WRAPPERS: &[&str] = &["bash", "sh", "zsh", "dash"];
+const SHELL_WRAPPERS: &[&str] = &["bash", "sh", "zsh", "dash", "ash"];
 const PRIVILEGED_WRAPPERS: &[&str] = &["sudo", "doas"];
-const ENV_WRAPPERS: &[&str] = &["env", "command", "nohup", "nice", "time", "strace"];
+const ENV_WRAPPERS: &[&str] = &[
+    "env", "command", "builtin", "nohup", "nice", "time", "strace",
+];
 const INTERPRETER_COMMANDS: &[&str] = &["python", "python3", "node", "ruby", "perl", "php"];
-const SHELL_LIKE_INTERPRETERS: &[&str] = &["bash", "sh", "zsh", "dash"];
+const SHELL_LIKE_INTERPRETERS: &[&str] = &["bash", "sh", "zsh", "dash", "ash"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ShellToken {
@@ -172,7 +174,7 @@ pub(crate) fn starts_with_pipe(line: &str) -> bool {
 }
 
 const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
-    "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!", "builtin",
+    "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!",
 ];
 
 #[must_use]
@@ -364,12 +366,41 @@ fn push_current_word(tokens: &mut Vec<ShellToken>, current: &mut String) {
     }
 }
 
-#[must_use]
-fn updated_substitution_depth(depth: usize, character: char) -> usize {
-    match character {
-        '(' => depth + 1,
-        ')' => depth.saturating_sub(1),
-        _ => depth,
+#[derive(Default)]
+struct SubstitutionState {
+    depth: usize,
+    in_single_quote: bool,
+    in_double_quote: bool,
+    escaped: bool,
+}
+
+impl SubstitutionState {
+    fn begin(&mut self) {
+        self.depth = 1;
+    }
+
+    fn consume(&mut self, character: char) {
+        if self.escaped {
+            self.escaped = false;
+            return;
+        }
+        if character == '\\' && !self.in_single_quote {
+            self.escaped = true;
+            return;
+        }
+        match character {
+            '\'' if !self.in_double_quote => self.in_single_quote = !self.in_single_quote,
+            '"' if !self.in_single_quote => self.in_double_quote = !self.in_double_quote,
+            '(' if !self.in_single_quote && !self.in_double_quote => self.depth += 1,
+            ')' if !self.in_single_quote && !self.in_double_quote => {
+                self.depth = self.depth.saturating_sub(1);
+            }
+            _ => {}
+        }
+    }
+
+    fn active(&self) -> bool {
+        self.depth > 0
     }
 }
 
@@ -420,7 +451,7 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut in_single_quote = false;
     let mut in_double_quote = false;
     let mut preserve_single_quote = false;
-    let mut substitution_depth = 0usize;
+    let mut substitution = SubstitutionState::default();
 
     while let Some(ch) = chars.next() {
         if consume_single_quoted(
@@ -436,15 +467,15 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
             continue;
         }
 
-        if substitution_depth > 0 {
+        if substitution.active() {
             current.push(ch);
-            substitution_depth = updated_substitution_depth(substitution_depth, ch);
+            substitution.consume(ch);
             continue;
         }
         if matches!(ch, '$' | '<') && chars.peek() == Some(&'(') {
             current.push(ch);
             current.push(chars.next().expect("peeked opening parenthesis"));
-            substitution_depth = 1;
+            substitution.begin();
             continue;
         }
 
@@ -569,12 +600,16 @@ fn tokenise_with_operators(cmd: &str) -> TokenisedWithOperators {
 }
 
 #[must_use]
+pub(crate) fn shell_option_invokes_command(token: &str) -> bool {
+    token.starts_with('-')
+        && !token.starts_with("--")
+        && token.chars().skip(1).any(|character| character == 'c')
+}
+
+#[must_use]
 fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
     for (index, token) in tokens.iter().enumerate() {
-        if token == "-c" {
-            return tokens.get(index + 1).cloned();
-        }
-        if token.starts_with('-') && !token.starts_with("--") && token.ends_with('c') {
+        if shell_option_invokes_command(token) {
             return tokens.get(index + 1).cloned();
         }
     }
@@ -1326,6 +1361,14 @@ mod tests {
     }
 
     #[test]
+    fn substitution_parentheses_inside_quotes_do_not_hide_later_commands() {
+        let result = parse_compound_command(r"echo $(printf ')') && rm -rf /");
+        assert_eq!(result.commands.len(), 2, "result={result:?}");
+        assert_eq!(result.operators, vec!["&&"]);
+        assert_eq!(result.commands[1].command, "rm");
+    }
+
+    #[test]
     fn unwraps_sudo_wrappers() {
         let parsed = parse_command("sudo -u root git reset --hard");
         assert_eq!(parsed.command, "git");
@@ -1337,6 +1380,17 @@ mod tests {
         let parsed = parse_command("bash -c \"git push --force\"");
         assert_eq!(parsed.command, "git");
         assert_eq!(parsed.wrapper_chain, vec!["bash"]);
+    }
+
+    #[test]
+    fn unwraps_ash_and_builtin_wrappers() {
+        let ash = parse_command(r#"ash -c "git push --force""#);
+        assert_eq!(ash.command, "git");
+        assert_eq!(ash.wrapper_chain, vec!["ash"]);
+
+        let builtin = parse_command(r#"builtin eval "$cmd""#);
+        assert_eq!(builtin.command, "eval");
+        assert_eq!(builtin.wrapper_chain, vec!["builtin"]);
     }
 
     #[test]
