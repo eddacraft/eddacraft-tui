@@ -11,6 +11,14 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Fixed
+
+- **`--fail-on-warnings` now fails the four warn-only surface checks.**
+  `dockerfile`, `shell-scripts`, `sql-migrations`, and `github-actions` still
+  pass by default when they only have warnings. With `--fail-on-warnings` or
+  `ANVIL_FAIL_ON_WARNINGS=1`, an unsuppressed finding on those checks fails the
+  check and the gate exits non-zero. Anti-pattern behaviour is unchanged.
+
 ## [0.9.5-beta] — 2026-08-16 — MCP live-heal and config unification
 
 This window is about staying attached after an upgrade: daily `anvil`,

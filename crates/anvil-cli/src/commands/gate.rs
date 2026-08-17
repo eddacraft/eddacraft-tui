@@ -45,9 +45,10 @@ pub struct GateArgs {
     #[arg(long)]
     fail_fast: bool,
 
-    /// Treat warning-severity anti-pattern findings as blocking (exit non-zero).
-    /// Off by default (warnings do not block); also settable via
-    /// `ANVIL_FAIL_ON_WARNINGS`. Error-severity rules always block regardless.
+    /// Treat warning-severity findings as blocking (exit non-zero). Covers
+    /// anti-pattern warnings and the four warn-only surfaces (dockerfile,
+    /// shell-scripts, sql-migrations, github-actions). Off by default; also
+    /// settable via `ANVIL_FAIL_ON_WARNINGS`. Error-severity rules always block.
     #[arg(long)]
     fail_on_warnings: bool,
 
@@ -2465,12 +2466,31 @@ fn secret_pattern_errors_suffix(pattern_errors: &[String]) -> String {
     )
 }
 
+/// ADR-002 default is warn-only (`passed`, score 100). CIB-347:
+/// `--fail-on-warnings` / `ANVIL_FAIL_ON_WARNINGS` escalates unsuppressed
+/// surface findings so opted-in CI fails the check.
+fn surface_finding_verdict(fail_on_warnings: bool) -> (bool, f64) {
+    if fail_on_warnings {
+        (false, 0.0)
+    } else {
+        (true, 100.0)
+    }
+}
+
+fn surface_finding_posture(fail_on_warnings: bool) -> &'static str {
+    if fail_on_warnings {
+        "blocking"
+    } else {
+        "warn-only"
+    }
+}
+
 /// SURFSQL (Track 3) — scan SQL migration files for destructive patterns.
 ///
-/// Warn-only by design: per the architecture rules (warnings over blocks,
-/// exit 0 by default, new-edges-only), this surface never fails the gate.
-/// It reports unsuppressed findings in the message; escalation to a failing
-/// verdict on *new* edges waits on the SURFSQL-006 drift baseline.
+/// Warn-only by default (ADR-002): unsuppressed findings are reported but
+/// `passed` stays true. CIB-347: `--fail-on-warnings` escalates those new
+/// findings to a failing verdict. SURFSQL-006 still omits baselined
+/// fingerprints from the new-edge set.
 ///
 /// The OPSUP-006 file-presence guard is a *coarse* pre-filter on the declared
 /// globs (which include migration directories), so reaching here means there
@@ -2478,7 +2498,12 @@ fn secret_pattern_errors_suffix(pattern_errors: &[String]) -> String {
 /// selection. A migration directory holding only non-`.sql` files therefore
 /// yields zero scanned files and a clean result. Files that match but fail to
 /// read are counted and surfaced in the message rather than silently dropped.
-fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+fn run_check_sql_migrations(
+    name: &str,
+    root: &Path,
+    walked_files: &[String],
+    fail_on_warnings: bool,
+) -> CheckResult {
     use anvil_checks::surface::sql::{is_sql_migration_file, run_surfsql_check};
 
     let mut sql_files: Vec<(std::path::PathBuf, String)> = Vec::new();
@@ -2570,14 +2595,15 @@ fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) ->
             .to_string()
     };
 
+    let (passed, score) = surface_finding_verdict(fail_on_warnings);
     CheckResult {
         name: name.to_string(),
-        // Warn-only: surfaced, never blocking (architecture default).
-        passed: true,
-        score: 100.0,
+        passed,
+        score,
         message: format!(
-            "⚠ {} new SQL migration issue(s) flagged (warn-only{baseline_note}){}:\n{}",
+            "⚠ {} new SQL migration issue(s) flagged ({}{baseline_note}){}:\n{}",
             new_locations.len(),
+            surface_finding_posture(fail_on_warnings),
             unreadable_note,
             new_locations.join("\n")
         ),
@@ -2608,9 +2634,15 @@ fn hygiene_label(kind: anvil_checks::surface::sql::HygieneKind) -> &'static str 
 }
 
 /// SURFGHA (Track 3) — scan workflow files for supply-chain risks. Warn-only
-/// (architecture default); the file-presence guard (OPSUP-006) already
+/// by default (ADR-002); CIB-347 escalates unsuppressed findings under
+/// `--fail-on-warnings`. The file-presence guard (OPSUP-006) already
 /// short-circuits when no workflow files are present.
-fn run_check_github_actions(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+fn run_check_github_actions(
+    name: &str,
+    root: &Path,
+    walked_files: &[String],
+    fail_on_warnings: bool,
+) -> CheckResult {
     use anvil_checks::surface::github_actions::{is_workflow_file, run_surfgha_check};
 
     let mut files: Vec<(std::path::PathBuf, String)> = Vec::new();
@@ -2659,14 +2691,15 @@ fn run_check_github_actions(name: &str, root: &Path, walked_files: &[String]) ->
         };
     }
 
+    let (passed, score) = surface_finding_verdict(fail_on_warnings);
     CheckResult {
         name: name.to_string(),
-        // Warn-only: surfaced, never blocking (architecture default).
-        passed: true,
-        score: 100.0,
+        passed,
+        score,
         message: format!(
-            "⚠ {} GitHub Actions supply-chain risk(s) flagged (warn-only){}:\n{}",
+            "⚠ {} GitHub Actions supply-chain risk(s) flagged ({}){}:\n{}",
             locations.len(),
+            surface_finding_posture(fail_on_warnings),
             unreadable_note,
             locations.join("\n")
         ),
@@ -2684,10 +2717,16 @@ fn gha_risk_label(risk: anvil_checks::surface::github_actions::GhaRisk) -> &'sta
     }
 }
 
-/// SURFDOCK (Track 3) — scan Dockerfiles for build-hygiene risks. Warn-only.
-/// Self-filters via `is_dockerfile` (the check declares no file-presence
-/// globs — Dockerfile naming doesn't fit the glob vocabulary).
-fn run_check_dockerfile(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+/// SURFDOCK (Track 3) — scan Dockerfiles for build-hygiene risks. Warn-only
+/// by default (ADR-002); CIB-347 escalates unsuppressed findings under
+/// `--fail-on-warnings`. Self-filters via `is_dockerfile` (the check declares
+/// no file-presence globs — Dockerfile naming doesn't fit the glob vocabulary).
+fn run_check_dockerfile(
+    name: &str,
+    root: &Path,
+    walked_files: &[String],
+    fail_on_warnings: bool,
+) -> CheckResult {
     use anvil_checks::surface::dockerfile::{is_dockerfile, run_surfdock_check};
 
     let mut files: Vec<(std::path::PathBuf, String)> = Vec::new();
@@ -2736,14 +2775,15 @@ fn run_check_dockerfile(name: &str, root: &Path, walked_files: &[String]) -> Che
         };
     }
 
+    let (passed, score) = surface_finding_verdict(fail_on_warnings);
     CheckResult {
         name: name.to_string(),
-        // Warn-only: surfaced, never blocking (architecture default).
-        passed: true,
-        score: 100.0,
+        passed,
+        score,
         message: format!(
-            "⚠ {} Dockerfile build-hygiene risk(s) flagged (warn-only){}:\n{}",
+            "⚠ {} Dockerfile build-hygiene risk(s) flagged ({}){}:\n{}",
             locations.len(),
+            surface_finding_posture(fail_on_warnings),
             unreadable_note,
             locations.join("\n")
         ),
@@ -2764,10 +2804,16 @@ fn dock_risk_label(risk: anvil_checks::surface::dockerfile::DockerRisk) -> &'sta
 }
 
 /// SURFSH (Track 3, T1) — scan checked-in shell scripts for dangerous commands
-/// via the shared `command_safety` catalogue. Warn-only; self-filters via
-/// `is_shell_file` (the `*.sh`/`*.bash` file-presence guard is a coarse
-/// pre-filter on top).
-fn run_check_shell(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+/// via the shared `command_safety` catalogue. Warn-only by default (ADR-002);
+/// CIB-347 escalates unsuppressed findings under `--fail-on-warnings`.
+/// Self-filters via `is_shell_file` (the `*.sh`/`*.bash` file-presence guard
+/// is a coarse pre-filter on top).
+fn run_check_shell(
+    name: &str,
+    root: &Path,
+    walked_files: &[String],
+    fail_on_warnings: bool,
+) -> CheckResult {
     use anvil_checks::surface::shell::{is_shell_file, run_surfsh_check};
 
     let mut files: Vec<(std::path::PathBuf, String)> = Vec::new();
@@ -2808,14 +2854,15 @@ fn run_check_shell(name: &str, root: &Path, walked_files: &[String]) -> CheckRes
         };
     }
 
+    let (passed, score) = surface_finding_verdict(fail_on_warnings);
     CheckResult {
         name: name.to_string(),
-        // Warn-only: surfaced, never blocking (architecture default).
-        passed: true,
-        score: 100.0,
+        passed,
+        score,
         message: format!(
-            "⚠ {} dangerous shell-script command(s) flagged (warn-only){}:\n{}",
+            "⚠ {} dangerous shell-script command(s) flagged ({}){}:\n{}",
             locations.len(),
+            surface_finding_posture(fail_on_warnings),
             unreadable_note,
             locations.join("\n")
         ),
@@ -3829,10 +3876,14 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             run_check_antipattern(name, root, &ctx.plan_files, ctx.fail_on_warnings)
         }
         "secret" => run_check_secret(name, root, &ctx.plan_files),
-        "sql-migrations" => run_check_sql_migrations(name, root, &ctx.walked_files),
-        "github-actions" => run_check_github_actions(name, root, &ctx.walked_files),
-        "dockerfile" => run_check_dockerfile(name, root, &ctx.walked_files),
-        "shell-scripts" => run_check_shell(name, root, &ctx.walked_files),
+        "sql-migrations" => {
+            run_check_sql_migrations(name, root, &ctx.walked_files, ctx.fail_on_warnings)
+        }
+        "github-actions" => {
+            run_check_github_actions(name, root, &ctx.walked_files, ctx.fail_on_warnings)
+        }
+        "dockerfile" => run_check_dockerfile(name, root, &ctx.walked_files, ctx.fail_on_warnings),
+        "shell-scripts" => run_check_shell(name, root, &ctx.walked_files, ctx.fail_on_warnings),
         "coverage" => run_check_coverage(root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(root),
         "architecture" => run_check_architecture(root),
@@ -4406,7 +4457,9 @@ struct GateContext {
     /// treated as a blocking diagnostic rather than a soft warning.
     strict_config: bool,
     /// When true (`--fail-on-warnings` / `ANVIL_FAIL_ON_WARNINGS`), warning-
-    /// severity anti-pattern findings block the gate (ADR-112 / ADR-002 opt-in).
+    /// severity anti-pattern findings and unsuppressed surface findings
+    /// (dockerfile, shell-scripts, sql-migrations, github-actions) block the
+    /// gate (ADR-112 / ADR-002 / CIB-347 opt-in).
     fail_on_warnings: bool,
 }
 
@@ -7206,6 +7259,7 @@ mod tests {
             "sql-migrations",
             tmp.path(),
             &["db/migrations/001.sql".to_string()],
+            false,
         );
         // Warn-only: surfaced in the message, never blocks the gate.
         assert!(result.passed, "SURFSQL is warn-only and must not block");
@@ -7226,8 +7280,12 @@ mod tests {
             "CREATE TABLE IF NOT EXISTS t (id int);\n",
         )
         .unwrap();
-        let result =
-            run_check_sql_migrations("sql-migrations", tmp.path(), &["001_init.sql".to_string()]);
+        let result = run_check_sql_migrations(
+            "sql-migrations",
+            tmp.path(),
+            &["001_init.sql".to_string()],
+            false,
+        );
         assert!(result.passed);
         assert!(result.message.contains("No destructive or schema-hygiene"));
     }
@@ -7236,8 +7294,12 @@ mod tests {
     fn sql_migrations_check_surfaces_hygiene_warning() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(tmp.path().join("001.sql"), "CREATE TABLE users (id int);\n").unwrap();
-        let result =
-            run_check_sql_migrations("sql-migrations", tmp.path(), &["001.sql".to_string()]);
+        let result = run_check_sql_migrations(
+            "sql-migrations",
+            tmp.path(),
+            &["001.sql".to_string()],
+            false,
+        );
         assert!(result.passed, "warn-only, never blocks");
         assert!(
             result
@@ -7256,7 +7318,7 @@ mod tests {
         let files = ["0001.sql".to_string()];
 
         // No drift snapshot → warn-on-all, with a hint to baseline.
-        let r1 = run_check_sql_migrations("sql-migrations", tmp.path(), &files);
+        let r1 = run_check_sql_migrations("sql-migrations", tmp.path(), &files, false);
         assert!(r1.passed);
         assert!(
             r1.message.contains("new SQL migration issue"),
@@ -7295,7 +7357,7 @@ mod tests {
         std::fs::write(snap_dir.join("snapshot-base.json"), snapshot).unwrap();
 
         // Baselined finding is now silent.
-        let r2 = run_check_sql_migrations("sql-migrations", tmp.path(), &files);
+        let r2 = run_check_sql_migrations("sql-migrations", tmp.path(), &files, false);
         assert!(
             r2.message
                 .contains("No new SQL migration issues vs drift baseline"),
@@ -7309,6 +7371,7 @@ mod tests {
             "sql-migrations",
             tmp.path(),
             &["0001.sql".to_string(), "0002.sql".to_string()],
+            false,
         );
         assert!(
             r3.message.contains("1 new SQL migration issue"),
@@ -7337,7 +7400,12 @@ mod tests {
         let snapshot = r#"{"schema_version":"1.1.0","created_at":"2026-01-01T00:00:00+00:00","metrics":{"boundary_violations":0,"antipattern_count":0,"suppression_count":0,"expired_suppressions":0,"files_analysed":0},"violations":[],"antipatterns":[],"suppressions":[]}"#;
         std::fs::write(snap_dir.join("snapshot-empty.json"), snapshot).unwrap();
 
-        let r = run_check_sql_migrations("sql-migrations", tmp.path(), &["0001.sql".to_string()]);
+        let r = run_check_sql_migrations(
+            "sql-migrations",
+            tmp.path(),
+            &["0001.sql".to_string()],
+            false,
+        );
         assert!(
             r.message.contains("new SQL migration issue"),
             "{}",
@@ -7349,6 +7417,93 @@ mod tests {
             r.message
         );
         assert!(r.message.contains("0 baselined"), "{}", r.message);
+    }
+
+    #[test]
+    fn sql_migrations_check_fail_on_warnings_blocks_unsuppressed_finding() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("001.sql"), "DROP TABLE legacy_events;\n").unwrap();
+        let files = ["001.sql".to_string()];
+        let default = run_check_sql_migrations("sql-migrations", tmp.path(), &files, false);
+        assert!(
+            default.passed,
+            "default remains warn-only: {}",
+            default.message
+        );
+        let strict = run_check_sql_migrations("sql-migrations", tmp.path(), &files, true);
+        assert!(
+            !strict.passed,
+            "fail-on-warnings must fail the check; got: {}",
+            strict.message
+        );
+        assert!(
+            strict.message.contains("DROP TABLE"),
+            "finding still printed: {}",
+            strict.message
+        );
+    }
+
+    #[test]
+    fn sql_migrations_check_clean_stays_green_under_fail_on_warnings() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("001_init.sql"),
+            "CREATE TABLE IF NOT EXISTS t (id int);\n",
+        )
+        .unwrap();
+        let result = run_check_sql_migrations(
+            "sql-migrations",
+            tmp.path(),
+            &["001_init.sql".to_string()],
+            true,
+        );
+        assert!(
+            result.passed,
+            "clean fixture must stay green: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn sql_migrations_check_baselined_finding_stays_green_under_fail_on_warnings() {
+        use anvil_checks::surface::sql::run_surfsql_check;
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("0001.sql"), "DROP TABLE users;\n").unwrap();
+        let scan = run_surfsql_check(&[(
+            std::path::PathBuf::from("0001.sql"),
+            "DROP TABLE users;\n".to_string(),
+        )]);
+        let mut fps: Vec<String> = Vec::new();
+        for f in scan.destructive.iter().filter(|f| !f.suppressed) {
+            fps.push(crate::commands::drift::destructive_finding_id(f).1);
+        }
+        let entries: String = fps
+            .iter()
+            .map(|fp| {
+                format!(
+                    r#"{{"fingerprint":"{fp}","rule_id":"surfsql","file":"0001.sql","line":1}}"#
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let snap_dir = tmp.path().join(".anvil").join("snapshots");
+        std::fs::create_dir_all(&snap_dir).unwrap();
+        let snapshot = format!(
+            r#"{{"schema_version":"1.1.0","created_at":"2026-01-01T00:00:00+00:00","metrics":{{"boundary_violations":0,"antipattern_count":0,"suppression_count":0,"expired_suppressions":0,"files_analysed":1}},"violations":[],"antipatterns":[],"suppressions":[],"sql_findings":[{entries}]}}"#
+        );
+        std::fs::write(snap_dir.join("snapshot-base.json"), snapshot).unwrap();
+
+        let result = run_check_sql_migrations(
+            "sql-migrations",
+            tmp.path(),
+            &["0001.sql".to_string()],
+            true,
+        );
+        assert!(
+            result.passed,
+            "baselined finding must not fail under fail-on-warnings: {}",
+            result.message
+        );
     }
 
     #[test]
@@ -7365,6 +7520,7 @@ mod tests {
             "github-actions",
             tmp.path(),
             &[".github/workflows/ci.yml".to_string()],
+            false,
         );
         assert!(result.passed, "warn-only, never blocks");
         assert!(result.message.contains("pull_request_target"));
@@ -7385,12 +7541,66 @@ mod tests {
             "github-actions",
             tmp.path(),
             &[".github/workflows/ci.yml".to_string()],
+            false,
         );
         assert!(result.passed);
         assert!(
             result
                 .message
                 .contains("No GitHub Actions supply-chain risks")
+        );
+    }
+
+    #[test]
+    fn github_actions_check_fail_on_warnings_blocks_unsuppressed_finding() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join(".github/workflows");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("ci.yml"),
+            "on: pull_request_target\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@main\n",
+        )
+        .unwrap();
+        let files = [".github/workflows/ci.yml".to_string()];
+        let default = run_check_github_actions("github-actions", tmp.path(), &files, false);
+        assert!(
+            default.passed,
+            "default remains warn-only: {}",
+            default.message
+        );
+        let strict = run_check_github_actions("github-actions", tmp.path(), &files, true);
+        assert!(
+            !strict.passed,
+            "fail-on-warnings must fail the check; got: {}",
+            strict.message
+        );
+        assert!(
+            strict.message.contains("pull_request_target"),
+            "finding still printed: {}",
+            strict.message
+        );
+    }
+
+    #[test]
+    fn github_actions_check_clean_stays_green_under_fail_on_warnings() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join(".github/workflows");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("ci.yml"),
+            "on:\n  push:\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n",
+        )
+        .unwrap();
+        let result = run_check_github_actions(
+            "github-actions",
+            tmp.path(),
+            &[".github/workflows/ci.yml".to_string()],
+            true,
+        );
+        assert!(
+            result.passed,
+            "clean fixture must stay green: {}",
+            result.message
         );
     }
 
@@ -7402,7 +7612,8 @@ mod tests {
             "FROM node:latest\nRUN curl -fsSL https://x | sh\n",
         )
         .unwrap();
-        let result = run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()]);
+        let result =
+            run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()], false);
         assert!(result.passed, "warn-only, never blocks");
         assert!(result.message.contains(":latest base image"));
         assert!(result.message.contains("pipe-to-shell"));
@@ -7416,16 +7627,67 @@ mod tests {
             "FROM node:20-alpine\nWORKDIR /app\nCOPY . .\nRUN npm ci\nUSER node\n",
         )
         .unwrap();
-        let result = run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()]);
+        let result =
+            run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()], false);
         assert!(result.passed);
         assert!(result.message.contains("No Dockerfile build-hygiene risks"));
+    }
+
+    #[test]
+    fn dockerfile_check_fail_on_warnings_blocks_unsuppressed_finding() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("Dockerfile"),
+            "FROM node:latest\nRUN curl -fsSL https://x | sh\n",
+        )
+        .unwrap();
+        let files = ["Dockerfile".to_string()];
+        let default = run_check_dockerfile("dockerfile", tmp.path(), &files, false);
+        assert!(
+            default.passed,
+            "default remains warn-only: {}",
+            default.message
+        );
+        let strict = run_check_dockerfile("dockerfile", tmp.path(), &files, true);
+        assert!(
+            !strict.passed,
+            "fail-on-warnings must fail the check; got: {}",
+            strict.message
+        );
+        assert!(
+            strict.message.contains(":latest base image"),
+            "finding still printed: {}",
+            strict.message
+        );
+    }
+
+    #[test]
+    fn dockerfile_check_clean_stays_green_under_fail_on_warnings() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("Dockerfile"),
+            "FROM node:20-alpine\nWORKDIR /app\nCOPY . .\nRUN npm ci\nUSER node\n",
+        )
+        .unwrap();
+        let result =
+            run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()], true);
+        assert!(
+            result.passed,
+            "clean fixture must stay green: {}",
+            result.message
+        );
     }
 
     #[test]
     fn shell_check_warns_but_does_not_block() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(tmp.path().join("danger.sh"), "#!/bin/sh\nrm -rf /\n").unwrap();
-        let result = run_check_shell("shell-scripts", tmp.path(), &["danger.sh".to_string()]);
+        let result = run_check_shell(
+            "shell-scripts",
+            tmp.path(),
+            &["danger.sh".to_string()],
+            false,
+        );
         assert!(result.passed, "warn-only, never blocks");
         assert!(
             result.message.contains("dangerous shell-script command"),
@@ -7442,12 +7704,69 @@ mod tests {
             "#!/bin/sh\nset -euo pipefail\necho building\nnpm ci\n",
         )
         .unwrap();
-        let result = run_check_shell("shell-scripts", tmp.path(), &["ok.sh".to_string()]);
+        let result = run_check_shell("shell-scripts", tmp.path(), &["ok.sh".to_string()], false);
         assert!(result.passed);
         assert!(
             result
                 .message
                 .contains("No dangerous shell-script commands")
+        );
+    }
+
+    #[test]
+    fn shell_check_fail_on_warnings_blocks_unsuppressed_finding() {
+        // CIB-347: default warn-only is unchanged; the opt-in escalates an
+        // unsuppressed SURFSH finding so CI that asked to fail on warnings does.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("danger.sh"), "#!/bin/sh\nrm -rf /\n").unwrap();
+        let default = run_check_shell(
+            "shell-scripts",
+            tmp.path(),
+            &["danger.sh".to_string()],
+            false,
+        );
+        assert!(
+            default.passed,
+            "default remains warn-only: {}",
+            default.message
+        );
+        assert!(
+            default.message.contains("dangerous shell-script command"),
+            "rm -rf / still surfaced: {}",
+            default.message
+        );
+
+        let strict = run_check_shell(
+            "shell-scripts",
+            tmp.path(),
+            &["danger.sh".to_string()],
+            true,
+        );
+        assert!(
+            !strict.passed,
+            "fail-on-warnings must fail the check; got: {}",
+            strict.message
+        );
+        assert!(
+            strict.message.contains("dangerous shell-script command"),
+            "finding still printed: {}",
+            strict.message
+        );
+    }
+
+    #[test]
+    fn shell_check_clean_stays_green_under_fail_on_warnings() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("ok.sh"),
+            "#!/bin/sh\nset -euo pipefail\necho building\nnpm ci\n",
+        )
+        .unwrap();
+        let result = run_check_shell("shell-scripts", tmp.path(), &["ok.sh".to_string()], true);
+        assert!(
+            result.passed,
+            "clean fixture must stay green: {}",
+            result.message
         );
     }
 
