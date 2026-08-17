@@ -647,9 +647,11 @@ fn install_config_event_commands(
 
     let had_managed = existing.iter().any(|c| is_anvil_managed_command(c));
 
-    if force && had_managed {
-        // Replace the existing anvil-managed set so we do not stack
-        // duplicates after repeated `--force` runs.
+    if had_managed {
+        // Replace the existing anvil-managed set so a legacy managed
+        // command (for example `anvil gate` on pre-push) is not left
+        // stacked beside the canonical command. `--force` only decides
+        // whether an already-complete set is rewritten.
         git_config(
             workspace_root,
             &[
@@ -2104,6 +2106,37 @@ mod tests {
                 PRE_COMMIT_CONFIG_COMMAND.to_string(),
                 PRE_COMMIT_WITNESS_CONFIG_COMMAND.to_string(),
             ]
+        );
+    }
+
+    /// A leftover managed `anvil gate` on pre-push must be replaced by the
+    /// canonical `anvil hook pre-push`, not stacked beside it.
+    #[test]
+    fn config_install_replaces_legacy_managed_pre_push_gate() {
+        if !require_config_hook_support() {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+
+        install_config_hook(dir.path(), "pre-push", PRE_COMMIT_CONFIG_COMMAND, false).unwrap();
+        assert_eq!(
+            list_config_hook_commands(dir.path(), "pre-push").unwrap(),
+            vec![PRE_COMMIT_CONFIG_COMMAND.to_string()]
+        );
+
+        let upgraded = install_config_event_commands(
+            dir.path(),
+            "pre-push",
+            &[PRE_PUSH_CONFIG_COMMAND],
+            false,
+        )
+        .unwrap();
+        assert_eq!(upgraded.action, "updated");
+        assert_eq!(
+            list_config_hook_commands(dir.path(), "pre-push").unwrap(),
+            vec![PRE_PUSH_CONFIG_COMMAND.to_string()],
+            "legacy managed gate command must not remain stacked on pre-push",
         );
     }
 
