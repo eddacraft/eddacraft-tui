@@ -75,6 +75,19 @@ fn capture_surface_line(method: &str, detail: &str) -> bool {
     })
 }
 
+/// Clears the thread-local capture buffer even if `f` panics.
+#[cfg(test)]
+struct RpcSurfaceCaptureGuard;
+
+#[cfg(test)]
+impl Drop for RpcSurfaceCaptureGuard {
+    fn drop(&mut self) {
+        RPC_SURFACE_CAPTURE.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
+    }
+}
+
 /// Record surface RPC lines emitted on this thread while `f` runs.
 ///
 /// Used by hook tests to prove the quiet witness path does not dump
@@ -87,9 +100,66 @@ where
     RPC_SURFACE_CAPTURE.with(|slot| {
         *slot.borrow_mut() = Some(Vec::new());
     });
+    let _guard = RpcSurfaceCaptureGuard;
     let out = f();
     let lines = RPC_SURFACE_CAPTURE.with(|slot| slot.borrow_mut().take().unwrap_or_default());
     (out, lines)
+}
+
+#[cfg(test)]
+mod capture_tests {
+    use super::*;
+
+    #[test]
+    fn quiet_noise_does_not_record_a_surface_line() {
+        let ((), lines) = capture_rpc_surface_lines(|| {
+            emit_daemon_rpc_line(
+                DaemonRpcNoise::Quiet,
+                "anvil/witness/append",
+                "connect failed: Connection refused",
+            );
+        });
+        assert!(
+            lines.is_empty(),
+            "quiet witness transport must not dump pipe/connect lines: {lines:?}"
+        );
+    }
+
+    #[test]
+    fn surface_noise_records_the_raw_transport_line() {
+        let ((), lines) = capture_rpc_surface_lines(|| {
+            emit_daemon_rpc_line(
+                DaemonRpcNoise::Surface,
+                "anvil/witness/append",
+                "connect failed: Connection refused",
+            );
+        });
+        assert_eq!(
+            lines,
+            vec![
+                "anvil-daemon: anvil/witness/append connect failed: Connection refused".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn capture_clears_thread_local_after_panic() {
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = capture_rpc_surface_lines(|| panic!("capture-guard"));
+        }));
+        assert!(panicked.is_err());
+        let ((), lines) = capture_rpc_surface_lines(|| {
+            emit_daemon_rpc_line(
+                DaemonRpcNoise::Quiet,
+                "anvil/witness/append",
+                "connect failed: Connection refused",
+            );
+        });
+        assert!(
+            lines.is_empty(),
+            "panic must not leave capture armed for later tests: {lines:?}"
+        );
+    }
 }
 
 #[cfg(any(unix, windows))]
@@ -682,38 +752,6 @@ mod tests {
                 DaemonRpcNoise::Surface,
             ),
             Err(DaemonRpcError::Unavailable)
-        );
-    }
-
-    #[test]
-    fn quiet_noise_does_not_record_a_surface_line() {
-        let ((), lines) = capture_rpc_surface_lines(|| {
-            emit_daemon_rpc_line(
-                DaemonRpcNoise::Quiet,
-                "anvil/witness/append",
-                "connect failed: Connection refused",
-            );
-        });
-        assert!(
-            lines.is_empty(),
-            "quiet witness transport must not dump pipe/connect lines: {lines:?}"
-        );
-    }
-
-    #[test]
-    fn surface_noise_records_the_raw_transport_line() {
-        let ((), lines) = capture_rpc_surface_lines(|| {
-            emit_daemon_rpc_line(
-                DaemonRpcNoise::Surface,
-                "anvil/witness/append",
-                "connect failed: Connection refused",
-            );
-        });
-        assert_eq!(
-            lines,
-            vec![
-                "anvil-daemon: anvil/witness/append connect failed: Connection refused".to_string()
-            ]
         );
     }
 }
