@@ -2,7 +2,15 @@
 
 ## Status
 
-Accepted
+Accepted. A **partial supersession is proposed** by
+[ADR-124](124-operator-plane-cloud-placement.md) (2026-08-17): §Decision-3
+(Azure Monitor OTel exporter) and §Decision-4 (App Insights + Grafana) are
+reopened because this ADR's vendor rationale rests on Azure holding the
+billing/credits relationship, which Cloudflare and AWS credits have since made
+non-exclusive. **§Decision-1 (vendor-neutral OTLP instrumentation) and
+§Decision-2 (only operator-hosted surfaces export; the local-first Rust
+CLI/daemon never auto-export) are preserved and re-affirmed by ADR-124**, and
+are not reopened. This ADR remains in force in full until ADR-124 is Accepted.
 
 ## Date
 
