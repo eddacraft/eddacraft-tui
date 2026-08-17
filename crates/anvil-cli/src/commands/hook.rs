@@ -51,7 +51,7 @@ use clap::{Args, Subcommand};
 use crate::GlobalArgs;
 use crate::activation::identity::read_project_id;
 use crate::l4_engine::CommitAntipatternEngine;
-use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
+use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call_quiet};
 
 /// MLP2-022: wall-clock budget for the pre-push hook.
 ///
@@ -154,8 +154,8 @@ pub fn run(args: &HookArgs, global: &GlobalArgs) -> Result<()> {
     let result = catch_unwind(AssertUnwindSafe(|| match &args.command {
         HookCommand::PreCommit(_) => run_pre_commit(&repo_root, &mut sup),
         HookCommand::PrePush(_) => run_pre_push(&repo_root, &mut sup),
-        HookCommand::PostCommit(_) => run_post_commit(&repo_root, &post_hook_emitter),
-        HookCommand::PostMerge(a) => run_post_merge(&repo_root, a, &post_hook_emitter),
+        HookCommand::PostCommit(_) => run_post_commit(&repo_root, &mut sup, &post_hook_emitter),
+        HookCommand::PostMerge(a) => run_post_merge(&repo_root, a, &mut sup, &post_hook_emitter),
         HookCommand::PostRewrite(a) => {
             run_post_rewrite(&repo_root, a, &mut sup, &post_hook_emitter)
         }
@@ -201,11 +201,17 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
     // does not have IPC access to it.
     let pre_commit_rules_sha = compute_pre_commit_rules_sha(repo_root);
 
-    let result = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
-        let mut line = build_witness_line(&identity.project_uuid, None, "pre-commit", seq, prev);
-        line.rules_sha.clone_from(&pre_commit_rules_sha);
-        line
-    });
+    let result = append_witness_routed(
+        repo_root,
+        &identity.project_uuid,
+        |seq, prev| {
+            let mut line =
+                build_witness_line(&identity.project_uuid, None, "pre-commit", seq, prev);
+            line.rules_sha.clone_from(&pre_commit_rules_sha);
+            line
+        },
+        Some(sup),
+    );
     match result {
         Ok(_line_hash) => {
             let rendered = render_verdict(&Verdict::Pass);
@@ -249,7 +255,11 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
     }
 }
 
-fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
+fn run_post_commit(
+    repo_root: &Path,
+    sup: &mut SuppressionLog,
+    emitter: &PostHookEmitter,
+) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
         Ok(None) | Err(_) => return Ok(()),
@@ -260,17 +270,22 @@ fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
     // `commit_sha: None` (the commit does not exist yet). Without this binding
     // `anvil audit-chain` always reports 0 witnessed (Dave SEC-WIT-1).
     let commit_sha = resolve_head_sha(repo_root);
-    let appended = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
-        let mut line = build_witness_line(
-            &identity.project_uuid,
-            Some(commit_sha.clone()),
-            "post-commit",
-            seq,
-            prev,
-        );
-        line.kind = "post-commit".to_string();
-        line
-    });
+    let appended = append_witness_routed(
+        repo_root,
+        &identity.project_uuid,
+        |seq, prev| {
+            let mut line = build_witness_line(
+                &identity.project_uuid,
+                Some(commit_sha.clone()),
+                "post-commit",
+                seq,
+                prev,
+            );
+            line.kind = "post-commit".to_string();
+            line
+        },
+        Some(sup),
+    );
     if let Ok(line_hash) = &appended {
         emit_post_hook_action(
             emitter,
@@ -950,7 +965,12 @@ fn emit_post_hook_action(
     let _ = emitter.try_emit(&request);
 }
 
-fn run_post_merge(repo_root: &Path, args: &PostMergeArgs, emitter: &PostHookEmitter) -> Result<()> {
+fn run_post_merge(
+    repo_root: &Path,
+    args: &PostMergeArgs,
+    sup: &mut SuppressionLog,
+    emitter: &PostHookEmitter,
+) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
         Ok(None) | Err(_) => return Ok(()),
@@ -967,9 +987,12 @@ fn run_post_merge(repo_root: &Path, args: &PostMergeArgs, emitter: &PostHookEmit
     let parent_pairs: Vec<(String, Option<String>)> =
         parents.into_iter().map(|p| (p, None)).collect();
     let plan = merge_witness_plan(merge_sha.clone(), parent_pairs);
-    let appended = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
-        build_merge_witness_line(&identity.project_uuid, plan.clone(), seq, prev)
-    });
+    let appended = append_witness_routed(
+        repo_root,
+        &identity.project_uuid,
+        |seq, prev| build_merge_witness_line(&identity.project_uuid, plan.clone(), seq, prev),
+        Some(sup),
+    );
     if let Ok(line_hash) = &appended {
         emit_post_hook_action(
             emitter,
@@ -1041,9 +1064,12 @@ fn run_post_rewrite(
         // MLP2-010: stamp the new SHA on the row so an external
         // rewrite-tracker can join on `details.command`.
         let new_sha = pair.new_sha.clone();
-        let appended = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
-            build_rewrite_witness_line(&identity.project_uuid, &pair, seq, prev)
-        });
+        let appended = append_witness_routed(
+            repo_root,
+            &identity.project_uuid,
+            |seq, prev| build_rewrite_witness_line(&identity.project_uuid, &pair, seq, prev),
+            Some(sup),
+        );
         if let Ok(line_hash) = &appended {
             emit_post_hook_action(
                 emitter,
@@ -1152,13 +1178,19 @@ fn run_witness_recent_walk(repo_root: &Path) -> usize {
         Err(_) => return 0,
     };
     let mut written = 0;
+    let mut sup = SuppressionLog::new();
     for sha in range {
         if commit_is_witnessed(repo_root, &sha) {
             continue;
         }
-        let result = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
-            build_bootstrap_recovery_witness_line(&identity.project_uuid, &sha, seq, prev)
-        });
+        let result = append_witness_routed(
+            repo_root,
+            &identity.project_uuid,
+            |seq, prev| {
+                build_bootstrap_recovery_witness_line(&identity.project_uuid, &sha, seq, prev)
+            },
+            Some(&mut sup),
+        );
         if result.is_ok() {
             written += 1;
         }
@@ -1413,7 +1445,7 @@ fn daemon_witness_append(
         workspace_root: repo_root.to_string_lossy().into_owned(),
         entry: entry.clone(),
     };
-    daemon_rpc_call(ANVIL_WITNESS_APPEND, &request, "anvil-hook-witness")
+    daemon_rpc_call_quiet(ANVIL_WITNESS_APPEND, &request, "anvil-hook-witness")
 }
 
 /// Append a witness line **daemon-first** with an embedded fallback (MLP2-005
@@ -1426,6 +1458,7 @@ fn append_witness_routed<F>(
     repo_root: &Path,
     project_uuid: &str,
     build: F,
+    sup: Option<&mut SuppressionLog>,
 ) -> std::result::Result<LineHash, AppendError>
 where
     F: Fn(u64, String) -> WitnessLine,
@@ -1439,6 +1472,7 @@ where
         repo_root,
         project_uuid,
         build,
+        sup,
     )
 }
 
@@ -1450,6 +1484,7 @@ fn append_witness_routed_gated<F>(
     repo_root: &Path,
     project_uuid: &str,
     build: F,
+    sup: Option<&mut SuppressionLog>,
 ) -> std::result::Result<LineHash, AppendError>
 where
     F: Fn(u64, String) -> WitnessLine,
@@ -1477,6 +1512,7 @@ where
             line.prev_line_hash = prev_line_hash;
             line
         },
+        sup,
     )
 }
 
@@ -1489,10 +1525,12 @@ fn finish_witness_route<F>(
     repo_root: &Path,
     project_uuid: &str,
     build: F,
+    sup: Option<&mut SuppressionLog>,
 ) -> std::result::Result<LineHash, AppendError>
 where
     F: Fn(u64, String) -> WitnessLine,
 {
+    let daemon_unreachable = daemon_result.is_err();
     match route_daemon_witness_result(daemon_result) {
         WitnessRoute::Daemon(result) => {
             // Surface the chosen leg (Observability). The daemon leg is the quiet
@@ -1515,7 +1553,16 @@ where
                 project_uuid = %project_uuid,
                 "witness daemon unavailable; appending via the embedded writer",
             );
-            append_witness(repo_root, project_uuid, build)
+            let result = append_witness(repo_root, project_uuid, build);
+            // CIB-345: successful fallback uses the once-per-session
+            // DaemonUnreachable line instead of a raw pipe/connect dump.
+            if result.is_ok()
+                && daemon_unreachable
+                && let Some(sup) = sup
+            {
+                emit_internal(ErrorClass::DaemonUnreachable, sup);
+            }
+            result
         }
     }
 }
@@ -1987,6 +2034,7 @@ mod tests {
             &root,
             "01997e4a-1b2c-7345-8901-abcdef123456",
             sample_witness_build,
+            None,
         );
         assert_eq!(out.unwrap(), "daemon-hash");
         assert!(
@@ -2003,6 +2051,7 @@ mod tests {
             &root,
             "01997e4a-1b2c-7345-8901-abcdef123456",
             sample_witness_build,
+            None,
         );
         assert!(matches!(out, Err(AppendError::ChainBroken)));
         assert!(!root.join("anvil").join("witness").exists());
@@ -2020,6 +2069,7 @@ mod tests {
                 &root,
                 "01997e4a-1b2c-7345-8901-abcdef123456",
                 sample_witness_build,
+                None,
             );
             assert!(!out.unwrap().is_empty(), "embedded leg wrote the line");
             let paths = witness_paths(&root);
@@ -2027,6 +2077,127 @@ mod tests {
             let dag = verify_chain_dag(&refs).expect("chain verifies");
             assert_eq!(dag.line_count, 2, "genesis + 1 record");
         });
+    }
+
+    #[test]
+    fn finish_route_transport_failure_falls_back_quietly_and_emits_daemon_unreachable_once() {
+        // CIB-345: a transport miss + successful embedded write must not dump
+        // raw RPC pipe/connect lines, and must emit DaemonUnreachable once
+        // per hook process via SuppressionLog.
+        let (_tmp, root) = make_test_repo();
+        temp_env::with_var("ANVIL_HOME", None::<&str>, || {
+            let mut sup = SuppressionLog::new();
+            let key = SuppressionKey::from_class(ErrorClass::DaemonUnreachable);
+
+            let first = finish_witness_route(
+                Err(DaemonRpcError::Unavailable),
+                &root,
+                "01997e4a-1b2c-7345-8901-abcdef123456",
+                sample_witness_build,
+                Some(&mut sup),
+            );
+            assert!(
+                !first.unwrap().is_empty(),
+                "successful embedded fallback still writes a witness line"
+            );
+            assert!(
+                !sup.should_emit(&key),
+                "successful fallback consumes the once-per-session DaemonUnreachable line"
+            );
+
+            let second = finish_witness_route(
+                Err(DaemonRpcError::Failure),
+                &root,
+                "01997e4a-1b2c-7345-8901-abcdef123456",
+                sample_witness_build,
+                Some(&mut sup),
+            );
+            assert!(!second.unwrap().is_empty());
+            assert!(
+                !sup.should_emit(&key),
+                "a second fallback in the same session must stay suppressed"
+            );
+
+            let paths = witness_paths(&root);
+            let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+            let dag = verify_chain_dag(&refs).expect("chain verifies");
+            assert_eq!(dag.line_count, 3, "genesis + 2 records");
+        });
+    }
+
+    #[test]
+    fn finish_route_write_failed_does_not_emit_daemon_unreachable() {
+        // The daemon answered; this is not a transport miss. Fallback still
+        // writes, but DaemonUnreachable would be a lie.
+        let (_tmp, root) = make_test_repo();
+        temp_env::with_var("ANVIL_HOME", None::<&str>, || {
+            let mut sup = SuppressionLog::new();
+            let key = SuppressionKey::from_class(ErrorClass::DaemonUnreachable);
+            let out = finish_witness_route(
+                Ok(witness_response(WitnessOutcomeKind::WriteFailed, None)),
+                &root,
+                "01997e4a-1b2c-7345-8901-abcdef123456",
+                sample_witness_build,
+                Some(&mut sup),
+            );
+            assert!(!out.unwrap().is_empty());
+            assert!(
+                sup.should_emit(&key),
+                "WriteFailed is not daemon-unreachable"
+            );
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn routed_append_on_stale_socket_does_not_eprint_connect_failed() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::net::UnixListener;
+
+        let (_tmp, root) = make_test_repo();
+        let runtime = TempDir::new().unwrap();
+        let sock_dir = runtime.path().join("anvil");
+        fs::create_dir_all(&sock_dir).unwrap();
+        fs::set_permissions(&sock_dir, fs::Permissions::from_mode(0o700)).unwrap();
+        let sock = sock_dir.join("intercept.sock");
+        let listener = UnixListener::bind(&sock).unwrap();
+        fs::set_permissions(&sock, fs::Permissions::from_mode(0o600)).unwrap();
+        drop(listener);
+
+        temp_env::with_vars(
+            [
+                ("ANVIL_HOME", None::<&str>),
+                ("XDG_RUNTIME_DIR", Some(runtime.path().to_str().unwrap())),
+            ],
+            || {
+                let mut sup = SuppressionLog::new();
+                let key = SuppressionKey::from_class(ErrorClass::DaemonUnreachable);
+                let (result, lines) = crate::mcp::gctx_client::capture_rpc_surface_lines(|| {
+                    append_witness_routed_gated(
+                        false,
+                        &root,
+                        "01997e4a-1b2c-7345-8901-abcdef123456",
+                        sample_witness_build,
+                        Some(&mut sup),
+                    )
+                });
+                assert!(
+                    !result
+                        .expect("embedded fallback writes the line")
+                        .is_empty()
+                );
+                assert!(
+                    lines.iter().all(|line| {
+                        !line.contains("connect failed") && !line.contains("pipe connect failed")
+                    }),
+                    "hook witness path must not dump RPC transport lines: {lines:?}"
+                );
+                assert!(
+                    !sup.should_emit(&key),
+                    "successful stale-socket fallback emits DaemonUnreachable once"
+                );
+            },
+        );
     }
 
     #[test]
@@ -2047,6 +2218,7 @@ mod tests {
                     &root,
                     "01997e4a-1b2c-7345-8901-abcdef123456",
                     sample_witness_build,
+                    None,
                 )
                 .expect("embedded fallback writes the line");
                 assert!(!hash.is_empty());
@@ -2078,6 +2250,7 @@ mod tests {
                     prev,
                 )
             },
+            None,
         );
         assert!(matches!(result, Err(AppendError::Gated)));
         assert!(
@@ -2308,7 +2481,8 @@ mod tests {
         );
 
         let (emitter, _recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
-        run_post_commit(&root, &emitter).unwrap();
+        let mut sup = SuppressionLog::new();
+        run_post_commit(&root, &mut sup, &emitter).unwrap();
 
         let active = root.join("anvil/witness/active.ndjson");
         let contents = fs::read_to_string(&active).expect("active.ndjson");
@@ -2323,7 +2497,8 @@ mod tests {
         let (_tmp, root) = make_test_repo();
         let (emitter, recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
 
-        run_post_commit(&root, &emitter).unwrap();
+        let mut sup = SuppressionLog::new();
+        run_post_commit(&root, &mut sup, &emitter).unwrap();
 
         let rows = recorder.recorded_actions();
         assert_eq!(
@@ -2366,7 +2541,8 @@ mod tests {
             commit: Some("merge-sha-deadbeef".to_string()),
         };
 
-        run_post_merge(&root, &args, &emitter).unwrap();
+        let mut sup = SuppressionLog::new();
+        run_post_merge(&root, &args, &mut sup, &emitter).unwrap();
 
         let rows = recorder.recorded_actions();
         assert_eq!(rows.len(), 1, "post-merge must emit exactly one row");
@@ -2440,7 +2616,8 @@ mod tests {
         // existing no-witness contract.
         let tmp = TempDir::new().unwrap();
         let (emitter, recorder) = PostHookEmitter::with_recorder(MLP2_010_SESSION_UUID);
-        run_post_commit(tmp.path(), &emitter).unwrap();
+        let mut sup = SuppressionLog::new();
+        run_post_commit(tmp.path(), &mut sup, &emitter).unwrap();
         assert!(
             recorder.is_empty(),
             "no project id → no witness append → no Kindling row",

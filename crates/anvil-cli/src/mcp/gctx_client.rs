@@ -33,6 +33,65 @@ pub(crate) enum DaemonRpcError {
     Failure,
 }
 
+/// How transport failures are surfaced to the operator.
+///
+/// GCTX MCP tools keep [`Self::Surface`] so a dead daemon stays visible.
+/// The hook witness path uses [`Self::Quiet`] because it always falls
+/// back to the embedded writer (CIB-345).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DaemonRpcNoise {
+    Surface,
+    Quiet,
+}
+
+fn emit_daemon_rpc_line(noise: DaemonRpcNoise, method: &str, detail: &str) {
+    match noise {
+        DaemonRpcNoise::Quiet => {
+            tracing::debug!(target: "anvil::daemon", method, "{detail}");
+        }
+        DaemonRpcNoise::Surface => {
+            #[cfg(test)]
+            if capture_surface_line(method, detail) {
+                return;
+            }
+            eprintln!("anvil-daemon: {method} {detail}");
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static RPC_SURFACE_CAPTURE: std::cell::RefCell<Option<Vec<String>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn capture_surface_line(method: &str, detail: &str) -> bool {
+    RPC_SURFACE_CAPTURE.with(|slot| {
+        slot.borrow_mut().as_mut().is_some_and(|buf| {
+            buf.push(format!("anvil-daemon: {method} {detail}"));
+            true
+        })
+    })
+}
+
+/// Record surface RPC lines emitted on this thread while `f` runs.
+///
+/// Used by hook tests to prove the quiet witness path does not dump
+/// pipe/connect failures when the embedded fallback will run.
+#[cfg(test)]
+pub(crate) fn capture_rpc_surface_lines<F, T>(f: F) -> (T, Vec<String>)
+where
+    F: FnOnce() -> T,
+{
+    RPC_SURFACE_CAPTURE.with(|slot| {
+        *slot.borrow_mut() = Some(Vec::new());
+    });
+    let out = f();
+    let lines = RPC_SURFACE_CAPTURE.with(|slot| slot.borrow_mut().take().unwrap_or_default());
+    (out, lines)
+}
+
 #[cfg(any(unix, windows))]
 fn classify_connect_error(method: &str, kind: std::io::ErrorKind) -> DaemonRpcError {
     if kind == std::io::ErrorKind::NotFound
@@ -89,23 +148,28 @@ struct GctxRpcError {
 }
 
 #[cfg(any(unix, windows))]
-fn decode_rpc_response<R>(line: &str, method: &str, request_id: &str) -> Result<R, DaemonRpcError>
+fn decode_rpc_response<R>(
+    line: &str,
+    method: &str,
+    request_id: &str,
+    noise: DaemonRpcNoise,
+) -> Result<R, DaemonRpcError>
 where
     R: DeserializeOwned,
 {
     let envelope: GctxRpcEnvelope<R> = serde_json::from_str(line).map_err(|err| {
-        eprintln!("anvil-daemon: {method} response parse failed: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("response parse failed: {err}"));
         DaemonRpcError::Failure
     })?;
     if envelope.jsonrpc.as_deref() != Some("2.0")
         || envelope.id.as_deref() != Some(request_id)
         || envelope.result.is_some() == envelope.error.is_some()
     {
-        eprintln!("anvil-daemon: {method} response envelope was invalid");
+        emit_daemon_rpc_line(noise, method, "response envelope was invalid");
         return Err(DaemonRpcError::Failure);
     }
     if let Some(error) = envelope.error {
-        eprintln!("anvil-daemon: {method} daemon error {}", error.code);
+        emit_daemon_rpc_line(noise, method, &format!("daemon error {}", error.code));
         if error.code == -32601 && method != "scan_buffer" {
             return Err(DaemonRpcError::Unavailable);
         }
@@ -129,6 +193,41 @@ where
     daemon_rpc_call_cancellable(method, request, request_id, None)
 }
 
+/// Same transport as [`daemon_rpc_call`], but transport failures stay off
+/// stderr. Only the hook witness-append path uses this: that caller always
+/// falls back to the embedded writer (CIB-345).
+pub(crate) fn daemon_rpc_call_quiet<Req, Resp>(
+    method: &str,
+    request: &Req,
+    request_id: &str,
+) -> Result<Resp, DaemonRpcError>
+where
+    Req: Serialize,
+    Resp: DeserializeOwned,
+{
+    daemon_rpc_call_cancellable_with_noise(method, request, request_id, None, DaemonRpcNoise::Quiet)
+}
+
+#[cfg(unix)]
+pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
+    method: &str,
+    request: &Req,
+    request_id: &str,
+    cancellation: Option<Arc<AtomicBool>>,
+) -> Result<Resp, DaemonRpcError>
+where
+    Req: Serialize,
+    Resp: DeserializeOwned,
+{
+    daemon_rpc_call_cancellable_with_noise(
+        method,
+        request,
+        request_id,
+        cancellation,
+        DaemonRpcNoise::Surface,
+    )
+}
+
 #[cfg(unix)]
 // Call sites pass `Arc` so the cancel flag can outlive the RPC; taking by
 // value keeps the public surface simple (same as the Windows path).
@@ -136,11 +235,12 @@ where
     clippy::needless_pass_by_value,
     reason = "callers own Arc; shared with Windows RPC surface — GH #3371"
 )]
-pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
+fn daemon_rpc_call_cancellable_with_noise<Req, Resp>(
     method: &str,
     request: &Req,
     request_id: &str,
     cancellation: Option<Arc<AtomicBool>>,
+    noise: DaemonRpcNoise,
 ) -> Result<Resp, DaemonRpcError>
 where
     Req: Serialize,
@@ -166,26 +266,26 @@ where
                 Err(DaemonRpcError::Unavailable)
             }
             _ => {
-                eprintln!("anvil-daemon: {method} socket unavailable: {err}");
+                emit_daemon_rpc_line(noise, method, &format!("socket unavailable: {err}"));
                 Err(DaemonRpcError::Failure)
             }
         };
     }
     let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-daemon: {method} connect failed: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("connect failed: {err}"));
         classify_connect_error(method, err.kind())
     })?;
     ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-daemon: {method} peer rejected: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("peer rejected: {err}"));
         classify_peer_validation_failure(PEER_CREDENTIAL_PLATFORM)
     })?;
     let deadline = std::time::Instant::now() + TIMEOUT;
     stream.set_read_timeout(Some(POLL)).map_err(|err| {
-        eprintln!("anvil-daemon: {method} read-timeout setup failed: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("read-timeout setup failed: {err}"));
         DaemonRpcError::Failure
     })?;
     stream.set_write_timeout(Some(POLL)).map_err(|err| {
-        eprintln!("anvil-daemon: {method} write-timeout setup failed: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("write-timeout setup failed: {err}"));
         DaemonRpcError::Failure
     })?;
 
@@ -212,7 +312,7 @@ where
     )
     .is_err()
     {
-        eprintln!("anvil-daemon: {method} request write failed or cancelled");
+        emit_daemon_rpc_line(noise, method, "request write failed or cancelled");
         return Err(DaemonRpcError::Failure);
     }
 
@@ -226,19 +326,19 @@ where
         cancellation.as_ref(),
     )
     .map_err(|err| {
-        eprintln!("anvil-daemon: {method} response read failed: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("response read failed: {err}"));
         DaemonRpcError::Failure
     })?;
     if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-        eprintln!("anvil-daemon: {method} response was empty, oversized, or unframed");
+        emit_daemon_rpc_line(noise, method, "response was empty, oversized, or unframed");
         return Err(DaemonRpcError::Failure);
     }
     let line = String::from_utf8(line).map_err(|_| {
-        eprintln!("anvil-daemon: {method} response was not UTF-8");
+        emit_daemon_rpc_line(noise, method, "response was not UTF-8");
         DaemonRpcError::Failure
     })?;
 
-    decode_rpc_response(&line, method, request_id)
+    decode_rpc_response(&line, method, request_id, noise)
 }
 
 /// Write `bytes` honouring short write timeouts and optional cancellation.
@@ -346,6 +446,7 @@ fn daemon_rpc_call_windows_at<Resp>(
     params: serde_json::Value,
     request_id: &str,
     cancellation: Option<Arc<AtomicBool>>,
+    noise: DaemonRpcNoise,
 ) -> Result<Resp, DaemonRpcError>
 where
     Resp: DeserializeOwned,
@@ -354,7 +455,7 @@ where
     let cancellation = cancellation.as_deref();
     let mut client = anvil_intercept_win32::connect_owner_only_overlapped_pipe_client(&pipe_name)
         .map_err(|error| {
-        eprintln!("anvil-daemon: {method} pipe connect failed: {error}");
+        emit_daemon_rpc_line(noise, method, &format!("pipe connect failed: {error}"));
         classify_connect_error(method, error.kind())
     })?;
     let mut frame = json!({
@@ -367,14 +468,18 @@ where
         crate::usage::attach_principal(&mut frame);
     }
     let mut request_bytes = serde_json::to_vec(&frame).map_err(|error| {
-        eprintln!("anvil-daemon: {method} request serialise failed: {error}");
+        emit_daemon_rpc_line(noise, method, &format!("request serialise failed: {error}"));
         DaemonRpcError::Failure
     })?;
     request_bytes.push(b'\n');
     client
         .write_all_cancellable(&request_bytes, deadline, cancellation)
         .map_err(|error| {
-            eprintln!("anvil-daemon: {method} pipe request write failed: {error}");
+            emit_daemon_rpc_line(
+                noise,
+                method,
+                &format!("pipe request write failed: {error}"),
+            );
             DaemonRpcError::Failure
         })?;
 
@@ -384,7 +489,11 @@ where
         let read = client
             .read_cancellable(&mut chunk, deadline, cancellation)
             .map_err(|error| {
-                eprintln!("anvil-daemon: {method} pipe response read failed: {error}");
+                emit_daemon_rpc_line(
+                    noise,
+                    method,
+                    &format!("pipe response read failed: {error}"),
+                );
                 DaemonRpcError::Failure
             })?;
         if read == 0 {
@@ -397,16 +506,24 @@ where
         }
     }
     if line.is_empty() || line.len() as u64 > WINDOWS_RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-        eprintln!("anvil-daemon: {method} pipe response was empty, oversized, or unframed");
+        emit_daemon_rpc_line(
+            noise,
+            method,
+            "pipe response was empty, oversized, or unframed",
+        );
         return Err(DaemonRpcError::Failure);
     }
     let line = String::from_utf8(line).map_err(|_| {
-        eprintln!("anvil-daemon: {method} pipe response was not UTF-8");
+        emit_daemon_rpc_line(noise, method, "pipe response was not UTF-8");
         DaemonRpcError::Failure
     })?;
-    let value = decode_rpc_response(&line, method, request_id)?;
+    let value = decode_rpc_response(&line, method, request_id, noise)?;
     serde_json::from_value(value).map_err(|error| {
-        eprintln!("anvil-daemon: {method} pipe response decode failed: {error}");
+        emit_daemon_rpc_line(
+            noise,
+            method,
+            &format!("pipe response decode failed: {error}"),
+        );
         DaemonRpcError::Failure
     })
 }
@@ -426,24 +543,66 @@ where
     Req: Serialize,
     Resp: DeserializeOwned,
 {
+    daemon_rpc_call_cancellable_with_noise(
+        method,
+        request,
+        request_id,
+        cancellation,
+        DaemonRpcNoise::Surface,
+    )
+}
+
+#[cfg(windows)]
+fn daemon_rpc_call_cancellable_with_noise<Req, Resp>(
+    method: &str,
+    request: &Req,
+    request_id: &str,
+    cancellation: Option<Arc<AtomicBool>>,
+    noise: DaemonRpcNoise,
+) -> Result<Resp, DaemonRpcError>
+where
+    Req: Serialize,
+    Resp: DeserializeOwned,
+{
     let pipe_name = anvil_intercept::ipc::resolve_pipe_name().map_err(|err| {
-        eprintln!("anvil-daemon: {method} pipe unavailable: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("pipe unavailable: {err}"));
         DaemonRpcError::Unavailable
     })?;
     let params = serde_json::to_value(request).map_err(|err| {
-        eprintln!("anvil-daemon: {method} request serialise failed: {err}");
+        emit_daemon_rpc_line(noise, method, &format!("request serialise failed: {err}"));
         DaemonRpcError::Failure
     })?;
-    daemon_rpc_call_windows_at(pipe_name, method, params, request_id, cancellation)
+    daemon_rpc_call_windows_at(pipe_name, method, params, request_id, cancellation, noise)
 }
 
 /// Non-Unix, non-Windows targets have no daemon transport.
 #[cfg(all(not(unix), not(windows)))]
 pub(crate) fn daemon_rpc_call_cancellable<Req, Resp>(
     method: &str,
+    request: &Req,
+    request_id: &str,
+    cancellation: Option<Arc<AtomicBool>>,
+) -> Result<Resp, DaemonRpcError>
+where
+    Req: Serialize,
+    Resp: DeserializeOwned,
+{
+    daemon_rpc_call_cancellable_with_noise(
+        method,
+        request,
+        request_id,
+        cancellation,
+        DaemonRpcNoise::Surface,
+    )
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn daemon_rpc_call_cancellable_with_noise<Req, Resp>(
+    method: &str,
     _request: &Req,
     _request_id: &str,
     _cancellation: Option<Arc<AtomicBool>>,
+    _noise: DaemonRpcNoise,
 ) -> Result<Resp, DaemonRpcError>
 where
     Req: Serialize,
@@ -500,7 +659,12 @@ mod tests {
 
         for response in [method_not_found, missing_version, ambiguous] {
             assert_eq!(
-                decode_rpc_response::<serde_json::Value>(response, "scan_buffer", "scan-1"),
+                decode_rpc_response::<serde_json::Value>(
+                    response,
+                    "scan_buffer",
+                    "scan-1",
+                    DaemonRpcNoise::Surface,
+                ),
                 Err(DaemonRpcError::Failure)
             );
         }
@@ -515,8 +679,41 @@ mod tests {
                 method_not_found,
                 "anvil/gctx/search_symbols",
                 "gctx-1",
+                DaemonRpcNoise::Surface,
             ),
             Err(DaemonRpcError::Unavailable)
+        );
+    }
+
+    #[test]
+    fn quiet_noise_does_not_record_a_surface_line() {
+        let ((), lines) = capture_rpc_surface_lines(|| {
+            emit_daemon_rpc_line(
+                DaemonRpcNoise::Quiet,
+                "anvil/witness/append",
+                "connect failed: Connection refused",
+            );
+        });
+        assert!(
+            lines.is_empty(),
+            "quiet witness transport must not dump pipe/connect lines: {lines:?}"
+        );
+    }
+
+    #[test]
+    fn surface_noise_records_the_raw_transport_line() {
+        let ((), lines) = capture_rpc_surface_lines(|| {
+            emit_daemon_rpc_line(
+                DaemonRpcNoise::Surface,
+                "anvil/witness/append",
+                "connect failed: Connection refused",
+            );
+        });
+        assert_eq!(
+            lines,
+            vec![
+                "anvil-daemon: anvil/witness/append connect failed: Connection refused".to_string()
+            ]
         );
     }
 }
@@ -638,6 +835,7 @@ mod windows_tests {
             json!({"workspace_root": r"C:\gctx-test"}),
             "windows-gctx-success",
             None,
+            DaemonRpcNoise::Surface,
         );
         runtime
             .block_on(async { tokio::time::timeout(Duration::from_secs(1), server_task).await })
@@ -688,6 +886,7 @@ mod windows_tests {
                 json!({"mode": "midEdit", "path": "main.rs", "text": "x".repeat(1024 * 1024)}),
                 &format!("cancel-{attempt}"),
                 Some(cancellation),
+                DaemonRpcNoise::Surface,
             );
             assert_eq!(result, Err(DaemonRpcError::Failure));
             assert!(
@@ -715,6 +914,7 @@ mod windows_tests {
             json!({"mode": "midEdit", "path": "main.rs", "text": "fn main() {}"}),
             "timeout",
             None,
+            DaemonRpcNoise::Surface,
         );
         let elapsed = started.elapsed();
         assert_eq!(result, Err(DaemonRpcError::Failure));

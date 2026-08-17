@@ -360,6 +360,19 @@ pub fn render_human_verbose(d: &ActivationDiagnostic) -> String {
         daemon_evidence_label(d.daemon_attestation),
     );
 
+    // CIB-345: when the daemon is down, hook witness appends use the
+    // embedded writer. Name that degrade here so `--verify --why` matches
+    // `anvil doctor` instead of looking like a lost-witness hole.
+    if matches!(
+        d.daemon_attestation,
+        super::daemon_evidence::DaemonAttestation::Unreachable
+    ) {
+        let _ = writeln!(
+            out,
+            "  witness: appends use the embedded writer because the daemon is down",
+        );
+    }
+
     let _ = writeln!(out, "  why: {}", why_summary(d));
 
     out
@@ -2519,6 +2532,25 @@ mod tests {
                 "verbose render must carry the state label `{label}`, got:\n{v}"
             );
         }
+    }
+
+    #[test]
+    fn verbose_render_names_embedded_witness_when_daemon_unreachable() {
+        let down =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable);
+        let h = render_human_verbose(&down);
+        assert!(
+            h.contains("witness: appends use the embedded writer because the daemon is down"),
+            "Unreachable --verify --why must name the embedded witness degrade, got:\n{h}"
+        );
+
+        let up =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Enforced);
+        let h_up = render_human_verbose(&up);
+        assert!(
+            !h_up.contains("embedded writer"),
+            "reachable daemon must not claim an embedded-writer degrade, got:\n{h_up}"
+        );
     }
 
     #[test]

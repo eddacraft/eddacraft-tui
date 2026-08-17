@@ -142,6 +142,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_plans_dir(),
         check_hooks_installed(),
         check_hook_interpreter(),
+        check_witness_append_route(),
         check_registry_patterns_compile(),
         check_project_id(),
         check_state_boundary(),
@@ -1709,6 +1710,43 @@ fn mcp_heal_pass_message(rewritten: usize, poked: bool, managed: usize) -> Strin
     }
 }
 
+/// CIB-345: name the hook witness degrade when the save-time daemon is down.
+///
+/// File-side `chain_intact` stays green because it never talks to the
+/// daemon. Doctor must say that commits still append via the embedded
+/// writer so the split-brain (reads live, daemon-append dead) is honest.
+fn check_witness_append_route() -> DiagnosticCheck {
+    let reachable = crate::commands::intercept::query_daemon_status().is_ok();
+    check_witness_append_route_at(reachable)
+}
+
+fn check_witness_append_route_at(daemon_reachable: bool) -> DiagnosticCheck {
+    if daemon_reachable {
+        return DiagnosticCheck {
+            name: "witness-append-route".to_string(),
+            category: "Witness".to_string(),
+            status: CheckStatus::Pass,
+            message: "Witness appends go through the save-time daemon".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+    DiagnosticCheck {
+        name: "witness-append-route".to_string(),
+        category: "Witness".to_string(),
+        status: CheckStatus::Warn,
+        message: "Witness appends use the embedded writer because the daemon is down".to_string(),
+        details: None,
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "Start the save-time daemon so hook witness appends use the shared writer. Commits are still witnessed by the embedded writer until then.".to_string(),
+            command: Some("anvil start".to_string()),
+            doc_url: None,
+        },
+    }
+}
+
 /// Soft freshness of the managed `anvil-developer-functions` skill installs.
 fn check_managed_skills() -> DiagnosticCheck {
     let home = crate::util::user_home_dir();
@@ -2599,6 +2637,8 @@ mod tests {
             std::fs::write(tmp.path().join("anvil/witness/chain.ndjson"), "{}").unwrap();
             check_state_boundary_at(tmp.path())
         });
+        // CIB-345: daemon-down warn names the embedded-writer degrade.
+        out.push(check_witness_append_route_at(false));
         out
     }
 
@@ -4205,6 +4245,46 @@ mod tests {
             checks.iter().any(|c| c.name == "managed-skills"),
             "managed-skills must be registered in run_all_checks",
         );
+    }
+
+    #[test]
+    fn run_all_checks_includes_witness_append_route_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks.iter().any(|c| c.name == "witness-append-route"),
+            "witness-append-route must be registered in run_all_checks",
+        );
+    }
+
+    #[test]
+    fn witness_append_route_names_embedded_writer_when_daemon_is_down() {
+        let check = check_witness_append_route_at(false);
+        assert_eq!(check.name, "witness-append-route");
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check.message.contains("embedded writer"),
+            "daemon-down copy must name the embedded writer: {}",
+            check.message
+        );
+        assert!(
+            check.message.contains("daemon is down"),
+            "daemon-down copy must say the daemon is down: {}",
+            check.message
+        );
+        assert!(
+            !check.remediation.summary.is_empty(),
+            "warn branch must carry remediation"
+        );
+        assert_eq!(check.remediation.command.as_deref(), Some("anvil start"));
+
+        let pass = check_witness_append_route_at(true);
+        assert_eq!(pass.status, CheckStatus::Pass);
+        assert!(
+            pass.message.contains("save-time daemon"),
+            "reachable copy must name the daemon: {}",
+            pass.message
+        );
+        assert!(!pass.message.contains("embedded writer"));
     }
 
     #[test]
