@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Metadata } from 'next';
-import { IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
@@ -8,10 +8,9 @@ const _jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains-mono',
 });
-const _ibmPlexSans = IBM_Plex_Sans({
+const _inter = Inter({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-ibm-plex-sans',
+  variable: '--font-inter',
 });
 
 export const metadata: Metadata = {
@@ -61,7 +60,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-GB">
-      <body className={`${_jetbrainsMono.variable} ${_ibmPlexSans.variable} font-sans antialiased`}>
+      <body className={`${_jetbrainsMono.variable} ${_inter.variable} font-sans antialiased`}>
         {children}
         <Analytics />
       </body>

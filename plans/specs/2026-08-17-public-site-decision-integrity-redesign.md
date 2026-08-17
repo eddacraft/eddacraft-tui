@@ -147,9 +147,9 @@ Retain early-access, installation, documentation and waitlist flows. The redesig
 Follow Nordic Terminal exactly:
 
 - canonical tokens from `brand-and-design`;
-- Void and Surface with Structure borders;
+- Void surfaces with Structure fills and borders;
 - JetBrains Mono for system voice;
-- IBM Plex Sans for prose;
+- Inter for prose;
 - bracket iconography for context, action and history;
 - lowercase `eddacraft` and `anvil`;
 - British English;
@@ -158,7 +158,7 @@ Follow Nordic Terminal exactly:
 - restrained cursor or path motion only;
 - full reduced-motion behaviour.
 
-Correct the current prose font from Inter to IBM Plex Sans.
+Retain Inter as the canonical narrative voice and restrict the active surface to the five colours defined by `brand-and-design`.
 
 ## Technical design
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 
 const ANVIL_VERSION = 'v0.9.5-beta';
 const ANVIL_BUILD_HASH = '5c4b61a';
@@ -102,6 +103,7 @@ export function CLIFooter() {
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
   const [showPreReleaseModal, setShowPreReleaseModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalCloseRef = useRef<HTMLButtonElement>(null);
   const responseLines = useMemo(
     () => buildResponseLines(email, submitWarning, emailFailed),
     [email, submitWarning, emailFailed]
@@ -278,65 +280,74 @@ export function CLIFooter() {
         </div>
       </div>
 
-      <div className="border-t border-structure">
-        <div className="site-container flex flex-col gap-4 py-5 text-[10px] uppercase tracking-wide text-ghost-grey sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-5">
-            <a href="https://docs.eddacraft.ai" className="hover:text-off-white">
-              docs
-            </a>
-            <a href="https://github.com/eddacraft" className="hover:text-off-white">
-              github
-            </a>
-            <a href="/security" className="hover:text-off-white">
-              security
-            </a>
-            <a href="/privacy" className="hover:text-off-white">
-              privacy
-            </a>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setShowPreReleaseModal(true)}
-              className="hover:text-edda"
-            >
-              {ANVIL_VERSION} :: {ANVIL_BUILD_HASH}
-            </button>
-            <span>© 2026 eddacraft</span>
+      <Dialog.Root open={showPreReleaseModal} onOpenChange={setShowPreReleaseModal}>
+        <div className="border-t border-structure">
+          <div className="site-container flex flex-col gap-4 py-5 text-[10px] uppercase tracking-wide text-ghost-grey sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-5">
+              <a href="https://docs.eddacraft.ai" className="hover:text-off-white">
+                docs
+              </a>
+              <a href="https://github.com/eddacraft" className="hover:text-off-white">
+                github
+              </a>
+              <a href="/security" className="hover:text-off-white">
+                security
+              </a>
+              <a href="/privacy" className="hover:text-off-white">
+                privacy
+              </a>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <Dialog.Trigger asChild>
+                <button type="button" className="hover:text-edda">
+                  {ANVIL_VERSION} :: {ANVIL_BUILD_HASH}
+                </button>
+              </Dialog.Trigger>
+              <span>© 2026 eddacraft</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {showPreReleaseModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-void/90 p-4"
-          onClick={() => setShowPreReleaseModal(false)}
-        >
-          <div
-            className="w-full max-w-md space-y-5 border border-structure bg-surface p-6"
-            onClick={(event) => event.stopPropagation()}
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-void/90" />
+          <Dialog.Content
+            className="fixed left-1/2 top-1/2 z-50 w-[calc(100%_-_2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 space-y-5 border border-structure bg-surface p-6 font-mono"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              modalCloseRef.current?.focus();
+            }}
           >
-            <div className="text-xs uppercase tracking-wide text-ghost-grey">
-              {'// PRE_RELEASE_NOTICE'}
+            <div className="flex items-start justify-between gap-5">
+              <div className="text-xs uppercase tracking-wide text-ghost-grey">
+                {'// PRE_RELEASE_NOTICE'}
+              </div>
+              <Dialog.Close asChild>
+                <button
+                  ref={modalCloseRef}
+                  type="button"
+                  className="border border-structure px-3 py-2 text-xs uppercase tracking-wide text-ghost-grey hover:border-anvil hover:text-off-white"
+                >
+                  Close
+                </button>
+              </Dialog.Close>
             </div>
-            <h3 className="text-xl text-anvil">anvil is in pre-release</h3>
-            <p className="font-sans text-sm leading-6 text-ghost-grey">
+            <Dialog.Title className="text-xl text-anvil">anvil is in pre-release</Dialog.Title>
+            <Dialog.Description className="font-sans text-sm leading-6 text-ghost-grey">
               Engineering teams are onboarding in controlled cohorts. Request access to join the
               next available slot.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setShowPreReleaseModal(false);
-                window.setTimeout(() => inputRef.current?.focus(), 100);
-              }}
-              className="border border-anvil bg-anvil/5 px-4 py-3 text-xs uppercase tracking-wide text-anvil hover:bg-anvil/10"
-            >
-              Request access
-            </button>
-          </div>
-        </div>
-      ) : null}
+            </Dialog.Description>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                onClick={() => window.setTimeout(() => inputRef.current?.focus(), 100)}
+                className="border border-anvil bg-anvil/5 px-4 py-3 text-xs uppercase tracking-wide text-anvil hover:bg-anvil/10"
+              >
+                Request access
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </footer>
   );
 }

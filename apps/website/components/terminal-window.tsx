@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-const COMMAND = 'anvil_validate_write  src/secret.ts';
+const REQUEST = 'MCP REQUEST :: anvil_validate_write';
 
 export function TerminalWindow() {
   const [typedCommand, setTypedCommand] = useState('');
@@ -11,7 +11,7 @@ export function TerminalWindow() {
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const reducedMotionTimeout = window.setTimeout(() => {
-        setTypedCommand(COMMAND);
+        setTypedCommand(REQUEST);
         setShowOutput(true);
       }, 0);
       return () => window.clearTimeout(reducedMotionTimeout);
@@ -21,8 +21,8 @@ export function TerminalWindow() {
     let outputTimeout: number | undefined;
     const typeInterval = window.setInterval(() => {
       charIndex += 1;
-      setTypedCommand(COMMAND.slice(0, charIndex));
-      if (charIndex >= COMMAND.length) {
+      setTypedCommand(REQUEST.slice(0, charIndex));
+      if (charIndex >= REQUEST.length) {
         window.clearInterval(typeInterval);
         outputTimeout = window.setTimeout(() => setShowOutput(true), 300);
       }
@@ -43,10 +43,17 @@ export function TerminalWindow() {
 
       <div className="min-h-[28rem] space-y-4 p-4 sm:p-5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-anvil">$</span>
+          <span className="text-anvil">[ = ]</span>
           <span className="break-all text-off-white">{typedCommand}</span>
           {!showOutput ? <span className="cursor-blink text-anvil">▊</span> : null}
         </div>
+
+        {showOutput ? (
+          <div className="grid grid-cols-[7rem_1fr] gap-x-3 text-ghost-grey">
+            <span>target</span>
+            <span className="break-all text-off-white">src/secret.ts</span>
+          </div>
+        ) : null}
 
         {showOutput ? (
           <div className="space-y-4" aria-live="polite">

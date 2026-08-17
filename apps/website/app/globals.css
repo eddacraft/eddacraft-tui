@@ -7,11 +7,11 @@
   --off-white: #ebebeb;
   --anvil: #cc5500;
   --edda: #2e8b57;
-  --ghost-grey: #85858a;
-  --brick-red: #c94a4a;
-  --dull-amber: #d08c38;
-  --surface: #141416;
-  --border-strong: #3a3a3f;
+  --ghost-grey: var(--off-white);
+  --brick-red: var(--anvil);
+  --dull-amber: var(--anvil);
+  --surface: var(--void);
+  --border-strong: var(--structure);
 
   --text-primary: var(--off-white);
   --text-muted: var(--ghost-grey);
@@ -38,7 +38,7 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-ibm-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), 'IBM Plex Mono', ui-monospace, monospace;
 
   --color-void: var(--void);
@@ -132,7 +132,8 @@
 }
 
 .section-label {
-  color: var(--ghost-grey);
+  color: var(--off-white);
+  opacity: 0.6;
   font-family: var(--font-jetbrains-mono), 'IBM Plex Mono', monospace;
   font-size: 0.75rem;
   letter-spacing: 0.08em;
