@@ -151,7 +151,7 @@ dependencies and expected evidence are present.
 
 ### DOCRB-002: Inventory and disposition the documentation and diagram corpus
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Produce a complete, source-pinned ownership and disposition map
   before moving or deleting documentation.
 - **Expected Outcome:** Every crate, package/group, app, central architecture
@@ -159,6 +159,8 @@ dependencies and expected evidence are present.
   with an owner, authoritative concern, target location, required diagram view,
   and `retain`, `move`, `redraw`, `merge`, `retire`, or explicit-exemption
   disposition; duplicate-authority pairs and broken discovery paths are listed.
+- **Files:** `plans/specs/2026-08-17-docrb-corpus-disposition.md`,
+  `plans/modules/docs-rebaseline.aps.md`
 - **Scope:** Repository documentation/component inventory and a governed DOCRB
   assessment artefact
 - **Non-scope:** Executing migrations or changing sibling-module status
