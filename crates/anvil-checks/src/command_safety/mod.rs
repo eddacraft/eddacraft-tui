@@ -9,7 +9,10 @@ pub use matcher::{
     MatcherContext, RuleMatcher, analyse_command, analyse_compound, calculate_specificity,
     find_matching_rule, matches_pipe_to_shell,
 };
-pub use parser::{CommandParser, CompoundCommandResult, parse_command, parse_compound_command};
+pub use parser::{
+    CommandParser, CompoundCommandResult, parse_command, parse_compound_command,
+    pipeline_stage_head,
+};
 pub use rules::{default_filesystem_rules, default_git_rules, default_shell_rules};
 pub use types::{
     CommandAction, CommandAnalysisResult, CommandAnalysisSummary, CommandArgConfig,

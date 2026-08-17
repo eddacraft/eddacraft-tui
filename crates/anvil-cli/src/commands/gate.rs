@@ -2837,7 +2837,14 @@ fn run_check_shell(
         .commands
         .iter()
         .filter(|f| !f.suppressed)
-        .map(|f| format!("{}:{} [{}] {}", f.file, f.line, f.reason, f.command))
+        .map(|f| {
+            let tag = if f.rule_id.is_empty() {
+                f.reason.as_str()
+            } else {
+                f.rule_id.as_str()
+            };
+            format!("{}:{} [{}] {}", f.file, f.line, tag, f.command)
+        })
         .collect();
 
     if locations.is_empty() {

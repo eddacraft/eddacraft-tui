@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for SURFSH-008 design | [SURFSH](../modules/surface-shell.aps.md) | Accepted | 2026-08-17 — planning-workflow grill, operator-approved |
+| Spec | Authoritative for SURFSH-008 design | [SURFSH](../modules/surface-shell.aps.md) | Accepted | 2026-08-18 — Council BLOCK repairs |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -48,8 +48,13 @@ call the shared helper; that is not SURFSH-008.
 | `chmod-777` | Numeric `777` / `0777` | **Warn** | Warning |
 
 SURFSH remains warn-only: it already maps Block and Warn to findings.
-Runtime command-safety is hard-pinned; Block fails that check. Individual
-rule overrides still work by id.
+Runtime command-safety is hard-pinned; the class cannot be disabled.
+`load_rules` honours per-id `disabled` / `overrides` when
+`CommandSafetyConfig` is supplied. **`anvil gate` does not pass that
+config today**, so `.anvilrc` per-rule disable is not a live gate
+rollback. Skip one invocation with `--skip-command-safety`. SURFSH
+rollback is `# @anvil-ignore SURFSH-002: <reason>` or
+`ANVIL_TRACK_SURFACE_SH=0`.
 
 Existing `chmod-recursive-777` and `chmod-777-sensitive` stay as they are.
 
@@ -62,6 +67,21 @@ Parsed SURFDOCK contract:
   or `wget` and a later command is `sh` / `bash` / `ash` / `dash` / `zsh`
   (basename; `/bin/sh` counts).
 - Does **not** fire on `curl … || sh`, `curl … | tar`, or `cat file | sh`.
+- Also fires on download-exec equivalents: `eval "$(curl …)"`,
+  `bash <(curl …)`, `bash -c "$(wget …)"`.
+- Destination `sh -c` / `bash -lc` is identified from the stage head
+  (not after peeling the shell). `|&` and `2>&1 |` count as pipes.
+- Fail-closed when one side is a known fetcher/shell and the other is
+  an unresolved expansion (`$FETCH | sh`, `curl | $SHELL`). Two unknown
+  expansions (`$A | $B`) do not fire.
+
+### 3.4 Known limitations
+
+- `$FETCH | $SHELL` (both sides unknown) is not flagged.
+- `timeout`/`busybox`/`exec` prefixes on a fetcher or shell are handled;
+  arbitrary unlisted wrappers are not.
+- Pretty-printed pipelines without `\` are joined when a line ends with
+  `|` or the next line starts with `|`.
 
 ### 3.2 Dynamic eval
 

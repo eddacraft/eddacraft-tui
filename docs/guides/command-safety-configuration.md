@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                                                                                                                     |
 | ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | CMDSH | Live   | Last reviewed 2026-05-25 against `docs/guides/command-safety.md` and `crates/anvil-checks/tests/command_safety_validation.rs` |
+| Guide | Authoritative | CMDSH | Live   | Last reviewed 2026-08-18 against `docs/guides/command-safety.md` and `crates/anvil-checks/tests/command_safety_validation.rs` |
 
 | Upstream                                                                                              | Downstream                      |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
@@ -97,7 +97,14 @@ that are normally allowed.
 **Type:** `string[]`  
 **Default:** `[]`
 
-Disable specific rules by ID. Disabled rules are completely ignored.
+Disable specific rules by ID. Disabled rules are completely ignored when
+`CommandSafetyConfig` is passed into `run_command_safety_check`. **`anvil gate`
+does not currently wire that config**, so `.anvilrc` `disabled` / `overrides`
+are not a live rollback for gate. The `command-safety` class is hard-pinned and
+cannot be turned off. For the default-on `shell-scripts` surface, suppress a
+line with `# @anvil-ignore SURFSH-002: <reason>` or set
+`ANVIL_TRACK_SURFACE_SH=0`. To skip the runtime check for one invocation, use
+`--skip-command-safety`.
 
 ```json
 {
@@ -431,6 +438,17 @@ Include reference documentation links.
 | `mkfs-ext4`              | `mkfs.ext4`           | block  |
 | `mkfs-xfs`               | `mkfs.xfs`            | block  |
 | `mkfs-btrfs`             | `mkfs.btrfs`          | block  |
+
+### Shell Rules
+
+Shared with the `shell-scripts` surface (SURFSH, warn-only). Runtime
+command-safety **Blocks** pipe-to-shell and **Warns** on the other two.
+
+| ID              | Command                                     | Action |
+| --------------- | ------------------------------------------- | ------ |
+| `pipe-to-shell` | `curl`/`wget` piped to `sh`/`bash`/…        | block  |
+| `eval-dynamic`  | `eval` with `$`, backticks, or substitution | warn   |
+| `chmod-777`     | `chmod 777` / `0777`                        | warn   |
 
 ## Example Configurations
 

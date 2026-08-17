@@ -155,11 +155,10 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 - **Dependencies:** SURFSH-002 (Released/Shipped)
 - **Confidence:** high — design accepted; remaining risk is FP on the new
   eval/chmod/pipe rules, gated by the corpus re-check.
-- **Evidence:** 2026-08-17 — `cargo test -p eddacraft-anvil-checks --lib
-  command_safety` (74), `--lib surface::shell` (19), `--test
-  command_safety_validation` (41); Anvil corpus 0 new unsuppressed
-  pipe/eval/chmod-777 findings (82 inherited filesystem expansion warnings).
-  Independent verify-loop: pass-with-advisories.
+- **Evidence:** 2026-08-18 — Council BLOCK repairs (`sh -c` identity,
+  `2>&1`/`|&`, trailing-`|` join, docs-owed, override honesty).
+  `cargo test -p eddacraft-anvil-checks --lib command_safety`;
+  `--lib surface::shell`; `--test command_safety_validation`.
 
 ### 1. Shared shell catalogue and compound helper exist
 

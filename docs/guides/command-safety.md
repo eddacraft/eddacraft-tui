@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                                                                                                                                            |
 | ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | CMDSH | Live   | Last reviewed 2026-05-25 against `crates/anvil-checks/tests/command_safety_validation.rs` and `plans/archive/modules/command-safety-surfaces.aps.md` |
+| Guide | Authoritative | CMDSH | Live   | Last reviewed 2026-08-18 against `crates/anvil-checks/tests/command_safety_validation.rs` and `plans/archive/modules/command-safety-surfaces.aps.md` |
 
 | Upstream                                                                                                                                                                     | Downstream                                                                 |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -21,7 +21,7 @@ variants from dangerous ones.
 **Key features:**
 
 - Semantic command analysis (not just regex matching)
-- 36 default rules for git and filesystem operations
+- 39 default rules for git, filesystem, and shell operations
 - Shell wrapper unwrapping (`bash -c`, `sudo`, `env`)
 - Configurable via `.anvilrc`
 - Clear blocking messages with safe alternatives
@@ -81,6 +81,16 @@ anvil gate plan.md --skip-checks=command-safety
 | `rm -rf /etc`, `/usr`, etc. | Block  | System directories             |
 | `dd of=/dev/sda`            | Block  | Overwrites entire disk         |
 | `mkfs.*`                    | Block  | Formats and destroys disk data |
+
+### Shell Operations
+
+| Command                           | Action | Reason                                    |
+| --------------------------------- | ------ | ----------------------------------------- |
+| `curl … \| sh` / `wget … \| bash` | Block  | Download executed without a checksum      |
+| `eval $cmd` / `eval "$(…)"`       | Warn   | Dynamic eval of attacker-controlled input |
+| `chmod 777` / `chmod 0777`        | Warn   | World-writable mode                       |
+
+`shell-scripts` (SURFSH) uses the same catalogue and stays warn-only.
 
 ### Safe Filesystem Operations (Allowed)
 
@@ -173,7 +183,8 @@ descriptions without code blocks are also checked.
 
 - Typical overhead: < 50ms per command
 - Rules are matched by specificity (most specific rule wins)
-- Compound commands (`&&`, `;`, `|`) are split and analysed individually
+- Compound commands (`&&`, `;`, `|`) are split, then `analyse_compound` applies
+  pipeline-aware rules such as `pipe-to-shell`
 
 ## Skipping the Check
 

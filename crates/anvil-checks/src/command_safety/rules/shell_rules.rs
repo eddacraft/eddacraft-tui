@@ -61,7 +61,9 @@ fn eval_dynamic() -> CommandRule {
         "eval with a dynamic argument executes attacker-controlled shell",
     );
     rule.args = Some(CommandArgConfig {
-        pattern: Some(r"[$`]".to_string()),
+        // Dynamic: $name, ${}, $(), backticks. Not ANSI-C `$''` leftovers
+        // (`$echo ok`) and not static words.
+        pattern: Some(r"(?:\$\(|\$\{|`|\$[A-Za-z_][A-Za-z0-9_]*$)".to_string()),
         position: None,
     });
     rule.suggestion =
@@ -125,6 +127,8 @@ mod tests {
         // Fail-closed expansion matching must not treat `$file` as mode 777.
         let parsed = parse_command("chmod 644 $file");
         assert!(find_matching_rule(&parsed, &rules(), None).is_none());
+        let parsed = parse_command("chmod $mode file");
+        assert!(find_matching_rule(&parsed, &rules(), None).is_none());
     }
 
     #[test]
@@ -140,7 +144,7 @@ mod tests {
 
     #[test]
     fn ignores_static_eval() {
-        for cmd in ["eval 'echo ok'", "eval echo hello"] {
+        for cmd in ["eval 'echo ok'", "eval echo hello", "eval $'echo ok'"] {
             let parsed = parse_command(cmd);
             assert!(
                 find_matching_rule(&parsed, &rules(), None).is_none(),

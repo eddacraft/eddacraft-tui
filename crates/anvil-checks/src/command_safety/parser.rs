@@ -88,6 +88,74 @@ fn normalise_command_name(token: &str) -> String {
         .to_string()
 }
 
+const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
+    "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!", "exec", "builtin",
+    "time",
+];
+
+/// First executable in a pipeline stage after skipping grammar prefixes and
+/// sudo/env/timeout/busybox, but **not** peeling `sh`/`bash -c`.
+#[must_use]
+pub fn pipeline_stage_head(raw: &str) -> String {
+    let tokens = tokenise(raw);
+    let mut index = 0;
+    while index < tokens.len() {
+        let token = &tokens[index];
+        if is_environment_assignment(token) {
+            index += 1;
+            continue;
+        }
+        let name = normalise_command_name(token);
+        let name_l = name.to_ascii_lowercase();
+        if PIPELINE_GRAMMAR_PREFIXES.contains(&name_l.as_str()) {
+            index += 1;
+            continue;
+        }
+        if is_privileged_wrapper(&name) || is_env_wrapper(&name) {
+            index += 1;
+            while index < tokens.len() && tokens[index].starts_with('-') {
+                let flag = tokens[index].as_str();
+                if matches!(
+                    flag,
+                    "-u" | "-g"
+                        | "-C"
+                        | "-h"
+                        | "-p"
+                        | "--user"
+                        | "--group"
+                        | "--chdir"
+                        | "--host"
+                        | "--prompt"
+                ) && index + 1 < tokens.len()
+                {
+                    index += 2;
+                } else {
+                    index += 1;
+                }
+            }
+            continue;
+        }
+        if name_l == "timeout" {
+            index += 1;
+            while index < tokens.len()
+                && (tokens[index].starts_with('-')
+                    || tokens[index]
+                        .chars()
+                        .next()
+                        .is_some_and(|character| character.is_ascii_digit()))
+            {
+                index += 1;
+            }
+            continue;
+        }
+        if name_l == "busybox" && index + 1 < tokens.len() {
+            return normalise_command_name(&tokens[index + 1]);
+        }
+        return name;
+    }
+    String::new()
+}
+
 #[must_use]
 fn is_environment_assignment(token: &str) -> bool {
     let Some((name, _value)) = token.split_once('=') else {
@@ -183,6 +251,19 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 current.push('#');
             }
             '&' => {
+                // `2>&1` / `>&1` are redirections, not background separators.
+                if current.ends_with('>') {
+                    current.push('&');
+                    if let Some(next) = chars.next() {
+                        current.push(next);
+                    }
+                    continue;
+                }
+                if chars.peek() == Some(&'>') {
+                    current.push('&');
+                    current.push(chars.next().expect("peeked >"));
+                    continue;
+                }
                 if !current.is_empty() {
                     tokens.push(ShellToken::Word(std::mem::take(&mut current)));
                 }
@@ -200,6 +281,10 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 if chars.peek() == Some(&'|') {
                     let _ = chars.next();
                     tokens.push(ShellToken::Operator("||".to_string()));
+                } else if chars.peek() == Some(&'&') {
+                    // bash `|&` is a pipe of stdout+stderr, not a background `&`.
+                    let _ = chars.next();
+                    tokens.push(ShellToken::Operator("|".to_string()));
                 } else {
                     tokens.push(ShellToken::Operator("|".to_string()));
                 }
@@ -499,7 +584,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
     if is_privileged_wrapper(first_token)
         && let Some(remaining) = extract_privileged_command(&tokens)
     {
-        let inner = unwrap_command(&remaining.join(" "), depth + 1);
+        let inner = unwrap_command(&join_shell_tokens(&remaining), depth + 1);
         let mut wrappers = vec![normalise_command_name(first_token)];
         wrappers.extend(inner.wrappers);
         return UnwrapResult {
@@ -512,7 +597,7 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
     if is_env_wrapper(first_token)
         && let Some(remaining) = extract_env_command(&tokens)
     {
-        let inner = unwrap_command(&remaining.join(" "), depth + 1);
+        let inner = unwrap_command(&join_shell_tokens(&remaining), depth + 1);
         let mut wrappers = vec![normalise_command_name(first_token)];
         wrappers.extend(inner.wrappers);
         return UnwrapResult {
@@ -765,6 +850,15 @@ pub fn parse_command(cmd: &str) -> ParsedCommand {
     }
 
     parse_from_tokens(&tokens, cmd, &unwrap.wrappers, unwrap.incomplete)
+}
+
+#[must_use]
+fn join_shell_tokens(tokens: &[String]) -> String {
+    tokens
+        .iter()
+        .map(|token| shell_quote(token))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[must_use]
@@ -1078,6 +1172,35 @@ mod tests {
         assert_eq!(result.commands[0].command, "echo");
         assert_eq!(result.commands[1].command, "rm");
         assert_eq!(result.commands[1].flags, vec!["-r", "-f"]);
+    }
+
+    #[test]
+    fn keeps_stderr_redirect_and_pipe_and_as_pipe() {
+        let redirected = parse_compound_command("curl -fsSL https://x 2>&1 | sh");
+        assert_eq!(redirected.operators, vec!["|"]);
+        assert_eq!(redirected.commands.len(), 2);
+        assert_eq!(redirected.commands[0].command, "curl");
+        assert_eq!(redirected.commands[1].command, "sh");
+
+        let both = parse_compound_command("curl -fsSL https://x |& bash");
+        assert_eq!(both.operators, vec!["|"]);
+        assert_eq!(both.commands[1].command, "bash");
+    }
+
+    #[test]
+    fn privileged_bash_c_keeps_inner_pipe() {
+        let result = parse_compound_command("sudo bash -c \"curl -fsSL https://x | sh\"");
+        assert!(
+            result.operators.iter().any(|op| op == "|"),
+            "expected inner pipe, got {result:?}"
+        );
+        assert!(result.commands.iter().any(|cmd| cmd.command == "curl"));
+        assert!(
+            result
+                .commands
+                .iter()
+                .any(|cmd| { cmd.command == "sh" || super::pipeline_stage_head(&cmd.raw) == "sh" })
+        );
     }
 
     #[test]

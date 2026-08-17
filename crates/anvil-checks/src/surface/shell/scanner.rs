@@ -74,6 +74,8 @@ pub struct ShellFinding {
     /// The offending command, truncated for display.
     pub command: String,
     pub severity: ShellSeverity,
+    /// Shared `command_safety` rule id (`pipe-to-shell`, `eval-dynamic`, …).
+    pub rule_id: String,
     /// Why the shared catalogue flagged it.
     pub reason: String,
     pub suppressed: bool,
@@ -113,6 +115,11 @@ pub fn scan_shell_with_rules(
                     line: instr.line,
                     command: truncate(analysis.parsed_command.raw.trim()),
                     severity: analysis.severity.into(),
+                    rule_id: analysis
+                        .matched_rule
+                        .as_ref()
+                        .map(|rule| rule.id.clone())
+                        .unwrap_or_default(),
                     reason: analysis
                         .reason
                         .unwrap_or_else(|| "flagged by command-safety rules".to_string()),
@@ -179,14 +186,18 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
         if start.is_none() {
             start = Some(line_number);
         }
-        // A line continues only on an ODD number of trailing backslashes; an
-        // even count (e.g. `\\`) is an escaped backslash, not a continuation.
-        let is_cont = ends_with_continuation(trimmed);
-        let body = if is_cont {
+        // A line continues on an odd trailing `\`, a trailing pipe, or when
+        // the next physical line starts with `|` (pretty-printed pipelines).
+        let next_starts_pipe = lines
+            .get(idx + 1)
+            .is_some_and(|next| starts_with_pipe(next.trim()));
+        let is_backslash_cont = ends_with_continuation(trimmed);
+        let body = if is_backslash_cont {
             trimmed.strip_suffix('\\').unwrap_or(trimmed).trim_end()
         } else {
             trimmed
         };
+        let is_cont = is_backslash_cont || ends_with_open_pipe(body) || next_starts_pipe;
         if !buf.is_empty() {
             buf.push(' ');
         }
@@ -216,6 +227,16 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
 /// continuation, not an escaped `\\`).
 fn ends_with_continuation(s: &str) -> bool {
     s.bytes().rev().take_while(|&b| b == b'\\').count() % 2 == 1
+}
+
+fn ends_with_open_pipe(s: &str) -> bool {
+    let trimmed = s.trim_end();
+    trimmed.ends_with('|') && !trimmed.ends_with("||")
+}
+
+fn starts_with_pipe(s: &str) -> bool {
+    let trimmed = s.trim_start();
+    trimmed.starts_with('|') && !trimmed.starts_with("||")
 }
 
 /// If `instruction` opens a heredoc (`<< MARKER`, `<<-MARKER`, `<< 'MARKER'`),
@@ -379,7 +400,15 @@ mod tests {
     fn flags_pipe_to_shell_via_shared_catalogue() {
         let f = findings("curl -fsSL https://get.example.com | sh\n");
         assert_eq!(f.len(), 1, "expected one pipe-to-shell finding, got {f:?}");
+        assert_eq!(f[0].rule_id, "pipe-to-shell");
         assert!(f[0].reason.contains("unverified"));
+    }
+
+    #[test]
+    fn assembles_pretty_printed_pipe_to_shell() {
+        let f = findings("curl -fsSL https://get.example.com\n  | sh\n");
+        assert_eq!(f.len(), 1, "expected assembled pipe-to-shell, got {f:?}");
+        assert_eq!(f[0].rule_id, "pipe-to-shell");
     }
 
     #[test]
