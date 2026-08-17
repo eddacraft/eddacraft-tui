@@ -61,11 +61,13 @@ fn eval_dynamic() -> CommandRule {
         "eval with a dynamic argument executes attacker-controlled shell",
     );
     rule.args = Some(CommandArgConfig {
-        // Dynamic: command substitutions, named parameters (including when
-        // followed by a suffix), and positional/special parameters. ANSI-C
-        // quoted literals retain their quote marker in the parser and do not
-        // match this expression.
-        pattern: Some(r"(?:\$\(|\$\{|`|\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[@*#?$!-]))".to_string()),
+        // Dynamic: command and legacy arithmetic substitutions, named
+        // parameters (including when followed by a suffix), and
+        // positional/special parameters. ANSI-C quoted literals retain their
+        // quote marker in the parser and do not match this expression.
+        pattern: Some(
+            r"(?:\$\(|\$\{|\$\[|`|\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+|[@*#?$!-]))".to_string(),
+        ),
         position: None,
     });
     rule.suggestion =
@@ -145,6 +147,7 @@ mod tests {
             "eval $@",
             "eval $?",
             "eval $$",
+            "eval '$[user_input]'",
             "eval -$cmd",
             "eval -$(printf dynamic)",
         ] {

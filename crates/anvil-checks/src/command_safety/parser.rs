@@ -781,6 +781,66 @@ pub fn pipeline_stage_head(raw: &str) -> String {
 }
 
 #[must_use]
+fn is_heredoc_word(word: &str) -> bool {
+    let mut word = word.trim_start_matches(|character: char| character.is_ascii_digit());
+    if let Some(rest) = word.strip_prefix('{')
+        && let Some(close) = rest.find('}')
+    {
+        word = &rest[close + 1..];
+    }
+    word.starts_with("<<") && !word.starts_with("<<<")
+}
+
+/// Return the shell which consumes each heredoc opened by `instruction`.
+///
+/// Entries are in shell heredoc-consumption order. A heredoc is executable
+/// when it redirects a shell directly, or when its command feeds a later shell
+/// in the same pipeline.
+#[must_use]
+pub(crate) fn heredoc_shell_consumers(instruction: &str) -> Vec<Option<String>> {
+    let compound = parse_compound_command(instruction);
+    let heads = compound
+        .commands
+        .iter()
+        .map(|command| pipeline_stage_head(&command.raw).to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    let heredoc_counts = compound
+        .commands
+        .iter()
+        .map(|command| {
+            shell_words(&command.raw)
+                .iter()
+                .filter(|word| is_heredoc_word(word))
+                .count()
+        })
+        .collect::<Vec<_>>();
+
+    let mut consumers = Vec::new();
+    for (index, count) in heredoc_counts.into_iter().enumerate() {
+        let direct = heads
+            .get(index)
+            .filter(|head| SHELL_WRAPPERS.contains(&head.as_str()))
+            .cloned();
+        let downstream = (index + 1..heads.len()).find_map(|next| {
+            let connected = (index..next)
+                .all(|operator| compound.operators.get(operator).is_some_and(|op| op == "|"));
+            (connected && SHELL_WRAPPERS.contains(&heads[next].as_str()))
+                .then(|| heads[next].clone())
+        });
+        consumers.extend(std::iter::repeat_n(direct.or(downstream), count));
+    }
+    consumers
+}
+
+/// Model an unquoted heredoc body as shell input so the shared matcher can
+/// classify command substitutions and legacy backticks with its normal shell
+/// payload semantics.
+#[must_use]
+pub(crate) fn shell_heredoc_payload_command(shell: &str, body: &str) -> String {
+    format!("{shell} -c {}", shell_quote(body))
+}
+
+#[must_use]
 fn is_environment_assignment(token: &str) -> bool {
     let Some((name, _value)) = token.split_once('=') else {
         return false;
@@ -1080,14 +1140,6 @@ fn tokenise(cmd: &str) -> Vec<String> {
 #[must_use]
 pub(crate) fn shell_words(cmd: &str) -> Vec<String> {
     tokenise(cmd)
-}
-
-#[must_use]
-pub(crate) fn exec_descriptor_update(text: &str) -> bool {
-    parse_compound_command(text)
-        .commands
-        .iter()
-        .any(|command| !persistent_exec_descriptor_updates(&command.raw).is_empty())
 }
 
 #[must_use]
@@ -2386,6 +2438,23 @@ mod tests {
         ] {
             assert_eq!(super::pipeline_stage_head(raw), expected, "raw={raw}");
         }
+    }
+
+    #[test]
+    fn maps_heredocs_to_direct_and_pipelined_shell_consumers() {
+        assert_eq!(
+            super::heredoc_shell_consumers("sh <<EOF"),
+            vec![Some("sh".to_string())]
+        );
+        assert_eq!(
+            super::heredoc_shell_consumers("cat <<EOF | env bash"),
+            vec![Some("bash".to_string())]
+        );
+        assert_eq!(
+            super::heredoc_shell_consumers("cat <<A; sh <<B"),
+            vec![None, Some("sh".to_string())]
+        );
+        assert_eq!(super::heredoc_shell_consumers("cat <<EOF"), vec![None]);
     }
 
     #[test]
