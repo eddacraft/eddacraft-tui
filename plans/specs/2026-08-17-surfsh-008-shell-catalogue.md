@@ -52,8 +52,8 @@ Runtime command-safety is hard-pinned; the class cannot be disabled.
 `load_rules` honours per-id `disabled` / `overrides` when
 `CommandSafetyConfig` is supplied. **`anvil gate` does not pass that
 config today**, so `.anvilrc` per-rule disable is not a live gate
-rollback. Skip one invocation with `--skip-command-safety`. SURFSH
-rollback is `# @anvil-ignore SURFSH-002: <reason>` or
+rollback. Skip one invocation with `--skip-checks=command-safety`. SURFSH
+rollback is `# @anvil-ignore SURFSH-002 -- <reason>` or
 `ANVIL_TRACK_SURFACE_SH=0`.
 
 Existing `chmod-recursive-777` and `chmod-777-sensitive` stay as they are.
@@ -92,7 +92,7 @@ substitution. Do **not** fire on a static literal (`eval 'echo ok'`,
 This is the static approximation of “eval on user-controlled input”.
 Anvil dogfood hits (`scripts/agent/guidance.sh`,
 `scripts/cache/anvil-target-evict.test.sh`) are true positives: suppress
-with `# @anvil-ignore SURFSH-002: <reason>`.
+with `# @anvil-ignore SURFSH-002 -- <reason>`.
 
 ### 3.3 chmod 777
 

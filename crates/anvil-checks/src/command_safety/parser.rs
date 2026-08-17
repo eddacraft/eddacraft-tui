@@ -88,10 +88,157 @@ fn normalise_command_name(token: &str) -> String {
         .to_string()
 }
 
+#[must_use]
+pub(crate) fn shell_code_before_comment(line: &str) -> &str {
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut previous: Option<char> = None;
+
+    for (index, character) in line.char_indices() {
+        if escaped {
+            escaped = false;
+            previous = Some(character);
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            previous = Some(character);
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '#' if !in_single_quote
+                && !in_double_quote
+                && previous.is_none_or(|before| {
+                    before.is_whitespace() || matches!(before, ';' | '|' | '&' | '(' | ')')
+                }) =>
+            {
+                return &line[..index];
+            }
+            _ => {}
+        }
+        previous = Some(character);
+    }
+    line
+}
+
+#[must_use]
+pub(crate) fn ends_with_open_pipe(line: &str) -> bool {
+    let code = shell_code_before_comment(line).trim_end();
+    let pipe_index = if code.ends_with("|&") {
+        code.len().saturating_sub(2)
+    } else if code.ends_with('|') && !code.ends_with("||") {
+        code.len().saturating_sub(1)
+    } else {
+        return false;
+    };
+
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    for (index, character) in code.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '|' if index == pipe_index => return !in_single_quote && !in_double_quote,
+            _ => {}
+        }
+    }
+    false
+}
+
+#[must_use]
+pub(crate) fn starts_with_pipe(line: &str) -> bool {
+    let code = shell_code_before_comment(line).trim_start();
+    code.starts_with('|') && !code.starts_with("||")
+}
+
 const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
-    "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!", "exec", "builtin",
-    "time",
+    "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!", "builtin",
 ];
+
+#[must_use]
+fn pipeline_wrapper_option_takes_value(wrapper: &str, flag: &str) -> bool {
+    match wrapper {
+        "sudo" | "doas" => matches!(
+            flag,
+            "-u" | "-g"
+                | "-C"
+                | "-h"
+                | "-p"
+                | "-r"
+                | "-t"
+                | "-T"
+                | "-U"
+                | "-D"
+                | "-a"
+                | "--user"
+                | "--group"
+                | "--close-from"
+                | "--host"
+                | "--prompt"
+                | "--role"
+                | "--type"
+                | "--command-timeout"
+                | "--other-user"
+                | "--chdir"
+                | "--login-class"
+        ),
+        "env" => matches!(flag, "-C" | "--chdir" | "-u" | "--unset"),
+        "nice" => matches!(flag, "-n" | "--adjustment"),
+        "time" => matches!(flag, "-f" | "--format" | "-o" | "--output"),
+        "strace" => matches!(
+            flag,
+            "-o" | "--output"
+                | "-e"
+                | "--trace"
+                | "-p"
+                | "--attach"
+                | "-u"
+                | "--user"
+                | "-s"
+                | "--string-limit"
+        ),
+        "timeout" => matches!(flag, "-s" | "--signal" | "-k" | "--kill-after"),
+        "exec" => flag == "-a",
+        _ => false,
+    }
+}
+
+#[must_use]
+fn skip_pipeline_wrapper(tokens: &[String], index: usize, wrapper: &str) -> usize {
+    let mut next = index + 1;
+    while next < tokens.len() {
+        let token = &tokens[next];
+        if token == "--" {
+            return next + 1;
+        }
+        if wrapper == "env" && is_environment_assignment(token) {
+            next += 1;
+            continue;
+        }
+        if !token.starts_with('-') {
+            break;
+        }
+        let has_inline_value = token.starts_with("--") && token.contains('=');
+        if pipeline_wrapper_option_takes_value(wrapper, token) && !has_inline_value {
+            next = (next + 2).min(tokens.len());
+        } else {
+            next += 1;
+        }
+    }
+    next
+}
 
 /// First executable in a pipeline stage after skipping grammar prefixes and
 /// sudo/env/timeout/busybox, but **not** peeling `sh`/`bash -c`.
@@ -111,39 +258,14 @@ pub fn pipeline_stage_head(raw: &str) -> String {
             index += 1;
             continue;
         }
-        if is_privileged_wrapper(&name) || is_env_wrapper(&name) {
-            index += 1;
-            while index < tokens.len() && tokens[index].starts_with('-') {
-                let flag = tokens[index].as_str();
-                if matches!(
-                    flag,
-                    "-u" | "-g"
-                        | "-C"
-                        | "-h"
-                        | "-p"
-                        | "--user"
-                        | "--group"
-                        | "--chdir"
-                        | "--host"
-                        | "--prompt"
-                ) && index + 1 < tokens.len()
-                {
-                    index += 2;
-                } else {
-                    index += 1;
-                }
-            }
+        if is_privileged_wrapper(&name) || is_env_wrapper(&name) || name_l == "exec" {
+            index = skip_pipeline_wrapper(&tokens, index, &name_l);
             continue;
         }
         if name_l == "timeout" {
-            index += 1;
-            while index < tokens.len()
-                && (tokens[index].starts_with('-')
-                    || tokens[index]
-                        .chars()
-                        .next()
-                        .is_some_and(|character| character.is_ascii_digit()))
-            {
+            index = skip_pipeline_wrapper(&tokens, index, &name_l);
+            // timeout requires one duration operand before its command.
+            if index < tokens.len() {
                 index += 1;
             }
             continue;
@@ -203,6 +325,27 @@ fn split_by_operators(tokens: &[ShellToken]) -> Vec<SubCommandTokens> {
     commands
 }
 
+fn begin_single_quote(current: &mut String) -> bool {
+    let preserve = current.ends_with('$');
+    if preserve {
+        current.push('\'');
+    }
+    preserve
+}
+
+fn close_single_quote(current: &mut String, preserve: &mut bool) {
+    if *preserve {
+        current.push('\'');
+        *preserve = false;
+    }
+}
+
+fn push_current_word(tokens: &mut Vec<ShellToken>, current: &mut String) {
+    if !current.is_empty() {
+        tokens.push(ShellToken::Word(std::mem::take(current)));
+    }
+}
+
 #[must_use]
 fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut tokens = Vec::new();
@@ -210,11 +353,13 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut chars = cmd.chars().peekable();
     let mut in_single_quote = false;
     let mut in_double_quote = false;
+    let mut preserve_single_quote = false;
 
     while let Some(ch) = chars.next() {
         if in_single_quote {
             if ch == '\'' {
                 in_single_quote = false;
+                close_single_quote(&mut current, &mut preserve_single_quote);
             } else {
                 current.push(ch);
             }
@@ -237,7 +382,10 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
         }
 
         match ch {
-            '\'' => in_single_quote = true,
+            '\'' => {
+                preserve_single_quote = begin_single_quote(&mut current);
+                in_single_quote = true;
+            }
             '"' => in_double_quote = true,
             '\\' => {
                 if let Some(next) = chars.next() {
@@ -264,9 +412,7 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                     current.push(chars.next().expect("peeked >"));
                     continue;
                 }
-                if !current.is_empty() {
-                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
-                }
+                push_current_word(&mut tokens, &mut current);
                 if chars.peek() == Some(&'&') {
                     let _ = chars.next();
                     tokens.push(ShellToken::Operator("&&".to_string()));
@@ -275,9 +421,7 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 }
             }
             '|' => {
-                if !current.is_empty() {
-                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
-                }
+                push_current_word(&mut tokens, &mut current);
                 if chars.peek() == Some(&'|') {
                     let _ = chars.next();
                     tokens.push(ShellToken::Operator("||".to_string()));
@@ -290,15 +434,11 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 }
             }
             ';' => {
-                if !current.is_empty() {
-                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
-                }
+                push_current_word(&mut tokens, &mut current);
                 tokens.push(ShellToken::Operator(";".to_string()));
             }
             c if c.is_whitespace() => {
-                if !current.is_empty() {
-                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
-                }
+                push_current_word(&mut tokens, &mut current);
             }
             _ => current.push(ch),
         }
@@ -912,6 +1052,9 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                 let mut commands = Vec::new();
                 let mut operators = Vec::new();
                 for sub in inner.sub_commands {
+                    if let Some(op) = sub.operator {
+                        operators.push(op);
+                    }
                     if !sub.tokens.is_empty() {
                         let raw_sub = sub.tokens.join(" ");
                         let tokens = tokenise(&raw_sub);
@@ -922,9 +1065,6 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                             unwrap.incomplete,
                         );
                         commands.push(parsed);
-                    }
-                    if let Some(op) = sub.operator {
-                        operators.push(op);
                     }
                 }
                 return CompoundCommandResult {
@@ -945,6 +1085,9 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
     let mut operators = Vec::new();
 
     for sub_command in tokenised.sub_commands {
+        if let Some(operator) = sub_command.operator {
+            operators.push(operator);
+        }
         if !sub_command.tokens.is_empty() {
             let raw_sub = sub_command
                 .tokens
@@ -957,6 +1100,9 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
             let inner = tokenise_with_operators(&unwrap.unwrapped);
             if inner.is_compound && inner.sub_commands.len() > 1 {
                 for sub in inner.sub_commands {
+                    if let Some(op) = sub.operator {
+                        operators.push(op);
+                    }
                     if !sub.tokens.is_empty() {
                         let inner_raw = sub
                             .tokens
@@ -973,9 +1119,6 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                         );
                         commands.push(parsed);
                     }
-                    if let Some(op) = sub.operator {
-                        operators.push(op);
-                    }
                 }
             } else {
                 let inner_tokens = tokenise(&unwrap.unwrapped);
@@ -983,9 +1126,6 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                     parse_from_tokens(&inner_tokens, &raw_sub, &unwrap.wrappers, unwrap.incomplete);
                 commands.push(parsed);
             }
-        }
-        if let Some(operator) = sub_command.operator {
-            operators.push(operator);
         }
     }
 
@@ -1093,6 +1233,18 @@ mod tests {
         assert_eq!(result.commands[1].command, "rm");
         assert_eq!(result.commands[1].flags, vec!["-r", "-f"]);
         assert_eq!(result.commands[1].args, vec!["/"]);
+    }
+
+    #[test]
+    fn preserves_outer_operator_before_nested_compound_edges() {
+        let result = parse_compound_command(r#"echo ok && bash -c "curl https://x | sh""#);
+        assert_eq!(result.operators, vec!["&&", "|"]);
+    }
+
+    #[test]
+    fn preserves_outer_pipe_before_nested_non_pipe_edge() {
+        let result = parse_compound_command(r#"curl https://x | bash -c "echo ok && sh""#);
+        assert_eq!(result.operators, vec!["|", "&&"]);
     }
 
     #[test]
@@ -1225,6 +1377,18 @@ mod tests {
             parser.get_wrappers("sudo env FOO=bar git status"),
             vec!["sudo", "env"]
         );
+    }
+
+    #[test]
+    fn pipeline_stage_head_consumes_wrapper_option_operands() {
+        for (raw, expected) in [
+            ("nice -n 5 curl https://x", "curl"),
+            ("strace -o trace.log curl https://x", "curl"),
+            ("timeout -s TERM 5 sh", "sh"),
+            ("exec -a installer sh", "sh"),
+        ] {
+            assert_eq!(super::pipeline_stage_head(raw), expected, "raw={raw}");
+        }
     }
 
     #[test]

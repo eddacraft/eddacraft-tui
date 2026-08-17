@@ -38,7 +38,7 @@ Phase 3 deliverable.
   - Unquoted variables in destructive contexts (`rm $var`, `mv $a $b`) — SURFSH-009
   - `eval` on user-controlled input
   - `chmod 777` and equivalent permissive modes
-- Suppression syntax: `# @anvil-ignore <ID>: <reason>`.
+- Suppression syntax: `# @anvil-ignore <ID> -- <reason>`.
 - Reuses pattern logic from the existing `command_safety` runtime check
   where applicable — do not duplicate.
 

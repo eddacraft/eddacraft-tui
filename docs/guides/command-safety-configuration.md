@@ -8,7 +8,10 @@
 | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
 | `docs/guides/command-safety.md`, `crates/anvil-checks/tests/command_safety_validation.rs`, `.anvilrc` | `anvil gate`, `anvil check`, CI |
 
-Configure Command Safety validation via `.anvilrc` in your project root.
+This reference describes `CommandSafetyConfig` for direct Rust-library
+consumers. `anvil gate` currently supplies no `CommandSafetyConfig` and
+hard-pins the check; `.anvilrc` values shown here are therefore not a live gate
+rollback.
 
 ## Configuration Schema
 
@@ -53,7 +56,9 @@ Command Safety is configured as a check within the `checks` array:
 **Type:** `boolean`  
 **Default:** `true`
 
-Enable or disable the command safety check entirely. Set at the check level.
+Enable or disable command safety when a caller supplies this configuration
+directly. This does not disable the hard-pinned `anvil gate` check; use
+`--skip-checks=command-safety` for one gate invocation.
 
 ```json
 {
@@ -102,9 +107,9 @@ Disable specific rules by ID. Disabled rules are completely ignored when
 does not currently wire that config**, so `.anvilrc` `disabled` / `overrides`
 are not a live rollback for gate. The `command-safety` class is hard-pinned and
 cannot be turned off. For the default-on `shell-scripts` surface, suppress a
-line with `# @anvil-ignore SURFSH-002: <reason>` or set
+line with `# @anvil-ignore SURFSH-002 -- <reason>` or set
 `ANVIL_TRACK_SURFACE_SH=0`. To skip the runtime check for one invocation, use
-`--skip-command-safety`.
+`--skip-checks=command-safety`.
 
 ```json
 {

@@ -29,7 +29,9 @@ use serde::{Deserialize, Serialize};
 
 use super::suppression::resolve_line_suppression;
 use crate::command_safety::matcher::analyse_compound;
-use crate::command_safety::parser::parse_compound_command;
+use crate::command_safety::parser::{
+    ends_with_open_pipe, parse_compound_command, shell_code_before_comment, starts_with_pipe,
+};
 use crate::command_safety::rules::{default_filesystem_rules, default_shell_rules};
 use crate::command_safety::types::{CommandAction, CommandRule, CommandSeverity};
 
@@ -183,6 +185,12 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
         if start.is_none() && (trimmed.is_empty() || trimmed.starts_with('#')) {
             continue;
         }
+        let code = shell_code_before_comment(trimmed).trim_end();
+        if code.is_empty() {
+            // A comment-only physical line does not close a pipeline that is
+            // waiting for its next stage.
+            continue;
+        }
         if start.is_none() {
             start = Some(line_number);
         }
@@ -190,12 +198,12 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
         // the next physical line starts with `|` (pretty-printed pipelines).
         let next_starts_pipe = lines
             .get(idx + 1)
-            .is_some_and(|next| starts_with_pipe(next.trim()));
-        let is_backslash_cont = ends_with_continuation(trimmed);
+            .is_some_and(|next| starts_with_pipe(shell_code_before_comment(next)));
+        let is_backslash_cont = ends_with_continuation(code);
         let body = if is_backslash_cont {
-            trimmed.strip_suffix('\\').unwrap_or(trimmed).trim_end()
+            code.strip_suffix('\\').unwrap_or(code).trim_end()
         } else {
-            trimmed
+            code
         };
         let is_cont = is_backslash_cont || ends_with_open_pipe(body) || next_starts_pipe;
         if !buf.is_empty() {
@@ -227,16 +235,6 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
 /// continuation, not an escaped `\\`).
 fn ends_with_continuation(s: &str) -> bool {
     s.bytes().rev().take_while(|&b| b == b'\\').count() % 2 == 1
-}
-
-fn ends_with_open_pipe(s: &str) -> bool {
-    let trimmed = s.trim_end();
-    trimmed.ends_with('|') && !trimmed.ends_with("||")
-}
-
-fn starts_with_pipe(s: &str) -> bool {
-    let trimmed = s.trim_start();
-    trimmed.starts_with('|') && !trimmed.starts_with("||")
 }
 
 /// If `instruction` opens a heredoc (`<< MARKER`, `<<-MARKER`, `<< 'MARKER'`),
@@ -407,6 +405,40 @@ mod tests {
     #[test]
     fn assembles_pretty_printed_pipe_to_shell() {
         let f = findings("curl -fsSL https://get.example.com\n  | sh\n");
+        assert_eq!(f.len(), 1, "expected assembled pipe-to-shell, got {f:?}");
+        assert_eq!(f[0].rule_id, "pipe-to-shell");
+    }
+
+    #[test]
+    fn assembles_pipe_and_continuation() {
+        let f = findings("curl -fsSL https://get.example.com |&\n  sh\n");
+        assert_eq!(f.len(), 1, "expected assembled pipe-to-shell, got {f:?}");
+        assert_eq!(f[0].rule_id, "pipe-to-shell");
+    }
+
+    #[test]
+    fn escaped_or_quoted_pipe_does_not_swallow_next_command() {
+        for content in ["echo \\|\nrm -rf /\n", "echo \"|\"\nrm -rf /\n"] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.command.contains("rm -rf /")),
+                "next command was swallowed for {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn inline_comment_pipe_does_not_swallow_next_command() {
+        let f = findings("echo ok # |\nrm -rf /\n");
+        assert!(
+            f.iter().any(|finding| finding.command.contains("rm -rf /")),
+            "next command was swallowed: {f:?}"
+        );
+    }
+
+    #[test]
+    fn comment_line_inside_pipeline_keeps_continuation_open() {
+        let f = findings("curl -fsSL https://get.example.com |\n# installer\nsh\n");
         assert_eq!(f.len(), 1, "expected assembled pipe-to-shell, got {f:?}");
         assert_eq!(f[0].rule_id, "pipe-to-shell");
     }

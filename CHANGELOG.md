@@ -18,8 +18,8 @@ engineering maintenance are recorded in the
   runtime), `eval-dynamic` (Warn), and `chmod-777` (Warn). SURFSH stays
   warn-only. The `command-safety` class remains hard-pinned; per-rule `.anvilrc`
   disable is not wired through `anvil gate` today — skip one invocation with
-  `--skip-command-safety`, suppress a script line with
-  `# @anvil-ignore SURFSH-002`, or set `ANVIL_TRACK_SURFACE_SH=0`.
+  `--skip-checks=command-safety`, suppress a script line with
+  `# @anvil-ignore SURFSH-002 -- <reason>`, or set `ANVIL_TRACK_SURFACE_SH=0`.
 
 ### Fixed
 

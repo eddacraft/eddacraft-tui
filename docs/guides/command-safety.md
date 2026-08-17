@@ -34,13 +34,7 @@ Command Safety runs automatically as part of `anvil gate`:
 anvil gate plan.md
 ```
 
-To skip the check:
-
-```bash
-anvil gate plan.md --skip-command-safety
-```
-
-Or using the generic skip flag:
+To skip the check for one invocation:
 
 ```bash
 anvil gate plan.md --skip-checks=command-safety
@@ -191,10 +185,6 @@ descriptions without code blocks are also checked.
 ### Per-Invocation
 
 ```bash
-# Dedicated flag
-anvil gate plan.md --skip-command-safety
-
-# Generic skip flag
 anvil gate plan.md --skip-checks=command-safety
 
 # Profile (dev profile skips some checks)
@@ -208,7 +198,10 @@ export ANVIL_SKIP_GATES=command-safety
 anvil gate plan.md
 ```
 
-### Configuration File
+### Direct Library Configuration
+
+The Rust API honours `enabled: false` when a caller supplies a
+`CommandSafetyConfig` directly:
 
 ```json
 {
@@ -221,6 +214,10 @@ anvil gate plan.md
   ]
 }
 ```
+
+`anvil gate` currently supplies no `CommandSafetyConfig` and hard-pins the
+check, so this is not a gate rollback. Use `--skip-checks=command-safety` for a
+live gate invocation.
 
 ## Related
 
