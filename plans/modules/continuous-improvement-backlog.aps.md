@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 276/340  |
+| CIB | —     | In Progress | 276/341  |
 
 ## Purpose
 
@@ -10740,3 +10740,54 @@ capture; do not treat this as a lost-witness P0 until that lands.
 - **Coordinates with:** CIB-233, ADR-038, MLP2-005, DLIFE
 - **Confidence:** high on the noise and split-brain; coverage-loss
   unproven without a post-commit `audit-chain` capture.
+
+## ISS-028 diagnostic follow-up (2026-08-17)
+
+Source: `/home/aneki/Projects/tmp/anvil-beta/Dave/2026-08-17-anvil-iss028-diagnostic-reply-to-josh-DRAFT.md`.
+Captured on **0.9.4-beta**, daemon down. Finding 1 retracts the
+lost-append claim and confirms **CIB-345**. Finding 2 is new.
+
+### ISS-028 diagnostic disposition
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| ISS-028 Finding 1 | Retracted as lost-append; pipe line is noise over a successful embedded fallback | **CIB-345** Ready |
+| ISS-028 Finding 2 | Stock `hooks install` / start GitHooks write `anvil gate --progress` only; witness never runs | **CIB-346** Ready P1 |
+
+### CIB-346: Default hooks must run the L3 witness path, not only `anvil gate`
+
+- **Status:** Ready
+- **Priority:** P1 honesty — default install leaves `audit-chain` dark
+- **Intent:** `anvil hooks install` and the `anvil start` GitHooks
+  consent write pre-commit as `ANVIL_HOOK=1 anvil gate --progress` and
+  pre-push as `anvil hook pre-push`. They do not install
+  `anvil hook pre-commit` (witness append) or `anvil hook post-commit`
+  (SHA binding). A fresh repo activated with stock hooks therefore
+  reports `witnessed: 0` after a real commit. Dave's live project only
+  witnesses because they hand-wired those two steps. ADR-038 / MLP L3
+  designed the witness on the git hook; the start/`hooks install`
+  surface drifted to quality-gate only. The save-time daemon does not
+  witness `git commit`.
+- **Expected Outcome:** a default `anvil hooks install` (file and
+  `--config`) and the start GitHooks consent run the L3 witness path
+  on commit (`anvil hook pre-commit` plus `anvil hook post-commit` so
+  HEAD is bound). `anvil gate --progress` may stay on pre-commit. A
+  fresh `hooks install` + one commit makes `audit-chain` `witnessed`
+  increase by 1. `hooks status` names the witness step.
+- **Non-scope / do not:** do not drop the quality gate; do not
+  auto-start the daemon from hooks; do not claim daemon interception
+  witnesses commits; do not redefine `chain_intact` (CIB-233).
+- **Files:** `crates/anvil-cli/src/commands/hooks.rs`
+  (`PRE_COMMIT_HOOK`, `PRE_COMMIT_CONFIG_COMMAND`),
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs`,
+  `crates/anvil-kernel-types/src/hooks.rs`,
+  `docs/public/anvil/operations/git-hooks.md`
+- **Validation:** disposable repo, `anvil hooks install`, one commit,
+  `anvil audit-chain --json` shows `witnessed: 1` and HEAD absent from
+  `unwitnessed`. A second fixture that only has the old gate-only hook
+  stays at `witnessed: 0` so the regression is visible.
+- **Identified From:** Dave ISS-028 diagnostic, 2026-08-17, 0.9.4-beta,
+  Finding 2. Reproduced in source: `PRE_COMMIT_HOOK` is gate-only.
+- **Coordinates with:** CIB-345, CIB-233, ADR-038, MLP2-005
+- **Confidence:** high — stock hook body and Dave's fresh-repo probe
+  agree.
