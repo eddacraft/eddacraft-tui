@@ -237,12 +237,7 @@ pub(crate) fn shell_construct_is_open(text: &str) -> bool {
             index += 1;
             continue;
         }
-        let brace_group = character == '{'
-            && chars[..index]
-                .iter()
-                .rev()
-                .find(|character| !character.is_whitespace())
-                .is_none_or(|character| matches!(character, ';' | '|' | '&' | '(' | ')'));
+        let brace_group = character == '{' && brace_group_opens_here(&chars, index);
         if !frame.in_double_quote && (character == '(' || brace_group) {
             frames.push(Frame {
                 closing: Some(if character == '(' { ')' } else { '}' }),
@@ -256,6 +251,29 @@ pub(crate) fn shell_construct_is_open(text: &str) -> bool {
         || frames
             .first()
             .is_some_and(|frame| frame.in_single_quote || frame.in_double_quote)
+}
+
+fn brace_group_opens_here(chars: &[char], index: usize) -> bool {
+    if chars
+        .get(index + 1)
+        .is_some_and(|character| !character.is_whitespace())
+    {
+        return false;
+    }
+    let prefix = chars[..index].iter().collect::<String>();
+    let prefix = prefix.trim_end();
+    if prefix.is_empty()
+        || prefix
+            .chars()
+            .next_back()
+            .is_some_and(|character| matches!(character, ';' | '|' | '&' | '(' | ')' | '!'))
+    {
+        return true;
+    }
+    prefix
+        .rsplit(|character: char| character.is_whitespace() || matches!(character, ';' | '|' | '&'))
+        .next()
+        .is_some_and(|word| matches!(word, "then" | "do" | "else"))
 }
 
 const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
@@ -371,9 +389,13 @@ pub(crate) fn pipeline_stage_parts(raw: &str) -> (String, Vec<String>) {
             continue;
         }
         if name_l == "busybox" && index + 1 < tokens.len() {
+            let applet = skip_command_prefixes(&tokens, index + 1);
+            if applet >= tokens.len() {
+                return (String::new(), Vec::new());
+            }
             return (
-                normalise_command_name(&tokens[index + 1]),
-                tokens[index + 2..].to_vec(),
+                normalise_command_name(&tokens[applet]),
+                tokens[applet + 1..].to_vec(),
             );
         }
         return (name, tokens[index + 1..].to_vec());
@@ -382,7 +404,7 @@ pub(crate) fn pipeline_stage_parts(raw: &str) -> (String, Vec<String>) {
 }
 
 #[must_use]
-fn redirection_shape(token: &str) -> Option<bool> {
+pub(crate) fn redirection_shape(token: &str) -> Option<bool> {
     let mut without_fd = token.trim_start_matches(|character: char| character.is_ascii_digit());
     if let Some(rest) = without_fd.strip_prefix('{')
         && let Some(close) = rest.find('}')
@@ -604,7 +626,7 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
             substitution.consume(ch);
             continue;
         }
-        if matches!(ch, '$' | '<') && chars.peek() == Some(&'(') {
+        if matches!(ch, '$' | '<' | '>') && chars.peek() == Some(&'(') {
             current.push(ch);
             current.push(chars.next().expect("peeked opening parenthesis"));
             substitution.begin();
@@ -690,6 +712,11 @@ fn tokenise(cmd: &str) -> Vec<String> {
             ShellToken::Word(_) | ShellToken::Operator(_) => None,
         })
         .collect()
+}
+
+#[must_use]
+pub(crate) fn shell_words(cmd: &str) -> Vec<String> {
+    tokenise(cmd)
 }
 
 #[must_use]

