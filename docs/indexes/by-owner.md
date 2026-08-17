@@ -50,7 +50,6 @@
 | -------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------ | ------------- | ----- | ------ |
 | [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md)                      | `docs/guides/agent-surface-inventory.md`            | Guide  | Authoritative | AICON | Live   |
 | [Development Guides](../../docs/guides/README.md)                                            | `docs/guides/README.md`                             | README | Advisory      | AICON | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)                    | `docs/guides/documentation-governance.md`           | Guide  | Authoritative | AICON | Live   |
 | [Repository Operations](../../docs/guides/repository-operations.md)                          | `docs/guides/repository-operations.md`              | Guide  | Authoritative | AICON | Live   |
 | [Shipped Codebase Review Checklist](../../docs/reviews/shipped-codebase-review-checklist.md) | `docs/reviews/shipped-codebase-review-checklist.md` | Guide  | Advisory      | AICON | Live   |
 
@@ -170,18 +169,24 @@
 
 ## DOCGOV
 
-| Document                                                                       | Path                                   | Type   | Authority     | Owner  | Status |
-| ------------------------------------------------------------------------------ | -------------------------------------- | ------ | ------------- | ------ | ------ |
-| [ADR Process](../../docs/guides/adr-process.md)                                | `docs/guides/adr-process.md`           | Guide  | Authoritative | DOCGOV | Live   |
-| [Active Reviews](../../docs/reviews/README.md)                                 | `docs/reviews/README.md`               | README | Advisory      | DOCGOV | Live   |
-| [Adapter Development Guide](../../docs/guides/adapters/README.md)              | `docs/guides/adapters/README.md`       | README | Advisory      | DOCGOV | Live   |
-| [Anvil Architecture](../../docs/architecture/overview.md)                      | `docs/architecture/overview.md`        | Guide  | Derived       | DOCGOV | Live   |
-| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md` | Guide  | Authoritative | DOCGOV | Live   |
-| [Architecture Documentation](../../docs/architecture/README.md)                | `docs/architecture/README.md`          | README | Advisory      | DOCGOV | Live   |
-| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)        | `docs/governance/tags-catalogue.md`    | Guide  | Authoritative | DOCGOV | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)                     | `docs/README.md`                       | README | Advisory      | DOCGOV | Live   |
-| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)  | `docs/guides/release-doc-checklist.md` | Guide  | Advisory      | DOCGOV | Live   |
-| [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                | `docs/architecture/oss-surface.md`     | Guide  | Derived       | DOCGOV | Live   |
+| Document                                                                      | Path                                   | Type   | Authority     | Owner  | Status |
+| ----------------------------------------------------------------------------- | -------------------------------------- | ------ | ------------- | ------ | ------ |
+| [ADR Process](../../docs/guides/adr-process.md)                               | `docs/guides/adr-process.md`           | Guide  | Authoritative | DOCGOV | Live   |
+| [Active Reviews](../../docs/reviews/README.md)                                | `docs/reviews/README.md`               | README | Advisory      | DOCGOV | Live   |
+| [Adapter Development Guide](../../docs/guides/adapters/README.md)             | `docs/guides/adapters/README.md`       | README | Advisory      | DOCGOV | Live   |
+| [Anvil Architecture](../../docs/architecture/overview.md)                     | `docs/architecture/overview.md`        | Guide  | Derived       | DOCGOV | Live   |
+| [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)       | `docs/governance/tags-catalogue.md`    | Guide  | Authoritative | DOCGOV | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)                    | `docs/README.md`                       | README | Advisory      | DOCGOV | Live   |
+| [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md) | `docs/guides/release-doc-checklist.md` | Guide  | Advisory      | DOCGOV | Live   |
+| [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)               | `docs/architecture/oss-surface.md`     | Guide  | Derived       | DOCGOV | Live   |
+
+## DOCRB
+
+| Document                                                                       | Path                                      | Type   | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------ | ----------------------------------------- | ------ | ------------- | ----- | ------ |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md`    | Guide  | Authoritative | DOCRB | Live   |
+| [Architecture Documentation](../../docs/architecture/README.md)                | `docs/architecture/README.md`             | README | Advisory      | DOCRB | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)      | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCRB | Live   |
 
 ## DRVR
 

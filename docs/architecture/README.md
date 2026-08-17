@@ -1,16 +1,25 @@
 # Architecture Documentation
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                           |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-12 against `docs/guides/documentation-governance.md` and `docs/architecture/` |
+| Type   | Authority | Owner | Status | Freshness                                                                                 |
+| ------ | --------- | ----- | ------ | ----------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-17 against ADR-123, `infra/src/vercel.ts`, and `docs/architecture/` |
 
-| Upstream                                                    | Downstream                      |
-| ----------------------------------------------------------- | ------------------------------- |
-| `docs/guides/documentation-governance.md`, `apps/docs-site` | Architecture document discovery |
+| Upstream                                                                  | Downstream                      |
+| ------------------------------------------------------------------------- | ------------------------------- |
+| ADR-123, `docs/guides/documentation-governance.md`, `infra/src/vercel.ts` | Architecture document discovery |
 
-This directory holds Anvil's living architecture references: source-pinned
-as-built component maps, conceptual guides, and frozen or active design specs.
-The public-facing docs site is rendered from `apps/docs-site/`.
+This directory holds Anvil's living **cross-system** architecture references:
+source-pinned as-built maps, conceptual guides, and frozen or active design
+specs. Component-internal truth moves to component-root `ARCHITECTURE.md` files
+under DOCRB (ADR-123). Until that migration, existing `*-as-built.md` files
+remain the derived maps they are today.
+
+**Production docs host (ADR-123):** `docs.eddacraft.ai` is `apps/docs-shell`,
+which proxies `apps/anvil-docs-private` (gated Anvil/beta) and
+`apps/docs-public` (APS, Kindling, edda-stack, blog). `apps/docs-site` is
+retained only for rollback. DSITE still owns its recorded legacy host work
+items; this README records the live topology and the ownership gap without
+changing DSITE status. Implementation truth is `infra/src/vercel.ts`.
 
 **Authority order:** code, schemas, and tests beat prose. Prefer a
 `*-as-built.md` for "what ships today". Prefer a Spec for frozen design
@@ -134,11 +143,14 @@ Advisory external or pre-implementation notes.
 
 ## Diagrams
 
-- Mermaid diagrams live inline in [overview.md](overview.md)
+- Mermaid diagrams live inline in [overview.md](overview.md) and, after
+  DOCRB-004, in component `ARCHITECTURE.md` files
 - Draw.io sources:
   [anvil-system-components.drawio](anvil-system-components.drawio),
-  [pptx-workflow.drawio](pptx-workflow.drawio) — see
+  [pptx-workflow.drawio](pptx-workflow.drawio) — neither yet has a sibling SVG;
+  see
   [`docs/guides/architecture-diagrams.md`](../guides/architecture-diagrams.md)
+  and ADR-123
 
 ## Adjacent indexes
 

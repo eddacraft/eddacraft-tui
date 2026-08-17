@@ -125,7 +125,7 @@ dependencies and expected evidence are present.
 
 ### DOCRB-001: Ratify the documentation architecture and authority contract
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Establish the durable contract for documentation placement,
   authority, diagram formats, accessibility, maintenance triggers, phased
   enforcement, module coordination, and non-release posture.
@@ -135,6 +135,10 @@ dependencies and expected evidence are present.
   views, public Draw.io plus SVG, the advisory-to-mandatory transition, and the
   DOCFRESH/DOCSYNC/DSITE boundaries, and the production `docs-shell` →
   `anvil-docs-private`/`docs-public` topology plus its current ownership gap.
+- **Files:** `plans/decisions/123-documentation-authority-and-diagram-model.md`,
+  `plans/decisions/DECISION-LOG.md`,
+  `docs/guides/documentation-governance.md`,
+  `docs/guides/architecture-diagrams.md`, `docs/architecture/README.md`
 - **Scope:** `plans/decisions/**`, `plans/decisions/DECISION-LOG.md`,
   `docs/guides/documentation-governance.md`,
   `docs/guides/architecture-diagrams.md`, production docs-host authority
