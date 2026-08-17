@@ -10743,8 +10743,8 @@ capture; do not treat this as a lost-witness P0 until that lands.
 
 ## ISS-028 diagnostic follow-up (2026-08-17)
 
-Source: `/home/aneki/Projects/tmp/anvil-beta/Dave/2026-08-17-anvil-iss028-diagnostic-reply-to-josh-DRAFT.md`.
-Captured on **0.9.4-beta**, daemon down. Finding 1 retracts the
+Source: operator-held ISS-028 diagnostic reply (2026-08-17), processed
+from the beta drop inbox. Captured on **0.9.4-beta**, daemon down. Finding 1 retracts the
 lost-append claim and confirms **CIB-345**. Finding 2 is new.
 
 ### ISS-028 diagnostic disposition
@@ -10752,7 +10752,7 @@ lost-append claim and confirms **CIB-345**. Finding 2 is new.
 | Dave ID | Disposition | Tracking |
 | --- | --- | --- |
 | ISS-028 Finding 1 | Retracted as lost-append; pipe line is noise over a successful embedded fallback | **CIB-345** Ready |
-| ISS-028 Finding 2 | Stock `hooks install` / start GitHooks write `anvil gate --progress` only; witness never runs | **CIB-346** Ready P1 |
+| ISS-028 Finding 2 | Stock `anvil hooks install` / `anvil start` GitHooks write `anvil gate --progress` only; witness never runs | **CIB-346** Ready P1 |
 
 ### CIB-346: Default hooks must run the L3 witness path, not only `anvil gate`
 
