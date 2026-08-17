@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 276/341  |
+| CIB | —     | In Progress | 276/343  |
 
 ## Purpose
 
@@ -10791,3 +10791,85 @@ lost-append claim and confirms **CIB-345**. Finding 2 is new.
 - **Coordinates with:** CIB-345, CIB-233, ADR-038, MLP2-005
 - **Confidence:** high — stock hook body and Dave's fresh-repo probe
   agree.
+
+## Pack-08 intake (Dave 0.9.5-beta retest, 2026-08-17)
+
+Source: `/home/aneki/Projects/tmp/anvil-beta/Dave/2026-08-17-anvil-095-retest-result-for-*.md`.
+Side-by-side CLI retest (`EDDACRAFT_ANVIL_INSTALL_DIR`, PATH untouched).
+Does not cover witness hooks, install_method, or a 60-token B16 recall.
+
+### Pack-08 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| B16 retraction | Framing retracted; mixed-case miss stays the real finding | **CIB-340** already Ready |
+| B7 / B18 receiver + comment | Confirmed fixed on 0.9.5 | **CIB-332** |
+| B17 `/c/Users` | Confirmed fixed on 0.9.5 | **CIB-339** |
+| B14 `explanation` | Confirmed fixed on 0.9.5 | **CIB-322** |
+| B20 `rm -rf $UNSET/` plus still-missed pipe-to-shell / `eval` | Unquoted-var is progress. Pipe-to-shell / eval / chmod already owned | **SURFSH-008** Proposed. Not a CIB |
+| B16 mixed-case detect | One token detected; not a recall re-run | **CIB-340** |
+| B19 four surface checks warn-only; `--fail-on-warnings` does not escalate them | **New.** Default warn-only is intentional; the flag is not wired | **CIB-347** Ready P1 |
+| PY-008-string-literal | Same residual as pack-07 B18 | **Won't file.** Regex-tier contract |
+| B16-filename-fp | Bare hyphenated dictionary-word `.md` name trips entropy | **CIB-348** Ready P3 |
+| ISS-028 / default hooks | Separate diagnostic | **CIB-345** / **CIB-346** |
+| RETEST-1 install_method | Not covered this retest | **CIB-315** / **CIB-324** |
+
+### CIB-347: `--fail-on-warnings` must escalate the four warn-only surface checks
+
+- **Status:** Ready
+- **Priority:** P1 honesty — CI that trusts `anvil gate` exit code stays
+  green over `rm -rf /` in a `.sh` even with `--fail-on-warnings`
+- **Intent:** `dockerfile`, `shell-scripts`, `sql-migrations`, and
+  `github-actions` are hardcoded `passed: true` / `score: 100`
+  (`gate.rs` `run_check_shell` and siblings; tests pin
+  `warns_but_does_not_block`). That default is ADR-002. The advertised
+  opt-in `--fail-on-warnings` / `ANVIL_FAIL_ON_WARNINGS` only changes
+  the anti-pattern threshold. Dave 0.9.5: a full gate over a `.sh`
+  containing `rm -rf /` is `shell-scripts: passed:true`, `overall:true`,
+  unpiped exit 0, with or without the flag. `command-safety` on a plan
+  already blocks the same command. Wiring alignment, not new rules.
+- **Expected Outcome:** with `--fail-on-warnings` (or the env), an
+  unsuppressed finding on those four checks fails the gate (non-zero,
+  `passed: false` on that check). Default without the flag stays
+  warn-only. `command-safety` behaviour unchanged.
+- **Non-scope / do not:** do not flip the default to block (ADR-002 /
+  CIB-199); do not file this as PATTERN-C fail-open; do not add
+  pipe-to-shell rules here (SURFSH-008).
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`
+  (`run_check_shell`, `run_check_dockerfile`,
+  `run_check_sql_migrations`, `run_check_github_actions`, dispatch)
+- **Validation:** fixture `.sh` with `rm -rf /`: default gate exit 0
+  and still prints the finding; `--fail-on-warnings` exit non-zero and
+  `shell-scripts` `passed: false`. A clean `.sh` stays green either way.
+  Anti-pattern `--fail-on-warnings` tests still pass.
+- **Identified From:** Dave pack 08 B19, 2026-08-17, 0.9.5-beta
+  side-by-side CLI. Reproduced in source: `fail_on_warnings` is passed
+  only to `run_check_antipattern`.
+- **Coordinates with:** CIB-199, ADR-002, ADR-112, SURFSH, SURFDOCK,
+  SURFSQL, SURFGHA
+- **Confidence:** high — dispatch and `passed: true` comments match the
+  0.9.5 output.
+
+### CIB-348: Entropy must not fire on hyphenated document filenames
+
+- **Status:** Ready
+- **Priority:** P3 presentation — same entropy path as SEC-FP-1 / B17
+- **Intent:** `is_path_shaped_document_token` returns false when the
+  candidate has no `/` or `\`. A bare hyphenated dictionary-word
+  `.md` filename therefore still trips `SECRET-HIGH-ENTROPY-STRING`.
+  Dave's 0.9.5 residual after B16. The drive-prefixed and Git Bash
+  path cases are already exempt.
+- **Expected Outcome:** a token that is only a document filename
+  (`*.md` / other document extensions already in the helper), made of
+  hyphenated dictionary words, is path-shaped. Opaque high-entropy
+  secrets and vendor-prefixed rules still fire.
+- **Non-scope / do not:** do not disable entropy; do not exempt on
+  hyphen count alone; do not reopen CIB-340's mixed-case rule.
+- **Files:** `crates/anvil-checks/src/secret/entropy.rs`
+- **Validation:** `quarterly-revenue-forecast-summary.md` (and the same
+  name after `file =`) is clean at default threshold; a quoted opaque
+  token still flags; `C:/Users/.../file.md` stays exempt.
+- **Identified From:** Dave pack 08 B16-filename-fp, 2026-08-17.
+- **Coordinates with:** CIB-339, CIB-340, SEC-FP-1
+- **Confidence:** high on the missing no-separator branch; medium on
+  the exact token they used (not pasted).
