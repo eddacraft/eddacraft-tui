@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-08-14T09:01:19.370Z",
+  "compiled_at": "2026-08-18T03:14:16.879Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -534,6 +534,41 @@
       "family_name": "Guardrail Suppression",
       "category": "escape-hatch",
       "explanation": "- Legitimate issues get silenced along with the inconvenient one. A\n  blanket `eslint-disable` hides every lint error in scope, not just\n  the one that prompted it.\n- Future developers inherit suppressed warnings without knowing why.\n  The suppression outlives the context that justified it.\n- The codebase gradually becomes unprotectable as suppressions\n  accumulate. Each one is small; collectively they erode the value of\n  the safety tooling.\n- AI agents find loopholes at rule boundaries. An agent that knows\n  AP-001 catches blanket disables will use targeted disables instead —\n  passing the specific check while violating the concept. The flat\n  rule format enables this; the family definition prevents it.\n- Suppressions compound. Once `@ts-ignore` appears in a codebase,\n  it becomes the template for handling every type error — copy the\n  pattern, move on. The cost is deferred until someone tries to\n  refactor and discovers the type system has been gutted.",
+      "suggestion": "Don't suppress — fix. Read the actual error message and address the\nroot cause.\n\nThe suppression directive is almost never the first thing to try. The\ncorrect sequence is:\n\n1. **Read the error.** What is the tool actually telling you? Many\n   suppressions exist because someone didn't read the message.\n2. **Fix the code.** Can the underlying issue be resolved? An unused\n   variable can be removed. A type mismatch can be corrected. An\n   unsafe operation can be guarded.\n3. **If the fix isn't possible,** use the narrowest suppression\n   available. Disable one rule, not all rules. Use `@ts-expect-error`\n   (self-cleaning) over `@ts-ignore` (permanent). Use the non-null\n   assertion only when you have a runtime guarantee.\n4. **Document why.** Add a comment explaining what the tool is\n   complaining about, why the code can't satisfy it, and ideally a\n   reference to a tracking issue for the underlying problem.\n5. **Ask if this is systemic.** Multiple suppressions of the same\n   rule in one file suggest an architectural issue. The rule might be\n   wrong for this context, or the code might need restructuring.",
+      "definition_ref": "patterns/guardrail-suppression/definition.anvil",
+      "tensions": ["error-visibility"],
+      "related_families": ["type-system-evasion"]
+    },
+    {
+      "id": "GS-002",
+      "family": "guardrail-suppression",
+      "title": "Chained type assertion launders a value through `unknown`",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 1,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\bas\\s+unknown\\s+as\\b"
+      },
+      "file_extensions": [".ts", ".tsx"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/__tests__/**",
+        "**/__mocks__/**",
+        "**/explain/**"
+      ],
+      "nudge": "`x as unknown as T` is two assertions doing one job: the first throws away\nwhat the compiler knows about `x`, the second claims `T` in its place. The\ndetour through `unknown` exists only because `x as T` on its own was\nrejected — TypeScript refused the conversion, so the code widened until the\nrefusal had nothing left to stand on.\n\nFix the mismatch instead of routing around it. If the value genuinely is a\n`T`, narrow to it with a type guard or a schema parse and the single\nassertion becomes unnecessary. If it is not a `T`, the chain is hiding a\nreal bug that will surface as a runtime `undefined` on the first property\naccess. If the two types are structurally unrelated on purpose — a branded\nid, an opaque handle, a `readonly` array being handed to a mutating API —\nthat is a conversion worth naming: give it a small named function whose\nbody carries the one assertion and whose name says what is being converted.",
+      "related": ["AP-004", "GS-001", "TE-001"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Guardrail Suppression",
+      "category": "escape-hatch",
+      "explanation": "TypeScript rejects `x as T` when `x` and `T` do not sufficiently overlap.\nThat rejection is the single most load-bearing check the assertion syntax\nstill performs — a plain `as` at least has to be *plausible*. Widening to\n`unknown` first removes it, because every type is assignable to `unknown`\nand `unknown` is assertable to everything. The result has the syntactic\nweight of a cast and the safety of `@ts-ignore` (AP-004): whatever the\ncompiler was about to tell you, it now cannot.\n\nIt is also the shape that survives refactors silently. Rename a field on\n`T`, delete it, change its type — a real conversion breaks and the compiler\npoints at it; a chained assertion keeps compiling and the failure moves to\nruntime, usually far from the assertion that caused it. Every consumer\ndownstream inherits full confidence in a shape nobody checked.\n\nTest doubles are the common legitimate use — building a partial mock and\npresenting it as the full interface — so `*.test.ts`, `*.spec.ts`,\n`__tests__/` and `__mocks__/` are allowlisted. In production code the\nchain almost always marks the spot where a boundary should have been\nparsed instead (TE-001).\n\nScope and known gaps: the detector matches the `as unknown as` token\nsequence in the comment- and string-masked view, so the phrase in prose or\na string literal does not fire. The equivalent angle-bracket form\n(`<T>(<unknown>x)`) is not matched — it is legacy syntax that collides with\nJSX and does not appear in modern TypeScript. Laundering through a named\nalias of `unknown` (`type Opaque = unknown; x as Opaque as T`) also evades\nthe token match. For a deliberate conversion that must stay, suppress with\nthe reason:\n`// @anvil-ignore GS-002 -- branded id conversion, checked at the parse boundary`.",
       "suggestion": "Don't suppress — fix. Read the actual error message and address the\nroot cause.\n\nThe suppression directive is almost never the first thing to try. The\ncorrect sequence is:\n\n1. **Read the error.** What is the tool actually telling you? Many\n   suppressions exist because someone didn't read the message.\n2. **Fix the code.** Can the underlying issue be resolved? An unused\n   variable can be removed. A type mismatch can be corrected. An\n   unsafe operation can be guarded.\n3. **If the fix isn't possible,** use the narrowest suppression\n   available. Disable one rule, not all rules. Use `@ts-expect-error`\n   (self-cleaning) over `@ts-ignore` (permanent). Use the non-null\n   assertion only when you have a runtime guarantee.\n4. **Document why.** Add a comment explaining what the tool is\n   complaining about, why the code can't satisfy it, and ideally a\n   reference to a tracking issue for the underlying problem.\n5. **Ask if this is systemic.** Multiple suppressions of the same\n   rule in one file suggest an architectural issue. The rule might be\n   wrong for this context, or the code might need restructuring.",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
       "tensions": ["error-visibility"],
@@ -1216,6 +1251,42 @@
       "related_families": ["deferred-debt"]
     },
     {
+      "id": "TE-001",
+      "family": "type-system-evasion",
+      "title": "Type assertion on an unvalidated boundary value",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "medium",
+      "spectrum_position": 2,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "(?:JSON\\.parse|\\.json)\\s*\\([^)]*\\)\\s*\\)?\\s+as\\s+[A-Z]"
+      },
+      "file_extensions": [".ts", ".tsx"],
+      "allowlist": [
+        "*.d.ts",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/__tests__/**",
+        "**/__mocks__/**",
+        "**/explain/**"
+      ],
+      "nudge": "`JSON.parse(raw) as Config` and `(await res.json()) as User` do not check\nanything. The parse produces a value of unknown shape; the assertion\ndeclares a shape and nothing compares the two. From that line on, the type\nsystem and every reader believe the data has been validated, and the first\nmissing or misspelled field surfaces as `undefined` somewhere downstream —\nin a caller, in a template, in a database write — far from the boundary\nthat let it through.\n\nThis is the exact boundary the family's guidance points at, so parse it for\nreal. Define the schema once (`z.object({ ... })`), assign the parse result\nto an `unknown` local, and hand it to `Schema.parse(raw)` — the throw then\nhappens here, naming the field that was wrong, instead of surfacing as a\n`TypeError` three frames away. If a schema is genuinely too heavy for the\ncall site, narrow with an explicit type guard that reads the fields you\nactually depend on. Either way the check belongs where the data arrives,\nbecause that is the only place an error can still name its source.",
+      "related": ["AP-003", "AP-015", "GS-002"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Type System Evasion",
+      "category": "type-evasion",
+      "explanation": "An assertion on a parse result is the most confident thing in the file and\nthe least justified. `: any` (AP-003) at least announces that nothing is\nknown; `z.any()` (AP-015) at least ran a schema before opting out. A bare\nassertion on `JSON.parse` claims a complete, specific contract — field\nnames, types, optionality — on evidence that stops at \"this was valid\nJSON\". The family definition's own worked example marks this shape as\n*Better, not Best* for precisely that reason: `return data as User` is an\nimprovement on `any` because it documents intent, and it is still a\nfabricated guarantee.\n\nThe cost lands on whoever debugs it. A schema failure names the field and\nthe boundary; an asserted shape fails as a `TypeError` on a property of\n`undefined`, one or more call frames away, with a stack that points at the\nconsumer rather than the malformed input. External JSON is also the input\nmost likely to drift without warning — an API adds a field, renames one,\nstarts returning `null` where it used to return a string — and drift in an\nasserted shape is invisible until it is an incident.\n\nScope and known gaps: the detector is line-based and code-scoped (comments\nand string literals are masked), and matches a `JSON.parse(...)` or\n`.json()` call followed by `as` and a capitalised type name. That\nconvention is what keeps `as const` out; a lowercase type alias\n(`... as config`) is not matched. `as unknown as T` on a parse result is\nleft to GS-002 rather than double-reported here. A parse split across\nlines — `const raw = JSON.parse(text);` then `raw as Config` later — is not\nmatched either; that flow needs the AST tier. Round-tripping a value your\nown code just serialised is the common false positive (hence\n`confidence: medium`); suppress it with the reason:\n`// @anvil-ignore TE-001 -- round-trip of a value serialised by this module`.",
+      "suggestion": "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape.\n   Use a runtime validator (Zod, io-ts, ArkType) at the boundary to\n   narrow `unknown` to your interface.\n\n2. **For `JSON.parse()`:** The return type is `unknown` (or `any` in\n   older TS). Parse into `unknown`, then validate with a schema.\n\n3. **For complex generics:** Consider whether the type design is too\n   complex. Can you simplify with a type alias? Can you break the\n   generic chain with an intermediate type?\n\n4. **For JS migration:** Use `any` temporarily but track it. Add a\n   `// TODO(types): ...` comment with a ticket reference. Set a team\n   goal for eliminating `any` in migrated modules.\n\n5. **If the type is genuinely unknown:** Use `unknown` over `any` in\n   the type annotation (this is what AP-003 nudges toward). `unknown`\n   forces you to narrow before use, which is exactly the right behaviour\n   for a value whose shape you don't know.\n\n   At the *schema boundary*, `z.unknown()` carries the same trade-off:\n   it is the safest Zod escape hatch (consumers must still narrow), but\n   it accepts any value at runtime and gives the schema no contract to\n   validate. AP-015 leaves `z.unknown()` alone by default for exactly\n   that reason; the opt-in rule AP-016 flags it for codebases that want\n   every schema field to carry a contract. Treat `z.unknown()` as\n   debt-with-a-narrowing-discipline, not a destination.",
+      "definition_ref": "patterns/type-system-evasion/definition.anvil",
+      "tensions": [],
+      "related_families": ["guardrail-suppression"]
+    },
+    {
       "id": "UR-001",
       "family": "unsafe-rendering",
       "title": "Assignment to innerHTML / outerHTML",
@@ -1466,6 +1537,7 @@
     "PY": "python-reliability",
     "RL": "responsibility-laundering",
     "RS": "rust-reliability",
+    "TE": "type-system-evasion",
     "UR": "unsafe-rendering",
     "WC": "weak-cryptography"
   },
@@ -1511,7 +1583,7 @@
       "name": "Guardrail Suppression",
       "category": "escape-hatch",
       "definition_ref": "patterns/guardrail-suppression/definition.anvil",
-      "rules": ["AP-001", "AP-002", "AP-004", "AP-005", "GS-001"],
+      "rules": ["AP-001", "AP-002", "AP-004", "AP-005", "GS-001", "GS-002"],
       "related": ["type-system-evasion"],
       "tensions": ["error-visibility"]
     },
@@ -1557,7 +1629,7 @@
       "name": "Type System Evasion",
       "category": "type-evasion",
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
-      "rules": ["AP-003", "AP-015", "AP-016"],
+      "rules": ["AP-003", "AP-015", "AP-016", "TE-001"],
       "related": ["guardrail-suppression"],
       "tensions": []
     },

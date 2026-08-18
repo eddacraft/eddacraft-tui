@@ -6,7 +6,7 @@ category: escape-hatch
 targets: [source]
 related: [type-system-evasion]
 tensions: [error-visibility]
-rules: [AP-001, AP-002, AP-004, AP-005, GS-001]
+rules: [AP-001, AP-002, AP-004, AP-005, GS-001, GS-002]
 ---
 
 ## What It Is
@@ -53,11 +53,15 @@ captures the full concept.
 Rules in this family sit on a severity spectrum from worst to
 acceptable:
 
-1. **Blanket suppression** (AP-001, AP-004) — Disables ALL checks in
-   scope. The worst case. Hides unknown unknowns. `/* eslint-disable */`
-   silences every rule; `@ts-ignore` suppresses every type error on
-   the next line. Neither tells you what was wrong or why it was
-   suppressed.
+1. **Blanket suppression** (AP-001, AP-004, GS-002) — Disables ALL
+   checks in scope. The worst case. Hides unknown unknowns.
+   `/* eslint-disable */` silences every rule; `@ts-ignore` suppresses
+   every type error on the next line. The chained type assertion
+   `x as unknown as T` (GS-002) belongs here too: widening to `unknown`
+   removes the only check a plain `as` still performs — that the two
+   types plausibly overlap — so the conversion that follows is
+   unconstrained. None of the three tells you what was wrong or why it
+   was suppressed.
 
 2. **Targeted suppression without rationale** (AP-002, GS-001) —
    Disables one specific check but doesn't explain why. Better than
@@ -108,6 +112,10 @@ correct sequence is:
   undocumented
 - Non-null assertion (`!`) on a value that could genuinely be null —
   overriding nullability without a runtime check
+- `as unknown as T` — a type assertion laundered through `unknown` so
+  the compiler's overlap check cannot reject it (GS-002); distinct from
+  type-system *evasion* because the author knows the type and is
+  overriding it
 - Multiple suppressions of the same rule in one file — systemic
   avoidance rather than isolated exception
 - `as any` used to override a known type — overlaps with the

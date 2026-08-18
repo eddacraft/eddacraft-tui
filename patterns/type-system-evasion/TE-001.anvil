@@ -1,0 +1,82 @@
+---
+id: TE-001
+type: rule
+family: type-system-evasion
+title: Type assertion on an unvalidated boundary value
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 2
+
+targets: [source]
+file_extensions: [.ts, .tsx]
+allowlist:
+  [
+    '*.d.ts',
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/__tests__/**',
+    '**/__mocks__/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: '(?:JSON\.parse|\.json)\s*\([^)]*\)\s*\)?\s+as\s+[A-Z]'
+
+related: [AP-003, AP-015, GS-002]
+enabled: true
+opt_in: false
+---
+
+`JSON.parse(raw) as Config` and `(await res.json()) as User` do not check
+anything. The parse produces a value of unknown shape; the assertion
+declares a shape and nothing compares the two. From that line on, the type
+system and every reader believe the data has been validated, and the first
+missing or misspelled field surfaces as `undefined` somewhere downstream —
+in a caller, in a template, in a database write — far from the boundary
+that let it through.
+
+This is the exact boundary the family's guidance points at, so parse it for
+real. Define the schema once (`z.object({ ... })`), assign the parse result
+to an `unknown` local, and hand it to `Schema.parse(raw)` — the throw then
+happens here, naming the field that was wrong, instead of surfacing as a
+`TypeError` three frames away. If a schema is genuinely too heavy for the
+call site, narrow with an explicit type guard that reads the fields you
+actually depend on. Either way the check belongs where the data arrives,
+because that is the only place an error can still name its source.
+
+## Why It's Harmful
+
+An assertion on a parse result is the most confident thing in the file and
+the least justified. `: any` (AP-003) at least announces that nothing is
+known; `z.any()` (AP-015) at least ran a schema before opting out. A bare
+assertion on `JSON.parse` claims a complete, specific contract — field
+names, types, optionality — on evidence that stops at "this was valid
+JSON". The family definition's own worked example marks this shape as
+*Better, not Best* for precisely that reason: `return data as User` is an
+improvement on `any` because it documents intent, and it is still a
+fabricated guarantee.
+
+The cost lands on whoever debugs it. A schema failure names the field and
+the boundary; an asserted shape fails as a `TypeError` on a property of
+`undefined`, one or more call frames away, with a stack that points at the
+consumer rather than the malformed input. External JSON is also the input
+most likely to drift without warning — an API adds a field, renames one,
+starts returning `null` where it used to return a string — and drift in an
+asserted shape is invisible until it is an incident.
+
+Scope and known gaps: the detector is line-based and code-scoped (comments
+and string literals are masked), and matches a `JSON.parse(...)` or
+`.json()` call followed by `as` and a capitalised type name. That
+convention is what keeps `as const` out; a lowercase type alias
+(`... as config`) is not matched. `as unknown as T` on a parse result is
+left to GS-002 rather than double-reported here. A parse split across
+lines — `const raw = JSON.parse(text);` then `raw as Config` later — is not
+matched either; that flow needs the AST tier. Round-tripping a value your
+own code just serialised is the common false positive (hence
+`confidence: medium`); suppress it with the reason:
+`// @anvil-ignore TE-001 -- round-trip of a value serialised by this module`.

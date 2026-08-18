@@ -881,9 +881,15 @@ fn rule_is_code_scoped(rule_id: &str) -> bool {
     // run against the masked view (a real `except:` / `Dict[str, Any]` is bare
     // code and still matches). The comment-based Python rules (PY-001/-002/-003,
     // which *must* see `#` comments) deliberately stay out.
+    //
+    // GS-002 (`as unknown as`) and TE-001 (`JSON.parse(...) as T`) join them:
+    // both are TypeScript syntax whose token sequence reads naturally in prose
+    // — a doc comment warning against the chain, a rule narrative quoting it,
+    // a string literal in this repo's own fixtures — so they run against the
+    // masked view. Real code is unmasked and still matches.
     matches!(
         rule_id,
-        "AP-003" | "AP-015" | "AP-016" | "GS-001" | "PY-004" | "PY-007"
+        "AP-003" | "AP-015" | "AP-016" | "GS-001" | "GS-002" | "PY-004" | "PY-007" | "TE-001"
     )
 }
 

@@ -1,0 +1,79 @@
+---
+id: GS-002
+type: rule
+family: guardrail-suppression
+title: Chained type assertion launders a value through `unknown`
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 1
+
+targets: [source]
+file_extensions: [.ts, .tsx]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/__tests__/**',
+    '**/__mocks__/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: '\bas\s+unknown\s+as\b'
+
+related: [AP-004, GS-001, TE-001]
+enabled: true
+opt_in: false
+---
+
+`x as unknown as T` is two assertions doing one job: the first throws away
+what the compiler knows about `x`, the second claims `T` in its place. The
+detour through `unknown` exists only because `x as T` on its own was
+rejected — TypeScript refused the conversion, so the code widened until the
+refusal had nothing left to stand on.
+
+Fix the mismatch instead of routing around it. If the value genuinely is a
+`T`, narrow to it with a type guard or a schema parse and the single
+assertion becomes unnecessary. If it is not a `T`, the chain is hiding a
+real bug that will surface as a runtime `undefined` on the first property
+access. If the two types are structurally unrelated on purpose — a branded
+id, an opaque handle, a `readonly` array being handed to a mutating API —
+that is a conversion worth naming: give it a small named function whose
+body carries the one assertion and whose name says what is being converted.
+
+## Why It's Harmful
+
+TypeScript rejects `x as T` when `x` and `T` do not sufficiently overlap.
+That rejection is the single most load-bearing check the assertion syntax
+still performs — a plain `as` at least has to be *plausible*. Widening to
+`unknown` first removes it, because every type is assignable to `unknown`
+and `unknown` is assertable to everything. The result has the syntactic
+weight of a cast and the safety of `@ts-ignore` (AP-004): whatever the
+compiler was about to tell you, it now cannot.
+
+It is also the shape that survives refactors silently. Rename a field on
+`T`, delete it, change its type — a real conversion breaks and the compiler
+points at it; a chained assertion keeps compiling and the failure moves to
+runtime, usually far from the assertion that caused it. Every consumer
+downstream inherits full confidence in a shape nobody checked.
+
+Test doubles are the common legitimate use — building a partial mock and
+presenting it as the full interface — so `*.test.ts`, `*.spec.ts`,
+`__tests__/` and `__mocks__/` are allowlisted. In production code the
+chain almost always marks the spot where a boundary should have been
+parsed instead (TE-001).
+
+Scope and known gaps: the detector matches the `as unknown as` token
+sequence in the comment- and string-masked view, so the phrase in prose or
+a string literal does not fire. The equivalent angle-bracket form
+(`<T>(<unknown>x)`) is not matched — it is legacy syntax that collides with
+JSX and does not appear in modern TypeScript. Laundering through a named
+alias of `unknown` (`type Opaque = unknown; x as Opaque as T`) also evades
+the token match. For a deliberate conversion that must stay, suppress with
+the reason:
+`// @anvil-ignore GS-002 -- branded id conversion, checked at the parse boundary`.

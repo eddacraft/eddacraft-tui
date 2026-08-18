@@ -6,7 +6,7 @@ category: type-evasion
 targets: [source]
 related: [guardrail-suppression]
 tensions: []
-rules: [AP-003, AP-015, AP-016]
+rules: [AP-003, AP-015, AP-016, TE-001]
 ---
 
 ## What It Is
@@ -50,10 +50,11 @@ message to read — the developer needs to reason about the data.
 
 ## The Spectrum
 
-This family has three rules: AP-003 (`any` in the type annotation),
+This family has four rules: AP-003 (`any` in the type annotation),
 AP-015 (the `z.any()` / `.passthrough()` Zod escape hatches, on by
-default), and AP-016 (`z.unknown()` in a schema, opt-in). All share one
-shape — opting out of a guarantee the type or schema system was there to
+default), AP-016 (`z.unknown()` in a schema, opt-in), and TE-001 (a type
+assertion on an unvalidated `JSON.parse` / `.json()` result). All share
+one shape — opting out of a guarantee the type or schema system was there to
 provide — but cover a range of motivations:
 
 1. **Laziness** — The developer doesn't want to figure out the type.
@@ -90,6 +91,16 @@ and `.passthrough()` on by default. `z.unknown()` is the least-bad of
 the three (consumers must still narrow) and is genuinely idiomatic as a
 typed-record leaf, so it lives in the **opt-in** rule AP-016 rather than
 firing by default.
+
+**Skipping the boundary entirely (TE-001).** The schema rules above both
+assume a schema ran. TE-001 covers the case where none did:
+`JSON.parse(raw) as Config`, `(await res.json()) as User`. This is the
+"Better" example below — an improvement on `any` because it documents the
+intended shape, and still a guarantee nothing verified. It sits at the
+same spectrum position as AP-015 for the same reason: the type claims
+validated, the runtime validated nothing. The difference is that AP-015
+punches a hole in a schema that exists, while TE-001 marks a boundary
+where the schema was never written.
 
 The distinction between "I don't know the type" (evasion) and "I know
 the type but I'm overriding it" (`as any` — suppression) is important.
@@ -143,6 +154,8 @@ for "I don't want to deal with types right now."
   through; prefer `.strict()` or an explicit `.catchall(schema)`
 - `z.unknown()` in a Zod schema (AP-016, opt-in) — accepts anything;
   idiomatic as a typed-record leaf, so off by default
+- `JSON.parse(...) as T` / `(await res.json()) as T` (TE-001) — a full
+  shape asserted onto a value whose only guarantee is "was valid JSON"
 
 ## Example
 

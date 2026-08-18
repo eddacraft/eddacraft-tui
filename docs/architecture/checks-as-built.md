@@ -167,18 +167,18 @@ families (counts confirmed at `patterns/compiled/registry.json` —
 `registry.json` carries a `families` block and a `prefixes` map — loaded by
 `crates/anvil-checks/src/antipattern/registry_loader.rs`):
 
-| Family                    | IDs                                              | Default severity (sample) |
-| ------------------------- | ------------------------------------------------ | ------------------------- |
-| guardrail-suppression     | `AP-001`, `AP-002`, `AP-004`, `AP-005`, `GS-001` | warning / info / warning  |
-| type-system-evasion       | `AP-003`, `AP-015`, `AP-016`                     | warning                   |
-| error-visibility          | `AP-006`, `AP-007`                               | warning / info            |
-| dynamic-execution         | `AP-008`, `AP-009`, `AP-017`                     | error                     |
-| deferred-debt             | `DD-001`..`DD-004`                               | warning / info            |
-| responsibility-laundering | `RL-001`..`RL-006`                               | warning / error / info    |
-| python-reliability        | `PY-001`..`PY-007`                               | warning / info            |
-| rust-reliability          | `RS-001`..`RS-008`                               | info / warning            |
-| unsafe-rendering          | `UR-001`..`UR-003`                               | warning                   |
-| weak-cryptography         | `WC-001`..`WC-003`                               | warning                   |
+| Family                    | IDs                                                        | Default severity (sample) |
+| ------------------------- | ---------------------------------------------------------- | ------------------------- |
+| guardrail-suppression     | `AP-001`, `AP-002`, `AP-004`, `AP-005`, `GS-001`, `GS-002` | warning / info / warning  |
+| type-system-evasion       | `AP-003`, `AP-015`, `AP-016`, `TE-001`                     | warning                   |
+| error-visibility          | `AP-006`, `AP-007`                                         | warning / info            |
+| dynamic-execution         | `AP-008`, `AP-009`, `AP-017`                               | error                     |
+| deferred-debt             | `DD-001`..`DD-004`                                         | warning / info            |
+| responsibility-laundering | `RL-001`..`RL-006`                                         | warning / error / info    |
+| python-reliability        | `PY-001`..`PY-007`                                         | warning / info            |
+| rust-reliability          | `RS-001`..`RS-008`                                         | info / warning            |
+| unsafe-rendering          | `UR-001`..`UR-003`                                         | warning                   |
+| weak-cryptography         | `WC-001`..`WC-003`                                         | warning                   |
 
 Post-`v0.6.0-beta` growth (through `d1fded280`):
 
@@ -202,7 +202,13 @@ Post-`v0.6.0-beta` growth (through `d1fded280`):
 - **unsafe-rendering** (`UR-001..003`) and **weak-cryptography** (`WC-001..003`)
   are the ADR-087 `insecure-construction` security families — see §4.8.
 - type-system-evasion still carries `AP-015` and `AP-016` (TS Zod-creep,
-  LANGTS-004; `AP-016` opt-in).
+  LANGTS-004; `AP-016` opt-in), plus `TE-001` — a type assertion on an
+  unvalidated `JSON.parse` / `.json()` result, the boundary case where no schema
+  ran at all.
+- guardrail-suppression gained `GS-002` (`x as unknown as T`): the chained
+  assertion that widens through `unknown` so the compiler's overlap check cannot
+  reject the conversion. Both `GS-002` and `TE-001` are regex-tier and
+  code-scoped (comment/string-masked).
 
 Tier note: the whole `RS-001..008` rust-reliability family is AST-tier
 (`detection: ast` in the registry, including `RS-005` `todo!()` /
