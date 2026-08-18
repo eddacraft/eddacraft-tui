@@ -23,6 +23,8 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **`eval-dynamic` now flags `$1`, `$@`, and `$name/suffix`.** Static literals
+  and ANSI-C `$''` leftovers still stay quiet.
 - **Restore the designed SURFSH-008 matcher.** Pipe-to-shell analysis is again
   the shared `analyse_compound` helper from the accepted spec, not the dual-path
   descriptor interpreter that landed after PR #3984. The three shared rules are

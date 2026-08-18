@@ -162,6 +162,11 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
   2026-08-18 — post-merge analyser overgrowth reverted to that designed
   contract (`55da15ea4`); rollback wording (`--skip-checks=command-safety`,
   `# @anvil-ignore SURFSH-002 -- <reason>`) kept.
+  2026-08-18 — FP re-check: Anvil 154 `*.sh`/`*.bash` files, 0 unsuppressed
+  SURFSH-008 findings (3 suppressed `eval-dynamic` TPs in
+  `scripts/agent/guidance.sh`); ripgrep 2 files, 0 findings. `eval-dynamic`
+  widened to `$1` / `$@` / `$name/suffix` without lifting the ANSI-C `$''`
+  static negative.
 
 ### 1. Shared shell catalogue and compound helper exist
 

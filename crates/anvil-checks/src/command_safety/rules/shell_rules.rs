@@ -61,9 +61,13 @@ fn eval_dynamic() -> CommandRule {
         "eval with a dynamic argument executes attacker-controlled shell",
     );
     rule.args = Some(CommandArgConfig {
-        // Dynamic: $name, ${}, $(), backticks. Not ANSI-C `$''` leftovers
-        // (`$echo ok`) and not static words.
-        pattern: Some(r"(?:\$\(|\$\{|`|\$[A-Za-z_][A-Za-z0-9_]*$)".to_string()),
+        // Dynamic: $name, $name/suffix, $1, $@, ${}, $(), backticks.
+        // Named params must be the whole arg or continue with a
+        // non-identifier so ANSI-C `$''` leftovers (`$echo ok`) stay static.
+        pattern: Some(
+            r"(?:\$\(|\$\{|`|\$[A-Za-z_][A-Za-z0-9_]*(?:$|[^A-Za-z0-9_\s])|\$[0-9]+|\$@)"
+                .to_string(),
+        ),
         position: None,
     });
     rule.suggestion =
@@ -133,7 +137,17 @@ mod tests {
 
     #[test]
     fn warns_on_dynamic_eval() {
-        for cmd in ["eval $cmd", "eval \"$x\"", "eval `echo hi`"] {
+        for cmd in [
+            "eval $cmd",
+            "eval \"$x\"",
+            "eval `echo hi`",
+            "eval $1",
+            "eval \"$2\"",
+            "eval $@",
+            "eval \"$@\"",
+            "eval $cmd/path",
+            "eval \"$name/suffix\"",
+        ] {
             let parsed = parse_command(cmd);
             let matched = find_matching_rule(&parsed, &rules(), None)
                 .unwrap_or_else(|| panic!("expected a match for {cmd}"));
