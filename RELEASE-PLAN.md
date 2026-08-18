@@ -42,9 +42,9 @@ nothing else.
   [release-cadence policy](./docs/policies/release-cadence.md).
 - **Active window:** **`v0.9.6-beta`** — beta field fixes after live-heal, plus
   shared shell command-safety. Claim **locked** 2026-08-18. Patch on the v0.9
-  line (assess defaulted to `v0.10.0-beta`; operator override keeps `0.9.6`).
-  Programme work (Graph Trust Surfaces Wave 0, `/settings`) runs **beside** this
-  window and is not the cut claim.
+  line (assess defaulted to `v0.10.0-beta`; operator override keeps
+  `0.9.6-beta`). Programme work (Graph Trust Surfaces Wave 0, `/settings`) runs
+  **beside** this window and is not the cut claim.
 
 ---
 

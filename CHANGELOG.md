@@ -18,9 +18,10 @@ engineering maintenance are recorded in the
   default-on `shell-scripts` surface now share `pipe-to-shell` (Block at
   runtime), `eval-dynamic` (Warn), and `chmod-777` (Warn). The shell-scripts
   surface stays warn-only. The `command-safety` class remains hard-pinned;
-  per-rule `.anvilrc` disable is not wired through `anvil gate` today — skip one
-  invocation with `--skip-checks=command-safety`, suppress a script line with
-  `# @anvil-ignore <rule-id> -- <reason>`, or set `ANVIL_TRACK_SURFACE_SH=0`.
+  per-rule `.anvilrc` disabling is not wired through `anvil gate` today — skip
+  one invocation with `--skip-checks=command-safety`, suppress a script line
+  with `# @anvil-ignore <rule-id> -- <reason>`, or set
+  `ANVIL_TRACK_SURFACE_SH=0`.
 
 ### Fixed
 
