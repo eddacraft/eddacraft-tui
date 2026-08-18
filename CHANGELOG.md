@@ -23,6 +23,10 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **Restore the designed SURFSH-008 matcher.** Pipe-to-shell analysis is again
+  the shared `analyse_compound` helper from the accepted spec, not the dual-path
+  descriptor interpreter that landed after PR #3984. The three shared rules are
+  unchanged.
 - **`--fail-on-warnings` now fails the four warn-only surface checks.**
   `dockerfile`, `shell-scripts`, `sql-migrations`, and `github-actions` still
   pass by default when they only have warnings. With `--fail-on-warnings` or

@@ -159,6 +159,9 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
   `2>&1`/`|&`, trailing-`|` join, docs-owed, override honesty).
   `cargo test -p eddacraft-anvil-checks --lib command_safety`;
   `--lib surface::shell`; `--test command_safety_validation`.
+  2026-08-18 — post-merge analyser overgrowth reverted to that designed
+  contract (`55da15ea4`); rollback wording (`--skip-checks=command-safety`,
+  `# @anvil-ignore SURFSH-002 -- <reason>`) kept.
 
 ### 1. Shared shell catalogue and compound helper exist
 

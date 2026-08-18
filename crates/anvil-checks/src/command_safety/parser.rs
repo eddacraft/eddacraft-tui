@@ -1,18 +1,15 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::command_safety::types::ParsedCommand;
 
 const MAX_UNWRAP_DEPTH: usize = 5;
 
-const SHELL_WRAPPERS: &[&str] = &["bash", "sh", "zsh", "dash", "ash"];
+const SHELL_WRAPPERS: &[&str] = &["bash", "sh", "zsh", "dash"];
 const PRIVILEGED_WRAPPERS: &[&str] = &["sudo", "doas"];
-const ENV_WRAPPERS: &[&str] = &[
-    "env", "command", "builtin", "nohup", "nice", "time", "strace",
-];
+const ENV_WRAPPERS: &[&str] = &["env", "command", "nohup", "nice", "time", "strace"];
 const INTERPRETER_COMMANDS: &[&str] = &["python", "python3", "node", "ruby", "perl", "php"];
-const SHELL_LIKE_INTERPRETERS: &[&str] = &["bash", "sh", "zsh", "dash", "ash"];
+const SHELL_LIKE_INTERPRETERS: &[&str] = &["bash", "sh", "zsh", "dash"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ShellToken {
@@ -46,8 +43,6 @@ pub struct CompoundCommandResult {
     pub is_compound: bool,
     pub commands: Vec<ParsedCommand>,
     pub operators: Vec<String>,
-    #[serde(skip)]
-    pub(crate) raw: String,
 }
 
 #[must_use]
@@ -93,612 +88,18 @@ fn normalise_command_name(token: &str) -> String {
         .to_string()
 }
 
-#[must_use]
-pub(crate) fn shell_code_before_comment(line: &str) -> &str {
-    shell_code_before_comment_with_state(line, &mut ShellCommentState::default())
-}
-
-#[derive(Default, PartialEq, Eq)]
-enum ShellQuoteState {
-    #[default]
-    None,
-    Single,
-    Double,
-}
-
-#[derive(Default)]
-struct ShellCommentFrame {
-    quote: ShellQuoteState,
-    escaped: bool,
-    word_position: ShellWordPosition,
-    word_is_command: bool,
-    closing: Option<char>,
-    paren_depth: usize,
-    case_stack: Vec<ShellCasePhase>,
-    last_was_semicolon: bool,
-    word: String,
-}
-
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-enum ShellWordPosition {
-    #[default]
-    Within,
-    Argument,
-    Command,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ShellCasePhase {
-    AwaitingIn,
-    Pattern,
-    Body,
-}
-
-pub(crate) struct ShellCommentState {
-    frames: Vec<ShellCommentFrame>,
-}
-
-impl Default for ShellCommentState {
-    fn default() -> Self {
-        Self {
-            frames: vec![ShellCommentFrame {
-                word_position: ShellWordPosition::Command,
-                ..ShellCommentFrame::default()
-            }],
-        }
-    }
-}
-
-#[must_use]
-pub(crate) fn shell_code_before_comment_with_state<'a>(
-    line: &'a str,
-    state: &mut ShellCommentState,
-) -> &'a str {
-    if state
-        .frames
-        .last()
-        .is_some_and(|frame| frame.quote == ShellQuoteState::None)
-    {
-        let frame = state.frames.last_mut().expect("root frame");
-        if frame.word_position == ShellWordPosition::Within {
-            frame.word_position = ShellWordPosition::Argument;
-        }
-    }
-
-    let mut characters = line.char_indices().peekable();
-    while let Some((index, character)) = characters.next() {
-        let frame = state.frames.last_mut().expect("root frame");
-        if frame.escaped {
-            frame.escaped = false;
-            frame.word_position = ShellWordPosition::Within;
-            continue;
-        }
-        if character == '\\' && frame.quote != ShellQuoteState::Single {
-            frame.escaped = true;
-            frame.word_position = ShellWordPosition::Within;
-            continue;
-        }
-        if character == '$'
-            && frame.quote != ShellQuoteState::Single
-            && characters.peek().is_some_and(|(_, next)| *next == '(')
-        {
-            frame.word_position = ShellWordPosition::Within;
-            let _ = characters.next();
-            state.frames.push(fresh_shell_comment_frame(')'));
-            continue;
-        }
-        if character == '`' && frame.quote != ShellQuoteState::Single {
-            if frame.closing == Some('`') && frame.quote == ShellQuoteState::None {
-                let _ = state.frames.pop();
-            } else {
-                frame.word_position = ShellWordPosition::Within;
-                state.frames.push(fresh_shell_comment_frame('`'));
-            }
-            continue;
-        }
-        if frame.quote == ShellQuoteState::None
-            && (character == '_' || character.is_ascii_alphanumeric())
-        {
-            if frame.word.is_empty() {
-                frame.word_is_command = frame.word_position == ShellWordPosition::Command;
-            }
-            frame.word.push(character);
-            frame.word_position = ShellWordPosition::Within;
-            frame.last_was_semicolon = false;
-            continue;
-        }
-        if character == '#'
-            && frame.quote == ShellQuoteState::None
-            && frame.word.is_empty()
-            && frame.word_position != ShellWordPosition::Within
-        {
-            finish_shell_comment_line(frame);
-            return &line[..index];
-        }
-        finish_shell_comment_word(frame, Some(character));
-        match consume_shell_comment_delimiter(frame, character) {
-            ShellCommentAction::Pop => {
-                let _ = state.frames.pop();
-            }
-            ShellCommentAction::Continue => {}
-        }
-    }
-    if let Some(frame) = state.frames.last_mut() {
-        finish_shell_comment_line(frame);
-    }
-    line
-}
-
-fn finish_shell_comment_line(frame: &mut ShellCommentFrame) {
-    finish_shell_comment_word(frame, None);
-    let continued = frame.escaped;
-    frame.escaped = false;
-    if !continued
-        && frame.quote == ShellQuoteState::None
-        && frame.case_stack.last() != Some(&ShellCasePhase::AwaitingIn)
-        && frame.case_stack.last() != Some(&ShellCasePhase::Pattern)
-    {
-        frame.word_position = ShellWordPosition::Command;
-    }
-}
-
-enum ShellCommentAction {
-    Continue,
-    Pop,
-}
-
-fn consume_shell_comment_delimiter(
-    frame: &mut ShellCommentFrame,
-    character: char,
-) -> ShellCommentAction {
-    match character {
-        '\'' if frame.quote != ShellQuoteState::Double => {
-            frame.quote = if frame.quote == ShellQuoteState::Single {
-                ShellQuoteState::None
-            } else {
-                ShellQuoteState::Single
-            };
-            frame.word_position = ShellWordPosition::Within;
-        }
-        '"' if frame.quote != ShellQuoteState::Single => {
-            frame.quote = if frame.quote == ShellQuoteState::Double {
-                ShellQuoteState::None
-            } else {
-                ShellQuoteState::Double
-            };
-            frame.word_position = ShellWordPosition::Within;
-        }
-        '(' if frame.quote == ShellQuoteState::None => frame.paren_depth += 1,
-        ')' if frame.quote == ShellQuoteState::None && frame.paren_depth > 0 => {
-            frame.paren_depth -= 1;
-        }
-        ')' if frame.quote == ShellQuoteState::None
-            && frame.closing == Some(')')
-            && frame.case_stack.is_empty() =>
-        {
-            return ShellCommentAction::Pop;
-        }
-        ')' if frame.quote == ShellQuoteState::None
-            && frame.case_stack.last() == Some(&ShellCasePhase::Pattern) =>
-        {
-            *frame.case_stack.last_mut().expect("case phase") = ShellCasePhase::Body;
-            frame.word_position = ShellWordPosition::Command;
-        }
-        ';' if frame.quote == ShellQuoteState::None => {
-            if frame.last_was_semicolon && frame.case_stack.last() == Some(&ShellCasePhase::Body) {
-                *frame.case_stack.last_mut().expect("case phase") = ShellCasePhase::Pattern;
-                frame.word_position = ShellWordPosition::Argument;
-            } else {
-                frame.word_position = ShellWordPosition::Command;
-            }
-            frame.last_was_semicolon = true;
-        }
-        character
-            if frame.quote == ShellQuoteState::None
-                && matches!(character, '|' | '&' | '(' | ')') =>
-        {
-            frame.word_position = ShellWordPosition::Command;
-            frame.last_was_semicolon = false;
-        }
-        character if frame.quote == ShellQuoteState::None && character.is_whitespace() => {
-            if frame.word_position == ShellWordPosition::Within {
-                frame.word_position = ShellWordPosition::Argument;
-            }
-        }
-        _ => {
-            frame.word_position = ShellWordPosition::Within;
-            frame.last_was_semicolon = false;
-        }
-    }
-    ShellCommentAction::Continue
-}
-
-fn fresh_shell_comment_frame(closing: char) -> ShellCommentFrame {
-    ShellCommentFrame {
-        closing: Some(closing),
-        word_position: ShellWordPosition::Command,
-        ..ShellCommentFrame::default()
-    }
-}
-
-fn finish_shell_comment_word(frame: &mut ShellCommentFrame, delimiter: Option<char>) {
-    if frame.word.is_empty() {
-        return;
-    }
-    match frame.case_stack.last().copied() {
-        Some(ShellCasePhase::AwaitingIn) => {
-            if frame.word == "in" {
-                *frame.case_stack.last_mut().expect("case phase") = ShellCasePhase::Pattern;
-            }
-            frame.word_position = ShellWordPosition::Argument;
-        }
-        Some(ShellCasePhase::Pattern) => {
-            if frame.word == "esac" && delimiter != Some(')') {
-                let _ = frame.case_stack.pop();
-            }
-            frame.word_position = ShellWordPosition::Argument;
-        }
-        Some(ShellCasePhase::Body) | None if frame.word_is_command => match frame.word.as_str() {
-            "case" => {
-                frame.case_stack.push(ShellCasePhase::AwaitingIn);
-                frame.word_position = ShellWordPosition::Argument;
-            }
-            "esac" if !frame.case_stack.is_empty() => {
-                let _ = frame.case_stack.pop();
-                frame.word_position = ShellWordPosition::Argument;
-            }
-            "if" | "while" | "until" | "elif" | "then" | "do" | "else" => {
-                frame.word_position = ShellWordPosition::Command;
-            }
-            _ => frame.word_position = ShellWordPosition::Argument,
-        },
-        Some(ShellCasePhase::Body) | None => frame.word_position = ShellWordPosition::Argument,
-    }
-    frame.word.clear();
-    frame.word_is_command = false;
-}
-
-#[must_use]
-pub(crate) fn ends_with_open_pipe(line: &str) -> bool {
-    let code = shell_code_before_comment(line).trim_end();
-    let pipe_index = if code.ends_with("|&") {
-        code.len().saturating_sub(2)
-    } else if code.ends_with('|') && !code.ends_with("||") {
-        code.len().saturating_sub(1)
-    } else {
-        return false;
-    };
-
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    for (index, character) in code.char_indices() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            '|' if index == pipe_index => return !in_single_quote && !in_double_quote,
-            _ => {}
-        }
-    }
-    false
-}
-
-#[must_use]
-pub(crate) fn starts_with_pipe(line: &str) -> bool {
-    let code = shell_code_before_comment(line).trim_start();
-    code.starts_with('|') && !code.starts_with("||")
-}
-
-/// Whether a physical line ends inside shell syntax that must be completed by
-/// a later line. This intentionally tracks only syntax that affects command
-/// boundaries: quotes, parenthesised substitutions/groups, and brace groups.
-#[must_use]
-pub(crate) fn shell_construct_is_open(text: &str) -> bool {
-    #[derive(Default)]
-    struct Frame {
-        closing: Option<char>,
-        in_single_quote: bool,
-        in_double_quote: bool,
-        escaped: bool,
-    }
-
-    let chars = text.chars().collect::<Vec<_>>();
-    let mut frames = vec![Frame::default()];
-    let mut index = 0usize;
-    while index < chars.len() {
-        let character = chars[index];
-        let frame = frames.last_mut().expect("root shell frame");
-        if frame.escaped {
-            frame.escaped = false;
-            index += 1;
-            continue;
-        }
-        if character == '\\' && !frame.in_single_quote {
-            frame.escaped = true;
-            index += 1;
-            continue;
-        }
-        match character {
-            '\'' if !frame.in_double_quote => {
-                frame.in_single_quote = !frame.in_single_quote;
-                index += 1;
-                continue;
-            }
-            '"' if !frame.in_single_quote => {
-                frame.in_double_quote = !frame.in_double_quote;
-                index += 1;
-                continue;
-            }
-            _ => {}
-        }
-        if frame.in_single_quote {
-            index += 1;
-            continue;
-        }
-        let substitution = matches!(character, '$' | '<') && chars.get(index + 1) == Some(&'(');
-        let parameter = character == '$' && chars.get(index + 1) == Some(&'{');
-        if substitution || parameter {
-            frames.push(Frame {
-                closing: Some(if parameter { '}' } else { ')' }),
-                ..Frame::default()
-            });
-            index += 2;
-            continue;
-        }
-        let frame = frames.last().expect("root shell frame");
-        if !frame.in_double_quote && frame.closing == Some(character) {
-            let _ = frames.pop();
-            index += 1;
-            continue;
-        }
-        let brace_group = character == '{' && brace_group_opens_here(&chars, index);
-        if !frame.in_double_quote && (character == '(' || brace_group) {
-            frames.push(Frame {
-                closing: Some(if character == '(' { ')' } else { '}' }),
-                ..Frame::default()
-            });
-        }
-        index += 1;
-    }
-
-    frames.len() > 1
-        || frames
-            .first()
-            .is_some_and(|frame| frame.in_single_quote || frame.in_double_quote)
-        || case_construct_is_open(text)
-}
-
-fn brace_group_opens_here(chars: &[char], index: usize) -> bool {
-    if chars
-        .get(index + 1)
-        .is_some_and(|character| !character.is_whitespace())
-    {
-        return false;
-    }
-    let prefix = chars[..index].iter().collect::<String>();
-    let prefix = prefix.trim_end();
-    if prefix.is_empty()
-        || prefix
-            .chars()
-            .next_back()
-            .is_some_and(|character| matches!(character, ';' | '|' | '&' | '(' | ')' | '!'))
-    {
-        return true;
-    }
-    is_function_declaration_prefix(prefix)
-        || prefix
-            .rsplit(|character: char| {
-                character.is_whitespace() || matches!(character, ';' | '|' | '&')
-            })
-            .next()
-            .is_some_and(|word| matches!(word, "then" | "do" | "else"))
-}
-
-fn is_function_declaration_prefix(prefix: &str) -> bool {
-    let trimmed = prefix.trim();
-    if let Some(name) = trimmed.strip_suffix("()") {
-        return is_shell_identifier(name.trim());
-    }
-    let Some(rest) = trimmed.strip_prefix("function ") else {
-        return false;
-    };
-    let name = rest.trim().strip_suffix("()").unwrap_or(rest.trim());
-    is_shell_identifier(name)
-}
-
-fn is_shell_identifier(name: &str) -> bool {
-    let mut characters = name.chars();
-    characters
-        .next()
-        .is_some_and(|character| character == '_' || character.is_ascii_alphabetic())
-        && characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
-}
-
-fn case_construct_is_open(text: &str) -> bool {
-    case_reserved_word_balance(text) > 0
-}
-
-fn case_reserved_word_balance(text: &str) -> isize {
-    let masked = mask_quoted_shell_data(text);
-    let bytes = masked.as_bytes();
-    let mut balance = 0isize;
-    let mut command_position = true;
-    let mut index = 0usize;
-    while index < bytes.len() {
-        let byte = bytes[index];
-        if byte == b'\n' || matches!(byte, b';' | b'|' | b'&' | b'(' | b'{' | b')') {
-            command_position = true;
-            index += 1;
-            continue;
-        }
-        if byte.is_ascii_whitespace() {
-            index += 1;
-            continue;
-        }
-        if byte == b'_' || byte.is_ascii_alphabetic() {
-            let start = index;
-            index += 1;
-            while index < bytes.len()
-                && (bytes[index] == b'_' || bytes[index].is_ascii_alphanumeric())
-            {
-                index += 1;
-            }
-            let word = &masked[start..index];
-            let next = bytes[index..]
-                .iter()
-                .copied()
-                .find(|candidate| !candidate.is_ascii_whitespace());
-            if command_position && next != Some(b')') {
-                if word == "case" {
-                    balance += 1;
-                } else if word == "esac" {
-                    balance -= 1;
-                }
-            }
-            command_position = matches!(word, "then" | "do" | "else" | "elif");
-            continue;
-        }
-        command_position = false;
-        index += 1;
-    }
-    balance
-}
-
-fn mask_quoted_shell_data(text: &str) -> String {
-    let mut masked = String::with_capacity(text.len());
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    for character in text.chars() {
-        if escaped {
-            for _ in 0..character.len_utf8() {
-                masked.push(' ');
-            }
-            escaped = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            masked.push(' ');
-            escaped = true;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => {
-                in_single_quote = !in_single_quote;
-                masked.push(' ');
-            }
-            '"' if !in_single_quote => {
-                in_double_quote = !in_double_quote;
-                masked.push(' ');
-            }
-            _ if in_single_quote || in_double_quote => {
-                for _ in 0..character.len_utf8() {
-                    masked.push(' ');
-                }
-            }
-            _ => masked.push(character),
-        }
-    }
-    masked
-}
-
 const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
-    "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!",
+    "if", "then", "else", "elif", "fi", "while", "until", "do", "done", "!", "exec", "builtin",
+    "time",
 ];
-
-#[must_use]
-fn pipeline_wrapper_option_takes_value(wrapper: &str, flag: &str) -> bool {
-    match wrapper {
-        "sudo" | "doas" => matches!(
-            flag,
-            "-u" | "-g"
-                | "-C"
-                | "-h"
-                | "-p"
-                | "-r"
-                | "-t"
-                | "-T"
-                | "-U"
-                | "-D"
-                | "-a"
-                | "--user"
-                | "--group"
-                | "--close-from"
-                | "--host"
-                | "--prompt"
-                | "--role"
-                | "--type"
-                | "--command-timeout"
-                | "--other-user"
-                | "--chdir"
-                | "--login-class"
-        ),
-        "env" => matches!(flag, "-C" | "--chdir" | "-u" | "--unset" | "-a" | "--argv0"),
-        "nice" => matches!(flag, "-n" | "--adjustment"),
-        "time" => matches!(flag, "-f" | "--format" | "-o" | "--output"),
-        "strace" => matches!(
-            flag,
-            "-o" | "--output"
-                | "-e"
-                | "--trace"
-                | "-p"
-                | "--attach"
-                | "-u"
-                | "--user"
-                | "-s"
-                | "--string-limit"
-        ),
-        "timeout" => matches!(flag, "-s" | "--signal" | "-k" | "--kill-after"),
-        "exec" => flag == "-a",
-        _ => false,
-    }
-}
-
-#[must_use]
-fn skip_pipeline_wrapper(tokens: &[String], index: usize, wrapper: &str) -> usize {
-    let mut next = index + 1;
-    while next < tokens.len() {
-        let token = &tokens[next];
-        if token == "--" {
-            return next + 1;
-        }
-        if wrapper == "env" && is_environment_assignment(token) {
-            next += 1;
-            continue;
-        }
-        if !token.starts_with('-') {
-            break;
-        }
-        let has_inline_value = token.starts_with("--") && token.contains('=');
-        if pipeline_wrapper_option_takes_value(wrapper, token) && !has_inline_value {
-            next = (next + 2).min(tokens.len());
-        } else {
-            next += 1;
-        }
-    }
-    next
-}
 
 /// First executable in a pipeline stage after skipping grammar prefixes and
 /// sudo/env/timeout/busybox, but **not** peeling `sh`/`bash -c`.
 #[must_use]
-pub(crate) fn pipeline_stage_parts(raw: &str) -> (String, Vec<String>) {
+pub fn pipeline_stage_head(raw: &str) -> String {
     let tokens = tokenise(raw);
-    let mut index = skip_command_prefixes(&tokens, 0);
+    let mut index = 0;
     while index < tokens.len() {
-        let after_prefixes = skip_command_prefixes(&tokens, index);
-        if after_prefixes != index {
-            index = after_prefixes;
-            continue;
-        }
         let token = &tokens[index];
         if is_environment_assignment(token) {
             index += 1;
@@ -710,539 +111,49 @@ pub(crate) fn pipeline_stage_parts(raw: &str) -> (String, Vec<String>) {
             index += 1;
             continue;
         }
-        if is_privileged_wrapper(&name) || is_env_wrapper(&name) || name_l == "exec" {
-            index = skip_pipeline_wrapper(&tokens, index, &name_l);
+        if is_privileged_wrapper(&name) || is_env_wrapper(&name) {
+            index += 1;
+            while index < tokens.len() && tokens[index].starts_with('-') {
+                let flag = tokens[index].as_str();
+                if matches!(
+                    flag,
+                    "-u" | "-g"
+                        | "-C"
+                        | "-h"
+                        | "-p"
+                        | "--user"
+                        | "--group"
+                        | "--chdir"
+                        | "--host"
+                        | "--prompt"
+                ) && index + 1 < tokens.len()
+                {
+                    index += 2;
+                } else {
+                    index += 1;
+                }
+            }
             continue;
         }
         if name_l == "timeout" {
-            index = skip_pipeline_wrapper(&tokens, index, &name_l);
-            // timeout requires one duration operand before its command.
-            if index < tokens.len() {
+            index += 1;
+            while index < tokens.len()
+                && (tokens[index].starts_with('-')
+                    || tokens[index]
+                        .chars()
+                        .next()
+                        .is_some_and(|character| character.is_ascii_digit()))
+            {
                 index += 1;
             }
             continue;
         }
         if name_l == "busybox" && index + 1 < tokens.len() {
-            let applet = skip_command_prefixes(&tokens, index + 1);
-            if applet >= tokens.len() {
-                return (String::new(), Vec::new());
-            }
-            return (
-                normalise_command_name(&tokens[applet]),
-                tokens[applet + 1..].to_vec(),
-            );
+            return normalise_command_name(&tokens[index + 1]);
         }
-        return (name, tokens[index + 1..].to_vec());
+        return name;
     }
-    (String::new(), Vec::new())
-}
-
-#[must_use]
-pub(crate) fn redirection_shape(token: &str) -> Option<bool> {
-    let mut without_fd = token.trim_start_matches(|character: char| character.is_ascii_digit());
-    if let Some(rest) = without_fd.strip_prefix('{')
-        && let Some(close) = rest.find('}')
-    {
-        without_fd = &rest[close + 1..];
-    }
-    for operator in [
-        "<<<", "<<-", "<<", "&>>", "&>", ">>", ">|", "<>", ">&", "<&", ">", "<",
-    ] {
-        if let Some(target) = without_fd.strip_prefix(operator) {
-            return Some(!target.is_empty());
-        }
-    }
-    None
-}
-
-#[must_use]
-fn skip_command_prefixes(tokens: &[String], mut index: usize) -> usize {
-    loop {
-        while index < tokens.len() && is_environment_assignment(&tokens[index]) {
-            index += 1;
-        }
-        let Some(token) = tokens.get(index) else {
-            return index;
-        };
-        let Some(has_inline_target) = redirection_shape(token) else {
-            return index;
-        };
-        index += 1;
-        if !has_inline_target && index < tokens.len() {
-            index += 1;
-        }
-    }
-}
-
-/// First executable in a pipeline stage after skipping grammar prefixes and
-/// supported wrappers, while retaining shell executables such as `bash -c`.
-#[must_use]
-pub fn pipeline_stage_head(raw: &str) -> String {
-    pipeline_stage_parts(raw).0
-}
-
-/// Return the shell which consumes each heredoc opened by `instruction`.
-///
-/// Entries are in shell heredoc-consumption order. A heredoc is executable
-/// when it redirects a shell directly, or when its command feeds a later shell
-/// in the same pipeline.
-#[must_use]
-pub(crate) fn heredoc_shell_consumers(instruction: &str) -> Vec<Option<String>> {
-    let stages = heredoc_pipeline_stages(instruction);
-    if stages.len() > 1 {
-        let downstream = stages
-            .iter()
-            .map(|stage| stage_execution_consumer(stage))
-            .collect::<Vec<_>>();
-        let mut consumers = Vec::new();
-        for (index, stage) in stages.iter().enumerate() {
-            let later = downstream[index + 1..].iter().find_map(Clone::clone);
-            consumers.extend(heredoc_consumers_in_stage(stage, later));
-        }
-        return consumers;
-    }
-    heredoc_consumers_in_stage(instruction, None)
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum HeredocInputBinding {
-    Inherited,
-    Heredoc(usize),
-    Other,
-}
-
-fn heredoc_consumers_in_stage(stage: &str, downstream: Option<String>) -> Vec<Option<String>> {
-    if let Some((body, suffix, tail)) = outer_shell_group(stage) {
-        let mut consumers = heredoc_shell_consumers(body);
-        let group_consumer = stage_execution_consumer(body);
-        consumers.extend(heredoc_consumers_for_command(
-            &suffix,
-            group_consumer.or_else(|| tail.is_empty().then(|| downstream.clone()).flatten()),
-        ));
-        if !tail.is_empty() {
-            consumers.extend(heredoc_consumers_in_stage(&tail, downstream));
-        }
-        return consumers;
-    }
-
-    let direct = execution_consumer_input(stage);
-    if direct.is_some() || parse_compound_command(stage).commands.len() <= 1 {
-        return heredoc_consumers_for_command(stage, direct.map(|(shell, _)| shell).or(downstream));
-    }
-
-    let compound = parse_compound_command(stage);
-    let command_consumers = compound
-        .commands
-        .iter()
-        .map(|command| execution_consumer_input(&command.raw))
-        .collect::<Vec<_>>();
-    let last = compound.commands.len().saturating_sub(1);
-    let mut consumers = Vec::new();
-    for (index, command) in compound.commands.iter().enumerate() {
-        let piped = (index + 1..compound.commands.len()).find_map(|next| {
-            let connected = (index..next)
-                .all(|operator| compound.operators.get(operator).is_some_and(|op| op == "|"));
-            (connected).then(|| {
-                command_consumers[next]
-                    .as_ref()
-                    .map(|(shell, _)| shell.clone())
-            })?
-        });
-        let external = (index == last).then(|| downstream.clone()).flatten();
-        consumers.extend(heredoc_consumers_for_command(
-            &command.raw,
-            command_consumers[index]
-                .as_ref()
-                .map(|(shell, _)| shell.clone())
-                .or(piped)
-                .or(external),
-        ));
-    }
-    consumers
-}
-
-fn heredoc_consumers_for_command(
-    command: &str,
-    fallback_consumer: Option<String>,
-) -> Vec<Option<String>> {
-    let words = shell_words(command);
-    let (bindings, count) = heredoc_input_bindings(&words);
-    if count == 0 {
-        return Vec::new();
-    }
-    let Some((shell, fd)) =
-        execution_consumer_input(command).or_else(|| fallback_consumer.map(|shell| (shell, 0)))
-    else {
-        return vec![None; count];
-    };
-    let effective = bindings
-        .get(&fd)
-        .copied()
-        .unwrap_or(HeredocInputBinding::Other);
-    (0..count)
-        .map(|index| (effective == HeredocInputBinding::Heredoc(index)).then(|| shell.clone()))
-        .collect()
-}
-
-fn execution_consumer_input(command: &str) -> Option<(String, u32)> {
-    if let Some((body, _suffix, _tail)) = outer_shell_group(command) {
-        return stage_execution_consumer(body).map(|shell| (shell, 0));
-    }
-    let (head, args) = pipeline_stage_parts(command);
-    let head = head.to_ascii_lowercase();
-    if SHELL_WRAPPERS.contains(&head.as_str()) {
-        return shell_script_input_fd(&args).map(|fd| (head, fd));
-    }
-    if matches!(head.as_str(), "source" | ".") {
-        return command_operands(&args)
-            .first()
-            .and_then(|operand| shell_input_descriptor(operand))
-            .map(|fd| ("sh".to_string(), fd));
-    }
-    None
-}
-
-fn stage_execution_consumer(stage: &str) -> Option<String> {
-    if let Some((body, suffix, _tail)) = outer_shell_group(stage) {
-        let shell = stage_execution_consumer(body)?;
-        let (bindings, _count) = heredoc_input_bindings(&shell_words(&suffix));
-        return (bindings
-            .get(&0)
-            .copied()
-            .unwrap_or(HeredocInputBinding::Inherited)
-            == HeredocInputBinding::Inherited)
-            .then_some(shell);
-    }
-    let compound = parse_compound_command(stage);
-    compound.commands.iter().find_map(|command| {
-        let (shell, fd) = execution_consumer_input(&command.raw)?;
-        let (bindings, _count) = heredoc_input_bindings(&shell_words(&command.raw));
-        (bindings.get(&fd).copied().unwrap_or(if fd == 0 {
-            HeredocInputBinding::Inherited
-        } else {
-            HeredocInputBinding::Other
-        }) == HeredocInputBinding::Inherited)
-            .then_some(shell)
-    })
-}
-
-fn shell_script_input_fd(args: &[String]) -> Option<u32> {
-    let operands = command_operands(args);
-    let mut index = 0usize;
-    let mut stdin_mode = false;
-    while index < operands.len() {
-        let argument = operands[index].as_str();
-        if argument == "--" {
-            return operands
-                .get(index + 1)
-                .and_then(|operand| shell_input_descriptor(operand));
-        }
-        if argument == "-" {
-            return Some(0);
-        }
-        if argument.starts_with("--") {
-            index += if matches!(argument, "--rcfile" | "--init-file") {
-                2
-            } else {
-                1
-            };
-            continue;
-        }
-        if argument.starts_with('-') || argument.starts_with('+') {
-            let options = argument.trim_start_matches(['-', '+']);
-            if options.contains('c') {
-                return None;
-            }
-            stdin_mode |= options.contains('s');
-            if matches!(
-                argument,
-                "-o" | "+o" | "-O" | "+O" | "--rcfile" | "--init-file"
-            ) {
-                index += 2;
-            } else {
-                index += 1;
-            }
-            continue;
-        }
-        if stdin_mode {
-            return Some(0);
-        }
-        return shell_input_descriptor(argument);
-    }
-    Some(0)
-}
-
-fn shell_input_descriptor(operand: &str) -> Option<u32> {
-    match operand {
-        "/dev/stdin" | "/dev/fd/0" | "/proc/self/fd/0" | "/proc/thread-self/fd/0" => Some(0),
-        _ => operand
-            .strip_prefix("/dev/fd/")
-            .or_else(|| operand.strip_prefix("/proc/self/fd/"))
-            .or_else(|| operand.strip_prefix("/proc/thread-self/fd/"))
-            .and_then(|fd| fd.parse().ok()),
-    }
-}
-
-fn command_operands(args: &[String]) -> Vec<&String> {
-    let mut operands = Vec::new();
-    let mut index = 0usize;
-    while index < args.len() {
-        let argument = &args[index];
-        if actual_redirection_shape(argument).is_some() {
-            let has_inline_target = actual_redirection_shape(argument).unwrap_or(true);
-            index += if has_inline_target { 1 } else { 2 };
-        } else {
-            operands.push(argument);
-            index += 1;
-        }
-    }
-    operands
-}
-
-fn actual_redirection_shape(token: &str) -> Option<bool> {
-    (!token.starts_with("<(") && !token.starts_with(">("))
-        .then(|| redirection_shape(token))
-        .flatten()
-}
-
-fn heredoc_input_bindings(words: &[String]) -> (HashMap<u32, HeredocInputBinding>, usize) {
-    let mut bindings = HashMap::from([(0, HeredocInputBinding::Inherited)]);
-    let mut heredoc_count = 0usize;
-    let mut index = 0usize;
-    while index < words.len() {
-        let word = &words[index];
-        let Some((fd, operator, inline_target)) = input_redirection_parts(word) else {
-            index += 1;
-            continue;
-        };
-        let target = inline_target.or_else(|| words.get(index + 1).map(String::as_str));
-        let advance = if inline_target.is_some() { 1 } else { 2 };
-        if matches!(operator, "<<" | "<<-") {
-            if let Some(fd) = fd {
-                bindings.insert(fd, HeredocInputBinding::Heredoc(heredoc_count));
-            }
-            heredoc_count += 1;
-        } else if operator == "<&" {
-            if let Some(fd) = fd {
-                let source_fd =
-                    target.and_then(|target| target.trim_end_matches('-').parse::<u32>().ok());
-                let source = target
-                    .and(source_fd)
-                    .and_then(|source_fd| bindings.get(&source_fd).copied())
-                    .unwrap_or(HeredocInputBinding::Other);
-                bindings.insert(fd, source);
-                if target.is_some_and(|target| target.ends_with('-'))
-                    && let Some(source_fd) = source_fd
-                {
-                    bindings.insert(source_fd, HeredocInputBinding::Other);
-                }
-            }
-        } else if let Some(fd) = fd {
-            bindings.insert(fd, HeredocInputBinding::Other);
-        }
-        index += advance;
-    }
-    (bindings, heredoc_count)
-}
-
-fn input_redirection_parts(token: &str) -> Option<(Option<u32>, &'static str, Option<&str>)> {
-    if token.starts_with("<(") || token.starts_with(">(") {
-        return None;
-    }
-    let digit_count = token.bytes().take_while(u8::is_ascii_digit).count();
-    let fd = if token.starts_with('{') {
-        None
-    } else if digit_count == 0 {
-        Some(0)
-    } else {
-        token[..digit_count].parse().ok()
-    };
-    let mut rest = &token[digit_count..];
-    if let Some(named) = rest.strip_prefix('{') {
-        rest = &named[named.find('}')? + 1..];
-    }
-    for operator in ["<<<", "<<-", "<<", "<>", "<&", "<"] {
-        if let Some(target) = rest.strip_prefix(operator) {
-            return Some((fd, operator, (!target.is_empty()).then_some(target)));
-        }
-    }
-    None
-}
-
-fn heredoc_pipeline_stages(raw: &str) -> Vec<&str> {
-    let mut stages = Vec::new();
-    let mut start = 0usize;
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    let mut paren_depth = 0usize;
-    let mut brace_depth = 0usize;
-    let mut previous_unescaped_gt = false;
-    let mut chars = raw.char_indices().peekable();
-    while let Some((index, character)) = chars.next() {
-        if escaped {
-            escaped = false;
-            previous_unescaped_gt = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            previous_unescaped_gt = false;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            '(' if !in_single_quote && !in_double_quote => paren_depth += 1,
-            ')' if !in_single_quote && !in_double_quote && paren_depth > 0 => paren_depth -= 1,
-            '{' if !in_single_quote && !in_double_quote => brace_depth += 1,
-            '}' if !in_single_quote && !in_double_quote && brace_depth > 0 => brace_depth -= 1,
-            '|' if !in_single_quote && !in_double_quote && paren_depth == 0 && brace_depth == 0 => {
-                if previous_unescaped_gt {
-                    previous_unescaped_gt = false;
-                    continue;
-                }
-                if raw[index..].starts_with("||") {
-                    let _ = chars.next();
-                    continue;
-                }
-                stages.push(raw[start..index].trim());
-                if raw[index..].starts_with("|&") {
-                    let _ = chars.next();
-                    start = index + 2;
-                } else {
-                    start = index + 1;
-                }
-            }
-            '>' if !in_single_quote && !in_double_quote => previous_unescaped_gt = true,
-            _ => previous_unescaped_gt = false,
-        }
-    }
-    if !stages.is_empty() {
-        stages.push(raw[start..].trim());
-    }
-    stages
-}
-
-fn outer_shell_group(stage: &str) -> Option<(&str, String, String)> {
-    let trimmed = stage.trim();
-    let (open, opening, closing) = group_opening_for_heredoc(trimmed)?;
-    let close = matching_group_close_for_heredoc(trimmed, open, opening, closing)?;
-    let (suffix, tail) = group_suffix_parts(&trimmed[close + closing.len_utf8()..])?;
-    Some((
-        trimmed[open + opening.len_utf8()..close]
-            .trim()
-            .trim_end_matches(';')
-            .trim(),
-        suffix,
-        tail,
-    ))
-}
-
-fn group_suffix_parts(suffix: &str) -> Option<(String, String)> {
-    let tokens = tokenise_shell(suffix.trim());
-    let mut index = 0usize;
-    while let Some(ShellToken::Word(word)) = tokens.get(index) {
-        let Some(has_inline_target) = actual_redirection_shape(word) else {
-            break;
-        };
-        index += 1;
-        if !has_inline_target {
-            if !matches!(tokens.get(index), Some(ShellToken::Word(_))) {
-                return None;
-            }
-            index += 1;
-        }
-    }
-    if matches!(tokens.get(index), Some(ShellToken::Word(_))) {
-        return None;
-    }
-    let redirections = render_shell_tokens(&tokens[..index]);
-    if index < tokens.len() {
-        index += 1;
-    }
-    Some((redirections, render_shell_tokens(&tokens[index..])))
-}
-
-fn render_shell_tokens(tokens: &[ShellToken]) -> String {
-    tokens
-        .iter()
-        .map(|token| match token {
-            ShellToken::Word(word) => shell_quote(word),
-            ShellToken::Operator(operator) => operator.clone(),
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn group_opening_for_heredoc(stage: &str) -> Option<(usize, char, char)> {
-    for (index, character) in stage.char_indices() {
-        if !matches!(character, '{' | '(') {
-            continue;
-        }
-        let prefix = stage[..index].trim();
-        let words = prefix.split_whitespace().collect::<Vec<_>>();
-        let tail = words
-            .iter()
-            .rposition(|word| matches!(*word, "then" | "do" | "else"))
-            .map_or(words.as_slice(), |boundary| &words[boundary + 1..]);
-        let prefix_allowed = tail
-            .iter()
-            .all(|word| matches!(*word, "!" | "time" | "-p" | "--"));
-        let brace_is_token = character != '{'
-            || stage[index + character.len_utf8()..]
-                .chars()
-                .next()
-                .is_none_or(char::is_whitespace);
-        if prefix_allowed && brace_is_token {
-            return Some((index, character, if character == '{' { '}' } else { ')' }));
-        }
-    }
-    None
-}
-
-fn matching_group_close_for_heredoc(
-    stage: &str,
-    open: usize,
-    opening: char,
-    closing: char,
-) -> Option<usize> {
-    let mut depth = 1usize;
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    let start = open + opening.len_utf8();
-    for (relative, character) in stage[start..].char_indices() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            character if !in_single_quote && !in_double_quote && character == opening => depth += 1,
-            character if !in_single_quote && !in_double_quote && character == closing => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(start + relative);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-/// Model an unquoted heredoc body as shell input so the shared matcher can
-/// classify command substitutions and legacy backticks with its normal shell
-/// payload semantics.
-#[must_use]
-pub(crate) fn shell_heredoc_payload_command(shell: &str, body: &str) -> String {
-    format!("{shell} -c {}", shell_quote(body))
+    String::new()
 }
 
 #[must_use]
@@ -1292,109 +203,6 @@ fn split_by_operators(tokens: &[ShellToken]) -> Vec<SubCommandTokens> {
     commands
 }
 
-fn begin_single_quote(current: &mut String) -> bool {
-    let preserve = current.ends_with('$');
-    if preserve {
-        current.push('\'');
-    }
-    preserve
-}
-
-fn close_single_quote(current: &mut String, preserve: &mut bool) {
-    if *preserve {
-        current.push('\'');
-        *preserve = false;
-    }
-}
-
-fn push_current_word(tokens: &mut Vec<ShellToken>, current: &mut String) {
-    if !current.is_empty() {
-        tokens.push(ShellToken::Word(std::mem::take(current)));
-    }
-}
-
-#[derive(Default)]
-struct SubstitutionState {
-    depth: usize,
-    in_single_quote: bool,
-    in_double_quote: bool,
-    escaped: bool,
-}
-
-impl SubstitutionState {
-    fn begin(&mut self) {
-        self.depth = 1;
-    }
-
-    fn consume(&mut self, character: char) {
-        if self.escaped {
-            self.escaped = false;
-            return;
-        }
-        if character == '\\' && !self.in_single_quote {
-            self.escaped = true;
-            return;
-        }
-        match character {
-            '\'' if !self.in_double_quote => self.in_single_quote = !self.in_single_quote,
-            '"' if !self.in_single_quote => self.in_double_quote = !self.in_double_quote,
-            '(' if !self.in_single_quote && !self.in_double_quote => self.depth += 1,
-            ')' if !self.in_single_quote && !self.in_double_quote => {
-                self.depth = self.depth.saturating_sub(1);
-            }
-            _ => {}
-        }
-    }
-
-    fn active(&self) -> bool {
-        self.depth > 0
-    }
-}
-
-fn consume_single_quoted(
-    character: char,
-    in_single_quote: &mut bool,
-    current: &mut String,
-    preserve_single_quote: &mut bool,
-) -> bool {
-    if !*in_single_quote {
-        return false;
-    }
-    if character == '\'' {
-        *in_single_quote = false;
-        close_single_quote(current, preserve_single_quote);
-    } else {
-        current.push(character);
-    }
-    true
-}
-
-fn consume_double_quoted(
-    character: char,
-    in_double_quote: &mut bool,
-    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
-    current: &mut String,
-) -> bool {
-    if !*in_double_quote {
-        return false;
-    }
-    if character == '\\' {
-        if let Some(next) = chars.next() {
-            if matches!(next, '$' | '`' | '"' | '\\' | '\n') {
-                current.push(next);
-            } else {
-                current.push('\\');
-                current.push(next);
-            }
-        }
-    } else if character == '"' {
-        *in_double_quote = false;
-    } else {
-        current.push(character);
-    }
-    true
-}
-
 #[must_use]
 fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut tokens = Vec::new();
@@ -1402,51 +210,39 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
     let mut chars = cmd.chars().peekable();
     let mut in_single_quote = false;
     let mut in_double_quote = false;
-    let mut preserve_single_quote = false;
-    let mut substitution = SubstitutionState::default();
-    let mut trailing_gt_is_operator = false;
 
     while let Some(ch) = chars.next() {
-        if consume_single_quoted(
-            ch,
-            &mut in_single_quote,
-            &mut current,
-            &mut preserve_single_quote,
-        ) {
-            trailing_gt_is_operator = false;
+        if in_single_quote {
+            if ch == '\'' {
+                in_single_quote = false;
+            } else {
+                current.push(ch);
+            }
             continue;
         }
 
-        if consume_double_quoted(ch, &mut in_double_quote, &mut chars, &mut current) {
-            trailing_gt_is_operator = false;
-            continue;
-        }
-
-        if substitution.active() {
-            current.push(ch);
-            substitution.consume(ch);
-            trailing_gt_is_operator = false;
-            continue;
-        }
-        if matches!(ch, '$' | '<' | '>') && chars.peek() == Some(&'(') {
-            current.push(ch);
-            current.push(chars.next().expect("peeked opening parenthesis"));
-            substitution.begin();
-            trailing_gt_is_operator = false;
+        if in_double_quote {
+            if ch == '\\' {
+                if let Some(next) = chars.next() {
+                    current.push(next);
+                }
+                continue;
+            }
+            if ch == '"' {
+                in_double_quote = false;
+            } else {
+                current.push(ch);
+            }
             continue;
         }
 
         match ch {
-            '\'' => {
-                preserve_single_quote = begin_single_quote(&mut current);
-                in_single_quote = true;
-            }
+            '\'' => in_single_quote = true,
             '"' => in_double_quote = true,
             '\\' => {
                 if let Some(next) = chars.next() {
                     current.push(next);
                 }
-                trailing_gt_is_operator = false;
             }
             '#' => {
                 if current.is_empty() {
@@ -1455,80 +251,64 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 current.push('#');
             }
             '&' => {
-                // `2>&1` / `>&1` and `2<&1` / `<&1` are redirections, not
-                // background separators.
-                if trailing_gt_is_operator || current.ends_with('<') {
+                // `2>&1` / `>&1` are redirections, not background separators.
+                if current.ends_with('>') {
                     current.push('&');
                     if let Some(next) = chars.next() {
                         current.push(next);
                     }
-                    trailing_gt_is_operator = false;
                     continue;
                 }
                 if chars.peek() == Some(&'>') {
                     current.push('&');
                     current.push(chars.next().expect("peeked >"));
-                    trailing_gt_is_operator = true;
                     continue;
                 }
-                push_current_word(&mut tokens, &mut current);
+                if !current.is_empty() {
+                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
+                }
                 if chars.peek() == Some(&'&') {
                     let _ = chars.next();
                     tokens.push(ShellToken::Operator("&&".to_string()));
                 } else {
                     tokens.push(ShellToken::Operator("&".to_string()));
                 }
-                trailing_gt_is_operator = false;
             }
-            '|' => consume_pipe_operator(
-                &mut chars,
-                &mut tokens,
-                &mut current,
-                &mut trailing_gt_is_operator,
-            ),
-            ';' | '\n' => {
-                push_current_word(&mut tokens, &mut current);
+            '|' => {
+                if !current.is_empty() {
+                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
+                }
+                if chars.peek() == Some(&'|') {
+                    let _ = chars.next();
+                    tokens.push(ShellToken::Operator("||".to_string()));
+                } else if chars.peek() == Some(&'&') {
+                    // bash `|&` is a pipe of stdout+stderr, not a background `&`.
+                    let _ = chars.next();
+                    tokens.push(ShellToken::Operator("|".to_string()));
+                } else {
+                    tokens.push(ShellToken::Operator("|".to_string()));
+                }
+            }
+            ';' => {
+                if !current.is_empty() {
+                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
+                }
                 tokens.push(ShellToken::Operator(";".to_string()));
-                trailing_gt_is_operator = false;
             }
             c if c.is_whitespace() => {
-                push_current_word(&mut tokens, &mut current);
-                trailing_gt_is_operator = false;
+                if !current.is_empty() {
+                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
+                }
             }
-            _ => {
-                current.push(ch);
-                trailing_gt_is_operator = ch == '>';
-            }
+            _ => current.push(ch),
         }
     }
 
-    push_current_word(&mut tokens, &mut current);
+    if !current.is_empty() {
+        tokens.push(ShellToken::Word(current));
+    }
+
     tokens
-}
-
-fn consume_pipe_operator(
-    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
-    tokens: &mut Vec<ShellToken>,
-    current: &mut String,
-    trailing_gt_is_operator: &mut bool,
-) {
-    if *trailing_gt_is_operator {
-        current.push('|');
-        *trailing_gt_is_operator = false;
-        return;
-    }
-    push_current_word(tokens, current);
-    if chars.peek() == Some(&'|') {
-        let _ = chars.next();
-        tokens.push(ShellToken::Operator("||".to_string()));
-    } else {
-        if chars.peek() == Some(&'&') {
-            // bash `|&` is a pipe of stdout+stderr, not a background `&`.
-            let _ = chars.next();
-        }
-        tokens.push(ShellToken::Operator("|".to_string()));
-    }
-    *trailing_gt_is_operator = false;
 }
 
 #[must_use]
@@ -1540,100 +320,6 @@ fn tokenise(cmd: &str) -> Vec<String> {
             ShellToken::Word(_) | ShellToken::Operator(_) => None,
         })
         .collect()
-}
-
-#[must_use]
-pub(crate) fn shell_words(cmd: &str) -> Vec<String> {
-    tokenise(cmd)
-}
-
-#[must_use]
-pub(crate) fn persistent_exec_descriptor_updates(
-    text: &str,
-) -> Vec<PersistentExecDescriptorUpdate> {
-    collect_persistent_exec_descriptor_updates(text, false)
-}
-
-pub(crate) struct PersistentExecDescriptorUpdate {
-    pub(crate) words: Vec<String>,
-    pub(crate) conditional: bool,
-}
-
-fn collect_persistent_exec_descriptor_updates(
-    text: &str,
-    inherited_conditional: bool,
-) -> Vec<PersistentExecDescriptorUpdate> {
-    let compound = parse_compound_command(text);
-    let mut updates = Vec::new();
-    let mut conditional = inherited_conditional;
-    for (index, command) in compound.commands.iter().enumerate() {
-        if index > 0 {
-            match compound.operators.get(index - 1).map(String::as_str) {
-                Some(";") => conditional = inherited_conditional,
-                Some("&&" | "||") => conditional = true,
-                _ => return Vec::new(),
-            }
-        }
-
-        let words = shell_words(&command.raw);
-        if descriptor_only_exec_words(&words) {
-            updates.push(PersistentExecDescriptorUpdate { words, conditional });
-            continue;
-        }
-
-        let (head, args) = pipeline_stage_parts(&command.raw);
-        if !head.eq_ignore_ascii_case("eval") {
-            continue;
-        }
-        let args = args.strip_prefix(&["--".to_string()]).unwrap_or(&args);
-        let payload = args.join(" ");
-        if !payload.is_empty() && payload.len() < command.raw.len() {
-            updates.extend(collect_persistent_exec_descriptor_updates(
-                &payload,
-                conditional,
-            ));
-        }
-    }
-    updates
-}
-
-fn descriptor_only_exec_words(words: &[String]) -> bool {
-    let Some(exec_index) = exec_command_index(words) else {
-        return false;
-    };
-    let mut index = exec_index + 1;
-    let mut saw_redirection = words[..exec_index]
-        .iter()
-        .any(|word| redirection_shape(word).is_some());
-    while index < words.len() {
-        let Some(has_inline_target) = redirection_shape(&words[index]) else {
-            return false;
-        };
-        saw_redirection = true;
-        index += if has_inline_target { 1 } else { 2 };
-    }
-    saw_redirection && index == words.len()
-}
-
-#[must_use]
-pub(crate) fn exec_command_index(words: &[String]) -> Option<usize> {
-    let mut index = 0usize;
-    while index < words.len() {
-        let word = &words[index];
-        if word == "exec" {
-            return Some(index);
-        }
-        if matches!(word.as_str(), "{" | "!" | "then" | "do") || is_environment_assignment(word) {
-            index += 1;
-            continue;
-        }
-        if let Some(has_inline_target) = redirection_shape(word) {
-            index += if has_inline_target { 1 } else { 2 };
-            continue;
-        }
-        return None;
-    }
-    None
 }
 
 #[must_use]
@@ -1676,21 +362,13 @@ fn tokenise_with_operators(cmd: &str) -> TokenisedWithOperators {
 }
 
 #[must_use]
-pub(crate) fn shell_option_invokes_command(token: &str) -> bool {
-    token.starts_with('-')
-        && !token.starts_with("--")
-        && token.chars().skip(1).any(|character| character == 'c')
-}
-
-#[must_use]
 fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
     for (index, token) in tokens.iter().enumerate() {
-        if shell_option_invokes_command(token) {
-            let mut payload = index + 1;
-            if tokens.get(payload).is_some_and(|token| token == "--") {
-                payload += 1;
-            }
-            return tokens.get(payload).cloned();
+        if token == "-c" {
+            return tokens.get(index + 1).cloned();
+        }
+        if token.starts_with('-') && !token.starts_with("--") && token.ends_with('c') {
+            return tokens.get(index + 1).cloned();
         }
     }
     None
@@ -1698,7 +376,7 @@ fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
 
 #[must_use]
 fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
-    const ENV_OPTIONS_WITH_VALUE: &[&str] = &["-C", "--chdir", "-u", "--unset", "-a", "--argv0"];
+    const ENV_OPTIONS_WITH_VALUE: &[&str] = &["-C", "--chdir", "-u", "--unset"];
 
     let mut start_index = 1;
     while start_index < tokens.len() {
@@ -1845,9 +523,7 @@ fn remaining_starts_with_recognised_wrapper(cmd: &str) -> bool {
     if trimmed.is_empty() {
         return false;
     }
-    let all_tokens = tokenise(trimmed);
-    let prefix = skip_command_prefixes(&all_tokens, 0);
-    let tokens = all_tokens[prefix..].to_vec();
+    let tokens = tokenise(trimmed);
     // Skip shell-style assignments so residual forms like `FOO=1 env rm ...`
     // still count as incomplete wrapper analysis at the depth limit.
     let Some(first) = tokens
@@ -2085,7 +761,10 @@ fn parse_from_tokens(
         };
     }
 
-    let command_index = skip_command_prefixes(tokens, 0);
+    let command_index = tokens
+        .iter()
+        .take_while(|token| is_environment_assignment(token))
+        .count();
 
     if command_index >= tokens.len() {
         return ParsedCommand {
@@ -2106,12 +785,7 @@ fn parse_from_tokens(
     let subcommand = extract_subcommand(&command, &rest);
 
     let global_opts = global_options_for(&command);
-    let remaining_args = if command == "eval" {
-        rest.iter()
-            .filter(|token| token.as_str() != "--")
-            .cloned()
-            .collect()
-    } else {
+    let remaining_args = {
         let mut filtered = Vec::new();
         let mut skip_next = false;
         let mut past_separator = false;
@@ -2224,210 +898,8 @@ fn shell_quote(token: &str) -> String {
     token.to_string()
 }
 
-fn structural_shell_body(command: &str) -> Option<String> {
-    let trimmed = command.trim();
-    if let Some(open) = trimmed.find('{') {
-        let prefix = trimmed[..open].trim_end();
-        if is_function_declaration_prefix(prefix) {
-            let close = find_function_closing_brace(trimmed, open)?;
-            if close > open {
-                let body = trimmed[open + 1..close].trim();
-                let suffix_raw = &trimmed[close + 1..];
-                let suffix = suffix_raw.trim();
-                return Some(if suffix.is_empty() {
-                    body.to_string()
-                } else if suffix.starts_with([';', '|', '&']) {
-                    format!("{body} {suffix}")
-                } else {
-                    format!("{body}; {suffix}")
-                });
-            }
-        }
-    }
-    case_arm_bodies(trimmed)
-}
-
-fn find_function_closing_brace(text: &str, open: usize) -> Option<usize> {
-    let mut depth = 1usize;
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    for (offset, character) in text[open + 1..].char_indices() {
-        let index = open + 1 + offset;
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            '{' if !in_single_quote && !in_double_quote => depth += 1,
-            '}' if !in_single_quote && !in_double_quote => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-fn case_arm_bodies(command: &str) -> Option<String> {
-    let rest = command.strip_prefix("case")?;
-    if !rest.starts_with(char::is_whitespace) {
-        return None;
-    }
-    let (_, arms_start) = find_unquoted_reserved_word(rest, "in")?;
-    let arms = rest[arms_start..].trim_start();
-    let arms = arms.strip_suffix("esac")?.trim_end();
-    let mut bodies = Vec::new();
-    let mut cursor = 0usize;
-    while cursor < arms.len() {
-        let close = find_case_pattern_close(arms, cursor)?;
-        let body_start = close + 1;
-        let (body_end, next) = find_case_arm_end(arms, body_start);
-        let body = arms[body_start..body_end].trim();
-        if !body.is_empty() {
-            bodies.push(body);
-        }
-        if next <= cursor {
-            break;
-        }
-        cursor = next;
-    }
-    (!bodies.is_empty()).then(|| bodies.join("; "))
-}
-
-fn find_unquoted_reserved_word(text: &str, needle: &str) -> Option<(usize, usize)> {
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    let mut word_start = None;
-    for (index, character) in text.char_indices() {
-        if escaped {
-            escaped = false;
-            word_start = None;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            word_start = None;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => {
-                in_single_quote = !in_single_quote;
-                word_start = None;
-                continue;
-            }
-            '"' if !in_single_quote => {
-                in_double_quote = !in_double_quote;
-                word_start = None;
-                continue;
-            }
-            _ => {}
-        }
-        if in_single_quote || in_double_quote {
-            continue;
-        }
-        if character == '_' || character.is_ascii_alphabetic() {
-            word_start.get_or_insert(index);
-            continue;
-        }
-        if character.is_ascii_alphanumeric() {
-            continue;
-        }
-        if let Some(start) = word_start.take()
-            && &text[start..index] == needle
-            && (character.is_whitespace() || character == ';')
-        {
-            let end = index + usize::from(character == ';');
-            return Some((start, end));
-        }
-    }
-    None
-}
-
-fn find_case_pattern_close(text: &str, start: usize) -> Option<usize> {
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    let mut depth = 0usize;
-    for (offset, character) in text[start..].char_indices() {
-        let index = start + offset;
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            '(' if !in_single_quote && !in_double_quote => depth += 1,
-            ')' if !in_single_quote && !in_double_quote && depth == 0 => return Some(index),
-            ')' if !in_single_quote && !in_double_quote => depth -= 1,
-            _ => {}
-        }
-    }
-    None
-}
-
-fn find_case_arm_end(text: &str, start: usize) -> (usize, usize) {
-    let mut in_single_quote = false;
-    let mut in_double_quote = false;
-    let mut escaped = false;
-    let mut paren_depth = 0usize;
-    let mut brace_depth = 0usize;
-    for (offset, character) in text[start..].char_indices() {
-        let index = start + offset;
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if character == '\\' && !in_single_quote {
-            escaped = true;
-            continue;
-        }
-        match character {
-            '\'' if !in_double_quote => in_single_quote = !in_single_quote,
-            '"' if !in_single_quote => in_double_quote = !in_double_quote,
-            '(' if !in_single_quote && !in_double_quote => paren_depth += 1,
-            ')' if !in_single_quote && !in_double_quote && paren_depth > 0 => paren_depth -= 1,
-            '{' if !in_single_quote && !in_double_quote => brace_depth += 1,
-            '}' if !in_single_quote && !in_double_quote && brace_depth > 0 => brace_depth -= 1,
-            ';' if !in_single_quote && !in_double_quote && paren_depth == 0 && brace_depth == 0 => {
-                let suffix = &text[index..];
-                let terminator_len = if suffix.starts_with(";;&") {
-                    3
-                } else if suffix.starts_with(";;") || suffix.starts_with(";&") {
-                    2
-                } else {
-                    0
-                };
-                if terminator_len > 0 && case_reserved_word_balance(&text[start..index]) <= 0 {
-                    return (index, index + terminator_len);
-                }
-            }
-            _ => {}
-        }
-    }
-    (text.len(), text.len())
-}
-
 #[must_use]
 pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
-    if let Some(body) = structural_shell_body(cmd) {
-        return parse_compound_command(&body);
-    }
     let tokenised = tokenise_with_operators(cmd);
 
     if !tokenised.is_compound || tokenised.sub_commands.len() <= 1 {
@@ -2440,9 +912,6 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                 let mut commands = Vec::new();
                 let mut operators = Vec::new();
                 for sub in inner.sub_commands {
-                    if let Some(op) = sub.operator {
-                        operators.push(op);
-                    }
                     if !sub.tokens.is_empty() {
                         let raw_sub = sub.tokens.join(" ");
                         let tokens = tokenise(&raw_sub);
@@ -2454,12 +923,14 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                         );
                         commands.push(parsed);
                     }
+                    if let Some(op) = sub.operator {
+                        operators.push(op);
+                    }
                 }
                 return CompoundCommandResult {
                     is_compound: true,
                     commands,
                     operators,
-                    raw: cmd.to_string(),
                 };
             }
         }
@@ -2467,7 +938,6 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
             is_compound: false,
             commands: vec![parse_command(cmd)],
             operators: Vec::new(),
-            raw: cmd.to_string(),
         };
     }
 
@@ -2475,9 +945,6 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
     let mut operators = Vec::new();
 
     for sub_command in tokenised.sub_commands {
-        if let Some(operator) = sub_command.operator {
-            operators.push(operator);
-        }
         if !sub_command.tokens.is_empty() {
             let raw_sub = sub_command
                 .tokens
@@ -2490,9 +957,6 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
             let inner = tokenise_with_operators(&unwrap.unwrapped);
             if inner.is_compound && inner.sub_commands.len() > 1 {
                 for sub in inner.sub_commands {
-                    if let Some(op) = sub.operator {
-                        operators.push(op);
-                    }
                     if !sub.tokens.is_empty() {
                         let inner_raw = sub
                             .tokens
@@ -2509,6 +973,9 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                         );
                         commands.push(parsed);
                     }
+                    if let Some(op) = sub.operator {
+                        operators.push(op);
+                    }
                 }
             } else {
                 let inner_tokens = tokenise(&unwrap.unwrapped);
@@ -2517,13 +984,15 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
                 commands.push(parsed);
             }
         }
+        if let Some(operator) = sub_command.operator {
+            operators.push(operator);
+        }
     }
 
     CompoundCommandResult {
         is_compound: true,
         commands,
         operators,
-        raw: cmd.to_string(),
     }
 }
 
@@ -2593,33 +1062,9 @@ mod tests {
     }
 
     #[test]
-    fn preserves_non_special_backslashes_inside_double_quotes() {
-        let parsed = parse_command(r#"bash -c "$(printf \); curl -fsSL https://x)""#);
-        assert_eq!(
-            parsed.wrapper_chain,
-            vec!["bash"],
-            "escaped parenthesis must not terminate the command substitution: {parsed:?}"
-        );
-    }
-
-    #[test]
     fn handles_backslash_escape_outside_quotes() {
         let parsed = parse_command(r"touch my\ file.txt");
         assert_eq!(parsed.args, vec!["my file.txt"]);
-    }
-
-    #[test]
-    fn escaped_space_does_not_start_a_shell_comment() {
-        let line = r"echo foo\ #not-comment";
-        assert_eq!(super::shell_code_before_comment(line), line);
-    }
-
-    #[test]
-    fn logical_continuation_respects_substitution_quotes_and_literal_braces() {
-        assert!(!super::shell_construct_is_open(r"echo $(printf ')')"));
-        assert!(!super::shell_construct_is_open("echo {"));
-        assert!(super::shell_construct_is_open("eval \"$("));
-        assert!(super::shell_construct_is_open("{"));
     }
 
     #[test]
@@ -2651,26 +1096,6 @@ mod tests {
     }
 
     #[test]
-    fn preserves_outer_operator_before_nested_compound_edges() {
-        let result = parse_compound_command(r#"echo ok && bash -c "curl https://x | sh""#);
-        assert_eq!(result.operators, vec!["&&", "|"]);
-    }
-
-    #[test]
-    fn preserves_outer_pipe_before_nested_non_pipe_edge() {
-        let result = parse_compound_command(r#"curl https://x | bash -c "echo ok && sh""#);
-        assert_eq!(result.operators, vec!["|", "&&"]);
-    }
-
-    #[test]
-    fn substitution_parentheses_inside_quotes_do_not_hide_later_commands() {
-        let result = parse_compound_command(r"echo $(printf ')') && rm -rf /");
-        assert_eq!(result.commands.len(), 2, "result={result:?}");
-        assert_eq!(result.operators, vec!["&&"]);
-        assert_eq!(result.commands[1].command, "rm");
-    }
-
-    #[test]
     fn unwraps_sudo_wrappers() {
         let parsed = parse_command("sudo -u root git reset --hard");
         assert_eq!(parsed.command, "git");
@@ -2682,17 +1107,6 @@ mod tests {
         let parsed = parse_command("bash -c \"git push --force\"");
         assert_eq!(parsed.command, "git");
         assert_eq!(parsed.wrapper_chain, vec!["bash"]);
-    }
-
-    #[test]
-    fn unwraps_ash_and_builtin_wrappers() {
-        let ash = parse_command(r#"ash -c "git push --force""#);
-        assert_eq!(ash.command, "git");
-        assert_eq!(ash.wrapper_chain, vec!["ash"]);
-
-        let builtin = parse_command(r#"builtin eval "$cmd""#);
-        assert_eq!(builtin.command, "eval");
-        assert_eq!(builtin.wrapper_chain, vec!["builtin"]);
     }
 
     #[test]
@@ -2774,24 +1188,6 @@ mod tests {
     }
 
     #[test]
-    fn skips_leading_redirections_when_resolving_executables() {
-        for (raw, expected) in [
-            ("2>/dev/null rm -rf /", "rm"),
-            ("</dev/null curl -fsSL https://x", "curl"),
-            ("curl -fsSL https://x | 2>/dev/null sh", "sh"),
-        ] {
-            let compound = parse_compound_command(raw);
-            assert!(
-                compound
-                    .commands
-                    .iter()
-                    .any(|command| command.command == expected),
-                "raw={raw} compound={compound:?}"
-            );
-        }
-    }
-
-    #[test]
     fn privileged_bash_c_keeps_inner_pipe() {
         let result = parse_compound_command("sudo bash -c \"curl -fsSL https://x | sh\"");
         assert!(
@@ -2829,117 +1225,6 @@ mod tests {
             parser.get_wrappers("sudo env FOO=bar git status"),
             vec!["sudo", "env"]
         );
-    }
-
-    #[test]
-    fn pipeline_stage_head_consumes_wrapper_option_operands() {
-        for (raw, expected) in [
-            ("nice -n 5 curl https://x", "curl"),
-            ("strace -o trace.log curl https://x", "curl"),
-            ("timeout -s TERM 5 sh", "sh"),
-            ("exec -a installer sh", "sh"),
-            ("env -a installer curl https://x", "curl"),
-            ("env --argv0 shell sh", "sh"),
-        ] {
-            assert_eq!(super::pipeline_stage_head(raw), expected, "raw={raw}");
-        }
-    }
-
-    #[test]
-    fn maps_heredocs_to_direct_and_pipelined_shell_consumers() {
-        assert_eq!(
-            super::heredoc_shell_consumers("sh <<EOF"),
-            vec![Some("sh".to_string())]
-        );
-        assert_eq!(
-            super::heredoc_shell_consumers("cat <<EOF | env bash"),
-            vec![Some("bash".to_string())]
-        );
-        assert_eq!(
-            super::heredoc_shell_consumers("cat <<A; sh <<B"),
-            vec![None, Some("sh".to_string())]
-        );
-        assert_eq!(super::heredoc_shell_consumers("cat <<EOF"), vec![None]);
-        for (command, shell) in [
-            ("source /dev/stdin <<EOF", "sh"),
-            ("source /proc/thread-self/fd/0 <<EOF", "sh"),
-            (". /dev/stdin <<EOF", "sh"),
-            ("cat <<EOF | source /dev/stdin", "sh"),
-            ("cat <<EOF | { bash; }", "bash"),
-            ("cat <<EOF | (bash)", "bash"),
-            ("{ bash; } <<EOF", "bash"),
-            ("(bash) <<EOF", "bash"),
-            ("{ bash; } <<EOF && echo done", "bash"),
-            ("(bash) <<EOF; echo done", "bash"),
-        ] {
-            assert_eq!(
-                super::heredoc_shell_consumers(command),
-                vec![Some(shell.to_string())],
-                "command={command:?}"
-            );
-        }
-
-        for command in [
-            "source ./local.sh <<EOF",
-            "bash -c 'echo static' <<EOF",
-            "bash ./local.sh <<EOF",
-        ] {
-            assert_eq!(
-                super::heredoc_shell_consumers(command),
-                vec![None],
-                "stdin is not executable shell input for command={command:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn maps_only_effective_heredoc_input_after_ordered_redirections() {
-        for (command, expected) in [
-            ("bash <<EOF </dev/null", vec![None]),
-            ("bash </dev/null <<EOF", vec![Some("bash".to_string())]),
-            ("bash <<A <<B", vec![None, Some("bash".to_string())]),
-            ("bash 3<<EOF", vec![None]),
-            ("bash 3<<EOF <&3", vec![Some("bash".to_string())]),
-            ("source /dev/fd/3 3<<EOF", vec![Some("sh".to_string())]),
-            ("{ bash; } << EOF </dev/null", vec![None]),
-            ("cat <<EOF | { bash; } </dev/null", vec![None]),
-            (
-                "{ bash; } </dev/null << EOF",
-                vec![Some("bash".to_string())],
-            ),
-        ] {
-            assert_eq!(
-                super::heredoc_shell_consumers(command),
-                expected,
-                "command={command:?}"
-            );
-        }
-
-        for command in [
-            "bash --norc <<EOF",
-            "bash --rcfile ./bashrc <<EOF",
-            "bash -s <<EOF",
-        ] {
-            assert_eq!(
-                super::heredoc_shell_consumers(command),
-                vec![Some("bash".to_string())],
-                "stdin-reading shell option form was missed: {command:?}"
-            );
-        }
-        assert_eq!(
-            super::heredoc_shell_consumers("bash -- -c <<EOF"),
-            vec![None],
-            "-- makes -c a script operand rather than an option"
-        );
-    }
-
-    #[test]
-    fn eval_preserves_dash_leading_dynamic_operands() {
-        for raw in [r#"eval "-$cmd""#, r#"eval "-$(printf dynamic)""#] {
-            let parsed = parse_command(raw);
-            assert_eq!(parsed.command, "eval");
-            assert_eq!(parsed.args.len(), 1, "raw={raw} parsed={parsed:?}");
-        }
     }
 
     #[test]
