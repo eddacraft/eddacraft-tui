@@ -387,9 +387,22 @@ covered.
       (see [Testing the rule](#testing-the-rule)), not the pattern's branches.
 - [ ] Prove-RED run recorded in the PR: which mutation of the pattern turned
       which assertion red.
-- [ ] Public docs (`docs/public/anvil/overview.md`,
-      `docs/public/anvil/concepts/gates.md`,
-      `docs/public/anvil/operations/config.md`) list the new rule.
+- [ ] **Do not** hand-edit `docs/public/anvil/reference/rules.md`. It is
+      generated (`pnpm docs:public:generate`) from the registry **at the last
+      released tag**, not from the workspace tree, so a rule that has not
+      shipped yet must not appear there — adding it makes the file stale against
+      its own source and fails the `public-docs` surface in CI. New rules land
+      in the public reference automatically when a release containing them is
+      cut. (`overview.md`, `concepts/gates.md` and `operations/config.md` list
+      no rule ids at all; the reference table is the only rule listing.)
+- [ ] Trap: in a clone without tags the generator logs
+      `public release ref     <tag> does not resolve; using workspace tree for all product inputs`
+      and generates from the workspace registry instead — which looks correct
+      locally and fails in CI. Run `git fetch --tags` before trusting a local
+      `docs:check`.
+- [ ] `docs/architecture/checks-as-built.md` — update the family/ID table.
+      Unlike the public reference this tracks `main`, so it does carry
+      unreleased rules.
 
 ## Retiring a rule
 
