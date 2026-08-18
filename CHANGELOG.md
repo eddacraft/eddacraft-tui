@@ -12,6 +12,8 @@ engineering maintenance are recorded in the
 > `v0.9.5-beta`. Theme locked: beta field fixes plus shared shell
 > command-safety. Version and date land at the cut.
 
+## [0.9.6-beta] — 2026-08-18
+
 ### Added
 
 - **Shared shell command-safety rules.** Runtime command-safety and the

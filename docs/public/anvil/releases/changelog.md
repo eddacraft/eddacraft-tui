@@ -17,6 +17,51 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
+## 0.9.6-beta — 18 August 2026
+
+### Added
+
+- **Shared shell command-safety rules.** Runtime command-safety and the
+  default-on `shell-scripts` surface now share `pipe-to-shell` (Block at
+  runtime), `eval-dynamic` (Warn), and `chmod-777` (Warn). The shell-scripts
+  surface stays warn-only. The `command-safety` class remains hard-pinned;
+  per-rule `.anvilrc` disabling is not wired through `anvil gate` today — skip
+  one invocation with `--skip-checks=command-safety`, suppress a script line
+  with `# @anvil-ignore <rule-id> -- <reason>`, or set
+  `ANVIL_TRACK_SURFACE_SH=0`.
+
+### Fixed
+
+- **`eval-dynamic` now flags `$1`, `$@`, and `$name/suffix`.** Static literals
+  and ANSI-C `$''` leftovers still stay quiet.
+
+- **Pipe-to-shell analysis uses the shared compound helper again.** Runtime and
+  shell-scripts share one analyser for pipelines and nested shells, matching the
+  accepted shell catalogue design. The three shared rules are unchanged.
+
+- **Default Git hooks now record the L3 witness chain.** `anvil hooks install`
+  and Git-hook setup through `anvil start` keep the pre-commit quality gate, add
+  the commit witness, and install a managed post-commit step that binds the
+  resulting `HEAD`. Existing anvil-managed gate-only hooks are upgraded without
+  `--force`, and `anvil hooks status` names the witness step.
+
+- **Hook witness fallback is quiet and observable when the daemon is down.**
+  Commits no longer dump a raw pipe or socket error before falling back to the
+  embedded witness writer. `anvil doctor` and `anvil start --verify --why` now
+  explain the degraded path; hooks still do not auto-start the daemon or block
+  the commit solely because it is unavailable.
+
+- **`--fail-on-warnings` now fails the four warn-only surface checks.**
+  `dockerfile`, `shell-scripts`, `sql-migrations`, and `github-actions` still
+  pass by default when they only have warnings. With `--fail-on-warnings` or
+  `ANVIL_FAIL_ON_WARNINGS=1`, an unsuppressed finding on those checks fails the
+  check and the gate exits non-zero. Anti-pattern behaviour is unchanged.
+
+- **Bare document filenames no longer look like high-entropy secrets.** Names
+  such as `quarterly-revenue-forecast-summary.md` are recognised as document
+  paths even without a directory separator. Opaque high-entropy values and
+  vendor-specific secret formats are still reported.
+
 ## 0.9.5-beta — 16 August 2026 — MCP live-heal and config unification
 
 This window is about staying attached after an upgrade: daily `anvil`,
