@@ -19,8 +19,8 @@ version-by-version history and downloadable artefacts, use the
 
 ## 0.9.6-beta — 18 August 2026 — Beta field fixes and shell command-safety
 
-After 0.9.5, hooks and warnings tell the truth again, and shell scripts get the
-same dangerous-command coverage runtime already had.
+After 0.9.5-beta, hooks and warnings tell the truth again, and shell scripts get
+the same dangerous-command coverage runtime already had.
 
 ### Added
 
