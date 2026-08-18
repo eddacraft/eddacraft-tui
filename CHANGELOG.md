@@ -8,11 +8,16 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft for `v0.9.6-beta`.** Customer-facing changes on `main` since
-> `v0.9.5-beta`. Theme locked: beta field fixes plus shared shell
-> command-safety. Version and date land at the cut.
+> **Draft.** Customer-facing changes on `main` since the last tagged release.
+> Version and date land at the next cut.
 
-## [0.9.6-beta] — 2026-08-18
+## [0.9.6-beta] — 2026-08-18 — Beta field fixes and shell command-safety
+
+This window cleans up field friction after live-heal: default hooks record the
+witness chain, daemon-down witness noise is quiet, `--fail-on-warnings` covers
+the warn-only surface checks, and bare document filenames stop looking like
+secrets — plus shared shell command-safety (pipe-to-shell, dynamic eval,
+chmod 777) that grew out of that work.
 
 ### Added
 

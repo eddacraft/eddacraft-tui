@@ -7,16 +7,19 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft — Beta field fixes and shell command-safety
+## [Unreleased] — Draft
 
-Draft / unreleased. Technical work landed on `main` since `v0.9.5-beta`. The
-locked `v0.9.6-beta` claim is a **beta field-fix** window: default hooks record
+Draft / unreleased. Technical work landed on `main` since `v0.9.6-beta`.
+
+## [0.9.6-beta] — 2026-08-18 — Beta field fixes and shell command-safety
+
+Shipped 2026-08-18. Beta field-fix window after live-heal: default hooks record
 the witness chain, daemon-down witness fallback is quiet, `--fail-on-warnings`
 covers the four warn-only surfaces, and bare document filenames no longer trip
 generic entropy — plus **shared shell command-safety** (pipe-to-shell, dynamic
 eval, numeric chmod 777) that grew out of that field work. Assess defaulted to
-`v0.10.0-beta`; the cut stays on `v0.9.6-beta`. Docs re-baseline authority work
-and Graph Trust Surfaces remain beside this window, not the cut claim.
+`v0.10.0-beta`; the cut stayed on `v0.9.6-beta`. Docs re-baseline authority work
+and Graph Trust Surfaces remained beside this window, not the cut claim.
 
 ### Commit witness and hook reliability
 

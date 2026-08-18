@@ -7,7 +7,7 @@ owner: DOCSYNC
 upstream:
   - CHANGELOG.md
   - RELEASE-PLAN.md
-verified_against: 0.9.5-beta
+verified_against: 0.9.6-beta
 ---
 
 # Current release notes
@@ -17,7 +17,10 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.6-beta — 18 August 2026
+## 0.9.6-beta — 18 August 2026 — Beta field fixes and shell command-safety
+
+After 0.9.5, hooks and warnings tell the truth again, and shell scripts get the
+same dangerous-command coverage runtime already had.
 
 ### Added
 

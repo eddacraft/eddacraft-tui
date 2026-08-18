@@ -10,7 +10,7 @@ upstream:
   - crates/anvil-cli/src/commands/auth.rs
   - crates/anvil-cli/src/commands/ensure.rs
   - crates/anvil-cli/src/commands/version.rs
-verified_against: 0.9.5-beta
+verified_against: 0.9.6-beta
 ---
 
 # Beta test brief
@@ -26,7 +26,7 @@ This is a **test brief**, not a second setup manual. Setup lives only in the
 [quickstart](quickstart.md). Install or update there, then return here.
 
 **Current published beta:**
-[v0.9.5-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.5-beta).
+[v0.9.6-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.6-beta).
 Confirm with `anvil version`. A newer beta is valid.
 
 ## The product under test
