@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                             |
-| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-17: **`v0.9.5-beta` shipped** — closeout. Active window rolled to provisional `v0.9.6-beta` (field intake; claim not frozen). |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                              |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-18: **`v0.9.6-beta` claim locked** — beta field fixes after `v0.9.5-beta`, plus shared shell command-safety that grew out of that work. Override assess `v0.10.0-beta`. Not cut-ready until changelog curation + standing bar. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -40,58 +40,84 @@ nothing else.
   path; `v0.9.2-beta` MCP reconnect; `v0.9.1-beta` daily path + MCP 2.0.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** provisional **`v0.9.6-beta`** — field intake after
-  `v0.9.5-beta`. Theme and claim IDs are **not frozen**.
+- **Active window:** **`v0.9.6-beta`** — beta field fixes after live-heal, plus
+  shared shell command-safety. Claim **locked** 2026-08-18. Patch on the v0.9
+  line (assess defaulted to `v0.10.0-beta`; operator override keeps `0.9.6`).
+  Programme work (Graph Trust Surfaces Wave 0, `/settings`) runs **beside** this
+  window and is not the cut claim.
 
 ---
 
-## Active window — `v0.9.6-beta` (provisional)
+## Active window — `v0.9.6-beta` (claim locked)
 
-**Theme:** TBD from field intake after `v0.9.5-beta` (live-heal + config ship).
+**Theme:** Beta field fixes after `v0.9.5-beta` — honest default hooks, quieter
+daemon-down witness fallback, warning-flag escalation for surface checks, and
+fewer false secret alarms on document filenames — plus the shared shell
+command-safety rules that grew out of that field work.
 
-**Status:** **Provisional; claim not locked.** Do not cut until claim freeze +
-changelog + standing bar.
+**Status:** **Claim locked; not cut-ready.** Primary field fixes and the shell
+extension are Merged on `main`. Remaining cut work is changelog curation,
+standing bar, and preflight → prepare → readiness → tag.
 
-**Customer one-liner:** TBD.
+**Customer one-liner:** After 0.9.5, hooks and warnings tell the truth again,
+and shell scripts get the same dangerous-command coverage runtime already had.
 
-**Authority:** Field signal + APS Ready/Accepted items after intake. Programme
-work (Graph Trust Surfaces Wave 0, `/settings` SETCON+, MCPLH-007 soak) may run
-**beside** this window and is not automatically the cut claim.
+**Authority:** Field intake from the 0.9.5 retest (default hooks, witness noise,
+`--fail-on-warnings`, document-name entropy) plus the shell catalogue extension
+that landed with that wave. Assess on `ac1bb9967495d96929b999561e107dc1022d8f8b`
+recommended `v0.10.0-beta` / `direct` / `beta`; operator keeps **`v0.9.6-beta`**
+as a named patch on the v0.9 line.
 
-### Primary claim
+### Primary claim (beta field fixes)
 
-_Not selected._ Promote only after operator intake names the theme and freezes
-IDs.
+| ID      | Item                                                        | Pri | State        | Notes                                     |
+| ------- | ----------------------------------------------------------- | --- | ------------ | ----------------------------------------- |
+| CIB-346 | Default hooks run the L3 witness path, not gate-only        | P1  | Merged #3982 | Install + start upgrade managed hooks     |
+| CIB-345 | Hook witness fallback quiet when daemon is down             | P2  | Merged #3981 | Doctor / start --verify explain degraded  |
+| CIB-347 | `--fail-on-warnings` escalates the four warn-only surfaces  | P1  | Merged #3980 | Default warn-only posture unchanged       |
+| CIB-348 | Entropy does not fire on bare hyphenated document filenames | P3  | Merged #3979 | Opaque high-entropy values still reported |
 
-### Not a claim of this window (default)
+### Extension that ships in this window (shell command-safety)
 
-- **MCPLH-007** supervisor/proxy soak (residual restart remains honest)
-- Full **`/settings`** programme (SETCON / SETINS / SETPREF / …)
-- Graph Trust Surfaces / **CGBDG** Wave 0
-- **CONF-001** intent-conformance ADR
+Grew out of the surface / command-safety field work; not a separate product
+minor.
+
+| ID         | Item                                             | Pri | State        | Notes                                            |
+| ---------- | ------------------------------------------------ | --- | ------------ | ------------------------------------------------ |
+| SURFSH-008 | Shared shell catalogue: pipe-to-shell, eval, 777 | P0  | Merged #3984 | Runtime Blocks pipe-to-shell; shell surface Warn |
+
+### Not a claim of this window
+
+- Live-heal supervisor/proxy soak (residual restart remains honest)
+- Full **`/settings`** programme
+- Graph Trust Surfaces / council-gate bridge discovery
+- Intent-conformance product ADR
 - Browser dashboard default-on
-- Standing CIB drain unless elevated to claim
+- Docs re-baseline migrations (authority + inventory already Merged; not a cut
+  claim)
+- Standing continuous-improvement drain beyond the primary rows above
+- Unquoted-variable shell follow-ups
 
 ### Phase plan
 
-| Phase              | Scope                                          | State           |
-| ------------------ | ---------------------------------------------- | --------------- |
-| **0.9.5 closeout** | Record + APS advance + prune                   | Done 2026-08-17 |
-| **Field intake**   | Post-`v0.9.5-beta` signal → theme selection    | Next            |
-| **Claim lock**     | Freeze primary/secondary IDs for `v0.9.6-beta` | Not started     |
-| **Implement**      | Claim items                                    | Not started     |
-| **Changelog**      | Curate `[Unreleased]`                          | Not started     |
-| **Cut**            | Preflight → prepare → readiness → tag          | Not scheduled   |
+| Phase              | Scope                                          | State                                      |
+| ------------------ | ---------------------------------------------- | ------------------------------------------ |
+| **0.9.5 closeout** | Record + APS advance + prune                   | Done 2026-08-17                            |
+| **Field intake**   | Post-`v0.9.5-beta` signal → theme selection    | Done 2026-08-17 (retest + shell extension) |
+| **Claim lock**     | Freeze primary/extension IDs for `v0.9.6-beta` | Done 2026-08-18 (this plan)                |
+| **Implement**      | Primary field fixes + shell extension          | Done — claim rows Merged on `main`         |
+| **Changelog**      | Curate `[Unreleased]` without APS ID bleed     | Next                                       |
+| **Cut**            | Preflight → prepare → readiness → tag          | Not scheduled                              |
 
 ### Cut criteria
 
 - Standing bar: full Cross matrix, release-readiness on source SHA,
   ACKNOWLEDGEMENTS fresh, dashboard openapi `check:api` green.
-- Claim locked with Merged primary items (and secondaries Merged or waived).
-- Changelog leads with the locked theme only — not programme freight.
+- Claim locked with Merged primary items (and extension Merged or waived).
+- Changelog leads with the locked theme in customer language — no APS work-item
+  IDs in theme, one-liner, or changelog entries.
 - Strategy: **direct** unless readiness forces stabilisation.
-- Version stays provisional until claim freeze (may stay `v0.9.6-beta` or
-  escalate if product minor criteria are met).
+- Version stays **`v0.9.6-beta`** (operator override of assess `v0.10.0-beta`).
 
 ### Risks
 
@@ -99,6 +125,8 @@ IDs.
 | ------------------------------------- | ------------------------------------------------------------------- |
 | Cutting without claim freeze          | Preflight/prepare blocked until RELEASE-PLAN status is claim-locked |
 | Programme work mistaken for cut claim | Keep NBI / Not a claim list current at claim lock                   |
+| APS IDs bleeding into public notes    | Curate changelog/theme in customer language only                    |
+| Assess wants `v0.10.0-beta`           | Explicit override recorded above; prepare must use `0.9.6-beta`     |
 
 ---
 

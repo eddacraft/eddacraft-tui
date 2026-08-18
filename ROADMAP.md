@@ -1,10 +1,10 @@
 # anvil Roadmap
 
-**Last updated:** 2026-08-17 (`v0.9.5-beta` shipped — MCP live-heal primary;
-UCFG + honesty secondary. Feature release on the v0.9 line, not `v0.10.0`.
-Highest-value programme track remains Graph Trust Surfaces Wave 0 / CGBDG. See
-`RELEASE-PLAN.md`. Module status lives in the SOT files below; this roadmap
-stays thematic.)
+**Last updated:** 2026-08-18 (`v0.9.6-beta` claim locked — beta field fixes
+after 0.9.5, plus shared shell command-safety. Patch on the v0.9 line, not
+`v0.10.0`. Highest-value programme track remains Graph Trust Surfaces Wave 0 /
+CGBDG. See `RELEASE-PLAN.md`. Module status lives in the SOT files below; this
+roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -124,8 +124,8 @@ behind `dashboard.web` (default-off) for testing only — not a customer claim
 until default-on or a later named window owns it. Graph Trust Surfaces Wave 0
 (CGBDG discovery, CONF-001, …) is a **side programme**, not the active cut.
 
-**Active window:** provisional `v0.9.6-beta` (field intake; claim not frozen).
-Prior shipped: `v0.9.5-beta`. Current state:
+**Active window:** `v0.9.6-beta` (claim locked — beta field fixes plus shared
+shell command-safety). Prior shipped: `v0.9.5-beta`. Current state:
 [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 

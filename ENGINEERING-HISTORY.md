@@ -7,16 +7,68 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft — MCP live-heal, config unification, and product deep clean
+## [Unreleased] — Draft — Beta field fixes and shell command-safety
 
-Draft / unreleased. Technical work landed on `main` since `v0.9.4-beta`. The
-locked `v0.9.5-beta` claim is **MCP live-heal** (MCPLH-001..006 and MCPLH-008 on
-`main`) plus **config unification and product deep clean**
-([ADR-120](./plans/decisions/120-config-surface-consolidation.md), UCFG-001..016
-on `main`). Supervisor/proxy (MCPLH-007) stays Draft until re-exec soak evidence
-and is not this claim. APS Merged bookkeeping for 003/005/006/008 is
-[#3933](https://github.com/eddacraft/anvil-001/pull/3933). Settings (`SETCON`+)
+Draft / unreleased. Technical work landed on `main` since `v0.9.5-beta`. The
+locked `v0.9.6-beta` claim is a **beta field-fix** window: default hooks record
+the witness chain, daemon-down witness fallback is quiet, `--fail-on-warnings`
+covers the four warn-only surfaces, and bare document filenames no longer trip
+generic entropy — plus **shared shell command-safety** (pipe-to-shell, dynamic
+eval, numeric chmod 777) that grew out of that field work. Assess defaulted to
+`v0.10.0-beta`; the cut stays on `v0.9.6-beta`. Docs re-baseline authority work
 and Graph Trust Surfaces remain beside this window, not the cut claim.
+
+### Commit witness and hook reliability
+
+- **Default managed hooks run the full L3 path.** File-mode and Git config-mode
+  installs keep `anvil gate --progress`, add `anvil hook pre-commit`, and
+  install `anvil hook post-commit` so the resulting `HEAD` is SHA-bound. Status
+  and ownership predicates recognise the post-commit step. A reinstall upgrades
+  leftover anvil-managed gate-only or legacy config commands without `--force`,
+  while preserving user-authored hook commands. Pre-push remains
+  `anvil hook pre-push`.
+- **Daemon-down witness fallback is quiet but visible.** Witness RPC uses a
+  hook-scoped quiet transport path before falling back to the embedded writer,
+  avoiding a raw pipe/socket line on every commit. The existing once-per-session
+  daemon-unreachable verdict remains the operator signal; `anvil doctor` and
+  `anvil start --verify --why` name the embedded route. Test capture state now
+  clears after a panic so one test cannot leak RPC capture into another.
+
+### Gate and secret-check precision
+
+- **Warn-only surfaces honour the strict opt-in.** Gate dispatch now carries
+  `--fail-on-warnings` / `ANVIL_FAIL_ON_WARNINGS` into Dockerfile, shell-script,
+  SQL-migration, and GitHub Actions checks. Unsuppressed findings return a
+  failing check/score under the opt-in; the default remains warn-only, clean
+  fixtures remain green, and baselined SQL findings do not regress. SQL result
+  copy now keeps posture and baseline counts in one parenthetical.
+- **Document filenames bypass generic entropy only when path-shaped.** The
+  document-extension heuristic no longer requires `/` or `\\`, covering a bare
+  hyphenated filename. Opaque high-entropy tokens without a document extension
+  and vendor-specific secret rules still fire.
+
+### Shared shell command-safety
+
+- **One catalogue for runtime and shell-scripts.** Pipe-to-shell Blocks at
+  runtime and Warns on the shell-scripts surface; dynamic `eval` and numeric
+  `chmod 777` / `0777` Warn on both. Compound forms (`sh -c`, pipelines,
+  redirections) share one analyser. Shell-scripts stays warn-only;
+  command-safety remains hard-pinned.
+
+### Documentation architecture (not a cut claim)
+
+- **Documentation authority is explicit.** Component internals move towards
+  co-located `README.md` / `ARCHITECTURE.md` with Mermaid; central architecture
+  retains cross-system views. Corpus disposition is inventory-only for now —
+  migrations remain future work and are not this release claim.
+
+## [0.9.5-beta] — 2026-08-16 — MCP live-heal and config unification
+
+Shipped 2026-08-16. After an upgrade, owned MCP configs and live children heal
+so typical sessions stay attached; one canonical project config surface ships in
+the same tag, with honesty fixes around protect/install/verify. Supervisor/proxy
+soak, settings UI, and Graph Trust Surfaces were not part of the cut claim.
+Record: [plans/releases/v0.9.5-beta.md](./plans/releases/v0.9.5-beta.md).
 
 ### Config surface consolidation (ADR-120, UCFG)
 
@@ -106,10 +158,6 @@ and Graph Trust Surfaces remain beside this window, not the cut claim.
   admin surfaces; developer-acceleration bench suite (agent-free Tier B).
 - **Acknowledgements starter.** Cold-adopt across ecosystems; Apache-2.0 grant
   on the kit.
-
-See [RELEASE-PLAN.md](./RELEASE-PLAN.md) for the `v0.9.5-beta` cut bar.
-Remaining cut work is the standing release bar and promoting `[Unreleased]` at
-tag time, not more claim implementation.
 
 ## [0.9.4-beta] — 2026-08-10 — Clearer install advice and quieter false alarms
 

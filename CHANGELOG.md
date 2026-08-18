@@ -8,32 +8,51 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft.** Customer-facing changes on `main` since the last tagged release.
-> Version and date land at the next cut.
+> **Draft for `v0.9.6-beta`.** Customer-facing changes on `main` since
+> `v0.9.5-beta`. Theme locked: beta field fixes plus shared shell
+> command-safety. Version and date land at the cut.
 
 ### Added
 
 - **Shared shell command-safety rules.** Runtime command-safety and the
   default-on `shell-scripts` surface now share `pipe-to-shell` (Block at
-  runtime), `eval-dynamic` (Warn), and `chmod-777` (Warn). SURFSH stays
-  warn-only. The `command-safety` class remains hard-pinned; per-rule `.anvilrc`
-  disable is not wired through `anvil gate` today — skip one invocation with
-  `--skip-checks=command-safety`, suppress a script line with
-  `# @anvil-ignore SURFSH-002 -- <reason>`, or set `ANVIL_TRACK_SURFACE_SH=0`.
+  runtime), `eval-dynamic` (Warn), and `chmod-777` (Warn). The shell-scripts
+  surface stays warn-only. The `command-safety` class remains hard-pinned;
+  per-rule `.anvilrc` disable is not wired through `anvil gate` today — skip one
+  invocation with `--skip-checks=command-safety`, suppress a script line with
+  `# @anvil-ignore <rule-id> -- <reason>`, or set `ANVIL_TRACK_SURFACE_SH=0`.
 
 ### Fixed
 
 - **`eval-dynamic` now flags `$1`, `$@`, and `$name/suffix`.** Static literals
   and ANSI-C `$''` leftovers still stay quiet.
-- **Restore the designed SURFSH-008 matcher.** Pipe-to-shell analysis is again
-  the shared `analyse_compound` helper from the accepted spec, not the dual-path
-  descriptor interpreter that landed after PR #3984. The three shared rules are
-  unchanged.
+
+- **Pipe-to-shell analysis uses the shared compound helper again.** Runtime and
+  shell-scripts share one analyser for pipelines and nested shells, matching the
+  accepted shell catalogue design. The three shared rules are unchanged.
+
+- **Default Git hooks now record the L3 witness chain.** `anvil hooks install`
+  and Git-hook setup through `anvil start` keep the pre-commit quality gate, add
+  the commit witness, and install a managed post-commit step that binds the
+  resulting `HEAD`. Existing anvil-managed gate-only hooks are upgraded without
+  `--force`, and `anvil hooks status` names the witness step.
+
+- **Hook witness fallback is quiet and observable when the daemon is down.**
+  Commits no longer dump a raw pipe or socket error before falling back to the
+  embedded witness writer. `anvil doctor` and `anvil start --verify --why` now
+  explain the degraded path; hooks still do not auto-start the daemon or block
+  the commit solely because it is unavailable.
+
 - **`--fail-on-warnings` now fails the four warn-only surface checks.**
   `dockerfile`, `shell-scripts`, `sql-migrations`, and `github-actions` still
   pass by default when they only have warnings. With `--fail-on-warnings` or
   `ANVIL_FAIL_ON_WARNINGS=1`, an unsuppressed finding on those checks fails the
   check and the gate exits non-zero. Anti-pattern behaviour is unchanged.
+
+- **Bare document filenames no longer look like high-entropy secrets.** Names
+  such as `quarterly-revenue-forecast-summary.md` are recognised as document
+  paths even without a directory separator. Opaque high-entropy values and
+  vendor-specific secret formats are still reported.
 
 ## [0.9.5-beta] — 2026-08-16 — MCP live-heal and config unification
 

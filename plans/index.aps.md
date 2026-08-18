@@ -3,19 +3,18 @@
 
 # Anvil — Save-time Trust
 
-> **Latest promoted release: `v0.9.4-beta`** (shipped 2026-08-10 on
-> `165d33dfb`) — clearer install advice and quieter false alarms (CIB-315,
-> membership wait, MCP lean allow, Dave pack 05 field fixes). Record:
-> [`plans/releases/v0.9.4-beta.md`](./releases/v0.9.4-beta.md). Prior:
-> `v0.9.3-beta` honesty + Windows path; `v0.9.2-beta` MCP reconnect.
-> Dashboard remains flag-gated. Per-tag records under
+> **Latest promoted release: `v0.9.5-beta`** (shipped 2026-08-16 on
+> `5c4b61a78`) — MCP live-heal and config unification. Record:
+> [`plans/releases/v0.9.5-beta.md`](./releases/v0.9.5-beta.md). Prior:
+> `v0.9.4-beta` install advice + quieter FPs; `v0.9.3-beta` honesty + Windows
+> path. Dashboard remains flag-gated. Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is **`v0.9.5-beta`** (claim re-locked 2026-08-16 —
-> **MCP live-heal**; MCPLH-001..006+008 primary; UCFG + honesty secondary).
-> Feature release on the v0.9 line, not `v0.10.0`. Not cut-ready until
-> changelog + standing bar. Highest-value **programme** track remains Graph
-> Trust Surfaces Wave 0 (**CGBDG**; **CONF-001** schedule). See
+> The active release window is **`v0.9.6-beta`** (claim locked 2026-08-18 —
+> beta field fixes after 0.9.5, plus shared shell command-safety). Patch on
+> the v0.9 line (not `v0.10.0`). Not cut-ready until changelog curation +
+> standing bar. Highest-value **programme** track remains Graph Trust Surfaces
+> Wave 0 (**CGBDG**; **CONF-001** schedule). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
 ## Contents
@@ -106,30 +105,30 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track after `v0.9.4-beta`. Not a release cut claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
-| 2 | DOCRB-001/-002 — docs re-baseline authority and inventory | Merged | [docs-rebaseline](./modules/docs-rebaseline.aps.md), [design](./specs/2026-08-16-docs-rebaseline.md), [inventory](./specs/2026-08-17-docrb-corpus-disposition.md) | Authority contract and corpus disposition are on `main` via #3975/#3976. Not a release claim or cut gate. | Next executable items (DOCRB-003/-004) remain Draft until promoted. |
-| 3 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Ready wave is the `v0.9.5-beta` primary claim. Session restart remains residual. | MCPLH-007 stays Draft until soak; do not block the cut. |
-| 4 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
-| 5 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
-| 6 | v0.9.5-beta — MCP live-heal + config unification | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [MCPLH](./modules/mcp-live-heal.aps.md), [UCFG](./modules/unified-config-format.aps.md) | Re-locked 2026-08-16; MCPLH-001..006+008 primary; UCFG + honesty secondary. Feature release on the v0.9 line, not `v0.10.0`. | Curate CHANGELOG Unreleased; standing bar; preflight → cut. |
-| 7 | SDT-001/-002 — secret-detection fail-closed + calibration corpus | Schedule | [secret-detection-truth](./modules/secret-detection-truth.aps.md) | Beta-reported false-clean ("claims protected when it fails") on the customer-facing gate; the honesty fix is small and self-contained, and the corpus decomposes the ~50% detection report before any rules change. | Operator promotes SDT-001 (and 002) to Ready; execute after the v0.9.5-beta cut or fold into its honesty bar if the operator judges it release-worthy. |
-| 8 | v0.9.4-beta claim set | Released/Shipped | [release record](./releases/v0.9.4-beta.md) | Install honesty + field follow-up published 2026-08-10. | None — historical. |
-| 9 | v0.9.3-beta claim set | Released/Shipped | [release record](./releases/v0.9.3-beta.md), [CIB](./modules/continuous-improvement-backlog.aps.md) | Honesty + Windows window published 2026-08-07; APS items advanced at closeout. | None — historical. |
+| 1 | v0.9.6-beta — field fixes + shell command-safety | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [CHANGELOG](../CHANGELOG.md) | Locked 2026-08-18; claim rows Merged on `main`. Patch on the v0.9 line (not `v0.10.0`). | Curate `[Unreleased]` in customer language; standing bar; preflight → prepare → cut. |
+| 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
+| 3 | DOCRB-001/-002 — docs re-baseline authority and inventory | Merged | [docs-rebaseline](./modules/docs-rebaseline.aps.md), [design](./specs/2026-08-16-docs-rebaseline.md), [inventory](./specs/2026-08-17-docrb-corpus-disposition.md) | Authority contract and corpus disposition are on `main` via #3975/#3976. Not a release claim or cut gate. | Next executable items (DOCRB-003/-004) remain Draft until promoted. |
+| 4 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block `v0.9.6-beta`. |
+| 5 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
+| 6 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
+| 7 | SDT-001/-002 — secret-detection fail-closed + calibration corpus | Schedule | [secret-detection-truth](./modules/secret-detection-truth.aps.md) | Beta-reported false-clean on the customer-facing gate; honesty fix is small; corpus decomposes detection report before rules change. Not this cut claim. | Operator promotes when ready; do not block `v0.9.6-beta`. |
+| 8 | v0.9.5-beta claim set | Released/Shipped | [release record](./releases/v0.9.5-beta.md) | MCP live-heal + config unification published 2026-08-16. | None — historical. |
+| 9 | v0.9.4-beta claim set | Released/Shipped | [release record](./releases/v0.9.4-beta.md) | Install honesty + field follow-up published 2026-08-10. | None — historical. |
 ## Release Plan
 
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
 **Shipped release windows** — `v0.5.0-beta` (2026-05-01) through
-`v0.9.4-beta` (2026-08-10, clearer install advice and quieter false alarms) are
-fully shipped as promoted headline windows.
+`v0.9.5-beta` (2026-08-16, MCP live-heal and config unification) are fully
+shipped as promoted headline windows.
 Windows through `v0.7.4-beta` have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); later records
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.9.5-beta`** (claim locked — MCP live-heal, then config
-unification and product deep clean), declared in
+window is **`v0.9.6-beta`** (claim locked — beta field fixes plus shared shell
+command-safety), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
 
