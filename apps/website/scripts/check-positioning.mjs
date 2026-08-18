@@ -34,7 +34,15 @@ const qualifiedFiles = new Map([
     'cli-footer.tsx',
     ['Dialog.Root', 'Dialog.Title', 'Dialog.Description', 'Dialog.Close', 'Close'],
   ],
+  [
+    'terminal-window.tsx',
+    ['(max-width: 767px)', 'md:min-h-[28rem]', 'hidden md:', 'backend', 'protection_claim'],
+  ],
 ]);
+const heroContent = readFileSync(
+  new URL('../components/hero-section.tsx', import.meta.url),
+  'utf8'
+);
 
 const required = [
   'TRUST THE CODE',
@@ -77,6 +85,8 @@ const failures = [
   ...(content.includes('--ghost-grey: var(--off-white)')
     ? ['ghost-grey aliased to off-white']
     : []),
+  ...(!heroContent.includes('<TerminalWindow />') ? ['hero does not compose TerminalWindow'] : []),
+  ...(heroContent.includes('hidden md:block') ? ['hero hides the terminal on mobile'] : []),
   ...composedComponents.flatMap((name) => {
     const importPattern = new RegExp(`import \\{ ${name} \\} from ['"]@/components/`);
     return [
