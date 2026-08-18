@@ -42,8 +42,9 @@ at all**:
   `refresh_tokens`, `otp_codes`, `device_codes`, `github_device_sessions`,
   `admin_keys`, `audit_log`, `telemetry_beacons`, `activity_rollup_daily`.
   This is the entire customer and auth record.
-- **Resend** (`apps/anvil-api/src/lib/email.ts`, `resend-credentials.ts`) is the
-  sole transactional email path — waitlist, invitations, OTP, admin broadcast.
+- **Resend** (`apps/anvil-api/src/lib/email.ts`,
+  `apps/anvil-api/src/lib/resend-credentials.ts`) is the sole transactional
+  email path — waitlist, invitations, OTP, admin broadcast.
 
 So documented architecture and deployed reality have diverged in both
 directions: ADR'd things that do not exist (AFD, Log Analytics), and existing
@@ -144,7 +145,8 @@ infrastructure, this ADR **ratifies them as-is** and binds them to their tier:
   Postgres wire protocol) must not become load-bearing. `apps/anvil-api/src/db/`
   is the enforcement point.
 - **Resend (P1):** permitted. The send path stays behind the existing
-  `lib/email.ts` seam so the provider is swappable without touching routes.
+  `apps/anvil-api/src/lib/email.ts` seam so the provider is swappable without
+  touching routes.
 
 Ratifying them here is what makes the tier model real rather than aspirational:
 the two largest operator-plane dependencies are now tiered, documented, and
@@ -215,8 +217,9 @@ Anvil's differentiation does not live there.
   becomes a compliance problem before it becomes a documentation one.
 - **Mitigations:** The tier table lives in this ADR and is cited by any new
   operator-plane dependency; §5's enforcement points (`apps/anvil-api/src/db/`,
-  `lib/email.ts`) are concrete files a reviewer can check. OQ1–OQ3 are tracked
-  as named open questions with owners rather than left implicit.
+  `apps/anvil-api/src/lib/email.ts`) are concrete files a reviewer can check.
+  OQ1–OQ3 are tracked as named open questions with owners rather than left
+  implicit.
 
 ## Open Questions
 
