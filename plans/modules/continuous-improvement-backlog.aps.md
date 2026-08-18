@@ -10695,7 +10695,8 @@ capture; do not treat this as a lost-witness P0 until that lands.
 
 ### CIB-345: Hook witness-append must not dump daemon pipe errors when fallback will run
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.6-beta (07cd54c3 · 2026-08-18)
+- **Pull Request:** [#3981](https://github.com/eddacraft/anvil-001/pull/3981)
 - **Priority:** P2 honesty / noise — Dave ISS-028, 2026-08-17. Not a
   proven lost-witness P0.
 - **Intent:** When the save-time daemon is not listening, every
@@ -10756,7 +10757,8 @@ lost-append claim and confirms **CIB-345**. Finding 2 is new.
 
 ### CIB-346: Default hooks must run the L3 witness path, not only `anvil gate`
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.6-beta (07cd54c3 · 2026-08-18)
+- **Pull Request:** [#3982](https://github.com/eddacraft/anvil-001/pull/3982)
 - **Priority:** P1 honesty — default install leaves `audit-chain` dark
 - **Intent:** `anvil hooks install` and the `anvil start` GitHooks
   consent write pre-commit as `ANVIL_HOOK=1 anvil gate --progress` and
@@ -10816,7 +10818,8 @@ Does not cover witness hooks, install_method, or a 60-token B16 recall.
 
 ### CIB-347: `--fail-on-warnings` must escalate the four warn-only surface checks
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.6-beta (07cd54c3 · 2026-08-18)
+- **Pull Request:** [#3980](https://github.com/eddacraft/anvil-001/pull/3980)
 - **Priority:** P1 honesty — CI that trusts `anvil gate` exit code stays
   green over `rm -rf /` in a `.sh` even with `--fail-on-warnings`
 - **Intent:** `dockerfile`, `shell-scripts`, `sql-migrations`, and
@@ -10852,7 +10855,8 @@ Does not cover witness hooks, install_method, or a 60-token B16 recall.
 
 ### CIB-348: Entropy must not fire on hyphenated document filenames
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.6-beta (07cd54c3 · 2026-08-18)
+- **Pull Request:** [#3979](https://github.com/eddacraft/anvil-001/pull/3979)
 - **Priority:** P3 presentation — same entropy path as SEC-FP-1 / B17
 - **Intent:** `is_path_shaped_document_token` returns false when the
   candidate has no `/` or `\`. A bare hyphenated dictionary-word

@@ -3,18 +3,16 @@
 
 # Anvil — Save-time Trust
 
-> **Latest promoted release: `v0.9.5-beta`** (shipped 2026-08-16 on
-> `5c4b61a78`) — MCP live-heal and config unification. Record:
-> [`plans/releases/v0.9.5-beta.md`](./releases/v0.9.5-beta.md). Prior:
-> `v0.9.4-beta` install advice + quieter FPs; `v0.9.3-beta` honesty + Windows
-> path. Dashboard remains flag-gated. Per-tag records under
+> **Latest promoted release: `v0.9.6-beta`** (shipped 2026-08-18 on
+> `07cd54c3a`) — beta field fixes and shell command-safety. Record:
+> [`plans/releases/v0.9.6-beta.md`](./releases/v0.9.6-beta.md). Prior:
+> `v0.9.5-beta` MCP live-heal + config; `v0.9.4-beta` install advice + quieter
+> FPs. Dashboard remains flag-gated. Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is **`v0.9.6-beta`** (claim locked 2026-08-18 —
-> beta field fixes after 0.9.5, plus shared shell command-safety). Patch on
-> the v0.9 line (not `v0.10.0`). Not cut-ready until changelog curation +
-> standing bar. Highest-value **programme** track remains Graph Trust Surfaces
-> Wave 0 (**CGBDG**; **CONF-001** schedule). See
+> The active release window is provisional **`v0.9.7-beta`** (field intake;
+> claim not frozen). Highest-value **programme** track remains Graph Trust
+> Surfaces Wave 0 (**CGBDG**; **CONF-001** schedule). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
 ## Contents
@@ -105,32 +103,31 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | v0.9.6-beta — field fixes + shell command-safety | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [CHANGELOG](../CHANGELOG.md) | Locked 2026-08-18; claim rows Merged on `main`. Patch on the v0.9 line (not `v0.10.0`). | Curate `[Unreleased]` in customer language; standing bar; preflight → prepare → cut. |
-| 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
-| 3 | DOCRB-001/-002 — docs re-baseline authority and inventory | Merged | [docs-rebaseline](./modules/docs-rebaseline.aps.md), [design](./specs/2026-08-16-docs-rebaseline.md), [inventory](./specs/2026-08-17-docrb-corpus-disposition.md) | Authority contract and corpus disposition are on `main` via #3975/#3976. Not a release claim or cut gate. | Next executable items (DOCRB-003/-004) remain Draft until promoted. |
-| 4 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block `v0.9.6-beta`. |
-| 5 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
-| 6 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
-| 7 | SDT-001/-002 — secret-detection fail-closed + calibration corpus | Schedule | [secret-detection-truth](./modules/secret-detection-truth.aps.md) | Beta-reported false-clean on the customer-facing gate; honesty fix is small; corpus decomposes detection report before rules change. Not this cut claim. | Operator promotes when ready; do not block `v0.9.6-beta`. |
-| 8 | v0.9.5-beta claim set | Released/Shipped | [release record](./releases/v0.9.5-beta.md) | MCP live-heal + config unification published 2026-08-16. | None — historical. |
-| 9 | v0.9.4-beta claim set | Released/Shipped | [release record](./releases/v0.9.4-beta.md) | Install honesty + field follow-up published 2026-08-10. | None — historical. |
+| 1 | provisional v0.9.7-beta — field intake | Provisional | [RELEASE-PLAN](../RELEASE-PLAN.md) | Post-`v0.9.6-beta` window; claim not frozen. | Field intake → claim lock when operator names theme. |
+| 2 | v0.9.6-beta claim set | Released/Shipped | [release record](./releases/v0.9.6-beta.md) | Field fixes + shell command-safety published 2026-08-18. | None — historical. |
+| 3 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
+| 4 | DOCRB-001/-002 — docs re-baseline authority and inventory | Merged | [docs-rebaseline](./modules/docs-rebaseline.aps.md), [design](./specs/2026-08-16-docs-rebaseline.md), [inventory](./specs/2026-08-17-docrb-corpus-disposition.md) | Authority contract and corpus disposition are on `main` via #3975/#3976. Not a release claim or cut gate. | Next executable items (DOCRB-003/-004) remain Draft until promoted. |
+| 5 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
+| 6 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
+| 7 | CONF-001 — intent-conformance product ADR | Schedule | [intent-conformance](./modules/intent-conformance.aps.md), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Unlocks Tier-0 claim-vs-delta demos on the live GV2 delta surface. | Author and accept CONF-001 ADR with Tier-0 carve-out (no full ILGOV wait). |
+| 8 | SDT-001/-002 — secret-detection fail-closed + calibration corpus | Schedule | [secret-detection-truth](./modules/secret-detection-truth.aps.md) | Beta-reported false-clean on the customer-facing gate; honesty fix is small; corpus decomposes detection report before rules change. Not this cut claim. | Operator promotes when ready. |
+| 9 | v0.9.5-beta claim set | Released/Shipped | [release record](./releases/v0.9.5-beta.md) | MCP live-heal + config unification published 2026-08-16. | None — historical. |
 ## Release Plan
 
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
 **Shipped release windows** — `v0.5.0-beta` (2026-05-01) through
-`v0.9.5-beta` (2026-08-16, MCP live-heal and config unification) are fully
+`v0.9.6-beta` (2026-08-18, beta field fixes and shell command-safety) are fully
 shipped as promoted headline windows.
 Windows through `v0.7.4-beta` have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); later records
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.9.6-beta`** (claim locked — beta field fixes plus shared shell
-command-safety), declared in
-[`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
-table.
+window is provisional **`v0.9.7-beta`** (field intake after `v0.9.6-beta`),
+declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above
+and the NBI table. Shipped windows through `v0.9.6-beta` are promoted headlines.
 
 **Module tables below** mix archived Complete modules (Graph Substrate GV2/GCTX/…
 Released/Shipped via v0.9.0-beta and archived 2026-07-13), work landed around

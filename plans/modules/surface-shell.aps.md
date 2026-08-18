@@ -130,7 +130,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-008 — Extend the shared `command_safety` catalogue (shell-only rules)
 
-- **Status:** Merged
+- **Status:** Released/Shipped via v0.9.6-beta (07cd54c3 · 2026-08-18)
 - **Pull Request:** [#3984](https://github.com/eddacraft/anvil-001/pull/3984)
 - **Design:** [2026-08-17-surfsh-008-shell-catalogue.md](../specs/2026-08-17-surfsh-008-shell-catalogue.md)
   (approved 2026-08-17)
