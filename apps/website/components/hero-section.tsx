@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
+import { scrollToWaitlist as scrollToWaitlistSection } from '@/lib/scroll';
 import { TerminalWindow } from './terminal-window';
 
 const REDACTED_INSTALL_COMMAND = 'brew install eddacraft/[EARLY-ACCESS]/anvil';
@@ -50,14 +51,7 @@ export function HeroSection() {
 
   const scrollToWaitlist = () => {
     setOpen(false);
-    const waitlistSection = document.getElementById('waitlist');
-    if (!waitlistSection) return;
-
-    waitlistSection.scrollIntoView({ behavior: 'smooth' });
-    const input = waitlistSection.querySelector('input');
-    if (input instanceof HTMLInputElement) {
-      window.setTimeout(() => input.focus(), 500);
-    }
+    scrollToWaitlistSection();
   };
 
   const handleAccessSubmit = async (event: FormEvent) => {

@@ -7,7 +7,7 @@
   --off-white: #ebebeb;
   --anvil: #cc5500;
   --edda: #2e8b57;
-  --ghost-grey: var(--off-white);
+  --ghost-grey: color-mix(in srgb, var(--off-white) 60%, var(--void));
   --brick-red: var(--anvil);
   --dull-amber: var(--anvil);
   --surface: var(--void);

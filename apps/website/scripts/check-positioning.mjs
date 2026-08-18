@@ -71,6 +71,12 @@ const failures = [
   ...forbidden.filter((value) => content.includes(value)).map((value) => `retired: ${value}`),
   ...[...new Set(offPaletteColours)].map((value) => `off-palette: ${value}`),
   ...(shellLabelledMcpRequests.length > 0 ? ['MCP request presented as a shell command'] : []),
+  ...(content.includes("scrollIntoView({ behavior: 'smooth' })")
+    ? ['scrollIntoView forces smooth without reduced-motion check']
+    : []),
+  ...(content.includes('--ghost-grey: var(--off-white)')
+    ? ['ghost-grey aliased to off-white']
+    : []),
   ...composedComponents.flatMap((name) => {
     const importPattern = new RegExp(`import \\{ ${name} \\} from ['"]@/components/`);
     return [

@@ -1,19 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { scrollToWaitlist } from '@/lib/scroll';
 
 export function Navbar() {
-  const scrollToWaitlist = () => {
-    const waitlistSection = document.getElementById('waitlist');
-    if (!waitlistSection) return;
-
-    waitlistSection.scrollIntoView({ behavior: 'smooth' });
-    const input = waitlistSection.querySelector('input');
-    if (input instanceof HTMLInputElement) {
-      window.setTimeout(() => input.focus(), 500);
-    }
-  };
-
   return (
     <nav className="fixed inset-x-0 top-0 z-50 h-14 border-b border-structure bg-void">
       <div className="site-container flex h-full items-center justify-between font-mono text-xs">
