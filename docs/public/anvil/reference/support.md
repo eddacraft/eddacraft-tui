@@ -9,7 +9,7 @@ upstream:
   - crates/anvil-cli/src/activation/agent_registry.rs
   - patterns/compiled/registry.json
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.5-beta
+verified_against: 0.9.6-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -17,7 +17,7 @@ verified_against: 0.9.5-beta
 # Supported platforms and languages
 
 This page is generated from the release targets, parser mappings, and compiled
-rule registry shipped with anvil 0.9.5-beta. “Parsing and structure only” means
+rule registry shipped with anvil 0.9.6-beta. “Parsing and structure only” means
 anvil can build structural evidence for the language; it does not promise the
 same specialised rule depth as a language with compiled rules.
 

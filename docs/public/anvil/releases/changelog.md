@@ -24,6 +24,10 @@ same dangerous-command coverage runtime already had.
 
 ### Added
 
+- **Type-assertion rules for TypeScript.** Chained `as unknown as T` laundering
+  and unvalidated boundary casts are now called out in the compiled catalogue
+  (`GS-002`, `TE-001`).
+
 - **Shared shell command-safety rules.** Runtime command-safety and the
   default-on `shell-scripts` surface now share `pipe-to-shell` (Block at
   runtime), `eval-dynamic` (Warn), and `chmod-777` (Warn). The shell-scripts

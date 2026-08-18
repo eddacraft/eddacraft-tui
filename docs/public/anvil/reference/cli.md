@@ -7,7 +7,7 @@ upstream:
   - crates/anvil-cli/src/main.rs
   - crates/anvil-cli/src/commands/start.rs
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.5-beta
+verified_against: 0.9.6-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -15,7 +15,7 @@ verified_against: 0.9.5-beta
 # CLI command reference
 
 This page is generated from the command definitions shipped with anvil
-0.9.5-beta. Use `anvil <command> --help` for flags, examples, and subcommands
+0.9.6-beta. Use `anvil <command> --help` for flags, examples, and subcommands
 for your installed version.
 
 For a first installation, use the [quickstart](../quickstart.md).
