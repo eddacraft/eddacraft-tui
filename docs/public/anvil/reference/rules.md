@@ -15,7 +15,7 @@ verified_against: 0.9.5-beta
 
 This catalogue covers source-pattern rules in the compiled registry shipped with
 anvil 0.9.5-beta. Secrets, architecture, policy, command-safety, and other gate
-checks have separate engines and are not listed here. The registry contains **49
+checks have separate engines and are not listed here. The registry contains **47
 enabled rules across 11 families**.
 
 Rule IDs are stable identifiers you may see in terminal or machine-readable
@@ -39,7 +39,6 @@ failed.
 | `AP-004`   | @ts-ignore suppresses all errors                               | guardrail-suppression     | warning          | .ts, .tsx                                       |
 | `AP-005`   | @ts-expect-error used                                          | guardrail-suppression     | info             | .ts, .tsx                                       |
 | `GS-001`   | Non-null assertion overrides nullability                       | guardrail-suppression     | warning          | .ts, .tsx                                       |
-| `GS-002`   | Chained type assertion launders a value through `unknown`      | guardrail-suppression     | warning          | .ts, .tsx                                       |
 | `PY-001`   | # type: ignore without an error code                           | python-reliability        | warning          | .py                                             |
 | `PY-002`   | bare # noqa without a rule code                                | python-reliability        | warning          | .py                                             |
 | `PY-003`   | # pylint: disable suppression                                  | python-reliability        | warning          | .py                                             |
@@ -66,7 +65,6 @@ failed.
 | `AP-003`   | Explicit any type usage                                        | type-system-evasion       | warning          | .ts, .tsx, .js, .jsx, .mjs, .cjs                |
 | `AP-015`   | Zod schema escape hatch (z.any / .passthrough)                 | type-system-evasion       | warning          | .ts, .tsx, .js, .jsx, .mjs, .cjs                |
 | `AP-016`   | Zod z.unknown() in a schema (opt-in)                           | type-system-evasion       | warning          | .ts, .tsx, .js, .jsx, .mjs, .cjs                |
-| `TE-001`   | Type assertion on an unvalidated boundary value                | type-system-evasion       | warning          | .ts, .tsx                                       |
 | `UR-001`   | Assignment to innerHTML / outerHTML                            | unsafe-rendering          | warning          | .ts, .tsx, .js, .jsx, .mjs, .cjs                |
 | `UR-002`   | document.write() / document.writeln() call                     | unsafe-rendering          | warning          | .ts, .tsx, .js, .jsx, .mjs, .cjs                |
 | `UR-003`   | React dangerouslySetInnerHTML                                  | unsafe-rendering          | warning          | .ts, .tsx, .js, .jsx, .mjs, .cjs                |
