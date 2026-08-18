@@ -54,6 +54,17 @@ and Graph Trust Surfaces remain beside this window, not the cut claim.
   `chmod 777` / `0777` Warn on both. Compound forms (`sh -c`, pipelines,
   redirections) share one analyser. Shell-scripts stays warn-only;
   command-safety remains hard-pinned.
+- **Follow-up precision on `main`.** `eval-dynamic` also flags `$1` / `$@` /
+  `$name/suffix` (static literals and ANSI-C leftovers stay quiet).
+  Pipe-to-shell analysis was restored onto the shared compound helper after a
+  dual-path descriptor interpreter briefly landed and was reverted.
+
+### Adjacent freight (ships on the same tip; not the cut claim)
+
+- **Type-assertion rules** for Go/TypeScript landed on `main` after claim lock
+  drafting; public rule catalogue was kept on the released set where needed. Not
+  elevated into the `v0.9.6-beta` theme.
+- **Secret-detection truth** module filed for a later honesty/calibration pass.
 
 ### Documentation architecture (not a cut claim)
 
