@@ -174,20 +174,28 @@
 | [ADR Process](../../docs/guides/adr-process.md)                               | `docs/guides/adr-process.md`           | Guide  | Authoritative | DOCGOV | Live   |
 | [Active Reviews](../../docs/reviews/README.md)                                | `docs/reviews/README.md`               | README | Advisory      | DOCGOV | Live   |
 | [Adapter Development Guide](../../docs/guides/adapters/README.md)             | `docs/guides/adapters/README.md`       | README | Advisory      | DOCGOV | Live   |
-| [Anvil Architecture](../../docs/architecture/overview.md)                     | `docs/architecture/overview.md`        | Guide  | Derived       | DOCGOV | Live   |
 | [Documentation Tags Catalogue](../../docs/governance/tags-catalogue.md)       | `docs/governance/tags-catalogue.md`    | Guide  | Authoritative | DOCGOV | Live   |
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md) | `docs/guides/release-doc-checklist.md` | Guide  | Advisory      | DOCGOV | Live   |
 | [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)               | `docs/architecture/oss-surface.md`     | Guide  | Derived       | DOCGOV | Live   |
 
 ## DOCRB
 
-| Document                                                                                    | Path                                      | Type   | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------- | ------ | ------------- | ----- | ------ |
-| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)              | `docs/guides/architecture-diagrams.md`    | Guide  | Authoritative | DOCRB | Live   |
-| [Architecture Documentation](../../docs/architecture/README.md)                             | `docs/architecture/README.md`             | README | Advisory      | DOCRB | Live   |
-| [Component Documentation Guide and Template](../../docs/architecture/_as-built-template.md) | `docs/architecture/_as-built-template.md` | Guide  | Authoritative | DOCRB | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)                   | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCRB | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)                                  | `docs/README.md`                          | README | Advisory      | DOCRB | Live   |
+| Document                                                                                      | Path                                                   | Type   | Authority     | Owner | Status |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------ | ------------- | ----- | ------ |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)                | `docs/guides/architecture-diagrams.md`                 | Guide  | Authoritative | DOCRB | Live   |
+| [Architecture Documentation](../../docs/architecture/README.md)                               | `docs/architecture/README.md`                          | README | Advisory      | DOCRB | Live   |
+| [Component Documentation Guide and Template](../../docs/architecture/_as-built-template.md)   | `docs/architecture/_as-built-template.md`              | Guide  | Authoritative | DOCRB | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)                     | `docs/guides/documentation-governance.md`              | Guide  | Authoritative | DOCRB | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)                                    | `docs/README.md`                                       | README | Advisory      | DOCRB | Live   |
+| [Save to validation](../../docs/architecture/save-to-validation.md)                           | `docs/architecture/save-to-validation.md`              | Guide  | Authoritative | DOCRB | Live   |
+| [Trust and deployment boundaries](../../docs/architecture/trust-and-deployment-boundaries.md) | `docs/architecture/trust-and-deployment-boundaries.md` | Guide  | Authoritative | DOCRB | Live   |
+| [anvil architecture overview](../../docs/architecture/overview.md)                            | `docs/architecture/overview.md`                        | Guide  | Authoritative | DOCRB | Live   |
+
+## DOCRB/DSITE gap
+
+| Document                                                           | Path                                 | Type  | Authority     | Owner           | Status |
+| ------------------------------------------------------------------ | ------------------------------------ | ----- | ------------- | --------------- | ------ |
+| [Documentation delivery](../../docs/architecture/docs-delivery.md) | `docs/architecture/docs-delivery.md` | Guide | Authoritative | DOCRB/DSITE gap | Live   |
 
 ## DRVR
 

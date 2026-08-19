@@ -304,21 +304,48 @@ items stay Draft until their dependencies and expected evidence are present.
 
 ### DOCRB-006: Rebuild central cross-system and operational diagrams
 
-- **Status:** Ready 2026-08-20 — DOCRB-001 and DOCRB-002 dependencies and the
-  current central-diagram authority boundary were verified
+- **Status:** In Progress 2026-08-20 — operator-authorised whole-module
+  execution after DOCRB-001/-002 dependency and source-drift verification
 - **Intent:** Replace stale or over-broad central diagrams with a small set of
   authoritative cross-system views.
-- **Expected Outcome:** The central set covers system context, component/container
-  relationships, trust/deployment boundaries, and the few end-to-end flows that
-  span multiple owners; every retained view declares audience, concern,
-  upstreams, owner, lifecycle state, and relationship to local component docs;
-  obsolete diagrams are retired.
-- **Scope:** `docs/architecture/**`, relevant `docs/runbooks/**`, diagram
-  inventory and links
-- **Non-scope:** Repeating component internals or producing public styling
+- **Expected Outcome:** Exactly five central concerns are authoritative and
+  source-traceable: system context; container/component relationships;
+  trust/deployment boundaries; save-to-validation; and docs delivery. Every
+  retained view declares audience, concern, upstreams, owner, lifecycle state,
+  local-authority relationship, and adjacent textual meaning. Quality, BAUTH,
+  EDDA, Rust, adapter, and component-local details remain in their owning
+  documents; obsolete central duplicates are retired.
+- **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
+  `plans/execution/DOCRB-006.actions.md`,
+  `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `CONTEXT.md`,
+  `docs/architecture/README.md`, `docs/architecture/overview.md`,
+  `docs/architecture/quality-model.md`,
+  `docs/architecture/auth-as-built.md`,
+  `docs/architecture/edda-stack.md`,
+  `docs/architecture/trust-and-deployment-boundaries.md`,
+  `docs/architecture/save-to-validation.md`,
+  `docs/architecture/docs-delivery.md`,
+  `docs/runbooks/save-time-background-driver.md`,
+  `docs/architecture/anvil-system-components.drawio`,
+  `docs/architecture/pptx-workflow.drawio`,
+  `docs/indexes/by-authority.md`, `docs/indexes/by-owner.md`,
+  `docs/indexes/by-status.md`, `docs/indexes/by-type.md`, and
+  `plans/reviews/2026-08-20-docrb-006-central-views.md`
+- **Evidence:** The action plan fixes the execution order and authority
+  boundaries. The final review records per-view source-edge traces, temporary
+  pinned Mermaid 11.16.0 render outputs, link resolution, duplicate-authority
+  checks, Draw.io retirement references, exact range, and repository gates.
+- **Scope:** The five central views; retained supporting central views; diagram
+  disposition and discovery; the save-time runbook cross-link; two obsolete
+  Draw.io retirements; generated documentation indexes; one evidence report
+- **Non-scope:** Component-internal migration (DOCRB-005); public Draw.io/SVG
+  assets (DOCRB-007/-008); automated Mermaid tooling or mandatory
+  affected-change enforcement (DOCRB-009); product/runtime behaviour; public
+  styling; sibling-module lifecycle
 - **Dependencies:** DOCRB-001, DOCRB-002
-- **Confidence:** medium
-- **Validation:** `pnpm format:check && pnpm docs:check`
+- **Confidence:** high
+- **Validation:** manual pinned Mermaid 11.16.0 render/source-edge/link trace,
+  then `pnpm format:check && pnpm docs:index && pnpm docs:index:check && pnpm docs:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json && git diff --check`; independent verify-loop and Council
 
 ### DOCRB-007: Establish the Draw.io-to-accessible-SVG public asset pipeline
 

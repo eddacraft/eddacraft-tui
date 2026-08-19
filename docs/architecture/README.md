@@ -84,9 +84,14 @@ Planned next set:
 
 Cross-component references and conceptual maps that should stay current.
 
-- [overview.md](overview.md) — top-level architecture overview, package
-  layering, quality model, surface architecture, and live Rust-first component
-  diagrams (start here)
+- [overview.md](overview.md) — authoritative system-context and
+  container/component views (start here)
+- [trust-and-deployment-boundaries.md](trust-and-deployment-boundaries.md) —
+  macro local-daemon, hosted API, and documentation trust boundaries
+- [save-to-validation.md](save-to-validation.md) — cross-owner caller-buffer and
+  post-save validation sequence
+- [docs-delivery.md](docs-delivery.md) — documentation source, build,
+  deployment, shell, and renderer flow
 - [rust-architecture-overview.md](rust-architecture-overview.md) — crate layout
   for the Rust workspace and module map (KERN / RENG / RATS / PORT / RSTLAN)
 - [edda-stack.md](edda-stack.md) — three-layer memory architecture (Kindling /
@@ -146,14 +151,20 @@ Advisory external or pre-implementation notes.
 
 ## Diagrams
 
-- Mermaid diagrams live inline in [overview.md](overview.md) and, after
-  DOCRB-004, in component `ARCHITECTURE.md` files
-- Draw.io sources:
-  [anvil-system-components.drawio](anvil-system-components.drawio),
-  [pptx-workflow.drawio](pptx-workflow.drawio) — neither yet has a sibling SVG;
-  see
-  [`docs/guides/architecture-diagrams.md`](../guides/architecture-diagrams.md)
-  and ADR-123
+The central Mermaid set owns exactly five concerns: system context and
+container/component relationships in [overview.md](overview.md), plus the
+[trust/deployment](trust-and-deployment-boundaries.md),
+[save-to-validation](save-to-validation.md), and
+[documentation-delivery](docs-delivery.md) views. Component internals remain in
+component-root `ARCHITECTURE.md` files.
+
+DOCRB-006 retired the former live Draw.io sources
+`docs/architecture/anvil-system-components.drawio` and
+`docs/architecture/pptx-workflow.drawio` after replacement and disposition
+review. Historical archive references remain provenance, not live links. Public
+Draw.io/SVG work remains DOCRB-007/-008; see
+[`docs/guides/architecture-diagrams.md`](../guides/architecture-diagrams.md) and
+ADR-123.
 
 ## Adjacent indexes
 

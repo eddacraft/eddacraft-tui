@@ -1,8 +1,8 @@
 # Edda Stack Architecture
 
-| Type | Authority | Owner | Status | Freshness                                        |
-| ---- | --------- | ----- | ------ | ------------------------------------------------ |
-| Spec | Derived   | EDDA  | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type | Authority | Owner | Status | Freshness                                                                                                                            |
+| ---- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Spec | Derived   | EDDA  | Live   | Last reviewed 2026-08-20 at `d9b30b23d` against `packages/edda-stack`, `packages/kindling-integration`, and `docs/public/edda-stack` |
 
 | Upstream                                                    | Downstream                                       |
 | ----------------------------------------------------------- | ------------------------------------------------ |
@@ -13,8 +13,9 @@
 > **Implementation status:** This describes the design contract. The
 > `packages/edda-stack` TypeScript surface is a **partial implementation**
 > (Edda + Ember present; Kindling capture via `packages/kindling-integration`)
-> and is **retiring** as operational memory moves to the Rust Kindling path.
-> [`overview.md`](overview.md) states the same partial/retiring status.
+> and is **retiring** as operational memory moves to the Rust Kindling path. The
+> central [overview](overview.md) links this EDDA-owned concern rather than
+> repeating it.
 
 ## Overview
 
@@ -45,26 +46,10 @@ Edda remembers — memory with restraint
 
 ## Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Edda Stack                           │
-│                   (Memory Architecture)                     │
-└─────────────────────────────────────────────────────────────┘
-
-                    ┌──────────────┐
-                    │    Edda      │  ← Canonical memory (high-trust)
-                    │  (Ledger)    │     Git-backed, versioned, auditable
-                    └──────┬───────┘
-                           │ Promotion (human decision)
-                    ┌──────▼───────┐
-                    │    Ember     │  ← Candidate memory (medium-trust)
-                    │   (Queue)    │     SQLite, ephemeral, decays
-                    └──────┬───────┘
-                           │ Aggregation + Evaluation
-                    ┌──────▼───────┐
-                    │   Kindling   │  ← Observations (facts only)
-                    │  (Camera)    │     Write-only, read-only query
-                    └──────────────┘
+```mermaid
+flowchart BT
+    Kindling[Kindling: observations] -->|aggregation and evaluation| Ember[Ember: candidate memory]
+    Ember -->|human promotion decision| Edda[Edda: canonical memory]
 ```
 
 ## Data Flow

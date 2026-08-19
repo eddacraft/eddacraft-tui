@@ -100,15 +100,18 @@ tooling) · `.claude/` `.opencode/` `.codex/` (agent config) · `infra/` (Pulumi
 
 ## Where to go next
 
-| If you want to…                     | Go to                                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------------------- |
-| Start work / check status           | [`plans/index.aps.md`](plans/index.aps.md)                                         |
-| Know the workflow & commit rules    | [`AGENTS.md`](AGENTS.md)                                                           |
-| Understand the engine design        | [`docs/architecture/overview.md`](docs/architecture/overview.md)                   |
-| Check scope before adding a feature | [`docs/vision/anvil-scope-guard.md`](docs/vision/anvil-scope-guard.md)             |
-| Find a past decision                | [`plans/decisions/DECISION-LOG.md`](plans/decisions/DECISION-LOG.md)               |
-| Run or change tests                 | [`AGENTS.md`](AGENTS.md) → _Test Infrastructure_                                   |
-| Touch a feature flag                | [`docs/guides/feature-flag-governance.md`](docs/guides/feature-flag-governance.md) |
+| If you want to…                     | Go to                                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Start work / check status           | [`plans/index.aps.md`](plans/index.aps.md)                                                                     |
+| Know the workflow & commit rules    | [`AGENTS.md`](AGENTS.md)                                                                                       |
+| Understand the engine design        | [`docs/architecture/overview.md`](docs/architecture/overview.md)                                               |
+| Review trust and deployment         | [`docs/architecture/trust-and-deployment-boundaries.md`](docs/architecture/trust-and-deployment-boundaries.md) |
+| Trace save-time validation          | [`docs/architecture/save-to-validation.md`](docs/architecture/save-to-validation.md)                           |
+| Trace documentation delivery        | [`docs/architecture/docs-delivery.md`](docs/architecture/docs-delivery.md)                                     |
+| Check scope before adding a feature | [`docs/vision/anvil-scope-guard.md`](docs/vision/anvil-scope-guard.md)                                         |
+| Find a past decision                | [`plans/decisions/DECISION-LOG.md`](plans/decisions/DECISION-LOG.md)                                           |
+| Run or change tests                 | [`AGENTS.md`](AGENTS.md) → _Test Infrastructure_                                                               |
+| Touch a feature flag                | [`docs/guides/feature-flag-governance.md`](docs/guides/feature-flag-governance.md)                             |
 
 ## Local context (spokes)
 

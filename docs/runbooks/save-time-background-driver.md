@@ -12,6 +12,11 @@ Use this runbook when `anvil start` has registered a worktree with the intercept
 daemon and a supervised background save-time driver is expected to validate file
 saves without a visible `anvil watch` terminal.
 
+For the cross-owner distinction between caller-buffer `scan_buffer` and
+post-save `validate_paths`, see the central
+[save-to-validation sequence](../architecture/save-to-validation.md). This
+runbook keeps the operational start, status, recovery, and opt-out procedure.
+
 ## Expected Posture
 
 The background driver is one detached `anvil watch --save-time-driver` child per

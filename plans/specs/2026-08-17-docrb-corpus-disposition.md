@@ -158,6 +158,9 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | `docs/architecture/README.md` | central cross-system authority | DOCRB | Directory map + production host record | retain (updated in DOCRB-001) |
 | `docs/architecture/overview.md` | central cross-system authority | DOCRB | System context, layering, live component diagram | retain; redraw Mermaid in DOCRB-006 |
 | `docs/architecture/quality-model.md` | central cross-system authority | DOCRB | Check/gate/watch conceptual model | retain |
+| `docs/architecture/trust-and-deployment-boundaries.md` | central cross-system authority | DOCRB | Macro local/hosted trust and deployment boundaries | added in DOCRB-006 |
+| `docs/architecture/save-to-validation.md` | central cross-system authority | DOCRB | Cross-owner caller-buffer and post-save validation sequence | added in DOCRB-006 |
+| `docs/architecture/docs-delivery.md` | central cross-system authority | DOCRB / DSITE gap | Source/build/deploy and shell/private/public flow | added in DOCRB-006 |
 | `docs/architecture/rust-architecture-overview.md` | central cross-system authority | KERN | Crate layout | retain; do not duplicate `overview.md` |
 | `docs/architecture/oss-surface.md` | central cross-system authority | OSS | Three OSS repos | retain |
 | `docs/architecture/jsts-release-surfaces.md` | central cross-system authority | REL | JS/TS release tiers | retain |
@@ -196,17 +199,19 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | Quality model | Mermaid | `docs/architecture/quality-model.md` | retain | Cross-system conceptual |
 | Adapter workflow | Mermaid | `docs/guides/adapters/workflow-guide.md` | retain | Guide-local; not a second system map |
 | Monitor feature | Mermaid | `docs/archive/MONITOR_FEATURE.md` | retire (already archived) | do not treat as live |
-| System components | Draw.io | `docs/architecture/anvil-system-components.drawio` | redraw | No sibling SVG; too broad; split or replace in DOCRB-006/007 |
-| PPTX workflow | Draw.io | `docs/architecture/pptx-workflow.drawio` | retire or redraw | No sibling SVG; confirm whether the flow still ships |
+| System components | Draw.io | `docs/architecture/anvil-system-components.drawio` | retired by DOCRB-006 | Replaced by the Mermaid central set; historical archive references remain history |
+| PPTX workflow | Draw.io | `docs/architecture/pptx-workflow.drawio` | retired by DOCRB-006 | No shipped PPTX workflow; historical archive references remain history |
 | Public visual layer | Draw.io + SVG | `docs/public/**` | missing | 0 committed pairs; create in DOCRB-007/008 |
 
-Required central views after DOCRB-006 (names, not files yet):
+Required central views after DOCRB-006:
 
-1. System context (who uses anvil).
-2. Container/component map (CLI, daemon, kernel, API, docs-shell).
-3. Trust and deployment boundary (local daemon vs hosted API vs docs).
-4. Save-to-validation sequence (cross-owner).
-5. Docs publish flow (`docs-shell` → private/public).
+1. System context — `docs/architecture/overview.md`.
+2. Container/component map — `docs/architecture/overview.md`.
+3. Trust and deployment boundary —
+   `docs/architecture/trust-and-deployment-boundaries.md`.
+4. Save-to-validation sequence —
+   `docs/architecture/save-to-validation.md`.
+5. Docs delivery flow — `docs/architecture/docs-delivery.md`.
 
 Component internals must not be redrawn into those five.
 
@@ -233,7 +238,7 @@ Generated public/reference pages (CLI reference and similar) stay
 | ------- | -------------------- | ---------- |
 | Live docs host | DSITE module (`apps/docs-site` as shared host); `docs/architecture/README.md` (pre-001); `infra/src/vercel.ts` | ADR-123: vercel.ts is implementation truth; README/governance record the gap; DSITE status unchanged |
 | Kernel internals | `kernel-as-built.md` and `rust-kernel-spec.md` | spec is historical; as-built then local ARCHITECTURE |
-| System map | `overview.md` Mermaid and `anvil-system-components.drawio` | keep Mermaid as engineering authority; Draw.io redraw or retire |
+| System map | `overview.md` Mermaid and retired `anvil-system-components.drawio` | `overview.md` is the sole live engineering authority after DOCRB-006 |
 | TUI surfaces | `tui-as-built.md`, `widgets-as-built.md`, `cli-tui-runner-as-built.md` | one crate ARCHITECTURE + links |
 | Auth | `auth-as-built.md`, docs-site AGENTS, docs-shell tests, ADR-066 | keep one cross-system as-built; update host names in DOCRB-005 |
 | Public Anvil behaviour | `docs/public/anvil/**` vs internal as-builts | public describes shipped product; internal describes implementation; do not copy |

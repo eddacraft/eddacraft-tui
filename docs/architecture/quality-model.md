@@ -1,16 +1,19 @@
 # Quality Model
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                           |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | KERN  | Live   | Last reviewed 2026-05-25 against `docs/architecture/overview.md` and `crates/anvil-kernel-types/src/diagnostics.rs` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                              |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | KERN  | Live   | Last reviewed 2026-08-20 at `d9b30b23d` against `crates/anvil-cli/src/commands/check_catalog.rs`, `crates/anvil-kernel-types/src/diagnostics.rs`, and `crates/anvil-kernel-types/src/notifications.rs` |
 
-| Upstream                                                                                                                          | Downstream                                                                                        |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `docs/architecture/overview.md`, `crates/anvil-kernel-types/src/diagnostics.rs`, `crates/anvil-kernel-types/src/notifications.rs` | Architecture docs, CLI/TUI copy, check/gate/audit/watch terminology, public product documentation |
+| Upstream                                                                                                                                               | Downstream                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli/src/commands/check_catalog.rs`, `crates/anvil-kernel-types/src/diagnostics.rs`, and `crates/anvil-kernel-types/src/notifications.rs` | Architecture docs, CLI/TUI copy, check/gate/audit/watch terminology, public product documentation |
 
 This document defines the conceptual architecture of Anvil's quality system. It
 is the internal reference for how to talk about checks, findings, gates, watch
 mode, audit, doctor, and related surfaces.
+
+This KERN-owned view is the detailed authority for the quality concern; the
+central [overview](overview.md) links it rather than restating it.
 
 ## Purpose
 
@@ -279,13 +282,13 @@ When adding or revising Anvil surfaces:
 
 ```mermaid
 flowchart TD
-    graph["Project graph / structure"]
+    projectGraph["Project graph / structure"]
     checks["Checks\nsecret / boundaries / policy / anti-patterns / lint / test / coverage"]
     findings["Findings\nwarning / violation / info"]
     gate["Gate\nworkflow judgement"]
     surfaces["Surfaces\ncheck / gate / watch / audit / doctor / tutorial"]
 
-    graph --> checks
+    projectGraph --> checks
     checks --> findings
     checks --> gate
     findings --> gate

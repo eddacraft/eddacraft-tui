@@ -1,12 +1,12 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | As-built drift sweep 2026-07-02 against main `d1fded280` (G-08 admin-actor attribution corrected to key-derived, matching api-as-built §5.3; `index.ts` line anchors re-pinned after 145→179 growth). Last reviewed 2026-06-11 against `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/routes/auth-device.ts`, `apps/anvil-api/src/db/queries.ts`, `apps/website/app/auth/activate/page.tsx` (GHCLIAUTH-010 device-flow cutover); GHCLIAUTH-003 GitHub OAuth delta against main `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                            |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-20 at `d9b30b23d` against `apps/anvil-api/src/routes/auth-github.ts`, `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/lib/session.ts`, `apps/docs-shell/app/auth/callback/route.ts`, and `apps/docs-shell/lib/bauth.ts` |
 
-| Upstream                  | Downstream                                                                                          |
-| ------------------------- | --------------------------------------------------------------------------------------------------- |
-| `apps/anvil-api`, ADR-018 | anvil CLI (token verify, license refresh, GitHub device flow, OTP, docs-site GitHub OAuth callback) |
+| Upstream                                                                         | Downstream                                        |
+| -------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `apps/anvil-api`, `apps/docs-shell/app/auth`, `apps/docs-shell/lib`, and ADR-018 | anvil CLI and docs-shell authentication consumers |
 
 > **Status:** Live (beta) **Last reviewed:** 2026-07-02 as-built drift sweep
 > against main `d1fded280` (G-08 admin-actor attribution + `index.ts`
@@ -24,21 +24,20 @@ GHCLIAUTH-005/006): the CLI prints a short user code and the
 website activation page — then polls the broker until the user authorises.
 `anvil auth login --otp` is the retained no-GitHub fallback, emailing a one-time
 code to the invited address. Alongside the CLI login the system also exposes the
-original admin-invite token flow and the docs-site GitHub OAuth callback
+original admin-invite token flow and the docs-shell GitHub OAuth callback
 (GHCLIAUTH-003). All interactive flows issue JWT + refresh token pairs minted
 through the shared `mintSession` helper (`apps/anvil-api/src/lib/session.ts`).
 
-```text
-┌─────────┐         ┌────────────┐         ┌──────────┐
-│  Admin   │─invite─▶│  Anvil API │◀─verify─│ Anvil CLI│
-│ (curl)   │◀─token──│  (Hono)    │─licence─▶│          │
-└─────────┘         └─────┬──────┘         └─────┬────┘
-                          │                      │
-                     ┌────▼────┐          ┌───────▼────────┐
-                     │  Neon   │          │ github.com/    │
-                     │ Postgres│          │ login/device   │
-                     └─────────┘          │ (any device)   │
-                                          └────────────────┘
+This BAUTH-owned view is the detailed authentication authority; the central
+trust and docs-delivery views link it rather than restating its flows.
+
+```mermaid
+flowchart LR
+    Admin[Operator] -->|invite and administration| API[anvil API]
+    CLI[anvil CLI] -->|token, OTP, or GitHub device flow| API
+    Docs[docs shell] -->|GitHub OAuth callback and licence exchange| API
+    API --> Data[(Neon Postgres)]
+    CLI --> GitHub[github.com/login/device]
 ```
 
 ## Token Lifecycle
@@ -160,11 +159,12 @@ Operator topology, health signals, and incident triage for this flow live in the
 
 ### GitHub OAuth Flow
 
-1. The docs-site callback (`apps/docs-site/api/auth/callback.ts`) validates the
-   OAuth state parameter, then calls `POST /api/v1/auth/github/callback`
-   server-to-server (`apps/anvil-api/src/routes/auth-github.ts:99`). CSRF/state
-   validation lives entirely in the docs-site layer — the API trusts the caller
-   to have validated the state (`auth-github.ts:92-98`)
+1. The docs-shell callback (`apps/docs-shell/app/auth/callback/route.ts`)
+   validates the OAuth state parameter, then calls
+   `POST /api/v1/auth/github/callback` server-to-server
+   (`apps/anvil-api/src/routes/auth-github.ts:99`). CSRF/state validation lives
+   entirely in the docs-shell layer — the API trusts the caller to have
+   validated the state (`auth-github.ts:92-98`)
 2. The API exchanges the code with GitHub, fetches the verified primary email
    plus the full verified-email set, then immediately revokes the upstream
    GitHub token
@@ -245,7 +245,7 @@ Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
 `identity` is resolved per flow (GHCLIAUTH-003): token verify and the OTP /
 legacy device flows stamp `{ provider: "email", id: null }`
 (`apps/anvil-api/src/routes/auth.ts:76`, `auth.ts:127`); both GitHub paths — the
-docs-site OAuth callback and the CLI GitHub device flow — stamp
+docs-shell OAuth callback and the CLI GitHub device flow — stamp
 `{ provider: "github", id: <github_id> }` (`auth-github.ts:172`,
 `auth-github-device.ts`). The shared `mintSession` helper takes identity from
 the caller (`apps/anvil-api/src/lib/session.ts:65`).
@@ -319,12 +319,12 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                                                                    |
 | `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                                                                  |
 | `ACTIVATE_URL`                | No       | Legacy device code flow                 | Verification URL returned by `/auth/device/start` (default: `https://eddacraft.ai/auth/activate`, now a tombstone) |
-| `GITHUB_CLIENT_ID`            | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client ID                                                                               |
-| `GITHUB_CLIENT_SECRET`        | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client secret                                                                           |
+| `GITHUB_CLIENT_ID`            | Yes      | `/auth/github/callback`                 | Docs-shell GitHub OAuth app client ID                                                                              |
+| `GITHUB_CLIENT_SECRET`        | Yes      | `/auth/github/callback`                 | Docs-shell GitHub OAuth app client secret                                                                          |
 | `GITHUB_CLI_CLIENT_ID`        | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client ID                                                                          |
 | `GITHUB_CLI_CLIENT_SECRET`    | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client secret                                                                      |
 
-The docs-site OAuth app pair is consumed in `auth-github.ts:28-29` and wired in
+The docs-shell OAuth app pair is consumed in `auth-github.ts:28-29` and wired in
 `infra/src/vercel.ts:92-93`. The CLI pair backs the dedicated "Anvil CLI"
 device-flow OAuth app (kept separate so CLI login and docs auth do not share
 rate limits, consent branding, or audit trails); it is consumed in
@@ -504,7 +504,7 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 | `apps/anvil-api/src/routes/auth-device.ts`        | Legacy device code flow endpoints             |
 | `apps/anvil-api/src/routes/auth-otp.ts`           | Email OTP flow endpoints                      |
 | `apps/anvil-api/src/routes/auth-session.ts`       | Session refresh endpoint                      |
-| `apps/anvil-api/src/routes/auth-github.ts`        | Docs-site GitHub OAuth callback endpoint      |
+| `apps/anvil-api/src/routes/auth-github.ts`        | Docs-shell GitHub OAuth callback endpoint     |
 | `apps/anvil-api/src/routes/admin.ts`              | Invite, revoke, lookup, approve               |
 | `apps/anvil-api/src/routes/waitlist.ts`           | Waitlist signup + resend                      |
 | `apps/anvil-api/src/routes/cron.ts`               | Scheduled cleanup tasks                       |
