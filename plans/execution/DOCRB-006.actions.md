@@ -25,8 +25,9 @@ component internals.
 - `docs/architecture/docs-delivery.md` owns the macro source/build/deployment
   and shell/private/public renderer flow while retaining the DOCRB/DSITE owner
   gap.
-- `docs/architecture/quality-model.md`, `auth-as-built.md`, and
-  `edda-stack.md` retain their detailed concerns. The Rust overview and
+- KERN-owned `docs/architecture/quality-model.md`, BAUTH-owned
+  `auth-as-built.md`, and EDDA-owned `edda-stack.md` retain their detailed
+  central concerns. The Rust overview and
   adapter workflow remain linked authorities.
 - Component-internal migration is DOCRB-005. Public Draw.io/SVG assets are
   DOCRB-007/-008. Automated Mermaid tooling and mandatory change
@@ -39,6 +40,10 @@ component internals.
 - `plans/execution/DOCRB-006.actions.md` — this execution sequence.
 - `plans/specs/2026-08-17-docrb-corpus-disposition.md` — final diagram dispositions.
 - `CONTEXT.md` — central architecture discovery pointers.
+- `docs/guides/documentation-governance.md` — disposition-alignment and
+  freshness review.
+- `docs/reviews/shipped-codebase-review-checklist.md` — remove stale overview
+  layering/policy pointers.
 - `docs/architecture/README.md` — view discovery and retired Draw.io links.
 - `docs/architecture/overview.md` — system-context and container/component views.
 - `docs/architecture/quality-model.md` — remove authority-cycle metadata and retain the quality view.
@@ -79,8 +84,9 @@ a current source anchor and one owner.
 - Delete the two retired Draw.io sources after their live links and disposition
   are updated.
 
-**Checkpoint:** exactly five required central concerns are discoverable and no
-concern has two apparent authorities.
+**Checkpoint:** the five required DOCRB-006 views are discoverable alongside
+retained supporting central authorities, and no concern has two apparent
+authorities.
 
 ### 3. Prove renderability and source accuracy
 

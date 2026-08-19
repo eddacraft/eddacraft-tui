@@ -308,7 +308,7 @@ items stay Draft until their dependencies and expected evidence are present.
   execution after DOCRB-001/-002 dependency and source-drift verification
 - **Intent:** Replace stale or over-broad central diagrams with a small set of
   authoritative cross-system views.
-- **Expected Outcome:** Exactly five central concerns are authoritative and
+- **Expected Outcome:** The five required DOCRB-006 views are authoritative and
   source-traceable: system context; container/component relationships;
   trust/deployment boundaries; save-to-validation; and docs delivery. Every
   retained view declares audience, concern, upstreams, owner, lifecycle state,
@@ -318,6 +318,8 @@ items stay Draft until their dependencies and expected evidence are present.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
   `plans/execution/DOCRB-006.actions.md`,
   `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `CONTEXT.md`,
+  `docs/guides/documentation-governance.md`,
+  `docs/reviews/shipped-codebase-review-checklist.md`,
   `docs/architecture/README.md`, `docs/architecture/overview.md`,
   `docs/architecture/quality-model.md`,
   `docs/architecture/auth-as-built.md`,
@@ -335,8 +337,9 @@ items stay Draft until their dependencies and expected evidence are present.
   boundaries. The final review records per-view source-edge traces, temporary
   pinned Mermaid 11.16.0 render outputs, link resolution, duplicate-authority
   checks, Draw.io retirement references, exact range, and repository gates.
-- **Scope:** The five central views; retained supporting central views; diagram
-  disposition and discovery; the save-time runbook cross-link; two obsolete
+- **Scope:** The five required DOCRB-006 views; retained supporting central
+  authorities; diagram disposition and discovery; context/checklist navigation;
+  governance freshness review; the save-time runbook cross-link; two obsolete
   Draw.io retirements; generated documentation indexes; one evidence report
 - **Non-scope:** Component-internal migration (DOCRB-005); public Draw.io/SVG
   assets (DOCRB-007/-008); automated Mermaid tooling or mandatory

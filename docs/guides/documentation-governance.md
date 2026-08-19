@@ -1,8 +1,8 @@
 # Documentation Governance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                 |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, `infra/src/vercel.ts`, `plans/specs/2026-08-16-docs-rebaseline.md`, and `plans/specs/2026-08-19-anvil-docs-definition-layer.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                    |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Manually reviewed 2026-08-20 at `97899b00a` against ADR-123, `infra/src/vercel.ts`, and the 2026-08-17 DOCRB corpus disposition; no semantic change required |
 
 | Upstream                                                                                                                                                                       | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |

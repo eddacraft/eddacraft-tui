@@ -58,9 +58,11 @@ The product. Key crates by role:
 | TUI                | `anvil-tui`, `eddacraft-tui` (the OSS rendering lib, consumed by path)                                                                              |
 | Supporting         | `anvil-baseline`, `anvil-architecture`, `anvil-attribution`, `anvil-witness`, `anvil-l4`, `anvil-graph-cache`, `anvil-observability`, `anvil-bench` |
 
-Layering and the check-pipeline flow are documented in
-[`docs/architecture/overview.md`](docs/architecture/overview.md); "as-built"
-detail is in `docs/architecture/*-as-built.md`.
+Rust crate layout and layering are documented in
+[`docs/architecture/rust-architecture-overview.md`](docs/architecture/rust-architecture-overview.md).
+Check, finding, gate, and surface concepts are documented in the
+[`quality model`](docs/architecture/quality-model.md); as-built detail is in
+`docs/architecture/*-as-built.md`.
 
 ### TypeScript surfaces — `packages/` and `apps/`
 
@@ -104,7 +106,9 @@ tooling) · `.claude/` `.opencode/` `.codex/` (agent config) · `infra/` (Pulumi
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Start work / check status           | [`plans/index.aps.md`](plans/index.aps.md)                                                                     |
 | Know the workflow & commit rules    | [`AGENTS.md`](AGENTS.md)                                                                                       |
-| Understand the engine design        | [`docs/architecture/overview.md`](docs/architecture/overview.md)                                               |
+| Locate system containers/components | [`docs/architecture/overview.md`](docs/architecture/overview.md)                                               |
+| Understand Rust layout/layering     | [`docs/architecture/rust-architecture-overview.md`](docs/architecture/rust-architecture-overview.md)           |
+| Understand check/gate concepts      | [`docs/architecture/quality-model.md`](docs/architecture/quality-model.md)                                     |
 | Review trust and deployment         | [`docs/architecture/trust-and-deployment-boundaries.md`](docs/architecture/trust-and-deployment-boundaries.md) |
 | Trace save-time validation          | [`docs/architecture/save-to-validation.md`](docs/architecture/save-to-validation.md)                           |
 | Trace documentation delivery        | [`docs/architecture/docs-delivery.md`](docs/architecture/docs-delivery.md)                                     |

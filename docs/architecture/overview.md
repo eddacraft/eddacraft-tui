@@ -120,6 +120,11 @@ trace to `apps/anvil-api/ARCHITECTURE.md`. Documentation containers trace to
 The [quality model](quality-model.md) owns checks, findings, gates, and
 surfaces; this compatibility heading carries no pipeline detail.
 
+### Gate layer
+
+The [quality model](quality-model.md) also owns gate concepts and the current
+runtime-shape layers; this compatibility heading carries no gate detail.
+
 - [Authentication as-built](auth-as-built.md) owns BAUTH flows and token
   semantics.
 - [Edda stack](edda-stack.md) owns the Kindling-to-Ember-to-Edda promotion

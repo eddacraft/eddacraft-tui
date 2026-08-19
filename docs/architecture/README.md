@@ -151,12 +151,15 @@ Advisory external or pre-implementation notes.
 
 ## Diagrams
 
-The central Mermaid set owns exactly five concerns: system context and
-container/component relationships in [overview.md](overview.md), plus the
+The five required DOCRB-006 views are system context and container/component
+relationships in [overview.md](overview.md), plus the
 [trust/deployment](trust-and-deployment-boundaries.md),
 [save-to-validation](save-to-validation.md), and
-[documentation-delivery](docs-delivery.md) views. Component internals remain in
-component-root `ARCHITECTURE.md` files.
+[documentation-delivery](docs-delivery.md) views. They sit alongside retained
+supporting central authorities such as KERN's [quality model](quality-model.md),
+BAUTH's [auth as-built](auth-as-built.md), and EDDA's
+[stack view](edda-stack.md). Component internals remain in component-root
+`ARCHITECTURE.md` files.
 
 DOCRB-006 retired the former live Draw.io sources
 `docs/architecture/anvil-system-components.drawio` and

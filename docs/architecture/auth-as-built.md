@@ -1,15 +1,16 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                            |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-20 at `d9b30b23d` against `apps/anvil-api/src/routes/auth-github.ts`, `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/lib/session.ts`, `apps/docs-shell/app/auth/callback/route.ts`, and `apps/docs-shell/lib/bauth.ts` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                          |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-20 at `97899b00a` against auth routes/session source, `lib/token.ts`, `lib/github-device-crypto.ts`, docs-shell callback/BAUTH source, and targeted neighbouring auth claims |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `apps/anvil-api`, `apps/docs-shell/app/auth`, `apps/docs-shell/lib`, and ADR-018 | anvil CLI and docs-shell authentication consumers |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-02 as-built drift sweep
-> against main `d1fded280` (G-08 admin-actor attribution + `index.ts`
+> **Status:** Live (beta) **Last reviewed:** 2026-08-20 targeted `TOKEN_PEPPER`
+> and neighbouring auth-claim review at `97899b00a`; 2026-07-02 as-built drift
+> sweep against main `d1fded280` (G-08 admin-actor attribution + `index.ts`
 > re-anchor); 2026-06-11 against the device-flow cutover (GHCLIAUTH-010); GitHub
 > OAuth delta (GHCLIAUTH-003) against main `45dd1047a`; full review 2026-04-23
 > against `v0.6.0-beta` **Service:** `apps/anvil-api` (Hono on Vercel)
@@ -305,24 +306,24 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 
 ## Environment Variables
 
-| Variable                      | Required | Used by                                 | Description                                                                                                        |
-| ----------------------------- | -------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string                                                                                    |
-| `ADMIN_KEY`                   | Yes      | `adminAuth` middleware (`/admin/*`)     | Bearer token for admin endpoints; unset fails closed with `500`                                                    |
-| `ADMIN_PER_OPERATOR_KEYS`     | No       | `adminAuth` middleware                  | Enables per-operator admin-key lookup                                                                              |
-| `ADMIN_KEY_PEPPER`            | No       | `adminAuth` middleware                  | HMAC secret used to hash per-operator admin keys                                                                   |
-| `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)                                                                                     |
-| `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key                                                                                               |
-| `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint                                                                                    |
-| `ANVIL_CORS_ORIGINS`          | Yes      | CORS middleware                         | Comma-separated allowed origins                                                                                    |
-| `TOKEN_PEPPER`                | No       | Token hashing                           | Extra secret mixed into SHA-256                                                                                    |
-| `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                                                                    |
-| `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                                                                  |
-| `ACTIVATE_URL`                | No       | Legacy device code flow                 | Verification URL returned by `/auth/device/start` (default: `https://eddacraft.ai/auth/activate`, now a tombstone) |
-| `GITHUB_CLIENT_ID`            | Yes      | `/auth/github/callback`                 | Docs-shell GitHub OAuth app client ID                                                                              |
-| `GITHUB_CLIENT_SECRET`        | Yes      | `/auth/github/callback`                 | Docs-shell GitHub OAuth app client secret                                                                          |
-| `GITHUB_CLI_CLIENT_ID`        | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client ID                                                                          |
-| `GITHUB_CLI_CLIENT_SECRET`    | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client secret                                                                      |
+| Variable                      | Required   | Used by                                      | Description                                                                                                        |
+| ----------------------------- | ---------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                | Yes        | All routes                                   | Neon Postgres connection string                                                                                    |
+| `ADMIN_KEY`                   | Yes        | `adminAuth` middleware (`/admin/*`)          | Bearer token for admin endpoints; unset fails closed with `500`                                                    |
+| `ADMIN_PER_OPERATOR_KEYS`     | No         | `adminAuth` middleware                       | Enables per-operator admin-key lookup                                                                              |
+| `ADMIN_KEY_PEPPER`            | No         | `adminAuth` middleware                       | HMAC secret used to hash per-operator admin keys                                                                   |
+| `LICENSE_SIGNING_KEY`         | Yes        | `/auth/verify`, `/auth/license/refresh`      | ES256 private key (PKCS#8 PEM)                                                                                     |
+| `RESEND_API_KEY`              | Yes        | Waitlist routes                              | Resend email API key                                                                                               |
+| `WAITLIST_RESEND_ADMIN_TOKEN` | Yes        | `/waitlist/resend`                           | Token for admin resend endpoint                                                                                    |
+| `ANVIL_CORS_ORIGINS`          | Yes        | CORS middleware                              | Comma-separated allowed origins                                                                                    |
+| `TOKEN_PEPPER`                | Production | Token hashing and device-code key derivation | Required in production; non-production helpers retain an empty fallback for tests and local development            |
+| `RESEND_WAITLIST_AUDIENCE_ID` | No         | Audience management                          | Resend audience ID for waitlist                                                                                    |
+| `RESEND_BETA_AUDIENCE_ID`     | No         | Audience management                          | Resend audience ID for beta users                                                                                  |
+| `ACTIVATE_URL`                | No         | Legacy device code flow                      | Verification URL returned by `/auth/device/start` (default: `https://eddacraft.ai/auth/activate`, now a tombstone) |
+| `GITHUB_CLIENT_ID`            | Yes        | `/auth/github/callback`                      | Docs-shell GitHub OAuth app client ID                                                                              |
+| `GITHUB_CLIENT_SECRET`        | Yes        | `/auth/github/callback`                      | Docs-shell GitHub OAuth app client secret                                                                          |
+| `GITHUB_CLI_CLIENT_ID`        | Yes        | CLI device flow (`/auth/github-device`)      | Dedicated "Anvil CLI" OAuth app client ID                                                                          |
+| `GITHUB_CLI_CLIENT_SECRET`    | Yes        | CLI device flow (`/auth/github-device`)      | Dedicated "Anvil CLI" OAuth app client secret                                                                      |
 
 The docs-shell OAuth app pair is consumed in `auth-github.ts:28-29` and wired in
 `infra/src/vercel.ts:92-93`. The CLI pair backs the dedicated "Anvil CLI"
@@ -476,15 +477,19 @@ absent only while operators share the one key. **Fix:** Provision per-operator
 keys (`ADMIN_PER_OPERATOR_KEYS` + `admin_keys`) so each admin authenticates
 under their own `actor_email`.
 
-### G-09: Token pepper is optional
+### G-09: `TOKEN_PEPPER` production fail-fast — RESOLVED
 
-If `TOKEN_PEPPER` is not set, tokens are hashed with `SHA-256("")` prefix. This
-is still a valid hash, but the pepper adds no value if empty. There's no warning
-when it's missing.
+_Resolved 2026-08-20._ `apps/anvil-api/src/lib/token.ts` throws during module
+evaluation when `NODE_ENV=production` and `TOKEN_PEPPER` is absent. The API
+route graph imports that module, so production fails at cold start rather than
+hashing or deriving a device-code key with an empty pepper.
 
-**Risk:** Low — the hash is still one-way. The pepper mainly defends against
-rainbow tables, which are impractical for 32-byte random tokens. **Fix:** Log a
-warning at startup if `TOKEN_PEPPER` is empty.
+Outside production, `hashToken` and `github-device-crypto.ts` deliberately
+retain `process.env['TOKEN_PEPPER'] ?? ''` for tests and local development. That
+non-production empty fallback is not the production posture. The targeted review
+also confirmed the adjacent token-hash, encrypted device-code, route import, and
+environment-table claims against `lib/token.ts`, `lib/github-device-crypto.ts`,
+the auth/admin route imports, and `src/__tests__/token.test.ts`.
 
 ### G-10: No token usage limits
 

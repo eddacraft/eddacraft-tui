@@ -156,8 +156,8 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | Document | Class | Owner | Concern | Disposition |
 | -------- | ----- | ----- | ------- | ----------- |
 | `docs/architecture/README.md` | central cross-system authority | DOCRB | Directory map + production host record | retain (updated in DOCRB-001) |
-| `docs/architecture/overview.md` | central cross-system authority | DOCRB | System context, layering, live component diagram | retain; redraw Mermaid in DOCRB-006 |
-| `docs/architecture/quality-model.md` | central cross-system authority | DOCRB | Check/gate/watch conceptual model | retain |
+| `docs/architecture/overview.md` | central cross-system authority | DOCRB | System context and container/component relationships | retain; redraw Mermaid in DOCRB-006 |
+| `docs/architecture/quality-model.md` | central cross-system authority | KERN | Check/gate/watch conceptual model | retain |
 | `docs/architecture/trust-and-deployment-boundaries.md` | central cross-system authority | DOCRB | Macro local/hosted trust and deployment boundaries | added in DOCRB-006 |
 | `docs/architecture/save-to-validation.md` | central cross-system authority | DOCRB | Cross-owner caller-buffer and post-save validation sequence | added in DOCRB-006 |
 | `docs/architecture/docs-delivery.md` | central cross-system authority | DOCRB / DSITE gap | Source/build/deploy and shell/private/public flow | added in DOCRB-006 |
@@ -203,7 +203,8 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | PPTX workflow | Draw.io | `docs/architecture/pptx-workflow.drawio` | retired by DOCRB-006 | No shipped PPTX workflow; historical archive references remain history |
 | Public visual layer | Draw.io + SVG | `docs/public/**` | missing | 0 committed pairs; create in DOCRB-007/008 |
 
-Required central views after DOCRB-006:
+Five required DOCRB-006 views, alongside the retained supporting central
+authorities:
 
 1. System context — `docs/architecture/overview.md`.
 2. Container/component map — `docs/architecture/overview.md`.

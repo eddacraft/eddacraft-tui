@@ -1,12 +1,12 @@
 # Shipped Codebase Review Checklist
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                               |
-| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-14: CIB-324 Windows update/version honesty against `crates/anvil-cli/src/commands/version.rs` and `update.rs`; prior v0.9.4 short pass 2026-08-09 |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                 |
+| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-20 at `97899b00a`: DOCRB-006 architecture-pointer sweep; CIB-324 Windows update/version honesty reviewed 2026-08-14 |
 
-| Upstream                                                                                          | Downstream                                           |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `CONTEXT.md`, `docs/architecture/overview.md`, `docs/architecture/*-as-built.md`, Cargo workspace | Council / adversarial review sessions, follow-up APS |
+| Upstream                                                                                                                     | Downstream                                           |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `CONTEXT.md`, system overview, Rust architecture overview, quality model, `docs/architecture/*-as-built.md`, Cargo workspace | Council / adversarial review sessions, follow-up APS |
 
 This checklist maps the **shipped Anvil product** into reviewable chunks. Use it
 as a living tracker: mark sessions, record findings, and link follow-up work. It
@@ -145,12 +145,12 @@ them. Record under [Sessions](#sessions).
 
 ### Chunk 1 — Foundation contracts
 
-| Field               | Value                                                                                                                                     |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Priority            | P0                                                                                                                                        |
-| Risk                | High (everything depends on this)                                                                                                         |
-| Size                | Medium                                                                                                                                    |
-| As-built / overview | [`docs/architecture/overview.md`](../architecture/overview.md) (package layering), [`quality-model.md`](../architecture/quality-model.md) |
+| Field               | Value                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Priority            | P0                                                                                                                                                                                     |
+| Risk                | High (everything depends on this)                                                                                                                                                      |
+| Size                | Medium                                                                                                                                                                                 |
+| As-built / overview | [`rust-architecture-overview.md`](../architecture/rust-architecture-overview.md) (crate layout/layering), [`quality-model.md`](../architecture/quality-model.md) (check/gate concepts) |
 
 **Paths**
 
@@ -290,12 +290,12 @@ cargo test -p eddacraft-anvil-checks-napi --no-fail-fast
 
 ### Chunk 4 — Policy engine + architecture boundaries
 
-| Field    | Value                                                                                                |
-| -------- | ---------------------------------------------------------------------------------------------------- |
-| Priority | P0                                                                                                   |
-| Risk     | High                                                                                                 |
-| Size     | Medium–large                                                                                         |
-| Overview | Hybrid policy section in [`overview.md`](../architecture/overview.md); policy specs in `docs/specs/` |
+| Field        | Value                                                                                                                                                   |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Priority     | P0                                                                                                                                                      |
+| Risk         | High                                                                                                                                                    |
+| Size         | Medium–large                                                                                                                                            |
+| Architecture | Policy-engine and invariant sections in [`rust-architecture-overview.md`](../architecture/rust-architecture-overview.md); policy specs in `docs/specs/` |
 
 **Paths**
 
