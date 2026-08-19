@@ -1769,6 +1769,7 @@ new section
 retired fixture phrase
 tail
 EOF
+git -C "${retired_root}" add claim.txt
 set +e
 out="$(node "${checker_root}/check-retired-claims.mjs" --root "${retired_root}" 2>&1)"
 moved_status=$?
@@ -1937,16 +1938,16 @@ git -C "${retired_symlink_directory_root}" config user.name "docs-check"
 printf '%s\n' "target" >"${retired_symlink_directory_root}/target.txt"
 ln -s target.txt "${retired_symlink_directory_root}/linked.txt"
 git -C "${retired_symlink_directory_root}" add linked.txt
-rm "${retired_symlink_directory_root}/linked.txt"
-mkdir "${retired_symlink_directory_root}/linked.txt"
+rm "${retired_symlink_directory_root}/target.txt"
+mkdir "${retired_symlink_directory_root}/target.txt"
 set +e
 out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_symlink_directory_root}" 2>&1)"
 status=$?
 set -e
 if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "linked.txt"; then
-  pass "file-symlink directory substitution fails the scan closed"
+  pass "stable file symlink resolving to a directory fails the scan closed"
 else
-  fail "file-symlink directory substitution was skipped as clean (status ${status}): ${out}"
+  fail "stable file symlink resolving to a directory was skipped as clean (status ${status}): ${out}"
 fi
 
 # Correctness review: a regular indexed path replaced by a symlink to benign
@@ -1970,6 +1971,126 @@ if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "claim.txt"; then
   pass "regular-file symlink substitution fails the scan closed"
 else
   fail "regular-file symlink substitution was scanned as clean (status ${status}): ${out}"
+fi
+
+# Security review: replacing an indexed file's parent directory with a symlink
+# must not redirect the scan to benign external content.
+echo "case T: retired-claims rejects parent-directory symlink substitution"
+retired_parent_symlink_root="${tmp_root}/retired-parent-symlink-substitution"
+mkdir -p "${retired_parent_symlink_root}/docs" "${retired_parent_symlink_root}/external"
+git -C "${retired_parent_symlink_root}" init -q
+git -C "${retired_parent_symlink_root}" config user.email "docs-check@example.com"
+git -C "${retired_parent_symlink_root}" config user.name "docs-check"
+printf '%s\n' "daily save-time protection" >"${retired_parent_symlink_root}/docs/claim.txt" # retired-claim-ok: CIB-260
+git -C "${retired_parent_symlink_root}" add docs/claim.txt
+printf '%s\n' "benign replacement" >"${retired_parent_symlink_root}/external/claim.txt"
+mv "${retired_parent_symlink_root}/docs" "${retired_parent_symlink_root}/indexed-docs"
+ln -s external "${retired_parent_symlink_root}/docs"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_parent_symlink_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "docs/claim.txt"; then
+  pass "parent-directory symlink substitution fails the scan closed"
+else
+  fail "parent-directory symlink substitution redirected the scan (status ${status}): ${out}"
+fi
+
+# Adversarial review: a tracked symlink target replaced by a FIFO must not
+# block before the descriptor type can be rejected. The watchdog bounds a
+# recurrence of the original hang.
+echo "case U: retired-claims rejects a FIFO symlink target without hanging"
+retired_fifo_root="${tmp_root}/retired-fifo-substitution"
+mkdir -p "${retired_fifo_root}"
+git -C "${retired_fifo_root}" init -q
+git -C "${retired_fifo_root}" config user.email "docs-check@example.com"
+git -C "${retired_fifo_root}" config user.name "docs-check"
+printf '%s\n' "target" >"${retired_fifo_root}/target.txt"
+ln -s target.txt "${retired_fifo_root}/linked.txt"
+git -C "${retired_fifo_root}" add linked.txt
+rm "${retired_fifo_root}/target.txt"
+mkfifo "${retired_fifo_root}/target.txt"
+fifo_output="${tmp_root}/retired-fifo-output.txt"
+set +e
+node "${script_dir}/check-retired-claims.mjs" --root "${retired_fifo_root}" >"${fifo_output}" 2>&1 &
+fifo_pid=$!
+(
+  sleep 2
+  kill -TERM "${fifo_pid}" 2>/dev/null || true
+) &
+watchdog_pid=$!
+wait "${fifo_pid}"
+status=$?
+kill "${watchdog_pid}" 2>/dev/null || true
+wait "${watchdog_pid}" 2>/dev/null || true
+set -e
+out="$(<"${fifo_output}")"
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "linked.txt"; then
+  pass "FIFO symlink target fails promptly and closed"
+else
+  fail "FIFO symlink target did not fail promptly and closed (status ${status}): ${out}"
+fi
+
+# General review: core.symlinks=false materialises an indexed symlink as a
+# regular file containing its link text. Matching text must retain target
+# scanning, while any mismatch remains a tooling failure.
+echo "case V: retired-claims accepts a matching core.symlinks=false materialisation"
+retired_no_symlinks_root="${tmp_root}/retired-core-symlinks-false"
+outside_no_symlinks_claim="${tmp_root}/outside-core-symlinks-claim.txt"
+mkdir -p "${retired_no_symlinks_root}"
+printf '%s\n' "daily save-time protection" >"${outside_no_symlinks_claim}" # retired-claim-ok: CIB-260
+ln -s "${outside_no_symlinks_claim}" "${retired_no_symlinks_root}/linked.txt"
+git -C "${retired_no_symlinks_root}" init -q
+git -C "${retired_no_symlinks_root}" config user.email "docs-check@example.com"
+git -C "${retired_no_symlinks_root}" config user.name "docs-check"
+git -C "${retired_no_symlinks_root}" add linked.txt
+git -C "${retired_no_symlinks_root}" commit -qm fixture
+git -C "${retired_no_symlinks_root}" config core.symlinks false
+rm "${retired_no_symlinks_root}/linked.txt"
+git -C "${retired_no_symlinks_root}" checkout -- linked.txt
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_no_symlinks_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "linked.txt" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "matching regular link-text materialisation retains target scanning"
+else
+  fail "matching core.symlinks=false materialisation was rejected (status ${status}): ${out}"
+fi
+
+echo "case W: retired-claims rejects mismatched core.symlinks=false link text"
+printf '%s\n' "different-target.txt" >"${retired_no_symlinks_root}/linked.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_no_symlinks_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "linked.txt"; then
+  pass "mismatched regular link-text materialisation fails the scan closed"
+else
+  fail "mismatched core.symlinks=false link text was accepted (status ${status}): ${out}"
+fi
+
+# The one repository-owned directory alias is safe because its target files
+# are independently tracked and scanned; pin that exact positive exception.
+echo "case X: retired-claims accepts only the canonical tracked directory alias"
+retired_directory_alias_root="${tmp_root}/retired-directory-alias"
+mkdir -p "${retired_directory_alias_root}/apps/docs-public-astro/src/content/docs"
+mkdir -p "${retired_directory_alias_root}/docs/public/aps"
+ln -s ../../../../../docs/public/aps \
+  "${retired_directory_alias_root}/apps/docs-public-astro/src/content/docs/aps"
+git -C "${retired_directory_alias_root}" init -q
+git -C "${retired_directory_alias_root}" config user.email "docs-check@example.com"
+git -C "${retired_directory_alias_root}" config user.name "docs-check"
+git -C "${retired_directory_alias_root}" add apps/docs-public-astro/src/content/docs/aps
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_directory_alias_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]]; then
+  pass "canonical tracked directory alias remains accepted"
+else
+  fail "canonical tracked directory alias was rejected (status ${status}): ${out}"
 fi
 
 

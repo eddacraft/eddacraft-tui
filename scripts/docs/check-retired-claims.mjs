@@ -26,10 +26,10 @@
 // Wired as a `pnpm docs:check` surface; standalone via
 // `node scripts/docs/check-retired-claims.mjs`.
 
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { basename, extname, resolve } from 'node:path';
+import { basename, dirname, extname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 
@@ -48,6 +48,7 @@ const TRACKED_DIRECTORY_SYMLINKS = new Set([
   // independently. No other tracked path may resolve to a directory.
   'apps/docs-public-astro/src/content/docs/aps',
 ]);
+const READ_NONBLOCK = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0);
 
 const { values } = parseArgs({
   options: {
@@ -83,11 +84,71 @@ for (const entry of ls.stdout.split('\0').filter(Boolean)) {
   }
   const metadata = entry.slice(0, tab).split(' ');
   const path = entry.slice(tab + 1);
-  if (metadata.length < 3 || !/^[0-7]{6}$/.test(metadata[0])) {
+  if (
+    metadata.length < 3 ||
+    !/^[0-7]{6}$/.test(metadata[0]) ||
+    !/^[0-9a-f]{40,64}$/i.test(metadata[1]) ||
+    metadata[2] !== '0'
+  ) {
     console.error(`[${SURFACE}] cannot parse tracked-file metadata for ${path}`);
     process.exit(2);
   }
-  if (isScanned(path)) files.push({ mode: metadata[0], path });
+  if (isScanned(path)) files.push({ mode: metadata[0], oid: metadata[1], path });
+}
+
+// Scan immutable index blobs, not mutable worktree paths. Refuse any scanned
+// path whose worktree representation differs from the index; this preserves
+// local unstaged-change coverage without relying on racy pathname observations.
+const diff = spawnSync('git', ['diff', '--no-ext-diff', '--name-only', '-z', '--'], {
+  cwd: root,
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024,
+});
+if (diff.error || diff.status !== 0) {
+  const reason = diff.error?.message ?? (diff.stderr || `git exited ${diff.status}`);
+  console.error(`[${SURFACE}] cannot compare tracked files under ${root}: ${reason.trim()}`);
+  process.exit(2);
+}
+const dirtyPaths = new Set(diff.stdout.split('\0').filter(Boolean));
+const blobs = readTrackedBlobs(files);
+
+function readTrackedBlobs(entries) {
+  const batch = spawnSync('git', ['cat-file', '--batch'], {
+    cwd: root,
+    input: `${entries.map(({ oid }) => oid).join('\n')}\n`,
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (batch.error || batch.status !== 0) {
+    const stderr = batch.stderr?.toString('utf8') || `git exited ${batch.status}`;
+    console.error(`[${SURFACE}] cannot read tracked blobs under ${root}: ${stderr.trim()}`);
+    process.exit(2);
+  }
+
+  const result = [];
+  let offset = 0;
+  for (const { oid, path } of entries) {
+    const headerEnd = batch.stdout.indexOf(0x0a, offset);
+    if (headerEnd < 0) {
+      console.error(`[${SURFACE}] cannot parse tracked blob header for ${path}`);
+      process.exit(2);
+    }
+    const header = batch.stdout.subarray(offset, headerEnd).toString('utf8');
+    const match = /^([0-9a-f]{40,64}) blob ([0-9]+)$/i.exec(header);
+    if (!match || match[1] !== oid) {
+      console.error(`[${SURFACE}] cannot parse tracked blob metadata for ${path}`);
+      process.exit(2);
+    }
+    const size = Number(match[2]);
+    const start = headerEnd + 1;
+    const end = start + size;
+    if (!Number.isSafeInteger(size) || end >= batch.stdout.length || batch.stdout[end] !== 0x0a) {
+      console.error(`[${SURFACE}] cannot parse tracked blob content for ${path}`);
+      process.exit(2);
+    }
+    result.push(batch.stdout.subarray(start, end));
+    offset = end + 1;
+  }
+  return result;
 }
 
 function isScanned(path) {
@@ -96,10 +157,6 @@ function isScanned(path) {
   if (EXCLUDED_EXACT_BASENAMES.includes(basename(path))) return false;
   if (EXCLUDED_EXTENSIONS.includes(extname(path).toLowerCase())) return false;
   return true;
-}
-
-function sameFileIdentity(left, right) {
-  return left.dev === right.dev && left.ino === right.ino;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,43 +173,38 @@ const hits = new Map(needles.map(({ claim }) => [claim.phrase, new Map()]));
 let scanned = 0;
 const unreadable = [];
 
-for (const { mode, path } of files) {
+for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+  const { mode, path } = files[fileIndex];
+  if (dirtyPaths.has(path)) {
+    unreadable.push({ path, message: 'worktree content differs from the indexed blob' });
+    continue;
+  }
+
   let fd;
   let text;
   try {
-    const absolutePath = resolve(root, path);
     if (mode === '120000') {
-      // The symlink itself must remain stable across the follow-open. Its
-      // target is then inspected and read through the one opened descriptor.
-      const before = lstatSync(absolutePath);
-      if (!before.isSymbolicLink()) {
-        throw new Error('indexed symlink path is no longer a symlink');
+      // Resolve from the immutable indexed link text. This works for native
+      // symlinks and core.symlinks=false regular-file materialisations, and a
+      // worktree-path ABA cannot redirect the descriptor.
+      const target = blobs[fileIndex].toString('utf8');
+      if (target.length === 0 || target.includes('\u0000')) {
+        throw new Error('indexed symlink target is invalid');
       }
-      fd = openSync(absolutePath, 'r');
-      const after = lstatSync(absolutePath);
-      if (!after.isSymbolicLink() || !sameFileIdentity(before, after)) {
-        throw new Error('indexed symlink path changed while opening');
+      const targetPath = resolve(dirname(resolve(root, path)), target);
+      fd = openSync(targetPath, READ_NONBLOCK);
+      const opened = fstatSync(fd);
+      if (opened.isDirectory()) {
+        if (TRACKED_DIRECTORY_SYMLINKS.has(path)) continue;
+        throw new Error('tracked symlink resolved to an unexpected directory');
       }
+      if (!opened.isFile()) throw new Error('tracked symlink target is not a regular file');
+      text = readFileSync(fd, 'utf8');
+    } else if (mode === '100644' || mode === '100755') {
+      text = blobs[fileIndex].toString('utf8');
     } else {
-      // O_NOFOLLOW rejects final-component substitution where supported. The
-      // identity comparison below supplies the same guarantee on other hosts.
-      const noFollow = constants.O_NOFOLLOW ?? 0;
-      fd = openSync(absolutePath, constants.O_RDONLY | noFollow);
+      throw new Error(`unsupported tracked mode ${mode}`);
     }
-
-    const opened = fstatSync(fd);
-    if (mode !== '120000') {
-      const current = lstatSync(absolutePath);
-      if (!current.isFile() || !sameFileIdentity(opened, current)) {
-        throw new Error('indexed regular path is not the opened regular file');
-      }
-    }
-    if (opened.isDirectory()) {
-      if (mode === '120000' && TRACKED_DIRECTORY_SYMLINKS.has(path)) continue;
-      throw new Error('tracked path resolved to an unexpected directory');
-    }
-    if (!opened.isFile()) throw new Error('tracked path is not a regular file');
-    text = readFileSync(fd, 'utf8');
   } catch (err) {
     // A tracked file that could not be read makes the scan inconclusive.
     // Continue to collect every affected path, then report one tooling failure
