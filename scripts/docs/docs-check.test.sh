@@ -1738,7 +1738,6 @@ export const RETIRED_CLAIMS = [{
   retiredBy: 'CLAWFIX-001',
   baseline: [{
     path: 'claim.txt',
-    occurrences: 1,
     fingerprints: ['${fingerprint}'],
     owner: 'CLAWFIX-001'
   }]
@@ -1880,6 +1879,29 @@ if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "path traverses symlink"; 
   pass "lexically cancelled prefix cannot bypass symlink rejection"
 else
   fail "cancelled prefix bypassed symlink rejection (status ${status}): ${out}"
+fi
+
+# Hosted security review: descriptor-bound reads must retain the existing scan
+# universe, including the targets of tracked symlinks.
+echo "case P: retired-claims keeps tracked symlink targets in the corpus"
+retired_symlink_root="${tmp_root}/retired-symlink-corpus"
+outside_claim="${tmp_root}/outside-claim.txt"
+mkdir -p "${retired_symlink_root}"
+printf '%s\n' "daily save-time protection" >"${outside_claim}" # retired-claim-ok: CIB-260
+ln -s "${outside_claim}" "${retired_symlink_root}/linked.txt"
+git -C "${retired_symlink_root}" init -q
+git -C "${retired_symlink_root}" config user.email "docs-check@example.com"
+git -C "${retired_symlink_root}" config user.name "docs-check"
+git -C "${retired_symlink_root}" add linked.txt
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_symlink_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "linked.txt" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "tracked symlink target is read through one descriptor"
+else
+  fail "tracked symlink target fell out of the corpus (status ${status}): ${out}"
 fi
 
 

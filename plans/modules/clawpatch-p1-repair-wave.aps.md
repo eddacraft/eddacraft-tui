@@ -10,8 +10,8 @@
 **Last reviewed:** 2026-08-19 — CLAWFIX-001..006 implementation and wave-level
 validation are complete in the dedicated Worktrunk workspace. Required
 changed-file validation also exposed and repaired inherited TUI formatting and
-E2E fixture drift. Review evidence is recorded below; PR publication follows
-the landing gates.
+E2E fixture drift. Review evidence is recorded below; PR #4010 is open pending
+integration.
 
 **Pull request:** [#4010](https://github.com/eddacraft/anvil-001/pull/4010)
 against `main`; work remains `In Progress` pending integration.

@@ -26,10 +26,10 @@
 // Wired as a `pnpm docs:check` surface; standalone via
 // `node scripts/docs/check-retired-claims.mjs`.
 
-import { readFileSync, statSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { resolve, extname, basename } from 'node:path';
+import { basename, extname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 
@@ -94,17 +94,35 @@ let scanned = 0;
 const unreadable = [];
 
 for (const path of files) {
+  let fd;
   let text;
   try {
     const absolutePath = resolve(root, path);
-    if (statSync(absolutePath).isDirectory()) continue;
-    text = readFileSync(absolutePath, 'utf8');
+    // Open once, then inspect and read the same descriptor. This prevents a
+    // checked path from being swapped before the read while preserving the
+    // existing contract that tracked symlink targets remain in the corpus.
+    fd = openSync(absolutePath, 'r');
+    const opened = fstatSync(fd);
+    if (opened.isDirectory()) continue;
+    if (!opened.isFile()) throw new Error('tracked path is not a regular file');
+    text = readFileSync(fd, 'utf8');
   } catch (err) {
     // A tracked file that could not be read makes the scan inconclusive.
     // Continue to collect every affected path, then report one tooling failure
     // instead of laundering the reduced corpus as clean.
     unreadable.push({ path, message: err instanceof Error ? err.message : String(err) });
     continue;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch (err) {
+        unreadable.push({
+          path,
+          message: `could not close tracked file: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    }
   }
   if (text.includes('\u0000')) continue; // binary
   scanned += 1;
