@@ -263,11 +263,14 @@ impl AuditState {
     fn can_activate_enter(&self) -> bool {
         match self.focused_panel {
             AuditPanel::Issues => !self.data.issues.is_empty(),
-            AuditPanel::NextSteps => self
-                .data
-                .next_steps
-                .get(self.selected_item)
-                .is_some_and(|step| !matching_issue_indices(&self.data.issues, step).is_empty()),
+            AuditPanel::NextSteps => self.data.next_steps.get(self.selected_item).is_some_and(
+                |step| {
+                    self.data
+                        .issues
+                        .iter()
+                        .any(|issue| issue_matches_next_step(issue, step))
+                },
+            ),
             AuditPanel::Project | AuditPanel::Historical => false,
         }
     }
