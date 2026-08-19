@@ -191,10 +191,15 @@ evidence are present.
   `docs/guides/architecture-diagrams.md`,
   `docs/architecture/_as-built-template.md`,
   `docs/architecture/README.md`,
+  `docs/governance/tags-catalogue.md`,
+  `docs/guides/README.md`,
+  `docs/guides/adapters/README.md`,
+  `docs/guides/testing.md`,
   `docs/indexes/by-authority.md`,
   `docs/indexes/by-owner.md`,
   `docs/indexes/by-status.md`,
   `docs/indexes/by-type.md`,
+  `docs/reviews/README.md`,
   `plans/modules/docs-rebaseline.aps.md`,
   `plans/index.aps.md`
 - **Evidence:** Policy and template implementation, including Council repairs,
@@ -204,12 +209,17 @@ evidence are present.
   generated discovery indexes named above. Lifecycle bookkeeping is separately
   owned:
   `plans/index.aps.md` records DOCRB-003 as In Progress and is validated
-  against the repaired tree with APS index and drift checks.
+  against the repaired tree with APS index and drift checks. The hosted
+  freshness repair manually reviewed the seven binding downstream documents
+  named in Files against their changed file-level upstreams on 2026-08-20; no
+  substantive contradiction was found, so their metadata records that review.
+  The CI-equivalent `check-docs-owed --since` gate validates the repaired
+  edges against the live pull-request base.
 - **Scope:** `AGENTS.md`, `docs/guides/documentation-governance.md`,
   `docs/guides/architecture-diagrams.md`, the component-documentation
   template and architecture discovery link, generated documentation discovery
-  indexes, the DOCRB-003 module record, and its lifecycle row in
-  `plans/index.aps.md`
+  indexes, the seven binding downstream freshness reviews named in Files, the
+  DOCRB-003 module record, and its lifecycle row in `plans/index.aps.md`
 - **Non-scope:** Mandatory CI failure or mass component migration
 - **Dependencies:** DOCRB-001, DOCRB-002
 - **Confidence:** high

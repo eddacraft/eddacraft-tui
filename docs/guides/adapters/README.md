@@ -2,7 +2,7 @@
 
 | Type   | Authority | Owner  | Status | Freshness                                                                              |
 | ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-19 against ADR-123 and `docs/guides/documentation-governance.md` |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-20 against ADR-123 and `docs/guides/documentation-governance.md` |
 
 | Upstream                                  | Downstream              |
 | ----------------------------------------- | ----------------------- |
