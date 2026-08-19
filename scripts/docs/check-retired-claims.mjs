@@ -204,8 +204,14 @@ function validateUnstagedRegularPath(path) {
   }
 }
 
-/** @type {Map<string, Map<string, {line: number, text: string, fingerprint: string}[]>>} phrase → path → hits */
-const hits = new Map(needles.map(({ claim }) => [claim.phrase, new Map()]));
+/** @returns {Map<string, Map<string, {line: number, text: string, fingerprint: string}[]>>} */
+function emptyHitMap() {
+  return new Map(needles.map(({ claim }) => [claim.phrase, new Map()]));
+}
+
+const indexHits = emptyHitMap();
+const worktreeHits = emptyHitMap();
+const dirtyRegularPaths = new Set();
 let scanned = 0;
 const unreadable = [];
 
@@ -213,7 +219,8 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
   const { mode, path } = files[fileIndex];
   const hasWorktreeChanges = dirtyPaths.has(path);
   let fd;
-  let text;
+  let indexText;
+  let worktreeText;
   try {
     if (mode === '120000') {
       if (hasWorktreeChanges) throw new Error('tracked symlink differs from the indexed target');
@@ -225,7 +232,7 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
         throw new Error('indexed symlink target is invalid');
       }
       if (INDEX_ONLY_SYMLINK_PREFIXES.some((prefix) => path.startsWith(prefix))) {
-        text = target;
+        indexText = target;
       } else {
         const targetPath = resolve(dirname(resolve(root, path)), target);
         fd = openSync(targetPath, READ_NONBLOCK);
@@ -235,7 +242,7 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
           throw new Error('tracked symlink resolved to an unexpected directory');
         }
         if (!opened.isFile()) throw new Error('tracked symlink target is not a regular file');
-        text = readFileSync(fd, 'utf8');
+        indexText = readFileSync(fd, 'utf8');
       }
     } else if (mode === '100644' || mode === '100755') {
       if (hasWorktreeChanges) validateUnstagedRegularPath(path);
@@ -249,7 +256,11 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
       if (!sameFileIdentity(opened, materialised)) {
         throw new Error('tracked regular path changed while opening');
       }
-      text = hasWorktreeChanges ? readFileSync(fd, 'utf8') : blobs[fileIndex].toString('utf8');
+      indexText = blobs[fileIndex].toString('utf8');
+      if (hasWorktreeChanges) {
+        dirtyRegularPaths.add(path);
+        worktreeText = readFileSync(fd, 'utf8');
+      }
     } else {
       throw new Error(`unsupported tracked mode ${mode}`);
     }
@@ -271,9 +282,14 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
       }
     }
   }
-  if (text.includes('\u0000')) continue; // binary
-  scanned += 1;
+  const indexScannable = scanText(indexText, path, indexHits);
+  const worktreeScannable =
+    worktreeText === undefined ? false : scanText(worktreeText, path, worktreeHits);
+  if (indexScannable || worktreeScannable) scanned += 1;
+}
 
+function scanText(text, path, targetHits) {
+  if (text.includes('\u0000')) return false; // binary
   // Cheap whole-file pre-check before the per-line pass.
   const lowerText = text.toLowerCase();
   const present = needles.filter(({ lower }) => lowerText.includes(lower));
@@ -285,7 +301,7 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
       const lowerLine = line.toLowerCase();
       for (const { claim, lower } of present) {
         if (!lowerLine.includes(lower)) continue;
-        const byPath = hits.get(claim.phrase);
+        const byPath = targetHits.get(claim.phrase);
         if (!byPath.has(path)) byPath.set(path, []);
         byPath.get(path).push({
           line: i + 1,
@@ -295,6 +311,7 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
       }
     }
   }
+  return true;
 }
 
 if (unreadable.length > 0) {
@@ -321,38 +338,14 @@ function contextFingerprint(path, lines, index) {
 // ---------------------------------------------------------------------------
 // Judge against baselines.
 // ---------------------------------------------------------------------------
-const errors = [];
+const errors = new Set();
 
 for (const { claim } of needles) {
-  const byPath = hits.get(claim.phrase);
+  const byPath = indexHits.get(claim.phrase);
   const baselined = new Map(claim.baseline.map((b) => [b.path, b]));
 
   for (const [path, found] of byPath) {
-    const entry = baselined.get(path);
-    if (!entry) {
-      for (const hit of found) {
-        errors.push(
-          `${path}:${hit.line}: retired claim "${claim.phrase}" (retired by ${claim.retiredBy})\n` +
-            `    ${hit.text}\n` +
-            `    Do not reintroduce this claim — describe the observed state instead. If this line\n` +
-            `    deliberately quotes the phrase (e.g. a guard test), mark it '${LINE_MARKER} <CIB id>'.`
-        );
-      }
-      continue;
-    }
-    const expected = new Set(entry.fingerprints ?? []);
-    const actual = new Set(found.map((hit) => hit.fingerprint));
-    const missing = [...expected].filter((fingerprint) => !actual.has(fingerprint));
-    const unexpected = [...actual].filter((fingerprint) => !expected.has(fingerprint));
-    if (missing.length > 0 || unexpected.length > 0 || found.length !== expected.size) {
-      errors.push(
-        `${path}: retired claim "${claim.phrase}" — survivor fingerprint mismatch for ` +
-          `${entry.owner}; expected ${expected.size}, found ${found.length} ` +
-          `(lines ${found.map((h) => h.line).join(', ')}).\n` +
-          `    A moved or changed survivor is new spread; fix it rather than replacing an allowed\n` +
-          `    occurrence in place. If ${entry.owner} landed, delete the stale baseline entry.`
-      );
-    }
+    judgePath(claim, path, found, baselined.get(path));
   }
 
   // A baselined path with zero matches means the owning item landed (or the
@@ -361,22 +354,57 @@ for (const { claim } of needles) {
   // rot silently.
   for (const [path, entry] of baselined) {
     if (!byPath.has(path)) {
-      errors.push(
+      errors.add(
         `${path}: stale baseline for retired claim "${claim.phrase}" — expected ` +
           `${entry.fingerprints?.length ?? 0} fingerprinted occurrence(s) owned by ${entry.owner}, found none.\n` +
           `    ${entry.owner} appears to have landed; delete this baseline entry in retired-claims.mjs.`
       );
     }
   }
+
+  const dirtyByPath = worktreeHits.get(claim.phrase);
+  for (const path of dirtyRegularPaths) {
+    const found = dirtyByPath.get(path) ?? [];
+    const entry = baselined.get(path);
+    if (found.length > 0 || entry) judgePath(claim, path, found, entry);
+  }
+}
+
+function judgePath(claim, path, found, entry) {
+  if (!entry) {
+    for (const hit of found) {
+      errors.add(
+        `${path}:${hit.line}: retired claim "${claim.phrase}" (retired by ${claim.retiredBy})\n` +
+          `    ${hit.text}\n` +
+          `    Do not reintroduce this claim — describe the observed state instead. If this line\n` +
+          `    deliberately quotes the phrase (e.g. a guard test), mark it '${LINE_MARKER} <CIB id>'.`
+      );
+    }
+    return;
+  }
+
+  const expected = new Set(entry.fingerprints ?? []);
+  const actual = new Set(found.map((hit) => hit.fingerprint));
+  const missing = [...expected].filter((fingerprint) => !actual.has(fingerprint));
+  const unexpected = [...actual].filter((fingerprint) => !expected.has(fingerprint));
+  if (missing.length > 0 || unexpected.length > 0 || found.length !== expected.size) {
+    errors.add(
+      `${path}: retired claim "${claim.phrase}" — survivor fingerprint mismatch for ` +
+        `${entry.owner}; expected ${expected.size}, found ${found.length} ` +
+        `(lines ${found.map((h) => h.line).join(', ')}).\n` +
+        `    A moved or changed survivor is new spread; fix it rather than replacing an allowed\n` +
+        `    occurrence in place. If ${entry.owner} landed, delete the stale baseline entry.`
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Report.
 // ---------------------------------------------------------------------------
-if (errors.length > 0) {
+if (errors.size > 0) {
   for (const error of errors) console.error(`[${SURFACE}] ${error}`);
   console.error(
-    `[${SURFACE}] summary: ${errors.length} error(s); ` +
+    `[${SURFACE}] summary: ${errors.size} error(s); ` +
       `${RETIRED_CLAIMS.length} retired claim(s) checked over ${scanned} tracked files.`
   );
   process.exit(1);

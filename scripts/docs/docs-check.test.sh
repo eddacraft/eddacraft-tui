@@ -2273,6 +2273,28 @@ else
   fail "binary attributes suppressed the dirty postimage (status ${status}): ${out}"
 fi
 
+# The immutable index and descriptor-bound worktree postimage are both policy
+# inputs; neither may mask a defect in the other.
+echo "case AG: retired-claims retains staged defects under a benign unstaged edit"
+retired_dual_snapshot_root="${tmp_root}/retired-dual-snapshot"
+mkdir -p "${retired_dual_snapshot_root}"
+git -C "${retired_dual_snapshot_root}" init -q
+git -C "${retired_dual_snapshot_root}" config user.email "docs-check@example.com"
+git -C "${retired_dual_snapshot_root}" config user.name "docs-check"
+printf '%s\n' "daily save-time protection" >"${retired_dual_snapshot_root}/claim.txt" # retired-claim-ok: CIB-260
+git -C "${retired_dual_snapshot_root}" add claim.txt
+printf '%s\n' "benign unstaged replacement" >"${retired_dual_snapshot_root}/claim.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_dual_snapshot_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "claim.txt" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "benign unstaged postimage cannot mask a staged retired claim"
+else
+  fail "unstaged postimage masked the staged defect (status ${status}): ${out}"
+fi
+
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"
