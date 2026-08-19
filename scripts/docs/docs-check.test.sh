@@ -2093,6 +2093,118 @@ else
   fail "canonical tracked directory alias was rejected (status ${status}): ${out}"
 fi
 
+echo "case Y: retired-claims rejects a different directory at the allowlisted path"
+mkdir -p "${retired_directory_alias_root}/docs/other"
+rm "${retired_directory_alias_root}/apps/docs-public-astro/src/content/docs/aps"
+ln -s ../../../../../docs/other \
+  "${retired_directory_alias_root}/apps/docs-public-astro/src/content/docs/aps"
+git -C "${retired_directory_alias_root}" add apps/docs-public-astro/src/content/docs/aps
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_directory_alias_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "apps/docs-public-astro/src/content/docs/aps"; then
+  pass "directory exception is bound to the canonical indexed target"
+else
+  fail "different directory target used the canonical exception (status ${status}): ${out}"
+fi
+
+# Absolute .claude aliases are environment-local tooling pointers and are
+# intentionally broken on hosted runners. Their indexed link text remains in
+# the corpus without making the external target a repository dependency.
+echo "case Z: retired-claims scans indexed text for environment-local tooling aliases"
+retired_tooling_alias_root="${tmp_root}/retired-tooling-alias"
+mkdir -p "${retired_tooling_alias_root}/.claude/council"
+tooling_alias_target="/missing/daily save-time protection" # retired-claim-ok: CIB-260
+ln -s "${tooling_alias_target}" \
+  "${retired_tooling_alias_root}/.claude/council/council-evidence.sh"
+git -C "${retired_tooling_alias_root}" init -q
+git -C "${retired_tooling_alias_root}" config user.email "docs-check@example.com"
+git -C "${retired_tooling_alias_root}" config user.name "docs-check"
+git -C "${retired_tooling_alias_root}" add .claude/council/council-evidence.sh
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_tooling_alias_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q ".claude/council/council-evidence.sh" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "environment-local tooling alias scans indexed link text"
+else
+  fail "environment-local tooling alias depended on its missing target (status ${status}): ${out}"
+fi
+
+# Security review: local replace refs must not change the immutable indexed
+# object that the corpus scanner reads.
+echo "case AA: retired-claims ignores Git replacement objects"
+retired_replace_root="${tmp_root}/retired-replace-object"
+mkdir -p "${retired_replace_root}"
+git -C "${retired_replace_root}" init -q
+git -C "${retired_replace_root}" config user.email "docs-check@example.com"
+git -C "${retired_replace_root}" config user.name "docs-check"
+printf '%s\n' "daily save-time protection" >"${retired_replace_root}/claim.txt" # retired-claim-ok: CIB-260
+git -C "${retired_replace_root}" add claim.txt
+indexed_oid="$(git -C "${retired_replace_root}" rev-parse :claim.txt)"
+benign_oid="$(printf '%s\n' "benign replacement" | git -C "${retired_replace_root}" hash-object -w --stdin)"
+git -C "${retired_replace_root}" replace "${indexed_oid}" "${benign_oid}"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_replace_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "claim.txt" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "replacement object cannot mask indexed content"
+else
+  fail "replacement object masked indexed content (status ${status}): ${out}"
+fi
+
+# Local docs workflow: benign unstaged text remains checkable, while an
+# unstaged retired claim is a content defect rather than a tooling failure.
+echo "case AB: retired-claims accepts a benign unstaged regular-file edit"
+retired_unstaged_root="${tmp_root}/retired-unstaged"
+mkdir -p "${retired_unstaged_root}"
+git -C "${retired_unstaged_root}" init -q
+git -C "${retired_unstaged_root}" config user.email "docs-check@example.com"
+git -C "${retired_unstaged_root}" config user.name "docs-check"
+printf '%s\n' "initial text" >"${retired_unstaged_root}/claim.txt"
+git -C "${retired_unstaged_root}" add claim.txt
+printf '%s\n' "benign unstaged edit" >"${retired_unstaged_root}/claim.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_unstaged_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 0 ]]; then
+  pass "benign unstaged regular-file edit remains checkable"
+else
+  fail "benign unstaged regular-file edit became a tooling failure (status ${status}): ${out}"
+fi
+
+echo "case AC: retired-claims reports an unstaged retired phrase as content"
+printf '%s\n' "benign unstaged edit" "daily save-time protection" >"${retired_unstaged_root}/claim.txt" # retired-claim-ok: CIB-260
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_unstaged_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "claim.txt" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "unstaged retired phrase is a content defect"
+else
+  fail "unstaged retired phrase was not reported as content (status ${status}): ${out}"
+fi
+
+echo "case AD: retired-claims rejects a permission-unreadable regular file"
+git -C "${retired_unstaged_root}" checkout -- claim.txt
+chmod 000 "${retired_unstaged_root}/claim.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_unstaged_root}" 2>&1)"
+status=$?
+set -e
+chmod 600 "${retired_unstaged_root}/claim.txt"
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "claim.txt"; then
+  pass "permission-unreadable regular file fails the scan closed"
+else
+  fail "permission-unreadable regular file was accepted (status ${status}): ${out}"
+fi
+
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"

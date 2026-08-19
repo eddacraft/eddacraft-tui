@@ -26,7 +26,7 @@
 // Wired as a `pnpm docs:check` surface; standalone via
 // `node scripts/docs/check-retired-claims.mjs`.
 
-import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, resolve } from 'node:path';
@@ -43,11 +43,13 @@ import {
 } from './retired-claims.mjs';
 
 const SURFACE = 'retired-claims';
-const TRACKED_DIRECTORY_SYMLINKS = new Set([
+const TRACKED_DIRECTORY_SYMLINKS = new Map([
   // This alias points at docs/public/aps, whose tracked files are scanned
   // independently. No other tracked path may resolve to a directory.
-  'apps/docs-public-astro/src/content/docs/aps',
+  ['apps/docs-public-astro/src/content/docs/aps', '../../../../../docs/public/aps'],
 ]);
+// Environment-local tooling aliases are not repository corpus content.
+const INDEX_ONLY_SYMLINK_PREFIXES = ['.claude/'];
 const READ_NONBLOCK = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0);
 
 const { values } = parseArgs({
@@ -99,11 +101,15 @@ for (const entry of ls.stdout.split('\0').filter(Boolean)) {
 // Scan immutable index blobs, not mutable worktree paths. Refuse any scanned
 // path whose worktree representation differs from the index; this preserves
 // local unstaged-change coverage without relying on racy pathname observations.
-const diff = spawnSync('git', ['diff', '--no-ext-diff', '--name-only', '-z', '--'], {
-  cwd: root,
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-});
+const diff = spawnSync(
+  'git',
+  ['--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--'],
+  {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  }
+);
 if (diff.error || diff.status !== 0) {
   const reason = diff.error?.message ?? (diff.stderr || `git exited ${diff.status}`);
   console.error(`[${SURFACE}] cannot compare tracked files under ${root}: ${reason.trim()}`);
@@ -113,7 +119,7 @@ const dirtyPaths = new Set(diff.stdout.split('\0').filter(Boolean));
 const blobs = readTrackedBlobs(files);
 
 function readTrackedBlobs(entries) {
-  const batch = spawnSync('git', ['cat-file', '--batch'], {
+  const batch = spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
     cwd: root,
     input: `${entries.map(({ oid }) => oid).join('\n')}\n`,
     maxBuffer: 256 * 1024 * 1024,
@@ -168,6 +174,52 @@ const needles = RETIRED_CLAIMS.map((claim) => ({
   lower: claim.phrase.toLowerCase(),
 }));
 
+function readUnstagedChangedLines(path) {
+  const patch = spawnSync(
+    'git',
+    [
+      '--no-replace-objects',
+      'diff',
+      '--no-ext-diff',
+      '--no-textconv',
+      '--no-renames',
+      '--unified=1',
+      '--',
+      path,
+    ],
+    { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+  );
+  if (patch.error || patch.status !== 0) {
+    const reason = patch.error?.message ?? (patch.stderr || `git exited ${patch.status}`);
+    throw new Error(`cannot read unstaged content: ${reason.trim()}`);
+  }
+  if (/^(?:old mode|new mode|deleted file mode|new file mode) /m.test(patch.stdout)) {
+    throw new Error('worktree path changed type or mode');
+  }
+
+  const changed = [];
+  let inHunk = false;
+  let newLine = 0;
+  for (const line of patch.stdout.split('\n')) {
+    const header = /^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@/.exec(line);
+    if (header) {
+      inHunk = true;
+      newLine = Number(header[1]);
+      continue;
+    }
+    if (!inHunk) continue;
+    if (line.startsWith('+') || line.startsWith(' ')) {
+      changed.push({ line: newLine, text: line.slice(1) });
+      newLine += 1;
+    } else if (line.startsWith('\\')) {
+      continue;
+    } else if (!line.startsWith('-')) {
+      inHunk = false;
+    }
+  }
+  return changed;
+}
+
 /** @type {Map<string, Map<string, {line: number, text: string, fingerprint: string}[]>>} phrase → path → hits */
 const hits = new Map(needles.map(({ claim }) => [claim.phrase, new Map()]));
 let scanned = 0;
@@ -175,15 +227,13 @@ const unreadable = [];
 
 for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
   const { mode, path } = files[fileIndex];
-  if (dirtyPaths.has(path)) {
-    unreadable.push({ path, message: 'worktree content differs from the indexed blob' });
-    continue;
-  }
-
+  const hasWorktreeChanges = dirtyPaths.has(path);
   let fd;
   let text;
+  let changedLines = [];
   try {
     if (mode === '120000') {
+      if (hasWorktreeChanges) throw new Error('tracked symlink differs from the indexed target');
       // Resolve from the immutable indexed link text. This works for native
       // symlinks and core.symlinks=false regular-file materialisations, and a
       // worktree-path ABA cannot redirect the descriptor.
@@ -191,16 +241,26 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
       if (target.length === 0 || target.includes('\u0000')) {
         throw new Error('indexed symlink target is invalid');
       }
-      const targetPath = resolve(dirname(resolve(root, path)), target);
-      fd = openSync(targetPath, READ_NONBLOCK);
-      const opened = fstatSync(fd);
-      if (opened.isDirectory()) {
-        if (TRACKED_DIRECTORY_SYMLINKS.has(path)) continue;
-        throw new Error('tracked symlink resolved to an unexpected directory');
+      if (INDEX_ONLY_SYMLINK_PREFIXES.some((prefix) => path.startsWith(prefix))) {
+        text = target;
+      } else {
+        const targetPath = resolve(dirname(resolve(root, path)), target);
+        fd = openSync(targetPath, READ_NONBLOCK);
+        const opened = fstatSync(fd);
+        if (opened.isDirectory()) {
+          if (TRACKED_DIRECTORY_SYMLINKS.get(path) === target) continue;
+          throw new Error('tracked symlink resolved to an unexpected directory');
+        }
+        if (!opened.isFile()) throw new Error('tracked symlink target is not a regular file');
+        text = readFileSync(fd, 'utf8');
       }
-      if (!opened.isFile()) throw new Error('tracked symlink target is not a regular file');
-      text = readFileSync(fd, 'utf8');
     } else if (mode === '100644' || mode === '100755') {
+      const materialised = lstatSync(resolve(root, path));
+      if (!materialised.isFile()) throw new Error('tracked regular path is not a regular file');
+      if ((materialised.mode & 0o444) === 0) {
+        throw new Error('tracked regular path has no read permission bits');
+      }
+      if (hasWorktreeChanges) changedLines = readUnstagedChangedLines(path);
       text = blobs[fileIndex].toString('utf8');
     } else {
       throw new Error(`unsupported tracked mode ${mode}`);
@@ -229,21 +289,38 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
   // Cheap whole-file pre-check before the per-line pass.
   const lowerText = text.toLowerCase();
   const present = needles.filter(({ lower }) => lowerText.includes(lower));
-  if (present.length === 0) continue;
+  if (present.length > 0) {
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (line.includes(LINE_MARKER)) continue;
+      const lowerLine = line.toLowerCase();
+      for (const { claim, lower } of present) {
+        if (!lowerLine.includes(lower)) continue;
+        const byPath = hits.get(claim.phrase);
+        if (!byPath.has(path)) byPath.set(path, []);
+        byPath.get(path).push({
+          line: i + 1,
+          text: line.trim(),
+          fingerprint: contextFingerprint(path, lines, i),
+        });
+      }
+    }
+  }
 
-  const lines = text.split('\n');
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (line.includes(LINE_MARKER)) continue;
-    const lowerLine = line.toLowerCase();
-    for (const { claim, lower } of present) {
+  for (const changed of changedLines) {
+    if (changed.text.includes(LINE_MARKER)) continue;
+    const lowerLine = changed.text.toLowerCase();
+    for (const { claim, lower } of needles) {
       if (!lowerLine.includes(lower)) continue;
       const byPath = hits.get(claim.phrase);
       if (!byPath.has(path)) byPath.set(path, []);
       byPath.get(path).push({
-        line: i + 1,
-        text: line.trim(),
-        fingerprint: contextFingerprint(path, lines, i),
+        line: changed.line,
+        text: changed.text.trim(),
+        // A changed claim or fingerprint-adjacent context cannot consume an
+        // allowance calculated from the indexed snapshot.
+        fingerprint: 'unstaged-worktree-change',
       });
     }
   }
