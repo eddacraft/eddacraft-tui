@@ -329,6 +329,7 @@ describe('Smoke › Rust MCP launch shim', () => {
               path: 'src/safe.ts',
               operation: 'create',
               proposedContent: 'export const value = 1;\n',
+              detail: 'full',
             },
           },
         },

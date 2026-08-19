@@ -83,7 +83,7 @@ describeCli('Activation golden path', () => {
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain('state: ready_restart_required');
     expect(result.stdout).not.toContain('state: protecting');
-    expect(existsSync(join(ws.root, '.anvilrc'))).toBe(true);
+    expect(existsSync(join(ws.root, '.anvil.yaml'))).toBe(true);
     expect(existsSync(join(home.root, '.cursor/mcp.json'))).toBe(true);
     expect(existsSync(join(home.root, '.claude.json'))).toBe(true);
 
@@ -99,14 +99,14 @@ describeCli('Activation golden path', () => {
 
     const result = await runCli(['--no-tui', 'start', '--no-daemon', '--no-mcp'], {
       cwd: ws.root,
-      env: home.env,
+      env: { ...home.env, ANVIL_ALL_MCP_CLIENTS: undefined },
       timeout: 30_000,
     });
 
     expect(result.exitCode, result.stderr).toBe(0);
     expect(result.stdout).toContain('install: skipped');
     expect(result.stdout).not.toContain('state: protecting');
-    expect(existsSync(join(ws.root, '.anvilrc'))).toBe(true);
+    expect(existsSync(join(ws.root, '.anvil.yaml'))).toBe(true);
     expect(existsSync(join(ws.root, '.git/hooks/pre-commit'))).toBe(true);
     expect(existsSync(join(ws.root, '.git/hooks/pre-push'))).toBe(true);
     expect(existsSync(join(home.root, '.cursor/mcp.json'))).toBe(false);
@@ -194,6 +194,7 @@ describeCli('Activation golden path', () => {
         NO_TUI: undefined,
         ANVIL_NO_TUI: undefined,
         ANVIL_NO_PROMPT: undefined,
+        ANVIL_ALL_MCP_CLIENTS: undefined,
         NONINTERACTIVE: undefined,
         GIT_DIR: undefined,
         GIT_INDEX_FILE: undefined,
@@ -227,7 +228,7 @@ describeCli('Activation golden path', () => {
     });
 
     expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout.match(/state: /g)?.length).toBe(2);
+    expect(result.stdout.match(/state: /g)?.length).toBe(1);
     expect(result.stdout).toContain('state: ready_restart_required');
     expect(result.stdout).not.toContain('\u001b[?1049h');
     expect(result.stdout).not.toContain('\u001b[?25l');

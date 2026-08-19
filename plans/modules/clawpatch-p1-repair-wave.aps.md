@@ -8,10 +8,10 @@
 | CLAWFIX | —     | P1       | In Progress | 0/6      |
 
 **Last reviewed:** 2026-08-19 — CLAWFIX-001..006 implementation and wave-level
-validation are complete in the dedicated Worktrunk workspace. Council session
-`council-8ce13643` converged with three findings fixed and none open;
-independent verification passed the frozen working-tree snapshot. PR
-publication is pending.
+validation are complete in the dedicated Worktrunk workspace. Required
+changed-file validation also exposed and repaired inherited TUI formatting and
+E2E fixture drift. Review evidence is recorded below; PR publication follows
+the landing gates.
 
 ## Purpose
 
@@ -155,6 +155,21 @@ tail or advisory test gaps.
 - `pnpm --dir apps/anvil-api test -- --run`
 - `cargo test -p eddacraft-anvil-l4 -p eddacraft-anvil-capsule`
 - `cargo test -p eddacraft-anvil --no-fail-fast`
+
+## Landing validation repairs
+
+- `crates/anvil-tui/src/surfaces/audit/mod.rs`: the rustfmt-only correction
+  required when workspace metadata made the TUI an affected project landed on
+  `main` as `9e4c13a62` and was absorbed by the final rebase.
+- `apps/e2e/src/cli/activation.e2e.test.ts`: align activation fixtures with
+  canonical `.anvil.yaml`, mutually exclusive MCP selection, and the compact
+  single-state contract.
+- `apps/e2e/src/smoke/smoke.e2e.test.ts`: request full MCP validation detail
+  before asserting full-envelope fields.
+- Focused E2E validation: 25/25 passed.
+- `pnpm validate:changed`: passed after the affected validation repairs. One
+  tracing-capture test transiently missed its INFO event on the preceding run;
+  the exact test passed 5/5 in isolation before the clean full-gate rerun.
 
 ## Review evidence
 
