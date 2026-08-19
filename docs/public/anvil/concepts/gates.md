@@ -14,6 +14,9 @@ verified_against: 0.9.0-beta
 A **check** evaluates one concern. A **finding** is the result of a check. A
 **gate** combines checks into a workflow decision.
 
+The full model — check versus scan, the planless `anvil check` subset, profiles,
+and when anvil runs — is [How anvil evaluates a project](evaluation-model.md).
+
 ## Checks
 
 Use `anvil check` for a quick, file-focused scan:

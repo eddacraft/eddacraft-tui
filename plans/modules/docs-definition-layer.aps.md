@@ -72,7 +72,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-001: Publish the evaluation model and short capability index
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Give testers a precise public model of check, scan, finding,
   gate, audit, watch, and the planless `anvil check` subset.
 - **Expected Outcome:** `concepts/evaluation-model.md` quotes the approved
@@ -84,7 +84,11 @@ edit; it does not move ownership.
   `docs/public/anvil/reference/what-anvil-can-do.md`,
   `docs/public/anvil/concepts/glossary.md`,
   `docs/public/anvil/concepts/gates.md`,
-  `docs/public/anvil/first-gate.md`
+  `docs/public/anvil/first-gate.md`,
+  `docs/public/anvil/overview.md`,
+  `apps/anvil-docs-private/sidebars/anvil.ts`,
+  `apps/docs-site/sidebars/anvil.ts`,
+  `scripts/docs/check-public-docs.mjs`
 - **Scope:** One explanation page, one short index, glossary adds, inbound
   links from existing concept/tutorial pages
 - **Non-scope:** Check catalogue generation, config catalogue, CLI flags,

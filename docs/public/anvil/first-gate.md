@@ -124,3 +124,9 @@ finding, make a safe correction, and verify the result.
 
 Use [protect AI-assisted writes](guides/agent-harness.md) or
 [save-time validation](guides/save-time-validation.md) for your normal workflow.
+
+## Related definitions
+
+- [How anvil evaluates a project](concepts/evaluation-model.md)
+- [What anvil can do](reference/what-anvil-can-do.md)
+- [Glossary](concepts/glossary.md)

@@ -47,6 +47,7 @@ const sidebars: SidebarsConfig = {
       label: 'Concepts',
       collapsed: true,
       items: [
+        'concepts/evaluation-model',
         'concepts/gates',
         'concepts/plans',
         'concepts/sessions',
@@ -59,6 +60,7 @@ const sidebars: SidebarsConfig = {
       label: 'Reference',
       collapsed: true,
       items: [
+        'reference/what-anvil-can-do',
         'reference/cli-reference',
         'reference/rule-reference',
         'reference/support-reference',

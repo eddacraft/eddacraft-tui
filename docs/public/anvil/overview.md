@@ -75,8 +75,11 @@ timing, retention, and off controls.
 **Run it.** Start with [install and get first value](quickstart.md) or the
 [ten-minute protection tutorial](first-gate.md).
 
-**Look it up.** The reference lists every [command](reference/cli.md), every
-[compiled rule](reference/rules.md), and
+**Look it up.** Start with
+[how anvil evaluates a project](concepts/evaluation-model.md) and the short
+[what anvil can do](reference/what-anvil-can-do.md) index. Then use the
+[CLI reference](reference/cli.md),
+[compiled pattern catalogue](reference/rules.md), and
 [supported platforms and languages](reference/support.md). The
 [glossary](concepts/glossary.md) defines the words used here.
 
@@ -84,6 +87,9 @@ timing, retention, and off controls.
 
 - New to anvil: [install and get first value](quickstart.md).
 - Deciding whether it fits: [when to use anvil](when-to-use.md).
+- Looking up the product model:
+  [how anvil evaluates a project](concepts/evaluation-model.md) or
+  [what anvil can do](reference/what-anvil-can-do.md).
 - Looking up a command or rule: the [CLI reference](reference/cli.md) or
   [compiled pattern catalogue](reference/rules.md).
 - Already installed: [run the ten-minute protection tutorial](first-gate.md).

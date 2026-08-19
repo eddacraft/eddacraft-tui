@@ -32,6 +32,7 @@ const sidebars: SidebarsConfig = {
       label: 'Concepts',
       collapsed: false,
       items: [
+        'concepts/evaluation-model',
         'concepts/glossary',
         'concepts/plans',
         'concepts/gates',
@@ -43,7 +44,12 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Reference',
       collapsed: false,
-      items: ['reference/cli-reference', 'reference/rule-reference', 'reference/support-reference'],
+      items: [
+        'reference/what-anvil-can-do',
+        'reference/cli-reference',
+        'reference/rule-reference',
+        'reference/support-reference',
+      ],
     },
     {
       type: 'category',

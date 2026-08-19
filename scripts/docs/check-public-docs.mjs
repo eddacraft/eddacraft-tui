@@ -33,10 +33,12 @@ const ANVIL_LIVE_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/anvil-docs-private/side
 const APS_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/aps.ts');
 const LIVE_REQUIRED_ANVIL_IDS = [
   'beta-testing-guide',
+  'concepts/evaluation-model',
   'concepts/glossary',
   'reference/cli-reference',
   'reference/rule-reference',
   'reference/support-reference',
+  'reference/what-anvil-can-do',
 ];
 const LIVE_FORBIDDEN_ANVIL_IDS = ['guides/dashboard'];
 const SITE_SHELL_PATHS = [
