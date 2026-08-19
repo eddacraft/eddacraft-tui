@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                             |
-| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Reviewed 2026-08-18 against `0.9.6-beta` product version and curated public changelog |
+| Type   | Authority | Owner  | Status | Freshness                                                                         |
+| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Reviewed 2026-08-19 against `0.9.6-beta` and `benchmarks/history/2026-08-10.json` |
 
 | Upstream                                               | Downstream                      |
 | ------------------------------------------------------ | ------------------------------- |
@@ -386,18 +386,22 @@ Testing detail: [`docs/guides/testing.md`](docs/guides/testing.md).
 ### Performance snapshot
 
 Save-time path is effectively free vs the 100 ms ADR-031 budget (latest clean
-quiet-box run **2026-06-26** on the deus reference box):
+quiet-box run **2026-08-10** on the deus reference box):
 
 ```
-28.3 µs   incremental single-file (reparse + graph + call lift)
+27.1 µs   incremental single-file (reparse + graph + call lift)
 1.6 µs    full policy evaluation
-6.5 ms    cold graph build, 100 files
-~700K/s   parallel anti-pattern scan (320-artefact corpus)
+5.8 ms    cold graph build, 100 files
+~500K/s   parallel anti-pattern scan (320-artefact corpus)
 ```
+
+The scan line is a new rule-catalogue baseline, not a scanner-only regression.
+Full tables:
+[`docs/testing/benchmark-results.md`](./docs/testing/benchmark-results.md).
 
 History, gates, and how to re-run:
 
-- [`benchmarks/history/2026-06-26.json`](./benchmarks/history/2026-06-26.json)
+- [`benchmarks/history/2026-08-10.json`](./benchmarks/history/2026-08-10.json)
 - [`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md)
 - `pnpm bench` / `cargo bench --bench kernel`
 
