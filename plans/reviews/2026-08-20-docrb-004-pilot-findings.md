@@ -17,22 +17,22 @@ component roots:
 - `apps/docs-shell`
 
 The comparison base for this report is
-`9a0c906b27ca3325cd9674d002b0f37c51ce6149`. The immutable reviewed-content
-target is `d00b3d2d3624e8ec1fd5abd5403a59b5eb9f18ad`. This immediately following
-report-only commit changes no reviewed component claim; it only finalises this
-provenance record. Detailed source review began at
+`6a5ed50a22b6a1a115fb8ccaa78f9e8fa276296d`. The immutable reviewed-content
+target is `912b1b86344955bdfb6b1683fce80e85fb88baa5`. This report-only commit
+repins provenance after the clean rebase; it changes no reviewed component
+claim. Detailed source review began at
 `d6c8b565c375e9e75db44c5d20d2acb066e4471c`, which was `origin/main` when
-DOCRB-004 started. A targeted diff from that review snapshot to the comparison
-base found no changes in the cited product source roots or
-`infra/src/vercel.ts`. Re-review at `3aec647c7` confirmed the Unix socket modes,
-client-side daemon UID check, accepted-peer PID plumbing, Windows DACL/SID
-checks, both `scan_buffer` modes, MidEdit observation branch, and MCP
-`PreWrite` routing before this repair. No product, configuration, central
-as-built, governance, public-diagram, or sibling APS status change is part of
-the pilot. Re-review at `ba17bf70a` confirmed that MidEdit observation export
-requires an installed emitter, a finding-bearing response, rate-window
-admission, and sink acceptance; export failure does not change the scan
-verdict.
+DOCRB-004 started. A targeted diff from that review snapshot through the current
+comparison base found no changes in the cited product source roots or
+`infra/src/vercel.ts`. The changes between the prior and current comparison
+bases are confined to DOCDEF-owned public-reference generation, generated
+reference, sidebar, test, and planning surfaces. DOCDEF-only intervening changes
+do not affect the pilot component source. The rebased content target preserves
+the source review of Unix socket modes, client-side daemon UID validation,
+accepted-peer PID plumbing, Windows DACL/SID checks, both `scan_buffer` modes,
+conditional MidEdit observation export, and MCP `PreWrite` routing. No product,
+configuration, central as-built, governance, public-diagram, or sibling APS
+status change is part of the pilot.
 
 ## Result
 
@@ -144,10 +144,9 @@ component-root README/architecture metadata, cited paths, or links.
   nonexistent API adapter path.
 - Metadata source paths and globs were traced against the
   `d6c8b565c` source-review snapshot. The targeted product-source diff through
-  the exact `9a0c906b2` range base was empty. The intercept/API source re-review
-  at `88bd41647`, followed by the intercept transport/mode re-review at
-  `3aec647c7` and observation-emission re-review at `ba17bf70a`, found no
-  relevant product-source drift. Each README is
+  the exact `6a5ed50a2` range base was empty. Successive intercept/API,
+  transport/mode, and observation-emission reviews found no relevant
+  product-source drift. Each README is
   `Authoritative` for component orientation; each architecture file is
   `Derived` from current source.
 - KERN owns kernel, INTD owns interception, DASH owns both dashboard roots, and
@@ -164,21 +163,19 @@ component-root README/architecture metadata, cited paths, or links.
 ## Validation evidence
 
 The original replacement RED assertions proved the local documents, metadata,
-component flows, docs-shell spoke, and report were absent. A second replacement
-RED at `f904cd8f` proved all nine Council repair assertions absent: intercept
-flow and admission, dashboard-server boundary, dashboard typing, docs-shell
-redirect/auth outcomes, API audit and entrypoint, index next action, and exact
-report base. A further replacement RED at `88bd41647` proved eight remaining
-distinctions absent: separate intercept lanes, Linux-only cross-check wiring,
-the non-Linux platform gap, Windows SID trust, no save-time spoof check,
-non-gating Resend `unverifiable`, and immutable provenance. The final replacement
-RED at `3aec647c7` proved all twelve transport-node, Unix/Windows trust,
-MidEdit/PreWrite, observation, MCP-routing, and repeated-report assertions
-absent. The corresponding GREEN assertion reports all twelve present, alongside
-the seven DOCRB-004 acceptance behaviours. The final minor replacement RED at
-`ba17bf70a` proved all twelve best-effort eligibility, absent-emitter,
-rate-throttle, sink-drop, verdict-preservation, matching-report, and render
-evidence assertions absent; its GREEN report records all twelve present.
+component flows, docs-shell spoke, and report were absent. The first Council
+repair replacement RED proved all nine intercept-flow/admission,
+dashboard-server boundary, dashboard typing, docs-shell redirect/auth, API
+audit/entrypoint, index-action, and exact-base assertions absent. A later RED
+proved eight separate-lane, platform-gap, Windows trust, save-time spoof, API
+health, and immutable-provenance distinctions absent. The transport repair RED
+proved all twelve transport-node, Unix/Windows trust, MidEdit/PreWrite,
+observation, MCP-routing, and repeated-report assertions absent. Its GREEN
+assertion records all twelve present alongside the seven DOCRB-004 acceptance
+behaviours. The final minor replacement RED proved all twelve best-effort
+eligibility, absent-emitter, rate-throttle, sink-drop, verdict-preservation,
+matching-report, and render-evidence assertions absent; its GREEN report records
+all twelve present.
 
 Focused component validation:
 
