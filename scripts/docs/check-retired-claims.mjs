@@ -98,24 +98,56 @@ for (const entry of ls.stdout.split('\0').filter(Boolean)) {
   if (isScanned(path)) files.push({ mode: metadata[0], oid: metadata[1], path });
 }
 
-// Scan immutable index blobs, not mutable worktree paths. Refuse any scanned
-// path whose worktree representation differs from the index; this preserves
-// local unstaged-change coverage without relying on racy pathname observations.
-const diff = spawnSync(
-  'git',
-  ['--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--'],
-  {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  }
-);
-if (diff.error || diff.status !== 0) {
-  const reason = diff.error?.message ?? (diff.stderr || `git exited ${diff.status}`);
-  console.error(`[${SURFACE}] cannot compare tracked files under ${root}: ${reason.trim()}`);
+const indexFlags = spawnSync('git', ['ls-files', '-v', '-z'], {
+  cwd: root,
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024,
+});
+if (indexFlags.error || indexFlags.status !== 0) {
+  const reason =
+    indexFlags.error?.message ?? (indexFlags.stderr || `git exited ${indexFlags.status}`);
+  console.error(`[${SURFACE}] cannot inspect tracked-file flags under ${root}: ${reason.trim()}`);
   process.exit(2);
 }
-const dirtyPaths = new Set(diff.stdout.split('\0').filter(Boolean));
+const flagsByPath = new Map(
+  indexFlags.stdout
+    .split('\0')
+    .filter(Boolean)
+    .map((entry) => [entry.slice(2), entry[0]])
+);
+for (const { path } of files) {
+  const flag = flagsByPath.get(path);
+  if (flag === undefined || flag === 'S' || flag === flag.toLowerCase()) {
+    console.error(
+      `[${SURFACE}] cannot scan tracked file ${path}: unsupported assume-unchanged or skip-worktree index flag`
+    );
+    process.exit(2);
+  }
+}
+
+function readDirtyPaths() {
+  const diff = spawnSync(
+    'git',
+    ['--no-replace-objects', 'diff', '--no-ext-diff', '--name-only', '-z', '--'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    }
+  );
+  if (diff.error || diff.status !== 0) {
+    const reason = diff.error?.message ?? (diff.stderr || `git exited ${diff.status}`);
+    console.error(`[${SURFACE}] cannot compare tracked files under ${root}: ${reason.trim()}`);
+    process.exit(2);
+  }
+  return new Set(diff.stdout.split('\0').filter(Boolean));
+}
+
+function sameStringSet(left, right) {
+  return left.size === right.size && [...left].every((value) => right.has(value));
+}
+
+const dirtyPaths = readDirtyPaths();
 const blobs = readTrackedBlobs(files);
 
 function readTrackedBlobs(entries) {
@@ -178,6 +210,15 @@ function sameFileIdentity(left, right) {
   return left.dev === right.dev && left.ino === right.ino;
 }
 
+function sameFileSnapshot(left, right) {
+  return (
+    sameFileIdentity(left, right) &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
+}
+
 function validateUnstagedRegularPath(path) {
   const patch = spawnSync(
     'git',
@@ -211,7 +252,7 @@ function emptyHitMap() {
 
 const indexHits = emptyHitMap();
 const worktreeHits = emptyHitMap();
-const dirtyRegularPaths = new Set();
+const worktreeRegularPaths = new Set();
 let scanned = 0;
 const unreadable = [];
 
@@ -257,9 +298,11 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
         throw new Error('tracked regular path changed while opening');
       }
       indexText = blobs[fileIndex].toString('utf8');
-      if (hasWorktreeChanges) {
-        dirtyRegularPaths.add(path);
-        worktreeText = readFileSync(fd, 'utf8');
+      worktreeRegularPaths.add(path);
+      worktreeText = readFileSync(fd, 'utf8');
+      const completed = fstatSync(fd);
+      if (!sameFileSnapshot(opened, completed)) {
+        throw new Error('tracked regular path changed while reading');
       }
     } else {
       throw new Error(`unsupported tracked mode ${mode}`);
@@ -286,6 +329,12 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
   const worktreeScannable =
     worktreeText === undefined ? false : scanText(worktreeText, path, worktreeHits);
   if (indexScannable || worktreeScannable) scanned += 1;
+}
+
+const finalDirtyPaths = readDirtyPaths();
+if (!sameStringSet(dirtyPaths, finalDirtyPaths)) {
+  console.error(`[${SURFACE}] tooling failure: tracked paths changed while the scan was running`);
+  process.exit(2);
 }
 
 function scanText(text, path, targetHits) {
@@ -363,7 +412,7 @@ for (const { claim } of needles) {
   }
 
   const dirtyByPath = worktreeHits.get(claim.phrase);
-  for (const path of dirtyRegularPaths) {
+  for (const path of worktreeRegularPaths) {
     const found = dirtyByPath.get(path) ?? [];
     const entry = baselined.get(path);
     if (found.length > 0 || entry) judgePath(claim, path, found, entry);

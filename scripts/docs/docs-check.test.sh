@@ -2295,6 +2295,81 @@ else
   fail "unstaged postimage masked the staged defect (status ${status}): ${out}"
 fi
 
+# Git's assume-unchanged and skip-worktree flags deliberately hide materialised
+# changes from diff; the corpus gate must refuse either state.
+echo "case AH: retired-claims rejects hidden-worktree index flags"
+hidden_flag_failures=0
+for hidden_flag in assume-unchanged skip-worktree; do
+  hidden_flag_root="${tmp_root}/retired-${hidden_flag}"
+  mkdir -p "${hidden_flag_root}"
+  git -C "${hidden_flag_root}" init -q
+  git -C "${hidden_flag_root}" config user.email "docs-check@example.com"
+  git -C "${hidden_flag_root}" config user.name "docs-check"
+  printf '%s\n' "initial text" >"${hidden_flag_root}/claim.txt"
+  git -C "${hidden_flag_root}" add claim.txt
+  git -C "${hidden_flag_root}" update-index "--${hidden_flag}" claim.txt
+  printf '%s\n' "daily save-time protection" >"${hidden_flag_root}/claim.txt" # retired-claim-ok: CIB-260
+  set +e
+  out="$(node "${script_dir}/check-retired-claims.mjs" --root "${hidden_flag_root}" 2>&1)"
+  status=$?
+  set -e
+  if [[ "${status}" -ne 2 ]] || ! echo "${out}" | grep -q "claim.txt" \
+    || ! echo "${out}" | grep -q "index flag"; then
+    hidden_flag_failures=$((hidden_flag_failures + 1))
+  fi
+done
+if [[ "${hidden_flag_failures}" -eq 0 ]]; then
+  pass "assume-unchanged and skip-worktree both fail the scan closed"
+else
+  fail "${hidden_flag_failures} hidden-worktree index flag(s) bypassed the scan"
+fi
+
+# A deterministic Git wrapper mutates a clean path immediately after the first
+# dirty-set snapshot. The final state check must detect that in-scan mutation.
+echo "case AI: retired-claims rejects mutation after the dirty-set snapshot"
+mutation_root="${tmp_root}/retired-during-scan"
+mutation_bin="${tmp_root}/retired-during-scan-bin"
+mkdir -p "${mutation_root}" "${mutation_bin}"
+git -C "${mutation_root}" init -q
+git -C "${mutation_root}" config user.email "docs-check@example.com"
+git -C "${mutation_root}" config user.name "docs-check"
+printf '%s\n' "initial text" >"${mutation_root}/claim.txt"
+git -C "${mutation_root}" add claim.txt
+real_git="$(command -v git)"
+cat >"${mutation_bin}/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+is_name_only=0
+for arg in "$@"; do
+  if [[ "${arg}" == "--name-only" ]]; then
+    is_name_only=1
+  fi
+done
+if [[ "${is_name_only}" -eq 1 && ! -e "${MUTATION_ROOT}/.mutated" ]]; then
+  set +e
+  "${REAL_GIT}" "$@"
+  status=$?
+  set -e
+  if [[ "${status}" -eq 0 ]]; then
+    : >"${MUTATION_ROOT}/.mutated"
+    printf '%s\n' "mutated benign text" >"${MUTATION_ROOT}/claim.txt"
+  fi
+  exit "${status}"
+fi
+exec "${REAL_GIT}" "$@"
+EOF
+chmod +x "${mutation_bin}/git"
+set +e
+out="$(PATH="${mutation_bin}:${PATH}" REAL_GIT="${real_git}" MUTATION_ROOT="${mutation_root}" \
+  node "${script_dir}/check-retired-claims.mjs" --root "${mutation_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "changed while the scan was running"; then
+  pass "post-diff mutation fails the scan closed"
+else
+  fail "post-diff mutation escaped the final state check (status ${status}): ${out}"
+fi
+
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"
