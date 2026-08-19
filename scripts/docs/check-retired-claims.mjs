@@ -54,11 +54,11 @@ const { values } = parseArgs({
 const root = resolve(values.root ?? process.cwd());
 
 // ---------------------------------------------------------------------------
-// File list: tracked files only, NUL-delimited so exotic names cannot split.
-// A failure here is an environment problem (not a git repo, git missing), so
-// it exits 2 — the corpus carries no signal either way (CIB-278).
+// File list: tracked files and their Git modes, NUL-delimited so exotic names
+// cannot split. A failure here is an environment problem (not a git repo, git
+// missing), so it exits 2 — the corpus carries no signal either way (CIB-278).
 // ---------------------------------------------------------------------------
-const ls = spawnSync('git', ['ls-files', '-z'], {
+const ls = spawnSync('git', ['ls-files', '-s', '-z'], {
   cwd: root,
   encoding: 'utf8',
   maxBuffer: 64 * 1024 * 1024,
@@ -69,7 +69,21 @@ if (ls.error || ls.status !== 0) {
   process.exit(2);
 }
 
-const files = ls.stdout.split('\0').filter(Boolean).filter(isScanned);
+const files = [];
+for (const entry of ls.stdout.split('\0').filter(Boolean)) {
+  const tab = entry.indexOf('\t');
+  if (tab < 0) {
+    console.error(`[${SURFACE}] cannot parse tracked-file entry from git ls-files`);
+    process.exit(2);
+  }
+  const metadata = entry.slice(0, tab).split(' ');
+  const path = entry.slice(tab + 1);
+  if (metadata.length < 3 || !/^[0-7]{6}$/.test(metadata[0])) {
+    console.error(`[${SURFACE}] cannot parse tracked-file metadata for ${path}`);
+    process.exit(2);
+  }
+  if (isScanned(path)) files.push({ mode: metadata[0], path });
+}
 
 function isScanned(path) {
   if (EXCLUDED_FILES.includes(path)) return false;
@@ -93,7 +107,7 @@ const hits = new Map(needles.map(({ claim }) => [claim.phrase, new Map()]));
 let scanned = 0;
 const unreadable = [];
 
-for (const path of files) {
+for (const { mode, path } of files) {
   let fd;
   let text;
   try {
@@ -103,7 +117,10 @@ for (const path of files) {
     // existing contract that tracked symlink targets remain in the corpus.
     fd = openSync(absolutePath, 'r');
     const opened = fstatSync(fd);
-    if (opened.isDirectory()) continue;
+    if (opened.isDirectory()) {
+      if (mode === '120000') continue;
+      throw new Error('tracked regular path was replaced by a directory');
+    }
     if (!opened.isFile()) throw new Error('tracked path is not a regular file');
     text = readFileSync(fd, 'utf8');
   } catch (err) {

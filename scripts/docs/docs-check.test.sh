@@ -1904,6 +1904,29 @@ else
   fail "tracked symlink target fell out of the corpus (status ${status}): ${out}"
 fi
 
+# Adversarial review: replacing a tracked regular file with a directory must
+# fail the corpus closed rather than being mistaken for a tracked directory symlink.
+echo "case Q: retired-claims rejects a directory substituted for a tracked file"
+retired_directory_root="${tmp_root}/retired-directory-substitution"
+mkdir -p "${retired_directory_root}"
+git -C "${retired_directory_root}" init -q
+git -C "${retired_directory_root}" config user.email "docs-check@example.com"
+git -C "${retired_directory_root}" config user.name "docs-check"
+printf '%s\n' "tracked regular file" >"${retired_directory_root}/claim.txt"
+git -C "${retired_directory_root}" add claim.txt
+rm "${retired_directory_root}/claim.txt"
+mkdir "${retired_directory_root}/claim.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_directory_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "claim.txt" \
+  && echo "${out}" | grep -q "replaced by a directory"; then
+  pass "directory substitution fails the scan closed"
+else
+  fail "directory substitution was skipped as clean (status ${status}): ${out}"
+fi
+
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"
