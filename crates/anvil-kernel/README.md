@@ -1,34 +1,45 @@
-# anvil-kernel
+# anvil kernel
 
-The Anvil Rust kernel — file watcher, parser, semantic graph, and policy engine.
+| Type   | Authority     | Owner | Status | Freshness                                                                                                              |
+| ------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | KERN  | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `crates/anvil-kernel/src/lib.rs`, and `crates/anvil-kernel/src/watch.rs` |
 
-## Modules
+| Upstream                                                                                   | Downstream                                                      |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `crates/anvil-kernel/src/**`, ADR-064, ADR-123, and `docs/architecture/kernel-as-built.md` | Kernel contributors, `crates/anvil-kernel/ARCHITECTURE.md`, CLI |
 
-- **`watcher/`** — file system event monitoring (notify-rs)
-- **`parser/`** — source file parsing (tree-sitter)
-- **`graph/`** — semantic dependency graph (symbol graph, trust levels,
-  incremental updates)
-- **`policy/`** — policy configuration, engine, and invariant checks
-- **`protocol/`** — event protocol emitter
-- **`embedded.rs`** — embedded mode for in-process usage
-- **`watch.rs`** — watch loop orchestration
-- **`engine_mode.rs`** — feature flag for engine selection
+The anvil kernel coordinates source watching, parsing, semantic graph updates,
+policy evaluation, and protocol events. KERN owns this component. Graph storage
+and resolution live behind the `anvil-graph-cache` boundary established by
+ADR-064; this crate owns orchestration rather than a second graph
+implementation.
 
-## Benchmarks
+## Entry points
 
-```bash
-cargo bench -p eddacraft-anvil-kernel
-```
+- [`src/lib.rs`](src/lib.rs) exports the kernel modules and public types.
+- [`src/watch.rs`](src/watch.rs) runs initial discovery and incremental watch
+  processing.
+- [`src/embedded.rs`](src/embedded.rs) exposes in-process operation.
+- [`src/protocol/`](src/protocol) emits findings, parse errors, and snapshots to
+  consumers.
 
-## Tests
+## Local validation
 
 ```bash
 cargo test -p eddacraft-anvil-kernel
+cargo bench -p eddacraft-anvil-kernel
 ```
 
-Includes architecture parity tests (`tests/architecture_parity.rs`) and dual-run
-tests (`tests/dual_run.rs`).
+The test suite includes architecture-parity and dual-run coverage. Run the
+benchmark only when changing performance-sensitive parsing or graph paths.
 
-## Part of
+## Architecture and authorities
 
-[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-kernel`).
+Read the source-linked [local architecture](ARCHITECTURE.md) before changing the
+watch pipeline or its invariants. The retained central
+[kernel as-built](../../docs/architecture/kernel-as-built.md) remains the
+pre-migration implementation map until DOCRB-005; this pilot does not supersede
+it. Wider placement and diagram rules are owned by
+[ADR-123](../../plans/decisions/123-documentation-authority-and-diagram-model.md)
+and the
+[documentation governance guide](../../docs/guides/documentation-governance.md).

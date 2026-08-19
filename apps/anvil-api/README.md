@@ -1,8 +1,42 @@
 # anvil API
 
+| Type   | Authority     | Owner | Status | Freshness                                                                                                       |
+| ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | APGOV | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `apps/anvil-api/src/index.ts`, and `apps/anvil-api/src/routes/**` |
+
+| Upstream                                                                                                                         | Downstream                                              |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `apps/anvil-api/src/**`, ADR-066, ADR-123, `docs/architecture/api-as-built.md`, and BAUTH's `docs/architecture/auth-as-built.md` | CLI, docs shell, operator tooling, and API contributors |
+
 > **Status:** Beta access system (v1.0)
 
-REST API for Anvil beta access management. Hono on Vercel with Neon Postgres.
+This APGOV-owned Hono service provides the hosted anvil access, account,
+waitlist, administration, telemetry, and scheduled-operation APIs backed by Neon
+Postgres and external providers. BAUTH owns authentication and authorisation
+contracts; this component implements those contracts at its middleware and route
+boundaries.
+
+## Entry points
+
+- [`src/index.ts`](src/index.ts) composes global middleware, health checks, and
+  versioned routes.
+- [`src/routes/`](src/routes) contains the public, authenticated,
+  administrative, telemetry, and cron handlers.
+- [`src/middleware/`](src/middleware) applies tracing, rate limiting, and
+  route-specific access checks.
+- [`src/db/client.ts`](src/db/client.ts) and
+  [`src/db/queries.ts`](src/db/queries.ts) own persistence access.
+- [`src/index.ts`](src/index.ts) is also the Vercel default export selected by
+  [`vercel.json`](vercel.json).
+
+## Architecture and authorities
+
+Read the source-linked [local architecture](ARCHITECTURE.md) before changing
+middleware order, trust boundaries, or persistence flow. The retained central
+[API as-built](../../docs/architecture/api-as-built.md) remains the
+pre-migration implementation map until DOCRB-005. Authentication authority stays
+with BAUTH's [auth as-built](../../docs/architecture/auth-as-built.md); these
+pilot docs do not supersede it.
 
 ## Endpoints
 
@@ -98,7 +132,7 @@ dependency drift. Operators upgrading their `anvil-api` deployment for the
 0.5.0-beta release should redeploy from the current `dev` or `main` branch
 rather than cherry-picking individual fixes.
 
-## Development
+## Local validation
 
 ```bash
 # Install dependencies

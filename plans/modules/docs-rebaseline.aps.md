@@ -226,20 +226,61 @@ evidence are present.
 
 ### DOCRB-004: Pilot co-located Mermaid on representative components
 
-- **Status:** Draft
+- **Status:** In Progress 2026-08-20 — operator-authorised after DOCRB-001,
+  DOCRB-002, and DOCRB-003 merge evidence was verified
 - **Intent:** Prove the beside-code model across materially different anvil
   surfaces before applying it repository-wide.
-- **Expected Outcome:** Representative Rust engine, MCP/save-interception,
-  dashboard/API, and documentation-delivery components have concise local
-  orientation and architecture docs with source-linked Mermaid where useful;
-  the pilot records navigation, review, render, ownership, and duplication
-  findings that refine the standard.
-- **Scope:** A DOCRB-002-selected pilot set across `crates/**`, `apps/**`, and
-  `packages/**`
-- **Non-scope:** Full-corpus migration or public Draw.io rollout
+- **Expected Outcome:** The six component roots selected by DOCRB-002 satisfy
+  these acceptance behaviours:
+  1. each root has a concise `README.md` covering purpose, owner, supported
+     entry points, local validation, and links to deeper authorities;
+  2. each root has a source-linked `ARCHITECTURE.md` covering boundaries,
+     dependencies, invariants, material flow, trust, failure, and fallback;
+  3. Mermaid diagrams cover kernel source-to-parse-to-graph-to-finding,
+     intercept save-to-validate-to-fence, dashboard UI-to-generated-client-to-
+     loopback-server plus the server capability/auth boundary, hosted API
+     request-to-middleware-to-route-to-persistence/trust, and docs-shell
+     auth/routing-to-private/public-renderer flows;
+  4. ownership is explicit: KERN, INTD, DASH, and APGOV own their component
+     concerns; APGOV owns the hosted API component; BAUTH remains authoritative
+     for auth;
+  5. docs-shell records the live `docs-shell` topology, the rollback-only
+     `docs-site`, and the unresolved DOCRB/DSITE ownership gap without
+     changing sibling status;
+  6. local pilot docs link retained central authorities without superseding or
+     migrating them; and
+  7. only docs-shell gains a thin local `AGENTS.md` spoke, `CONTEXT.md`
+     discovers it, and one findings report records the source revision,
+     navigation trace, Mermaid render method/result, source-link, ownership,
+     duplication checks, and DOCRB-005/-009 recommendations.
+- **Files:** `crates/anvil-kernel/README.md`,
+  `crates/anvil-kernel/ARCHITECTURE.md`,
+  `crates/anvil-intercept/README.md`,
+  `crates/anvil-intercept/ARCHITECTURE.md`,
+  `apps/dashboard/README.md`, `apps/dashboard/ARCHITECTURE.md`,
+  `crates/anvil-dashboard-server/README.md`,
+  `crates/anvil-dashboard-server/ARCHITECTURE.md`,
+  `apps/anvil-api/README.md`, `apps/anvil-api/ARCHITECTURE.md`,
+  `apps/docs-shell/README.md`, `apps/docs-shell/ARCHITECTURE.md`,
+  `apps/docs-shell/AGENTS.md`, `CONTEXT.md`,
+  `plans/reviews/2026-08-20-docrb-004-pilot-findings.md`,
+  `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`
+- **Evidence:** The single
+  `plans/reviews/2026-08-20-docrb-004-pilot-findings.md` report records
+  source-pinned navigation, manual Mermaid render/trace, ownership,
+  source-link, and duplication evidence plus follow-on recommendations.
+- **Scope:** The exact DOCRB-002 pilot roots `crates/anvil-kernel`,
+  `crates/anvil-intercept`, `apps/dashboard`,
+  `crates/anvil-dashboard-server`, `apps/anvil-api`, and
+  `apps/docs-shell`; the thin docs-shell agent spoke; root context discovery;
+  and the single pilot findings report
+- **Non-scope:** `packages/**`; product or configuration code; central
+  as-built migration or authority changes; root `AGENTS.md` or governance
+  changes; public diagrams; automated Mermaid tooling or enforcement; sibling
+  work-item status
 - **Dependencies:** DOCRB-001, DOCRB-002
 - **Confidence:** medium
-- **Validation:** `pnpm format:check && pnpm docs:check`
+- **Validation:** `cargo test -p eddacraft-anvil-kernel && cargo test -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil-dashboard-server && pnpm --filter @eddacraft/anvil-dashboard test && pnpm --filter @eddacraft/anvil-api test -- --run && pnpm --filter @eddacraft/docs-shell test && pnpm format:check && pnpm docs:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json && git diff --check`
 
 ### DOCRB-005: Migrate component truth and remove duplicate authorities
 

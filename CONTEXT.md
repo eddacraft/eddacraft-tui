@@ -116,6 +116,7 @@ This repo keeps **per-area detail in `AGENTS.md` files**, not in nested
 `CONTEXT.md` files — root `CONTEXT.md` is the only context map. For local
 conventions, read the nearest `AGENTS.md`. Current spokes:
 
+- [`apps/docs-shell/AGENTS.md`](apps/docs-shell/AGENTS.md)
 - [`apps/docs-site/AGENTS.md`](apps/docs-site/AGENTS.md)
 - [`apps/website/AGENTS.md`](apps/website/AGENTS.md)
 - [`packages/adapters/AGENTS.md`](packages/adapters/AGENTS.md)
