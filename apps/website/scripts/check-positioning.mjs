@@ -85,7 +85,9 @@ const failures = [
   ...(content.includes('--ghost-grey: var(--off-white)')
     ? ['ghost-grey aliased to off-white']
     : []),
-  ...(!heroContent.includes('<TerminalWindow />') ? ['hero does not compose TerminalWindow'] : []),
+  ...(!/<TerminalWindow(?:\s[^>]*)?\s*\/?>/.test(heroContent)
+    ? ['hero does not compose TerminalWindow']
+    : []),
   ...(heroContent.includes('hidden md:block') ? ['hero hides the terminal on mobile'] : []),
   ...composedComponents.flatMap((name) => {
     const importPattern = new RegExp(`import \\{ ${name} \\} from ['"]@/components/`);
