@@ -804,12 +804,19 @@ pub struct ProduceLock {
 /// Scan `base_dir/.producing/*.lock` (never `.guard`, never temps).
 ///
 /// A missing producing dir is empty. Order is sorted by leaf name.
-#[must_use]
-pub fn list_produce_locks(base_dir: &Path, procs: &dyn ClaimProcs) -> Vec<ProduceLock> {
+///
+/// # Errors
+/// Opening the producing dir failed for a reason other than NotFound
+/// (permission, symlink refusal).
+pub fn list_produce_locks(
+    base_dir: &Path,
+    procs: &dyn ClaimProcs,
+) -> io::Result<Vec<ProduceLock>> {
     let dir = producing_dir(base_dir);
-    let Ok(dirfd) = crate::path_safety::open_workspace_dir_for_fsync(&dir) else {
-        return Vec::new();
-    };
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir)?;
     let mut out = Vec::new();
     for name in lock_leaf_names(&dir) {
         let record = read_lock_record_at(&dirfd, &name);
@@ -820,7 +827,7 @@ pub fn list_produce_locks(base_dir: &Path, procs: &dyn ClaimProcs) -> Vec<Produc
             class: classify_operator_lock(&dirfd, &name, procs),
         });
     }
-    out
+    Ok(out)
 }
 
 /// Unlink stale produce-locks only (dead pid / PID-reuse). Live and unknown
@@ -852,22 +859,25 @@ pub fn reap_stale_produce_locks(base_dir: &Path, procs: &dyn ClaimProcs) -> io::
 }
 
 /// [`list_produce_locks`] over [`default_base_dir`] and [`SystemClaimProcs`].
-#[must_use]
-pub fn list_default_produce_locks() -> Vec<ProduceLock> {
+///
+/// # Errors
+/// Same as [`list_produce_locks`]. Missing default dir is empty.
+pub fn list_default_produce_locks() -> io::Result<Vec<ProduceLock>> {
     let Some(dir) = default_base_dir() else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     list_produce_locks(&dir, &SystemClaimProcs)
 }
 
-/// [`reap_stale_produce_locks`] over the default store. Best-effort: `0` when
-/// the dir is missing or the sweep errors.
-#[must_use]
-pub fn reap_default_stale_produce_locks() -> usize {
+/// [`reap_stale_produce_locks`] over the default store.
+///
+/// # Errors
+/// Same as [`reap_stale_produce_locks`]. Missing default dir is `Ok(0)`.
+pub fn reap_default_stale_produce_locks() -> io::Result<usize> {
     let Some(dir) = default_base_dir() else {
-        return 0;
+        return Ok(0);
     };
-    reap_stale_produce_locks(&dir, &SystemClaimProcs).unwrap_or(0)
+    reap_stale_produce_locks(&dir, &SystemClaimProcs)
 }
 
 fn lock_leaf_names(producing: &Path) -> Vec<String> {
@@ -1583,7 +1593,7 @@ mod tests {
         plant_lock(&dir, &live_sha, 42, Some(2));
         let procs = FakeProcs::with_live(1, Some(0), &[(42, Some(2))]);
 
-        let listed = list_produce_locks(&dir, &procs);
+        let listed = list_produce_locks(&dir, &procs).expect("list produce locks");
         assert_eq!(listed.len(), 2, "{listed:?}");
         let dead = listed.iter().find(|l| l.pid == Some(9001)).unwrap();
         assert_eq!(dead.class, ProduceLockClass::Stale);
@@ -1632,7 +1642,7 @@ mod tests {
             .unwrap();
 
         let procs = FakeProcs::with_live(1, Some(0), &[(8000, Some(3))]);
-        let listed = list_produce_locks(&dir, &procs);
+        let listed = list_produce_locks(&dir, &procs).expect("list produce locks");
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].class, ProduceLockClass::Live);
         assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 0);
@@ -1648,7 +1658,7 @@ mod tests {
         // Same pid, different start_time — recycled, not the producer.
         let procs = FakeProcs::with_live(7000, Some(999), &[(7000, Some(999))]);
         assert_eq!(
-            list_produce_locks(&dir, &procs)[0].class,
+            list_produce_locks(&dir, &procs).expect("list produce locks")[0].class,
             ProduceLockClass::Stale
         );
         assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 1);
@@ -1672,7 +1682,7 @@ mod tests {
         let dead_path = plant_lock(&dir, &dead_sha, dead_pid, None);
         let live_path = plant_lock(&dir, &live_sha, live_pid, None);
 
-        let listed = list_produce_locks(&dir, &SystemClaimProcs);
+        let listed = list_produce_locks(&dir, &SystemClaimProcs).expect("list produce locks");
         let dead = listed.iter().find(|l| l.pid == Some(dead_pid)).unwrap();
         assert_eq!(dead.class, ProduceLockClass::Stale);
         let live = listed.iter().find(|l| l.pid == Some(live_pid)).unwrap();
@@ -1691,7 +1701,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dir = base_dir(&tmp);
         let procs = FakeProcs::new(1, Some(0));
-        assert!(list_produce_locks(&dir, &procs).is_empty());
+        assert!(list_produce_locks(&dir, &procs)
+            .expect("list produce locks")
+            .is_empty());
         assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 0);
         assert!(
             !producing_dir(&dir).exists(),

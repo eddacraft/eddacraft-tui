@@ -439,10 +439,15 @@ fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
             render_status_lines_with_pid(&snapshot, daemon_pid_for_display())
         );
         #[cfg(unix)]
-        if let Some(line) = stale_produce_lock_status_lines(
-            &anvil_intercept::snapshot_io::base_store::list_default_produce_locks(),
-        ) {
-            print!("{line}");
+        match anvil_intercept::snapshot_io::base_store::list_default_produce_locks() {
+            Ok(locks) => {
+                if let Some(line) = stale_produce_lock_status_lines(&locks) {
+                    print!("{line}");
+                }
+            }
+            Err(err) => {
+                eprint!("produce-locks: scan failed ({err})\n");
+            }
         }
     }
     Ok(())
@@ -451,7 +456,8 @@ fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
 /// CIB-344: opportunistic start-path sweep. Dead-pid locks only.
 #[cfg(unix)]
 fn reap_stale_produce_locks_on_start() {
-    let reaped = anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks();
+    let reaped = anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks()
+        .unwrap_or(0);
     if reaped > 0 {
         tracing::info!(
             target: "anvil_cli::commands::intercept",
@@ -475,7 +481,7 @@ fn stale_produce_lock_status_lines(
         return None;
     }
     Some(format!(
-        "produce-locks: {stale} stale (pid dead); heal with `anvil doctor --fix`\n"
+        "produce-locks: {stale} stale (pid dead or reused); heal with `anvil doctor --fix`\n"
     ))
 }
 

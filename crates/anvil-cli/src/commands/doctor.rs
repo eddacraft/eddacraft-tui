@@ -1560,9 +1560,22 @@ fn check_mcp_orphans_from(
 fn check_produce_locks() -> DiagnosticCheck {
     #[cfg(unix)]
     {
-        check_produce_locks_from(
-            &anvil_intercept::snapshot_io::base_store::list_default_produce_locks(),
-        )
+        match anvil_intercept::snapshot_io::base_store::list_default_produce_locks() {
+            Ok(locks) => check_produce_locks_from(&locks),
+            Err(err) => DiagnosticCheck {
+                name: "produce-locks".to_string(),
+                category: "Graph".to_string(),
+                status: CheckStatus::Warn,
+                message: format!("failed to scan graph-base produce-locks: {err}"),
+                details: None,
+                auto_fixable: false,
+                remediation: Remediation {
+                    summary: "investigate produce-lock scan failure".to_string(),
+                    command: None,
+                    doc_url: None,
+                },
+            },
+        }
     }
     #[cfg(not(unix))]
     {
@@ -1625,7 +1638,7 @@ fn check_produce_locks_from(
         details: Some(format!("locks: {}", named.join(", "))),
         auto_fixable: true,
         remediation: Remediation {
-            summary: "remove produce-locks whose pid is dead".to_string(),
+            summary: "remove produce-locks whose pid is dead or reused".to_string(),
             command: Some("anvil doctor --fix".to_string()),
             doc_url: None,
         },
@@ -2197,6 +2210,32 @@ fn default_config_yaml() -> &'static str {
     "schema_version: \"1.0.0\"\nplanning_dir: \"plans\"\nformat: \"yaml\"\nchecks:\n  - \"secret-detection\"\n  - \"import-boundaries\"\n  - \"antipattern-scan\"\n"
 }
 
+#[cfg(unix)]
+fn apply_produce_locks_fix(check: &mut DiagnosticCheck, speak: bool) {
+    match anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks() {
+        Ok(removed) if removed > 0 => {
+            check.status = CheckStatus::Pass;
+            check.message = format!(
+                "removed {removed} stale graph-base produce-lock(s) whose pid is dead or reused"
+            );
+            check.auto_fixable = false;
+            if speak {
+                println!("  Fixed: produce-locks — removed {removed} stale produce-lock(s)");
+            }
+        }
+        Ok(0) => {
+            if speak {
+                eprintln!("  Failed to fix produce-locks: no stale produce-locks removed");
+            }
+        }
+        Err(err) => {
+            if speak {
+                eprintln!("  Failed to fix produce-locks: {err}");
+            }
+        }
+    }
+}
+
 fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
     // `json` mode silences human-facing prose so the JSON envelope stays
     // machine-parseable. Plain and TUI modes always print the per-check
@@ -2288,24 +2327,7 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
                 }
             }
             #[cfg(unix)]
-            "produce-locks" => {
-                let removed =
-                    anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks();
-                if removed > 0 {
-                    check.status = CheckStatus::Pass;
-                    check.message = format!(
-                        "removed {removed} stale graph-base produce-lock(s) whose pid is dead"
-                    );
-                    check.auto_fixable = false;
-                    if speak {
-                        println!(
-                            "  Fixed: produce-locks — removed {removed} stale produce-lock(s)"
-                        );
-                    }
-                } else if speak {
-                    eprintln!("  Failed to fix produce-locks: no stale produce-locks removed");
-                }
-            }
+            "produce-locks" => apply_produce_locks_fix(check, speak),
             "plans-dir" => match std::fs::create_dir_all("plans") {
                 Ok(()) => {
                     check.status = CheckStatus::Pass;
