@@ -11025,7 +11025,7 @@ already parked teaching as editorial).
 - **Status:** Draft
 - **Priority:** P3 editorial / curriculum
 - **Intent:** First-session user found the learning-path tutorials "a
-  little too terse, too tldr". ProtectionLoop is five mostly
+  little too terse, too TL;DR". ProtectionLoop is five mostly
   informational steps with a simulated check (tutorial-as-built G-02).
   Dave pack-03 §4 teaching was parked as deliberate non-scope. Second
   independent first-timer.
