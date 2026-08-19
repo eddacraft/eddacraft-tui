@@ -257,10 +257,10 @@ security concerns.
 
 ### SEC-007: Atomic token-revocation hardening
 
-**Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged
-2026-05-21 via PR [#1806](https://github.com/eddacraft/anvil-001/pull/1806)
-(`3c7b741d3`). Status reconciled 2026-08-19 — the item sat at In Progress for
-three months after the code landed.
+- **Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged
+  2026-05-21 via PR [#1806](https://github.com/eddacraft/anvil-001/pull/1806)
+  (`3c7b741d3`). Status reconciled 2026-08-19 — the item sat at In Progress for
+  three months after the code landed.
 **Owner:** Josh Boys
 **Tracking:** GH issue #1672 (DeepSec `20260517012618-52306118d7d9df6a`)
 
