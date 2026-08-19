@@ -1414,7 +1414,13 @@ elif ! node -e '
     // An empty corpus is a pass, not a failure: there is nothing that could
     // carry a volatile fingerprint. Asserting findings exist would make this
     // case a time bomb once the backlog is cleared.
-    const dated = j.findings.filter((f) => /\d{4}-\d{2}-\d{2}/.test(f.message));
+    const dated = j.findings.filter((f) => {
+      // Spec paths are `plans/specs/2026-08-19-...`. Those dates are stable
+      // names, not volatile commit dates. Strip path tokens before looking
+      // for YYYY-MM-DD in the fingerprint message.
+      const withoutPaths = f.message.replace(/\S*\/\S*/g, " ");
+      return /\d{4}-\d{2}-\d{2}/.test(withoutPaths);
+    });
     if (dated.length) {
       console.error("volatile message: " + dated[0].message);
       process.exit(1);

@@ -195,6 +195,9 @@ function checkNavigation() {
 function checkLiveAnvilNavigation() {
   const livePath = ANVIL_LIVE_SIDEBAR_PATH;
   const publicPath = normalise(relative(REPO_ROOT, livePath));
+  // Fixtures only ship the rollback host. The live app is required in this
+  // repository; skip the live-nav contract when that app is absent.
+  if (!existsSync(resolve(REPO_ROOT, 'apps/anvil-docs-private'))) return;
   if (!existsSync(livePath)) {
     add(publicPath, 1, 'live anvil sidebar is missing');
     return;
