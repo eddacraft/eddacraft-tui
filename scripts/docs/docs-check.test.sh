@@ -1920,11 +1920,56 @@ set +e
 out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_directory_root}" 2>&1)"
 status=$?
 set -e
-if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "claim.txt" \
-  && echo "${out}" | grep -q "replaced by a directory"; then
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "claim.txt"; then
   pass "directory substitution fails the scan closed"
 else
   fail "directory substitution was skipped as clean (status ${status}): ${out}"
+fi
+
+# Adversarial review: indexed symlink mode alone cannot authorise a directory;
+# a file-target symlink replaced by a directory must also fail closed.
+echo "case R: retired-claims rejects a directory substituted for a file symlink"
+retired_symlink_directory_root="${tmp_root}/retired-symlink-directory-substitution"
+mkdir -p "${retired_symlink_directory_root}"
+git -C "${retired_symlink_directory_root}" init -q
+git -C "${retired_symlink_directory_root}" config user.email "docs-check@example.com"
+git -C "${retired_symlink_directory_root}" config user.name "docs-check"
+printf '%s\n' "target" >"${retired_symlink_directory_root}/target.txt"
+ln -s target.txt "${retired_symlink_directory_root}/linked.txt"
+git -C "${retired_symlink_directory_root}" add linked.txt
+rm "${retired_symlink_directory_root}/linked.txt"
+mkdir "${retired_symlink_directory_root}/linked.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_symlink_directory_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "linked.txt"; then
+  pass "file-symlink directory substitution fails the scan closed"
+else
+  fail "file-symlink directory substitution was skipped as clean (status ${status}): ${out}"
+fi
+
+# Correctness review: a regular indexed path replaced by a symlink to benign
+# content must fail rather than silently dropping the indexed claim.
+echo "case S: retired-claims rejects a symlink substituted for a regular file"
+retired_regular_symlink_root="${tmp_root}/retired-regular-symlink-substitution"
+mkdir -p "${retired_regular_symlink_root}"
+git -C "${retired_regular_symlink_root}" init -q
+git -C "${retired_regular_symlink_root}" config user.email "docs-check@example.com"
+git -C "${retired_regular_symlink_root}" config user.name "docs-check"
+printf '%s\n' "daily save-time protection" >"${retired_regular_symlink_root}/claim.txt" # retired-claim-ok: CIB-260
+git -C "${retired_regular_symlink_root}" add claim.txt
+printf '%s\n' "benign replacement" >"${retired_regular_symlink_root}/benign.txt"
+rm "${retired_regular_symlink_root}/claim.txt"
+ln -s benign.txt "${retired_regular_symlink_root}/claim.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_regular_symlink_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "claim.txt"; then
+  pass "regular-file symlink substitution fails the scan closed"
+else
+  fail "regular-file symlink substitution was scanned as clean (status ${status}): ${out}"
 fi
 
 

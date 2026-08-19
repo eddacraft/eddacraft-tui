@@ -26,7 +26,7 @@
 // Wired as a `pnpm docs:check` surface; standalone via
 // `node scripts/docs/check-retired-claims.mjs`.
 
-import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { basename, extname, resolve } from 'node:path';
@@ -43,6 +43,11 @@ import {
 } from './retired-claims.mjs';
 
 const SURFACE = 'retired-claims';
+const TRACKED_DIRECTORY_SYMLINKS = new Set([
+  // This alias points at docs/public/aps, whose tracked files are scanned
+  // independently. No other tracked path may resolve to a directory.
+  'apps/docs-public-astro/src/content/docs/aps',
+]);
 
 const { values } = parseArgs({
   options: {
@@ -93,6 +98,10 @@ function isScanned(path) {
   return true;
 }
 
+function sameFileIdentity(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
 // ---------------------------------------------------------------------------
 // Scan. Case-insensitive literal substring per line; the marker exempts a
 // line; binary files (NUL byte) are skipped as unscannable prose.
@@ -112,14 +121,35 @@ for (const { mode, path } of files) {
   let text;
   try {
     const absolutePath = resolve(root, path);
-    // Open once, then inspect and read the same descriptor. This prevents a
-    // checked path from being swapped before the read while preserving the
-    // existing contract that tracked symlink targets remain in the corpus.
-    fd = openSync(absolutePath, 'r');
+    if (mode === '120000') {
+      // The symlink itself must remain stable across the follow-open. Its
+      // target is then inspected and read through the one opened descriptor.
+      const before = lstatSync(absolutePath);
+      if (!before.isSymbolicLink()) {
+        throw new Error('indexed symlink path is no longer a symlink');
+      }
+      fd = openSync(absolutePath, 'r');
+      const after = lstatSync(absolutePath);
+      if (!after.isSymbolicLink() || !sameFileIdentity(before, after)) {
+        throw new Error('indexed symlink path changed while opening');
+      }
+    } else {
+      // O_NOFOLLOW rejects final-component substitution where supported. The
+      // identity comparison below supplies the same guarantee on other hosts.
+      const noFollow = constants.O_NOFOLLOW ?? 0;
+      fd = openSync(absolutePath, constants.O_RDONLY | noFollow);
+    }
+
     const opened = fstatSync(fd);
+    if (mode !== '120000') {
+      const current = lstatSync(absolutePath);
+      if (!current.isFile() || !sameFileIdentity(opened, current)) {
+        throw new Error('indexed regular path is not the opened regular file');
+      }
+    }
     if (opened.isDirectory()) {
-      if (mode === '120000') continue;
-      throw new Error('tracked regular path was replaced by a directory');
+      if (mode === '120000' && TRACKED_DIRECTORY_SYMLINKS.has(path)) continue;
+      throw new Error('tracked path resolved to an unexpected directory');
     }
     if (!opened.isFile()) throw new Error('tracked path is not a regular file');
     text = readFileSync(fd, 'utf8');
