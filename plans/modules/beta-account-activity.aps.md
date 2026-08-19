@@ -438,9 +438,16 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
   BACT-003 and Resend webhook verification. Do not implement under FLEET.
 - **Table rename** `beta_users` → `users` — optional bookkeeping migration when
   product language fully leaves “beta” as the table name.
-- **BACT-014 (reserved id, Draft — not authorised): retire the JWT `tier`
+- **BACT-014 (reserved id — PROMOTED 2026-08-19): retire the JWT `tier`
   compat alias.**
-  - **Status:** Draft
+  - **Status:** Promoted to **SEC-012** (`plans/modules/security.aps.md`) on
+    2026-08-19. BACT is Done 12/12 and archiving-bound, and the auth/authz plan
+    review found this is not tidy-up: it is the item that makes SEC-009's
+    shipped private-docs gate actually discriminate, because `tier` now mirrors
+    `plan` (= `beta` for every account) and `verifyLicence` defaults a
+    claimless token to `'beta'`. Track it under SEC; the id stays reserved here
+    so nothing reuses it. The detail below is retained as the promoted
+    item's origin record.
   - **Intent:** finish the OQ-C migration so `plan` is the only entitlement
     claim and claimless tokens fail closed.
   - **Expected Outcome:** `apps/docs-shell/lib/jwt.ts` and

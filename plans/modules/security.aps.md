@@ -257,7 +257,10 @@ security concerns.
 
 ### SEC-007: Atomic token-revocation hardening
 
-**Status:** In Progress
+**Status:** Released/Shipped via v0.7.0-beta (d7873161 · 2026-05-21). Merged
+2026-05-21 via PR [#1806](https://github.com/eddacraft/anvil-001/pull/1806)
+(`3c7b741d3`). Status reconciled 2026-08-19 — the item sat at In Progress for
+three months after the code landed.
 **Owner:** Josh Boys
 **Tracking:** GH issue #1672 (DeepSec `20260517012618-52306118d7d9df6a`)
 
@@ -309,14 +312,23 @@ and closes both in a single transaction.
   `suspended`.
 - `pnpm format:check && pnpm lint:check && pnpm typecheck`
 
-**Known follow-up (out of scope for SEC-007):** Existing JWT licences issued
-before revocation remain bearer-valid for up to 7 days because
-`requireAuth()` validates the licence's signature and expiry in-process and
-does not consult `access_tokens` or `beta_users.status`. Mitigating this
-needs either a `jti` deny-list with a DB lookup on hot paths or a much
-shorter licence TTL paired with mandatory `/session/refresh`, both of which
-sit outside the "atomic revocation" remediation. Track separately under
-SEC if/when the next licensing-stream review opens the surface.
+**Evidence:** `apps/anvil-api/src/routes/admin.ts` (`POST /admin/revoke`) runs
+both branches as a Neon batch transaction — account-level revokes access
+tokens, refresh tokens and flips `beta_users.status` to `suspended`;
+grant-level revokes the hashed access token plus the owning user's refresh
+family. Regression coverage lives in `apps/anvil-api/src/__tests__/admin.test.ts`
+(`refreshSessionsRevoked` / `accountSuspended` assertions).
+
+**Known follow-up (out of scope for SEC-007) — restated 2026-08-19:** the
+original wording named `requireAuth()`, a helper that no longer exists, and
+asserted that no licence path consults the database. That is no longer
+accurate: `POST /auth/verify` re-reads the account and rejects any subject
+whose `status` is not `active` (`apps/anvil-api/src/routes/auth.ts`). The
+residual is narrower and now lives in **SEC-013**: licence-authenticated
+routes added after this remediation verify the signature only, so an
+unexpired licence held by a suspended account is still accepted there. The
+broader `jti` deny-list / shorter-TTL question remains out of scope for both
+items until a licensing-stream review opens the surface.
 
 **changeType:** fix
 **releaseIntent:** candidate
@@ -402,7 +414,20 @@ they are not silently swallowed by an auth-gate response.
 
 ### SEC-009: Private docs entitlement gate for signed licences
 
-- **Status:** Done
+- **Status:** Done (shipped) **with a live residual — the gate as shipped does
+  not discriminate.** Reconciled 2026-08-19. The entitlement *mechanism* landed
+  as specified and is not being reopened; closing the residual is **SEC-012**.
+- **Residual (2026-08-19):** `apps/docs-shell/lib/jwt.ts` accepts
+  `tier ∈ {beta, pro, enterprise}`. Post-BACT-013 `signLicence` writes
+  `tier: claims.plan` (`apps/anvil-api/src/lib/licence.ts`), and `plan` is
+  `beta` for every account — the only value `beta_users.plan`'s CHECK admits
+  today. Every validly-signed licence therefore satisfies the tier check, so
+  the gate is structurally present but semantically vacuous. `verifyLicence`
+  additionally defaults a claimless token to `'beta'`, which is inside the
+  accepted set, so the API-side verifier fails **open** where
+  `apps/docs-site/middleware.ts` fails **closed** on a missing claim. Do not
+  cite SEC-009 as evidence that private docs are entitlement-gated until
+  SEC-012 lands.
 **Tracking:** GH issue [#1673](https://github.com/eddacraft/anvil-001/issues/1673)
 **Identified From:** DeepSec run `20260517012618-52306118d7d9df6a`, finding
 `acl-check`.
@@ -519,3 +544,88 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 **changeType:** fix
 **releaseIntent:** none
 **releaseScope:** none
+
+### SEC-012: Make the licence entitlement claim authoritative and fail closed
+
+- **Status:** Draft — filed 2026-08-19 from the auth/authz plan review; **not
+  self-authorised**. Promoted here from `beta-account-activity`'s Future-work
+  section (reserved id BACT-014), which had no authorised home for it while
+  BACT is Done 12/12.
+- **Priority:** P1 access-control correctness — this is the item that makes
+  SEC-009's shipped gate actually discriminate.
+- **Intent:** Finish the ADR-121 / OQ-C migration so a single entitlement claim
+  governs private-docs access, no verifier fills in a permissive default, and
+  the two edge verifiers agree.
+- **Expected Outcome:**
+  - `apps/docs-shell/lib/jwt.ts` and `apps/docs-site/middleware.ts` read the
+    agreed entitlement claim (`plan`, or a dedicated scope — see Open Question)
+    rather than `tier`, with the `tier` fallback removed after a deprecation
+    window.
+  - `signLicence` stops emitting the `tier` compat alias
+    (`apps/anvil-api/src/lib/licence.ts`).
+  - `verifyLicence` fails **closed** when no entitlement claim is present —
+    today it defaults to `'beta'`, which is inside `DOCS_ACCESS_TIERS`.
+  - `apps/docs-site` gains a test suite covering the entitlement read path
+    (pre-existing gap, noted 2026-08-13 and still true 2026-08-19).
+- **Open Question (product decision — shared, answer once):** which claim value
+  or scope denotes "entitled to private docs", given every account is
+  `plan = beta` today? The same decision gates CIB-141's fail-open scope
+  default and CIB-143's docs-shell check. Answer it in one place; do not let
+  three items each invent a value.
+- **Non-scope / do not:** do not widen `beta_users.plan`'s CHECK to invent
+  commercial plans; do not remove the `tier` alias before outstanding
+  dual-claim tokens have expired; do not redesign the flag catalogue.
+- **Files:** `apps/anvil-api/src/lib/licence.ts`,
+  `apps/docs-shell/lib/jwt.ts`, `apps/docs-site/middleware.ts`,
+  `apps/docs-site` test setup.
+- **Validation:** anvil-api licence/JWT tests for the new claim shape and the
+  fail-closed path; `pnpm --filter @eddacraft/docs-shell test`; new docs-site
+  middleware tests; a grep proving no production `payload.tier` reader remains.
+- **Dependencies:** BACT-013 shipped (2026-08-13). Needs a deprecation window
+  long enough that pre-BACT-013 tokens (which carry both claims) have expired.
+- **Identified From:** BACT-013 independent verification advisories (PR #3839,
+  2026-08-13), re-verified live 2026-08-19 during the auth/authz plan review.
+- **Coordinates with:** SEC-009 (residual), CIB-141, CIB-143, ADR-121
+  decision 6.
+- **Confidence:** high — mechanical once the Open Question is answered.
+
+**changeType:** fix
+**releaseIntent:** candidate
+**releaseScope:** patch
+
+### SEC-013: Licence-authenticated routes must re-check account status
+
+- **Status:** Draft — filed 2026-08-19 from the auth/authz plan review; **not
+  self-authorised**.
+- **Priority:** P2 revocation completeness — bounded by the licence TTL, not
+  unbounded.
+- **Intent:** Close the SEC-007 residual at the route layer. `POST /auth/verify`
+  re-reads the account and rejects a subject whose `status` is not `active`;
+  routes added after SEC-007 do not.
+- **Expected Outcome:** every licence-authenticated route resolves the account
+  and rejects non-`active` subjects, rather than treating a valid signature as
+  sufficient. `apps/anvil-api/src/routes/account-activity.ts` is the known
+  instance — it calls `verifyLicence` and proceeds on the claims alone, so a
+  suspended account's unexpired licence still writes activity for the remainder
+  of the licence TTL. The check belongs in shared licence-auth middleware so
+  the next route added inherits it instead of repeating the omission.
+- **Non-scope / do not:** do not build a `jti` deny-list, and do not shorten the
+  licence TTL — both were considered and left out of SEC-007 for the same
+  reason; they need a licensing-stream decision, not a route fix.
+- **Files:** `apps/anvil-api/src/routes/account-activity.ts`, a shared
+  licence-auth helper (new), `apps/anvil-api/src/routes/auth.ts` (reference
+  implementation of the status check).
+- **Validation:** a test proving a suspended account's still-valid licence is
+  rejected by the account-activity ingest; a test proving an active account is
+  unaffected; an inventory assertion (or grep) that no route calls
+  `verifyLicence` without the status check.
+- **Identified From:** SEC-007's restated known-follow-up; found live
+  2026-08-19 during the auth/authz plan review.
+- **Coordinates with:** SEC-007 (parent remediation), BACT-009 (added the
+  affected route).
+- **Confidence:** high — the gap is concrete and the fix pattern already exists
+  in `/auth/verify`.
+
+**changeType:** fix
+**releaseIntent:** candidate
+**releaseScope:** patch

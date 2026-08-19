@@ -3802,8 +3802,14 @@ archive.
 
 ### CIB-141: Fail-closed entitlement default and atomic refresh-token rotation
 
-- **Status:** Proposed (rotation half landed 2026-07-18 on `test/clawpatch`;
-  entitlement-default half still product-gated)
+- **Status:** Proposed — **rotation half is on `main`**; entitlement-default
+  half still product-gated. Reconciled 2026-08-19: the previous wording said
+  the rotation half "landed on `test/clawpatch`". That branch no longer exists
+  and the work is in the trunk — `consumeAndRotateRefreshToken`
+  (`apps/anvil-api/src/db/queries.ts`) and `mintRotatedSession`
+  (`apps/anvil-api/src/lib/session.ts`), consumed by `/session/refresh`
+  (`apps/anvil-api/src/routes/auth-session.ts`). Only the entitlement default
+  keeps this item open.
 - **Intent:** Close two related gaps in `apps/anvil-api`'s licence/session
   issuance: an entitlement lookup that fails open by design, and a
   refresh-token rotation that isn't fully atomic.
@@ -3817,7 +3823,7 @@ archive.
   transaction, matching the pattern already used by
   `revokeRefreshFamilyAndAccessTokensForUser`, so a partial failure can't
   leave a consumed token with no replacement.
-- **Progress (2026-07-18 clawpatch):** rotation half implemented as
+- **Progress (2026-07-18 clawpatch; confirmed on `main` 2026-08-19):** rotation half implemented as
   `consumeAndRotateRefreshToken` (single data-modifying CTE) +
   `mintRotatedSession` on `/session/refresh`. Closes the clawpatch high
   "Refresh-token race can mint a live session after family revocation".
@@ -3845,8 +3851,14 @@ archive.
   consume+insert pairing and the entitlement default.
 - **Coordinates with:** CIB-143 (docs-shell also reads `scopes`/`tier` off
   the same licence this item mints).
-- **Confidence:** medium — the atomicity fix is mechanical; the entitlement
-  half is gated on a product decision named above.
+- **Re-verified 2026-08-19:** `findActiveScopesForUser`
+  (`apps/anvil-api/src/db/queries.ts`) still returns `['beta']` for an active
+  user with zero live access tokens, so the fail-open default is unchanged and
+  the Open Question is still unanswered. Answer it **once** alongside SEC-012
+  and CIB-143 — all three block on the same "what value denotes entitlement"
+  decision.
+- **Confidence:** medium — the atomicity fix is done; what remains is a product
+  decision, not engineering.
 
 ### CIB-142: Atomic OTP attempt limiting and a dedicated waitlist abuse throttle
 
@@ -3881,16 +3893,25 @@ archive.
 
 ### CIB-143: Scope-based docs entitlement and callback abuse throttling
 
-- **Status:** Proposed
+- **Status:** Proposed — **mechanism restated 2026-08-19** (the conclusion
+  stands; the stated cause was pre-BACT-013 and is now wrong).
+- **Mechanism correction (2026-08-19):** this item was written when `tier` was
+  hardcoded to `'pro'` at mint time. Post-BACT-013 `signLicence` writes
+  `tier: claims.plan` (`apps/anvil-api/src/lib/licence.ts`) and `plan` is
+  `beta` for every account — the only value `beta_users.plan`'s CHECK admits.
+  `apps/docs-shell/lib/jwt.ts` accepts `tier` in {`beta`, `pro`, `enterprise`},
+  so the check is still satisfied by every validly-signed licence. The vacuity
+  conclusion is unchanged; only the route to it moved. `verifyLicence` also
+  defaults a claimless token to `'beta'`, adding a fail-open path that did not
+  exist when this item was filed.
 - **Intent:** Stop `apps/docs-shell` from granting private-docs access to
   any authenticated licence regardless of actual entitlement, and add abuse
   throttling to the OAuth callback route, which currently has none of its
   own.
 - **Expected Outcome:** `apps/docs-shell/lib/jwt.ts`'s `verifyLicense` checks
-  an actual entitlement signal in `scopes` rather than `tier` (`tier` is
-  hardcoded to `'pro'` for every licence at mint time — see CIB-141's
-  `lib/session.ts:67` — so the current tier check is always true and
-  entitlement-blind). `apps/docs-shell/app/auth/callback/route.ts` gets a
+  an actual entitlement signal in `scopes` rather than `tier` (`tier` now
+  mirrors `plan`, which is `beta` for every account, so the tier check is
+  always true and entitlement-blind — see the mechanism correction above). `apps/docs-shell/app/auth/callback/route.ts` gets a
   throttle on repeated callback attempts, independent of `apps/anvil-api`'s
   own limits, to bound abuse of the upstream GitHub exchange and DB writes
   it triggers.
@@ -3913,7 +3934,11 @@ archive.
   decomposition readiness pass 2026-07-02. Re-verified live at
   `apps/docs-shell/lib/jwt.ts:4,28` and `apps/anvil-api/src/lib/session.ts:67`.
 - **Coordinates with:** CIB-141 (shares the licence-minting file and the
-  `scopes` semantics this item's entitlement check depends on).
+  `scopes` semantics this item's entitlement check depends on) and **SEC-012**,
+  which owns the claim migration and the fail-closed default on the minting
+  side. Sequence SEC-012 first: this item's check has nothing to discriminate
+  on until the entitlement value exists. Note also that SEC-009 is recorded as
+  Done for the same gate — see its 2026-08-19 residual note.
 - **Confidence:** medium — the throttling half is mechanical; the
   entitlement half is gated on the product decision named above.
 
