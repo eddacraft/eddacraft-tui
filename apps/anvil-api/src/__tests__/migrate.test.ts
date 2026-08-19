@@ -199,8 +199,15 @@ describe('runMigrations', () => {
     const result = await runMigrations(runner, { dir, dryRun: true });
     expect(result.applied).toEqual([]);
     const texts = runner.calls.map((c) => c.text.trim());
+    expect(texts.some((text) => text.startsWith('CREATE TABLE'))).toBe(false);
+    expect(texts.some((text) => text.startsWith('INSERT INTO _migrations'))).toBe(false);
     expect(texts).not.toContain('BEGIN');
     expect(texts).not.toContain('COMMIT');
+    expect(texts).not.toContain('ROLLBACK');
+    expect(texts).not.toContain('SELECT pg_advisory_lock($1, $2)');
+    expect(texts.some((text) => text.startsWith("SELECT to_regclass('public._migrations')"))).toBe(
+      true
+    );
   });
 
   it('acquires and releases the advisory lock around the run', async () => {

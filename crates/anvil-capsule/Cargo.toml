@@ -32,6 +32,10 @@ workspace-hack.workspace = true
 # a symlink_metadata pre-check (see verify.rs).
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+nix = { version = "0.31", default-features = false, features = ["dir", "fs", "user"] }
+
+[target.'cfg(windows)'.dependencies]
+anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 
 [dev-dependencies]
 jsonschema = { workspace = true }

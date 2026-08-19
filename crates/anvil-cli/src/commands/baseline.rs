@@ -809,6 +809,7 @@ mod tests {
     /// able to decode it on the read-back path.
     const MIN_VALID_POLICY: &str =
         "branches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n";
+    const TEST_CUTOFF_SHA: &str = "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e";
 
     fn write_policy_yml(root: &Path) {
         fs::create_dir_all(root.join("anvil")).unwrap();
@@ -906,7 +907,7 @@ mod tests {
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
-        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        baseline.cutoff_commit = Some(TEST_CUTOFF_SHA.to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
         run_create_or_refresh(
@@ -920,7 +921,7 @@ mod tests {
         )
         .unwrap();
         let refreshed = load_baseline(tmp.path()).unwrap().unwrap();
-        assert_eq!(refreshed.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+        assert_eq!(refreshed.cutoff_commit.as_deref(), Some(TEST_CUTOFF_SHA));
     }
 
     #[test]
@@ -941,7 +942,7 @@ mod tests {
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
-        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        baseline.cutoff_commit = Some(TEST_CUTOFF_SHA.to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
         run_create_or_refresh(
@@ -957,7 +958,7 @@ mod tests {
 
         let policy_text = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
         assert!(
-            policy_text.contains("a3b2ea4e"),
+            policy_text.contains(TEST_CUTOFF_SHA),
             "expected cutoff_commit pinned into policy.yml; got:\n{policy_text}"
         );
     }
@@ -985,7 +986,7 @@ mod tests {
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
-        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        baseline.cutoff_commit = Some(TEST_CUTOFF_SHA.to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
         run_create_or_refresh(
@@ -1002,11 +1003,11 @@ mod tests {
         let high_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yaml")).unwrap();
         let low_precedence = fs::read_to_string(tmp.path().join("anvil/policy.yml")).unwrap();
         assert!(
-            high_precedence.contains("a3b2ea4e"),
+            high_precedence.contains(TEST_CUTOFF_SHA),
             "policy.yaml (higher precedence) should receive the pin; got:\n{high_precedence}"
         );
         assert!(
-            !low_precedence.contains("a3b2ea4e"),
+            !low_precedence.contains(TEST_CUTOFF_SHA),
             "policy.yml (lower precedence) must remain untouched; got:\n{low_precedence}"
         );
     }
@@ -1021,7 +1022,9 @@ mod tests {
         fs::create_dir_all(tmp.path().join("anvil")).unwrap();
         fs::write(
             tmp.path().join("anvil/policy.yaml"),
-            "baseline:\n  cutoff_commit: a3b2ea4e\nbranches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n",
+            format!(
+                "baseline:\n  cutoff_commit: {TEST_CUTOFF_SHA}\nbranches:\n  - pattern: main\n    require: l4_or_l3\n    on_no_witness: validate_at_l4\n"
+            ),
         )
         .unwrap();
 
@@ -1039,7 +1042,7 @@ mod tests {
         let baseline = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
             baseline.cutoff_commit.as_deref(),
-            Some("a3b2ea4e"),
+            Some(TEST_CUTOFF_SHA),
             "first-create must seed cutoff from policy when baseline.json is being bootstrapped"
         );
     }
@@ -1060,7 +1063,7 @@ mod tests {
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
-        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        baseline.cutoff_commit = Some(TEST_CUTOFF_SHA.to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
         // No anvil/policy.* file present.
         run_create_or_refresh(
@@ -1074,7 +1077,7 @@ mod tests {
         )
         .unwrap();
         let after = load_baseline(tmp.path()).unwrap().unwrap();
-        assert_eq!(after.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+        assert_eq!(after.cutoff_commit.as_deref(), Some(TEST_CUTOFF_SHA));
     }
 
     #[test]
@@ -1290,7 +1293,7 @@ mod tests {
         )
         .unwrap();
         let mut baseline = load_baseline(tmp.path()).unwrap().unwrap();
-        baseline.cutoff_commit = Some("a3b2ea4e".to_string());
+        baseline.cutoff_commit = Some(TEST_CUTOFF_SHA.to_string());
         save_baseline(tmp.path(), &baseline).unwrap();
 
         run_create_or_refresh(
@@ -1307,7 +1310,7 @@ mod tests {
         let after = load_baseline(tmp.path()).unwrap().unwrap();
         assert_eq!(
             after.cutoff_commit.as_deref(),
-            Some("a3b2ea4e"),
+            Some(TEST_CUTOFF_SHA),
             "--new-identity must preserve cutoff_commit across the rewrite"
         );
     }

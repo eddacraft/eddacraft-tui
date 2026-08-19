@@ -35,8 +35,9 @@ use windows_sys::Win32::Security::Authorization::{
     SDDL_REVISION_1, SE_FILE_OBJECT,
 };
 use windows_sys::Win32::Security::{
-    GetTokenInformation, SECURITY_ATTRIBUTES, TOKEN_OWNER, TOKEN_QUERY, TOKEN_USER, TokenOwner,
-    TokenUser,
+    ACL, DACL_SECURITY_INFORMATION, GetSecurityDescriptorControl, GetTokenInformation,
+    SE_DACL_PROTECTED, SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, TOKEN_OWNER, TOKEN_QUERY,
+    TOKEN_USER, TokenOwner, TokenUser,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     BY_HANDLE_FILE_INFORMATION, CreateDirectoryW, CreateFileW, FILE_FLAG_OPEN_REPARSE_POINT,
@@ -1040,6 +1041,30 @@ impl Drop for LocalMem {
     }
 }
 
+pub(crate) struct OwnerOnlyDirectorySecurity {
+    owner_sid: String,
+    descriptor: LocalMem,
+}
+
+impl OwnerOnlyDirectorySecurity {
+    pub(crate) fn new() -> io::Result<Self> {
+        let owner_sid = current_user_sid_string()?;
+        let descriptor = security_descriptor_from_sddl(&owner_only_dir_sddl(&owner_sid))?;
+        Ok(Self {
+            owner_sid,
+            descriptor,
+        })
+    }
+
+    pub(crate) fn descriptor_ptr(&self) -> *const SECURITY_DESCRIPTOR {
+        self.descriptor.as_ptr().cast()
+    }
+
+    pub(crate) fn validate_handle(&self, handle: HANDLE) -> io::Result<()> {
+        validate_owner_only_dir_handle(handle, &self.owner_sid)
+    }
+}
+
 /// The current process token's user SID as a string
 /// (e.g. `S-1-5-21-…-1001`).
 ///
@@ -1312,6 +1337,60 @@ fn owner_sid_of_handle(handle: HANDLE) -> io::Result<String> {
     owner
 }
 
+fn validate_owner_only_dir_handle(handle: HANDLE, expected_owner: &str) -> io::Result<()> {
+    let owner = owner_sid_of_handle(handle)?;
+    if !owner.eq_ignore_ascii_case(expected_owner) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!("directory owner {owner} does not match current user {expected_owner}"),
+        ));
+    }
+
+    let mut dacl: *mut ACL = null_mut();
+    let mut descriptor: *mut c_void = null_mut();
+    // SAFETY: `handle` is a live directory handle. `dacl` receives a pointer
+    // into the LocalAlloc-owned security descriptor returned via `descriptor`.
+    let status = unsafe {
+        GetSecurityInfo(
+            handle,
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            null_mut(),
+            null_mut(),
+            &mut dacl,
+            null_mut(),
+            &mut descriptor,
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::from_raw_os_error(status as i32));
+    }
+    let descriptor = LocalMem(descriptor);
+    if dacl.is_null() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "directory has no discretionary access-control list",
+        ));
+    }
+
+    let mut control = 0;
+    let mut revision = 0;
+    // SAFETY: `descriptor` is the live security descriptor returned by
+    // GetSecurityInfo; both scalar outputs are valid for the call.
+    let ok =
+        unsafe { GetSecurityDescriptorControl(descriptor.as_ptr(), &mut control, &mut revision) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if control & SE_DACL_PROTECTED == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "directory DACL inherits access from its parent",
+        ));
+    }
+    Ok(())
+}
+
 /// Read an open file handle to a `String`, refusing more than
 /// [`MAX_TRUSTED_CONFIG_BYTES`] (a same-user peer must not make the daemon buffer
 /// an unbounded config).
@@ -1364,18 +1443,17 @@ pub fn create_owner_only_dir(dir: &Path) -> io::Result<()> {
     if let Some(parent) = dir.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let sid = current_user_sid_string()?;
-    let descriptor = security_descriptor_from_sddl(&owner_only_dir_sddl(&sid))?;
+    let security = OwnerOnlyDirectorySecurity::new()?;
     let attrs = SECURITY_ATTRIBUTES {
         nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
-        lpSecurityDescriptor: descriptor.as_ptr(),
+        lpSecurityDescriptor: security.descriptor_ptr().cast_mut().cast(),
         bInheritHandle: 0,
     };
     let wide: Vec<u16> = dir.as_os_str().encode_wide().chain([0]).collect();
     // SAFETY: `wide` is a NUL-terminated path; `attrs` holds a valid descriptor
     // alive for the call. CreateDirectoryW copies the ACLs into the new object.
     let ok = unsafe { CreateDirectoryW(wide.as_ptr(), &attrs) };
-    drop(descriptor);
+    drop(security);
     if ok == 0 {
         let err = io::Error::last_os_error();
         if err.raw_os_error() == Some(ERROR_ALREADY_EXISTS_CT) {
@@ -1446,6 +1524,15 @@ mod tests {
         let sddl = owner_only_pipe_sddl("S-1-5-21-1-2-3-1000");
         assert!(!sddl.contains("GA"));
         assert!(sddl.contains(OWNER_PIPE_RIGHTS));
+    }
+
+    #[test]
+    fn owner_only_directory_sddl_is_protected_and_has_one_owner_ace() {
+        let sid = "S-1-5-21-1-2-3-1000";
+        assert_eq!(
+            owner_only_dir_sddl(sid),
+            format!("O:{sid}D:P(A;OICI;FA;;;{sid})")
+        );
     }
 
     #[test]

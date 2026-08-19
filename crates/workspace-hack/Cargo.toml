@@ -86,7 +86,7 @@ idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.31", features = ["fs", "hostname", "inotify", "signal", "socket", "term", "user"] }
+nix = { version = "0.31", features = ["dir", "hostname", "inotify", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.4" }
@@ -105,7 +105,7 @@ idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.31", features = ["fs", "hostname", "inotify", "signal", "socket", "term", "user"] }
+nix = { version = "0.31", features = ["dir", "hostname", "inotify", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.4" }
@@ -125,7 +125,7 @@ idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.31", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
+nix = { version = "0.31", features = ["dir", "hostname", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.4" }
@@ -145,7 +145,7 @@ idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
-nix = { version = "0.31", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
+nix = { version = "0.31", features = ["dir", "hostname", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.4" }

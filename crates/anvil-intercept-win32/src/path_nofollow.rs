@@ -26,6 +26,7 @@ use windows_sys::Wdk::Storage::FileSystem::{
 use windows_sys::Win32::Foundation::{
     CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE, UNICODE_STRING,
 };
+use windows_sys::Win32::Security::SECURITY_DESCRIPTOR;
 use windows_sys::Win32::Storage::FileSystem::{
     BY_HANDLE_FILE_INFORMATION, CreateFileW, DELETE, FILE_ATTRIBUTE_DIRECTORY,
     FILE_ATTRIBUTE_NORMAL, FILE_DISPOSITION_INFO, FILE_FLAG_BACKUP_SEMANTICS,
@@ -125,6 +126,71 @@ pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> io::Result<()> {
     atomic_write_at(dir.raw(), leaf, data)
 }
 
+/// Publish a complete directory without following reparse points.
+///
+/// The staging directory is created as a handle relative to a pinned parent,
+/// each file is created relative to that handle, and the directory handle is
+/// renamed into place. No evidence write depends on the observable staging
+/// pathname.
+pub fn publish_directory_nofollow(destination: &Path, files: &[(&str, &[u8])]) -> io::Result<()> {
+    let parent = destination
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let destination_name = destination.file_name().ok_or_else(|| {
+        io::Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "directory destination has no file name: {}",
+                destination.display()
+            ),
+        )
+    })?;
+    create_dir_all_nofollow(parent)?;
+    let parent_handle = open_existing_dir(parent, true)?;
+
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    for attempt in 0..32u32 {
+        let staging_name = format!(
+            ".anvil-capsule-stage-{}-{nanos}-{attempt}",
+            std::process::id()
+        );
+        let staging =
+            match nt_create_owner_only_dir_at(parent_handle.raw(), OsStr::new(&staging_name)) {
+                Ok(handle) => handle,
+                Err(error) if error.raw_os_error() == Some(ERROR_ALREADY_EXISTS) => continue,
+                Err(error) => return Err(error),
+            };
+        let result = (|| {
+            for (name, bytes) in files {
+                let file = nt_create(
+                    staging.raw(),
+                    OsStr::new(name),
+                    FILE_ACCESS,
+                    FILE_CREATE,
+                    FILE_NON_DIRECTORY_FILE
+                        | FILE_SYNCHRONOUS_IO_NONALERT
+                        | FILE_OPEN_FOR_BACKUP_INTENT,
+                    FILE_ATTRIBUTE_NORMAL,
+                    true,
+                )?;
+                write_all_handle(file.raw(), bytes)?;
+            }
+            remove_empty_destination(parent_handle.raw(), destination_name)?;
+            rename_at(staging.raw(), parent_handle.raw(), destination_name)
+        })();
+        if result.is_err() {
+            cleanup_directory_handle(staging.raw(), files.iter().map(|(name, _)| *name));
+        }
+        return result;
+    }
+    Err(io::Error::other(
+        "could not allocate a unique capsule staging directory",
+    ))
+}
+
 /// Remove a file without following reparse path components.
 ///
 /// A leaf reparse point is unlinked itself (not its target). A swapped
@@ -191,6 +257,41 @@ fn remove_at(path: &Path, is_dir: bool) -> io::Result<()> {
         return Err(io::Error::from_raw_os_error(ERROR_DIRECTORY));
     }
     dispose_handle(leaf_handle.raw())
+}
+
+fn remove_empty_destination(parent: HANDLE, name: &OsStr) -> io::Result<()> {
+    let existing = match nt_open_at(parent, name, OpenKind::Any, DELETE | SYNCHRONIZE, false) {
+        Ok(handle) => handle,
+        Err(error)
+            if error.raw_os_error() == Some(ERROR_FILE_NOT_FOUND)
+                || error.raw_os_error() == Some(ERROR_PATH_NOT_FOUND) =>
+        {
+            return Ok(());
+        }
+        Err(error) => return Err(error),
+    };
+    if is_reparse(existing.raw())? {
+        return Err(reparse_error(Path::new(name)));
+    }
+    if !is_directory(existing.raw())? {
+        return Err(io::Error::from_raw_os_error(ERROR_DIRECTORY));
+    }
+    dispose_handle(existing.raw())
+}
+
+fn cleanup_directory_handle<'a>(directory: HANDLE, names: impl Iterator<Item = &'a str>) {
+    for name in names {
+        if let Ok(file) = nt_open_at(
+            directory,
+            OsStr::new(name),
+            OpenKind::File,
+            DELETE | SYNCHRONIZE,
+            false,
+        ) {
+            let _ = dispose_handle(file.raw());
+        }
+    }
+    let _ = dispose_handle(directory);
 }
 
 fn split_root_and_rest(path: &Path) -> io::Result<(std::path::PathBuf, Vec<std::ffi::OsString>)> {
@@ -332,6 +433,41 @@ fn nt_create_dir_at(parent: HANDLE, name: &OsStr) -> io::Result<OwnedHandle> {
     )
 }
 
+fn nt_create_owner_only_dir_at(parent: HANDLE, name: &OsStr) -> io::Result<OwnedHandle> {
+    nt_create_owner_only_dir_at_with_validator(parent, name, |security, handle| {
+        security.validate_handle(handle)
+    })
+}
+
+fn nt_create_owner_only_dir_at_with_validator(
+    parent: HANDLE,
+    name: &OsStr,
+    validate: impl FnOnce(&crate::OwnerOnlyDirectorySecurity, HANDLE) -> io::Result<()>,
+) -> io::Result<OwnedHandle> {
+    let security = crate::OwnerOnlyDirectorySecurity::new()?;
+    let directory = nt_create_with_security_descriptor(
+        parent,
+        name,
+        DIR_ACCESS_FULL,
+        FILE_CREATE,
+        FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_FOR_BACKUP_INTENT,
+        NtCreateObject {
+            attributes: FILE_ATTRIBUTE_DIRECTORY,
+            security_descriptor: security.descriptor_ptr(),
+        },
+        true,
+    )?;
+    if let Err(validation_error) = validate(&security, directory.raw()) {
+        if let Err(cleanup_error) = dispose_handle(directory.raw()) {
+            return Err(io::Error::other(format!(
+                "{validation_error}; removing rejected staging directory also failed: {cleanup_error}"
+            )));
+        }
+        return Err(validation_error);
+    }
+    Ok(directory)
+}
+
 #[derive(Clone, Copy)]
 enum OpenKind {
     Directory,
@@ -375,6 +511,34 @@ fn nt_create(
     attributes: u32,
     refuse_reparse: bool,
 ) -> io::Result<OwnedHandle> {
+    nt_create_with_security_descriptor(
+        parent,
+        name,
+        access,
+        disposition,
+        create_options,
+        NtCreateObject {
+            attributes,
+            security_descriptor: std::ptr::null(),
+        },
+        refuse_reparse,
+    )
+}
+
+struct NtCreateObject {
+    attributes: u32,
+    security_descriptor: *const SECURITY_DESCRIPTOR,
+}
+
+fn nt_create_with_security_descriptor(
+    parent: HANDLE,
+    name: &OsStr,
+    access: u32,
+    disposition: u32,
+    create_options: u32,
+    object: NtCreateObject,
+    refuse_reparse: bool,
+) -> io::Result<OwnedHandle> {
     let mut wide: Vec<u16> = name.encode_wide().collect();
     if wide.is_empty() {
         return Err(io::Error::new(
@@ -398,6 +562,7 @@ fn nt_create(
     attrs.RootDirectory = parent;
     attrs.ObjectName = &mut unicode;
     attrs.Attributes = OBJ_CASE_INSENSITIVE;
+    attrs.SecurityDescriptor = object.security_descriptor;
     if refuse_reparse {
         attrs.Attributes |= OBJ_DONT_REPARSE;
     }
@@ -413,7 +578,7 @@ fn nt_create(
             &attrs,
             &mut iosb,
             null_mut(),
-            attributes,
+            object.attributes,
             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
             disposition,
             create_options,
@@ -680,6 +845,85 @@ mod tests {
         assert!(
             !outside.path().join("leaked.txt").exists(),
             "must not write through the junction"
+        );
+    }
+
+    #[test]
+    fn publish_directory_nofollow_writes_complete_directory() {
+        let root = tempfile::tempdir().expect("root");
+        let destination = root.path().join("capsule");
+        std::fs::create_dir(&destination).expect("existing empty destination");
+
+        publish_directory_nofollow(
+            &destination,
+            &[("manifest.json", b"manifest"), ("README.md", b"readme")],
+        )
+        .expect("publish");
+
+        assert_eq!(
+            std::fs::read(destination.join("manifest.json")).unwrap(),
+            b"manifest"
+        );
+        assert_eq!(
+            std::fs::read(destination.join("README.md")).unwrap(),
+            b"readme"
+        );
+    }
+
+    #[test]
+    fn published_directory_has_protected_owner_only_acl() {
+        let root = tempfile::tempdir().expect("root");
+        let destination = root.path().join("capsule");
+
+        publish_directory_nofollow(&destination, &[("manifest.json", b"manifest")])
+            .expect("publish");
+
+        let directory = open_existing_dir(&destination, true).expect("open publication");
+        crate::OwnerOnlyDirectorySecurity::new()
+            .expect("build expected owner-only ACL")
+            .validate_handle(directory.raw())
+            .expect("published directory must retain its protected owner-only ACL");
+    }
+
+    #[test]
+    fn failed_staging_acl_validation_removes_created_directory() {
+        let root = tempfile::tempdir().expect("root");
+        let parent = open_existing_dir(root.path(), true).expect("open parent");
+        let name = OsStr::new(".anvil-capsule-stage-validation-failure");
+
+        nt_create_owner_only_dir_at_with_validator(parent.raw(), name, |_, _| {
+            Err(io::Error::new(
+                ErrorKind::PermissionDenied,
+                "injected ACL validation failure",
+            ))
+        })
+        .err()
+        .expect("validation failure");
+
+        assert!(
+            !root.path().join(name).exists(),
+            "failed validation must not leave the staging directory behind"
+        );
+    }
+
+    #[test]
+    fn publish_directory_nofollow_refuses_junction_destination() {
+        let outside = tempfile::tempdir().expect("outside");
+        let root = tempfile::tempdir().expect("root");
+        let destination = root.path().join("capsule");
+        assert!(
+            plant_junction(&destination, outside.path()),
+            "mklink /J creates a junction without privilege"
+        );
+
+        let error =
+            publish_directory_nofollow(&destination, &[("manifest.json", b"must not escape")])
+                .expect_err("junction destination");
+
+        assert!(format!("{error:#}").contains("symlink"), "{error}");
+        assert!(
+            !outside.path().join("manifest.json").exists(),
+            "no evidence may be written through the destination junction"
         );
     }
 

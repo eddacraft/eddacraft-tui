@@ -70,6 +70,12 @@ export async function fetchAppliedMigrations(runner: QueryRunner): Promise<Appli
   return result.rows as AppliedMigrationRow[];
 }
 
+async function trackingTableExists(runner: QueryRunner): Promise<boolean> {
+  const result = await runner.query("SELECT to_regclass('public._migrations') AS relation");
+  const row = result.rows[0] as { relation?: unknown } | undefined;
+  return typeof row?.relation === 'string';
+}
+
 export function detectDrift(
   onDisk: MigrationFile[],
   applied: AppliedMigrationRow[]
@@ -134,12 +140,19 @@ export async function runMigrations(
 ): Promise<ApplyResult> {
   const log = options.log ?? (() => {});
 
-  await acquireLock(runner);
+  const lockRequired = !options.dryRun;
+  if (lockRequired) {
+    await acquireLock(runner);
+  }
   try {
-    await ensureTrackingTable(runner);
-
     const onDisk = discoverMigrations(options.dir);
-    const applied = await fetchAppliedMigrations(runner);
+    let applied: AppliedMigrationRow[];
+    if (options.dryRun) {
+      applied = (await trackingTableExists(runner)) ? await fetchAppliedMigrations(runner) : [];
+    } else {
+      await ensureTrackingTable(runner);
+      applied = await fetchAppliedMigrations(runner);
+    }
     const drift = detectDrift(onDisk, applied);
 
     if (drift.length > 0) {
@@ -189,6 +202,8 @@ export async function runMigrations(
       driftDetected: [],
     };
   } finally {
-    await releaseLock(runner);
+    if (lockRequired) {
+      await releaseLock(runner);
+    }
   }
 }

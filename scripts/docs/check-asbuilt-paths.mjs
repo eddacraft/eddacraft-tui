@@ -5,9 +5,9 @@
 // @eddacraft/anvil-docs-meta. Legacy documents without DOCGOV metadata remain
 // owned by the metadata surface until DOCGOV-009 backfills them.
 
-import { readFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { resolve, isAbsolute, relative as relPath } from 'node:path';
+import { resolve, isAbsolute, relative as relPath, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import globby from 'globby';
 import { parseDocGovernance, ParseError } from '@eddacraft/anvil-docs-meta';
@@ -151,18 +151,52 @@ async function resolveSourcePath(path) {
   if (path.includes('<') || path.includes('>') || path.includes('{') || path.includes('}'))
     return null;
   const normalised = path.replace(/#.*$/, '').replace(/:\d+(?:-\d+)?$/, '');
+  // Containment is a precondition for filesystem expansion. Path resolution
+  // is lexical, so glob metacharacters can stay in the probe while traversal
+  // and absolute paths are rejected before globby observes the host tree.
+  const targetAbs = resolve(root, normalised);
+  const rel = relPath(root, targetAbs);
+  if (rel.startsWith('..') || isAbsolute(rel))
+    return `source path escapes repository root: "${path}"`;
+
+  // Walk the already-normalised in-root path. Walking the raw reference would
+  // let a missing component before a cancelling `..` stop inspection before
+  // a later symlink that the resolved target actually traverses.
+  const symlink = await symlinkInStaticPathPrefix(rel);
+  if (symlink) {
+    const kind = normalised.includes('*') ? 'glob' : 'path';
+    return `source path ${kind} traverses symlink "${symlink}": "${path}"`;
+  }
+
   if (normalised.includes('*')) {
-    const matches = await globby([normalised], { cwd: root, gitignore: false, onlyFiles: false });
+    const matches = await globby([normalised], {
+      cwd: root,
+      gitignore: false,
+      onlyFiles: false,
+      followSymbolicLinks: false,
+    });
     return matches.length === 0
       ? `source path glob does not match anything: "${normalised}"`
       : null;
   }
 
-  const targetAbs = resolve(root, normalised);
-  const rel = relPath(root, targetAbs);
-  if (rel.startsWith('..') || isAbsolute(rel))
-    return `source path escapes repository root: "${path}"`;
   if (!existsSync(targetAbs)) return `source path does not exist: "${normalised}"`;
+  return null;
+}
+
+async function symlinkInStaticPathPrefix(relativeTarget) {
+  const dynamicAt = relativeTarget.search(/[?*[{]/);
+  const prefix = dynamicAt === -1 ? relativeTarget : relativeTarget.slice(0, dynamicAt);
+  let current = root;
+  for (const component of prefix.split(sep).filter(Boolean)) {
+    current = resolve(current, component);
+    try {
+      if ((await lstat(current)).isSymbolicLink()) return relPath(root, current);
+    } catch (error) {
+      if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return null;
+      throw error;
+    }
+  }
   return null;
 }
 

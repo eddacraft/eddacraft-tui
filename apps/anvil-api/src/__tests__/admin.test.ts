@@ -970,6 +970,34 @@ describe('admin endpoints', () => {
   });
 
   describe('POST /admin/approve', () => {
+    it('claims a waitlist entry once before creating any approval side effects', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue(null);
+      mockSql.transaction
+        .mockResolvedValueOnce([[{ email: 'alice@example.com' }]])
+        .mockResolvedValueOnce([[]]);
+
+      const [first, second] = await Promise.all([
+        request('POST', '/admin/approve', { email: 'alice@example.com' }, ADMIN_KEY),
+        request('POST', '/admin/approve', { email: 'alice@example.com' }, ADMIN_KEY),
+      ]);
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(409);
+      expect(mockSql.transaction).toHaveBeenCalledTimes(2);
+
+      const approvalStatement = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) => chunk.includes('WITH claimed AS'))
+      );
+      expect(approvalStatement).toBeDefined();
+      const sqlText = (approvalStatement?.[0] as TemplateStringsArray).join(' ');
+      expect(sqlText).toContain('approved_at IS NULL');
+      expect(sqlText).toContain('INSERT INTO beta_users');
+      expect(sqlText).toContain('INSERT INTO access_tokens');
+      expect(sqlText).toContain('INSERT INTO audit_log');
+      expect(vi.mocked(sendBetaInvite)).toHaveBeenCalledTimes(1);
+    });
+
     it('leaves login and activity stamps untouched — plan defaults via the column DEFAULT (BACT-008)', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       mockSql.transaction.mockResolvedValue([
@@ -1196,9 +1224,9 @@ describe('admin endpoints', () => {
         expect.anything()
       );
       const transactionStatements = mockSql.transaction.mock.calls[0][0] as unknown[][];
-      expect(transactionStatements).toHaveLength(5);
-      const droppedAuditCall = mockSql.mock.calls.find(
-        (call) => call[1] === 'user.approve.scopes_dropped'
+      expect(transactionStatements).toHaveLength(1);
+      const droppedAuditCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) => chunk.includes('dropped_scopes_audit AS'))
       );
       expect(droppedAuditCall).toContainEqual(
         JSON.stringify({

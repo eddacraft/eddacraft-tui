@@ -96,7 +96,7 @@ mod tests {
         Policy::parse(
             r"
 baseline:
-  cutoff_commit: c0ff00
+  cutoff_commit: c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff
 branches:
   - pattern: main
     require: l4_or_l3
@@ -209,16 +209,25 @@ branches:
     #[test]
     fn cutoff_accepts_commit_at_cutoff_sha() {
         let p = fixture_policy();
-        // `c0ff00` matches the fixture's `cutoff_commit`. The other
+        // `c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff` matches the fixture's `cutoff_commit`. The other
         // entries are opaque hex-shaped SHAs.
-        let ancestry = ["aaaa01", "c0ff00", "0deadbeef"];
-        assert!(p.commit_is_before_cutoff("c0ff00", &ancestry));
+        let ancestry = [
+            "aaaa01",
+            "c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff",
+            "0deadbeef",
+        ];
+        assert!(p.commit_is_before_cutoff("c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff", &ancestry));
     }
 
     #[test]
     fn cutoff_accepts_commit_older_than_cutoff() {
         let p = fixture_policy();
-        let ancestry = ["aaaa01", "c0ff00", "0deadbeef", "0badcafe"];
+        let ancestry = [
+            "aaaa01",
+            "c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff",
+            "0deadbeef",
+            "0badcafe",
+        ];
         assert!(p.commit_is_before_cutoff("0deadbeef", &ancestry));
         assert!(p.commit_is_before_cutoff("0badcafe", &ancestry));
     }
@@ -226,7 +235,12 @@ branches:
     #[test]
     fn cutoff_rejects_commit_newer_than_cutoff() {
         let p = fixture_policy();
-        let ancestry = ["aaaa01", "bbbb02", "c0ff00", "0deadbeef"];
+        let ancestry = [
+            "aaaa01",
+            "bbbb02",
+            "c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff",
+            "0deadbeef",
+        ];
         // `aaaa01` and `bbbb02` are newer than cutoff.
         assert!(!p.commit_is_before_cutoff("aaaa01", &ancestry));
         assert!(!p.commit_is_before_cutoff("bbbb02", &ancestry));
@@ -252,7 +266,7 @@ branches:
     #[test]
     fn cutoff_returns_false_for_commit_not_in_ancestry() {
         let p = fixture_policy();
-        let ancestry = ["aaaa01", "c0ff00"];
+        let ancestry = ["aaaa01", "c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff"];
         assert!(!p.commit_is_before_cutoff("ffff99", &ancestry));
     }
 }

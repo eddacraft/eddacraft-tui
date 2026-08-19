@@ -281,12 +281,12 @@ fi
 # parseArgs rejects the unknown flag and would crash the surface.
 echo "case 10: --no-baseline does not crash the index-freshness surface"
 out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
-if echo "${out}" | grep -qE "Unknown option '--no-baseline'|ERR_PARSE_ARGS_UNKNOWN_OPTION"; then
-  fail "--no-baseline misrouted to index-freshness; got: $(echo "${out}" | grep -iE 'unknown|ERR_PARSE' | head -1)"
-elif echo "${out}" | grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+index-freshness$"; then
+if grep -qE "Unknown option '--no-baseline'|ERR_PARSE_ARGS_UNKNOWN_OPTION" <<<"${out}"; then
+  fail "--no-baseline misrouted to index-freshness; got: $(grep -im1E 'unknown|ERR_PARSE' <<<"${out}")"
+elif grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+index-freshness$" <<<"${out}"; then
   pass "--no-baseline run reaches index-freshness without an unknown-option crash"
 else
-  fail "index-freshness surface missing from --no-baseline summary; tail: $(echo "${out}" | tail -5)"
+  fail "index-freshness surface missing from --no-baseline summary; tail: $(tail -5 <<<"${out}")"
 fi
 
 # Case 13 (DOCSYNC-028): the public-doc boundary rejects internal leakage,
@@ -1659,6 +1659,229 @@ if [[ "${status}" -eq 0 ]]; then
 else
   fail "live pin disagrees with changelog; got: ${out}"
 fi
+
+# CLAWFIX-001: a baseline entry suppresses only one concrete tag finding.
+echo "case I: tag baselines are consumed one-for-one"
+tag_root="${tmp_root}/tag-baseline"
+mkdir -p "${tag_root}/docs/governance" "${tag_root}/plans/modules"
+cat >"${tag_root}/docs/governance/tags-catalogue.md" <<'EOF'
+# Tags
+
+## Catalogue
+
+| Tag | Meaning |
+| --- | --- |
+| `approved` | Fixture tag |
+EOF
+cat >"${tag_root}/plans/modules/example.aps.md" <<'EOF'
+# Example
+
+- **Tags:** Bad
+- **Tags:** Bad
+EOF
+cat >"${tag_root}/docs/governance/docs-check.baseline.json" <<'EOF'
+{
+  "tags": {
+    "plans/modules/example.aps.md": [
+      "malformed tag \"Bad\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")"
+    ]
+  }
+}
+EOF
+set +e
+tag_json="$(node "${tags_script}" --root "${tag_root}" --json 2>/dev/null)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && node -e '
+  const report = JSON.parse(process.argv[1]);
+  process.exit(report.summary.errors === 1 && report.summary.warnings === 1 ? 0 : 1);
+' "${tag_json}"; then
+  pass "one baseline entry leaves the duplicate tag violation unsuppressed"
+else
+  fail "duplicate tag violation was over-suppressed (status ${status}): ${tag_json}"
+fi
+
+# CLAWFIX-001: an unreadable tracked path means the corpus could not be checked.
+echo "case J: retired-claims fails tooling on unreadable tracked files"
+unreadable_root="${tmp_root}/retired-unreadable"
+mkdir -p "${unreadable_root}"
+git -C "${unreadable_root}" init -q
+git -C "${unreadable_root}" config user.email "docs-check@example.com"
+git -C "${unreadable_root}" config user.name "docs-check"
+printf '%s\n' "tracked then removed" >"${unreadable_root}/gone.txt"
+git -C "${unreadable_root}" add gone.txt
+rm "${unreadable_root}/gone.txt"
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${unreadable_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "gone.txt"; then
+  pass "unreadable tracked file exits 2 and names the path"
+else
+  fail "unreadable tracked file should be tooling failure (status ${status}): ${out}"
+fi
+
+# CLAWFIX-001: a survivor allowance identifies its local context, not a count.
+echo "case K: retired-claim survivor fingerprint rejects an in-file move"
+retired_root="${tmp_root}/retired-fingerprint"
+checker_root="${tmp_root}/retired-checker"
+mkdir -p "${retired_root}" "${checker_root}"
+cp "${script_dir}/check-retired-claims.mjs" "${checker_root}/check-retired-claims.mjs"
+fingerprint="$(node --input-type=module -e '
+  import { createHash } from "node:crypto";
+  const material = ["claim.txt", "before original", "retired fixture phrase", "after original"].join("\0");
+  process.stdout.write(createHash("sha256").update(material).digest("hex"));
+')"
+cat >"${checker_root}/retired-claims.mjs" <<EOF
+export const RETIRED_CLAIMS = [{
+  phrase: 'retired fixture phrase',
+  retiredBy: 'CLAWFIX-001',
+  baseline: [{
+    path: 'claim.txt',
+    occurrences: 1,
+    fingerprints: ['${fingerprint}'],
+    owner: 'CLAWFIX-001'
+  }]
+}];
+export const EXCLUDED_PREFIXES = [];
+export const EXCLUDED_FILES = [];
+export const EXCLUDED_EXACT_BASENAMES = [];
+export const EXCLUDED_EXTENSIONS = [];
+export const LINE_MARKER = 'retired-claim-ok:';
+EOF
+git -C "${retired_root}" init -q
+git -C "${retired_root}" config user.email "docs-check@example.com"
+git -C "${retired_root}" config user.name "docs-check"
+cat >"${retired_root}/claim.txt" <<'EOF'
+before original
+retired fixture phrase
+after original
+EOF
+git -C "${retired_root}" add claim.txt
+set +e
+node "${checker_root}/check-retired-claims.mjs" --root "${retired_root}" >/dev/null 2>&1
+initial_status=$?
+set -e
+cat >"${retired_root}/claim.txt" <<'EOF'
+before original
+replacement text
+after original
+new section
+retired fixture phrase
+tail
+EOF
+set +e
+out="$(node "${checker_root}/check-retired-claims.mjs" --root "${retired_root}" 2>&1)"
+moved_status=$?
+set -e
+if [[ "${initial_status}" -eq 0 && "${moved_status}" -eq 1 ]]   && echo "${out}" | grep -q "fingerprint"; then
+  pass "matching survivor passes and moved survivor fails"
+else
+  fail "survivor identity was count-only (initial ${initial_status}, moved ${moved_status}): ${out}"
+fi
+
+# CLAWFIX-001: reject an escaping glob before asking globby to expand it.
+echo "case L: asbuilt-paths rejects repository-escaping globs"
+asbuilt_root="${tmp_root}/asbuilt-containment"
+outside_root="${tmp_root}/outside"
+mkdir -p "${asbuilt_root}/docs/guides" "${outside_root}"
+printf '%s\n' "outside" >"${outside_root}/match.txt"
+cat >"${asbuilt_root}/docs/guides/example.md" <<'EOF'
+# Example guide
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Guide | Authoritative | Test | Live | Last reviewed 2026-08-18 |
+
+| Upstream | Downstream |
+| --- | --- |
+| `docs/../../outside/**` | Fixture |
+EOF
+set +e
+out="$(node "${asbuilt_script}" --root "${asbuilt_root}" --no-baseline 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "escapes repository root"; then
+  pass "escaping glob is rejected before expansion"
+else
+  fail "escaping glob should fail containment (status ${status}): ${out}"
+fi
+
+# CLAWFIX-001 Council advisory: glob expansion must not traverse a repository
+# symlink into a host directory outside the checkout.
+echo "case M: asbuilt-paths does not follow symlinked glob roots"
+symlink_root="${tmp_root}/asbuilt-symlink-containment"
+mkdir -p "${symlink_root}/docs/guides"
+ln -s "${outside_root}" "${symlink_root}/docs/linked"
+cat >"${symlink_root}/docs/guides/example.md" <<'EOF'
+# Example guide
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Guide | Authoritative | Test | Live | Last reviewed 2026-08-18 |
+
+| Upstream | Downstream |
+| --- | --- |
+| `docs/linked/**` | Fixture |
+EOF
+set +e
+out="$(node "${asbuilt_script}" --root "${symlink_root}" --no-baseline 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "glob traverses symlink"; then
+  pass "symlinked glob root is not traversed"
+else
+  fail "symlinked glob escaped containment (status ${status}): ${out}"
+fi
+
+# CLAWFIX-001 Council advisory: static source references must not use a
+# repository symlink as a host-path existence oracle.
+echo "case N: asbuilt-paths rejects static paths through repository symlinks"
+cat >"${symlink_root}/docs/guides/example.md" <<'EOF'
+# Example guide
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Guide | Authoritative | Test | Live | Last reviewed 2026-08-18 |
+
+| Upstream | Downstream |
+| --- | --- |
+| `docs/linked/match.txt` | Fixture |
+EOF
+set +e
+out="$(node "${asbuilt_script}" --root "${symlink_root}" --no-baseline 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "path traverses symlink"; then
+  pass "static path through symlink is rejected"
+else
+  fail "static path exposed host existence (status ${status}): ${out}"
+fi
+
+# CLAWFIX-001 adversarial review: a missing component cancelled by `..` must
+# not stop symlink inspection before the lexically resolved target.
+echo "case O: asbuilt-paths normalises static paths before symlink inspection"
+cat >"${symlink_root}/docs/guides/example.md" <<'EOF'
+# Example guide
+
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Guide | Authoritative | Test | Live | Last reviewed 2026-08-18 |
+
+| Upstream | Downstream |
+| --- | --- |
+| `docs/missing/../linked/match.txt` | Fixture |
+EOF
+set +e
+out="$(node "${asbuilt_script}" --root "${symlink_root}" --no-baseline 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "path traverses symlink"; then
+  pass "lexically cancelled prefix cannot bypass symlink rejection"
+else
+  fail "cancelled prefix bypassed symlink rejection (status ${status}): ${out}"
+fi
+
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"

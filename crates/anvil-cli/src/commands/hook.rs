@@ -3372,26 +3372,32 @@ mod tests {
         // adds shape validation at the policy boundary) and an
         // ancestry that mirrors what the hook would synthesise from
         // `git rev-list --first-parent`.
+        const AFTER_CUTOFF: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        const BETWEEN_TIP_AND_CUTOFF: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        const CUTOFF: &str = "c0ff00c0ff00c0ff00c0ff00c0ff00c0ff00c0ff";
+        const BEFORE_CUTOFF: &str = "dddddddddddddddddddddddddddddddddddddddd";
         let p = Policy::parse(
-            r"
+            &format!(
+                r"
 baseline:
-  cutoff_commit: c0ff00
+  cutoff_commit: {CUTOFF}
 branches:
   - pattern: main
     require: l4_or_l3
     on_no_witness: validate_at_l4
-",
+"
+            ),
             ConfigFormat::Yaml,
             Path::new("<test>"),
         )
         .unwrap();
-        let ancestry = ["aaaa01", "bbbb02", "c0ff00", "0deadbeef"];
-        // The "0deadbeef" is before the cutoff in first-parent
+        let ancestry = [AFTER_CUTOFF, BETWEEN_TIP_AND_CUTOFF, CUTOFF, BEFORE_CUTOFF];
+        // The final commit is before the cutoff in first-parent
         // ancestry → the pre-push filter must treat it as baselined.
-        assert!(p.commit_is_before_cutoff("0deadbeef", &ancestry));
-        // The "bbbb02" is after the cutoff → still needs full
+        assert!(p.commit_is_before_cutoff(BEFORE_CUTOFF, &ancestry));
+        // The commit between the tip and cutoff is after the cutoff → still needs full
         // witness/validation.
-        assert!(!p.commit_is_before_cutoff("bbbb02", &ancestry));
+        assert!(!p.commit_is_before_cutoff(BETWEEN_TIP_AND_CUTOFF, &ancestry));
     }
 
     #[test]

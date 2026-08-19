@@ -26,8 +26,9 @@
 // Wired as a `pnpm docs:check` surface; standalone via
 // `node scripts/docs/check-retired-claims.mjs`.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { resolve, extname, basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import process from 'node:process';
@@ -87,19 +88,22 @@ const needles = RETIRED_CLAIMS.map((claim) => ({
   lower: claim.phrase.toLowerCase(),
 }));
 
-/** @type {Map<string, Map<string, {line: number, text: string}[]>>} phrase → path → hits */
+/** @type {Map<string, Map<string, {line: number, text: string, fingerprint: string}[]>>} phrase → path → hits */
 const hits = new Map(needles.map(({ claim }) => [claim.phrase, new Map()]));
 let scanned = 0;
-let unreadable = 0;
+const unreadable = [];
 
 for (const path of files) {
   let text;
   try {
-    text = readFileSync(resolve(root, path), 'utf8');
-  } catch {
-    // Racing deletions and permission oddities carry no claim content; count
-    // them so the summary cannot silently shrink the universe.
-    unreadable += 1;
+    const absolutePath = resolve(root, path);
+    if (statSync(absolutePath).isDirectory()) continue;
+    text = readFileSync(absolutePath, 'utf8');
+  } catch (err) {
+    // A tracked file that could not be read makes the scan inconclusive.
+    // Continue to collect every affected path, then report one tooling failure
+    // instead of laundering the reduced corpus as clean.
+    unreadable.push({ path, message: err instanceof Error ? err.message : String(err) });
     continue;
   }
   if (text.includes('\u0000')) continue; // binary
@@ -119,9 +123,34 @@ for (const path of files) {
       if (!lowerLine.includes(lower)) continue;
       const byPath = hits.get(claim.phrase);
       if (!byPath.has(path)) byPath.set(path, []);
-      byPath.get(path).push({ line: i + 1, text: line.trim() });
+      byPath.get(path).push({
+        line: i + 1,
+        text: line.trim(),
+        fingerprint: contextFingerprint(path, lines, i),
+      });
     }
   }
+}
+
+if (unreadable.length > 0) {
+  for (const failure of unreadable) {
+    console.error(`[${SURFACE}] cannot read tracked file ${failure.path}: ${failure.message}`);
+  }
+  console.error(
+    `[${SURFACE}] tooling failure: ${unreadable.length} tracked file(s) were unreadable; ` +
+      'the retired-claim corpus was not fully checked.'
+  );
+  process.exit(2);
+}
+
+function contextFingerprint(path, lines, index) {
+  const material = [
+    path,
+    lines[index - 1]?.trim() ?? '',
+    lines[index].trim(),
+    lines[index + 1]?.trim() ?? '',
+  ].join('\0');
+  return createHash('sha256').update(material).digest('hex');
 }
 
 // ---------------------------------------------------------------------------
@@ -146,14 +175,17 @@ for (const { claim } of needles) {
       }
       continue;
     }
-    if (found.length !== entry.occurrences) {
+    const expected = new Set(entry.fingerprints ?? []);
+    const actual = new Set(found.map((hit) => hit.fingerprint));
+    const missing = [...expected].filter((fingerprint) => !actual.has(fingerprint));
+    const unexpected = [...actual].filter((fingerprint) => !expected.has(fingerprint));
+    if (missing.length > 0 || unexpected.length > 0 || found.length !== expected.size) {
       errors.push(
-        `${path}: retired claim "${claim.phrase}" — baseline expects ${entry.occurrences} ` +
-          `occurrence(s) owned by ${entry.owner}, found ${found.length} ` +
+        `${path}: retired claim "${claim.phrase}" — survivor fingerprint mismatch for ` +
+          `${entry.owner}; expected ${expected.size}, found ${found.length} ` +
           `(lines ${found.map((h) => h.line).join(', ')}).\n` +
-          `    More than baselined = the claim is spreading; fix it rather than widening the baseline.\n` +
-          `    Fewer = ${entry.owner} landed; delete the baseline entry in retired-claims.mjs so the\n` +
-          `    phrase becomes fully banned.`
+          `    A moved or changed survivor is new spread; fix it rather than replacing an allowed\n` +
+          `    occurrence in place. If ${entry.owner} landed, delete the stale baseline entry.`
       );
     }
   }
@@ -166,7 +198,7 @@ for (const { claim } of needles) {
     if (!byPath.has(path)) {
       errors.push(
         `${path}: stale baseline for retired claim "${claim.phrase}" — expected ` +
-          `${entry.occurrences} occurrence(s) owned by ${entry.owner}, found none.\n` +
+          `${entry.fingerprints?.length ?? 0} fingerprinted occurrence(s) owned by ${entry.owner}, found none.\n` +
           `    ${entry.owner} appears to have landed; delete this baseline entry in retired-claims.mjs.`
       );
     }
@@ -185,9 +217,8 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-const unreadableNote = unreadable > 0 ? `; ${unreadable} unreadable file(s) skipped` : '';
 console.log(
   `[${SURFACE}] ok: ${RETIRED_CLAIMS.length} retired claim(s) checked over ` +
-    `${scanned} tracked files; baselined survivors within bounds${unreadableNote}.`
+    `${scanned} tracked files; baselined survivors match their fingerprints.`
 );
 process.exit(0);

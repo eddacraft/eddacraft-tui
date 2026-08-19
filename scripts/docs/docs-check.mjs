@@ -132,9 +132,15 @@ async function runAll() {
   printSummary(results);
   // A real content defect outranks a broken tool: if any surface actually ran
   // and failed, exit 1 so a tooling problem elsewhere can never mask it.
-  if (results.some((r) => r.verdict === EXIT_CONTENT_FAILURE)) process.exit(EXIT_CONTENT_FAILURE);
-  if (results.some((r) => r.verdict === EXIT_TOOLING_FAILURE)) process.exit(EXIT_TOOLING_FAILURE);
-  process.exit(EXIT_PASS);
+  if (results.some((r) => r.verdict === EXIT_CONTENT_FAILURE)) {
+    process.exitCode = EXIT_CONTENT_FAILURE;
+    return;
+  }
+  if (results.some((r) => r.verdict === EXIT_TOOLING_FAILURE)) {
+    process.exitCode = EXIT_TOOLING_FAILURE;
+    return;
+  }
+  process.exitCode = EXIT_PASS;
 }
 
 function runSurface(surface, { json, forceNoBaseline }) {
@@ -260,7 +266,8 @@ async function regenerateBaseline() {
       `[docs-check] baseline NOT written — ${failures.length} surface(s) failed: ` +
         `${failures.join(', ')}. Existing baseline left unchanged.\n`
     );
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   // Carry forward existing entries for non-baselineable surfaces (the

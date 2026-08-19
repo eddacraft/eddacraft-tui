@@ -183,6 +183,24 @@ describe('POST /auth/github/callback', () => {
   });
 
   describe('GitHub API failures', () => {
+    it('bounds a stalled token exchange with the upstream timeout', async () => {
+      const timeoutController = new AbortController();
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeoutController.signal);
+      let exchangeSignal: AbortSignal | null | undefined;
+      vi.spyOn(globalThis, 'fetch').mockImplementation(
+        async (_input: RequestInfo | URL, init?: RequestInit) => {
+          exchangeSignal = init?.signal;
+          return jsonResponse({ ok: false, status: 502 });
+        }
+      );
+
+      const res = await callback({ code: 'gh-code' });
+
+      expect(res.status).toBe(401);
+      expect(timeoutSpy).toHaveBeenCalledWith(8_000);
+      expect(exchangeSignal).toBe(timeoutController.signal);
+    });
+
     it('returns 401 when the token exchange HTTP call fails', async () => {
       mockFetch({
         'https://github.com/login/oauth/access_token': { ok: false, status: 502 },

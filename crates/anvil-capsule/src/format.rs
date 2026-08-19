@@ -9,6 +9,10 @@
 //! carries a machine-readable `degraded`, never silence.
 
 use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
+#[cfg(unix)]
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use anvil_checks::secret::{SecretCheckConfig, scan_content_with_compiled_patterns};
 
@@ -43,11 +47,10 @@ pub struct CapsuleContent {
 ///
 /// `out_dir` is created if missing; an existing **non-empty**
 /// directory is refused so a capsule can never silently mix with (or
-/// partially overwrite) prior content. Files are written directly
-/// into the fresh directory — on a mid-write crash the directory is
-/// simply incomplete and fails verification (`manifest.json` is
-/// written last, so a manifest's presence implies every digest was
-/// recorded).
+/// partially overwrite) prior content. Files are written into a
+/// private sibling directory and the completed capsule is published
+/// with one rename, so a concurrent final-path swap cannot redirect
+/// any evidence write.
 ///
 /// `witness.ndjson` carries the verbatim full witness chain
 /// (GITGOV-007); the manifest range's `witness_seq_start`/`_end` mark
@@ -120,13 +123,9 @@ pub fn write_capsule(
     scan_evidence_for_secrets(&files)?;
     scan_exception_prose_for_secrets(&content.exceptions)?;
 
-    prepare_out_dir(out_dir)?;
-
     for (name, bytes) in &files {
-        write_file(out_dir, name, bytes)?;
         manifest.record_file(name, bytes);
     }
-
     // Layout invariant: every ADR-074 required file must be recorded
     // before the manifest is written. `files` is type-pinned to the
     // required count, but the names could still drift.
@@ -136,11 +135,51 @@ pub fn write_capsule(
             "capsule writer missed required files: {missing:?}"
         )));
     }
-
     let manifest_bytes = manifest.to_canonical_bytes()?;
-    write_file(out_dir, "manifest.json", &manifest_bytes)?;
-
+    validate_out_dir(out_dir)?;
+    publish_capsule_files(out_dir, &files, &manifest_bytes)?;
     Ok(manifest)
+}
+
+#[cfg(unix)]
+fn publish_capsule_files(
+    out_dir: &Path,
+    files: &[(&str, Vec<u8>)],
+    manifest_bytes: &[u8],
+) -> Result<(), CapsuleError> {
+    let mut staging_dir = create_staging_dir(out_dir)?;
+    for (name, bytes) in files {
+        staging_dir.write_file(name, bytes)?;
+    }
+    staging_dir.write_file("manifest.json", manifest_bytes)?;
+    staging_dir.publish(out_dir)
+}
+
+#[cfg(windows)]
+fn publish_capsule_files(
+    out_dir: &Path,
+    files: &[(&str, Vec<u8>)],
+    manifest_bytes: &[u8],
+) -> Result<(), CapsuleError> {
+    let mut publish_files: Vec<(&str, &[u8])> = files
+        .iter()
+        .map(|(name, bytes)| (*name, bytes.as_slice()))
+        .collect();
+    publish_files.push(("manifest.json", manifest_bytes));
+    anvil_intercept_win32::path_nofollow::publish_directory_nofollow(out_dir, &publish_files)
+        .map_err(|error| out_dir_error(out_dir, &format!("could not be published safely: {error}")))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn publish_capsule_files(
+    out_dir: &Path,
+    _files: &[(&str, Vec<u8>)],
+    _manifest_bytes: &[u8],
+) -> Result<(), CapsuleError> {
+    Err(out_dir_error(
+        out_dir,
+        "safe capsule publication is unsupported on this platform",
+    ))
 }
 
 /// Scan-on-write enforcement (ADR-072 §3, GITGOV-012): every byte
@@ -265,18 +304,13 @@ fn scan_exception_prose_for_secrets(
     Ok(())
 }
 
-/// Create `out_dir` if missing; refuse a symlinked or non-empty
-/// existing directory.
+/// Refuse a symlinked or non-empty existing output directory.
 ///
 /// The symlink check (`lstat`, final component) keeps a
 /// symlink-to-empty-dir from silently landing the capsule somewhere
-/// other than the named path. The emptiness check is
-/// check-then-write — a concurrent writer can still add *foreign*
-/// files alongside ours (the per-file `create_new` writes refuse
-/// collisions on capsule-owned names); the verifier treats files not
-/// listed in the manifest as a finding, so mixed content is caught at
-/// verification, not silently absorbed.
-fn prepare_out_dir(out_dir: &Path) -> Result<(), CapsuleError> {
+/// other than the named path. Publication repeats this check after all
+/// evidence has been written to a private sibling directory.
+fn validate_out_dir(out_dir: &Path) -> Result<(), CapsuleError> {
     if let Ok(md) = std::fs::symlink_metadata(out_dir)
         && md.file_type().is_symlink()
     {
@@ -295,9 +329,421 @@ fn prepare_out_dir(out_dir: &Path) -> Result<(), CapsuleError> {
             }
             Ok(())
         }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => std::fs::create_dir_all(out_dir)
-            .map_err(|e| out_dir_error(out_dir, &format!("could not be created: {e}"))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(out_dir_error(out_dir, &format!("could not be read: {e}"))),
+    }
+}
+
+#[cfg(unix)]
+static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(unix)]
+#[derive(Debug)]
+struct StagingDir {
+    path: PathBuf,
+    name: std::ffi::OsString,
+    parent_fd: std::os::fd::OwnedFd,
+    dir_fd: std::os::fd::OwnedFd,
+    published: bool,
+}
+
+/// Create a private directory beside the final destination. On Unix,
+/// the returned object pins both the parent and staging directory with
+/// file descriptors so later writes cannot be redirected by replacing
+/// the visible staging pathname.
+#[cfg(unix)]
+fn create_staging_dir(out_dir: &Path) -> Result<StagingDir, CapsuleError> {
+    create_staging_dir_with_hook(out_dir, |_| {})
+}
+
+#[cfg(unix)]
+fn create_staging_dir_with_hook(
+    out_dir: &Path,
+    mut after_create: impl FnMut(&Path),
+) -> Result<StagingDir, CapsuleError> {
+    use std::os::fd::AsFd;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use nix::errno::Errno;
+    use nix::fcntl::{AtFlags, OFlag, open, openat};
+    use nix::sys::stat::{Mode, fstatat, mkdirat};
+
+    let parent = out_dir
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    std::fs::create_dir_all(parent)
+        .map_err(|e| out_dir_error(out_dir, &format!("parent could not be created: {e}")))?;
+    let final_name = out_dir
+        .file_name()
+        .ok_or_else(|| out_dir_error(out_dir, "has no final path component"))?;
+    let parent_fd = open(
+        parent,
+        OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(std::io::Error::from)
+    .map_err(|e| out_dir_error(out_dir, &format!("parent could not be opened safely: {e}")))?;
+    validate_staging_parent(&parent_fd, out_dir)?;
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+
+    for _ in 0..128 {
+        let sequence = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let name = format!(
+            ".{}.tmp-{}-{nanos}-{sequence}",
+            final_name.to_string_lossy(),
+            std::process::id()
+        );
+        match mkdirat(
+            parent_fd.as_fd(),
+            name.as_str(),
+            Mode::from_bits_truncate(0o700),
+        ) {
+            Ok(()) => {
+                let created = fstatat(
+                    parent_fd.as_fd(),
+                    name.as_str(),
+                    AtFlags::AT_SYMLINK_NOFOLLOW,
+                )
+                .map_err(std::io::Error::from)
+                .map_err(|e| {
+                    out_dir_error(
+                        out_dir,
+                        &format!("private staging identity could not be captured: {e}"),
+                    )
+                })?;
+                let candidate = parent.join(&name);
+                after_create(&candidate);
+                let dir_fd = match openat(
+                    parent_fd.as_fd(),
+                    name.as_str(),
+                    OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+                    Mode::empty(),
+                ) {
+                    Ok(fd) => fd,
+                    Err(error) => {
+                        let _ = nix::unistd::unlinkat(
+                            parent_fd.as_fd(),
+                            name.as_str(),
+                            nix::unistd::UnlinkatFlags::RemoveDir,
+                        );
+                        return Err(out_dir_error(
+                            out_dir,
+                            &format!(
+                                "private staging directory could not be pinned: {}",
+                                std::io::Error::from(error)
+                            ),
+                        ));
+                    }
+                };
+                let staging = StagingDir {
+                    path: candidate,
+                    name: name.into(),
+                    parent_fd,
+                    dir_fd,
+                    published: false,
+                };
+                staging.validate_created_identity(created.st_dev, created.st_ino)?;
+                return Ok(staging);
+            }
+            Err(Errno::EEXIST) => {}
+            Err(error) => {
+                return Err(out_dir_error(
+                    out_dir,
+                    &format!(
+                        "private staging directory could not be created: {}",
+                        std::io::Error::from(error)
+                    ),
+                ));
+            }
+        }
+    }
+
+    Err(out_dir_error(
+        out_dir,
+        "private staging directory name could not be allocated",
+    ))
+}
+
+#[cfg(unix)]
+fn validate_staging_parent(
+    parent_fd: &std::os::fd::OwnedFd,
+    out_dir: &Path,
+) -> Result<(), CapsuleError> {
+    use nix::sys::stat::fstat;
+    use nix::unistd::geteuid;
+
+    let stat = fstat(parent_fd)
+        .map_err(std::io::Error::from)
+        .map_err(|error| {
+            out_dir_error(
+                out_dir,
+                &format!("staging parent metadata could not be read: {error}"),
+            )
+        })?;
+    if stat.st_uid != geteuid().as_raw() {
+        return Err(out_dir_error(
+            out_dir,
+            "staging parent is not owned by the current user",
+        ));
+    }
+    if stat.st_mode & 0o022 != 0 {
+        return Err(out_dir_error(
+            out_dir,
+            "staging parent is writable by another OS identity",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+impl StagingDir {
+    fn validate_created_identity(
+        &self,
+        created_device: libc::dev_t,
+        created_inode: libc::ino_t,
+    ) -> Result<(), CapsuleError> {
+        use nix::dir::Dir;
+        use nix::sys::stat::{SFlag, fstat};
+        use nix::unistd::{dup, geteuid};
+
+        let stat = fstat(&self.dir_fd)
+            .map_err(std::io::Error::from)
+            .map_err(|error| {
+                out_dir_error(
+                    &self.path,
+                    &format!("staging metadata could not be read: {error}"),
+                )
+            })?;
+        let kind = SFlag::from_bits_truncate(stat.st_mode);
+        if !kind.contains(SFlag::S_IFDIR)
+            || stat.st_dev != created_device
+            || stat.st_ino != created_inode
+        {
+            return Err(out_dir_error(
+                &self.path,
+                "opened staging directory is not the directory that was created",
+            ));
+        }
+        if stat.st_uid != geteuid().as_raw() || stat.st_mode & 0o777 != 0o700 {
+            return Err(out_dir_error(
+                &self.path,
+                "staging directory must be current-user-owned with mode 0700",
+            ));
+        }
+        if !self.name_matches_fd(&self.name)? {
+            return Err(out_dir_error(
+                &self.path,
+                "private staging directory was replaced while being opened",
+            ));
+        }
+
+        let duplicate = dup(&self.dir_fd)
+            .map_err(std::io::Error::from)
+            .map_err(|error| {
+                out_dir_error(
+                    &self.path,
+                    &format!("staging directory could not be inspected: {error}"),
+                )
+            })?;
+        let mut directory = Dir::from_fd(duplicate)
+            .map_err(std::io::Error::from)
+            .map_err(|error| {
+                out_dir_error(
+                    &self.path,
+                    &format!("staging directory could not be inspected: {error}"),
+                )
+            })?;
+        for entry in directory.iter() {
+            let entry = entry.map_err(std::io::Error::from).map_err(|error| {
+                out_dir_error(
+                    &self.path,
+                    &format!("staging directory could not be inspected: {error}"),
+                )
+            })?;
+            if !matches!(entry.file_name().to_bytes(), b"." | b"..") {
+                return Err(out_dir_error(
+                    &self.path,
+                    "staging directory was not empty when opened",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn name_matches_fd(&self, name: &std::ffi::OsStr) -> Result<bool, CapsuleError> {
+        use nix::errno::Errno;
+        use nix::fcntl::AtFlags;
+        use nix::sys::stat::{fstat, fstatat};
+
+        let held = fstat(&self.dir_fd)
+            .map_err(std::io::Error::from)
+            .map_err(|e| out_dir_error(&self.path, &format!("staging identity failed: {e}")))?;
+        match fstatat(&self.parent_fd, name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+            Ok(named) => Ok(held.st_dev == named.st_dev && held.st_ino == named.st_ino),
+            Err(Errno::ENOENT) => Ok(false),
+            Err(error) => Err(out_dir_error(
+                &self.path,
+                &format!(
+                    "staging path could not be revalidated: {}",
+                    std::io::Error::from(error)
+                ),
+            )),
+        }
+    }
+
+    fn write_file(&self, name: &str, bytes: &[u8]) -> Result<(), CapsuleError> {
+        use std::io::Write;
+
+        use nix::fcntl::{OFlag, openat};
+        use nix::sys::stat::Mode;
+
+        let fd = openat(
+            &self.dir_fd,
+            name,
+            OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+            Mode::from_bits_truncate(0o600),
+        )
+        .map_err(std::io::Error::from)
+        .map_err(|e| CapsuleError::Collect {
+            path: name.to_string(),
+            detail: format!("creating in pinned staging directory: {e}"),
+        })?;
+        let mut file = std::fs::File::from(fd);
+        file.write_all(bytes).map_err(|e| CapsuleError::Collect {
+            path: name.to_string(),
+            detail: format!("writing: {e}"),
+        })
+    }
+
+    fn publish(&mut self, out_dir: &Path) -> Result<(), CapsuleError> {
+        use nix::errno::Errno;
+        use nix::fcntl::{AtFlags, renameat};
+        use nix::sys::stat::{SFlag, fstatat};
+        use nix::unistd::{UnlinkatFlags, unlinkat};
+
+        let expected_parent = self.path.parent().unwrap_or_else(|| Path::new("."));
+        let parent = out_dir
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let destination = out_dir
+            .file_name()
+            .ok_or_else(|| out_dir_error(out_dir, "has no final path component"))?;
+        if parent != expected_parent {
+            return Err(out_dir_error(
+                out_dir,
+                "does not share the pinned staging parent",
+            ));
+        }
+        if !self.name_matches_fd(&self.name)? {
+            return Err(out_dir_error(
+                out_dir,
+                "private staging directory was replaced before publication",
+            ));
+        }
+
+        match fstatat(&self.parent_fd, destination, AtFlags::AT_SYMLINK_NOFOLLOW) {
+            Ok(stat) => {
+                let kind = SFlag::from_bits_truncate(stat.st_mode);
+                if kind.contains(SFlag::S_IFLNK) {
+                    return Err(out_dir_error(
+                        out_dir,
+                        "changed to a symlink before publication",
+                    ));
+                }
+                if !kind.contains(SFlag::S_IFDIR) {
+                    return Err(out_dir_error(
+                        out_dir,
+                        "changed to a non-directory before publication",
+                    ));
+                }
+                unlinkat(&self.parent_fd, destination, UnlinkatFlags::RemoveDir)
+                    .map_err(std::io::Error::from)
+                    .map_err(|e| {
+                        out_dir_error(
+                            out_dir,
+                            &format!("changed before publication and could not be removed: {e}"),
+                        )
+                    })?;
+            }
+            Err(Errno::ENOENT) => {}
+            Err(error) => {
+                return Err(out_dir_error(
+                    out_dir,
+                    &format!(
+                        "could not be revalidated before publication: {}",
+                        std::io::Error::from(error)
+                    ),
+                ));
+            }
+        }
+
+        if !self.name_matches_fd(&self.name)? {
+            return Err(out_dir_error(
+                out_dir,
+                "private staging directory was replaced before publication",
+            ));
+        }
+        renameat(
+            &self.parent_fd,
+            self.name.as_os_str(),
+            &self.parent_fd,
+            destination,
+        )
+        .map_err(std::io::Error::from)
+        .map_err(|e| out_dir_error(out_dir, &format!("could not be published atomically: {e}")))?;
+        if !self.name_matches_fd(destination)? {
+            let _ = remove_named_entry(&self.parent_fd, destination);
+            return Err(out_dir_error(
+                out_dir,
+                "published directory identity did not match the written staging directory",
+            ));
+        }
+        self.published = true;
+        Ok(())
+    }
+}
+
+#[cfg(unix)]
+fn remove_named_entry(parent_fd: &std::os::fd::OwnedFd, name: &std::ffi::OsStr) -> nix::Result<()> {
+    use nix::fcntl::AtFlags;
+    use nix::sys::stat::{SFlag, fstatat};
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    let stat = fstatat(parent_fd, name, AtFlags::AT_SYMLINK_NOFOLLOW)?;
+    let flags = if SFlag::from_bits_truncate(stat.st_mode).contains(SFlag::S_IFDIR) {
+        UnlinkatFlags::RemoveDir
+    } else {
+        UnlinkatFlags::NoRemoveDir
+    };
+    unlinkat(parent_fd, name, flags)
+}
+
+#[cfg(unix)]
+impl Drop for StagingDir {
+    fn drop(&mut self) {
+        use nix::unistd::{UnlinkatFlags, unlinkat};
+
+        if self.published {
+            return;
+        }
+        for name in crate::manifest::REQUIRED_FILES
+            .iter()
+            .copied()
+            .chain(std::iter::once("manifest.json"))
+        {
+            let _ = unlinkat(&self.dir_fd, name, UnlinkatFlags::NoRemoveDir);
+        }
+        if self.name_matches_fd(&self.name).unwrap_or(false) {
+            let _ = unlinkat(
+                &self.parent_fd,
+                self.name.as_os_str(),
+                UnlinkatFlags::RemoveDir,
+            );
+        }
     }
 }
 
@@ -311,23 +757,6 @@ fn out_dir_error(out_dir: &Path, detail: &str) -> CapsuleError {
 /// Exclusive-create write: a concurrent file at the same name (racing
 /// creator, leftover content past the emptiness check) is an error,
 /// never an overwrite.
-fn write_file(out_dir: &Path, name: &str, bytes: &[u8]) -> Result<(), CapsuleError> {
-    use std::io::Write;
-    let path = out_dir.join(name);
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-        .map_err(|e| CapsuleError::Collect {
-            path: name.to_string(),
-            detail: format!("creating: {e}"),
-        })?;
-    file.write_all(bytes).map_err(|e| CapsuleError::Collect {
-        path: name.to_string(),
-        detail: format!("writing: {e}"),
-    })
-}
-
 /// Deterministic human-readable summary. No timestamps — the same
 /// content must produce byte-identical capsules.
 fn render_readme(content: &CapsuleContent) -> String {
@@ -608,6 +1037,87 @@ mod tests {
         assert!(
             !target.path().join("manifest.json").exists(),
             "nothing written through the symlink"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn publish_refuses_destination_swapped_to_symlink() {
+        let parent = tempfile::tempdir().unwrap();
+        let target = tempfile::tempdir().unwrap();
+        let out = parent.path().join("capsule");
+        let mut staging = create_staging_dir(&out).unwrap();
+        staging.write_file("manifest.json", b"staged").unwrap();
+        std::os::unix::fs::symlink(target.path(), &out).unwrap();
+
+        let err = staging.publish(&out).unwrap_err();
+
+        assert!(err.to_string().contains("symlink"), "{err}");
+        assert!(!target.path().join("manifest.json").exists());
+        assert_eq!(
+            std::fs::read_to_string(staging.path.join("manifest.json")).unwrap(),
+            "staged"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn staging_path_swap_cannot_redirect_evidence_writes() {
+        let parent = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let out = parent.path().join("capsule");
+        let mut staging = create_staging_dir(&out).unwrap();
+        let staging_path = staging.path.clone();
+        let moved = parent.path().join("moved-staging");
+        std::fs::rename(&staging_path, &moved).unwrap();
+        std::os::unix::fs::symlink(outside.path(), &staging_path).unwrap();
+
+        let result = staging.write_file("manifest.json", b"staged");
+
+        assert!(
+            result.is_err() || moved.join("manifest.json").exists(),
+            "a write may fail closed or remain anchored to the created staging directory"
+        );
+        assert!(
+            !outside.path().join("manifest.json").exists(),
+            "the swapped staging symlink must never receive evidence"
+        );
+        assert!(
+            staging.publish(&out).is_err(),
+            "a replaced staging name must not be published"
+        );
+        assert!(
+            !out.exists(),
+            "publication failure must leave the destination absent"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn staging_directory_substitution_before_open_is_refused() {
+        let parent = tempfile::tempdir().unwrap();
+        let out = parent.path().join("capsule");
+        let moved = parent.path().join("created-staging");
+
+        let error = create_staging_dir_with_hook(&out, |candidate| {
+            std::fs::rename(candidate, &moved).unwrap();
+            std::fs::create_dir(candidate).unwrap();
+        })
+        .expect_err("a substituted ordinary directory must be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("is not the directory that was created"),
+            "{error}"
+        );
+        assert!(
+            std::fs::read_dir(&moved).unwrap().next().is_none(),
+            "the originally created staging directory received no evidence"
+        );
+        assert!(
+            !out.exists(),
+            "a rejected staging substitution must not publish a capsule"
         );
     }
 

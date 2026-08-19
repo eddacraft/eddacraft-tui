@@ -165,7 +165,9 @@ pub enum PolicyParseError {
     /// ancestry at fire-time, leaving the cutoff a no-op with no
     /// operator-visible signal. Refuse at the policy boundary so the
     /// typo surfaces before the next push.
-    #[error("baseline.cutoff_commit must be a hex-only SHA (4–64 chars); got {raw:?}")]
+    #[error(
+        "baseline.cutoff_commit must be a full lowercase hex SHA (40 or 64 chars); got {raw:?}"
+    )]
     InvalidCutoffCommit { raw: String },
 }
 
@@ -206,13 +208,16 @@ impl Policy {
     }
 }
 
-/// True when `raw` looks like a git SHA: 4–64 lowercase or uppercase
+/// True when `raw` looks like a canonical full git SHA: 40 or 64 lowercase
 /// hex characters, no other content. Mirrors the shape check in
 /// `anvil_hook::is_hex_sha` but local to this crate so `anvil-l4`
 /// does not gain a dependency on `anvil-hook`.
 fn is_hex_sha_shape(raw: &str) -> bool {
     let len = raw.len();
-    (4..=64).contains(&len) && raw.chars().all(|c| c.is_ascii_hexdigit())
+    matches!(len, 40 | 64)
+        && raw
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
 }
 
 /// MLP2-031: errors from [`pin_cutoff_commit`].
@@ -244,7 +249,7 @@ pub enum PolicyPinError {
     /// `cutoff_commit` failed the hex-shape check that
     /// [`Policy::validate`] applies on read. Refuse at the pin
     /// boundary so a typo doesn't write a no-op cutoff to disk.
-    #[error("cutoff_commit must be a hex-only SHA (4–64 chars); got {raw:?}")]
+    #[error("cutoff_commit must be a full lowercase hex SHA (40 or 64 chars); got {raw:?}")]
     InvalidCutoffCommit { raw: String },
     /// Re-serialising the updated value back to the on-disk format
     /// failed. Surfaced separately from `Io` so a transient encoder
@@ -502,7 +507,7 @@ mod tests {
     const VALID_YAML: &str = r"
 required_anvil_version: '0.6.0'
 baseline:
-  cutoff_commit: a3b2ea4e
+  cutoff_commit: a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e
 branches:
   - pattern: main
     require: l4_or_l3
@@ -520,7 +525,10 @@ branches:
     fn parse_accepts_canonical_yaml_shape() {
         let p = Policy::parse(VALID_YAML, ConfigFormat::Yaml, Path::new("<test>")).unwrap();
         assert_eq!(p.required_anvil_version.as_deref(), Some("0.6.0"));
-        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+        assert_eq!(
+            p.baseline.cutoff_commit.as_deref(),
+            Some("a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e")
+        );
         assert_eq!(p.branches.len(), 3);
         assert_eq!(p.branches[0].pattern, "main");
         assert_eq!(p.branches[0].require, Requirement::L4OrL3);
@@ -663,7 +671,7 @@ branches:
     fn parse_rejects_unknown_baseline_key() {
         let yaml = r"
 baseline:
-  cutoff_committ: a3b2ea4e
+  cutoff_committ: a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e
 branches:
   - pattern: main
     require: l4_or_l3
@@ -767,10 +775,37 @@ branches:
     }
 
     #[test]
-    fn parse_accepts_short_and_full_hex_cutoff_commit() {
-        // 7-char abbreviation (git's default --abbrev=7) and full
-        // 40-char sha1 / 64-char sha256 all parse.
-        for good in ["a3b2ea4", "a3b2ea4e", &"a".repeat(40), &"b".repeat(64)] {
+    fn parse_rejects_abbreviated_and_accepts_full_hex_cutoff_commit() {
+        for bad in ["a3b2ea4", "a3b2ea4e"] {
+            let yaml = format!(
+                r"
+baseline:
+  cutoff_commit: '{bad}'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+"
+            );
+            let err = Policy::parse(&yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+            assert!(matches!(err, PolicyParseError::InvalidCutoffCommit { .. }));
+        }
+
+        let uppercase = "A".repeat(40);
+        let yaml = format!(
+            r"
+baseline:
+  cutoff_commit: '{uppercase}'
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+"
+        );
+        let err = Policy::parse(&yaml, ConfigFormat::Yaml, Path::new("<test>")).unwrap_err();
+        assert!(matches!(err, PolicyParseError::InvalidCutoffCommit { .. }));
+
+        for good in [&"a".repeat(40), &"b".repeat(64)] {
             let yaml = format!(
                 r"
 baseline:
@@ -783,7 +818,7 @@ branches:
             );
             let p = Policy::parse(&yaml, ConfigFormat::Yaml, Path::new("<test>"))
                 .unwrap_or_else(|e| panic!("{good:?} should parse, got {e}"));
-            assert_eq!(p.baseline.cutoff_commit.as_deref(), Some(good));
+            assert_eq!(p.baseline.cutoff_commit.as_deref(), Some(good.as_str()));
         }
     }
 
@@ -804,11 +839,14 @@ branches:
         let path = tmp.path().join("policy.yaml");
         fs::write(&path, yaml_without_cutoff()).unwrap();
 
-        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+        pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
         let p = Policy::parse(&raw, ConfigFormat::Yaml, &path).unwrap();
-        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+        assert_eq!(
+            p.baseline.cutoff_commit.as_deref(),
+            Some("a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e")
+        );
         assert_eq!(p.required_anvil_version.as_deref(), Some("0.7.0"));
         assert_eq!(p.branches.len(), 1);
         assert_eq!(p.branches[0].pattern, "main");
@@ -819,7 +857,7 @@ branches:
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("policy.yaml");
         let with_old = r"baseline:
-  cutoff_commit: 'aaaaaaaa'
+  cutoff_commit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 branches:
   - pattern: main
     require: l4_or_l3
@@ -827,11 +865,14 @@ branches:
 ";
         fs::write(&path, with_old).unwrap();
 
-        pin_cutoff_commit(&path, "bbbbbbbb").unwrap();
+        pin_cutoff_commit(&path, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
         let p = Policy::parse(&raw, ConfigFormat::Yaml, &path).unwrap();
-        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("bbbbbbbb"));
+        assert_eq!(
+            p.baseline.cutoff_commit.as_deref(),
+            Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        );
     }
 
     #[test]
@@ -860,11 +901,14 @@ on_no_witness = "validate_at_l4"
 "#;
         fs::write(&path, toml_str).unwrap();
 
-        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+        pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
         let p = Policy::parse(&raw, ConfigFormat::Toml, &path).unwrap();
-        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+        assert_eq!(
+            p.baseline.cutoff_commit.as_deref(),
+            Some("a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e")
+        );
     }
 
     #[test]
@@ -898,7 +942,7 @@ on_no_witness = "validate_at_l4"
     fn pin_refuses_when_policy_file_missing() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("policy.yaml");
-        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
+        let err = pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap_err();
         assert!(matches!(err, PolicyPinError::Io(_)));
     }
 
@@ -920,14 +964,17 @@ branches:
 ";
         fs::write(&path, with_extra).unwrap();
 
-        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+        pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
         assert!(
             raw.contains("_x_experiment_flag") && raw.contains("keep-me"),
             "unknown field dropped: {raw}",
         );
-        assert!(raw.contains("a3b2ea4e"), "cutoff_commit not written: {raw}");
+        assert!(
+            raw.contains("a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e"),
+            "cutoff_commit not written: {raw}"
+        );
     }
 
     #[test]
@@ -936,7 +983,7 @@ branches:
         let path = tmp.path().join("policy.yaml");
         fs::write(&path, yaml_without_cutoff()).unwrap();
 
-        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+        pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap();
 
         // After pin, neither the legacy fixed staging name nor any unique
         // exclusive staging temp may linger beside the policy file.
@@ -968,7 +1015,7 @@ branches:
         let link = tmp.path().join("policy.yaml");
         symlink(&real_path, &link).unwrap();
 
-        let err = pin_cutoff_commit(&link, "a3b2ea4e").unwrap_err();
+        let err = pin_cutoff_commit(&link, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap_err();
         assert!(matches!(err, PolicyPinError::SymlinkRefusal { .. }));
         // Real file unchanged.
         let raw = fs::read_to_string(&real_path).unwrap();
@@ -988,11 +1035,14 @@ branches:
         let outside = tmp.path().join("outside.yaml");
         symlink(&outside, tmp.path().join(".policy.yaml.tmp")).unwrap();
 
-        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+        pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap();
 
         assert!(!outside.exists(), "legacy fixed temp symlink was followed");
         let raw = fs::read_to_string(&path).unwrap();
-        assert!(raw.contains("a3b2ea4e"), "cutoff not written: {raw}");
+        assert!(
+            raw.contains("a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e"),
+            "cutoff not written: {raw}"
+        );
         assert!(
             tmp.path()
                 .join(".policy.yaml.tmp")
@@ -1014,7 +1064,10 @@ branches:
         fs::write(path.as_ref(), yaml_without_cutoff()).unwrap();
 
         let barrier = Arc::new(Barrier::new(2));
-        let cutoffs = ["aaaaaaaa", "bbbbbbbb"];
+        let cutoffs = [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        ];
         let mut handles = Vec::new();
         for cutoff in cutoffs {
             let path = Arc::clone(&path);
@@ -1033,7 +1086,8 @@ branches:
         let p = Policy::parse(&raw, ConfigFormat::Yaml, path.as_ref()).unwrap();
         let cutoff = p.baseline.cutoff_commit.as_deref().unwrap();
         assert!(
-            cutoff == "aaaaaaaa" || cutoff == "bbbbbbbb",
+            cutoff == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                || cutoff == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             "final cutoff should be one of the concurrent writers, got {cutoff}",
         );
         let leftovers: Vec<_> = fs::read_dir(tmp.path())
@@ -1082,13 +1136,13 @@ branches:
 ";
         fs::write(&path, with_scalar_baseline).unwrap();
 
-        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
+        let err = pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap_err();
         assert!(matches!(err, PolicyPinError::BaselineNotAMap));
 
         // Original file untouched.
         let raw = fs::read_to_string(&path).unwrap();
         assert!(raw.contains("oops a scalar"));
-        assert!(!raw.contains("a3b2ea4e"));
+        assert!(!raw.contains("a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e"));
     }
 
     #[test]
@@ -1101,7 +1155,7 @@ branches:
         let path = tmp.path().join("policy.json");
         fs::write(&path, "[1,2,3]").unwrap();
 
-        let err = pin_cutoff_commit(&path, "a3b2ea4e").unwrap_err();
+        let err = pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap_err();
         assert!(matches!(err, PolicyPinError::NotAnObject));
     }
 
@@ -1113,10 +1167,13 @@ branches:
         let path = tmp.path().join("policy.yml");
         fs::write(&path, yaml_without_cutoff()).unwrap();
 
-        pin_cutoff_commit(&path, "a3b2ea4e").unwrap();
+        pin_cutoff_commit(&path, "a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e").unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
         let p = Policy::parse(&raw, ConfigFormat::Yml, &path).unwrap();
-        assert_eq!(p.baseline.cutoff_commit.as_deref(), Some("a3b2ea4e"));
+        assert_eq!(
+            p.baseline.cutoff_commit.as_deref(),
+            Some("a3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4ea3b2ea4e")
+        );
     }
 }

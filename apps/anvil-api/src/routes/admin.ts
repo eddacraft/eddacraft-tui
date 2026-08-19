@@ -509,35 +509,49 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     const hash = hashToken(rawToken);
     const tokenExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
-    const statements = [
-      sql`UPDATE waitlist
-          SET approved_at = COALESCE(approved_at, NOW()), updated_at = NOW()
-          WHERE email = ${normalizedEmail}
-          RETURNING email`,
-      sql`INSERT INTO beta_users (email, status)
-          VALUES (${normalizedEmail}, ${'active'})
-          ON CONFLICT (email) DO UPDATE SET status = ${'active'}
-          RETURNING *`,
-      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
-          VALUES (
-            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${hash}, ${grantedScopes}, ${tokenExpiry.toISOString()}
-          )
-          RETURNING *`,
-      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-          VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })}, ${authMethod})
-          RETURNING *`,
-    ];
-    if (droppedScopes.length > 0) {
-      statements.push(sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-          VALUES (
-            ${'user.approve.scopes_dropped'}, ${actor},
-            ${JSON.stringify({ email: normalizedEmail, droppedScopes, grantedScopes })},
-            ${authMethod}
-          )
-          RETURNING *`);
+    const approvalStatement = sql`
+      WITH claimed AS (
+        UPDATE waitlist
+        SET approved_at = NOW(), updated_at = NOW()
+        WHERE email = ${normalizedEmail}
+          AND approved_at IS NULL
+        RETURNING email
+      ),
+      activated_user AS (
+        INSERT INTO beta_users (email, status)
+        SELECT email, ${'active'} FROM claimed
+        ON CONFLICT (email) DO UPDATE SET status = ${'active'}
+        RETURNING id, email
+      ),
+      granted_token AS (
+        INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+        SELECT id, ${hash}, ${grantedScopes}, ${tokenExpiry.toISOString()}
+        FROM activated_user
+        RETURNING id
+      ),
+      approval_audit AS (
+        INSERT INTO audit_log (action, actor, metadata, auth_method)
+        SELECT ${'user.approved'}, ${actor},
+          ${JSON.stringify({ email: normalizedEmail })}, ${authMethod}
+        FROM claimed
+        RETURNING id
+      ),
+      dropped_scopes_audit AS (
+        INSERT INTO audit_log (action, actor, metadata, auth_method)
+        SELECT ${'user.approve.scopes_dropped'}, ${actor},
+          ${JSON.stringify({ email: normalizedEmail, droppedScopes, grantedScopes })},
+          ${authMethod}
+        FROM claimed
+        WHERE ${droppedScopes.length > 0}
+        RETURNING id
+      )
+      SELECT email FROM claimed
+    `;
+    const transactionResult = await sql.transaction([approvalStatement]);
+    const claimedRows = (transactionResult as unknown[][])[0] ?? [];
+    if (claimedRows.length === 0) {
+      throw new Error(`already_approved:${normalizedEmail}`);
     }
-    await sql.transaction(statements);
 
     // Move from waitlist to beta audience (best-effort)
     moveToApprovedAudience(normalizedEmail).catch((err) => {
@@ -552,10 +566,13 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     return { email: normalizedEmail, expiresAt: tokenExpiry.toISOString() };
   }
 
-  type SkipReason = 'not_found' | 'no_scopes' | 'error';
+  type SkipReason = 'not_found' | 'already_approved' | 'no_scopes' | 'error';
 
   function classifySkip(err: unknown): SkipReason {
     if (err instanceof Error && err.message.startsWith('not_found:')) return 'not_found';
+    if (err instanceof Error && err.message.startsWith('already_approved:')) {
+      return 'already_approved';
+    }
     if (err instanceof Error && err.message.startsWith('no_scopes:')) return 'no_scopes';
     return 'error';
   }
@@ -571,6 +588,9 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       }
       if (reason === 'no_scopes') {
         return c.json({ error: 'No enabled API scopes available for approval' }, 409);
+      }
+      if (reason === 'already_approved') {
+        return c.json({ error: 'Email is already approved' }, 409);
       }
       throw err;
     }

@@ -39,6 +39,7 @@ async function exchangeCodeForToken(code: string): Promise<string> {
 
   const res = await fetch(GITHUB_TOKEN_URL, {
     method: 'POST',
+    signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',

@@ -25,11 +25,11 @@
 //   - `retiredBy` — the CIB item (and PR) that judged the claim false. Only
 //                   add entries for claims an operator-authorised item has
 //                   actually retired; a Draft finding is not a retirement.
-//   - `baseline`  — known survivors, each owned by an open CIB item. The
-//                   check requires exactly `occurrences` matches in `path`:
-//                   more is new spread (fail), fewer means the owning item
-//                   landed and the entry must be deleted (fail, on purpose —
-//                   that is the moment the phrase becomes fully banned).
+//   - `baseline`  — known survivors, each owned by an open CIB item. Every
+//                   survivor is identified by a SHA-256 fingerprint over its
+//                   path plus the previous/current/next trimmed lines. Moving
+//                   the phrase or changing its local claim context is new
+//                   spread; removing it makes the entry stale (both fail).
 //
 // Deliberate quotation (for example a guard test asserting a phrase stays
 // absent) is exempted per line by including the marker
@@ -38,7 +38,7 @@
 // Not scanned (documented in EXCLUDED_PREFIXES / EXCLUDED_FILES below):
 // planning corpus and changelogs, which quote retired claims as history.
 
-/** @type {{phrase: string, retiredBy: string, baseline: {path: string, occurrences: number, owner: string}[]}[]} */
+/** @type {{phrase: string, retiredBy: string, baseline: {path: string, fingerprints: string[], owner: string}[]}[]} */
 export const RETIRED_CLAIMS = [
   {
     // CIB-260: a bare `anvil start` does not attach save-time coverage to

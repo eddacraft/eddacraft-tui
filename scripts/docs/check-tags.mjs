@@ -154,16 +154,25 @@ await Promise.all(
   })
 );
 
-// Apply baseline (fingerprint = message text without line number).
+// Apply baseline as a consumable multiset. Baseline regeneration stores one
+// message per accepted occurrence; consuming that entry ensures a second
+// identical finding in the same file remains an error instead of inheriting
+// the first occurrence's allowance.
+findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+const remainingBaseline = new Map(
+  Object.entries(baseline)
+    .filter(([, messages]) => Array.isArray(messages))
+    .map(([file, messages]) => [file, [...messages]])
+);
 for (const finding of findings) {
-  const fingerprints = baseline[finding.file];
-  if (Array.isArray(fingerprints) && fingerprints.includes(finding.message)) {
+  const fingerprints = remainingBaseline.get(finding.file);
+  const index = fingerprints?.indexOf(finding.message) ?? -1;
+  if (index >= 0) {
+    fingerprints.splice(index, 1);
     finding.severity = 'WARN';
     finding.message = `[baselined] ${finding.message}`;
   }
 }
-
-findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
 
 const errors = findings.filter((f) => f.severity === 'ERROR').length;
 const warnings = findings.filter((f) => f.severity === 'WARN').length;
