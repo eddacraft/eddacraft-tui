@@ -84,13 +84,11 @@ When changing `docs/**`, `plans/**`, `README.md`, `CONTRIBUTING.md`,
 - `docs/guides/documentation-governance.md`
 - `plans/project-context.md`
 
-Code and contract changes should review documentation and diagram impact when
-they add, remove, rename, split, or merge a component, or alter a documented or
-depicted contract, behaviour, boundary, flow, security invariant, lifecycle, or
-user workflow. This review remains advisory until DOCRB-009; follow the
-authoritative
-[change-impact review](docs/guides/documentation-governance.md#change-impact-review)
-for its triggers, exemptions, and expected disposition.
+Code and contract changes should review documentation and diagram impact in the
+same change when they match any trigger in the authoritative
+[change-impact review](docs/guides/documentation-governance.md#change-impact-review).
+That authority defines the triggers, exemptions, and expected disposition; the
+review remains advisory until DOCRB-009.
 
 Include a short `Docs Closeout` note in the final response.
 

@@ -197,10 +197,11 @@ evidence are present.
   `docs/indexes/by-type.md`,
   `plans/modules/docs-rebaseline.aps.md`,
   `plans/index.aps.md`
-- **Evidence:** Policy and template implementation, including Council repair,
-  is carried by the commit containing this work-item update. The template's
-  corrected metadata is mechanically reflected in the four generated
-  discovery indexes named above. Lifecycle bookkeeping is separately owned:
+- **Evidence:** Policy and template implementation, including Council repairs,
+  is carried by the DOCRB-003 commit range containing this work-item update.
+  The template's corrected metadata is mechanically reflected in the four
+  generated discovery indexes named above. Lifecycle bookkeeping is separately
+  owned:
   `plans/index.aps.md` records DOCRB-003 as In Progress and is validated
   against the repaired tree with APS index and drift checks.
 - **Scope:** `AGENTS.md`, `docs/guides/documentation-governance.md`,
