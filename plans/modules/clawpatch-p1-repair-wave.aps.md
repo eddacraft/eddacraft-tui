@@ -3,18 +3,16 @@
 
 # Clawpatch P1 Repair Wave
 
-| ID      | Owner | Priority | Status      | Progress |
-| ------- | ----- | -------- | ----------- | -------- |
-| CLAWFIX | —     | P1       | In Progress | 0/6      |
+| ID      | Owner | Priority | Status | Progress |
+| ------- | ----- | -------- | ------ | -------- |
+| CLAWFIX | —     | P1       | Merged | 6/6      |
 
-**Last reviewed:** 2026-08-19 — CLAWFIX-001..006 implementation and wave-level
-validation are complete in the dedicated Worktrunk workspace. Required
-changed-file validation also exposed and repaired inherited TUI formatting and
-E2E fixture drift. Review evidence is recorded below; PR #4010 is open pending
+**Last reviewed:** 2026-08-19 — CLAWFIX-001..006 merged into `main` via
+PR #4010. Wave-level validation and exact-snapshot Council review passed before
 integration.
 
 **Pull request:** [#4010](https://github.com/eddacraft/anvil-001/pull/4010)
-against `main`; work remains `In Progress` pending integration.
+merged into `main` on 2026-08-19.
 
 ## Purpose
 
@@ -46,7 +44,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-001: Preserve documentation-gate integrity
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4010
 - **Intent:** A baseline suppresses only the occurrence it records, an
   unreadable tracked file is never reported as clean, and an escaping glob is
   rejected before filesystem expansion.
@@ -68,7 +66,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-002: Atomically claim admin approvals
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4010
 - **Intent:** Overlapping batch requests cannot create a successful approval
   grant, success audit, audience transition, or invite for the same waitlist
   entry twice. Rejected no-scope requests remain distinct auditable operator
@@ -84,7 +82,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-003: Bound GitHub OAuth token exchange
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4010
 - **Intent:** A stalled upstream token exchange cannot hold the callback open
   indefinitely.
 - **Expected Outcome:** the exchange fetch receives the same 8-second timeout
@@ -98,7 +96,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-004: Enforce canonical cutoff object IDs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4010
 - **Intent:** Every accepted cutoff value can compare directly with the full
   object IDs produced by Git.
 - **Expected Outcome:** policy parsing and pinning accept only canonical
@@ -115,7 +113,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-005: Publish capsules without an output-directory race
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4010
 - **Intent:** Replacing the named output directory after validation cannot
   redirect capsule writes.
 - **Expected Outcome:** all capsule files are written relative to a pinned,
@@ -139,7 +137,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-006: Keep migration dry-run read-only
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4010
 - **Intent:** Previewing migrations against a fresh database does not create
   the tracking table or execute any other DDL/DML.
 - **Expected Outcome:** dry-run checks whether the tracking table exists using
@@ -176,13 +174,13 @@ tail or advisory test gaps.
 
 ## Review evidence
 
-- Frozen reviewed implementation diff (before landing reconciliation):
-  `f5d1eb3c2ef9b7807db8c79321a658e0d8594a29dd2b45b8425d6d59aa9f0c5f`.
-- Council session `council-8ce13643`: converged; three findings fixed, none
-  open.
+- Final reviewed head: `ac82f16469cade73a174c87fd2c8c2c16e345cf4`.
+- Council session `council-034eb808`: converged with no open findings.
 - Independent verification: PASS for CLAWFIX-001..006.
-- Fresh validation: docs contract passed including cases I-O; docs gate 11/11;
-  API 757/757; L4 plus capsule 239/239; Windows-target strict Clippy clean.
+- Fresh validation: docs contract 1-19 plus A-AK passed; docs gate 11/11; API
+  757/757; L4 plus capsule 239/239; Windows-target strict Clippy clean.
+- Hosted checks passed and PR #4010 rebase-merged as
+  `320017b57a02293cf19111ab7777a633ffa71ba0`.
 - Non-blocking coverage gaps: Windows containment tests were cross-compiled
   rather than run natively; approval concurrency was verified through mocked
   database tests plus direct review of the PostgreSQL conditional CTE.
