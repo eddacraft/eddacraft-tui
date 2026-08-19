@@ -199,6 +199,7 @@ evidence are present.
   `plans/index.aps.md`
 - **Evidence:** Policy and template implementation, including Council repairs,
   is carried by the DOCRB-003 commit range containing this work-item update.
+  Publication receipt: https://github.com/eddacraft/anvil-001/pull/4027.
   The template's corrected metadata is mechanically reflected in the four
   generated discovery indexes named above. Lifecycle bookkeeping is separately
   owned:
