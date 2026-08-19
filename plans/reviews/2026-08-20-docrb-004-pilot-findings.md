@@ -25,14 +25,15 @@ claim. Detailed source review began at
 DOCRB-004 started. A targeted diff from that review snapshot through the current
 comparison base found no changes in the cited product source roots or
 `infra/src/vercel.ts`. The changes between the prior and current comparison
-bases are confined to DOCDEF-owned public-reference generation, generated
-reference, sidebar, test, and planning surfaces. DOCDEF-only intervening changes
-do not affect the pilot component source. The rebased content target preserves
-the source review of Unix socket modes, client-side daemon UID validation,
-accepted-peer PID plumbing, Windows DACL/SID checks, both `scan_buffer` modes,
-conditional MidEdit observation export, and MCP `PreWrite` routing. No product,
-configuration, central as-built, governance, public-diagram, or sibling APS
-status change is part of the pilot.
+bases comprise DOCDEF-owned definition and generator work, its generated public
+reference, associated tests and DOCDEF planning, plus coordinated sidebar edits
+that preserve DOCRB-011 ownership. None of those intervening changes touches the
+pilot component source. The rebased content target preserves the source review
+of Unix socket modes, client-side daemon UID validation, accepted-peer PID
+plumbing, Windows DACL/SID checks, both `scan_buffer` modes, conditional MidEdit
+observation export, and MCP `PreWrite` routing. No product, configuration,
+central as-built, governance, public-diagram, or sibling APS status change is
+part of the pilot.
 
 ## Result
 
@@ -208,10 +209,14 @@ pnpm aps:drift --json
 git diff --check
 ```
 
-Formatting and index freshness passed. Documentation checks passed all 11
-surfaces with only pre-existing baselined/advisory warnings. APS active lint and
-stored counts passed; drift reported `findingCount: 0`; the diff whitespace
-check passed.
+Formatting and documentation index freshness passed. Documentation checks
+passed all 11 surfaces with only inherited baselined/advisory warnings. APS
+active lint passed. At the current exact head, `pnpm aps:index:check` exits zero
+but reports the inherited DOCDEF stored `0/6` versus computed `1/6` advisory;
+`pnpm aps:drift --json` also exits zero and reports `findingCount: 1` with
+`aps-progress-mismatch`. A historical pre-rebase run reported `findingCount: 0`;
+that result does not describe the rebased comparison base. The diff whitespace
+check passed. This report-only repair does not edit DOCDEF's owning APS files.
 
 ## Recommendations
 
