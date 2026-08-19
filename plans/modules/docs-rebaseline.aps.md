@@ -5,10 +5,10 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 4/11 |
+| DOCRB | — | high | Ready | 5/11 |
 
-**Last reviewed:** 2026-08-19 against the repository component/documentation
-inventory at `c4fd624ce`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
+**Last reviewed:** 2026-08-20 against the repository component/documentation
+inventory at `0a0f00c20`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
 operator-approved
 [documentation re-baseline design](../specs/2026-08-16-docs-rebaseline.md),
 and the
@@ -107,9 +107,9 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Migration and public pipeline | DOCRB-005..008 | Duplicate authorities are retired, cross-system views rebuilt, and public source/export parity works |
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
-DOCRB-001, DOCRB-002, DOCRB-003, and DOCRB-011 are Merged. DOCRB-004 remains
-Draft. Other items stay Draft until their dependencies and expected
-evidence are present.
+DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, and DOCRB-011 are Merged.
+DOCRB-006 is Ready after its DOCRB-001/-002 dependencies were verified. Other
+items stay Draft until their dependencies and expected evidence are present.
 
 ## Success Criteria
 
@@ -226,8 +226,8 @@ evidence are present.
 
 ### DOCRB-004: Pilot co-located Mermaid on representative components
 
-- **Status:** In Progress 2026-08-20 — operator-authorised after DOCRB-001,
-  DOCRB-002, and DOCRB-003 merge evidence was verified
+- **Status:** Merged 2026-08-20 via PR #4031 (rebase commit
+  `0a0f00c20cacd59fc33971771387a3a3f4cb8bbc`)
 - **Intent:** Prove the beside-code model across materially different anvil
   surfaces before applying it repository-wide.
 - **Expected Outcome:** The six component roots selected by DOCRB-002 satisfy
@@ -265,7 +265,8 @@ evidence are present.
   `apps/docs-shell/AGENTS.md`, `CONTEXT.md`,
   `plans/reviews/2026-08-20-docrb-004-pilot-findings.md`,
   `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`
-- **Evidence:** The single
+- **Evidence:** PR #4031 merged after exact-head Council approval, fresh hosted
+  CI, and zero unresolved review threads. The single
   `plans/reviews/2026-08-20-docrb-004-pilot-findings.md` report records
   source-pinned navigation, manual Mermaid render/trace, ownership,
   source-link, and duplication evidence plus follow-on recommendations.
@@ -301,7 +302,8 @@ evidence are present.
 
 ### DOCRB-006: Rebuild central cross-system and operational diagrams
 
-- **Status:** Draft
+- **Status:** Ready 2026-08-20 — DOCRB-001 and DOCRB-002 dependencies and the
+  current central-diagram authority boundary were verified
 - **Intent:** Replace stale or over-broad central diagrams with a small set of
   authoritative cross-system views.
 - **Expected Outcome:** The central set covers system context, component/container
