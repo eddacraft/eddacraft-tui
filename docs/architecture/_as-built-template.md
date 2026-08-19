@@ -1,133 +1,116 @@
 # {Component Name} — As-Built
 
-| Type     | Authority | Owner                                     | Status | Freshness                                                                                                                                 |
-| -------- | --------- | ----------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | MODULE-CODE (link to `plans/modules/...`) | Draft  | Last reviewed YYYY-MM-DD against tag/SHA `vX.Y.Z-beta` / `<short-sha>` and source paths listed in [Source references](#source-references) |
+| Type     | Authority | Owner                                     | Status | Freshness                                                                                  |
+| -------- | --------- | ----------------------------------------- | ------ | ------------------------------------------------------------------------------------------ |
+| As-built | Derived   | MODULE-CODE (link to `plans/modules/...`) | Draft  | Last reviewed YYYY-MM-DD against `<tag-or-sha>` and source paths declared in this document |
 
-| Upstream                                    | Downstream                                                                 |
-| ------------------------------------------- | -------------------------------------------------------------------------- |
-| `crates/foo`, `apps/bar`, or `packages/baz` | {consumers — other crates, CLI surfaces, MCP tools, runbooks, public docs} |
+| Upstream           | Downstream                                                                 |
+| ------------------ | -------------------------------------------------------------------------- |
+| `<component-root>` | {consumers — other crates, CLI surfaces, MCP tools, runbooks, public docs} |
 
-## Overview
+## Purpose and use
 
-One paragraph framing the component: what it is, what problem it solves, where
-it sits in the wider system. Resist the urge to teach the reader the whole
-codebase here — link to neighbours instead.
+This is the authoring source for **component-root** documentation under ADR-123.
+Do not create a new component as-built under `docs/architecture/**`. Copy the
+relevant shape below into the component's `README.md` and, when its internals
+warrant a separate explanation, `ARCHITECTURE.md`.
 
-## Architecture diagram
+Before writing, use the authoritative
+[component documentation standard](../guides/documentation-governance.md#component-documentation-standard)
+and the source-pinned
+[corpus disposition](../../plans/specs/2026-08-17-docrb-corpus-disposition.md).
+For a component absent from that inventory, apply the standard's fallback
+classification; absence is not an exemption.
 
-ASCII first. Boxes and arrows that match the lifecycle section below — not the
-whole world.
+## Component `README.md` shape
 
-```text
-┌──────────┐         ┌──────────┐         ┌──────────┐
-│ producer │────────▶│ component│────────▶│ consumer │
-└──────────┘         └────┬─────┘         └──────────┘
-                          │
-                     ┌────▼────┐
-                     │  store  │
-                     └─────────┘
+A material component has a root README unless its evidenced classification says
+otherwise. Keep it concise enough to orient a contributor before they read
+internals:
+
+1. **Purpose and scope** — what the component owns and explicitly does not own.
+2. **Owner and entry points** — responsible module/team and supported public
+   interfaces.
+3. **Local development** — the narrow build, test, lint, or run commands that
+   prove changes.
+4. **Architecture and authorities** — link local `ARCHITECTURE.md` when present,
+   governing ADRs, cross-system views, runbooks, and public documentation.
+5. **Orientation diagram, only when useful** — a small inline Mermaid map when
+   it materially improves navigation.
+
+Do not copy cross-system explanations, ADR rationale, public guidance, or
+generated reference material into the README.
+
+## Component `ARCHITECTURE.md` shape
+
+Add this file when component internals warrant source-linked as-built
+explanation. Cover only the concerns that help maintainers verify the component:
+
+1. **Scope and boundaries** — owned responsibilities, dependencies, consumers,
+   and extension points.
+2. **Invariants and decisions** — load-bearing rules and links to governing
+   ADRs.
+3. **Material data and control flow** — entry points, state transitions,
+   persistence or emit boundaries, and lifecycle.
+4. **Trust, failure, and fallback behaviour** — validation boundaries, degraded
+   modes, recovery, and fail-open or fail-closed posture.
+5. **Source references and related authorities** — repository paths for
+   load-bearing claims plus links to the one cross-system or public authority
+   for wider concerns.
+
+Cite current source or contracts for every load-bearing claim. Record a known
+gap only when it has an owner and an APS or GitHub issue; do not leave inline
+deferred-work markers. Do not create an empty `ARCHITECTURE.md` for a
+README-only or evidenced exempt component.
+
+## Metadata shape
+
+Both files use the
+[governance metadata convention](../guides/documentation-governance.md#metadata-convention).
+A component README normally owns orientation; an architecture document is a
+source-linked derivation of implementation truth.
+
+```markdown
+# <Component name>
+
+| Type                   | Authority                                         | Owner   | Status | Freshness                                                      |
+| ---------------------- | ------------------------------------------------- | ------- | ------ | -------------------------------------------------------------- |
+| README or Architecture | Authoritative or Derived for the declared concern | <owner> | Live   | Last reviewed YYYY-MM-DD against <tag-or-sha> and source paths |
+
+| Upstream                            | Downstream                          |
+| ----------------------------------- | ----------------------------------- |
+| <source paths, contracts, and ADRs> | <consumers and dependent documents> |
 ```
 
-A mermaid diagram is optional and goes after the ASCII version, not instead of
-it.
+Replace every placeholder. Use repository-relative inline-code paths so
+`pnpm docs:check` can validate governed source references.
 
-## Lifecycle / data flow
+## Diagram guidance
 
-The actual sequence the component runs through, with code references for every
-load-bearing claim.
+Follow ADR-123 and the
+[architecture-diagram guide](../guides/architecture-diagrams.md):
 
-1. {Trigger / entry point} — `crates/foo/src/lib.rs:NN`
-2. {Step two — what happens, where} — `crates/foo/src/bar.rs:NN-MM`
-3. {Step three — including the persistence or emit boundary} —
-   `crates/foo/src/sink.rs:NN`
+- use inline Mermaid for component internals when relationships are materially
+  easier to verify visually;
+- name the concern the diagram owns and link important nodes to source paths in
+  adjacent prose;
+- keep the diagram small enough to review as text;
+- link to central cross-system views instead of copying them;
+- use curated Draw.io source plus an accessible sibling SVG only for governed
+  public or public-facing views.
 
-Keep the steps numbered and short. If a step has substeps that matter, indent
-them; if they don't matter, leave them out.
+A prose-only component document is valid when a diagram adds no explanatory
+value. ASCII is not a required precursor to Mermaid.
 
-## Surfaces
+## Validation
 
-External APIs / CLI commands / MCP tools / IPC contracts that consumers use.
-Group by surface kind. Include the stability level when it's load-bearing.
+Run the repository documentation gates after copying and completing the local
+files:
 
-| Surface         | Kind     | Stability | Notes                                           |
-| --------------- | -------- | --------- | ----------------------------------------------- |
-| `anvil foo bar` | CLI      | beta      | flags documented in `docs/cli/foo.md`           |
-| `POST /v1/foo`  | HTTP     | beta      | request/response in `crates/foo-api/src/dto.rs` |
-| `foo.run`       | MCP tool | beta      | declared in `crates/foo-mcp/src/tools.rs:NN`    |
+```bash
+pnpm format:check
+pnpm docs:check
+```
 
-## Internals
-
-Key invariants, state machines, and decisions worth documenting. This is the
-section where the next maintainer learns why things are arranged the way they
-are. One short subsection per invariant.
-
-### Invariant: {name}
-
-What it guarantees, why it exists, where it's enforced
-(`crates/foo/src/guard.rs:NN`).
-
-### State machine: {name}
-
-States, transitions, terminal conditions. ASCII or mermaid. Reference the enum
-or state struct directly (`crates/foo/src/state.rs:NN`).
-
-## Known gaps
-
-Things that don't work yet. Dated. Each with a tracked follow-up handle if one
-exists. Every component has gaps — naming them is the value.
-
-### G-01: {short title}
-
-What's wrong or missing, the scope of impact, the workaround if any. Link to the
-issue / APS work item / ADR that tracks the fix.
-
-**Risk:** Low | Medium | High. **Fix:** {summary, or "tracked in #NNNN"}.
-
-### G-02: {short title}
-
-…
-
-If the component genuinely has none today, write `None at time of review.`
-rather than deleting the section.
-
-## Source references
-
-Bulleted list of the canonical files / modules in this component. Match the
-style of `auth-as-built.md`'s "Source Files" table when there are more than a
-handful of files.
-
-- `crates/foo/src/lib.rs` — entry point
-- `crates/foo/src/state.rs` — state machine
-- `crates/foo/src/sink.rs` — emit boundary
-- `crates/foo/Cargo.toml` — dependency surface
-
-## Related docs
-
-- Spec: `docs/specs/{...}.md`
-- ADR: `plans/decisions/{NNN-...}.md`
-- Runbook: `docs/runbooks/{...}.md`
-- Public docs: `apps/docs-site/...` or `docs/cli/...`
-- Module plan: `plans/modules/{MODULE-CODE}.aps.md`
-
----
-
-## How to write one
-
-1. **Cite source.** Every load-bearing claim gets a file reference, ideally
-   line-pinned (`crates/foo/src/bar.rs:NN-MM`). If you can't point at code,
-   you're writing a spec, not an as-built.
-2. **Date it against a specific tag or SHA.** Code drifts. The doc has to say
-   what it was true at, so the next reader knows whether to trust it.
-3. **List source paths in backticks.** `pnpm docs:check` validates code-wrapped
-   source paths in governed as-built documents, so keep real repository paths in
-   the Source references section and avoid placeholder paths outside examples.
-4. **Gaps section is mandatory.** Every component has gaps. Hidden gaps are the
-   most expensive kind. Naming them is the deliverable.
-5. **Keep the architecture diagram minimal.** Boxes and arrows that match the
-   lifecycle section, not a re-draw of the whole product.
-6. **Empty sections stay.** If a section is genuinely empty, write
-   `None at time of review.` rather than deleting it — absence is signal.
-
-**Reference implementation:** [`auth-as-built.md`](./auth-as-built.md) is the
-working example to copy from. When in doubt, match its shape.
+Also trace each documented node, edge, invariant, trust boundary, and material
+flow to the cited source or contract.

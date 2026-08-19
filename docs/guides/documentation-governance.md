@@ -4,9 +4,9 @@
 | ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, `infra/src/vercel.ts`, `plans/specs/2026-08-16-docs-rebaseline.md`, and `plans/specs/2026-08-19-anvil-docs-definition-layer.md` |
 
-| Upstream                                                                                                                              | Downstream                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| ADR-123, ADR-119, ADR-122, `plans/specs/2026-08-16-docs-rebaseline.md`, `AGENTS.md`, `plans/project-context.md`, `plans/aps-rules.md` | `docs/README.md`, `docs/guides/README.md`, `docs/guides/architecture-diagrams.md`, `AGENTS.md` |
+| Upstream                                                                                                                                                                       | Downstream                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| ADR-123, ADR-119, ADR-122, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `plans/project-context.md`, `plans/aps-rules.md` | `docs/README.md`, `docs/guides/README.md`, `docs/guides/architecture-diagrams.md`, `AGENTS.md` |
 
 Documentation is operational knowledge for humans and agents. It exists to make
 engineering behaviour deterministic: what to read, what to trust, what to
@@ -96,10 +96,18 @@ package, or app — they are not filed under `docs/`.
 
 ## Component documentation standard
 
-Use the disposition in `plans/specs/2026-08-17-docrb-corpus-disposition.md` to
-decide whether a component needs both files, a README only, or an explicit
-exemption. Do not create an empty `ARCHITECTURE.md` merely to satisfy a filename
-convention.
+Use the source-pinned disposition in
+`plans/specs/2026-08-17-docrb-corpus-disposition.md` to decide whether a
+component needs both files, a README only, or an explicit exemption. The
+inventory is not an allowlist: adding, removing, renaming, splitting, or merging
+any component requires a fresh classification.
+
+A new or newly discovered component absent from the pinned inventory defaults to
+`component-doc required`. Classify it as `README only` only when orientation
+fully explains a narrow leaf surface. `grouping-only`, `generated/vendor`,
+`historical`, and `explicit exemption` require evidence in the change-impact
+disposition; absence from the inventory is never an exemption. Do not create an
+empty `ARCHITECTURE.md` merely to satisfy a filename convention.
 
 | File                             | Role                                                                                          | Required shape                                                                                                                                                                             | Diagram posture                                                                                   |
 | -------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
@@ -139,14 +147,22 @@ authoritative concern is unaffected.
 
 | Change                                                                                                                            | Documentation review                                                        | Diagram review                                                                             |
 | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Add, remove, rename, split, or merge a component                                                                                  | Review its component disposition, orientation, and cross-links              | Review the authoritative component or cross-system view when it depicts that topology      |
+| Add, remove, rename, split, or merge any component or documentation unit, including one absent from the pinned inventory          | Classify it, then review its orientation, authority, owner, and cross-links | Review the authoritative component or cross-system view when it depicts that topology      |
 | Change dependency direction, a public contract, a trust or deployment boundary, a state transition, or material data/control flow | Review the authoritative component or cross-system explanation              | Review the authoritative diagram when its nodes, edges, boundaries, states, or flow change |
 | Change a user workflow or system behaviour shown publicly                                                                         | Review the authoritative public tutorial, how-to, reference, or explanation | Review the public diagram that depicts the workflow or behaviour                           |
 | Change the authority or lifecycle state of a depicted surface                                                                     | Review metadata, discovery, and links to the authority                      | Review the diagram's labels or disposition                                                 |
 
-Review is normally not required for an internal refactor or bug fix inside an
-unchanged boundary, tests that only add coverage, generated or formatting-only
-changes, or prose repairs that do not alter the documented or depicted concern.
+Change type alone is never an exemption. Review is normally not required for an
+internal refactor, coverage-only test, generated or formatting-only change, or
+prose repair only when it leaves every documented or depicted concern unchanged.
+That includes observable behaviour, public contracts, security invariants,
+trust, failure and fallback behaviour, state or lifecycle, and material
+data/control flow.
+
+A bug fix that changes any of those concerns receives the same review as any
+other behaviour change. For generated output, review the upstream contract and
+rendered result; for formatting-only changes, confirm that semantics and diagram
+meaning are unchanged.
 
 This review is **advisory** until DOCRB-009. Do not add a mandatory CI gate or
 fail CI for a missing diagram update under ADR-123 before that item. Reviewers
@@ -260,8 +276,9 @@ references, and checks that each path resolves in the repository. Markdown
 anchors are allowed and are resolved to the owning file; placeholder paths using
 angle brackets are treated as examples and ignored.
 
-Use `docs/architecture/_as-built-template.md` for implementation maps and
-`docs/guides/runbook-template.md` for operational procedures.
+Use `docs/architecture/_as-built-template.md` when authoring component-root
+`README.md` and `ARCHITECTURE.md` files, and `docs/guides/runbook-template.md`
+for operational procedures.
 
 ## Docs Workflow Skill Shape
 

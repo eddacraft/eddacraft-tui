@@ -1,8 +1,8 @@
 # Architecture Documentation
 
-| Type   | Authority | Owner | Status | Freshness                                                                                                                            |
-| ------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, `infra/src/vercel.ts`, `docs/architecture/`, and `docs/guides/documentation-governance.md` |
+| Type   | Authority | Owner | Status | Freshness                                                                                                                                       |
+| ------ | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, DOCRB-003, `infra/src/vercel.ts`, `docs/architecture/`, and `docs/guides/documentation-governance.md` |
 
 | Upstream                                                                  | Downstream                      |
 | ------------------------------------------------------------------------- | ------------------------------- |
@@ -26,11 +26,14 @@ changing DSITE status. Implementation truth is `infra/src/vercel.ts`.
 contracts still tracked by implementation. Prefer ADRs in `plans/decisions/` for
 "why we chose this".
 
-## As-built docs
+## Cross-system as-built docs
 
-Component-level, dated, source-pinned descriptions of what is actually shipping.
-The shape is set by the [as-built template](_as-built-template.md) — copy it
-when adding a new one.
+These are dated, source-pinned descriptions of cross-system concerns plus
+temporary central component maps awaiting DOCRB-005 migration. Do not add new
+component-internal authority here. For a new or migrated component, use the
+[component-documentation template](_as-built-template.md) to create a
+component-root `README.md` and, when its internals warrant it,
+`ARCHITECTURE.md`.
 
 > Freshness note: treat each doc's own metadata header as authoritative. Entries
 > dated `2026-07-02` against main `d1fded280` were re-verified in the source-pin

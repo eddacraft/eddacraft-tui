@@ -4,9 +4,9 @@
 | ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, `docs/architecture/`, and `docs/guides/documentation-governance.md` |
 
-| Upstream                                                                                        | Downstream                                  |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| ADR-123, `docs/guides/documentation-governance.md`, `plans/specs/2026-08-16-docs-rebaseline.md` | Architecture diagram reviews and PR hygiene |
+| Upstream                                                                                                                                              | Downstream                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| ADR-123, `docs/guides/documentation-governance.md`, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md` | Architecture diagram reviews and PR hygiene |
 
 This guide covers diagram format and maintenance procedure. The durable contract
 is ADR-123. Documentation governance owns the
@@ -15,22 +15,14 @@ and the
 [component documentation standard](documentation-governance.md#component-documentation-standard);
 `AGENTS.md` carries only a thin advisory link to that authority.
 
-## Current inventory
+## Inventory authority
 
-DOCRB-002 dispositioned the full corpus in
-`plans/specs/2026-08-17-docrb-corpus-disposition.md`. The rows below retain a
-concise view of the current diagram set and its target; the disposition spec is
-authoritative when they differ.
-
-| Diagram           | Format  | Location                                           | Current concern                                              | Target under ADR-123                                     |
-| ----------------- | ------- | -------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------- |
-| System overview   | Mermaid | `docs/architecture/overview.md`                    | Active runtime, package/crate dependency graph, and surfaces | Retain as a central cross-system view                    |
-| Quality model     | Mermaid | `docs/architecture/quality-model.md`               | Check/gate/watch conceptual model                            | Retain if still a genuine cross-system view              |
-| System components | Draw.io | `docs/architecture/anvil-system-components.drawio` | Full component map, shipped/planned/archived status          | Needs sibling SVG if retained as a public or review view |
-| PPTX workflow     | Draw.io | `docs/architecture/pptx-workflow.drawio`           | Presentation generation flow                                 | Disposition in DOCRB-002; no committed SVG today         |
-
-There is no committed public Draw.io/SVG pair under `docs/public/**` yet. That
-pipeline is DOCRB-007. Component-local Mermaid is the DOCRB-004 pilot.
+The source-pinned
+[`DOCRB-002 corpus disposition`](../../plans/specs/2026-08-17-docrb-corpus-disposition.md)
+owns the diagram inventory, authority, and retain/move/redraw/merge/retire
+decisions. Do not maintain a second per-diagram list here. Before changing a
+diagram, start from its corpus entry and verify the referenced files against the
+current tree; `docs/architecture/README.md` provides discovery only.
 
 ## Tool choice
 
