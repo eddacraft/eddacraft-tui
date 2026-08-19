@@ -690,7 +690,8 @@ mkdir -p \
   "${generated_root}/crates/anvil-cli/src" \
   "${generated_root}/crates/anvil-cli/src/commands" \
   "${generated_root}/crates/anvil-cli/src/activation" \
-  "${generated_root}/crates/anvil-kernel/src/parser"
+  "${generated_root}/crates/anvil-kernel/src/parser" \
+  "${generated_root}/flags"
 cat >"${generated_root}/patterns/compiled/registry.json" <<'EOF'
 {
   "families": [{ "id": "rust-reliability" }],
@@ -741,6 +742,39 @@ const CLIENTS: &[AgentClient] = &[
         display_name: "Claude Code",
     },
 ];
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/check.rs" <<'EOF'
+const PLANLESS_ELIGIBLE_CHECKS: &[&str] = &["secret-detection", "antipattern-scan"];
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/check_catalog.rs" <<'EOF'
+pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
+    CheckDefinition {
+        stable_id: "ANV-CORE-001",
+        canonical_name: "secret-detection",
+        internal_name: "secret",
+        aliases: &["secret"],
+        description: "Detect leaked secrets and credentials",
+        init_enabled: true,
+        init_visible: true,
+        gate_supported: true,
+        gate_config_supported: true,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: None,
+    },
+];
+pub(crate) const DEFAULT_INIT_CHECKS: &[&str] =
+    &["secret-detection", "import-boundaries", "antipattern-scan"];
+EOF
+cat >"${generated_root}/flags/manifest.json" <<'EOF'
+{
+  "schemaVersion": 1,
+  "flags": [
+    { "key": "track.surface.sql" },
+    { "key": "track.surface.gha" },
+    { "key": "track.surface.dock" },
+    { "key": "track.surface.sh" }
+  ]
+}
 EOF
 cat >"${generated_root}/crates/anvil-cli/src/commands/start.rs" <<'EOF'
 /// CLI args for anvil start.
