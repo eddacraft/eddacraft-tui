@@ -174,16 +174,22 @@ const needles = RETIRED_CLAIMS.map((claim) => ({
   lower: claim.phrase.toLowerCase(),
 }));
 
-function readUnstagedChangedLines(path) {
+function sameFileIdentity(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function validateUnstagedRegularPath(path) {
   const patch = spawnSync(
     'git',
     [
       '--no-replace-objects',
+      '--literal-pathspecs',
       'diff',
       '--no-ext-diff',
       '--no-textconv',
       '--no-renames',
-      '--unified=1',
+      '--text',
+      '--unified=0',
       '--',
       path,
     ],
@@ -196,28 +202,6 @@ function readUnstagedChangedLines(path) {
   if (/^(?:old mode|new mode|deleted file mode|new file mode) /m.test(patch.stdout)) {
     throw new Error('worktree path changed type or mode');
   }
-
-  const changed = [];
-  let inHunk = false;
-  let newLine = 0;
-  for (const line of patch.stdout.split('\n')) {
-    const header = /^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@/.exec(line);
-    if (header) {
-      inHunk = true;
-      newLine = Number(header[1]);
-      continue;
-    }
-    if (!inHunk) continue;
-    if (line.startsWith('+') || line.startsWith(' ')) {
-      changed.push({ line: newLine, text: line.slice(1) });
-      newLine += 1;
-    } else if (line.startsWith('\\')) {
-      continue;
-    } else if (!line.startsWith('-')) {
-      inHunk = false;
-    }
-  }
-  return changed;
 }
 
 /** @type {Map<string, Map<string, {line: number, text: string, fingerprint: string}[]>>} phrase → path → hits */
@@ -230,7 +214,6 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
   const hasWorktreeChanges = dirtyPaths.has(path);
   let fd;
   let text;
-  let changedLines = [];
   try {
     if (mode === '120000') {
       if (hasWorktreeChanges) throw new Error('tracked symlink differs from the indexed target');
@@ -255,13 +238,18 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
         text = readFileSync(fd, 'utf8');
       }
     } else if (mode === '100644' || mode === '100755') {
+      if (hasWorktreeChanges) validateUnstagedRegularPath(path);
+      const openFlags = READ_NONBLOCK | (constants.O_NOFOLLOW ?? 0);
+      fd = openSync(resolve(root, path), openFlags);
+      const opened = fstatSync(fd);
       const materialised = lstatSync(resolve(root, path));
-      if (!materialised.isFile()) throw new Error('tracked regular path is not a regular file');
-      if ((materialised.mode & 0o444) === 0) {
-        throw new Error('tracked regular path has no read permission bits');
+      if (!opened.isFile() || !materialised.isFile()) {
+        throw new Error('tracked regular path is not a regular file');
       }
-      if (hasWorktreeChanges) changedLines = readUnstagedChangedLines(path);
-      text = blobs[fileIndex].toString('utf8');
+      if (!sameFileIdentity(opened, materialised)) {
+        throw new Error('tracked regular path changed while opening');
+      }
+      text = hasWorktreeChanges ? readFileSync(fd, 'utf8') : blobs[fileIndex].toString('utf8');
     } else {
       throw new Error(`unsupported tracked mode ${mode}`);
     }
@@ -305,23 +293,6 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
           fingerprint: contextFingerprint(path, lines, i),
         });
       }
-    }
-  }
-
-  for (const changed of changedLines) {
-    if (changed.text.includes(LINE_MARKER)) continue;
-    const lowerLine = changed.text.toLowerCase();
-    for (const { claim, lower } of needles) {
-      if (!lowerLine.includes(lower)) continue;
-      const byPath = hits.get(claim.phrase);
-      if (!byPath.has(path)) byPath.set(path, []);
-      byPath.get(path).push({
-        line: changed.line,
-        text: changed.text.trim(),
-        // A changed claim or fingerprint-adjacent context cannot consume an
-        // allowance calculated from the indexed snapshot.
-        fingerprint: 'unstaged-worktree-change',
-      });
     }
   }
 }

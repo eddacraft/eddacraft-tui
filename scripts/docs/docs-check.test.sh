@@ -1765,6 +1765,24 @@ cat >"${retired_root}/claim.txt" <<'EOF'
 before original
 replacement text
 after original
+EOF
+set +e
+removed_out="$(node "${checker_root}/check-retired-claims.mjs" --root "${retired_root}" 2>&1)"
+removed_status=$?
+set -e
+cat >"${retired_root}/claim.txt" <<'EOF'
+before changed
+retired fixture phrase
+after original
+EOF
+set +e
+context_out="$(node "${checker_root}/check-retired-claims.mjs" --root "${retired_root}" 2>&1)"
+context_status=$?
+set -e
+cat >"${retired_root}/claim.txt" <<'EOF'
+before original
+replacement text
+after original
 new section
 retired fixture phrase
 tail
@@ -1774,10 +1792,14 @@ set +e
 out="$(node "${checker_root}/check-retired-claims.mjs" --root "${retired_root}" 2>&1)"
 moved_status=$?
 set -e
-if [[ "${initial_status}" -eq 0 && "${moved_status}" -eq 1 ]]   && echo "${out}" | grep -q "fingerprint"; then
-  pass "matching survivor passes and moved survivor fails"
+if [[ "${initial_status}" -eq 0 && "${removed_status}" -eq 1 && "${context_status}" -eq 1 \
+  && "${moved_status}" -eq 1 ]] \
+  && echo "${removed_out}" | grep -q "stale baseline" \
+  && echo "${context_out}" | grep -q "fingerprint" \
+  && echo "${out}" | grep -q "fingerprint"; then
+  pass "matching survivor passes while removal, context change, and move fail"
 else
-  fail "survivor identity was count-only (initial ${initial_status}, moved ${moved_status}): ${out}"
+  fail "survivor postimage was not enforced (initial ${initial_status}, removed ${removed_status}, context ${context_status}, moved ${moved_status}): ${removed_out} ${context_out} ${out}"
 fi
 
 # CLAWFIX-001: reject an escaping glob before asking globby to expand it.
@@ -2203,6 +2225,52 @@ if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "claim.txt"; then
   pass "permission-unreadable regular file fails the scan closed"
 else
   fail "permission-unreadable regular file was accepted (status ${status}): ${out}"
+fi
+
+# Git pathspec magic in a tracked filename must remain literal when validating
+# an unstaged postimage.
+echo "case AE: retired-claims treats tracked pathspec-magic names literally"
+retired_pathspec_root="${tmp_root}/retired-pathspec-magic"
+mkdir -p "${retired_pathspec_root}"
+git -C "${retired_pathspec_root}" init -q
+git -C "${retired_pathspec_root}" config user.email "docs-check@example.com"
+git -C "${retired_pathspec_root}" config user.name "docs-check"
+pathspec_name=':(exclude)claim.txt'
+printf '%s\n' "initial text" >"${retired_pathspec_root}/${pathspec_name}"
+git -C "${retired_pathspec_root}" --literal-pathspecs add -- "${pathspec_name}"
+printf '%s\n' "daily save-time protection" >"${retired_pathspec_root}/${pathspec_name}" # retired-claim-ok: CIB-260
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_pathspec_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -Fq "${pathspec_name}" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "pathspec-magic filename is scanned as an unstaged postimage"
+else
+  fail "pathspec-magic filename escaped scanning (status ${status}): ${out}"
+fi
+
+# Attributes that classify a file as binary must not suppress dirty prose from
+# the postimage scan.
+echo "case AF: retired-claims scans a dirty file marked binary by attributes"
+retired_binary_root="${tmp_root}/retired-binary-attribute"
+mkdir -p "${retired_binary_root}"
+git -C "${retired_binary_root}" init -q
+git -C "${retired_binary_root}" config user.email "docs-check@example.com"
+git -C "${retired_binary_root}" config user.name "docs-check"
+printf '%s\n' "claim.txt binary" >"${retired_binary_root}/.gitattributes"
+printf '%s\n' "initial text" >"${retired_binary_root}/claim.txt"
+git -C "${retired_binary_root}" add .gitattributes claim.txt
+printf '%s\n' "daily save-time protection" >"${retired_binary_root}/claim.txt" # retired-claim-ok: CIB-260
+set +e
+out="$(node "${script_dir}/check-retired-claims.mjs" --root "${retired_binary_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 1 ]] && echo "${out}" | grep -q "claim.txt" \
+  && echo "${out}" | grep -q "daily save-time protection"; then # retired-claim-ok: CIB-260
+  pass "binary attributes cannot suppress dirty prose"
+else
+  fail "binary attributes suppressed the dirty postimage (status ${status}): ${out}"
 fi
 
 
