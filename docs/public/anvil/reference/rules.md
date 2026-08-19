@@ -13,6 +13,9 @@ verified_against: 0.9.6-beta
 
 # Compiled pattern catalogue
 
+These rules are the body of the `antipattern-scan` check, not the list of anvil
+checks. See the [check catalogue](checks.md) for every shipped check.
+
 This catalogue covers source-pattern rules in the compiled registry shipped with
 anvil 0.9.6-beta. Secrets, architecture, policy, command-safety, and other gate
 checks have separate engines and are not listed here. The registry contains **49

@@ -61,6 +61,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'reference/what-anvil-can-do',
+        'reference/checks',
         'reference/cli-reference',
         'reference/rule-reference',
         'reference/support-reference',

@@ -18,10 +18,40 @@ const ROOT = flagValue('--root')
   : resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const CHECK = argv.includes('--check');
 
+const PLANLESS_CHECK_NAMES = ['secret-detection', 'antipattern-scan'];
+
+// Surface-check flag ids are an explicit generator table, not comments from
+// check_catalog.rs. Each flag_id must exist in flags/manifest.json.
+const SURFACE_CHECK_FLAGS = [
+  {
+    canonical_name: 'sql-migrations',
+    flag_id: 'track.surface.sql',
+    session_opt_out: 'ANVIL_TRACK_SURFACE_SQL=0',
+  },
+  {
+    canonical_name: 'github-actions',
+    flag_id: 'track.surface.gha',
+    session_opt_out: 'ANVIL_TRACK_SURFACE_GHA=0',
+  },
+  {
+    canonical_name: 'dockerfile',
+    flag_id: 'track.surface.dock',
+    session_opt_out: 'ANVIL_TRACK_SURFACE_DOCK=0',
+  },
+  {
+    canonical_name: 'shell-scripts',
+    flag_id: 'track.surface.sh',
+    session_opt_out: 'ANVIL_TRACK_SURFACE_SH=0',
+  },
+];
+
 const inputs = {
   registry: resolve(ROOT, 'patterns/compiled/registry.json'),
   cli: resolve(ROOT, 'crates/anvil-cli/src/main.rs'),
   start: resolve(ROOT, 'crates/anvil-cli/src/commands/start.rs'),
+  check: resolve(ROOT, 'crates/anvil-cli/src/commands/check.rs'),
+  checkCatalog: resolve(ROOT, 'crates/anvil-cli/src/commands/check_catalog.rs'),
+  flagManifest: resolve(ROOT, 'flags/manifest.json'),
   // Full MCP install registry (MCPX / ADR-106), not the two-client v1
   // protection-ladder enum in diagnostic.rs.
   clients: resolve(ROOT, 'crates/anvil-cli/src/activation/agent_registry.rs'),
@@ -52,6 +82,19 @@ const exitCodes = parseExitCodes(readProductSource(inputs.cli));
 const clients = parseClients(readProductSource(inputs.clients));
 const languages = parseLanguages(readProductSource(inputs.languages));
 const targets = parseTargets(readProductSource(inputs.dist));
+const checkDefinitions = parseCheckDefinitions(readProductSource(inputs.checkCatalog));
+const initDefaultChecks = parseStringSlice(
+  readProductSource(inputs.checkCatalog),
+  'DEFAULT_INIT_CHECKS'
+);
+const planlessChecks = parseStringSlice(
+  readProductSource(inputs.check),
+  'PLANLESS_ELIGIBLE_CHECKS'
+);
+const surfaceFlags = resolveSurfaceCheckFlags(
+  checkDefinitions,
+  JSON.parse(readProductSource(inputs.flagManifest))
+);
 const ruleExtensions = new Set(
   registry.patterns.flatMap((pattern) => pattern.file_extensions ?? []).map((ext) => ext.slice(1))
 );
@@ -59,6 +102,10 @@ const ruleExtensions = new Set(
 const rendered = new Map([
   [resolve(ROOT, 'docs/public/anvil/reference/cli.md'), renderCli(commands, startFlags, exitCodes)],
   [resolve(ROOT, 'docs/public/anvil/reference/rules.md'), renderRules(registry)],
+  [
+    resolve(ROOT, 'docs/public/anvil/reference/checks.md'),
+    renderChecks(checkDefinitions, initDefaultChecks, planlessChecks, surfaceFlags),
+  ],
   [
     resolve(ROOT, 'docs/public/anvil/reference/support.md'),
     renderSupport(languages, targets, ruleExtensions, clients),
@@ -84,7 +131,74 @@ for (const [path, content] of outputs) {
 
 if (CHECK) {
   if (stale > 0) fail(`${stale} generated reference file(s) need regeneration`);
-  process.stdout.write(`[anvil-reference] 3 generated reference files are current\n`);
+  process.stdout.write(`[anvil-reference] ${outputs.size} generated reference files are current\n`);
+}
+
+function parseStringSlice(source, name) {
+  const match = new RegExp(`const ${name}:\\s*&\\[&str\\]\\s*=\\s*&\\[([\\s\\S]*?)\\];`).exec(
+    source
+  );
+  if (!match) fail(`could not locate ${name}`);
+  return [...match[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]);
+}
+
+function parseCheckDefinitions(source) {
+  const start = source.indexOf('pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[');
+  if (start < 0) fail('could not locate CHECK_DEFINITIONS');
+  const end = source.indexOf('\n];', start);
+  if (end < 0) fail('could not locate the end of CHECK_DEFINITIONS');
+  const blocks = source
+    .slice(start, end)
+    .split(/CheckDefinition\s*\{/)
+    .slice(1);
+  if (blocks.length === 0) fail('CHECK_DEFINITIONS contained no entries');
+  return blocks.map((block, index) => {
+    const stringField = (name) => {
+      const match = new RegExp(`${name}:\\s*"([^"]*)"`).exec(block);
+      if (!match) fail(`CHECK_DEFINITIONS[${index}] missing ${name}`);
+      return match[1];
+    };
+    const boolField = (name) => {
+      const match = new RegExp(`${name}:\\s*(true|false)`).exec(block);
+      if (!match) fail(`CHECK_DEFINITIONS[${index}] missing ${name}`);
+      return match[1] === 'true';
+    };
+    const listField = (name) => {
+      const match = new RegExp(`${name}:\\s*&\\[([\\s\\S]*?)\\]`).exec(block);
+      if (!match) fail(`CHECK_DEFINITIONS[${index}] missing ${name}`);
+      return [...match[1].matchAll(/"([^"]*)"/g)].map((item) => item[1]);
+    };
+    return {
+      stable_id: stringField('stable_id'),
+      canonical_name: stringField('canonical_name'),
+      aliases: listField('aliases'),
+      description: stringField('description'),
+      init_enabled: boolField('init_enabled'),
+      init_visible: boolField('init_visible'),
+      gate_supported: boolField('gate_supported'),
+      gate_config_supported: boolField('gate_config_supported'),
+    };
+  });
+}
+
+function resolveSurfaceCheckFlags(definitions, manifest) {
+  const knownFlags = new Set((manifest.flags ?? []).map((flag) => flag.key));
+  for (const row of SURFACE_CHECK_FLAGS) {
+    if (!knownFlags.has(row.flag_id)) {
+      fail(`SURFACE_CHECK_FLAGS cites unknown flag ${row.flag_id}`);
+    }
+  }
+  const byName = new Map(SURFACE_CHECK_FLAGS.map((row) => [row.canonical_name, row]));
+  const missing = definitions
+    .filter((definition) => !definition.gate_config_supported)
+    .filter((definition) => !byName.has(definition.canonical_name))
+    .map((definition) => definition.canonical_name);
+  if (missing.length > 0) {
+    fail(
+      `gate_config_supported:false checks missing SURFACE_CHECK_FLAGS rows: ${missing.join(', ')}`
+    );
+  }
+  return byName;
 }
 
 function parseCommands(source) {
@@ -360,6 +474,8 @@ function renderRules(registry) {
       'Look up source-pattern rules compiled into anvil.'
     ) +
     `# Compiled pattern catalogue\n\n` +
+    `These rules are the body of the \`antipattern-scan\` check, not the list of anvil checks. ` +
+    `See the [check catalogue](checks.md) for every shipped check.\n\n` +
     `This catalogue covers source-pattern rules in the compiled registry shipped with ${releaseLabel()}. ` +
     `Secrets, architecture, policy, command-safety, and other gate checks have separate engines and are not listed here. ` +
     `The registry contains ` +
@@ -368,6 +484,76 @@ function renderRules(registry) {
     `A warning describes a finding; it does not automatically mean a command failed.\n\n` +
     `| Rule | What it detects | Family | Default severity | Applies to |\n` +
     `| --- | --- | --- | --- | --- |\n${rows}\n`
+  );
+}
+
+function renderChecks(definitions, initDefaultChecks, planlessChecks, surfaceFlags) {
+  if (
+    planlessChecks.length !== PLANLESS_CHECK_NAMES.length ||
+    PLANLESS_CHECK_NAMES.some((name, index) => planlessChecks[index] !== name)
+  ) {
+    fail(`PLANLESS_ELIGIBLE_CHECKS drifted from generator pin: ${planlessChecks.join(', ')}`);
+  }
+  const planlessSet = new Set(planlessChecks);
+  const initList = initDefaultChecks.map((name) => `\`${name}\``).join(', ');
+  const planlessList = planlessChecks.map((name) => `\`${name}\``).join(' and ');
+  const sections = definitions
+    .map((definition) => renderCheckSection(definition, planlessSet, surfaceFlags))
+    .join('\n');
+  return (
+    generatedHeader(
+      'checks',
+      'Check catalogue',
+      'Look up every shipped anvil check, including the planless pair and flag-driven surfaces.'
+    ) +
+    `# Check catalogue\n\n` +
+    `This catalogue is generated from the shipped check definitions. It is the complete engine list; ` +
+    `[what anvil can do](what-anvil-can-do.md) stays a 12-row index.\n\n` +
+    `- **Planless \`anvil check\` pair:** ${planlessList}. Every other engine is ignored by \`anvil check\`, even if it appears in \`checks:\`.\n` +
+    `- **Init-default checks:** ${initList}.\n` +
+    `- **Surface checks** (\`sql-migrations\`, \`github-actions\`, \`dockerfile\`, \`shell-scripts\`) are shipped-with-flag-status: default-on in \`anvil gate\`, not list-editable via \`checks:\`, and warn-only unless \`--fail-on-warnings\`.\n\n` +
+    `Read [how anvil evaluates a project](../concepts/evaluation-model.md) for check versus scan versus gate.\n\n` +
+    sections
+  );
+}
+
+function renderCheckSection(definition, planlessSet, surfaceFlags) {
+  const surface = surfaceFlags.get(definition.canonical_name);
+  const aliases =
+    definition.aliases.length > 0
+      ? definition.aliases.map((alias) => `\`${alias}\``).join(', ')
+      : 'none';
+  const selection = surface
+    ? `feature flag \`${surface.flag_id}\` (session opt-out \`${surface.session_opt_out}\`)`
+    : '`.anvil` `checks:` list';
+  const checkCommand = planlessSet.has(definition.canonical_name)
+    ? 'runs'
+    : '**ignored** (planless pair only)';
+  const warnOnly = surface
+    ? `Warn-only in \`anvil gate\` unless \`--fail-on-warnings\` or \`ANVIL_FAIL_ON_WARNINGS\`. Session opt-out: \`${surface.session_opt_out}\`.\n`
+    : 'Follows the engine severity and gate thresholds.\n';
+  const configure = surface
+    ? `Surface checks cannot be enabled or disabled through the \`checks:\` list.\n`
+    : `Select with top-level \`checks:\`, \`--only-checks\`, or \`--skip-checks\`.\n`;
+  const related = ['- Model: [How anvil evaluates a project](../concepts/evaluation-model.md)'];
+  if (definition.canonical_name === 'antipattern-scan') {
+    related.push('- Rules body: [Compiled pattern catalogue](rules.md)');
+  }
+  return (
+    `## \`${definition.canonical_name}\`\n\n` +
+    `${escapeCell(definition.description)}.\n\n` +
+    `| Field | Value |\n| --- | --- |\n` +
+    `| Stable ID | \`${definition.stable_id}\` |\n` +
+    `| Canonical name | \`${definition.canonical_name}\` |\n` +
+    `| Aliases | ${aliases} |\n` +
+    `| Init enabled / visible | ${definition.init_enabled ? 'enabled' : 'not enabled'} / ${definition.init_visible ? 'visible' : 'hidden'} |\n` +
+    `| Gate / gate-config | ${definition.gate_supported ? 'yes' : 'no'} / ${definition.gate_config_supported ? 'yes' : 'no'} |\n` +
+    `| Selection | ${selection} |\n` +
+    `| \`anvil check\` | ${checkCommand} |\n\n` +
+    `### What it evaluates\n\n${escapeCell(definition.description)}.\n\n` +
+    `### Findings / warn-only\n\n${warnOnly}\n` +
+    `### Configure\n\n${configure}\n` +
+    `### Related\n\n${related.join('\n')}\n`
   );
 }
 
@@ -419,6 +605,10 @@ function generatedHeader(id, title, description) {
   const governance = {
     'cli-reference': { owner: 'CLICT', sources: [inputs.cli, inputs.start] },
     'rule-reference': { owner: 'DOCSYNC', sources: [inputs.registry] },
+    checks: {
+      owner: 'DOCDEF',
+      sources: [inputs.checkCatalog, inputs.check, inputs.flagManifest],
+    },
     'support-reference': {
       owner: 'DOCSYNC',
       sources: [inputs.languages, inputs.dist, inputs.clients, inputs.registry],

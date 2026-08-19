@@ -72,7 +72,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-001: Publish the evaluation model and short capability index
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4028
 - **Intent:** Give testers a precise public model of check, scan, finding,
   gate, audit, watch, and the planless `anvil check` subset.
 - **Expected Outcome:** `concepts/evaluation-model.md` quotes the approved
@@ -99,7 +99,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-002: Generate the public check catalogue
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Publish every shipped check from `CHECK_DEFINITIONS` so testers
   can look up what runs, what `anvil check` ignores, and what is
   flag-selected.
@@ -110,7 +110,10 @@ edit; it does not move ownership.
 - **Files:** `scripts/docs/generate-anvil-public-reference.mjs`,
   `docs/public/anvil/reference/checks.md`,
   `docs/public/anvil/reference/rules.md`,
-  `crates/anvil-cli/src/commands/check_catalog.rs`
+  `crates/anvil-cli/src/commands/check_catalog.rs`,
+  `apps/anvil-docs-private/sidebars/anvil.ts`,
+  `apps/docs-site/sidebars/anvil.ts`,
+  `scripts/docs/check-public-docs.mjs`
 - **Dependencies:** DOCDEF-001
 - **Confidence:** high
 - **Validation:** `pnpm docs:public:check && pnpm docs:check`

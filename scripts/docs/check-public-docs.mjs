@@ -35,6 +35,7 @@ const LIVE_REQUIRED_ANVIL_IDS = [
   'beta-testing-guide',
   'concepts/evaluation-model',
   'concepts/glossary',
+  'reference/checks',
   'reference/cli-reference',
   'reference/rule-reference',
   'reference/support-reference',
