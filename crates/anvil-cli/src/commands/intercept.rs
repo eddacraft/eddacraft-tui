@@ -446,7 +446,7 @@ fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
                 }
             }
             Err(err) => {
-                eprint!("produce-locks: scan failed ({err})\n");
+                eprintln!("produce-locks: scan failed ({err})");
             }
         }
     }
@@ -1507,20 +1507,23 @@ mod tests {
     #[test]
     fn status_names_stale_produce_locks_and_points_at_doctor_fix() {
         use anvil_intercept::snapshot_io::base_store::{ProduceLock, ProduceLockClass};
-        let live = ProduceLock {
+        let live_lock = ProduceLock {
             name: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.lock".into(),
             pid: Some(42),
             start_time: Some(2),
             class: ProduceLockClass::Live,
         };
-        assert_eq!(stale_produce_lock_status_lines(&[live.clone()]), None);
-        let stale = ProduceLock {
+        assert_eq!(
+            stale_produce_lock_status_lines(std::slice::from_ref(&live_lock)),
+            None
+        );
+        let stale_lock = ProduceLock {
             name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.lock".into(),
             pid: Some(9001),
             start_time: Some(1),
             class: ProduceLockClass::Stale,
         };
-        let line = stale_produce_lock_status_lines(&[live, stale]).expect("stale named");
+        let line = stale_produce_lock_status_lines(&[live_lock, stale_lock]).expect("stale named");
         assert!(line.contains("1 stale"), "{line}");
         assert!(line.contains("anvil doctor --fix"), "{line}");
     }
