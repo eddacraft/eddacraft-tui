@@ -226,7 +226,7 @@ items stay Draft until their dependencies and expected evidence are present.
 
 ### DOCRB-004: Pilot co-located Mermaid on representative components
 
-- **Status:** Merged 2026-08-20 via PR #4031 (rebase commit
+- **Status:** Merged 2026-08-20 via PR #4031 (rebase-merge commit
   `0a0f00c20cacd59fc33971771387a3a3f4cb8bbc`)
 - **Intent:** Prove the beside-code model across materially different anvil
   surfaces before applying it repository-wide.
@@ -265,8 +265,10 @@ items stay Draft until their dependencies and expected evidence are present.
   `apps/docs-shell/AGENTS.md`, `CONTEXT.md`,
   `plans/reviews/2026-08-20-docrb-004-pilot-findings.md`,
   `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`
-- **Evidence:** PR #4031 merged after exact-head Council approval, fresh hosted
-  CI, and zero unresolved review threads. The single
+- **Evidence:** PR #4031 merged after fresh hosted CI with zero unresolved
+  review threads. Its final head `1840551a74238b832e1478e8d62bae5539ae31fc`
+  and rebase-merge commit share tree
+  `e2df831181db1004968e66ea9f0f88078f345817`. The single
   `plans/reviews/2026-08-20-docrb-004-pilot-findings.md` report records
   source-pinned navigation, manual Mermaid render/trace, ownership,
   source-link, and duplication evidence plus follow-on recommendations.
