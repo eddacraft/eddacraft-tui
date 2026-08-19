@@ -665,4 +665,183 @@ mod tests {
             "merge must re-canonicalise so on-disk shape stays stable"
         );
     }
+
+    #[test]
+    fn validate_rejects_uppercase_fingerprint() {
+        // 16-char uppercase hex is the length-passing cousin of the
+        // existing "BAD" fixture. Dropping the `!is_ascii_uppercase`
+        // conjunct would accept this and let mixed-case fingerprints
+        // fork the identity space.
+        let mut b = Baseline::new(metadata(), vec![]);
+        b.findings.push(BaselineFinding {
+            rule_id: "rule-a".to_string(),
+            file_path: "x.rs".to_string(),
+            fingerprint: "0123456789ABCDEF".to_string(),
+        });
+        let err = b.validate().unwrap_err();
+        assert!(matches!(err, FormatError::MalformedFingerprint { .. }));
+    }
+
+    #[test]
+    fn validate_rejects_fingerprint_length_other_than_sixteen() {
+        for raw in ["0123456789abcde", "0123456789abcdef0"] {
+            let mut b = Baseline::new(metadata(), vec![]);
+            b.findings.push(BaselineFinding {
+                rule_id: "rule-a".to_string(),
+                file_path: "x.rs".to_string(),
+                fingerprint: raw.to_string(),
+            });
+            let err = b.validate().unwrap_err();
+            assert!(
+                matches!(err, FormatError::MalformedFingerprint { .. }),
+                "expected malformed fingerprint for {raw:?}, got {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_rejects_empty_rule_id() {
+        let mut b = Baseline::new(metadata(), vec![]);
+        b.findings.push(BaselineFinding {
+            rule_id: String::new(),
+            file_path: "x.rs".to_string(),
+            fingerprint: "0".repeat(16),
+        });
+        let err = b.validate().unwrap_err();
+        assert!(matches!(err, FormatError::InvalidRuleId { .. }));
+    }
+
+    #[test]
+    fn validate_accepts_current_format_version() {
+        let b = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        assert_eq!(b.format_version, FORMAT_VERSION);
+        b.validate().unwrap();
+    }
+
+    #[test]
+    fn from_bytes_rejects_malformed_json() {
+        let err = Baseline::from_bytes(b"{not json").unwrap_err();
+        assert!(matches!(err, FormatError::Json(_)));
+    }
+
+    #[test]
+    fn from_bytes_accepts_json_without_trailing_newline() {
+        let original = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        let bytes = original.to_canonical_bytes().unwrap();
+        let without_nl = bytes
+            .strip_suffix(b"\n")
+            .expect("canonical bytes end in newline");
+        let parsed = Baseline::from_bytes(without_nl).unwrap();
+        assert_eq!(parsed, original);
+    }
+
+    #[test]
+    fn diff_identity_scan_is_clean_and_preserves_entries() {
+        let f1 = finding("rule-a", "a.rs", "snippet-1");
+        let f2 = finding("rule-b", "b.rs", "snippet-2");
+        let recorded = Baseline::new(metadata(), vec![f1.clone(), f2.clone()]);
+        let diff = recorded.diff(&[f2.clone(), f1.clone()]);
+        assert!(diff.is_clean());
+        assert!(diff.added.is_empty());
+        assert!(diff.removed.is_empty());
+        assert_eq!(diff.unchanged.len(), 2);
+        assert_eq!(diff.unchanged[0].rule_id, "rule-a");
+        assert_eq!(diff.unchanged[1].rule_id, "rule-b");
+        assert_eq!(diff.unchanged[0].fingerprint, f1.fingerprint);
+    }
+
+    #[test]
+    fn diff_treats_same_path_and_rule_with_different_fingerprint_as_distinct() {
+        // A snippet edit is a remove+add, not an in-place keep.
+        // Identity that dropped fingerprint would treat this as
+        // unchanged and a gate would miss the new finding.
+        let recorded = Baseline::new(
+            metadata(),
+            vec![finding("rule-a", "src/lib.rs", "let x = 1;")],
+        );
+        let new_scan = vec![finding("rule-a", "src/lib.rs", "let x = 2;")];
+        let diff = recorded.diff(&new_scan);
+        assert!(!diff.is_clean());
+        assert!(diff.unchanged.is_empty());
+        assert_eq!(diff.added.len(), 1);
+        assert_eq!(diff.removed.len(), 1);
+        assert_ne!(diff.added[0].fingerprint, diff.removed[0].fingerprint);
+    }
+
+    #[test]
+    fn diff_treats_same_path_and_fingerprint_with_different_rule_as_distinct() {
+        let snippet = "let x = 1;";
+        let recorded = Baseline::new(metadata(), vec![finding("rule-a", "src/lib.rs", snippet)]);
+        let new_scan = vec![finding("rule-b", "src/lib.rs", snippet)];
+        let diff = recorded.diff(&new_scan);
+        assert_eq!(diff.unchanged.len(), 0);
+        assert_eq!(diff.added.len(), 1);
+        assert_eq!(diff.removed.len(), 1);
+        assert_eq!(diff.removed[0].rule_id, "rule-a");
+        assert_eq!(diff.added[0].rule_id, "rule-b");
+    }
+
+    #[test]
+    fn diff_empty_scan_marks_every_recorded_finding_removed() {
+        let recorded = Baseline::new(
+            metadata(),
+            vec![
+                finding("rule-a", "a.rs", "s1"),
+                finding("rule-b", "b.rs", "s2"),
+            ],
+        );
+        let diff = recorded.diff(&[]);
+        assert!(!diff.is_clean());
+        assert!(diff.unchanged.is_empty());
+        assert!(diff.added.is_empty());
+        assert_eq!(diff.removed.len(), 2);
+        assert_eq!(diff.removed[0].rule_id, "rule-a");
+        assert_eq!(diff.removed[1].rule_id, "rule-b");
+    }
+
+    #[test]
+    fn diff_against_empty_recorded_marks_every_scan_finding_added() {
+        let recorded = Baseline::new(metadata(), vec![]);
+        let new_scan = vec![
+            finding("rule-z", "z.rs", "s-z"),
+            finding("rule-a", "a.rs", "s-a"),
+        ];
+        let diff = recorded.diff(&new_scan);
+        assert!(!diff.is_clean());
+        assert!(diff.unchanged.is_empty());
+        assert!(diff.removed.is_empty());
+        assert_eq!(diff.added.len(), 2);
+        // Output is sorted by (rule_id, file_path, fingerprint)
+        // regardless of scan order.
+        assert_eq!(diff.added[0].rule_id, "rule-a");
+        assert_eq!(diff.added[1].rule_id, "rule-z");
+    }
+
+    #[test]
+    fn pre_cursor_fingerprint_round_trips_on_partial_baseline() {
+        let mut b = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        b.partial = true;
+        b.continuation = Some("src/middle.rs".to_string());
+        b.pre_cursor_fingerprint = Some("ab".repeat(32));
+        let bytes = b.to_canonical_bytes().unwrap();
+        let text = String::from_utf8(bytes.clone()).unwrap();
+        assert!(
+            text.contains("\"pre_cursor_fingerprint\""),
+            "partial baseline with a cursor hash must emit the key; got {text}"
+        );
+        let parsed = Baseline::from_bytes(&bytes).unwrap();
+        assert_eq!(parsed.pre_cursor_fingerprint, b.pre_cursor_fingerprint);
+        assert!(parsed.partial);
+        assert_eq!(parsed.continuation.as_deref(), Some("src/middle.rs"));
+    }
+
+    #[test]
+    fn complete_baseline_omits_pre_cursor_fingerprint_key() {
+        let b = Baseline::new(metadata(), vec![finding("rule-a", "a.rs", "x")]);
+        let text = String::from_utf8(b.to_canonical_bytes().unwrap()).unwrap();
+        assert!(
+            !text.contains("\"pre_cursor_fingerprint\""),
+            "complete baseline must not emit pre_cursor_fingerprint; got {text}"
+        );
+    }
 }

@@ -315,6 +315,16 @@ mod tests {
     }
 
     #[test]
+    fn baseline_path_constant_is_pinned() {
+        assert_eq!(BASELINE_PATH, "anvil/baseline.json");
+    }
+
+    #[test]
+    fn baseline_validation_at_constant_is_pinned() {
+        assert_eq!(BASELINE_VALIDATION_AT, "baseline");
+    }
+
+    #[test]
     fn save_creates_anvil_directory_if_missing() {
         let tmp = tempfile::tempdir().unwrap();
         assert!(!tmp.path().join("anvil").exists());
@@ -384,6 +394,35 @@ mod tests {
         symlink(other.path().join("anvil"), tmp.path().join("anvil")).unwrap();
         let err = load(tmp.path()).unwrap_err();
         assert!(matches!(err, BaselineIoError::SymlinkRefusal { .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn load_refuses_when_baseline_file_is_symlink() {
+        // Policy must refuse the file itself, not only the `anvil/`
+        // directory. Following a planted symlink would let a
+        // worktree load an out-of-repo baseline as if it were local.
+        use std::os::unix::fs::symlink;
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir(tmp.path().join("anvil")).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        save(outside.path(), &sample()).unwrap();
+        symlink(
+            outside.path().join(BASELINE_PATH),
+            tmp.path().join(BASELINE_PATH),
+        )
+        .unwrap();
+        let err = load(tmp.path()).unwrap_err();
+        assert!(matches!(err, BaselineIoError::SymlinkRefusal { .. }));
+    }
+
+    #[test]
+    fn load_rejects_malformed_baseline_json() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::create_dir(tmp.path().join("anvil")).unwrap();
+        fs::write(tmp.path().join(BASELINE_PATH), b"{not-json").unwrap();
+        let err = load(tmp.path()).unwrap_err();
+        assert!(matches!(err, BaselineIoError::Format(_)));
     }
 
     #[cfg(unix)]
@@ -612,6 +651,15 @@ mod tests {
             after.lines().count(),
             1,
             "chain must still contain exactly one (the original) genesis line",
+        );
+        // Skipping a second genesis must not skip rewriting
+        // baseline.json. A `--refresh` after first adoption still
+        // has to persist the new record.
+        let loaded = load(tmp.path()).unwrap().expect("baseline exists");
+        assert_eq!(
+            loaded.cutoff_commit.as_deref(),
+            Some("a3b2ea4ecafef00d"),
+            "idempotent genesis skip must still persist the refreshed baseline.json"
         );
     }
 

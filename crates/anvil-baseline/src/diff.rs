@@ -238,6 +238,16 @@ mod tests {
     }
 
     #[test]
+    fn diff_is_not_clean_when_both_added_and_removed() {
+        let d = BaselineDiff {
+            unchanged: vec![],
+            added: vec![entry("a", "x", "0".repeat(16).as_str())],
+            removed: vec![entry("b", "y", "1".repeat(16).as_str())],
+        };
+        assert!(!d.is_clean());
+    }
+
+    #[test]
     fn from_baseline_finding_preserves_fields() {
         let f = BaselineFinding {
             rule_id: "rule-a".to_string(),
@@ -413,5 +423,99 @@ mod tests {
             }
             other @ RefreshSuspicion::Clean => panic!("expected Suspicious, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn analyze_refresh_suspicious_at_exact_minimum_removed() {
+        // `removed_count < minimum_removed` (not `<=`): 10 of 10
+        // with default min=10 and ratio 1.0 must fire. A `<=`
+        // mutation would let a full wipe of a 10-finding baseline
+        // through as Clean.
+        let old = many_findings(10);
+        let r = analyze_refresh(&old, &[], &SuspicionThresholds::default());
+        match r {
+            RefreshSuspicion::Suspicious {
+                removed_count,
+                old_total,
+                removed_ratio,
+                ..
+            } => {
+                assert_eq!(removed_count, 10);
+                assert_eq!(old_total, 10);
+                assert!((removed_ratio - 1.0).abs() < f64::EPSILON);
+            }
+            other @ RefreshSuspicion::Clean => {
+                panic!("10-of-10 drop must be Suspicious at the default minimum, got {other:?}")
+            }
+        }
+    }
+
+    #[test]
+    fn analyze_refresh_clean_just_below_minimum_removed() {
+        // 9 of 9 is a 100% drop but below default minimum_removed=10.
+        let old = many_findings(9);
+        let r = analyze_refresh(&old, &[], &SuspicionThresholds::default());
+        assert_eq!(r, RefreshSuspicion::Clean);
+    }
+
+    #[test]
+    fn analyze_refresh_suspicious_at_exact_ratio_threshold() {
+        // 15 of 20 = 0.75, removed_count=15 >= 10. Docs say ≥75%
+        // is flagged; `<` (not `<=`) on the ratio gate is what
+        // implements that. A `<=` mutation would miss an exact-75%
+        // wipe.
+        let old = many_findings(20);
+        let new = many_findings(20)[..5].to_vec();
+        let r = analyze_refresh(&old, &new, &SuspicionThresholds::default());
+        match r {
+            RefreshSuspicion::Suspicious {
+                removed_count,
+                old_total,
+                removed_ratio,
+                ..
+            } => {
+                assert_eq!(removed_count, 15);
+                assert_eq!(old_total, 20);
+                assert!((removed_ratio - 0.75).abs() < f64::EPSILON);
+            }
+            other @ RefreshSuspicion::Clean => {
+                panic!("exact 75% drop must be Suspicious, got {other:?}")
+            }
+        }
+    }
+
+    #[test]
+    fn analyze_refresh_clean_just_below_ratio_threshold() {
+        // 14 of 20 = 0.70, removed_count=14 >= 10, but below 0.75.
+        let old = many_findings(20);
+        let new = many_findings(20)[..6].to_vec();
+        let r = analyze_refresh(&old, &new, &SuspicionThresholds::default());
+        assert_eq!(r, RefreshSuspicion::Clean);
+    }
+
+    #[test]
+    fn analyze_refresh_empty_old_is_clean_even_with_zero_thresholds() {
+        // First-create must not divide by zero or fire just because
+        // the operator set both gates to zero. The empty-old guard
+        // is the contract, not an incidental skip of the min-removed
+        // check.
+        let new = many_findings(5);
+        let t = SuspicionThresholds {
+            removed_ratio_threshold: 0.0,
+            minimum_removed: 0,
+        };
+        assert_eq!(analyze_refresh(&[], &new, &t), RefreshSuspicion::Clean);
+    }
+
+    #[test]
+    fn analyze_refresh_additions_are_not_counted_as_removals() {
+        // A refresh that only adds findings must stay Clean even
+        // when the added set is large. The heuristic is a drop
+        // detector, not a churn detector.
+        let old = many_findings(20);
+        let mut new = many_findings(20);
+        new.extend(many_findings(80)[20..].iter().cloned());
+        let r = analyze_refresh(&old, &new, &SuspicionThresholds::default());
+        assert_eq!(r, RefreshSuspicion::Clean);
     }
 }

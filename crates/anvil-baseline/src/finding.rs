@@ -257,4 +257,45 @@ mod tests {
         assert_eq!(normalize_snippet(""), "");
         assert_eq!(normalize_snippet("   \t\n  "), "");
     }
+
+    #[test]
+    fn fingerprint_domain_separates_rule_id_from_snippet() {
+        // Without the NUL separator, `rule_id || snippet` collides
+        // across the boundary: ("ab", "c") and ("a", "bc") hash the
+        // same concatenated bytes. That would let a rule-id rename
+        // masquerade as a snippet edit (or vice versa) in the
+        // baseline identity.
+        let a = compute_fingerprint("ab", "c").unwrap();
+        let b = compute_fingerprint("a", "bc").unwrap();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn fingerprint_preserves_snippet_case() {
+        // Normalisation must not lowercase. A semantic edit that
+        // only changes identifier case still invalidates the
+        // fingerprint (moves yes, edits no).
+        let a = compute_fingerprint("rule-a", "let X = 1;").unwrap();
+        let b = compute_fingerprint("rule-a", "let x = 1;").unwrap();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn normalize_does_not_collapse_non_ascii_whitespace() {
+        // Contract: only ASCII whitespace is collapsed. NBSP and
+        // other Unicode Zs characters are payload, not separators —
+        // treating them as space would silently merge distinct hits.
+        let nbsp = "a\u{00a0}b";
+        assert_eq!(normalize_snippet(nbsp), nbsp);
+        assert_ne!(normalize_snippet(nbsp), "a b");
+    }
+
+    #[test]
+    fn normalize_does_not_trim_non_ascii_padding() {
+        // Leading/trailing NBSP is not trim-able ASCII whitespace.
+        assert_eq!(
+            normalize_snippet("\u{00a0}token\u{00a0}"),
+            "\u{00a0}token\u{00a0}"
+        );
+    }
 }
