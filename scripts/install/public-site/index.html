@@ -529,10 +529,11 @@
           var el = document.getElementById(id);
           if (!el) return;
           var text = stripFormatting(el.textContent);
+          if (!navigator.clipboard || !navigator.clipboard.writeText) return;
           navigator.clipboard.writeText(text).then(function () {
             btn.classList.add('copied');
             setTimeout(function () { btn.classList.remove('copied'); }, 2000);
-          });
+          }).catch(function () {});
         });
       });
 

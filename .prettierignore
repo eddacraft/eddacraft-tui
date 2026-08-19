@@ -39,6 +39,10 @@ attribution/about.hbs
 # ACKNOWLEDGEMENTS.md has a hand-curated top + auto-generated attribution
 # block; tools/generate-acknowledgements.sh is the source of truth.
 ACKNOWLEDGEMENTS.md
+# Public install landing page is hand-curated HTML. oxfmt wraps command
+# text (breaking white-space:pre boxes) and splits id="version-tag"> so
+# the eddacraft/anvil stamp-install-page.yml sed no longer matches.
+scripts/install/public-site/index.html
 # workspace-hack Cargo.toml is generated and rewritten by cargo-hakari;
 # oxfmt and hakari disagree on TOML style. Hakari owns this file.
 crates/workspace-hack/Cargo.toml

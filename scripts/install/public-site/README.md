@@ -6,11 +6,11 @@ The public install site is GitHub Pages on **`eddacraft/anvil`**, source `main`
 This directory is the source of truth for the curated landing page. Do not leave
 branding or messaging only on the public repo.
 
-| Local file    | Public path                 | Purpose                                                       |
+| Local file    | Published on Pages          | Purpose                                                       |
 | ------------- | --------------------------- | ------------------------------------------------------------- |
 | `index.html`  | `/` (`docs/index.html`)     | Landing page (brand + install methods)                        |
 | `favicon.svg` | `/favicon.svg`              | Tab icon (ember brandmark on void)                            |
-| `og-card.svg` | `assets/og-card.svg`        | Source for `/og.png`                                          |
+| `og-card.svg` | not served                  | Source used to generate `/og.png` (`docs/og.png`)             |
 | `windows`     | `/windows` (`docs/windows`) | PowerShell short URL → latest `eddacraft-anvil-installer.ps1` |
 
 The live page must stay on the **anvil** brand used at `eddacraft.ai`: lowercase
