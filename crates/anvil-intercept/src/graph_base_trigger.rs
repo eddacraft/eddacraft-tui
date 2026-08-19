@@ -1636,8 +1636,7 @@ pub fn activate(
     )?;
     // CIB-344: opportunistic operator debris sweep on trigger start.
     // Dead-pid produce-locks only; a live in-flight producer is left alone.
-    let reaped = crate::snapshot_io::base_store::reap_default_stale_produce_locks()
-        .unwrap_or(0);
+    let reaped = crate::snapshot_io::base_store::reap_default_stale_produce_locks().unwrap_or(0);
     if reaped > 0 {
         tracing::info!(
             target: "anvil_intercept::graph_base_trigger",

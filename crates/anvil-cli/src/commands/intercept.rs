@@ -456,8 +456,8 @@ fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
 /// CIB-344: opportunistic start-path sweep. Dead-pid locks only.
 #[cfg(unix)]
 fn reap_stale_produce_locks_on_start() {
-    let reaped = anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks()
-        .unwrap_or(0);
+    let reaped =
+        anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks().unwrap_or(0);
     if reaped > 0 {
         tracing::info!(
             target: "anvil_cli::commands::intercept",

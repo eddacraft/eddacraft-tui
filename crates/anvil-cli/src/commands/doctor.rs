@@ -2213,7 +2213,13 @@ fn default_config_yaml() -> &'static str {
 #[cfg(unix)]
 fn apply_produce_locks_fix(check: &mut DiagnosticCheck, speak: bool) {
     match anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks() {
-        Ok(removed) if removed > 0 => {
+        Ok(removed) => {
+            if removed == 0 {
+                if speak {
+                    eprintln!("  Failed to fix produce-locks: no stale produce-locks removed");
+                }
+                return;
+            }
             check.status = CheckStatus::Pass;
             check.message = format!(
                 "removed {removed} stale graph-base produce-lock(s) whose pid is dead or reused"
@@ -2221,11 +2227,6 @@ fn apply_produce_locks_fix(check: &mut DiagnosticCheck, speak: bool) {
             check.auto_fixable = false;
             if speak {
                 println!("  Fixed: produce-locks — removed {removed} stale produce-lock(s)");
-            }
-        }
-        Ok(0) => {
-            if speak {
-                eprintln!("  Failed to fix produce-locks: no stale produce-locks removed");
             }
         }
         Err(err) => {

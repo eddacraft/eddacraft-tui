@@ -806,12 +806,9 @@ pub struct ProduceLock {
 /// A missing producing dir is empty. Order is sorted by leaf name.
 ///
 /// # Errors
-/// Opening the producing dir failed for a reason other than NotFound
+/// Opening the producing dir failed for a reason other than `NotFound`
 /// (permission, symlink refusal).
-pub fn list_produce_locks(
-    base_dir: &Path,
-    procs: &dyn ClaimProcs,
-) -> io::Result<Vec<ProduceLock>> {
+pub fn list_produce_locks(base_dir: &Path, procs: &dyn ClaimProcs) -> io::Result<Vec<ProduceLock>> {
     let dir = producing_dir(base_dir);
     if !dir.is_dir() {
         return Ok(Vec::new());
@@ -890,7 +887,10 @@ fn lock_leaf_names(producing: &Path) -> Vec<String> {
         let Some(name) = name.to_str() else {
             continue;
         };
-        if !name.ends_with(".lock") {
+        if !name
+            .rsplit_once('.')
+            .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("lock"))
+        {
             continue;
         }
         let Ok(ft) = entry.file_type() else {
@@ -1701,9 +1701,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dir = base_dir(&tmp);
         let procs = FakeProcs::new(1, Some(0));
-        assert!(list_produce_locks(&dir, &procs)
-            .expect("list produce locks")
-            .is_empty());
+        assert!(
+            list_produce_locks(&dir, &procs)
+                .expect("list produce locks")
+                .is_empty()
+        );
         assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 0);
         assert!(
             !producing_dir(&dir).exists(),
