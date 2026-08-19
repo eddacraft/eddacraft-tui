@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner  | Status | Freshness                                                                                                  |
 | ----- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-08-17 against ADR-123, `docs/guides/documentation-governance.md`, and `pnpm docs:check` |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-08-19 against ADR-123, `docs/guides/documentation-governance.md`, and `pnpm docs:check` |
 
 | Upstream                                                                                           | Downstream                                                                                               |
 | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |

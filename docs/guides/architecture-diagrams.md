@@ -1,8 +1,8 @@
 # Architecture Diagram Maintenance
 
-| Type  | Authority     | Owner | Status | Freshness                                                         |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-17 against ADR-123 and `docs/architecture/` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                     |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, `docs/architecture/`, and `docs/guides/documentation-governance.md` |
 
 | Upstream                                                                                        | Downstream                                  |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------- |

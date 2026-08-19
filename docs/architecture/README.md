@@ -1,8 +1,8 @@
 # Architecture Documentation
 
-| Type   | Authority | Owner | Status | Freshness                                                                                 |
-| ------ | --------- | ----- | ------ | ----------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-17 against ADR-123, `infra/src/vercel.ts`, and `docs/architecture/` |
+| Type   | Authority | Owner | Status | Freshness                                                                                                                            |
+| ------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, `infra/src/vercel.ts`, `docs/architecture/`, and `docs/guides/documentation-governance.md` |
 
 | Upstream                                                                  | Downstream                      |
 | ------------------------------------------------------------------------- | ------------------------------- |
