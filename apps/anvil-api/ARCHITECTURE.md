@@ -2,7 +2,7 @@
 
 | Type         | Authority | Owner | Status | Freshness                                                                                                                                                                       |
 | ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | APGOV | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `apps/anvil-api/src/index.ts`, `apps/anvil-api/src/middleware/**`, `apps/anvil-api/src/routes/**`, and `apps/anvil-api/src/db/**` |
+| Architecture | Derived   | APGOV | Live   | Last reviewed 2026-08-20 against `88bd41647`, `apps/anvil-api/src/index.ts`, `apps/anvil-api/src/middleware/**`, `apps/anvil-api/src/routes/**`, and `apps/anvil-api/src/db/**` |
 
 | Upstream                                                                                                                         | Downstream                                       |
 | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
@@ -64,8 +64,12 @@ an external provider and returns a structured result.
   admin key. A revoked, malformed, or unknown credential is rejected; its audit
   write is attempted on a best-effort basis, and audit-write failure is logged
   without masking the rejection.
-- Database, signing-key, GitHub credential, and email-provider health are
-  reported explicitly; user-impacting dependency failure degrades health.
+- Health reports database, signing-key, verifying-key, GitHub CLI credential,
+  and Resend states explicitly. Database failure, unavailable signing or
+  verifying keys, unavailable GitHub CLI credentials, and Resend
+  `invalid`/`unconfigured` states gate overall health. A Resend or network probe
+  result of `unverifiable` is explicit but non-gating, so it can coexist with
+  overall `status: ok`.
 - Persistence migrations remain governed by the
   [database migration runbook](../../docs/runbooks/db-migrations.md), not this
   component map.

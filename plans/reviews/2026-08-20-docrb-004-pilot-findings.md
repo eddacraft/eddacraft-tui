@@ -16,36 +16,47 @@ component roots:
 - `apps/anvil-api`
 - `apps/docs-shell`
 
-The exact branch range for this report is
-`9a0c906b27ca3325cd9674d002b0f37c51ce6149...HEAD`. Detailed source review
-began at `d6c8b565c375e9e75db44c5d20d2acb066e4471c`, which was `origin/main`
-when DOCRB-004 started. A targeted diff from that review snapshot to the exact
-range base found no changes in the cited product source roots or
-`infra/src/vercel.ts`. The earlier revision therefore remains the
-source-review snapshot, while `9a0c906b2` is the authoritative range base. No
-product, configuration, central as-built, governance, public-diagram, or
-sibling APS status change is part of the pilot.
+The comparison base for this report is
+`9a0c906b27ca3325cd9674d002b0f37c51ce6149`. The immutable reviewed-content
+target is finalised by the immediately following report-only provenance commit;
+that follow-up changes no component claim and only pins the substantive repair
+commit. Detailed source review began at
+`d6c8b565c375e9e75db44c5d20d2acb066e4471c`, which was `origin/main` when
+DOCRB-004 started. A targeted diff from that review snapshot to the comparison
+base found no changes in the cited product source roots or
+`infra/src/vercel.ts`; re-review at `88bd41647` confirmed the source-backed
+intercept and API claims before this repair. No product, configuration, central
+as-built, governance, public-diagram, or sibling APS status change is part of
+the pilot.
 
 ## Result
 
-**Repair applied; Council resolution pending.** Each pilot root has a concise
-authoritative orientation README and a derived, source-linked local
+**Final repair applied; Council resolution pending.** Each pilot root has a
+concise authoritative orientation README and a derived, source-linked local
 architecture map. Each map contains one Mermaid diagram for its bounded
 component concern. Retained central authorities remain linked and explicitly
-unsuperseded. Council review found several over-broad trust, redirect, audit,
+unsuperseded. Council review found over-broad trust, health, redirect, audit,
 and entrypoint claims; the implementation now records the narrower source
 truth below. This report does not mark those Council findings resolved.
 
 ## Council repair and current limitations
 
-- Intercept documentation separates the pre-validation spoof branch from
-  ordinary verdict delivery. Interrupt safety/delivery failures and
-  unattributed or unregistered changes request fences; cascade follows the
-  fifth fence event within 60 seconds. Spoof-fence persistence may fail while
-  the request remains blocked, and degraded assurance alone is not a trigger.
-- Intercept admission records the same-UID trust floor, default Open
-  first-touch admission, opt-in Allowlist confinement, and fail-closed handling
-  only for a present confinement configuration that fails load or trust checks.
+- Intercept documentation separates the `scan_buffer` and `validate_paths`
+  lanes. Only the former can receive a `CrossCheckContext`: Linux production
+  validates an optional session claim and environment tag before scanning
+  caller bytes, while macOS and Windows currently skip those checks. The
+  transport trust floor remains same-user: Unix compares peer UID and Windows
+  applies an owner-only pipe DACL plus an explicit peer-SID comparison. This
+  platform gap means non-Linux mid-edit requests do not have Linux's additional
+  lineage assurance.
+- `validate_paths` performs Open or Allowlist workspace admission before
+  guarded path reads and validation; it does not run the spoof cross-check.
+  Only a present confinement configuration that fails load or trust checks
+  selects the empty-allowlist fail-closed posture.
+- Interrupt safety/delivery failures and unattributed or unregistered changes
+  request fences independently of spoof detection; cascade follows the fifth
+  fence event within 60 seconds. Spoof-fence persistence may fail while the
+  request remains blocked, and degraded assurance alone is not a trigger.
 - Dashboard-server loopback is machine-local but unauthenticated. Browser
   header checks mitigate CSRF, not local-client identity; proxying or
   port-forwarding is unsupported. Per-user isolation would require a capability
@@ -59,6 +70,10 @@ truth below. This report does not mark those Council findings resolved.
 - API rejection remains mandatory while audit persistence is best-effort and
   logs failure. The Hono/Vercel entrypoint convention is separate from Pulumi's
   deployment-root and framework selection.
+- API health reports every dependency state, but only database, signing or
+  verifying key, GitHub CLI credential, and Resend `invalid`/`unconfigured`
+  states gate the overall result. Resend or network `unverifiable` remains
+  visible but non-gating and can coexist with overall `status: ok`.
 
 ## Navigation trace
 
@@ -69,10 +84,10 @@ retained central authority.
 | Root | Navigation trace | Result |
 | ---- | ---------------- | ------ |
 | `crates/anvil-kernel` | README → local architecture → watcher/parser/graph/protocol source → retained kernel as-built | Pass; initial baseline and incremental-finding distinction is visible |
-| `crates/anvil-intercept` | README → local architecture → IPC/admission/spoof/interrupt/unregistered/fence source → retained intercept and driver maps | Pass after repair; admission, verdict, fence persistence, and cascade are distinct |
+| `crates/anvil-intercept` | README → local architecture → IPC/platform wiring/admission/spoof/interrupt/unregistered/fence source → retained intercept and driver maps | Pass after final repair; `scan_buffer`, `validate_paths`, platform assurance, and independent fence triggers are distinct |
 | `apps/dashboard` | README → local architecture → router/query/API client/generated contract → local dashboard guide | Pass after repair; compile-time typing, origin selection, and server enforcement are distinct |
 | `crates/anvil-dashboard-server` | README → local architecture → loopback guard/capability/workspace/OpenAPI source → local dashboard guide | Pass after repair; machine-local unauthenticated boundary and per-user-isolation limitation are explicit |
-| `apps/anvil-api` | README → local architecture → entrypoint/deployment/global middleware/routes/database source → retained API and BAUTH auth maps | Pass after repair; rejection, best-effort audit, APGOV ownership, and BAUTH authority remain separate |
+| `apps/anvil-api` | README → local architecture → entrypoint/health/deployment/global middleware/routes/database source and tests → retained API and BAUTH auth maps | Pass after final repair; dependency reporting and health gates, rejection, best-effort audit, APGOV ownership, and BAUTH authority remain separate |
 | `apps/docs-shell` | README → local architecture → OAuth/session/callback/proxy source → deployment truth and governance | Pass after repair; no-session outcomes, absolute versus relative redirects, live renderers, rollback truth, and ownership gap are explicit |
 
 Root `CONTEXT.md` discovers the new thin docs-shell `AGENTS.md` spoke. No
@@ -84,15 +99,17 @@ Six Mermaid blocks were initially extracted directly from the six local
 `ARCHITECTURE.md` files and rendered with
 `@mermaid-js/mermaid-cli 11.16.0`. Council repairs changed the intercept,
 dashboard, dashboard-server, and docs-shell blocks; all four were re-rendered
-with the same pinned CLI. Chromium cannot start its nested sandbox in this
-container, so the successful manual preview used a temporary Puppeteer
+with the same pinned CLI. The final intercept lane correction was extracted
+again from its source file and re-rendered with that CLI. Chromium cannot start
+its nested sandbox in this container, so the successful manual preview used a
+temporary Puppeteer
 configuration with `--no-sandbox`; inputs and non-empty SVG outputs were
 written only under `/tmp` and are not repository artefacts.
 
 | Diagram concern | Render | Source-edge trace |
 | --------------- | ------ | ----------------- |
 | Kernel source → parse → graph → finding | Pass, non-empty SVG | `watch.rs`, `parser/`, `anvil-graph-cache`, `protocol/` |
-| Intercept spoof → guarded validation/verdict plus explicit fence triggers/cascade | Pass after repair, 33,853-byte SVG | `ipc.rs`, `workspace_admission.rs`, `save_time.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, `fence.rs` |
+| Intercept `scan_buffer` cross-check/buffer scan and separate `validate_paths` admission/guarded validation plus explicit fence triggers/cascade | Pass after final repair, 54,866-byte SVG | `ipc.rs`, `lib.rs`, `workspace_admission.rs`, `workspace_anchor.rs`, `save_time.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, `fence.rs` |
 | Dashboard UI → compile-time generated types → root-relative client → server policy | Pass after repair, 19,679-byte SVG | router/modules/hooks, API client, generated OpenAPI types, generator |
 | Dashboard server capability/access boundary | Pass after repair, 18,104-byte SVG | loopback and browser-request guards, read-only routes, capability loaders, `WorkspaceAnchor` |
 | Hosted API request → middleware → route → persistence/trust | Pass, non-empty SVG | `index.ts`, middleware, representative route boundaries, database client/queries |
@@ -106,14 +123,15 @@ diagram.
 Manual checks are required because current `pnpm docs:check` does not enforce
 component-root README/architecture metadata, cited paths, or links.
 
-- All 123 repository-local Markdown links across the twelve pilot docs and the
+- All 126 repository-local Markdown links across the twelve pilot docs and the
   thin docs-shell spoke resolve. This trace caught and repaired three incorrect
   draft targets before closeout: kernel parser/protocol module links and a
   nonexistent API adapter path.
 - Metadata source paths and globs were traced against the
   `d6c8b565c` source-review snapshot. The targeted product-source diff through
-  the exact `9a0c906b2` range base was empty. Each README is `Authoritative`
-  for component orientation; each architecture file is `Derived` from current
+  the exact `9a0c906b2` range base was empty, and the final intercept/API
+  source re-review at `88bd41647` found no relevant source drift. Each README is
+  `Authoritative` for component orientation; each architecture file is `Derived` from current
   source.
 - KERN owns kernel, INTD owns interception, DASH owns both dashboard roots, and
   APGOV owns the hosted API component. BAUTH remains authoritative for
@@ -133,8 +151,12 @@ component flows, docs-shell spoke, and report were absent. A second replacement
 RED at `f904cd8f` proved all nine Council repair assertions absent: intercept
 flow and admission, dashboard-server boundary, dashboard typing, docs-shell
 redirect/auth outcomes, API audit and entrypoint, index next action, and exact
-report base. Corresponding GREEN assertions now cover those repairs as well as
-all seven DOCRB-004 acceptance behaviours.
+report base. A final replacement RED at `88bd41647` proved eight remaining
+distinctions absent: separate intercept lanes, Linux-only cross-check wiring,
+the non-Linux platform gap, Windows SID trust, no save-time spoof check,
+non-gating Resend `unverifiable`, and immutable provenance. Corresponding
+GREEN assertions cover those repairs as well as all seven DOCRB-004 acceptance
+behaviours.
 
 Focused component validation:
 
