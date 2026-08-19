@@ -6,7 +6,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Overview',
       collapsed: false,
-      items: ['overview', 'when-to-use'],
+      items: ['overview', 'when-to-use', 'beta-testing-guide'],
     },
     {
       type: 'category',
@@ -29,9 +29,21 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Core Concepts',
+      label: 'Concepts',
       collapsed: false,
-      items: ['concepts/plans', 'concepts/gates', 'concepts/sessions', 'concepts/audit-trail'],
+      items: [
+        'concepts/glossary',
+        'concepts/plans',
+        'concepts/gates',
+        'concepts/sessions',
+        'concepts/audit-trail',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Reference',
+      collapsed: false,
+      items: ['reference/cli-reference', 'reference/rule-reference', 'reference/support-reference'],
     },
     {
       type: 'category',

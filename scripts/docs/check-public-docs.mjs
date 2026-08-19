@@ -29,9 +29,19 @@ const APS_ROOT = resolve(REPO_ROOT, 'docs/public/aps');
 // upstream must still resolve. edda-stack is in-tree (ADR-122).
 const COPIED_SECTIONS = new Set(['kindling', 'aps']);
 const ANVIL_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/anvil.ts');
+const ANVIL_LIVE_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/anvil-docs-private/sidebars/anvil.ts');
 const APS_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/aps.ts');
+const LIVE_REQUIRED_ANVIL_IDS = [
+  'beta-testing-guide',
+  'concepts/glossary',
+  'reference/cli-reference',
+  'reference/rule-reference',
+  'reference/support-reference',
+];
+const LIVE_FORBIDDEN_ANVIL_IDS = ['guides/dashboard'];
 const SITE_SHELL_PATHS = [
   ANVIL_SIDEBAR_PATH,
+  ANVIL_LIVE_SIDEBAR_PATH,
   APS_SIDEBAR_PATH,
   resolve(REPO_ROOT, 'apps/docs-site/docusaurus.config.ts'),
   resolve(REPO_ROOT, 'apps/docs-site/src/pages/index.tsx'),
@@ -174,8 +184,55 @@ function markdownFiles(root) {
 }
 
 function checkNavigation() {
+  // Rollback host remains the completeness check: every public page must be
+  // listed or marked public_unlisted. The live host is a second check that
+  // required definition pages stay on nav and flag-gated surfaces stay off it.
   checkProductNavigation(ANVIL_ROOT, ANVIL_SIDEBAR_PATH, 'anvilSidebar', 'anvil');
+  checkLiveAnvilNavigation();
   checkProductNavigation(APS_ROOT, APS_SIDEBAR_PATH, 'apsSidebar', 'APS');
+}
+
+function checkLiveAnvilNavigation() {
+  const livePath = ANVIL_LIVE_SIDEBAR_PATH;
+  const publicPath = normalise(relative(REPO_ROOT, livePath));
+  if (!existsSync(livePath)) {
+    add(publicPath, 1, 'live anvil sidebar is missing');
+    return;
+  }
+
+  let liveIds;
+  try {
+    liveIds = sidebarDocumentIds(readFileSync(livePath, 'utf8'), livePath, 'anvilSidebar');
+  } catch (error) {
+    add(publicPath, 1, `live anvil sidebar could not be read structurally: ${error.message}`);
+    return;
+  }
+
+  const published = publishedAnvilDocumentIds();
+  for (const id of liveIds) {
+    if (!published.has(id)) {
+      add(publicPath, 1, `live sidebar lists unknown document id ${id}`);
+    }
+  }
+  for (const id of LIVE_REQUIRED_ANVIL_IDS) {
+    if (!liveIds.has(id)) {
+      add(publicPath, 1, `live sidebar is missing required document id ${id}`);
+    }
+  }
+  for (const id of LIVE_FORBIDDEN_ANVIL_IDS) {
+    if (liveIds.has(id)) {
+      add(publicPath, 1, `live sidebar must not list ${id}`);
+    }
+  }
+}
+
+function publishedAnvilDocumentIds() {
+  const ids = new Set();
+  for (const file of markdownFiles(ANVIL_ROOT)) {
+    const frontmatter = parseFrontmatter(readFileSync(file, 'utf8'));
+    ids.add(documentId(file, frontmatter.id, ANVIL_ROOT));
+  }
+  return ids;
 }
 
 function checkProductNavigation(root, sidebarPath, sidebarKey, productLabel) {

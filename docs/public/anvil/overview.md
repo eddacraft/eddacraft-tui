@@ -70,12 +70,22 @@ Read [local data and security](operations/security.md) for the complete boundary
 and [anonymous usage telemetry](operations/telemetry.md) for the payload,
 timing, retention, and off controls.
 
+## Two ways to use these docs
+
+**Run it.** Start with [install and get first value](quickstart.md) or the
+[ten-minute protection tutorial](first-gate.md).
+
+**Look it up.** The reference lists every [command](reference/cli.md), every
+[compiled rule](reference/rules.md), and
+[supported platforms and languages](reference/support.md). The
+[glossary](concepts/glossary.md) defines the words used here.
+
 ## Where to begin
 
 - New to anvil: [install and get first value](quickstart.md).
 - Deciding whether it fits: [when to use anvil](when-to-use.md).
-- Looking up support: [supported platforms and languages](reference/support.md).
+- Looking up a command or rule: the [CLI reference](reference/cli.md) or
+  [compiled pattern catalogue](reference/rules.md).
 - Already installed: [run the ten-minute protection tutorial](first-gate.md).
 - Already activated: run bare `anvil` for the daily ensure path.
-- Inspect local evidence in the terminal:
-  [browse local dashboards](guides/dashboard.md).
+- Invited tester: [beta test brief](beta-testing-guide.md).

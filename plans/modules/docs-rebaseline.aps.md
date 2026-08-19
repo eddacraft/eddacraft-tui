@@ -282,7 +282,7 @@ evidence are present.
 
 ### DOCRB-011: Unhide the live public definition layer
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make already-written Anvil definition pages findable on the
   live host without waiting for public diagram work.
 - **Expected Outcome:** `apps/anvil-docs-private/sidebars/anvil.ts` has a
