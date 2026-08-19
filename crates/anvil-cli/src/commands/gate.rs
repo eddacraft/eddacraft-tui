@@ -4401,12 +4401,68 @@ fn format_anvilrc_unknown_checks_warning(unknown: &[&str]) -> String {
     )
 }
 
-/// Run all gate checks with default settings and return TUI-ready data.
-pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
-    let start = std::time::Instant::now();
-    let default_args = GateArgs::default();
-    let checks = run_checks(&default_args).unwrap_or_default();
+/// Live status while a gate run is in flight.
+///
+/// CLI `anvil gate --progress` prints the same moments to stderr. The
+/// welcome hub owns the alt-screen, so it redraws a loading line from
+/// these events instead of blocking on a silent `run_checks`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GateProgress {
+    /// Workspace walk before any check runs. On a large repo this is the
+    /// first long stretch after the static "Running quality checks..." frame.
+    Scanning,
+    /// A check is about to start.
+    Check {
+        /// 1-based index among checks that will actually run.
+        index: usize,
+        /// How many checks this run will execute (before `--fail-fast`).
+        total: usize,
+        /// Canonical check name (`secret-detection`, not `secret`).
+        name: String,
+    },
+}
 
+impl GateProgress {
+    /// Loading-line copy for the welcome hub chrome.
+    #[must_use]
+    pub fn hub_loading_message(&self) -> String {
+        match self {
+            Self::Scanning => "Scanning project files...".to_string(),
+            Self::Check { index, total, name } => format!("Running {name} ({index}/{total})..."),
+        }
+    }
+}
+
+/// Run all gate checks with default settings and return TUI-ready data.
+///
+/// `on_progress` is invoked before the workspace walk and before each
+/// check so the welcome hub can redraw live status instead of sitting
+/// on a frozen "Running quality checks..." line (CIB-350). Pass
+/// `|_| {}` when the caller does not need progress.
+pub fn collect_gate_data_with_progress(
+    on_progress: impl FnMut(GateProgress),
+) -> anvil_tui::surfaces::gate::GateResult {
+    let root = crate::util::workspace_root().ok();
+    collect_gate_data_at(root.as_deref(), &GateArgs::default(), on_progress)
+}
+
+fn collect_gate_data_at(
+    root: Option<&Path>,
+    args: &GateArgs,
+    mut on_progress: impl FnMut(GateProgress),
+) -> anvil_tui::surfaces::gate::GateResult {
+    let start = std::time::Instant::now();
+    let checks = match root {
+        Some(root) => run_checks_at(args, root, Some(&mut on_progress)).unwrap_or_default(),
+        None => Vec::new(),
+    };
+    gate_result_from_checks(checks, start)
+}
+
+fn gate_result_from_checks(
+    checks: Vec<CheckResult>,
+    start: std::time::Instant,
+) -> anvil_tui::surfaces::gate::GateResult {
     let passed_count = checks.iter().filter(|c| c.passed).count();
     let total = checks.len();
     let overall = checks.iter().all(|c| c.passed);
@@ -4502,7 +4558,14 @@ fn env_flag_enabled(name: &str) -> bool {
 
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     let root = crate::util::workspace_root()?;
+    run_checks_at(args, &root, None)
+}
 
+fn run_checks_at(
+    args: &GateArgs,
+    root: &Path,
+    mut on_progress: Option<&mut dyn FnMut(GateProgress)>,
+) -> Result<Vec<CheckResult>> {
     // Profile skip lists are canonicalised through `gate_internal_name`
     // so entries declared as canonical names (`secret-detection`) and
     // internal names (`secret`) both resolve consistently against
@@ -4542,11 +4605,11 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     // `.anvilrc#checks` acts as a persistent default filter. When the user
     // passes `--only-checks`, that wins — but otherwise we restrict the run
     // to whatever the project configured. Missing/empty file = run everything.
-    let anvilrc_known_checks = resolve_anvilrc_check_filter(&root, only_set.as_ref())?;
+    let anvilrc_known_checks = resolve_anvilrc_check_filter(root, only_set.as_ref())?;
 
     // Resolve plan-scoped file set.
     let (plan_files, plan_path) = if let Some(ref plan_arg) = args.plan {
-        match resolve_plan_path(plan_arg, &root) {
+        match resolve_plan_path(plan_arg, root) {
             Some(path) => {
                 let files = extract_plan_files(&path);
                 if args.progress {
@@ -4566,8 +4629,12 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         (std::collections::HashSet::new(), None)
     };
 
+    if let Some(cb) = on_progress.as_mut() {
+        cb(GateProgress::Scanning);
+    }
+
     // Walk workspace files once — shared across architecture and policy checks.
-    let walked_files = walk_source_files(&root, &[]);
+    let walked_files = walk_source_files(root, &[]);
 
     let strict_config = args.profile.as_deref() == Some(AiGuardrailProfile::NAME)
         && AiGuardrailProfile::DEFAULT.strict_config;
@@ -4578,7 +4645,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     let fail_on_warnings = args.fail_on_warnings || env_flag_enabled("ANVIL_FAIL_ON_WARNINGS");
 
     let ctx = GateContext {
-        workspace_root: root,
+        workspace_root: root.to_path_buf(),
         profile: args.profile.clone(),
         plan_files,
         plan_path,
@@ -4587,30 +4654,19 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         fail_on_warnings,
     };
 
+    let planned = selected_gate_checks(&skip_set, only_set.as_ref(), anvilrc_known_checks.as_ref());
+    let total = planned.len();
     let mut checks = Vec::new();
-    for check_name in GATE_INTERNAL_CHECKS {
-        if skip_set.contains(check_name) {
-            continue;
-        }
-        if let Some(ref only_s) = only_set
-            && !only_s.contains(check_name)
-        {
-            continue;
-        }
-        if let Some(ref rc) = anvilrc_known_checks
-            && !rc.contains(*check_name)
-        {
-            continue;
-        }
-        // Track 3 surface opt-in (OPSUP-005): a flag-gated surface is omitted
-        // from the run entirely while its track flag is off — it emits NO
-        // result, so the default gate run (check count, score denominator,
-        // output) is byte-identical for anyone who has not opted in.
-        if surface_check_disabled(check_name) {
-            continue;
-        }
-
+    for (offset, check_name) in planned.iter().enumerate() {
         let display_name = gate_canonical_name_from_internal(check_name);
+
+        if let Some(cb) = on_progress.as_mut() {
+            cb(GateProgress::Check {
+                index: offset + 1,
+                total,
+                name: display_name.clone(),
+            });
+        }
 
         if args.progress {
             eprintln!("  \u{25b6} {display_name} running...");
@@ -4635,6 +4691,39 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         }
     }
     Ok(checks)
+}
+
+/// Checks that will actually run, in `GATE_INTERNAL_CHECKS` order.
+fn selected_gate_checks(
+    skip_set: &std::collections::HashSet<&'static str>,
+    only_set: Option<&std::collections::HashSet<&'static str>>,
+    anvilrc_known_checks: Option<&std::collections::HashSet<String>>,
+) -> Vec<&'static str> {
+    let mut planned = Vec::new();
+    for check_name in GATE_INTERNAL_CHECKS {
+        if skip_set.contains(check_name) {
+            continue;
+        }
+        if let Some(only_s) = only_set
+            && !only_s.contains(check_name)
+        {
+            continue;
+        }
+        if let Some(rc) = anvilrc_known_checks
+            && !rc.contains(*check_name)
+        {
+            continue;
+        }
+        // Track 3 surface opt-in (OPSUP-005): a flag-gated surface is omitted
+        // from the run entirely while its track flag is off — it emits NO
+        // result, so the default gate run (check count, score denominator,
+        // output) is byte-identical for anyone who has not opted in.
+        if surface_check_disabled(check_name) {
+            continue;
+        }
+        planned.push(*check_name);
+    }
+    planned
 }
 
 /// AI guardrail return-value envelope (`anvil.gate-result.v1`).
@@ -11189,5 +11278,86 @@ rules: []
             !results.iter().any(|r| r["ruleId"] == "antipattern-scan"),
             "passing check omitted"
         );
+    }
+
+    // ── CIB-350: hub / collect_gate_data progress ────────────────────
+
+    #[test]
+    fn hub_loading_message_names_the_running_check() {
+        assert_eq!(
+            GateProgress::Scanning.hub_loading_message(),
+            "Scanning project files..."
+        );
+        assert_eq!(
+            GateProgress::Check {
+                index: 2,
+                total: 9,
+                name: "secret-detection".into(),
+            }
+            .hub_loading_message(),
+            "Running secret-detection (2/9)..."
+        );
+    }
+
+    #[test]
+    fn collect_gate_data_at_reports_scanning_then_each_check() {
+        let tmp = tempfile::tempdir().unwrap();
+        let args = GateArgs {
+            only_checks: Some("secret-detection,policy".into()),
+            ..Default::default()
+        };
+        let mut events = Vec::new();
+        let result = collect_gate_data_at(Some(tmp.path()), &args, |progress| {
+            events.push(progress);
+        });
+
+        assert!(
+            matches!(events.first(), Some(GateProgress::Scanning)),
+            "file walk must report before any check: {events:?}"
+        );
+        let check_events: Vec<_> = events
+            .iter()
+            .filter_map(|event| match event {
+                GateProgress::Check { index, total, name } => Some((*index, *total, name.as_str())),
+                GateProgress::Scanning => None,
+            })
+            .collect();
+        assert_eq!(
+            check_events,
+            vec![(1, 2, "secret-detection"), (2, 2, "policy")]
+        );
+        assert_eq!(result.checks.len(), 2);
+        assert_eq!(result.checks[0].name, "secret-detection");
+        assert_eq!(result.checks[1].name, "policy");
+        assert_eq!(
+            check_events.len(),
+            result.checks.len(),
+            "every result must have been announced before it ran"
+        );
+    }
+
+    #[test]
+    fn collect_gate_data_at_completes_on_a_small_fixture() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("app.rs"), "fn main() {}\n").unwrap();
+        let args = GateArgs {
+            only_checks: Some("secret-detection".into()),
+            ..Default::default()
+        };
+        let mut saw_check = false;
+        let result = collect_gate_data_at(Some(tmp.path()), &args, |progress| {
+            if matches!(
+                progress,
+                GateProgress::Check {
+                    name,
+                    ..
+                } if name == "secret-detection"
+            ) {
+                saw_check = true;
+            }
+        });
+        assert!(saw_check, "progress must fire before the result screen");
+        assert_eq!(result.checks.len(), 1);
+        assert_eq!(result.checks[0].name, "secret-detection");
     }
 }

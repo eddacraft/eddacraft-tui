@@ -1475,6 +1475,16 @@ fn start_watch_from_hub(
     exit
 }
 
+/// First hub frame for [`QuickStartOption::RunGate`]. Replaced by
+/// per-check [`crate::commands::gate::GateProgress`] so a large-repo run
+/// does not sit on a frozen loading line (CIB-350).
+const HUB_GATE_LOADING: &str = "Running quality checks...";
+
+/// Status line the hub draws for one gate-progress event.
+fn hub_gate_progress_line(progress: &crate::commands::gate::GateProgress) -> String {
+    progress.hub_loading_message()
+}
+
 #[allow(clippy::too_many_lines)]
 fn run_welcome_hub(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
@@ -1492,8 +1502,15 @@ fn run_welcome_hub(
 
         match welcome.chosen.take() {
             Some(QuickStartOption::RunGate) => {
-                crate::tui::draw_loading(terminal, "Gate", "Running quality checks...", theme)?;
-                let data = crate::commands::gate::collect_gate_data();
+                crate::tui::draw_loading(terminal, "Gate", HUB_GATE_LOADING, theme)?;
+                let data = crate::commands::gate::collect_gate_data_with_progress(|progress| {
+                    let _ = crate::tui::draw_loading(
+                        terminal,
+                        "Gate",
+                        &hub_gate_progress_line(&progress),
+                        theme,
+                    );
+                });
                 let mut gate_state = anvil_tui::surfaces::gate::GateState::new(data).embedded();
                 let sub_exit = crate::tui::run_surface_in(terminal, &mut gate_state, theme)?;
                 if sub_exit == SurfaceExit::Quit {
@@ -2831,6 +2848,29 @@ mod tests {
                 "the credential must be redacted in the finding",
             );
         }
+    }
+
+    // CIB-350: hub RunGate must not sit on a single frozen loading line.
+    #[test]
+    fn hub_run_gate_progress_line_names_the_active_check() {
+        use crate::commands::gate::GateProgress;
+
+        assert_eq!(HUB_GATE_LOADING, "Running quality checks...");
+        let scanning = hub_gate_progress_line(&GateProgress::Scanning);
+        assert_ne!(scanning, HUB_GATE_LOADING);
+        assert!(
+            scanning.to_ascii_lowercase().contains("scan"),
+            "got: {scanning}"
+        );
+
+        let line = hub_gate_progress_line(&GateProgress::Check {
+            index: 3,
+            total: 9,
+            name: "antipattern-scan".into(),
+        });
+        assert!(line.contains("antipattern-scan"), "got: {line}");
+        assert!(line.contains("3/9"), "got: {line}");
+        assert_ne!(line, HUB_GATE_LOADING);
     }
 
     #[test]
