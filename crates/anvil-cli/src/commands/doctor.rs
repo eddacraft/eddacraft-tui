@@ -149,6 +149,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_managed_skills(),
         check_mcp_heal(),
         check_mcp_orphans(),
+        check_produce_locks(),
     ]
 }
 
@@ -1555,6 +1556,82 @@ fn check_mcp_orphans_from(
     }
 }
 
+/// Report stale `graph-cache/base/.producing/*.lock` files; `--fix` reaps them.
+fn check_produce_locks() -> DiagnosticCheck {
+    #[cfg(unix)]
+    {
+        check_produce_locks_from(
+            &anvil_intercept::snapshot_io::base_store::list_default_produce_locks(),
+        )
+    }
+    #[cfg(not(unix))]
+    {
+        DiagnosticCheck {
+            name: "produce-locks".to_string(),
+            category: "Graph".to_string(),
+            status: CheckStatus::Pass,
+            message: "produce-lock scan is unix-only".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        }
+    }
+}
+
+#[cfg(unix)]
+fn check_produce_locks_from(
+    locks: &[anvil_intercept::snapshot_io::base_store::ProduceLock],
+) -> DiagnosticCheck {
+    use anvil_intercept::snapshot_io::base_store::ProduceLockClass;
+
+    let live = locks
+        .iter()
+        .filter(|l| l.class == ProduceLockClass::Live)
+        .count();
+    let stale: Vec<_> = locks
+        .iter()
+        .filter(|l| l.class == ProduceLockClass::Stale)
+        .collect();
+    if stale.is_empty() {
+        return DiagnosticCheck {
+            name: "produce-locks".to_string(),
+            category: "Graph".to_string(),
+            status: CheckStatus::Pass,
+            message: match live {
+                0 => "no stale graph-base produce-locks".to_string(),
+                n => format!("{n} live graph-base produce-lock(s)"),
+            },
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+    let named: Vec<String> = stale
+        .iter()
+        .map(|l| match l.pid {
+            Some(pid) => format!("{} (pid {pid})", l.name),
+            None => l.name.clone(),
+        })
+        .collect();
+    DiagnosticCheck {
+        name: "produce-locks".to_string(),
+        category: "Graph".to_string(),
+        status: CheckStatus::Warn,
+        message: format!(
+            "{} stale graph-base produce-lock(s); live={}",
+            stale.len(),
+            live
+        ),
+        details: Some(format!("locks: {}", named.join(", "))),
+        auto_fixable: true,
+        remediation: Remediation {
+            summary: "remove produce-locks whose pid is dead".to_string(),
+            command: Some("anvil doctor --fix".to_string()),
+            doc_url: None,
+        },
+    }
+}
+
 /// Daily MCP self-heal: rewrite drifted owned entries and poke live children.
 fn check_mcp_heal() -> DiagnosticCheck {
     let home = crate::util::user_home_dir();
@@ -2208,6 +2285,25 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
                     }
                 } else if speak {
                     eprintln!("  Failed to fix mcp-orphans: no orphan pids signalled");
+                }
+            }
+            #[cfg(unix)]
+            "produce-locks" => {
+                let removed =
+                    anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks();
+                if removed > 0 {
+                    check.status = CheckStatus::Pass;
+                    check.message = format!(
+                        "removed {removed} stale graph-base produce-lock(s) whose pid is dead"
+                    );
+                    check.auto_fixable = false;
+                    if speak {
+                        println!(
+                            "  Fixed: produce-locks — removed {removed} stale produce-lock(s)"
+                        );
+                    }
+                } else if speak {
+                    eprintln!("  Failed to fix produce-locks: no stale produce-locks removed");
                 }
             }
             "plans-dir" => match std::fs::create_dir_all("plans") {
@@ -4303,6 +4399,70 @@ mod tests {
             checks.iter().any(|c| c.name == "mcp-orphans"),
             "mcp-orphans must be registered in run_all_checks",
         );
+    }
+
+    #[test]
+    fn run_all_checks_includes_produce_locks_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks.iter().any(|c| c.name == "produce-locks"),
+            "produce-locks must be registered in run_all_checks",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn produce_locks_warns_only_on_dead_pid() {
+        use anvil_intercept::snapshot_io::base_store::{ProduceLock, ProduceLockClass};
+        let table = [
+            ProduceLock {
+                name: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.lock".into(),
+                pid: Some(42),
+                start_time: Some(2),
+                class: ProduceLockClass::Live,
+            },
+            ProduceLock {
+                name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.lock".into(),
+                pid: Some(9001),
+                start_time: Some(1),
+                class: ProduceLockClass::Stale,
+            },
+        ];
+        let check = check_produce_locks_from(&table);
+        assert_eq!(check.name, "produce-locks");
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.auto_fixable);
+        assert!(check.message.contains("1 stale"), "{}", check.message);
+        assert!(
+            check
+                .details
+                .as_deref()
+                .unwrap_or("")
+                .contains("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.lock (pid 9001)"),
+            "{:?}",
+            check.details
+        );
+        assert!(!check.details.as_deref().unwrap_or("").contains("bbbb"));
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil doctor --fix")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn produce_locks_pass_when_only_live() {
+        use anvil_intercept::snapshot_io::base_store::{ProduceLock, ProduceLockClass};
+        let table = [ProduceLock {
+            name: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.lock".into(),
+            pid: Some(42),
+            start_time: Some(2),
+            class: ProduceLockClass::Live,
+        }];
+        let check = check_produce_locks_from(&table);
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(!check.auto_fixable);
+        assert!(check.message.contains("1 live"), "{}", check.message);
     }
 
     #[test]

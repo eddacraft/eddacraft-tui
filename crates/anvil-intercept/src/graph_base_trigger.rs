@@ -1634,6 +1634,16 @@ pub fn activate(
         Arc::new(SystemSignaller),
         notifier,
     )?;
+    // CIB-344: opportunistic operator debris sweep on trigger start.
+    // Dead-pid produce-locks only; a live in-flight producer is left alone.
+    let reaped = crate::snapshot_io::base_store::reap_default_stale_produce_locks();
+    if reaped > 0 {
+        tracing::info!(
+            target: "anvil_intercept::graph_base_trigger",
+            reaped,
+            "cleared stale graph-base produce-locks",
+        );
+    }
     let mut backend = match InotifyRefWatchBackend::new() {
         Ok(backend) => backend,
         Err(err) => {

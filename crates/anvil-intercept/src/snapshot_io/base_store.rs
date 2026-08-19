@@ -772,6 +772,150 @@ pub(crate) fn reclaim_unreferenced_base(
     }
 }
 
+/// Operator classification of one `.producing/<sha>.lock` (CIB-344).
+///
+/// Distinct from [`Existing`]: a live producer that has been running longer
+/// than [`STALE_CLAIM_MAX_AGE`] is still **live** here. The mtime fallback is
+/// only for the claim path (steal a stuck producer). Doctor / start must not
+/// unlink an in-flight producer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProduceLockClass {
+    /// Stamped process is still that same live producer.
+    Live,
+    /// Pid is dead or PID-reused. Safe to unlink.
+    Stale,
+    /// Unreadable / malformed / mid-stamp. Leave alone.
+    Unknown,
+}
+
+/// One observed `.producing/<sha>.lock`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProduceLock {
+    /// Leaf name (`<sha>.lock`).
+    pub name: String,
+    /// Stamped pid, when the body parsed.
+    pub pid: Option<u32>,
+    /// Stamped start-time discriminator, when present.
+    pub start_time: Option<u64>,
+    /// Operator liveness class (dead-pid only; no mtime steal).
+    pub class: ProduceLockClass,
+}
+
+/// Scan `base_dir/.producing/*.lock` (never `.guard`, never temps).
+///
+/// A missing producing dir is empty. Order is sorted by leaf name.
+#[must_use]
+pub fn list_produce_locks(base_dir: &Path, procs: &dyn ClaimProcs) -> Vec<ProduceLock> {
+    let dir = producing_dir(base_dir);
+    let Ok(dirfd) = crate::path_safety::open_workspace_dir_for_fsync(&dir) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for name in lock_leaf_names(&dir) {
+        let record = read_lock_record_at(&dirfd, &name);
+        out.push(ProduceLock {
+            name: name.clone(),
+            pid: record.as_ref().map(|r| r.pid),
+            start_time: record.as_ref().and_then(|r| r.start_time),
+            class: classify_operator_lock(&dirfd, &name, procs),
+        });
+    }
+    out
+}
+
+/// Unlink stale produce-locks only (dead pid / PID-reuse). Live and unknown
+/// locks are retained. Uses the per-dir `.guard` so classify→destroy is
+/// atomic w.r.t. claim reclaim/release.
+///
+/// # Errors
+/// Opening the producing dir, taking the guard, or a non-NotFound unlink.
+/// A missing producing dir is `Ok(0)` — nothing to reap.
+pub fn reap_stale_produce_locks(base_dir: &Path, procs: &dyn ClaimProcs) -> io::Result<usize> {
+    let dir = producing_dir(base_dir);
+    if !dir.is_dir() {
+        return Ok(0);
+    }
+    let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir)?;
+    let _guard = lock_guard(&dirfd)?;
+    let mut removed = 0usize;
+    for name in lock_leaf_names(&dir) {
+        if classify_operator_lock(&dirfd, &name, procs) != ProduceLockClass::Stale {
+            continue;
+        }
+        match store::unlink_at(&dirfd, &name) {
+            Ok(()) => removed += 1,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(removed)
+}
+
+/// [`list_produce_locks`] over [`default_base_dir`] and [`SystemClaimProcs`].
+#[must_use]
+pub fn list_default_produce_locks() -> Vec<ProduceLock> {
+    let Some(dir) = default_base_dir() else {
+        return Vec::new();
+    };
+    list_produce_locks(&dir, &SystemClaimProcs)
+}
+
+/// [`reap_stale_produce_locks`] over the default store. Best-effort: `0` when
+/// the dir is missing or the sweep errors.
+#[must_use]
+pub fn reap_default_stale_produce_locks() -> usize {
+    let Some(dir) = default_base_dir() else {
+        return 0;
+    };
+    reap_stale_produce_locks(&dir, &SystemClaimProcs).unwrap_or(0)
+}
+
+fn lock_leaf_names(producing: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(producing) else {
+        return Vec::new();
+    };
+    let mut names = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        if !name.ends_with(".lock") {
+            continue;
+        }
+        let Ok(ft) = entry.file_type() else {
+            continue;
+        };
+        if !ft.is_file() {
+            continue;
+        }
+        names.push(name.to_owned());
+    }
+    names.sort();
+    names
+}
+
+/// Dead-pid / PID-reuse only. Does **not** treat mtime age as stale.
+fn classify_operator_lock(
+    dirfd: &std::os::fd::OwnedFd,
+    lock_name: &str,
+    procs: &dyn ClaimProcs,
+) -> ProduceLockClass {
+    match read_lock_bytes_at(dirfd, lock_name) {
+        Ok((bytes, _mtime)) => match parse_lock(&bytes) {
+            Some(record) => {
+                if procs.is_live(record.pid, record.start_time) {
+                    ProduceLockClass::Live
+                } else {
+                    ProduceLockClass::Stale
+                }
+            }
+            None => ProduceLockClass::Unknown,
+        },
+        Err(_) => ProduceLockClass::Unknown,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1411,5 +1555,147 @@ mod tests {
         assert_eq!(parse_lock(b"garbage"), None);
         assert_eq!(parse_lock(b"77\n\n"), None, "missing nonce is garbage");
         assert_eq!(parse_lock(b""), None);
+    }
+
+    fn plant_lock(dir: &Path, sha: &str, pid: u32, start_time: Option<u64>) -> PathBuf {
+        let pdir = producing_dir(dir);
+        store::ensure_dir(&pdir).unwrap();
+        let path = pdir.join(lock_leaf(sha));
+        fs::write(
+            &path,
+            encode_lock(&LockRecord {
+                pid,
+                start_time,
+                nonce: "cib344lockcib344".to_owned(),
+            }),
+        )
+        .unwrap();
+        path
+    }
+
+    #[test]
+    fn list_names_dead_pid_stale_and_live_pid_live() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let dead_sha = "a".repeat(40);
+        let live_sha = "b".repeat(40);
+        plant_lock(&dir, &dead_sha, 9001, Some(1));
+        plant_lock(&dir, &live_sha, 42, Some(2));
+        let procs = FakeProcs::with_live(1, Some(0), &[(42, Some(2))]);
+
+        let listed = list_produce_locks(&dir, &procs);
+        assert_eq!(listed.len(), 2, "{listed:?}");
+        let dead = listed.iter().find(|l| l.pid == Some(9001)).unwrap();
+        assert_eq!(dead.class, ProduceLockClass::Stale);
+        assert_eq!(dead.name, lock_leaf(&dead_sha));
+        let live = listed.iter().find(|l| l.pid == Some(42)).unwrap();
+        assert_eq!(live.class, ProduceLockClass::Live);
+    }
+
+    #[test]
+    fn reap_removes_dead_pid_and_retains_live_and_unknown() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let dead_sha = "c".repeat(40);
+        let live_sha = "d".repeat(40);
+        let garbage_sha = "e".repeat(40);
+        let dead_path = plant_lock(&dir, &dead_sha, 9001, Some(1));
+        let live_path = plant_lock(&dir, &live_sha, 42, Some(2));
+        let pdir = producing_dir(&dir);
+        let garbage_path = pdir.join(lock_leaf(&garbage_sha));
+        fs::write(&garbage_path, b"not-a-lock").unwrap();
+        // `.guard` must survive; claim/reap creates it, plant it explicitly too.
+        let guard_path = pdir.join(GUARD_NAME);
+        fs::write(&guard_path, b"").unwrap();
+
+        let procs = FakeProcs::with_live(1, Some(0), &[(42, Some(2))]);
+        assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 1);
+        assert!(!dead_path.exists(), "dead-pid lock must be removed");
+        assert!(live_path.exists(), "live producer lock must be retained");
+        assert!(garbage_path.exists(), "malformed lock must be left alone");
+        assert!(guard_path.exists(), ".guard must never be reaped");
+    }
+
+    #[test]
+    fn operator_reap_does_not_steal_ancient_live_producer() {
+        // Claim-path mtime fallback would reclaim this; doctor/start must not.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let sha = "f".repeat(40);
+        let path = plant_lock(&dir, &sha, 8000, Some(3));
+        let old = SystemTime::now() - (STALE_CLAIM_MAX_AGE + Duration::from_mins(1));
+        File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+
+        let procs = FakeProcs::with_live(1, Some(0), &[(8000, Some(3))]);
+        let listed = list_produce_locks(&dir, &procs);
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].class, ProduceLockClass::Live);
+        assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 0);
+        assert!(path.exists(), "ancient but live producer must be retained");
+    }
+
+    #[test]
+    fn pid_reuse_is_stale_for_operator_reap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let sha = "1".repeat(40);
+        let path = plant_lock(&dir, &sha, 7000, Some(100));
+        // Same pid, different start_time — recycled, not the producer.
+        let procs = FakeProcs::with_live(7000, Some(999), &[(7000, Some(999))]);
+        assert_eq!(
+            list_produce_locks(&dir, &procs)[0].class,
+            ProduceLockClass::Stale
+        );
+        assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 1);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn system_procs_reaps_exited_pid_and_keeps_self() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let child = std::process::Command::new("true")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let dead_pid = child.id();
+        let _ = child.wait_with_output();
+        let live_pid = std::process::id();
+        let dead_sha = "a".repeat(40);
+        let live_sha = "b".repeat(40);
+        let dead_path = plant_lock(&dir, &dead_sha, dead_pid, None);
+        let live_path = plant_lock(&dir, &live_sha, live_pid, None);
+
+        let listed = list_produce_locks(&dir, &SystemClaimProcs);
+        let dead = listed.iter().find(|l| l.pid == Some(dead_pid)).unwrap();
+        assert_eq!(dead.class, ProduceLockClass::Stale);
+        let live = listed.iter().find(|l| l.pid == Some(live_pid)).unwrap();
+        assert_eq!(live.class, ProduceLockClass::Live);
+
+        assert_eq!(
+            reap_stale_produce_locks(&dir, &SystemClaimProcs).unwrap(),
+            1
+        );
+        assert!(!dead_path.exists());
+        assert!(live_path.exists());
+    }
+
+    #[test]
+    fn missing_producing_dir_is_empty_and_reap_is_zero() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = base_dir(&tmp);
+        let procs = FakeProcs::new(1, Some(0));
+        assert!(list_produce_locks(&dir, &procs).is_empty());
+        assert_eq!(reap_stale_produce_locks(&dir, &procs).unwrap(), 0);
+        assert!(
+            !producing_dir(&dir).exists(),
+            "reap must not create the dir"
+        );
     }
 }

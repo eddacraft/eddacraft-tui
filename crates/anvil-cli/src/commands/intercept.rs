@@ -438,8 +438,45 @@ fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
             "{}",
             render_status_lines_with_pid(&snapshot, daemon_pid_for_display())
         );
+        #[cfg(unix)]
+        if let Some(line) = stale_produce_lock_status_lines(
+            &anvil_intercept::snapshot_io::base_store::list_default_produce_locks(),
+        ) {
+            print!("{line}");
+        }
     }
     Ok(())
+}
+
+/// CIB-344: opportunistic start-path sweep. Dead-pid locks only.
+#[cfg(unix)]
+fn reap_stale_produce_locks_on_start() {
+    let reaped = anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks();
+    if reaped > 0 {
+        tracing::info!(
+            target: "anvil_cli::commands::intercept",
+            reaped,
+            "cleared stale graph-base produce-locks"
+        );
+    }
+}
+
+/// Human status sidecar for dead-pid produce-locks (JSON stays the proto).
+#[cfg(unix)]
+fn stale_produce_lock_status_lines(
+    locks: &[anvil_intercept::snapshot_io::base_store::ProduceLock],
+) -> Option<String> {
+    use anvil_intercept::snapshot_io::base_store::ProduceLockClass;
+    let stale = locks
+        .iter()
+        .filter(|l| l.class == ProduceLockClass::Stale)
+        .count();
+    if stale == 0 {
+        return None;
+    }
+    Some(format!(
+        "produce-locks: {stale} stale (pid dead); heal with `anvil doctor --fix`\n"
+    ))
 }
 
 /// Connect to the daemon over the per-user IPC socket / named pipe
@@ -1356,6 +1393,11 @@ fn run_start(args: &StartArgs) -> Result<()> {
         );
     }
 
+    // CIB-344: clear dead-pid produce-locks as a matter of course. Live
+    // in-flight producers are left alone. Best-effort; never blocks start.
+    #[cfg(unix)]
+    reap_stale_produce_locks_on_start();
+
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
@@ -1454,6 +1496,28 @@ mod tests {
     };
 
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn status_names_stale_produce_locks_and_points_at_doctor_fix() {
+        use anvil_intercept::snapshot_io::base_store::{ProduceLock, ProduceLockClass};
+        let live = ProduceLock {
+            name: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.lock".into(),
+            pid: Some(42),
+            start_time: Some(2),
+            class: ProduceLockClass::Live,
+        };
+        assert_eq!(stale_produce_lock_status_lines(&[live.clone()]), None);
+        let stale = ProduceLock {
+            name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.lock".into(),
+            pid: Some(9001),
+            start_time: Some(1),
+            class: ProduceLockClass::Stale,
+        };
+        let line = stale_produce_lock_status_lines(&[live, stale]).expect("stale named");
+        assert!(line.contains("1 stale"), "{line}");
+        assert!(line.contains("anvil doctor --fix"), "{line}");
+    }
 
     /// USAGE-004: `suppresses_cli_usage_row` is the CLI-row suppression
     /// trigger — true only for a NON-dry-run `intercept unblock` (which
