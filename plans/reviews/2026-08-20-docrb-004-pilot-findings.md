@@ -18,9 +18,9 @@ component roots:
 
 The comparison base for this report is
 `9a0c906b27ca3325cd9674d002b0f37c51ce6149`. The immutable reviewed-content
-target is `234a34e5ae27c7578658ea4c4b46e69fecc45db5`. The immediately following
-report-only commit changes no reviewed component claim; it only finalises this
-provenance record. Detailed source review began at
+target is finalised by the immediately following report-only commit; that
+follow-up changes no reviewed component claim and only pins the substantive
+repair commit. Detailed source review began at
 `d6c8b565c375e9e75db44c5d20d2acb066e4471c`, which was `origin/main` when
 DOCRB-004 started. A targeted diff from that review snapshot to the comparison
 base found no changes in the cited product source roots or
@@ -29,7 +29,10 @@ client-side daemon UID check, accepted-peer PID plumbing, Windows DACL/SID
 checks, both `scan_buffer` modes, MidEdit observation branch, and MCP
 `PreWrite` routing before this repair. No product, configuration, central
 as-built, governance, public-diagram, or sibling APS status change is part of
-the pilot.
+the pilot. Re-review at `ba17bf70a` confirmed that MidEdit observation export
+requires an installed emitter, a finding-bearing response, rate-window
+admission, and sink acceptance; export failure does not change the scan
+verdict.
 
 ## Result
 
@@ -45,10 +48,14 @@ truth below. This report does not mark those Council findings resolved.
 
 - Intercept documentation separates the `scan_buffer` and `validate_paths`
   lanes with distinct transport nodes. `scan_buffer` is the caller-buffer lane
-  for MidEdit and PreWrite. Only finding-bearing MidEdit scans emit mid-edit
-  observations; PreWrite never does. MCP `anvil_validate_write` deliberately
-  calls `scan_buffer` in `PreWrite` mode rather than `validate_paths`, because
-  the proposed content is not yet on disk.
+  for MidEdit and PreWrite. A finding-bearing MidEdit result is eligible for a
+  best-effort mid-edit observation; PreWrite never attempts one. Absent emitters
+  skip export, the rate window may throttle, and sink failure drops the
+  observation. The production non-blocking sink may also accept the call but
+  drop a row when its queue is full or disconnected. Those outcomes do not
+  change the returned verdict. MCP `anvil_validate_write` deliberately calls
+  `scan_buffer` in `PreWrite` mode rather than `validate_paths`, because the
+  proposed content is not yet on disk.
 - Unix trust relies on an owner-only `0700` directory and `0600` socket, while
   clients validate the connected daemon UID; there is no server-side Unix
   caller-UID comparison. Linux additionally supplies the accepted peer PID for
@@ -91,7 +98,7 @@ retained central authority.
 | Root | Navigation trace | Result |
 | ---- | ---------------- | ------ |
 | `crates/anvil-kernel` | README → local architecture → watcher/parser/graph/protocol source → retained kernel as-built | Pass; initial baseline and incremental-finding distinction is visible |
-| `crates/anvil-intercept` | README → local architecture → IPC/platform wiring/buffer modes/MCP routing/admission/spoof/observations/interrupt/unregistered/fence source → retained intercept and driver maps | Pass after final repair; transport nodes, caller-buffer and save-time lanes, platform assurance, observations, and independent fence triggers are distinct |
+| `crates/anvil-intercept` | README → local architecture → IPC/platform wiring/buffer modes/MCP routing/admission/spoof/observations/interrupt/unregistered/fence source → retained intercept and driver maps | Pass after final repair; transport nodes, caller-buffer and save-time lanes, platform assurance, best-effort MidEdit observation outcomes, and independent fence triggers are distinct |
 | `apps/dashboard` | README → local architecture → router/query/API client/generated contract → local dashboard guide | Pass after repair; compile-time typing, origin selection, and server enforcement are distinct |
 | `crates/anvil-dashboard-server` | README → local architecture → loopback guard/capability/workspace/OpenAPI source → local dashboard guide | Pass after repair; machine-local unauthenticated boundary and per-user-isolation limitation are explicit |
 | `apps/anvil-api` | README → local architecture → entrypoint/health/deployment/global middleware/routes/database source and tests → retained API and BAUTH auth maps | Pass after final repair; dependency reporting and health gates, rejection, best-effort audit, APGOV ownership, and BAUTH authority remain separate |
@@ -106,9 +113,10 @@ Six Mermaid blocks were initially extracted directly from the six local
 `ARCHITECTURE.md` files and rendered with
 `@mermaid-js/mermaid-cli 11.16.0`. Council repairs changed the intercept,
 dashboard, dashboard-server, and docs-shell blocks; all four were re-rendered
-with the same pinned CLI. The final intercept transport, mode, and observation
-correction was extracted again from its source file and re-rendered with that
-CLI. Chromium cannot start its nested sandbox in this container, so the
+with the same pinned CLI. The final intercept transport, mode, and best-effort
+observation corrections were extracted again from the source file and
+re-rendered with that CLI. Chromium cannot start its nested sandbox in this
+container, so the
 successful manual preview used a temporary Puppeteer configuration with
 `--no-sandbox`; inputs and non-empty SVG outputs were written only under `/tmp`
 and are not repository artefacts.
@@ -116,7 +124,7 @@ and are not repository artefacts.
 | Diagram concern | Render | Source-edge trace |
 | --------------- | ------ | ----------------- |
 | Kernel source → parse → graph → finding | Pass, non-empty SVG | `watch.rs`, `parser/`, `anvil-graph-cache`, `protocol/` |
-| Intercept MidEdit/PreWrite caller-buffer scan, MidEdit-only observation, separate `validate_paths` admission/guarded validation, and explicit fence triggers/cascade | Pass after final repair, 59,323-byte SVG | `ipc.rs`, `midedit.rs`, `kindling_observation.rs`, `lib.rs`, anvil-cli `validation.rs`, `workspace_admission.rs`, `workspace_anchor.rs`, `save_time.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, `fence.rs` |
+| Intercept MidEdit/PreWrite caller-buffer scan, conditional best-effort MidEdit observation outcomes, separate `validate_paths` admission/guarded validation, and explicit fence triggers/cascade | Pass after final repair, 69,227-byte SVG | `ipc.rs`, `midedit.rs`, `kindling_observation.rs`, `lib.rs`, anvil-cli `validation.rs`, `workspace_admission.rs`, `workspace_anchor.rs`, `save_time.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, `fence.rs` |
 | Dashboard UI → compile-time generated types → root-relative client → server policy | Pass after repair, 19,679-byte SVG | router/modules/hooks, API client, generated OpenAPI types, generator |
 | Dashboard server capability/access boundary | Pass after repair, 18,104-byte SVG | loopback and browser-request guards, read-only routes, capability loaders, `WorkspaceAnchor` |
 | Hosted API request → middleware → route → persistence/trust | Pass, non-empty SVG | `index.ts`, middleware, representative route boundaries, database client/queries |
@@ -137,8 +145,9 @@ component-root README/architecture metadata, cited paths, or links.
 - Metadata source paths and globs were traced against the
   `d6c8b565c` source-review snapshot. The targeted product-source diff through
   the exact `9a0c906b2` range base was empty. The intercept/API source re-review
-  at `88bd41647`, followed by the final intercept transport/mode re-review at
-  `3aec647c7`, found no relevant product-source drift. Each README is
+  at `88bd41647`, followed by the intercept transport/mode re-review at
+  `3aec647c7` and observation-emission re-review at `ba17bf70a`, found no
+  relevant product-source drift. Each README is
   `Authoritative` for component orientation; each architecture file is
   `Derived` from current source.
 - KERN owns kernel, INTD owns interception, DASH owns both dashboard roots, and
@@ -166,7 +175,10 @@ non-gating Resend `unverifiable`, and immutable provenance. The final replacemen
 RED at `3aec647c7` proved all twelve transport-node, Unix/Windows trust,
 MidEdit/PreWrite, observation, MCP-routing, and repeated-report assertions
 absent. The corresponding GREEN assertion reports all twelve present, alongside
-the seven DOCRB-004 acceptance behaviours.
+the seven DOCRB-004 acceptance behaviours. The final minor replacement RED at
+`ba17bf70a` proved all twelve best-effort eligibility, absent-emitter,
+rate-throttle, sink-drop, verdict-preservation, matching-report, and render
+evidence assertions absent; its GREEN report records all twelve present.
 
 Focused component validation:
 

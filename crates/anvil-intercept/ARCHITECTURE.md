@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Derived   | INTD  | Live   | Last reviewed 2026-08-20 against `3aec647c7`, `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/midedit.rs`, and `crates/anvil-cli/src/mcp/validation.rs` |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                                                                        |
+| ------------ | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | INTD  | Live   | Last reviewed 2026-08-20 at `ba17bf70a` against `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/midedit.rs`, `crates/anvil-intercept/src/kindling_observation.rs`, and `crates/anvil-cli/src/mcp/validation.rs` |
 
 | Upstream                                                                                                  | Downstream                                     |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -49,8 +49,14 @@ flowchart LR
         Spoof -->|clear| BufferScan
         Cross -->|macOS, Windows, or no context| BufferScan
         BufferScan --> ScanVerdict[return scan verdict]
-        ScanVerdict -->|finding-bearing MidEdit| Observation[mid-edit observation]
+        ScanVerdict -->|finding-bearing MidEdit| Emitter{observation emitter present?}
         ScanVerdict -->|PreWrite or no findings| NoObservation[no mid-edit observation]
+        Emitter -->|no| ObservationAbsent[observation absent; verdict returned]
+        Emitter -->|yes| Window{rate window admits?}
+        Window -->|no| ObservationThrottled[observation throttled; verdict returned]
+        Window -->|yes| Sink{sink accepts?}
+        Sink -->|no| ObservationDropped[observation dropped; verdict returned]
+        Sink -->|yes| Observation[mid-edit observation accepted best-effort]
     end
 
     subgraph SaveTime[validate_paths lane]
@@ -80,10 +86,15 @@ caller bytes carried by [`scan_buffer`](src/midedit.rs). An optional
 against the peer-process lineage, then checks a supplied environment tag for
 spoofing before scanning that buffer. Production supplies that context only on
 Linux. macOS and Windows currently skip both optional checks; embedded listeners
-without a context do the same. Only finding-bearing MidEdit scans emit a
-mid-edit observation through
+without a context do the same. A finding-bearing MidEdit result is only eligible
+for a best-effort mid-edit observation through
 [`kindling_observation.rs`](src/kindling_observation.rs); PreWrite scans never
-emit that observation.
+attempt that observation. With no emitter installed, the IPC handler skips the
+attempt. An installed emitter may instead be denied by its rate window, and a
+sink error logs and drops the row. The production non-blocking sink can also
+accept the call but later drop the queued row if its channel is full or its
+drain has gone. Emitter absence, rate-window throttling, and sink failure leave
+the scan verdict unchanged.
 
 MCP `anvil_validate_write` deliberately calls `scan_buffer` in `PreWrite` mode
 rather than `validate_paths`, because it validates proposed caller content that
