@@ -64,7 +64,9 @@ journeys and it is not a release claim.
   `docs/public/anvil/reference/`
 - Extended `scripts/docs/generate-anvil-public-reference.mjs` outputs
 
-**Does not own:** live sidebar (`apps/anvil-docs-private/sidebars/anvil.ts`)
+**Does not own:** live sidebar (`apps/anvil-docs-private/sidebars/anvil.ts`).
+Adding a new page id to that file after DOCRB-011 is a coordinated one-line
+edit; it does not move ownership.
 
 ## Work Items
 
@@ -82,8 +84,7 @@ journeys and it is not a release claim.
   `docs/public/anvil/reference/what-anvil-can-do.md`,
   `docs/public/anvil/concepts/glossary.md`,
   `docs/public/anvil/concepts/gates.md`,
-  `docs/public/anvil/first-gate.md`,
-  `apps/anvil-docs-private/sidebars/anvil.ts`
+  `docs/public/anvil/first-gate.md`
 - **Scope:** One explanation page, one short index, glossary adds, inbound
   links from existing concept/tutorial pages
 - **Non-scope:** Check catalogue generation, config catalogue, CLI flags,
@@ -122,7 +123,6 @@ journeys and it is not a release claim.
   and `config set` rule-mode-only behaviour are included.
 - **Files:** `docs/public/anvil/reference/config.md`,
   `docs/public/anvil/operations/config.md`,
-  `apps/anvil-docs-private/sidebars/anvil.ts`,
   `crates/anvil-cli/src/commands/init.rs`,
   `crates/anvil-config/src/gate_section.rs`
 - **Dependencies:** DOCRB-011
@@ -173,8 +173,7 @@ journeys and it is not a release claim.
   uninstall, insights, watch-output, review-capsules, beta-testing-guide)
   are on live nav with local-only wording where required; dashboard stays
   off live nav.
-- **Files:** `docs/public/anvil/**`,
-  `apps/anvil-docs-private/sidebars/anvil.ts`
+- **Files:** `docs/public/anvil/**`
 - **Dependencies:** DOCDEF-001
 - **Confidence:** high
 - **Validation:** `pnpm docs:public:check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build`

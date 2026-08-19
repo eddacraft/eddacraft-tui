@@ -627,7 +627,7 @@ There is **no** waiver that lets DOCDEF edit the live sidebar. PR-nav is a DOCRB
 | **CLICT** | CLI command truth | Generator extension is DOCDEF that CLICT must accept as the new CLI-truth seam. |
 | **UCFG** | Unified config; owns the operations how-to | Field catalogue is DOCDEF; operations how-to stays UCFG. Rename, do not fork. |
 
-The product surface map is an **internal** artefact at `plans/specs/2026-08-19-anvil-product-surface-map.md`, landed on the **bookkeeping** branch. The public site gets a short derived index, `docs/public/anvil/reference/what-anvil-can-do.md`, with a **hard row cap of 12** in PR-eval. Later, the generated check catalogue is the complete engine list; the short index does not grow into a second catalogue.
+The product surface map lives in this specification (section **Product surface map** below). The public site gets a short derived index, `docs/public/anvil/reference/what-anvil-can-do.md`, with a **hard row cap of 12** in PR-eval. Later, the generated check catalogue is the complete engine list; the short index does not grow into a second catalogue.
 
 ---
 
@@ -1322,8 +1322,8 @@ Feature PRs implement one exclusive module each. They may flip **that module's**
 | Field | Value |
 | --- | --- |
 | Title | `docs(aps): add DOCDEF and split DOCRB live-nav from DOCRB-008` |
-| Files | `plans/index.aps.md` (new DOCDEF row + split DOCRB item — allowed here); `plans/modules/docdef.aps.md` (**new**); DOCRB module item split; `plans/specs/2026-08-19-anvil-product-surface-map.md` (**new**) |
-| Description | Create exclusive DOCDEF with an index row. Split live IA/nav off DOCRB-008; 008 keeps diagrams. Land the internal surface map. No public Markdown. |
+| Files | `plans/index.aps.md` (new DOCDEF row + split DOCRB item — allowed here); `plans/modules/docs-definition-layer.aps.md` (**new**); DOCRB module item split; `plans/specs/2026-08-19-anvil-docs-definition-layer.md` (**this spec**) |
+| Description | Create exclusive DOCDEF with an index row. Split live IA/nav off DOCRB-008; 008 keeps diagrams. Land this spec, including the internal surface map. No public Markdown. |
 
 ### PR-nav — live sidebar and unhide (DOCRB)
 
