@@ -2370,6 +2370,111 @@ else
   fail "post-diff mutation escaped the final state check (status ${status}): ${out}"
 fi
 
+# A path that was already dirty can change bytes without changing dirty-set
+# membership. The terminal descriptor snapshot must still detect that drift.
+echo "case AJ: retired-claims rejects dirty-to-different-dirty mutation"
+dirty_mutation_root="${tmp_root}/retired-dirty-during-scan"
+dirty_mutation_bin="${tmp_root}/retired-dirty-during-scan-bin"
+mkdir -p "${dirty_mutation_root}" "${dirty_mutation_bin}"
+git -C "${dirty_mutation_root}" init -q
+git -C "${dirty_mutation_root}" config user.email "docs-check@example.com"
+git -C "${dirty_mutation_root}" config user.name "docs-check"
+printf '%s\n' "initial text" >"${dirty_mutation_root}/claim.txt"
+git -C "${dirty_mutation_root}" add claim.txt
+printf '%s\n' "benign dirty text" >"${dirty_mutation_root}/claim.txt"
+cat >"${dirty_mutation_bin}/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+is_name_only=0
+for arg in "$@"; do
+  if [[ "${arg}" == "--name-only" ]]; then
+    is_name_only=1
+  fi
+done
+if [[ "${is_name_only}" -eq 1 && ! -e "${MUTATION_ROOT}/.first-diff" ]]; then
+  set +e
+  "${REAL_GIT}" "$@"
+  status=$?
+  set -e
+  if [[ "${status}" -eq 0 ]]; then
+    : >"${MUTATION_ROOT}/.first-diff"
+  fi
+  exit "${status}"
+fi
+if [[ "${is_name_only}" -eq 1 && ! -e "${MUTATION_ROOT}/.mutated" ]]; then
+  : >"${MUTATION_ROOT}/.mutated"
+  printf '%s\n' "daily save-time protection" >"${MUTATION_ROOT}/claim.txt" # retired-claim-ok: CIB-260
+fi
+exec "${REAL_GIT}" "$@"
+EOF
+chmod +x "${dirty_mutation_bin}/git"
+set +e
+out="$(PATH="${dirty_mutation_bin}:${PATH}" REAL_GIT="${real_git}" \
+  MUTATION_ROOT="${dirty_mutation_root}" \
+  node "${script_dir}/check-retired-claims.mjs" --root "${dirty_mutation_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "changed while the scan was running"; then
+  pass "dirty-to-different-dirty mutation fails the scan closed"
+else
+  fail "dirty-to-different-dirty mutation escaped the final snapshot (status ${status}): ${out}"
+fi
+
+# A path added and staged after the initial inventory has no dirty-set delta.
+# Exact terminal index comparison must reject that unseen staged snapshot.
+echo "case AK: retired-claims rejects add-and-stage mutation during the scan"
+index_mutation_root="${tmp_root}/retired-index-during-scan"
+index_mutation_bin="${tmp_root}/retired-index-during-scan-bin"
+mkdir -p "${index_mutation_root}" "${index_mutation_bin}"
+git -C "${index_mutation_root}" init -q
+git -C "${index_mutation_root}" config user.email "docs-check@example.com"
+git -C "${index_mutation_root}" config user.name "docs-check"
+printf '%s\n' "initial text" >"${index_mutation_root}/claim.txt"
+git -C "${index_mutation_root}" add claim.txt
+cat >"${index_mutation_bin}/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+is_index_listing=0
+has_stage=0
+for arg in "$@"; do
+  if [[ "${arg}" == "ls-files" ]]; then
+    is_index_listing=1
+  elif [[ "${arg}" == "-s" ]]; then
+    has_stage=1
+  fi
+done
+if [[ "${is_index_listing}" -eq 1 && "${has_stage}" -eq 1 \
+  && ! -e "${MUTATION_ROOT}/.first-listing" ]]; then
+  set +e
+  "${REAL_GIT}" "$@"
+  status=$?
+  set -e
+  if [[ "${status}" -eq 0 ]]; then
+    : >"${MUTATION_ROOT}/.first-listing"
+  fi
+  exit "${status}"
+fi
+if [[ "${is_index_listing}" -eq 1 && "${has_stage}" -eq 1 \
+  && ! -e "${MUTATION_ROOT}/.mutated" ]]; then
+  : >"${MUTATION_ROOT}/.mutated"
+  printf '%s\n' "daily save-time protection" >"${MUTATION_ROOT}/new-claim.txt" # retired-claim-ok: CIB-260
+  "${REAL_GIT}" -C "${MUTATION_ROOT}" add new-claim.txt
+fi
+exec "${REAL_GIT}" "$@"
+EOF
+chmod +x "${index_mutation_bin}/git"
+set +e
+out="$(PATH="${index_mutation_bin}:${PATH}" REAL_GIT="${real_git}" \
+  MUTATION_ROOT="${index_mutation_root}" \
+  node "${script_dir}/check-retired-claims.mjs" --root "${index_mutation_root}" 2>&1)"
+status=$?
+set -e
+if [[ "${status}" -eq 2 ]] && echo "${out}" | grep -q "index changed while the scan was running"; then
+  pass "add-and-stage mutation fails the scan closed"
+else
+  fail "add-and-stage mutation escaped the final inventory (status ${status}): ${out}"
+fi
+
 
 if [[ "${failures}" -gt 0 ]]; then
   echo "${failures} test case(s) failed"

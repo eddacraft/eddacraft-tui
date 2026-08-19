@@ -66,19 +66,24 @@ const root = resolve(values.root ?? process.cwd());
 // cannot split. A failure here is an environment problem (not a git repo, git
 // missing), so it exits 2 — the corpus carries no signal either way (CIB-278).
 // ---------------------------------------------------------------------------
-const ls = spawnSync('git', ['ls-files', '-s', '-z'], {
-  cwd: root,
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-});
-if (ls.error || ls.status !== 0) {
-  const reason = ls.error?.message ?? (ls.stderr || `git exited ${ls.status}`);
-  console.error(`[${SURFACE}] cannot list tracked files under ${root}: ${reason.trim()}`);
-  process.exit(2);
+function readGitInventory(args, action) {
+  const result = spawnSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    const reason = result.error?.message ?? (result.stderr || `git exited ${result.status}`);
+    console.error(`[${SURFACE}] cannot ${action} under ${root}: ${reason.trim()}`);
+    process.exit(2);
+  }
+  return result.stdout;
 }
 
+const indexInventory = readGitInventory(['ls-files', '-s', '-z'], 'list tracked files');
+
 const files = [];
-for (const entry of ls.stdout.split('\0').filter(Boolean)) {
+for (const entry of indexInventory.split('\0').filter(Boolean)) {
   const tab = entry.indexOf('\t');
   if (tab < 0) {
     console.error(`[${SURFACE}] cannot parse tracked-file entry from git ls-files`);
@@ -98,19 +103,9 @@ for (const entry of ls.stdout.split('\0').filter(Boolean)) {
   if (isScanned(path)) files.push({ mode: metadata[0], oid: metadata[1], path });
 }
 
-const indexFlags = spawnSync('git', ['ls-files', '-v', '-z'], {
-  cwd: root,
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-});
-if (indexFlags.error || indexFlags.status !== 0) {
-  const reason =
-    indexFlags.error?.message ?? (indexFlags.stderr || `git exited ${indexFlags.status}`);
-  console.error(`[${SURFACE}] cannot inspect tracked-file flags under ${root}: ${reason.trim()}`);
-  process.exit(2);
-}
+const indexFlagInventory = readGitInventory(['ls-files', '-v', '-z'], 'inspect tracked-file flags');
 const flagsByPath = new Map(
-  indexFlags.stdout
+  indexFlagInventory
     .split('\0')
     .filter(Boolean)
     .map((entry) => [entry.slice(2), entry[0]])
@@ -219,6 +214,44 @@ function sameFileSnapshot(left, right) {
   );
 }
 
+function snapshotFile(stat, bytes) {
+  return {
+    dev: stat.dev,
+    ino: stat.ino,
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+    ctimeMs: stat.ctimeMs,
+    digest: createHash('sha256').update(bytes).digest('hex'),
+  };
+}
+
+function revalidateWorktreeSnapshot({ absolutePath, direct, snapshot }) {
+  let fd;
+  try {
+    const openFlags = READ_NONBLOCK | (direct ? (constants.O_NOFOLLOW ?? 0) : 0);
+    fd = openSync(absolutePath, openFlags);
+    const opened = fstatSync(fd);
+    if (!opened.isFile()) throw new Error('tracked path is no longer a regular file');
+    if (direct) {
+      const materialised = lstatSync(absolutePath);
+      if (!materialised.isFile() || !sameFileIdentity(opened, materialised)) {
+        throw new Error('tracked regular path changed while reopening');
+      }
+    }
+    const bytes = readFileSync(fd);
+    const completed = fstatSync(fd);
+    if (!sameFileSnapshot(opened, completed)) {
+      throw new Error('tracked path changed while re-reading');
+    }
+    const finalSnapshot = snapshotFile(completed, bytes);
+    if (!sameFileSnapshot(snapshot, finalSnapshot) || snapshot.digest !== finalSnapshot.digest) {
+      throw new Error('tracked path content changed after it was scanned');
+    }
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 function validateUnstagedRegularPath(path) {
   const patch = spawnSync(
     'git',
@@ -253,6 +286,7 @@ function emptyHitMap() {
 const indexHits = emptyHitMap();
 const worktreeHits = emptyHitMap();
 const worktreeRegularPaths = new Set();
+const worktreeSnapshots = [];
 let scanned = 0;
 const unreadable = [];
 
@@ -283,7 +317,18 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
           throw new Error('tracked symlink resolved to an unexpected directory');
         }
         if (!opened.isFile()) throw new Error('tracked symlink target is not a regular file');
-        indexText = readFileSync(fd, 'utf8');
+        const bytes = readFileSync(fd);
+        const completed = fstatSync(fd);
+        if (!sameFileSnapshot(opened, completed)) {
+          throw new Error('tracked symlink target changed while reading');
+        }
+        indexText = bytes.toString('utf8');
+        worktreeSnapshots.push({
+          path,
+          absolutePath: targetPath,
+          direct: false,
+          snapshot: snapshotFile(completed, bytes),
+        });
       }
     } else if (mode === '100644' || mode === '100755') {
       if (hasWorktreeChanges) validateUnstagedRegularPath(path);
@@ -299,11 +344,18 @@ for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
       }
       indexText = blobs[fileIndex].toString('utf8');
       worktreeRegularPaths.add(path);
-      worktreeText = readFileSync(fd, 'utf8');
+      const bytes = readFileSync(fd);
+      worktreeText = bytes.toString('utf8');
       const completed = fstatSync(fd);
       if (!sameFileSnapshot(opened, completed)) {
         throw new Error('tracked regular path changed while reading');
       }
+      worktreeSnapshots.push({
+        path,
+        absolutePath: resolve(root, path),
+        direct: true,
+        snapshot: snapshotFile(completed, bytes),
+      });
     } else {
       throw new Error(`unsupported tracked mode ${mode}`);
     }
@@ -335,6 +387,24 @@ const finalDirtyPaths = readDirtyPaths();
 if (!sameStringSet(dirtyPaths, finalDirtyPaths)) {
   console.error(`[${SURFACE}] tooling failure: tracked paths changed while the scan was running`);
   process.exit(2);
+}
+if (
+  readGitInventory(['ls-files', '-s', '-z'], 're-list tracked files') !== indexInventory ||
+  readGitInventory(['ls-files', '-v', '-z'], 're-inspect tracked-file flags') !== indexFlagInventory
+) {
+  console.error(`[${SURFACE}] tooling failure: the index changed while the scan was running`);
+  process.exit(2);
+}
+for (const snapshot of worktreeSnapshots) {
+  try {
+    revalidateWorktreeSnapshot(snapshot);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[${SURFACE}] tooling failure: tracked file ${snapshot.path} changed while the scan was running: ${reason}`
+    );
+    process.exit(2);
+  }
 }
 
 function scanText(text, path, targetHits) {
