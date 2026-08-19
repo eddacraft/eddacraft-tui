@@ -176,7 +176,8 @@ evidence are present.
 
 ### DOCRB-003: Add the advisory diagram trigger and co-located documentation standard
 
-- **Status:** Draft
+- **Status:** In Progress 2026-08-19 — operator-promoted after DOCRB-001/-002
+  dependency and design evidence was re-verified
 - **Intent:** Give contributors and agents a small, consistent rule for
   reviewing documentation and diagram impact while the corpus is being
   re-baselined.
@@ -185,6 +186,12 @@ evidence are present.
   a documentation or diagram update, when it does not, and the required shape
   of component `README.md`/`ARCHITECTURE.md` files without duplicating
   procedure in agent adapters.
+- **Files:** `AGENTS.md`,
+  `docs/guides/documentation-governance.md`,
+  `docs/guides/architecture-diagrams.md`,
+  `plans/modules/docs-rebaseline.aps.md`
+- **Evidence:** Implementation commit `8a717343d`; local format, docs, active
+  APS lint, diff-integrity, and focused contract/link checks passed.
 - **Scope:** `AGENTS.md`, `docs/guides/documentation-governance.md`,
   `docs/guides/architecture-diagrams.md`, component-doc template if approved
 - **Non-scope:** Mandatory CI failure or mass component migration
