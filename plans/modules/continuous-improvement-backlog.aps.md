@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 276/343  |
+| CIB | —     | In Progress | 280/348  |
 
 ## Purpose
 
@@ -10877,3 +10877,170 @@ Does not cover witness hooks, install_method, or a 60-token B16 recall.
 - **Coordinates with:** CIB-339, CIB-340, SEC-FP-1
 - **Confidence:** high on the missing no-separator branch; medium on
   the exact token they used (not pasted).
+
+## Pack-09 intake (Chris Bridle first session, 2026-08-19)
+
+Source: first-time beta user Chris Bridle. Invited 2026-08-10 welcome
+cohort; first GitHub login 2026-08-19. Messenger notes, not a drop-folder
+pack. Current published beta `v0.9.6-beta`. Look/feel compliment
+preserved; not filed.
+
+**Cutline:** file the first-session defects he actually hit. Curriculum
+depth is captured as Draft only (second first-timer; Dave pack-03 §4
+already parked teaching as editorial).
+
+### Pack-09 disposition map
+
+| Chris note | Disposition | Tracking |
+| --- | --- | --- |
+| Tutorials too terse / TL;DR | Second first-timer. Design, not a defect. Editorial | **CIB-353** Draft P3 |
+| Policy check auth-failed mid-onboarding | Welcome ungated; Policy path shells gated `anvil policy test` | **CIB-349** Ready P1 |
+| Review gate on a larger repo looked like a timeout | Hub RunGate is a static loading line + blocking `collect_gate_data` | **CIB-350** Ready P1 |
+| Choose a learning path → discovery first | Label/routing mismatch | **CIB-351** Ready P2 |
+| Next steps listed, do not expand; file is in Issues | Next Steps is a lossy rollup; Enter only expands Issues | **CIB-352** Ready P1 |
+| Look and feel is tight / pro | Preserve | no CIB |
+
+### CIB-349: Ungated welcome must not dead-end on gated tutorial commands
+
+- **Status:** Ready
+- **Priority:** P1 first-session friction
+- **Intent:** `anvil welcome` is ungated (ADR-080). The official beta brief
+  tells testers to run it unsigned-in. The Policy path then shells
+  `anvil policy test`, which is in `CLI_GATED_COMMANDS`, so a first-time
+  user hits an auth wall mid-onboarding. Same class: later Policy steps
+  that name `anvil gate`, and Architecture's `anvil architecture validate`.
+- **Expected Outcome:** A signed-out welcome/tutorial walk either runs
+  those steps without the licence gate (same family as CIB-248 autoplay)
+  or names `anvil auth login` *before* the gated command and does not
+  present the step as a runnable check until signed in. "Run auth login"
+  after a failed command is not enough if the menu offered the path
+  unsigned-in.
+- **Non-scope / do not:** do not ungate the ordinary `anvil policy` /
+  `anvil gate` CLI; do not reopen CIB-248 sandbox autoplay isolation
+  (already Merged).
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/paths.rs`
+  (`policy_steps`, `architecture_steps`), tutorial executor,
+  `crates/anvil-cli/src/commands/welcome.rs`,
+  `crates/anvil-cli/src/feature_flags.rs` (`CLI_GATED_COMMANDS`)
+- **Validation:** signed-out `anvil welcome` → Choose a learning path →
+  Policy → Test the Policy does not surface a bare auth failure. Either
+  the step runs, or the UI blocks with a sign-in bridge before the
+  command.
+- **Identified From:** Chris Bridle first-session, 2026-08-19,
+  v0.9.6-beta. "The policy check option errored out with auth failure,
+  obviously just need to run anvil auth login, but introduces friction
+  mid onboarding."
+- **Coordinates with:** CIB-248, CIB-049, ADR-080, UJ-004
+- **Confidence:** high — Policy step 4 command is `anvil policy test`;
+  `policy` is in `CLI_GATED_COMMANDS`; welcome is not.
+
+### CIB-350: Hub "Review gate decision" must show live progress on a large repo
+
+- **Status:** Ready
+- **Priority:** P1 first-session
+- **Intent:** Welcome hub default item is RunGate. It draws a static
+  "Running quality checks..." then `collect_gate_data()` blocks on a
+  full `run_checks` with no per-check progress. CLI `anvil gate
+  --progress` exists; the TUI path does not use it. On a larger
+  codebase this looks like a hang or timeout.
+- **Expected Outcome:** The hub gate run surfaces ongoing status (which
+  check is running, or equivalent progress) until results appear. A
+  large-repo run must not sit on a frozen loading line with no further
+  feedback.
+- **Non-scope / do not:** do not change gate scoring or which checks
+  run; CIB-341 (GCTX 60s scan) is a different surface.
+- **Files:** `crates/anvil-cli/src/commands/welcome.rs` (`RunGate`),
+  `crates/anvil-cli/src/commands/gate.rs` (`collect_gate_data`), TUI
+  loading / gate surface
+- **Validation:** hub → Review gate decision on a multi-thousand-file
+  repo shows updating status before the result screen. A small fixture
+  still completes.
+- **Identified From:** Chris Bridle first-session, 2026-08-19. "Using
+  review gate decision on a larger codebase appeared to timeout,
+  perhaps more feedback regarding its running status?"
+- **Coordinates with:** CIB-341 (not the same), ACTTUI
+- **Confidence:** high — `collect_gate_data` is synchronous; welcome
+  only draws one loading frame.
+
+### CIB-351: "Choose a learning path" must open the path picker
+
+- **Status:** Ready
+- **Priority:** P2 first-session honesty
+- **Intent:** Hub and first-run onboarding label the tutorial entry
+  "Choose a learning path" (CIB-246 / CIB-273). Both routes run
+  `run_discovery` (full project scan + findings UI, plus first-win on
+  first-run) *before* the picker. The hub description even says "Start
+  with scan -> checks -> findings -> gate". A user who chose a learning
+  path lands in discovery.
+- **Expected Outcome:** Selecting that menu item opens the tutorial
+  path picker. Discovery / first-win may remain a first-run wow
+  *before* the menu, or a default *path* inside the picker, but the
+  labelled menu item must not start with a scan.
+- **Non-scope / do not:** do not remove discovery; do not rename the
+  picker again (CIB-246 / CIB-273 stay).
+- **Files:** `crates/anvil-cli/src/commands/welcome.rs` (`RunTutorial`,
+  first-run Tutorial outcome),
+  `crates/anvil-tui/src/surfaces/onboarding/welcome.rs`
+- **Validation:** from the hub, "Choose a learning path" shows the
+  path picker as the next screen, without an intervening discovery
+  scan. First-run can still wow *before* offering the menu.
+- **Identified From:** Chris Bridle first-session, 2026-08-19.
+  "Choosing learning path from menu heads to discovery first."
+- **Coordinates with:** CIB-246, CIB-273, WOW-005
+- **Confidence:** high — `welcome.rs` `RunTutorial` always calls
+  `run_discovery` first.
+
+### CIB-352: Audit Next Steps must drive the matching Issues
+
+- **Status:** Ready
+- **Priority:** P1 first-session honesty
+- **Intent:** Next Steps are count-only rollups (`Consider splitting N
+  large file(s) (>500 lines)`). The file path already lives on the
+  Issues row. Enter expands only the Issues panel; on Next Steps it
+  does nothing, while the footer still says "enter expand". Chris found
+  the file in Issues after expecting it on the selected next step.
+- **Expected Outcome:** Enter on a Next Steps row focuses (and expands)
+  the matching issue(s). One large-file step lands on that file. N>1
+  still works as a filter/jump, not a longer slogan. Footer copy
+  matches. Do not treat stuffing the path into the summary line as the
+  fix unless it is a temporary N==1 fallback.
+- **Non-scope / do not:** do not rewrite `generate_next_steps` into a
+  second findings list; do not restyle the four-panel layout.
+- **Files:** `crates/anvil-tui/src/surfaces/audit/mod.rs` (`handle_key`),
+  `crates/anvil-tui/src/surfaces/audit/render.rs` (Next Steps panel);
+  `crates/anvil-cli/src/commands/audit.rs` (`generate_next_steps`) only
+  if the jump needs stable issue ids
+- **Validation:** audit TUI with one large-file issue: focus Next
+  Steps, Enter, selected issue is that file and expanded. Footer no
+  longer promises expand on a panel that cannot expand.
+- **Identified From:** Chris Bridle first-session, 2026-08-19, plus
+  addendum: "The next steps bit, it does say which file, just in the
+  current issues bit rather than next steps."
+- **Coordinates with:** CIB-234, CIB-281 (audit honesty, different
+  concern)
+- **Confidence:** high — reproduced in source.
+
+### CIB-353: Tutorial paths need more than a 60-second TL;DR (editorial)
+
+- **Status:** Draft
+- **Priority:** P3 editorial / curriculum
+- **Intent:** First-session user found the learning-path tutorials "a
+  little too terse, too tldr". ProtectionLoop is five mostly
+  informational steps with a simulated check (tutorial-as-built G-02).
+  Dave pack-03 §4 teaching was parked as deliberate non-scope. Second
+  independent first-timer.
+- **Expected Outcome:** A later editorial pass decides whether the
+  default path stays 60-second and the deep paths grow, or the default
+  path itself walks a real check. Not a release-claim item until
+  promoted.
+- **Non-scope / do not:** do not block pack-09 Ready items on this; do
+  not restyle chrome (compliment).
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/paths.rs`,
+  `docs/architecture/tutorial-as-built.md`
+- **Validation:** not yet — curriculum decision required before a
+  command.
+- **Identified From:** Chris Bridle first-session, 2026-08-19; Dave
+  pack-03 §4
+- **Coordinates with:** LAUNCH-014, WOW, pack-03
+- **Confidence:** high that two first-timers said it; low on the right
+  depth
