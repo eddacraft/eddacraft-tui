@@ -1,8 +1,8 @@
 # Documentation Governance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                        |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-17 against ADR-123, `infra/src/vercel.ts`, and `plans/specs/2026-08-16-docs-rebaseline.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                 |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-19 against ADR-123, `infra/src/vercel.ts`, `plans/specs/2026-08-16-docs-rebaseline.md`, and `plans/specs/2026-08-19-anvil-docs-definition-layer.md` |
 
 | Upstream                                                                                                                              | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -135,13 +135,14 @@ diagram updates under ADR-123 before that item.
 
 ## Module boundaries
 
-| Surface         | Owns                                                                                                                                     | Does not own                                            |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| DOCRB           | Authority model, corpus disposition, diagram topology, co-location migration, public diagram pipeline, activation of the new review rule | Sibling-module work-item status; release claims         |
-| DOCFRESH        | Declared-upstream freshness (ADR-119) and release-boundary freshness                                                                     | Authority or diagram placement                          |
-| DOCSYNC         | Substantive public content and release-aligned public refreshes                                                                          | Public information architecture and diagram conventions |
-| DSITE           | Recorded legacy `apps/docs-site` host and section-wiring work                                                                            | Live production topology (above)                        |
-| Archived DOCGOV | Historical evidence                                                                                                                      | Living rules — do not rewrite or reopen it              |
+| Surface         | Owns                                                                                                                                                                     | Does not own                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| DOCRB           | Authority model, corpus disposition, diagram topology, co-location migration, public diagram pipeline, live public IA/nav (DOCRB-011), activation of the new review rule | Sibling-module work-item status; release claims; definition-page prose |
+| DOCFRESH        | Declared-upstream freshness (ADR-119) and release-boundary freshness                                                                                                     | Authority or diagram placement                                         |
+| DOCSYNC         | Substantive public content and release-aligned public refreshes                                                                                                          | Public information architecture and diagram conventions                |
+| DOCDEF          | Public Anvil definition content and the public-reference generator (evaluation model, check/config/CLI catalogues, policy model)                                         | Live sidebar; public Draw.io diagrams; DOCSYNC journeys                |
+| DSITE           | Recorded legacy `apps/docs-site` host and section-wiring work                                                                                                            | Live production topology (above)                                       |
+| Archived DOCGOV | Historical evidence                                                                                                                                                      | Living rules — do not rewrite or reopen it                             |
 
 DOCRB is not a release claim, readiness gate, or release-cut dependency.
 

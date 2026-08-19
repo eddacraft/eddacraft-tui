@@ -5,12 +5,15 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 2/10 |
+| DOCRB | — | high | Ready | 2/11 |
 
-**Last reviewed:** 2026-08-16 against the repository component/documentation
-inventory at `c4fd624ce`, current DOCFRESH/DOCSYNC/DSITE ownership, and the
+**Last reviewed:** 2026-08-19 against the repository component/documentation
+inventory at `c4fd624ce`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
 operator-approved
-[documentation re-baseline design](../specs/2026-08-16-docs-rebaseline.md).
+[documentation re-baseline design](../specs/2026-08-16-docs-rebaseline.md),
+and the
+[definition-layer design](../specs/2026-08-19-anvil-docs-definition-layer.md)
+(DOCRB-011 live-nav split).
 
 > **Exclusive module.** DOCRB owns the documentation-authority and diagram
 > re-baseline. Feature PRs update only their own item status and evidence;
@@ -85,6 +88,7 @@ Its governing decisions are:
 | -------------- | -------- |
 | DOCFRESH | Owns declared-upstream freshness and release-boundary freshness checks; DOCRB supplies the new authority/diagram topology and coordinates any checker extension |
 | DOCSYNC | Owns substantive public content and release-aligned refreshes; DOCRB owns public information architecture and diagram conventions/pipeline |
+| DOCDEF | Owns public Anvil definition content and the public-reference generator; does not own the live sidebar |
 | DSITE and production docs apps | DSITE records legacy `apps/docs-site` host/section wiring, but production is now `docs-shell` proxying `anvil-docs-private` and `docs-public`; DOCRB-001 must reconcile the live owner and contract without changing DSITE status by implication |
 | DOCGOV (archived) | Historical source for current governance; DOCRB replaces living rules through new decisions and docs without editing archived status |
 | Component owners | Own the accuracy of local README/architecture material after migration |
@@ -99,11 +103,13 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Authority | DOCRB-001 | Documentation placement, authority, formats, accessibility, phasing, and module boundaries are accepted |
 | Baseline | DOCRB-002 | Every current component/document/diagram has a disposition and owner or explicit exemption |
 | Advisory adoption | DOCRB-003, DOCRB-004 | Thin agent rule and representative co-located pilots are usable without a mandatory gate |
+| Live public nav | DOCRB-011 | Live sidebar exposes already-written definition pages; nav check targets the live host |
 | Migration and public pipeline | DOCRB-005..008 | Duplicate authorities are retired, cross-system views rebuilt, and public source/export parity works |
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
-Only DOCRB-001 is Ready at module creation. Later items stay Draft until their
-dependencies and expected evidence are present.
+DOCRB-001 and DOCRB-002 are Merged. DOCRB-011 is Ready and does not wait on
+diagram items. Other items stay Draft until their dependencies and expected
+evidence are present.
 
 ## Success Criteria
 
@@ -265,13 +271,35 @@ dependencies and expected evidence are present.
   avoid duplicate authority, high-value user journeys use paired Draw.io/SVG
   diagrams, current shell/private/public routing builds, and release/version
   provenance remains intact.
-- **Scope:** `docs/public/**`, public navigation/configuration, selected public
-  diagram assets
-- **Non-scope:** Closing DOCSYNC or DSITE items, marketing-site redesign, or
-  publishing a release
-- **Dependencies:** DOCRB-006, DOCRB-007
+- **Scope:** `docs/public/**`, selected public diagram assets, and remaining
+  public IA after DOCRB-011
+- **Non-scope:** Closing DOCSYNC or DSITE items, marketing-site redesign,
+  publishing a release, or the live sidebar unhide and live-nav check
+  (DOCRB-011)
+- **Dependencies:** DOCRB-006, DOCRB-007, DOCRB-011
 - **Confidence:** medium
 - **Validation:** `pnpm docs:public:check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build && pnpm --filter @eddacraft/docs-shell build`
+
+### DOCRB-011: Unhide the live public definition layer
+
+- **Status:** Ready
+- **Intent:** Make already-written Anvil definition pages findable on the
+  live host without waiting for public diagram work.
+- **Expected Outcome:** `apps/anvil-docs-private/sidebars/anvil.ts` has a
+  first-class Reference category and unhides existing pages using front-matter
+  IDs (`cli-reference`, `rule-reference`, `support-reference`, `agent-skills`);
+  overview has two doors that point at those pages; `scripts/docs/check-public-docs.mjs`
+  validates the live private sidebar (rollback sidebar remains a second
+  check); no new evaluation-model or catalogue prose.
+- **Files:** `apps/anvil-docs-private/sidebars/anvil.ts`,
+  `scripts/docs/check-public-docs.mjs`,
+  `docs/public/anvil/overview.md`
+- **Scope:** Live sidebar, overview doors, live-nav check
+- **Non-scope:** Evaluation-model prose (DOCDEF-001), generated catalogues,
+  public Draw.io diagrams (DOCRB-008), dashboard as generally available
+- **Dependencies:** DOCRB-001, DOCRB-002
+- **Confidence:** high
+- **Validation:** `pnpm docs:public:check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build`
 
 ### DOCRB-009: Activate mandatory diagram review and render/freshness enforcement
 
