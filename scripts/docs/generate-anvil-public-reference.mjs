@@ -82,11 +82,9 @@ const exitCodes = parseExitCodes(readProductSource(inputs.cli));
 const clients = parseClients(readProductSource(inputs.clients));
 const languages = parseLanguages(readProductSource(inputs.languages));
 const targets = parseTargets(readProductSource(inputs.dist));
-const checkDefinitions = parseCheckDefinitions(readProductSource(inputs.checkCatalog));
-const initDefaultChecks = parseStringSlice(
-  readProductSource(inputs.checkCatalog),
-  'DEFAULT_INIT_CHECKS'
-);
+const checkCatalogSource = readProductSource(inputs.checkCatalog);
+const checkDefinitions = parseCheckDefinitions(checkCatalogSource);
+const initDefaultChecks = parseStringSlice(checkCatalogSource, 'DEFAULT_INIT_CHECKS');
 const planlessChecks = parseStringSlice(
   readProductSource(inputs.check),
   'PLANLESS_ELIGIBLE_CHECKS'
