@@ -4403,9 +4403,9 @@ fn format_anvilrc_unknown_checks_warning(unknown: &[&str]) -> String {
 
 /// Live status while a gate run is in flight.
 ///
-/// CLI `anvil gate --progress` prints the same moments to stderr. The
-/// welcome hub owns the alt-screen, so it redraws a loading line from
-/// these events instead of blocking on a silent `run_checks`.
+/// The welcome hub redraws a loading line from these events instead of
+/// blocking on a silent `run_checks`. CLI `anvil gate --progress` prints
+/// per-check start/end to stderr; the scanning event is hub-only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GateProgress {
     /// Workspace walk before any check runs. On a large repo this is the

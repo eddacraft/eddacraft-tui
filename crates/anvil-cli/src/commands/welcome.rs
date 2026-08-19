@@ -1503,14 +1503,23 @@ fn run_welcome_hub(
         match welcome.chosen.take() {
             Some(QuickStartOption::RunGate) => {
                 crate::tui::draw_loading(terminal, "Gate", HUB_GATE_LOADING, theme)?;
+                let mut draw_error = None;
                 let data = crate::commands::gate::collect_gate_data_with_progress(|progress| {
-                    let _ = crate::tui::draw_loading(
+                    if draw_error.is_some() {
+                        return;
+                    }
+                    if let Err(err) = crate::tui::draw_loading(
                         terminal,
                         "Gate",
                         &hub_gate_progress_line(&progress),
                         theme,
-                    );
+                    ) {
+                        draw_error = Some(err);
+                    }
                 });
+                if let Some(err) = draw_error {
+                    return Err(err);
+                }
                 let mut gate_state = anvil_tui::surfaces::gate::GateState::new(data).embedded();
                 let sub_exit = crate::tui::run_surface_in(terminal, &mut gate_state, theme)?;
                 if sub_exit == SurfaceExit::Quit {
