@@ -53,10 +53,11 @@ impl QuickStartOption {
             Self::StartWatch => "Run checks continuously and watch findings update on save",
             Self::RunAudit => "Inspect the findings anvil collects across your project",
             Self::RunDoctor => "Verify your environment before relying on checks and gates",
-            // The label already says the picker is what opens, so the
-            // description spends its width on the loop the paths teach — and
-            // stays short enough to survive an 80-column row (CIB-246).
-            Self::RunTutorial => "Start with scan -> checks -> findings -> gate",
+            // CIB-351: the labelled item opens the picker, so the description
+            // must not promise an intervening scan. It still names the loop
+            // the paths teach, and stays short enough for an 80-column row
+            // (CIB-246).
+            Self::RunTutorial => "Walk through checks, findings, and the gate",
             Self::ViewDocs => "Open the anvil documentation in your browser",
             Self::RestartOnboarding => "Reset and re-run the first-time setup experience",
         }
@@ -201,10 +202,14 @@ mod tests {
     fn quick_start_copy_uses_model_first_language() {
         assert_eq!(QuickStartOption::RunGate.label(), "Review gate decision");
         assert!(QuickStartOption::RunGate.description().contains("findings"));
+        let tutorial = QuickStartOption::RunTutorial.description();
         assert!(
-            QuickStartOption::RunTutorial
-                .description()
-                .contains("scan -> checks -> findings -> gate")
+            !tutorial.contains("Start with scan"),
+            "hub tutorial entry must not promise an intervening scan: {tutorial}"
+        );
+        assert!(
+            tutorial.contains("Walk through checks, findings, and the gate"),
+            "hub tutorial entry should still name the loop the paths teach: {tutorial}"
         );
     }
 

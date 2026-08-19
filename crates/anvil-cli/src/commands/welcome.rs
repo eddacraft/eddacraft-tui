@@ -47,14 +47,13 @@ fn timed_loading(
     Ok(())
 }
 
-/// Build the tutorial state for an entry point that ran discovery: threads
-/// the scan results through and wires the WOW-004 read-only completion
-/// re-scan (same scanner as discovery; a failed re-scan means no delta).
-fn tutorial_state_with_scan(
-    results: anvil_tui::surfaces::tutorial::discovery::ScanResults,
-) -> anvil_tui::surfaces::tutorial::TutorialState {
+/// Build the tutorial state for the labelled "Choose a learning path" item.
+///
+/// CIB-351: starts on the path picker with no discovery scan threaded in.
+/// WOW-004 completion re-scan is still wired so a chosen path can measure
+/// a delta later; a failed re-scan means no delta.
+fn tutorial_state_for_learning_path() -> anvil_tui::surfaces::tutorial::TutorialState {
     let mut state = anvil_tui::surfaces::tutorial::TutorialState::new();
-    state.set_scan_results(results);
     state.set_completion_rescan(|| scan_project().ok());
     // CIB-248: the autoplay demo runs its check in-process, so it never
     // re-enters the licence-gated `anvil check` CLI with a sandbox HOME that
@@ -67,6 +66,16 @@ fn tutorial_state_with_scan(
         start_prompts_sign_in(),
         crate::feature_flags::tutorial_command_needs_licence_gate,
     );
+    state
+}
+
+/// Build the tutorial state for an entry point that ran discovery: threads
+/// the scan results through on top of the path-picker wiring.
+fn tutorial_state_with_scan(
+    results: anvil_tui::surfaces::tutorial::discovery::ScanResults,
+) -> anvil_tui::surfaces::tutorial::TutorialState {
+    let mut state = tutorial_state_for_learning_path();
+    state.set_scan_results(results);
     state
 }
 
@@ -320,36 +329,13 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let result = if first_run {
         match run_onboarding(&mut terminal, &theme) {
-            Ok(OnboardingOutcome::Quit) => Ok(()),
-            Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
-                match run_discovery(&mut terminal, &theme)? {
-                    Some(mut results) => {
-                        // WOW-005: land on the highest-value actionable real
-                        // finding first; declining falls through to the
-                        // tutorial path picker exactly as before.
-                        if run_first_win_reroute(&mut terminal, &theme, &mut results)?
-                            == FirstWinFlow::Quit
-                        {
-                            Ok(())
-                        } else {
-                            let mut tutorial_state = tutorial_state_with_scan(results);
-                            let exit = run_tutorial_with_fix(
-                                &mut terminal,
-                                &theme,
-                                &mut tutorial_state,
-                                global.verbose,
-                            )?;
-                            if exit == SurfaceExit::Quit {
-                                Ok(())
-                            } else {
-                                run_welcome_hub(&mut terminal, &theme, global.verbose)
-                            }
-                        }
-                    }
-                    None => run_welcome_hub(&mut terminal, &theme, global.verbose),
+            Ok(outcome) => {
+                if follow_onboarding_choice(&mut terminal, &theme, global.verbose, outcome)? {
+                    run_welcome_hub(&mut terminal, &theme, global.verbose)
+                } else {
+                    Ok(())
                 }
             }
-            Ok(OnboardingOutcome::Skip) => run_welcome_hub(&mut terminal, &theme, global.verbose),
             Err(e) => Err(e),
         }
     } else {
@@ -425,6 +411,99 @@ enum OnboardingOutcome {
     Skip,
     /// User pressed quit — exit the entire program.
     Quit,
+}
+
+/// Next screen after a first-run onboarding choice.
+///
+/// CIB-351: the labelled "Choose a learning path" item must open the
+/// tutorial path picker. Guided setup may still wow with discovery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OnboardingNext {
+    /// Open the path picker with no intervening discovery scan.
+    PathPicker,
+    /// Scan, optional first-win, then the picker.
+    DiscoveryThenFirstWin,
+    /// Go to the return-visit hub.
+    Hub,
+    /// Leave the welcome flow.
+    Quit,
+}
+
+fn onboarding_next_screen(outcome: OnboardingOutcome) -> OnboardingNext {
+    match outcome {
+        OnboardingOutcome::Tutorial => OnboardingNext::PathPicker,
+        OnboardingOutcome::Configured => OnboardingNext::DiscoveryThenFirstWin,
+        OnboardingOutcome::Skip => OnboardingNext::Hub,
+        OnboardingOutcome::Quit => OnboardingNext::Quit,
+    }
+}
+
+/// Next screen after hub [`QuickStartOption::RunTutorial`].
+///
+/// CIB-351: this item is named after the path picker, so it must not
+/// start with a discovery scan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LearningPathNext {
+    PathPicker,
+}
+
+fn hub_run_tutorial_next() -> LearningPathNext {
+    LearningPathNext::PathPicker
+}
+
+/// Run the screen that follows an onboarding choice.
+///
+/// Returns `true` when the caller should continue to the hub, `false` when
+/// the user quit the welcome flow.
+fn follow_onboarding_choice(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+    verbose: bool,
+    outcome: OnboardingOutcome,
+) -> anyhow::Result<bool> {
+    match onboarding_next_screen(outcome) {
+        OnboardingNext::Quit => Ok(false),
+        OnboardingNext::Hub => Ok(true),
+        OnboardingNext::PathPicker => {
+            Ok(run_learning_path(terminal, theme, verbose)? != SurfaceExit::Quit)
+        }
+        OnboardingNext::DiscoveryThenFirstWin => Ok(run_discovery_then_first_win_tutorial(
+            terminal, theme, verbose,
+        )? != SurfaceExit::Quit),
+    }
+}
+
+/// Open the tutorial path picker with no intervening discovery scan.
+fn run_learning_path(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+    verbose: bool,
+) -> anyhow::Result<SurfaceExit> {
+    let mut tutorial_state = tutorial_state_for_learning_path();
+    run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)
+}
+
+/// Guided-setup wow: discovery, optional first-win, then the path picker.
+///
+/// Discovery is kept for this route. A declined or empty first-win still
+/// lands on the picker; backing out of discovery returns [`SurfaceExit::Back`].
+fn run_discovery_then_first_win_tutorial(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+    verbose: bool,
+) -> anyhow::Result<SurfaceExit> {
+    match run_discovery(terminal, theme)? {
+        Some(mut results) => {
+            // WOW-005: land on the highest-value actionable real finding
+            // first; declining falls through to the tutorial path picker.
+            if run_first_win_reroute(terminal, theme, &mut results)? == FirstWinFlow::Quit {
+                return Ok(SurfaceExit::Quit);
+            }
+            let mut tutorial_state = tutorial_state_with_scan(results);
+            run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)
+        }
+        None => Ok(SurfaceExit::Back),
+    }
 }
 
 fn run_onboarding(
@@ -1605,12 +1684,12 @@ fn run_welcome_hub(
             }
             Some(QuickStartOption::RunTutorial) => {
                 welcome.status_message = None;
-                if let Some(results) = run_discovery(terminal, theme)? {
-                    let mut tutorial_state = tutorial_state_with_scan(results);
-                    let sub_exit =
-                        run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)?;
-                    if sub_exit == SurfaceExit::Quit {
-                        break;
+                match hub_run_tutorial_next() {
+                    LearningPathNext::PathPicker => {
+                        let sub_exit = run_learning_path(terminal, theme, verbose)?;
+                        if sub_exit == SurfaceExit::Quit {
+                            break;
+                        }
                     }
                 }
                 welcome.should_quit = false;
@@ -1638,31 +1717,13 @@ fn run_welcome_hub(
                 }
 
                 let onboarding_ok = match run_onboarding(terminal, theme) {
-                    Ok(OnboardingOutcome::Quit) => break,
-                    Ok(OnboardingOutcome::Tutorial | OnboardingOutcome::Configured) => {
-                        if let Some(mut results) = run_discovery(terminal, theme)? {
-                            // WOW-005: restarted onboarding replays the
-                            // first-run experience, including the first-win
-                            // reroute.
-                            if run_first_win_reroute(terminal, theme, &mut results)?
-                                == FirstWinFlow::Quit
-                            {
-                                break;
-                            }
-                            let mut tutorial_state = tutorial_state_with_scan(results);
-                            let sub_exit = run_tutorial_with_fix(
-                                terminal,
-                                theme,
-                                &mut tutorial_state,
-                                verbose,
-                            )?;
-                            if sub_exit == SurfaceExit::Quit {
-                                break;
-                            }
+                    Ok(outcome) => {
+                        if follow_onboarding_choice(terminal, theme, verbose, outcome)? {
+                            true
+                        } else {
+                            break;
                         }
-                        true
                     }
-                    Ok(OnboardingOutcome::Skip) => true,
                     Err(e) => {
                         welcome.status_message = Some(format!("Onboarding failed: {e}"));
                         false
@@ -2857,6 +2918,36 @@ mod tests {
                 "the credential must be redacted in the finding",
             );
         }
+    }
+
+    // CIB-351: hub "Choose a learning path" must open the picker, not a scan.
+    #[test]
+    fn hub_run_tutorial_skips_discovery_and_opens_path_picker() {
+        use anvil_tui::surfaces::tutorial::TutorialPhase;
+
+        assert_eq!(hub_run_tutorial_next(), LearningPathNext::PathPicker);
+
+        let state = tutorial_state_for_learning_path();
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(
+            state.scan_results.is_none(),
+            "hub RunTutorial must not thread a discovery scan into the picker"
+        );
+        assert!(state.chosen_path.is_none());
+    }
+
+    // CIB-351: the first-run item with the same label must also skip discovery.
+    #[test]
+    fn first_run_choose_learning_path_skips_discovery_and_opens_path_picker() {
+        assert_eq!(
+            onboarding_next_screen(OnboardingOutcome::Tutorial),
+            OnboardingNext::PathPicker
+        );
+        assert_eq!(
+            onboarding_next_screen(OnboardingOutcome::Configured),
+            OnboardingNext::DiscoveryThenFirstWin,
+            "guided setup may still wow with discovery; do not remove it"
+        );
     }
 
     // CIB-350: hub RunGate must not sit on a single frozen loading line.
