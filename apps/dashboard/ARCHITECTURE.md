@@ -19,8 +19,10 @@
 The application owns browser routing, query state, presentation, and a typed
 read-only API adapter. [`main.tsx`](src/main.tsx) composes the query provider
 and router. [`api/client.ts`](src/api/client.ts) uses `openapi-fetch` with the
-generated [OpenAPI types](src/api/generated/openapi.d.ts). The Rust server owns
-endpoint behaviour, workspace access, and transport security.
+generated [OpenAPI types](src/api/generated/openapi.d.ts) for compile-time
+typing. Its root-relative `baseUrl: '/'` selects the browser's current origin.
+The Rust server owns endpoint behaviour, workspace access, and enforcement of
+its request policy.
 
 ## UI-to-loopback-server flow
 
@@ -29,10 +31,11 @@ This diagram owns the browser application's data-request concern.
 ```mermaid
 flowchart LR
     UI[Routes and UI modules] --> Query[Query hooks and cache]
-    Query --> Client[dashboard API client]
-    Client --> Contract[generated OpenAPI contract]
-    Contract --> Server[same-origin loopback server]
-    Server --> Result[read-only workspace result]
+    Query --> Client[root-relative dashboard API client]
+    Contract[generated OpenAPI types] -. compile-time contract .-> Client
+    Client --> Server[same-origin loopback server]
+    Server --> Policy[server request-policy checks]
+    Policy --> Result[read-only workspace result]
     Result --> Query
 ```
 
@@ -41,9 +44,10 @@ and [`hooks/`](src/hooks). The client and contract trace to
 [`api/client.ts`](src/api/client.ts),
 [`api/generated/openapi.d.ts`](src/api/generated/openapi.d.ts), and
 [`scripts/generate-api.mjs`](scripts/generate-api.mjs). In prose: a route
-invokes a query hook, which calls the typed API adapter; the generated OpenAPI
-contract constrains the same-origin request; the loopback server returns a
-read-only result to the query cache.
+invokes a query hook, which calls the API adapter. Generated OpenAPI types
+constrain client usage at compile time, while the root-relative base sends the
+request to the browser's current origin. The loopback server enforces its
+request policy and returns a read-only result to the query cache.
 
 ## Invariants, failure, and fallback
 
@@ -55,5 +59,6 @@ read-only result to the query cache.
   artefacts are unavailable.
 - The browser remains a read-only consumer. Mutation or approval controls do not
   belong in this component.
-- The app relies on the server's exact same-origin and loopback boundary; it
-  does not add CORS or a second authentication mechanism.
+- The app relies on the server to enforce its loopback and browser-request
+  policy; generated typing and a root-relative URL are not runtime
+  authentication controls.

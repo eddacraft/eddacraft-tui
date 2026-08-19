@@ -26,8 +26,10 @@ boundaries.
   route-specific access checks.
 - [`src/db/client.ts`](src/db/client.ts) and
   [`src/db/queries.ts`](src/db/queries.ts) own persistence access.
-- [`src/index.ts`](src/index.ts) is also the Vercel default export selected by
-  [`vercel.json`](vercel.json).
+- [`src/index.ts`](src/index.ts) is the Hono/Vercel convention entrypoint and
+  exposes the service's default export.
+- [`infra/src/vercel.ts`](../../infra/src/vercel.ts) selects `apps/anvil-api` as
+  the deployment root and `hono` as the framework.
 
 ## Architecture and authorities
 

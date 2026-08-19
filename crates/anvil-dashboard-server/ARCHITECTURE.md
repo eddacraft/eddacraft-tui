@@ -16,11 +16,12 @@
 ## Scope and boundaries
 
 The server owns one read-only, single-workspace loopback surface.
-[`server.rs`](src/server.rs) refuses non-loopback listeners and rejects requests
-whose Host, Origin, or fetch-site does not match the exact loopback authority.
-Because the service is reachable only from the local machine and is not
-supported behind a proxy, it deliberately has no user-authentication scheme. The
-network boundary, not an absent check, is the access control.
+[`server.rs`](src/server.rs) refuses non-loopback listeners. This is a
+machine-local unauthenticated boundary: any process on the machine can address
+the service, so loopback does not authenticate a caller or provide per-user
+isolation. Host, Origin, and fetch-site checks mitigate browser CSRF; local
+non-browser clients can omit or forge those headers. The service must not be
+exposed through a proxy or port-forward.
 
 ## Capability and access flow
 
@@ -28,7 +29,7 @@ This diagram owns the server's request-to-workspace concern.
 
 ```mermaid
 flowchart LR
-    Request[Browser or local API request] --> Guard[loopback host and origin guard]
+    Request[Browser or local API request] --> Guard[loopback and browser request-policy checks]
     Guard --> Route[read-only route]
     Route --> Capability[protection, history, patterns, or plans loader]
     Capability --> Workspace[canonical WorkspaceAnchor read]
@@ -38,16 +39,17 @@ flowchart LR
 
 The guard and route nodes trace to [`server.rs`](src/server.rs). Capability
 loaders trace to [`capabilities/`](src/capabilities), and the read boundary
-traces to [`workspace.rs`](src/workspace.rs). In prose: an admitted loopback
-request selects a read-only route; the matching capability asks the anchored
-workspace boundary for a capped artefact; the route returns structured JSON or
-an embedded UI asset.
+traces to [`workspace.rs`](src/workspace.rs). In prose: a request that passes
+the server's loopback and browser-request policy selects a read-only route; the
+matching capability asks the anchored workspace boundary for a capped artefact;
+the route returns structured JSON or an embedded UI asset.
 
 ## Invariants, failure, and fallback
 
 - `serve` rejects a non-loopback listener before accepting requests.
-- Host, Origin, and fetch-site checks prevent cross-origin browser use; no CORS
-  grant or remote authentication path exists.
+- Host, Origin, and fetch-site checks mitigate cross-origin browser requests;
+  they are not caller authentication and cannot be trusted for local-client
+  identity.
 - `WorkspaceAnchor` reads are relative to a canonical root, reject path escape
   and symlinks, and cap each artefact at 4 MiB.
 - Missing, unsafe, oversized, or unavailable artefacts become structured API
@@ -56,6 +58,9 @@ an embedded UI asset.
   browser shell while the read-only API remains available.
 - API payloads default to `Cache-Control: no-store`; only fingerprinted assets
   opt into immutable caching.
+- Current limitation: loopback provides neither caller authentication nor
+  per-user isolation. A capability token or owner-only IPC transport would be
+  required to establish per-user isolation.
 
 The generated contract boundary is defined in [`openapi.rs`](src/openapi.rs) and
 consumed by the dashboard's

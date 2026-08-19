@@ -61,7 +61,9 @@ an external provider and returns a structured result.
   [auth authority](../../docs/architecture/auth-as-built.md).
 - [`admin-auth.ts`](src/middleware/admin-auth.ts) prefers per-operator keys when
   configured. A database lookup failure deliberately falls back to the shared
-  admin key; a revoked or malformed credential is rejected and audited.
+  admin key. A revoked, malformed, or unknown credential is rejected; its audit
+  write is attempted on a best-effort basis, and audit-write failure is logged
+  without masking the rejection.
 - Database, signing-key, GitHub credential, and email-provider health are
   reported explicitly; user-impacting dependency failure degrades health.
 - Persistence migrations remain governed by the
