@@ -18,9 +18,9 @@ component roots:
 
 The comparison base for this report is
 `9a0c906b27ca3325cd9674d002b0f37c51ce6149`. The immutable reviewed-content
-target is finalised by the immediately following report-only commit; that
-follow-up changes no reviewed component claim and only pins the substantive
-repair commit. Detailed source review began at
+target is `d00b3d2d3624e8ec1fd5abd5403a59b5eb9f18ad`. This immediately following
+report-only commit changes no reviewed component claim; it only finalises this
+provenance record. Detailed source review began at
 `d6c8b565c375e9e75db44c5d20d2acb066e4471c`, which was `origin/main` when
 DOCRB-004 started. A targeted diff from that review snapshot to the comparison
 base found no changes in the cited product source roots or
