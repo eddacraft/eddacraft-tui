@@ -8,14 +8,19 @@
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | ADR-123, `docs/guides/documentation-governance.md`, `plans/specs/2026-08-16-docs-rebaseline.md` | Architecture diagram reviews and PR hygiene |
 
-This guide covers how architecture diagrams are managed, when to update them,
-and which tool to use. The durable contract is ADR-123. Procedure lives here;
-`AGENTS.md` will carry only a thin trigger after DOCRB-003.
+This guide covers diagram format and maintenance procedure. The durable contract
+is ADR-123. Documentation governance owns the
+[change-impact trigger and exemptions](documentation-governance.md#change-impact-review)
+and the
+[component documentation standard](documentation-governance.md#component-documentation-standard);
+`AGENTS.md` carries only a thin advisory link to that authority.
 
 ## Current inventory
 
-These are the diagrams that exist today. DOCRB-002 will disposition each as
-`retain`, `move`, `redraw`, `merge`, `retire`, or an explicit exemption.
+DOCRB-002 dispositioned the full corpus in
+`plans/specs/2026-08-17-docrb-corpus-disposition.md`. The rows below retain a
+concise view of the current diagram set and its target; the disposition spec is
+authoritative when they differ.
 
 | Diagram           | Format  | Location                                           | Current concern                                              | Target under ADR-123                                     |
 | ----------------- | ------- | -------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------- |
@@ -31,7 +36,8 @@ pipeline is DOCRB-007. Component-local Mermaid is the DOCRB-004 pilot.
 
 **Mermaid** — default for internal and engineering diagrams:
 
-- component `README.md` / `ARCHITECTURE.md` maps;
+- component maps placed under the
+  [component documentation standard](documentation-governance.md#component-documentation-standard);
 - crate or package boundaries, request/data/control flow, state machines;
 - sequence diagrams in ADRs or specs;
 - central cross-system views that must be reviewable as text.
@@ -62,20 +68,12 @@ simplified view, not a copied diagram that can drift.
 
 ## When to update diagrams
 
-Review documentation and diagram impact in the same change when the change:
-
-- adds, removes, renames, splits, or merges a component;
-- changes a dependency direction, public contract, trust boundary, deployment
-  boundary, state transition, or material data/control flow;
-- changes a user workflow or system behaviour shown in a public diagram;
-- changes the authority or lifecycle state of a depicted surface.
-
-You do **not** need to update diagrams for:
-
-- internal refactors inside an unchanged boundary;
-- bug fixes that do not change the depicted concern;
-- tests that only add coverage;
-- prose-only repairs that do not alter the depicted concern.
+Start with the authoritative
+[change-impact review](documentation-governance.md#change-impact-review). When
+that review is triggered, update the one authoritative diagram only if its
+depicted nodes, edges, boundaries, states, flow, user workflow, or lifecycle
+change. Otherwise, record the diagram as unaffected with a brief reason. A
+documentation update may still be required when the diagram is unaffected.
 
 Until DOCRB-009 this review is **advisory**. Do not fail CI for a missing
 diagram update under ADR-123.
@@ -106,9 +104,10 @@ diagram update under ADR-123.
 
 When reviewing a PR that changes architecture or a public user journey:
 
-- [ ] Does the change match a trigger above?
-- [ ] If yes, is the **authoritative** diagram for that concern updated (or
-      explicitly called out as unaffected)?
+- [ ] Does the change match the governance
+      [change-impact trigger](documentation-governance.md#change-impact-review)?
+- [ ] If yes, is the **authoritative** diagram for that concern updated or
+      explicitly called out as unaffected?
 - [ ] Is the diagram in the right home (component vs `docs/architecture/**` vs
       `docs/public/**`)?
 - [ ] Are new components labelled consistently with existing naming?

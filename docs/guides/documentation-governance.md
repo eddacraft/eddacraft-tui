@@ -94,6 +94,24 @@ alongside the other authoring templates.
 Component `README.md` and `ARCHITECTURE.md` files live beside their crate,
 package, or app — they are not filed under `docs/`.
 
+## Component documentation standard
+
+Use the disposition in `plans/specs/2026-08-17-docrb-corpus-disposition.md` to
+decide whether a component needs both files, a README only, or an explicit
+exemption. Do not create an empty `ARCHITECTURE.md` merely to satisfy a filename
+convention.
+
+| File                             | Role                                                                                          | Required shape                                                                                                                                                                             | Diagram posture                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Component-root `README.md`       | Orient a contributor before they read internals                                               | Purpose and scope; owner; supported entry points; local development and validation; links to deeper authorities, including `ARCHITECTURE.md` when present                                  | Add a small Mermaid map only when it materially improves orientation                              |
+| Component-root `ARCHITECTURE.md` | Explain source-linked, as-built internals when the inventory requires component documentation | Boundaries and dependencies; invariants; material data/control flow; trust, failure, and fallback behaviour; links to source paths and governing ADRs; links to central cross-system views | Keep maintainable Mermaid source inline when a diagram makes those relationships easier to verify |
+
+Both files follow the [metadata convention](#metadata-convention), cite current
+source or contracts as upstreams, and link rather than copy another authority.
+Keep cross-component context, deployment topology, and shared trust boundaries
+in `docs/architecture/**`. A README-only or exempt disposition is valid when
+there are no component internals that warrant a separate as-built explanation.
+
 ## Production docs topology
 
 Live production, deployed by `infra/src/vercel.ts`:
@@ -111,27 +129,40 @@ the live topology here and in ADR-123. It does **not** change DSITE status or
 open a successor DSITE item. Until DSITE or a bookkeeping change adopts the live
 topology, implementation truth is `infra/src/vercel.ts`.
 
+## Change-impact review
+
+A code or contract change reviews documentation and diagram impact in the same
+change when it matches a trigger below. A triggered review does not
+automatically require a documentation edit: the disposition is either an update
+to the authoritative document or diagram, or a brief explanation that the
+authoritative concern is unaffected.
+
+| Change                                                                                                                            | Documentation review                                                        | Diagram review                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Add, remove, rename, split, or merge a component                                                                                  | Review its component disposition, orientation, and cross-links              | Review the authoritative component or cross-system view when it depicts that topology      |
+| Change dependency direction, a public contract, a trust or deployment boundary, a state transition, or material data/control flow | Review the authoritative component or cross-system explanation              | Review the authoritative diagram when its nodes, edges, boundaries, states, or flow change |
+| Change a user workflow or system behaviour shown publicly                                                                         | Review the authoritative public tutorial, how-to, reference, or explanation | Review the public diagram that depicts the workflow or behaviour                           |
+| Change the authority or lifecycle state of a depicted surface                                                                     | Review metadata, discovery, and links to the authority                      | Review the diagram's labels or disposition                                                 |
+
+Review is normally not required for an internal refactor or bug fix inside an
+unchanged boundary, tests that only add coverage, generated or formatting-only
+changes, or prose repairs that do not alter the documented or depicted concern.
+
+This review is **advisory** until DOCRB-009. Do not add a mandatory CI gate or
+fail CI for a missing diagram update under ADR-123 before that item. Reviewers
+may still request an update when a trigger exposes inaccurate authoritative
+documentation.
+
 ## Diagram policy
 
 See [`architecture-diagrams.md`](architecture-diagrams.md) for inventory and
-update procedure. The contract (ADR-123) is:
+diagram-specific update procedure. The contract (ADR-123) is:
 
 - **Internal / component:** Mermaid beside the prose and code it explains.
 - **Public:** curated Draw.io source plus committed accessible SVG export, with
   alt text or adjacent equivalent prose, and source-export parity.
 - **One diagram per concern.** A second audience gets a linked or simplified
   view, not a silent copy.
-- **Change-coupled review** when a change adds, removes, renames, splits, or
-  merges a component; changes a dependency direction, public contract, trust or
-  deployment boundary, state transition, or material data/control flow; changes
-  a user workflow shown in a public diagram; or changes the authority or
-  lifecycle state of a depicted surface.
-- **Not required** for internal refactors inside an unchanged boundary, tests
-  that only add coverage, or prose-only repairs that do not alter the depicted
-  concern.
-
-This review rule is **advisory** until DOCRB-009. Do not fail CI for missing
-diagram updates under ADR-123 before that item.
 
 ## Module boundaries
 
