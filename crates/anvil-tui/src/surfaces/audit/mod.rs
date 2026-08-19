@@ -153,6 +153,36 @@ impl AuditData {
     }
 }
 
+/// Issues summarised by a Next Steps rollup.
+///
+/// Predicates match `generate_next_steps` in `anvil-cli` so Enter can
+/// jump without stuffing paths into the count-only slogan (CIB-352).
+fn matching_issue_indices(issues: &[AuditIssue], step: &str) -> Vec<usize> {
+    issues
+        .iter()
+        .enumerate()
+        .filter(|(_, issue)| issue_matches_next_step(issue, step))
+        .map(|(idx, _)| idx)
+        .collect()
+}
+
+fn issue_matches_next_step(issue: &AuditIssue, step: &str) -> bool {
+    if step.contains("large file(s)") {
+        issue.message.starts_with("File has")
+    } else if step.contains("console statement(s)") {
+        issue.message.contains("console statement")
+    } else if step.contains("high/critical") {
+        matches!(
+            issue.severity,
+            IssueSeverity::High | IssueSeverity::Critical
+        )
+    } else if step.contains("TODO/FIXME/HACK") {
+        issue.category == "Documentation"
+    } else {
+        false
+    }
+}
+
 /// State for the audit results surface.
 #[allow(clippy::struct_excessive_bools)]
 pub struct AuditState {
@@ -225,6 +255,39 @@ impl AuditState {
         }
     }
 
+    /// Whether Enter on the focused panel can expand something.
+    ///
+    /// Issues expand in place. Next Steps jump to (and expand) the matching
+    /// issue rollup. Project and Historical cannot expand, so the footer
+    /// must not advertise Enter there (CIB-352).
+    fn can_activate_enter(&self) -> bool {
+        match self.focused_panel {
+            AuditPanel::Issues => !self.data.issues.is_empty(),
+            AuditPanel::NextSteps => self
+                .data
+                .next_steps
+                .get(self.selected_item)
+                .is_some_and(|step| !matching_issue_indices(&self.data.issues, step).is_empty()),
+            AuditPanel::Project | AuditPanel::Historical => false,
+        }
+    }
+
+    /// Focus and expand the first issue summarised by the selected Next Step.
+    ///
+    /// N==1 lands on that file. N>1 is a jump to the first match — the
+    /// slogan stays a count-only rollup (CIB-352).
+    fn activate_selected_next_step(&mut self) {
+        let Some(step) = self.data.next_steps.get(self.selected_item) else {
+            return;
+        };
+        let Some(&idx) = matching_issue_indices(&self.data.issues, step).first() else {
+            return;
+        };
+        self.focused_panel = AuditPanel::Issues;
+        self.selected_item = idx;
+        self.expanded = true;
+    }
+
     pub fn handle_key(&mut self, action: Action) {
         match action {
             Action::Up if self.selected_item > 0 => {
@@ -252,6 +315,9 @@ impl AuditState {
                 if self.focused_panel == AuditPanel::Issues && !self.data.issues.is_empty() =>
             {
                 self.expanded = !self.expanded;
+            }
+            Action::Select if self.focused_panel == AuditPanel::NextSteps => {
+                self.activate_selected_next_step();
             }
             Action::Character('f') => {
                 if let Some(request) = self.selected_issue_fix_request() {
@@ -309,18 +375,29 @@ impl crate::surface::Surface for AuditState {
                 (true, false) => "j/k navigate  h/l switch panel  esc collapse  q quit anvil",
             }
         } else {
-            match (self.embedded, fixable) {
-                (false, true) => {
+            let can_expand = self.can_activate_enter();
+            match (self.embedded, fixable, can_expand) {
+                (false, true, true) => {
                     "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc back  q quit"
                 }
-                (false, false) => {
+                (false, true, false) => {
+                    "j/k navigate  h/l switch panel  z zoom  f fix  esc back  q quit"
+                }
+                (false, false, true) => {
                     "j/k navigate  h/l switch panel  enter expand  z zoom  esc back  q quit"
                 }
-                (true, true) => {
+                (false, false, false) => "j/k navigate  h/l switch panel  z zoom  esc back  q quit",
+                (true, true, true) => {
                     "j/k navigate  h/l switch panel  enter expand  z zoom  f fix  esc menu  q quit anvil"
                 }
-                (true, false) => {
+                (true, true, false) => {
+                    "j/k navigate  h/l switch panel  z zoom  f fix  esc menu  q quit anvil"
+                }
+                (true, false, true) => {
                     "j/k navigate  h/l switch panel  enter expand  z zoom  esc menu  q quit anvil"
+                }
+                (true, false, false) => {
+                    "j/k navigate  h/l switch panel  z zoom  esc menu  q quit anvil"
                 }
             }
         }
@@ -641,5 +718,132 @@ mod tests {
         };
 
         assert_eq!(issue.location(), "src/index.ts:7");
+    }
+
+    fn large_file_issue(file: &str) -> AuditIssue {
+        AuditIssue {
+            severity: IssueSeverity::Medium,
+            category: "Quality".to_string(),
+            message: "File has 600 lines (>500)".to_string(),
+            file: file.to_string(),
+            line: 600,
+            fixable: false,
+        }
+    }
+
+    fn large_file_data(files: &[&str]) -> AuditData {
+        let count = files.len();
+        AuditData {
+            project_name: "test-project".to_string(),
+            total_files: count,
+            security_scope: "test scope".to_string(),
+            issues: files.iter().copied().map(large_file_issue).collect(),
+            historical_scores: vec![],
+            next_steps: vec![format!(
+                "Consider splitting {count} large file(s) (>500 lines)"
+            )],
+        }
+    }
+
+    /// CIB-352: Enter on a Next Steps rollup must land on the matching
+    /// Issues row (and expand it). One large-file step lands on that file.
+    #[test]
+    fn enter_on_next_steps_selects_and_expands_matching_large_file() {
+        let mut state = AuditState::new(large_file_data(&["src/big.rs"]));
+        state.focused_panel = AuditPanel::NextSteps;
+
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.focused_panel, AuditPanel::Issues);
+        assert!(state.expanded);
+        assert_eq!(state.selected_item, 0);
+        assert_eq!(state.data.issues[state.selected_item].file, "src/big.rs");
+    }
+
+    /// CIB-352: N>1 is a filter/jump to the first matching issue, not a
+    /// longer slogan listing every path.
+    #[test]
+    fn enter_on_next_steps_jumps_to_first_of_several_large_files() {
+        let mut data = large_file_data(&["src/one.rs", "src/two.rs"]);
+        data.issues.insert(
+            0,
+            AuditIssue {
+                severity: IssueSeverity::Low,
+                category: "Quality".to_string(),
+                message: "console statement found".to_string(),
+                file: "src/a.ts".to_string(),
+                line: 1,
+                fixable: true,
+            },
+        );
+        data.next_steps.insert(
+            0,
+            "Remove 1 console statement(s) from source files".to_string(),
+        );
+        let mut state = AuditState::new(data);
+        state.focused_panel = AuditPanel::NextSteps;
+        state.selected_item = 1;
+
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.focused_panel, AuditPanel::Issues);
+        assert!(state.expanded);
+        assert_eq!(state.data.issues[state.selected_item].file, "src/one.rs");
+    }
+
+    #[test]
+    fn enter_on_unmatched_next_step_does_nothing() {
+        let mut state = AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::NextSteps;
+        state.selected_item = 2; // "Run auto-fix for fixable issues"
+
+        state.handle_key(Action::Select);
+
+        assert_eq!(state.focused_panel, AuditPanel::NextSteps);
+        assert!(!state.expanded);
+        assert_eq!(state.selected_item, 2);
+    }
+
+    #[test]
+    fn footer_omits_enter_expand_when_panel_cannot_expand() {
+        use crate::surface::Surface;
+        let mut state = AuditState::new(sample_data());
+        assert_eq!(state.focused_panel, AuditPanel::Project);
+        let footer = Surface::help_text(&state);
+        assert!(
+            !footer.contains("enter expand"),
+            "Project cannot expand; got: {footer}"
+        );
+
+        state.focused_panel = AuditPanel::Historical;
+        let footer = Surface::help_text(&state);
+        assert!(
+            !footer.contains("enter expand"),
+            "Historical cannot expand; got: {footer}"
+        );
+    }
+
+    #[test]
+    fn footer_advertises_enter_expand_on_next_steps_with_matches() {
+        use crate::surface::Surface;
+        let mut state = AuditState::new(large_file_data(&["src/big.rs"]));
+        state.focused_panel = AuditPanel::NextSteps;
+        let footer = Surface::help_text(&state);
+        assert!(
+            footer.contains("enter expand"),
+            "Next Steps with a matching issue must advertise enter; got: {footer}"
+        );
+    }
+
+    #[test]
+    fn footer_omits_enter_expand_on_next_steps_without_matches() {
+        use crate::surface::Surface;
+        let mut state = AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::NextSteps;
+        let footer = Surface::help_text(&state);
+        assert!(
+            !footer.contains("enter expand"),
+            "unmatched Next Steps must not promise expand; got: {footer}"
+        );
     }
 }
