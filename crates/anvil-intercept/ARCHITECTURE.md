@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                          |
-| ------------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | INTD  | Live   | Last reviewed 2026-08-20 against `88bd41647`, `crates/anvil-intercept/src/save_time.rs`, `crates/anvil-intercept/src/validate_paths.rs`, and `crates/anvil-intercept/src/fence.rs` |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                |
+| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Derived   | INTD  | Live   | Last reviewed 2026-08-20 against `3aec647c7`, `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/midedit.rs`, and `crates/anvil-cli/src/mcp/validation.rs` |
 
 | Upstream                                                                                                  | Downstream                                     |
 | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -14,29 +14,30 @@
 
 ## Scope and boundaries
 
-The daemon accepts local requests above a same-user IPC trust floor. Unix
-transports compare the peer UID with the daemon user's UID; Windows uses an
-owner-only named-pipe DACL and explicitly compares the connected peer's SID with
-the pipe owner's SID. Save-time `validate_paths` requests then pass workspace
-admission before guarded reads and validation. Mid-edit `scan_buffer` requests
-use caller-supplied bytes and have a separate, platform-dependent cross-check
-lane. A fence is a separate durable safety state triggered by spoof detection,
-an interrupt that cannot safely complete, or an unattributed or unregistered
-change. Cascade engages only after repeated fence events; degraded assurance
-alone does not fence a worktree.
+The local transport boundary differs by platform. On Unix, the daemon relies on
+an owner-only `0700` directory and `0600` socket; it does not compare a Unix
+caller UID after accept. Unix clients validate the connected daemon UID before
+sending proposed content, while the Linux listener also obtains the peer PID
+used by optional lineage checks. Windows uses an owner-only named-pipe DACL and
+the server explicitly compares the connected peer's SID with the pipe owner's
+SID. Save-time `validate_paths` requests then pass workspace admission before
+guarded reads and validation. `scan_buffer` is the caller-buffer lane for both
+MidEdit and PreWrite requests and has a separate, platform-dependent
+cross-check. A fence is a separate durable safety state triggered by spoof
+detection, an interrupt that cannot safely complete, or an unattributed or
+unregistered change. Cascade engages only after repeated fence events; degraded
+assurance alone does not fence a worktree.
 
 ## Save, validation, and fence flow
 
-This diagram owns the distinct mid-edit, save-time, and conditional-fencing
+This diagram owns the distinct caller-buffer, save-time, and conditional-fencing
 concerns.
 
 ```mermaid
 flowchart LR
-    Peer[same-user IPC trust floor]
-
-    subgraph MidEdit[scan_buffer lane]
-        ScanReq[scan_buffer request with caller bytes] --> Peer
-        Peer --> Cross{CrossCheckContext wired?}
+    subgraph BufferLane[scan_buffer caller-buffer lane: MidEdit or PreWrite]
+        ScanReq[scan_buffer request with caller bytes] --> ScanTransport[Unix 0700 directory and 0600 socket; Windows owner-only pipe]
+        ScanTransport --> Cross{CrossCheckContext wired?}
         Cross -->|Linux production| Session{session_id supplied?}
         Session -->|yes| Ownership{session owned by peer lineage?}
         Ownership -->|no| Reject[reject session claim]
@@ -48,11 +49,13 @@ flowchart LR
         Spoof -->|clear| BufferScan
         Cross -->|macOS, Windows, or no context| BufferScan
         BufferScan --> ScanVerdict[return scan verdict]
+        ScanVerdict -->|finding-bearing MidEdit| Observation[mid-edit observation]
+        ScanVerdict -->|PreWrite or no findings| NoObservation[no mid-edit observation]
     end
 
     subgraph SaveTime[validate_paths lane]
-        PathReq[validate_paths request] --> Peer
-        Peer --> Admission{workspace admitted?}
+        PathReq[validate_paths request] --> PathTransport[Unix 0700 directory and 0600 socket; Windows owner-only pipe]
+        PathTransport --> Admission{workspace admitted?}
         Admission -->|no| Refuse[refuse request]
         Admission -->|yes| Guarded[read guarded paths and bytes]
         Guarded --> Validate[validate guarded content]
@@ -70,14 +73,22 @@ flowchart LR
     Persist -->|no| PersistFail[report persistence failure; spoof request stays blocked]
 ```
 
-The two IPC lanes trace to [`ipc.rs`](src/ipc.rs) and the production listener
-wiring in [`lib.rs`](src/lib.rs). For `scan_buffer`, an optional
+The two IPC method lanes trace to [`ipc.rs`](src/ipc.rs) and the production
+listener wiring in [`lib.rs`](src/lib.rs). Both MidEdit and PreWrite use the
+caller bytes carried by [`scan_buffer`](src/midedit.rs). An optional
 [`CrossCheckContext`](src/ipc.rs) first validates a supplied session claim
 against the peer-process lineage, then checks a supplied environment tag for
-spoofing before scanning the caller-provided buffer. Production supplies that
-context only on Linux. macOS and Windows currently skip both optional checks and
-scan the caller buffer after their transport-level same-user check; embedded
-listeners without a context do the same.
+spoofing before scanning that buffer. Production supplies that context only on
+Linux. macOS and Windows currently skip both optional checks; embedded listeners
+without a context do the same. Only finding-bearing MidEdit scans emit a
+mid-edit observation through
+[`kindling_observation.rs`](src/kindling_observation.rs); PreWrite scans never
+emit that observation.
+
+MCP `anvil_validate_write` deliberately calls `scan_buffer` in `PreWrite` mode
+rather than `validate_paths`, because it validates proposed caller content that
+is not yet on disk. That routing is implemented by the
+[`validation.rs`](../anvil-cli/src/mcp/validation.rs) client.
 
 The save-time `validate_paths` lane is different. It authorises the canonical
 workspace under Open or Allowlist admission, reads paths through the held
@@ -95,12 +106,14 @@ failures and unattributed or unregistered changes independently request fences.
 
 ## Invariants, failure, and fallback
 
-- Local peer credentials must identify the daemon user before request dispatch:
-  Unix compares UIDs; Windows uses an owner-only pipe DACL and compares the
-  connected peer SID with the pipe-owner SID.
+- Unix IPC relies on its owner-only `0700` directory and `0600` socket to limit
+  access. The daemon does not perform a server-side Unix caller-UID comparison;
+  clients instead validate the connected daemon UID before sending content.
+- Windows IPC uses an owner-only pipe DACL and the server compares the connected
+  peer SID with the pipe-owner SID before dispatch.
 - The production `scan_buffer` session-ownership and environment-tag spoof
-  cross-check is Linux-only. macOS and Windows retain the same-user transport
-  boundary but currently lack that additional lineage assurance.
+  cross-check is Linux-only and uses the accepted peer PID for optional lineage
+  checks. macOS and Windows currently lack that additional lineage assurance.
 - Default Open mode first-touch admits a canonical, nameable workspace; opt-in
   Allowlist mode rejects roots outside the operator policy. Missing confinement
   configuration remains Open. Only a present confinement configuration that

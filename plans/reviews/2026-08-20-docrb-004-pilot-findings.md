@@ -18,14 +18,16 @@ component roots:
 
 The comparison base for this report is
 `9a0c906b27ca3325cd9674d002b0f37c51ce6149`. The immutable reviewed-content
-target is `210fd0bde3ea160f4352b68e379c54a8b924ca3d`. The immediately following
-report-only commit changes no reviewed component claim; it only finalises this
-provenance record. Detailed source review began at
+target is finalised by the immediately following report-only provenance commit;
+that follow-up changes no reviewed component claim and only pins the substantive
+repair commit. Detailed source review began at
 `d6c8b565c375e9e75db44c5d20d2acb066e4471c`, which was `origin/main` when
 DOCRB-004 started. A targeted diff from that review snapshot to the comparison
 base found no changes in the cited product source roots or
-`infra/src/vercel.ts`; re-review at `88bd41647` confirmed the source-backed
-intercept and API claims before this repair. No product, configuration, central
+`infra/src/vercel.ts`. Re-review at `3aec647c7` confirmed the Unix socket modes,
+client-side daemon UID check, accepted-peer PID plumbing, Windows DACL/SID
+checks, both `scan_buffer` modes, MidEdit observation branch, and MCP
+`PreWrite` routing before this repair. No product, configuration, central
 as-built, governance, public-diagram, or sibling APS status change is part of
 the pilot.
 
@@ -42,13 +44,18 @@ truth below. This report does not mark those Council findings resolved.
 ## Council repair and current limitations
 
 - Intercept documentation separates the `scan_buffer` and `validate_paths`
-  lanes. Only the former can receive a `CrossCheckContext`: Linux production
-  validates an optional session claim and environment tag before scanning
-  caller bytes, while macOS and Windows currently skip those checks. The
-  transport trust floor remains same-user: Unix compares peer UID and Windows
-  applies an owner-only pipe DACL plus an explicit peer-SID comparison. This
-  platform gap means non-Linux mid-edit requests do not have Linux's additional
-  lineage assurance.
+  lanes with distinct transport nodes. `scan_buffer` is the caller-buffer lane
+  for MidEdit and PreWrite. Only finding-bearing MidEdit scans emit mid-edit
+  observations; PreWrite never does. MCP `anvil_validate_write` deliberately
+  calls `scan_buffer` in `PreWrite` mode rather than `validate_paths`, because
+  the proposed content is not yet on disk.
+- Unix trust relies on an owner-only `0700` directory and `0600` socket, while
+  clients validate the connected daemon UID; there is no server-side Unix
+  caller-UID comparison. Linux additionally supplies the accepted peer PID for
+  the optional session-lineage and environment-tag checks. Windows applies an
+  owner-only pipe DACL plus a server-side peer-SID comparison. The platform gap
+  is that macOS and Windows production do not wire Linux's additional
+  `CrossCheckContext` checks.
 - `validate_paths` performs Open or Allowlist workspace admission before
   guarded path reads and validation; it does not run the spoof cross-check.
   Only a present confinement configuration that fails load or trust checks
@@ -84,7 +91,7 @@ retained central authority.
 | Root | Navigation trace | Result |
 | ---- | ---------------- | ------ |
 | `crates/anvil-kernel` | README → local architecture → watcher/parser/graph/protocol source → retained kernel as-built | Pass; initial baseline and incremental-finding distinction is visible |
-| `crates/anvil-intercept` | README → local architecture → IPC/platform wiring/admission/spoof/interrupt/unregistered/fence source → retained intercept and driver maps | Pass after final repair; `scan_buffer`, `validate_paths`, platform assurance, and independent fence triggers are distinct |
+| `crates/anvil-intercept` | README → local architecture → IPC/platform wiring/buffer modes/MCP routing/admission/spoof/observations/interrupt/unregistered/fence source → retained intercept and driver maps | Pass after final repair; transport nodes, caller-buffer and save-time lanes, platform assurance, observations, and independent fence triggers are distinct |
 | `apps/dashboard` | README → local architecture → router/query/API client/generated contract → local dashboard guide | Pass after repair; compile-time typing, origin selection, and server enforcement are distinct |
 | `crates/anvil-dashboard-server` | README → local architecture → loopback guard/capability/workspace/OpenAPI source → local dashboard guide | Pass after repair; machine-local unauthenticated boundary and per-user-isolation limitation are explicit |
 | `apps/anvil-api` | README → local architecture → entrypoint/health/deployment/global middleware/routes/database source and tests → retained API and BAUTH auth maps | Pass after final repair; dependency reporting and health gates, rejection, best-effort audit, APGOV ownership, and BAUTH authority remain separate |
@@ -99,17 +106,17 @@ Six Mermaid blocks were initially extracted directly from the six local
 `ARCHITECTURE.md` files and rendered with
 `@mermaid-js/mermaid-cli 11.16.0`. Council repairs changed the intercept,
 dashboard, dashboard-server, and docs-shell blocks; all four were re-rendered
-with the same pinned CLI. The final intercept lane correction was extracted
-again from its source file and re-rendered with that CLI. Chromium cannot start
-its nested sandbox in this container, so the successful manual preview used a
-temporary Puppeteer
-configuration with `--no-sandbox`; inputs and non-empty SVG outputs were
-written only under `/tmp` and are not repository artefacts.
+with the same pinned CLI. The final intercept transport, mode, and observation
+correction was extracted again from its source file and re-rendered with that
+CLI. Chromium cannot start its nested sandbox in this container, so the
+successful manual preview used a temporary Puppeteer configuration with
+`--no-sandbox`; inputs and non-empty SVG outputs were written only under `/tmp`
+and are not repository artefacts.
 
 | Diagram concern | Render | Source-edge trace |
 | --------------- | ------ | ----------------- |
 | Kernel source → parse → graph → finding | Pass, non-empty SVG | `watch.rs`, `parser/`, `anvil-graph-cache`, `protocol/` |
-| Intercept `scan_buffer` cross-check/buffer scan and separate `validate_paths` admission/guarded validation plus explicit fence triggers/cascade | Pass after final repair, 54,866-byte SVG | `ipc.rs`, `lib.rs`, `workspace_admission.rs`, `workspace_anchor.rs`, `save_time.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, `fence.rs` |
+| Intercept MidEdit/PreWrite caller-buffer scan, MidEdit-only observation, separate `validate_paths` admission/guarded validation, and explicit fence triggers/cascade | Pass after final repair, 59,323-byte SVG | `ipc.rs`, `midedit.rs`, `kindling_observation.rs`, `lib.rs`, anvil-cli `validation.rs`, `workspace_admission.rs`, `workspace_anchor.rs`, `save_time.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, `fence.rs` |
 | Dashboard UI → compile-time generated types → root-relative client → server policy | Pass after repair, 19,679-byte SVG | router/modules/hooks, API client, generated OpenAPI types, generator |
 | Dashboard server capability/access boundary | Pass after repair, 18,104-byte SVG | loopback and browser-request guards, read-only routes, capability loaders, `WorkspaceAnchor` |
 | Hosted API request → middleware → route → persistence/trust | Pass, non-empty SVG | `index.ts`, middleware, representative route boundaries, database client/queries |
@@ -123,16 +130,17 @@ diagram.
 Manual checks are required because current `pnpm docs:check` does not enforce
 component-root README/architecture metadata, cited paths, or links.
 
-- All 126 repository-local Markdown links across the twelve pilot docs and the
+- All 129 repository-local Markdown links across the twelve pilot docs and the
   thin docs-shell spoke resolve. This trace caught and repaired three incorrect
   draft targets before closeout: kernel parser/protocol module links and a
   nonexistent API adapter path.
 - Metadata source paths and globs were traced against the
   `d6c8b565c` source-review snapshot. The targeted product-source diff through
-  the exact `9a0c906b2` range base was empty, and the final intercept/API
-  source re-review at `88bd41647` found no relevant source drift. Each README is
-  `Authoritative` for component orientation; each architecture file is `Derived` from current
-  source.
+  the exact `9a0c906b2` range base was empty. The intercept/API source re-review
+  at `88bd41647`, followed by the final intercept transport/mode re-review at
+  `3aec647c7`, found no relevant product-source drift. Each README is
+  `Authoritative` for component orientation; each architecture file is
+  `Derived` from current source.
 - KERN owns kernel, INTD owns interception, DASH owns both dashboard roots, and
   APGOV owns the hosted API component. BAUTH remains authoritative for
   authentication.
@@ -151,12 +159,14 @@ component flows, docs-shell spoke, and report were absent. A second replacement
 RED at `f904cd8f` proved all nine Council repair assertions absent: intercept
 flow and admission, dashboard-server boundary, dashboard typing, docs-shell
 redirect/auth outcomes, API audit and entrypoint, index next action, and exact
-report base. A final replacement RED at `88bd41647` proved eight remaining
+report base. A further replacement RED at `88bd41647` proved eight remaining
 distinctions absent: separate intercept lanes, Linux-only cross-check wiring,
 the non-Linux platform gap, Windows SID trust, no save-time spoof check,
-non-gating Resend `unverifiable`, and immutable provenance. Corresponding
-GREEN assertions cover those repairs as well as all seven DOCRB-004 acceptance
-behaviours.
+non-gating Resend `unverifiable`, and immutable provenance. The final replacement
+RED at `3aec647c7` proved all twelve transport-node, Unix/Windows trust,
+MidEdit/PreWrite, observation, MCP-routing, and repeated-report assertions
+absent. The corresponding GREEN assertion reports all twelve present, alongside
+the seven DOCRB-004 acceptance behaviours.
 
 Focused component validation:
 
@@ -173,7 +183,9 @@ All commands exited zero. The concise JavaScript summaries were 16 files /
 71 tests for dashboard, 46 files / 757 tests for the API, and 6 files / 51 tests
 for docs-shell. All Rust target test binaries passed; the kernel's primary unit
 suite reported 337 passing tests and interception's primary unit suite reported
-1,106.
+1,106. The final intercept-only repair reran
+`cargo test -p eddacraft-anvil-intercept`: 1,106 unit tests and all integration
+and documentation test binaries passed.
 
 Repository validation at report time:
 
