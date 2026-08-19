@@ -70,6 +70,7 @@
 | [CLI Surface Reference](../../docs/runbooks/cli-surface.md)                                                        | `docs/runbooks/cli-surface.md`                          | Runbook | Authoritative | CLIC                                                                        | Live   |
 | [Command Safety Configuration Reference](../../docs/guides/command-safety-configuration.md)                        | `docs/guides/command-safety-configuration.md`           | Guide   | Authoritative | CMDSH                                                                       | Live   |
 | [Command Safety Validation](../../docs/guides/command-safety.md)                                                   | `docs/guides/command-safety.md`                         | Guide   | Authoritative | CMDSH                                                                       | Live   |
+| [Component Documentation Guide and Template](../../docs/architecture/_as-built-template.md)                        | `docs/architecture/_as-built-template.md`               | Guide   | Authoritative | DOCRB                                                                       | Live   |
 | [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                                      | `docs/guides/continuous-improvement-log.md`             | Guide   | Authoritative | CIB                                                                         | Live   |
 | [Database Migrations Runbook](../../docs/runbooks/db-migrations.md)                                                | `docs/runbooks/db-migrations.md`                        | Runbook | Authoritative | @aneki                                                                      | Live   |
 | [Dependency Audit Posture](../../docs/guides/dependency-audit-posture.md)                                          | `docs/guides/dependency-audit-posture.md`               | Guide   | Authoritative | SEC                                                                         | Live   |
@@ -161,7 +162,6 @@
 | [anvil-observability — As-Built](../../docs/architecture/observability-as-built.md)                    | `docs/architecture/observability-as-built.md`          | As-built | Derived   | TRACE                                                      | Live     |
 | [anvil-tui — As-Built](../../docs/architecture/tui-as-built.md)                                        | `docs/architecture/tui-as-built.md`                    | As-built | Derived   | RATS                                                       | Live     |
 | [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                                        | `docs/architecture/oss-surface.md`                     | Guide    | Derived   | DOCGOV                                                     | Live     |
-| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)                           | `docs/architecture/_as-built-template.md`              | As-built | Derived   | MODULE-CODE (link to plans/modules/...)                    | Draft    |
 
 ## Historical
 

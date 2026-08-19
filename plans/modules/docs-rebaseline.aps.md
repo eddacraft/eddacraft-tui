@@ -191,17 +191,23 @@ evidence are present.
   `docs/guides/architecture-diagrams.md`,
   `docs/architecture/_as-built-template.md`,
   `docs/architecture/README.md`,
+  `docs/indexes/by-authority.md`,
+  `docs/indexes/by-owner.md`,
+  `docs/indexes/by-status.md`,
+  `docs/indexes/by-type.md`,
   `plans/modules/docs-rebaseline.aps.md`,
   `plans/index.aps.md`
 - **Evidence:** Policy and template implementation, including Council repair,
-  is carried by the commit containing this work-item update. Lifecycle
-  bookkeeping is separately owned: `plans/index.aps.md` records DOCRB-003 as
-  In Progress and is validated against the repaired tree with APS index and
-  drift checks.
+  is carried by the commit containing this work-item update. The template's
+  corrected metadata is mechanically reflected in the four generated
+  discovery indexes named above. Lifecycle bookkeeping is separately owned:
+  `plans/index.aps.md` records DOCRB-003 as In Progress and is validated
+  against the repaired tree with APS index and drift checks.
 - **Scope:** `AGENTS.md`, `docs/guides/documentation-governance.md`,
   `docs/guides/architecture-diagrams.md`, the component-documentation
-  template and architecture discovery link, the DOCRB-003 module record, and
-  its lifecycle row in `plans/index.aps.md`
+  template and architecture discovery link, generated documentation discovery
+  indexes, the DOCRB-003 module record, and its lifecycle row in
+  `plans/index.aps.md`
 - **Non-scope:** Mandatory CI failure or mass component migration
 - **Dependencies:** DOCRB-001, DOCRB-002
 - **Confidence:** high

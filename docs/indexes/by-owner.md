@@ -181,12 +181,13 @@
 
 ## DOCRB
 
-| Document                                                                       | Path                                      | Type   | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------ | ----------------------------------------- | ------ | ------------- | ----- | ------ |
-| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md) | `docs/guides/architecture-diagrams.md`    | Guide  | Authoritative | DOCRB | Live   |
-| [Architecture Documentation](../../docs/architecture/README.md)                | `docs/architecture/README.md`             | README | Advisory      | DOCRB | Live   |
-| [Documentation Governance](../../docs/guides/documentation-governance.md)      | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCRB | Live   |
-| [Internal Engineering Documentation](../../docs/README.md)                     | `docs/README.md`                          | README | Advisory      | DOCRB | Live   |
+| Document                                                                                    | Path                                      | Type   | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------- | ------ | ------------- | ----- | ------ |
+| [Architecture Diagram Maintenance](../../docs/guides/architecture-diagrams.md)              | `docs/guides/architecture-diagrams.md`    | Guide  | Authoritative | DOCRB | Live   |
+| [Architecture Documentation](../../docs/architecture/README.md)                             | `docs/architecture/README.md`             | README | Advisory      | DOCRB | Live   |
+| [Component Documentation Guide and Template](../../docs/architecture/_as-built-template.md) | `docs/architecture/_as-built-template.md` | Guide  | Authoritative | DOCRB | Live   |
+| [Documentation Governance](../../docs/guides/documentation-governance.md)                   | `docs/guides/documentation-governance.md` | Guide  | Authoritative | DOCRB | Live   |
+| [Internal Engineering Documentation](../../docs/README.md)                                  | `docs/README.md`                          | README | Advisory      | DOCRB | Live   |
 
 ## DRVR
 
@@ -328,12 +329,6 @@
 | Document                                                  | Path                              | Type    | Authority     | Owner       | Status |
 | --------------------------------------------------------- | --------------------------------- | ------- | ------------- | ----------- | ------ |
 | [Runbook Template](../../docs/guides/runbook-template.md) | `docs/guides/runbook-template.md` | Runbook | Authoritative | MODULE-CODE | Draft  |
-
-## MODULE-CODE (link to plans/modules/...)
-
-| Document                                                                     | Path                                      | Type     | Authority | Owner                                   | Status |
-| ---------------------------------------------------------------------------- | ----------------------------------------- | -------- | --------- | --------------------------------------- | ------ |
-| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md) | `docs/architecture/_as-built-template.md` | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |
 
 ## OBS
 

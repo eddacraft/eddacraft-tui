@@ -1,12 +1,12 @@
-# {Component Name} — As-Built
+# Component Documentation Guide and Template
 
-| Type     | Authority | Owner                                     | Status | Freshness                                                                                  |
-| -------- | --------- | ----------------------------------------- | ------ | ------------------------------------------------------------------------------------------ |
-| As-built | Derived   | MODULE-CODE (link to `plans/modules/...`) | Draft  | Last reviewed YYYY-MM-DD against `<tag-or-sha>` and source paths declared in this document |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                       |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 against ADR-123, `docs/guides/documentation-governance.md`, and `plans/modules/docs-rebaseline.aps.md` |
 
-| Upstream           | Downstream                                                                 |
-| ------------------ | -------------------------------------------------------------------------- |
-| `<component-root>` | {consumers — other crates, CLI surfaces, MCP tools, runbooks, public docs} |
+| Upstream                                                                                                                 | Downstream                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `plans/decisions/123-documentation-authority-and-diagram-model.md`, `docs/guides/documentation-governance.md`, DOCRB-003 | `AGENTS.md`, `docs/architecture/README.md`, component-root README and architecture doc authoring |
 
 ## Purpose and use
 
@@ -70,20 +70,38 @@ Both files use the
 A component README normally owns orientation; an architecture document is a
 source-linked derivation of implementation truth.
 
+Copy the relevant fenced example and replace every placeholder.
+
 ```markdown
 # <Component name>
 
-| Type                   | Authority                                         | Owner   | Status | Freshness                                                      |
-| ---------------------- | ------------------------------------------------- | ------- | ------ | -------------------------------------------------------------- |
-| README or Architecture | Authoritative or Derived for the declared concern | <owner> | Live   | Last reviewed YYYY-MM-DD against <tag-or-sha> and source paths |
+| Type   | Authority     | Owner         | Status | Freshness                                                      |
+| ------ | ------------- | ------------- | ------ | -------------------------------------------------------------- |
+| README | Authoritative | <MODULE-CODE> | Live   | Last reviewed YYYY-MM-DD against <tag-or-sha> and source paths |
 
 | Upstream                            | Downstream                          |
 | ----------------------------------- | ----------------------------------- |
 | <source paths, contracts, and ADRs> | <consumers and dependent documents> |
 ```
 
-Replace every placeholder. Use repository-relative inline-code paths so
-`pnpm docs:check` can validate governed source references.
+```markdown
+# <Component name> Architecture
+
+| Type         | Authority | Owner         | Status | Freshness                                                      |
+| ------------ | --------- | ------------- | ------ | -------------------------------------------------------------- |
+| Architecture | Derived   | <MODULE-CODE> | Live   | Last reviewed YYYY-MM-DD against <tag-or-sha> and source paths |
+
+| Upstream                            | Downstream                          |
+| ----------------------------------- | ----------------------------------- |
+| <source paths, contracts, and ADRs> | <consumers and dependent documents> |
+```
+
+Use repository-relative inline-code paths so humans and future tooling can trace
+the source references. Today `pnpm docs:check` checks this central authoring
+source, including its metadata, Markdown links, and generated-index freshness.
+That coverage does not extend to metadata, cited paths, or links copied into
+component-root `README.md` and `ARCHITECTURE.md` files. Manually trace those
+three concerns in each completed copy until DOCRB-009 authorises enforcement.
 
 ## Diagram guidance
 
