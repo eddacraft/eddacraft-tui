@@ -10,7 +10,7 @@ pub use executor::{
 
 /// CLI-injected probe: whether a tutorial command string would hit the
 /// licence gate if executed as a child `anvil` process (CIB-349).
-pub type LicenceGateProbe = std::sync::Arc<dyn Fn(&str) -> bool + Send + Sync + 'static>;
+pub(crate) type LicenceGateProbe = std::sync::Arc<dyn Fn(&str) -> bool + Send + Sync + 'static>;
 pub mod first_win;
 mod first_win_render;
 pub mod fix;

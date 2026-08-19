@@ -535,7 +535,7 @@ fn render_step_content(
     if step.sign_in_bridge {
         lines.push(Line::default());
         lines.push(Line::from(Span::styled(
-            "Sign in required — this check is licence-gated.",
+            "Sign in required — this step is licence-gated.",
             Style::default()
                 .fg(theme.warning())
                 .add_modifier(Modifier::BOLD),

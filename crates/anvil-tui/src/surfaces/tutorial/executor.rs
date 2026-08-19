@@ -377,11 +377,10 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 /// first-time unsigned-in walk does not dead-end on an auth wall.
 pub(super) const AUTH_LOGIN_COMMAND: &str = "anvil auth login";
 
-/// Conservative fallback used when the CLI has not injected
-/// [`crate::feature_flags::tutorial_command_needs_licence_gate`]. Covers
-/// the CIB-349 class (`policy` / `gate` / `architecture`) plus other
-/// tutorial commands that would hit the licence wall. `start --verify`
-/// and `status --verify` stay free.
+/// Conservative fallback used when the CLI has not injected its
+/// licence-gate probe. Covers the CIB-349 class (`policy` / `gate` /
+/// `architecture`) plus other tutorial commands that would hit the
+/// licence wall. `start --verify` and `status --verify` stay free.
 pub(super) fn command_needs_licence_gate_fallback(command: &str) -> bool {
     let mut words = command.split_ascii_whitespace();
     let Some(program) = words.next() else {
