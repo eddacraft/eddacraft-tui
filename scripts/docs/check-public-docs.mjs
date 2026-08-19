@@ -36,12 +36,42 @@ const LIVE_REQUIRED_ANVIL_IDS = [
   'concepts/evaluation-model',
   'concepts/glossary',
   'reference/checks',
+  'reference/config',
   'reference/cli-reference',
   'reference/rule-reference',
   'reference/support-reference',
   'reference/what-anvil-can-do',
 ];
 const LIVE_FORBIDDEN_ANVIL_IDS = ['guides/dashboard'];
+const INIT_ANVIL_YAML = `schema_version: "1.0.0"
+planning_dir: "plans"
+format: "yaml"
+checks:
+  - "secret-detection"
+  - "import-boundaries"
+  - "antipattern-scan"
+`;
+const CONFIG_CATALOGUE_REQUIRED = [
+  'schema_version',
+  'planning_dir',
+  '`format`',
+  '`checks`',
+  'secret-detection',
+  'import-boundaries',
+  'antipattern-scan',
+  'antipattern.exclude',
+  'architecture.source',
+  'gate.version',
+  'gate.thresholds',
+  'gate.global_config',
+  'gate.checks',
+  'public-api-expansion',
+  'new-dependency-introduction',
+  'cross-layer-violation',
+  'privilege-expansion',
+  'config show --json',
+  'Not in this catalogue',
+];
 const SITE_SHELL_PATHS = [
   ANVIL_SIDEBAR_PATH,
   ANVIL_LIVE_SIDEBAR_PATH,
@@ -146,6 +176,7 @@ const filesChecked = new Set([...files, ...governanceFiles]).size;
 
 checkNavigation();
 checkGeneratedReferences();
+checkConfigCatalogueFixture();
 
 findings.sort((a, b) =>
   a.file === b.file
@@ -271,6 +302,38 @@ function checkProductNavigation(root, sidebarPath, sidebarKey, productLabel) {
         1,
         `public page ${id} is not present in the ${productLabel} sidebar and is not marked public_unlisted: true`
       );
+    }
+  }
+}
+
+function checkConfigCatalogueFixture() {
+  const cataloguePath = resolve(ANVIL_ROOT, 'reference/config.md');
+  const fixturePath = resolve(REPO_ROOT, 'scripts/docs/fixtures/anvil-init.yaml');
+  const catalogueExists = existsSync(cataloguePath);
+  const fixtureExists = existsSync(fixturePath);
+  if (!catalogueExists && !fixtureExists) return;
+
+  const catalogueRel = normalise(relative(REPO_ROOT, cataloguePath));
+  const fixtureRel = normalise(relative(REPO_ROOT, fixturePath));
+
+  if (!fixtureExists) {
+    add(fixtureRel, 1, 'init-file fixture is missing');
+    return;
+  }
+  if (!catalogueExists) {
+    add(catalogueRel, 1, 'config field catalogue is missing');
+    return;
+  }
+
+  const fixture = readFileSync(fixturePath, 'utf8');
+  if (fixture !== INIT_ANVIL_YAML) {
+    add(fixtureRel, 1, 'init-file fixture must match the file anvil init writes');
+  }
+
+  const catalogue = readFileSync(cataloguePath, 'utf8');
+  for (const needle of CONFIG_CATALOGUE_REQUIRED) {
+    if (!catalogue.includes(needle)) {
+      add(catalogueRel, 1, `config catalogue is missing ${needle}`);
     }
   }
 }

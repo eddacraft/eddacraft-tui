@@ -26,6 +26,12 @@ const isRootPlansDoc = (file) => {
 const isGeneratedMarkdown = (file) =>
   normalisePath(relative(process.cwd(), file)) === 'ACKNOWLEDGEMENTS.md';
 
+// Init-file fixture must stay byte-identical to `anvil init` (double-quoted
+// YAML). `.prettierignore` excludes it, so oxfmt --write on that path alone
+// exits non-zero with "Expected at least one target file".
+const isInitAnvilFixture = (file) =>
+  normalisePath(relative(process.cwd(), file)) === 'scripts/docs/fixtures/anvil-init.yaml';
+
 const isVendoredOutput = (file) => {
   const normalised = normalisePath(file);
   return (
@@ -103,8 +109,12 @@ module.exports = {
   '!(pnpm-lock|temper).{yml,yaml}': (files) => {
     const kept = filter(files);
     if (kept.length === 0) return [];
-    const list = toCommandList(kept);
-    return [`yamllint ${list}`, `oxfmt --write ${list}`];
+    const formatted = kept.filter((f) => !isInitAnvilFixture(f));
+    const tasks = [`yamllint ${toCommandList(kept)}`];
+    if (formatted.length > 0) {
+      tasks.push(`oxfmt --write ${toCommandList(formatted)}`);
+    }
+    return tasks;
   },
   'temper.{yml,yaml}': (files) => {
     const kept = filter(files);

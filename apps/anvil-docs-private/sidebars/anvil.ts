@@ -47,6 +47,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'reference/what-anvil-can-do',
         'reference/checks',
+        'reference/config',
         'reference/cli-reference',
         'reference/rule-reference',
         'reference/support-reference',

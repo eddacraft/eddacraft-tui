@@ -99,7 +99,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-002: Generate the public check catalogue
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-19 via PR #4030
 - **Intent:** Publish every shipped check from `CHECK_DEFINITIONS` so testers
   can look up what runs, what `anvil check` ignores, and what is
   flag-selected.
@@ -120,7 +120,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-003: Publish the source-cited config field catalogue
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Give testers one place to look up every `.anvil` key we can
   honestly extract from writers, readers, and the file `anvil init` writes.
 - **Expected Outcome:** `docs/public/anvil/reference/config.md` exists with
@@ -130,6 +130,12 @@ edit; it does not move ownership.
   and `config set` rule-mode-only behaviour are included.
 - **Files:** `docs/public/anvil/reference/config.md`,
   `docs/public/anvil/operations/config.md`,
+  `scripts/docs/fixtures/anvil-init.yaml`,
+  `scripts/docs/check-public-docs.mjs`,
+  `.lintstagedrc.cjs`,
+  `.prettierignore`,
+  `apps/anvil-docs-private/sidebars/anvil.ts`,
+  `apps/docs-site/sidebars/anvil.ts`,
   `crates/anvil-cli/src/commands/init.rs`,
   `crates/anvil-config/src/gate_section.rs`
 - **Dependencies:** DOCRB-011

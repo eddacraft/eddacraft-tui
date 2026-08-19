@@ -63,12 +63,12 @@ You need to capture session context and turn it into reusable team knowledge.
 
 You're ready to roll out anvil to your team or integrate it into CI/CD.
 
-| Goal                        | Start here                                       |
-| --------------------------- | ------------------------------------------------ |
-| Team workflow patterns      | [Team Flow Guide](/anvil/guides/team-flow)       |
-| GitHub Actions integration  | [GitHub Integration](/anvil/integrations/github) |
-| Security model and policies | [Security](/anvil/operations/security)           |
-| Configuration reference     | [Config](/anvil/operations/config)               |
+| Goal                              | Start here                                       |
+| --------------------------------- | ------------------------------------------------ |
+| Team workflow patterns            | [Team Flow Guide](/anvil/guides/team-flow)       |
+| GitHub Actions integration        | [GitHub Integration](/anvil/integrations/github) |
+| Security model and policies       | [Security](/anvil/operations/security)           |
+| Inspect and migrate configuration | [Config](/anvil/operations/config)               |
 
 ---
 

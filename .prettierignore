@@ -66,6 +66,9 @@ crates/anvil-grammar-wat/vendor/
 docs/archive/experiments/html-vs-markdown-tokens/source.md
 docs/archive/experiments/html-vs-markdown-tokens/source.minimal.html
 docs/archive/experiments/html-vs-markdown-tokens/source.structured.html
+# Init-file fixture must stay byte-identical to the file `anvil init` writes
+# (double-quoted YAML). oxfmt rewrites YAML strings to single quotes.
+scripts/docs/fixtures/anvil-init.yaml
 # Golden render fixture must stay byte-identical to the scorecard renderer output
 crates/anvil-cli/src/insights/testdata/
 # dev-loop orchestration state (run checkpoints); not product content

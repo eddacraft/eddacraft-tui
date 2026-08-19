@@ -1,0 +1,7 @@
+schema_version: "1.0.0"
+planning_dir: "plans"
+format: "yaml"
+checks:
+  - "secret-detection"
+  - "import-boundaries"
+  - "antipattern-scan"

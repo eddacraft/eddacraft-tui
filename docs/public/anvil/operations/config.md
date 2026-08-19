@@ -1,6 +1,6 @@
 ---
 id: config
-title: Configuration reference
+title: Inspect and migrate configuration
 description:
   Inspect, change, convert, and review anvil project configuration safely.
 owner: UCFG
@@ -11,7 +11,7 @@ upstream:
 verified_against: 0.9.4-beta
 ---
 
-# Configuration reference
+# Inspect and migrate configuration
 
 The canonical project configuration file is `.anvil.<ext>` in the project root,
 where the extension names the format: `.anvil.yaml` (the default), `.anvil.yml`,
@@ -19,6 +19,10 @@ where the extension names the format: `.anvil.yaml` (the default), `.anvil.yml`,
 (the interactive wizard can pick JSON or TOML, which write `.anvil.json` /
 `.anvil.toml`). Keys are `snake_case` (for example `schema_version`,
 `planning_dir`).
+
+For every key anvil reads or writes, use the
+[configuration field catalogue](../reference/config.md). This page is the
+how-to.
 
 `.anvilrc` is the legacy name. It is still read as a fallback everywhere, but no
 command creates one; convert it with `anvil migrate format` or
@@ -62,19 +66,25 @@ anvil config show --json
 ```
 
 Stdout is then a single JSON document and nothing else: `config` (the discovered
-file, or `defaults`), `rule_modes` keyed by rule name, and `note` — the
-legacy-key deprecation warning, or `null` when none applies.
+**file label**, or `defaults`), `rule_modes` keyed by rule name, and `note` —
+the legacy-key deprecation warning, or `null` when none applies. This is an
+inspection contract, not a dump of file keys. See the
+[inspection contract](../reference/config.md#inspection-contract).
 
 ## Change a rule mode
 
-Use the installed command help so the accepted modes and identifiers match your
-version:
+`anvil config set` writes **rule modes only**. It does not set arbitrary keys.
+
+Rules: `public-api-expansion`, `new-dependency-introduction`,
+`cross-layer-violation`, `privilege-expansion`. Modes: `off`, `warn`, `enforce`.
 
 ```text
+anvil config set public-api-expansion warn
 anvil config set --help
 ```
 
-Prefer a focused command over hand-editing unfamiliar fields.
+Prefer this command over hand-editing `enforcement.rules`. Paths, aliases, and
+defaults are on the [configuration field catalogue](../reference/config.md).
 
 ## Convert formats
 
@@ -154,4 +164,5 @@ the project unless the command says otherwise.
 
 ## Next step
 
-Read [local data and security](security.md).
+Look up keys in the [configuration field catalogue](../reference/config.md), or
+read [local data and security](security.md).
