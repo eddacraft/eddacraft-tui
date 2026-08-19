@@ -25,7 +25,7 @@ and it does not grow past these 12 rows.
 | 5   | **Init-default checks:** `secret-detection`, `import-boundaries`, `antipattern-scan`.                                                                                   | shipped                  |
 | 6   | Other catalogue engines (`policy`, `lint`, `test`, `coverage`, `dependency`, `command-safety`, `import-boundaries`) run under **gate**, not `check`.                    | shipped                  |
 | 7   | Four **surface checks** (`sql-migrations`, `github-actions`, `dockerfile`, `shell-scripts`) are default-on in gate, flag-driven, warn-only unless `--fail-on-warnings`. | shipped-with-flag-status |
-| 8   | Project file is `.anvil.yaml` (also yml / json / toml).                                                                                                                 | shipped                  |
+| 8   | Project file is `.anvil.yaml` (also `.yml` / `.json` / `.toml`).                                                                                                        | shipped                  |
 | 9   | **Gate profiles:** `dev`, `ci`, `production`, `ai`.                                                                                                                     | shipped                  |
 | 10  | Policy is a **gate check**; start with the `anvil-baseline` pack. Authoring is the installed skill, not a public Rego manual.                                           | shipped                  |
 | 11  | Full command list: [CLI command reference](cli.md).                                                                                                                     | shipped                  |
