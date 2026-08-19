@@ -40,6 +40,8 @@ component internals.
 - `plans/execution/DOCRB-006.actions.md` — this execution sequence.
 - `plans/specs/2026-08-17-docrb-corpus-disposition.md` — final diagram dispositions.
 - `CONTEXT.md` — central architecture discovery pointers.
+- `docs/README.md` — freshness-only reconciliation for the governance guide's
+  directly owed discovery downstream.
 - `docs/guides/documentation-governance.md` — disposition-alignment and
   freshness review.
 - `docs/reviews/shipped-codebase-review-checklist.md` — remove stale overview
@@ -68,6 +70,7 @@ component internals.
 - Record audience, concern, owner, lifecycle, upstreams, local-authority
   relationship, and adjacent textual meaning for every retained view.
 - Update the corpus disposition rather than creating another inventory.
+- Reconcile directly owed downstream freshness caused by the governance review.
 - Treat archived references to retired Draw.io files as history, not live links.
 
 **Checkpoint:** each intended node, edge, boundary, fallback, and retirement has

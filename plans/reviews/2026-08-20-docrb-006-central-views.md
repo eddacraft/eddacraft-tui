@@ -17,9 +17,10 @@ public-content source drift between the pinned base, the Council-reviewed head,
 and the live-source reads used for the repaired views.
 
 The branch changes documentation, planning, four generated documentation
-indexes, and the retirement of exactly two live Draw.io sources. It changes no
-product source, package manifest, lockfile, repository script, Mermaid
-automation, CI enforcement, public asset, deployment, or release claim.
+indexes, a freshness-only `docs/README.md` downstream reconciliation, and the
+retirement of exactly two live Draw.io sources. It changes no product source,
+package manifest, lockfile, repository script, Mermaid automation, CI
+enforcement, public asset, deployment, or release claim.
 
 Anvil's developer-function gate could not authorise the sibling worktree root
 directly because the MCP server trusts the primary checkout root. Every
@@ -99,7 +100,9 @@ the overview now provides navigation-only compatibility headings that send
 readers to the quality authority without restoring duplicate content.
 `CONTEXT.md` and the shipped-codebase review checklist now route Rust
 layout/layering directly to `rust-architecture-overview.md` and check/gate
-concepts directly to `quality-model.md`.
+concepts directly to `quality-model.md`. Manual review found `docs/README.md`
+compatible with the changed governance disposition; only its freshness metadata
+changed to reconcile the directly owed downstream.
 
 Focused duplicate-authority assertions proved:
 
@@ -149,7 +152,14 @@ and historical evidence remained.
 
 ## Repository gates
 
-The final report-inclusive candidate rerun produced:
+The first real post-commit exact-range audit at `b217b4c6f` corrected the
+pre-commit assumption: `pnpm docs:owed --since d9b30b23d` exited zero because
+the surface is still report-only, but its summary contained 1 baselined/gating
+owed document. The newly committed governance-guide review had made its direct
+`docs/README.md` downstream stale. A manually reviewed, freshness-only
+downstream follow-up then cleared that finding.
+
+The final post-follow-up, report-inclusive rerun produced:
 
 | Gate | Exit/result |
 | ---- | ----------- |
@@ -162,7 +172,7 @@ The final report-inclusive candidate rerun produced:
 | `pnpm aps:index:check` | 0; inherited DOCDEF stored `0/6` versus computed `1/6` advisory only |
 | `pnpm aps:drift --json` | 0; advisory `findingCount: 1`, the same inherited DOCDEF `aps-progress-mismatch` |
 | `git diff --check` | 0; no whitespace errors |
-| Focused scope/link/duplicate/retirement assertions | 0; all Council repair claims and owned-path constraints passed |
+| Focused scope/link/duplicate/retirement assertions | 0; all Council repair claims and the authorised owned/downstream path constraints passed |
 
 `pnpm docs:check` also reports the repository's baselined link/tag warnings
 and corpus-wide docs-owed advisories; its surfaces still pass. Those warnings

@@ -318,6 +318,7 @@ items stay Draft until their dependencies and expected evidence are present.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
   `plans/execution/DOCRB-006.actions.md`,
   `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `CONTEXT.md`,
+  `docs/README.md`,
   `docs/guides/documentation-governance.md`,
   `docs/reviews/shipped-codebase-review-checklist.md`,
   `docs/architecture/README.md`, `docs/architecture/overview.md`,
@@ -339,8 +340,9 @@ items stay Draft until their dependencies and expected evidence are present.
   checks, Draw.io retirement references, exact range, and repository gates.
 - **Scope:** The five required DOCRB-006 views; retained supporting central
   authorities; diagram disposition and discovery; context/checklist navigation;
-  governance freshness review; the save-time runbook cross-link; two obsolete
-  Draw.io retirements; generated documentation indexes; one evidence report
+  governance and directly owed downstream freshness review; the save-time
+  runbook cross-link; two obsolete Draw.io retirements; generated documentation
+  indexes; one evidence report
 - **Non-scope:** Component-internal migration (DOCRB-005); public Draw.io/SVG
   assets (DOCRB-007/-008); automated Mermaid tooling or mandatory
   affected-change enforcement (DOCRB-009); product/runtime behaviour; public
