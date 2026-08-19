@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>install anvil</title>
+  <meta name="description" content="Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review. One-line install for Linux, macOS, and Windows.">
+  <meta name="theme-color" content="#0d0d0f">
+  <link rel="canonical" href="https://install.eddacraft.ai/">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="anvil by eddacraft">
+  <meta property="og:title" content="install anvil">
+  <meta property="og:description" content="Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.">
+  <meta property="og:url" content="https://install.eddacraft.ai/">
+  <meta property="og:image" content="https://install.eddacraft.ai/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="install anvil">
+  <meta name="twitter:description" content="Force probabilistic tools to respect deterministic rules. anvil enforces policy at generation time — not at review.">
+  <meta name="twitter:image" content="https://install.eddacraft.ai/og.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void: #0d0d0f;
+      --surface: #141416;
+      --structure: #2a2a2e;
+      --text: #ebebeb;
+      --muted: #85858a;
+      --anvil: #cc5500;
+      --anvil-dim: #a34400;
+      --edda: #2e8b57;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      background: var(--void);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--anvil); text-decoration: none; }
+    a:hover { color: var(--text); }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 1.25rem 4rem;
+    }
+
+    .masthead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      height: 3.5rem;
+      border-bottom: 1px solid var(--structure);
+      font-family: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.8125rem;
+    }
+    .masthead .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text);
+    }
+    .masthead .brand svg { width: 18px; height: 18px; }
+    .masthead nav { display: flex; gap: 1.25rem; }
+    .masthead nav a { color: var(--muted); }
+    .masthead nav a.current, .masthead nav a:hover { color: var(--anvil); }
+
+    .hero { padding: 2.5rem 0 0.5rem; }
+    .identity {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      letter-spacing: 0.28em;
+      text-transform: lowercase;
+      font-size: 1.125rem;
+      color: var(--anvil);
+    }
+    .identity .logo { width: 2.25rem; height: 2.25rem; flex-shrink: 0; }
+    .kicker {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin: 0 0 1rem;
+    }
+    h1 {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: clamp(1.35rem, 3.4vw, 2rem);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      color: var(--text);
+      margin: 0 0 1rem;
+    }
+    h1 .accent { color: var(--anvil); }
+    .lede {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 36rem;
+      margin: 0 0 1.25rem;
+    }
+
+    .release-line {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.85rem;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .version-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border: 1px solid var(--anvil-dim);
+      background: rgba(204, 85, 0, 0.08);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .version-pill:hover { border-color: var(--anvil); color: var(--anvil); }
+    .release-line .sep { color: var(--structure); }
+
+    h2 {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      font-weight: 500;
+      margin: 2.5rem 0 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    h2 .rule { flex: 1; height: 1px; background: var(--structure); }
+
+    .recommended-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--anvil);
+      font-weight: 500;
+      margin-bottom: 0.65rem;
+    }
+    .recommended-label .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--anvil);
+      box-shadow: 0 0 6px var(--anvil);
+    }
+    .os-name {
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .cmd-block {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--structure);
+      overflow: hidden;
+    }
+    .cmd-block:hover { border-color: #3a3a40; }
+    .cmd-block.featured {
+      background: linear-gradient(180deg, #181410 0%, var(--surface) 100%);
+      border-color: var(--anvil-dim);
+      box-shadow: 0 0 0 1px var(--anvil-dim);
+    }
+    .cmd-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0.85rem;
+      background: #101012;
+      border-bottom: 1px solid var(--structure);
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .cmd-block.featured .cmd-label {
+      background: #1a1410;
+      border-bottom-color: var(--anvil-dim);
+    }
+    .pkg-name { color: var(--text); }
+
+    .cmd-body {
+      position: relative;
+      padding: 0.85rem 3rem 0.85rem 0.85rem;
+      overflow-x: auto;
+      font-size: 0.8125rem;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      line-height: 1.5;
+    }
+    .cmd-body > code { white-space: pre; }
+    .cmd-body::-webkit-scrollbar { height: 6px; }
+    .cmd-body::-webkit-scrollbar-thumb { background: var(--structure); }
+
+    .prompt { color: var(--muted); user-select: none; margin-right: 0.5rem; }
+    .cmd { color: var(--text); }
+
+    .featured .cursor {
+      display: inline-block;
+      width: 0.5em;
+      height: 1em;
+      background: var(--anvil);
+      margin-left: 0.25em;
+      vertical-align: text-bottom;
+      animation: blink 1.1s steps(2) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .featured .cursor { animation: none; }
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--void);
+      border: 1px solid var(--structure);
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0.3rem 0.4rem;
+      font-size: 0.75rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .copy-btn:hover { background: var(--structure); color: var(--text); }
+    .copy-btn:focus-visible { outline: 2px solid var(--anvil); outline-offset: 2px; }
+    .copy-btn.copied { background: #102418; color: var(--edda); border-color: var(--edda); }
+    .copy-btn .icon-check { display: none; }
+    .copy-btn.copied .icon-copy { display: none; }
+    .copy-btn.copied .icon-check { display: inline; }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1.25rem;
+    }
+    @media (min-width: 640px) {
+      .options-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    }
+    .option { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+    .option-title {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 500;
+      margin: 0;
+    }
+    .option-title code {
+      color: var(--text);
+      background: var(--surface);
+      padding: 0.05rem 0.35rem;
+      border: 1px solid var(--structure);
+      font-size: 0.85em;
+    }
+
+    .verify {
+      margin-top: 0.65rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .beta {
+      margin-top: 2.5rem;
+      padding: 1rem 0 0;
+      border-top: 1px solid var(--structure);
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .beta strong { color: var(--text); font-weight: 500; }
+
+    footer {
+      margin-top: 2.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--structure);
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.25rem;
+      align-items: center;
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--edda); }
+    footer .sep { color: var(--structure); }
+    footer .built { text-transform: none; letter-spacing: 0; margin-left: auto; }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="masthead">
+      <a class="brand" href="https://eddacraft.ai">
+        <svg viewBox="0 0 554 554" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M553.604 0H388.719V74.1044H553.604V0Z" fill="#EBEBEB"/>
+          <path d="M553.604 72.3608H478.423V480.371H553.604V72.3608Z" fill="#EBEBEB"/>
+          <path d="M553.604 479.499H388.719V553.604H553.604V479.499Z" fill="#EBEBEB"/>
+          <path d="M387.522 166.081H166.081V387.523H387.522V166.081Z" fill="#EBEBEB"/>
+          <path d="M0 0H164.885V74.1044H0V0Z" fill="#EBEBEB"/>
+          <path d="M0 72.3608H75.1807V480.371H0V72.3608Z" fill="#EBEBEB"/>
+          <path d="M0 479.499H164.885V553.604H0V479.499Z" fill="#EBEBEB"/>
+        </svg>
+        eddacraft
+      </a>
+      <nav aria-label="Primary">
+        <a class="current" href="https://install.eddacraft.ai/" aria-current="page">anvil</a>
+        <a href="https://docs.eddacraft.ai/anvil/overview">docs</a>
+        <a href="https://github.com/eddacraft/anvil">github</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="identity">
+        <svg class="logo" viewBox="0 0 560 560" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M123.2 95.6308H443.692V153.354H123.2V95.6308Z" fill="#CC5500"/>
+          <path d="M123.2 200.738H443.692V258.462H123.2V200.738Z" fill="#CC5500"/>
+          <path d="M249.846 124.923H316.949V222.277H249.846V124.923Z" fill="#CC5500"/>
+          <path d="M249.846 328.246H316.949V425.6H249.846V328.246Z" fill="#CC5500"/>
+          <path d="M123.2 298.954H443.692V356.677H123.2V298.954Z" fill="#CC5500"/>
+          <path d="M123.2 404.062H443.692V461.785H123.2V404.062Z" fill="#CC5500"/>
+          <path d="M560 0H393.21V74.9606H560V0Z" fill="#CC5500"/>
+          <path d="M560 73.1969H483.951V485.921H560V73.1969Z" fill="#CC5500"/>
+          <path d="M560 485.039H393.21V560H560V485.039Z" fill="#CC5500"/>
+          <path d="M0 0H166.79V74.9606H0V0Z" fill="#CC5500"/>
+          <path d="M0 73.1969H76.0494V485.921H0V73.1969Z" fill="#CC5500"/>
+          <path d="M0 485.039H166.79V560H0V485.039Z" fill="#CC5500"/>
+        </svg>
+        anvil
+      </div>
+      <p class="kicker">// SHIP_AT_AI_SPEED</p>
+      <h1>Force probabilistic tools to<br><span class="accent">respect deterministic rules.</span></h1>
+      <p class="lede">anvil enforces policy at generation time — not at review.</p>
+      <div class="release-line">
+        <a class="version-pill" href="https://github.com/eddacraft/anvil/releases/latest" id="version-tag">v0.9.6-beta</a>
+        <span id="release-date">released 18 Aug 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <a href="https://github.com/eddacraft/anvil/releases">previous versions</a>
+      </div>
+    </section>
+
+    <h2><span>// install</span><span class="rule" aria-hidden="true"></span></h2>
+
+    <section aria-labelledby="recommended-heading">
+      <div class="recommended-label">
+        <span class="dot" aria-hidden="true"></span>
+        <span id="recommended-heading">Recommended for <span class="os-name" id="detected-os-name">your system</span></span>
+      </div>
+
+      <div class="cmd-block featured" id="rec-unix">
+        <div class="cmd-label"><span class="pkg-name">curl installer</span><span>Linux / macOS</span></div>
+        <div class="cmd-body">
+          <code><span class="prompt">$</span><span class="cmd" id="cmd-rec-unix">curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh</span><span class="cursor" aria-hidden="true"></span></code>
+          <button class="copy-btn" type="button" data-copy="cmd-rec-unix" aria-label="Copy install command">
+            <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="cmd-block featured" id="rec-windows" hidden>
+        <div class="cmd-label"><span class="pkg-name">PowerShell installer</span><span>Windows</span></div>
+        <div class="cmd-body">
+          <code><span class="prompt">PS&gt;</span><span class="cmd" id="cmd-rec-windows">irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex</span><span class="cursor" aria-hidden="true"></span></code>
+          <button class="copy-btn" type="button" data-copy="cmd-rec-windows" aria-label="Copy install command">
+            <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <p class="verify">
+        Shell installers pin to the latest tagged release and verify checksums.
+        <a href="https://github.com/eddacraft/anvil/releases/latest">View release notes →</a>
+      </p>
+    </section>
+
+    <h2><span>// all methods</span><span class="rule" aria-hidden="true"></span></h2>
+
+    <div class="options-grid">
+      <div class="option">
+        <p class="option-title">Linux / macOS · <code>curl</code></p>
+        <div class="cmd-block">
+          <div class="cmd-body">
+            <code><span class="prompt">$</span><span class="cmd" id="cmd-curl">curl --proto '=https' --tlsv1.2 -LsSf https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh</span></code>
+            <button class="copy-btn" type="button" data-copy="cmd-curl" aria-label="Copy curl install command">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="option">
+        <p class="option-title">macOS · <code>Homebrew</code></p>
+        <div class="cmd-block">
+          <div class="cmd-body">
+            <code><span class="prompt">$</span><span class="cmd" id="cmd-brew">brew install eddacraft/tap/anvil</span></code>
+            <button class="copy-btn" type="button" data-copy="cmd-brew" aria-label="Copy Homebrew install command">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="option">
+        <p class="option-title">Windows · <code>PowerShell</code></p>
+        <div class="cmd-block">
+          <div class="cmd-body">
+            <code><span class="prompt">PS&gt;</span><span class="cmd" id="cmd-pwsh">irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex</span></code>
+            <button class="copy-btn" type="button" data-copy="cmd-pwsh" aria-label="Copy PowerShell install command">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="option">
+        <p class="option-title">Windows · <code>WinGet</code></p>
+        <div class="cmd-block">
+          <div class="cmd-body">
+            <code><span class="prompt">PS&gt;</span><span class="cmd" id="cmd-winget">winget install eddacraft.anvil</span></code>
+            <button class="copy-btn" type="button" data-copy="cmd-winget" aria-label="Copy WinGet install command">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="option">
+        <p class="option-title">Windows · <code>Scoop</code></p>
+        <div class="cmd-block">
+          <div class="cmd-body">
+            <code id="cmd-scoop"><span class="prompt">PS&gt;</span>scoop bucket add eddacraft https://github.com/eddacraft/scoop-bucket
+<span class="prompt">PS&gt;</span>scoop install anvil</code>
+            <button class="copy-btn" type="button" data-copy="cmd-scoop" aria-label="Copy Scoop install commands">
+              <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2><span>// next</span><span class="rule" aria-hidden="true"></span></h2>
+    <div class="cmd-block">
+      <div class="cmd-label"><span class="pkg-name">activate in this repo</span><span>after install</span></div>
+      <div class="cmd-body">
+        <code><span class="prompt">$</span><span class="cmd" id="cmd-start">anvil start</span></code>
+        <button class="copy-btn" type="button" data-copy="cmd-start" aria-label="Copy anvil start command">
+          <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <p class="verify">Writes local config and wires MCP for Cursor and Claude Code. Run <code>anvil welcome</code> if you are new.</p>
+
+    <p class="beta">
+      <strong>closed beta</strong> · invitation required ·
+      <a href="https://eddacraft.ai">request access</a>
+    </p>
+
+    <footer>
+      <a href="https://github.com/eddacraft/anvil">GitHub</a>
+      <span class="sep">·</span>
+      <a href="https://github.com/eddacraft/anvil/releases/latest">Releases</a>
+      <span class="sep">·</span>
+      <a href="https://docs.eddacraft.ai/anvil/overview">Docs</a>
+      <span class="sep">·</span>
+      <a href="https://eddacraft.ai">eddacraft.ai</a>
+      <span class="built">// built by <a href="https://eddacraft.ai">eddacraft</a></span>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var ua = navigator.userAgent || '';
+      var os = 'unix';
+      var osName = 'Linux / macOS';
+      if (/Windows/i.test(ua)) { os = 'windows'; osName = 'Windows'; }
+      else if (/Mac/i.test(ua)) { os = 'unix'; osName = 'macOS'; }
+      else if (/Linux|X11/i.test(ua)) { os = 'unix'; osName = 'Linux'; }
+
+      var nameEl = document.getElementById('detected-os-name');
+      if (nameEl) nameEl.textContent = osName;
+
+      if (os === 'windows') {
+        document.getElementById('rec-unix').hidden = true;
+        document.getElementById('rec-windows').hidden = false;
+      }
+
+      function stripFormatting(text) {
+        return text.replace(/^\s*(PS>|\$)\s?/gm, '').trim();
+      }
+
+      document.querySelectorAll('.copy-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-copy');
+          var el = document.getElementById(id);
+          if (!el) return;
+          var text = stripFormatting(el.textContent);
+          navigator.clipboard.writeText(text).then(function () {
+            btn.classList.add('copied');
+            setTimeout(function () { btn.classList.remove('copied'); }, 2000);
+          });
+        });
+      });
+
+      // Refresh the baked-in version badge from the latest GitHub release;
+      // on any failure the baked values stay. Stamp workflow also rewrites
+      // #version-tag and #release-date on each published anvil release.
+      if (window.fetch) {
+        fetch('https://api.github.com/repos/eddacraft/anvil/releases/latest', {
+          headers: { Accept: 'application/vnd.github+json' }
+        })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (rel) {
+            if (!rel || !rel.tag_name) return;
+            document.getElementById('version-tag').textContent = rel.tag_name;
+            if (rel.published_at) {
+              var d = new Date(rel.published_at);
+              document.getElementById('release-date').textContent =
+                'released ' + d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            }
+          })
+          .catch(function () {});
+      }
+    })();
+  </script>
+</body>
+</html>
