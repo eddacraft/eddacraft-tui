@@ -1,8 +1,8 @@
 # GCTX dogfood failure points (2026-08-16)
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                         |
-| ----- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | CIB   | Live   | 2026-08-17 — re-reviewed against CIB-343 (`activation/mcp_client.rs` first-wave handshake ladder). Original measurement 2026-08-16 against anvil 0.9.4-beta intercept pid 1387799 |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                          |
+| ----- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | CIB   | Live   | Last reviewed 2026-08-19: CIB-344 produce-lock reap in `graph_base_trigger.rs` (`activate` sweeps dead-pid `.producing/*.lock`); process-orphan half already on main via #3963. Prior 2026-08-17 CIB-343 handshake. Original measurement 2026-08-16 against anvil 0.9.4-beta intercept pid 1387799 |
 
 | Upstream                                                                                                                                                                                                                                                                                     | Downstream   |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
@@ -91,14 +91,18 @@ keeps the 2026-08-16 measurement as evidence of the pre-fix state.
 
 ### 4. Stale MCP shims and produce-locks are never reaped (CIB-344)
 
-The same host had dozens of leftover `anvil mcp serve --stdio` processes,
+The 2026-08-16 host had dozens of leftover `anvil mcp serve --stdio` processes,
 including 0.9.2-beta images from 5–14 August, plus month-old `.producing/*.lock`
-files. `anvil doctor`, `anvil start`, and `anvil intercept status` do not treat
-orphan shims or stale produce-locks as a routine heal. MCPLH re-exec heals the
-_current_ stdio child; it does not reap orphans.
+files. That was the pre-fix measurement.
 
-This is not what made GCTX return `not_ready`, but it is standing operator
-debris and should be cleaned as a matter of course.
+As of 2026-08-19 the produce-lock half is in `graph_base_trigger.rs`: `activate`
+sweeps dead-pid / PID-reuse locks under `graph-cache/base/.producing/`.
+`anvil doctor` / `anvil doctor --fix` and `anvil intercept start` / human
+`status` report and heal the same class. The process-orphan shim half shipped
+earlier on main via #3963. MCPLH re-exec still heals only the current stdio
+child.
+
+This was not what made GCTX return `not_ready`; it was standing operator debris.
 
 ## Not filed as separate items
 
