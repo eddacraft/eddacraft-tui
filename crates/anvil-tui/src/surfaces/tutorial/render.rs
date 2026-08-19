@@ -529,6 +529,19 @@ fn render_step_content(
         )),
     ];
 
+    // CIB-349: a sign-in bridge is not a runnable check. Name login
+    // before any gated command so the step cannot look like Enter will
+    // execute `anvil policy test` / `anvil architecture validate`.
+    if step.sign_in_bridge {
+        lines.push(Line::default());
+        lines.push(Line::from(Span::styled(
+            "Sign in required — this check is licence-gated.",
+            Style::default()
+                .fg(theme.warning())
+                .add_modifier(Modifier::BOLD),
+        )));
+    }
+
     // WOW-001: command steps surface the exact command and its declared
     // effect before Enter is pressed, so running-for-real is never a
     // surprise. Static mode keeps the plain walkthrough — Enter doesn't run
@@ -537,6 +550,7 @@ fn render_step_content(
     // the command is being typed into.
     if let Some(cmd) = &step.command
         && !state.static_mode
+        && !step.sign_in_bridge
     {
         lines.push(Line::default());
         if let Some(reveal) = &state.reveal {

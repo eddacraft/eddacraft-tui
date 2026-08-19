@@ -199,6 +199,40 @@ pub fn command_needs_licence_gate(command_name: &str) -> bool {
         .contains(&command_name)
 }
 
+/// Whether a tutorial-authored command string would hit the CLI licence gate
+/// if executed as a child `anvil` process.
+///
+/// CIB-349: `welcome` / `tutorial` are ungated (ADR-080) but several path
+/// steps shell gated commands (`policy`, `gate`, `architecture`, …). The
+/// sign-in bridge uses this so those steps are not presented as runnable
+/// checks until the reader is signed in.
+///
+/// `anvil start --verify` and `anvil status --verify` stay free: they are
+/// the same local read-only diagnostics
+/// `main::skips_auth_for_local_read_only_diagnostic` exempts. Non-`anvil`
+/// structured operations (`mkdir`) are never gated.
+#[must_use]
+pub fn tutorial_command_needs_licence_gate(command: &str) -> bool {
+    let mut words = command.split_ascii_whitespace();
+    let Some(program) = words.next() else {
+        return false;
+    };
+    if program != "anvil" {
+        return false;
+    }
+    let Some(name) = words.next() else {
+        return false;
+    };
+    let is_verify_probe = matches!(name, "start" | "status")
+        && command
+            .split_ascii_whitespace()
+            .any(|word| word == "--verify");
+    if is_verify_probe {
+        return false;
+    }
+    command_needs_licence_gate(name)
+}
+
 /// Developer-override env variable that forces `cli.licence-gate` to
 /// `"enabled"` for the current session. Retained as a compatibility shim
 /// during the FLAGM-003 dual-evaluation window; FLAGM-006 will decide
@@ -675,6 +709,46 @@ mod tests {
         assert!(!command_needs_licence_gate("admin"));
         assert!(!command_needs_licence_gate("login"));
         assert!(!command_needs_licence_gate("unknown-command"));
+    }
+
+    /// CIB-349: welcome/tutorial steps that shell these commands must hit
+    /// the sign-in bridge when the reader is unsigned-in.
+    #[test]
+    fn tutorial_command_needs_licence_gate_matches_cli_gated_commands() {
+        assert!(tutorial_command_needs_licence_gate("anvil policy test"));
+        assert!(tutorial_command_needs_licence_gate("anvil gate"));
+        assert!(tutorial_command_needs_licence_gate(
+            "anvil architecture validate"
+        ));
+        assert!(tutorial_command_needs_licence_gate(
+            "anvil architecture show"
+        ));
+        assert!(tutorial_command_needs_licence_gate(
+            "anvil drift snapshot --name baseline"
+        ));
+        assert!(tutorial_command_needs_licence_gate("anvil status --json"));
+        assert!(tutorial_command_needs_licence_gate(
+            "anvil check src/app.ts"
+        ));
+    }
+
+    #[test]
+    fn tutorial_command_needs_licence_gate_exempts_free_and_ungated() {
+        // Local read-only diagnostics skip the auth wall (same class as
+        // `skips_auth_for_local_read_only_diagnostic`).
+        assert!(!tutorial_command_needs_licence_gate("anvil start --verify"));
+        assert!(!tutorial_command_needs_licence_gate(
+            "anvil status --verify"
+        ));
+        // Ungated surfaces / non-anvil structured operations.
+        assert!(!tutorial_command_needs_licence_gate("anvil welcome"));
+        assert!(!tutorial_command_needs_licence_gate(
+            "anvil gctx egress status"
+        ));
+        assert!(!tutorial_command_needs_licence_gate(
+            "mkdir -p .anvil/policies"
+        ));
+        assert!(!tutorial_command_needs_licence_gate(""));
     }
 
     #[test]

@@ -7,6 +7,10 @@ pub(crate) mod executor;
 pub use executor::{
     AUTOPLAY_WORKER_THREAD, AutoplayRunner, catch_autoplay_panic, is_autoplay_panic_contained,
 };
+
+/// CLI-injected probe: whether a tutorial command string would hit the
+/// licence gate if executed as a child `anvil` process (CIB-349).
+pub type LicenceGateProbe = std::sync::Arc<dyn Fn(&str) -> bool + Send + Sync + 'static>;
 pub mod first_win;
 mod first_win_render;
 pub mod fix;
@@ -310,6 +314,10 @@ pub struct TutorialStep {
     /// exist on disk. Ignored once the file exists (existing content wins so a
     /// re-entered step never clobbers the user's work).
     pub seed_template: Option<String>,
+    /// CIB-349: this step named a licence-gated command while the session
+    /// is unsigned-in. Enter must not run the command; the copy names
+    /// `anvil auth login` first.
+    pub sign_in_bridge: bool,
 }
 
 struct AutoplaySavedContext {
@@ -342,6 +350,13 @@ pub struct TutorialState {
     /// Supplied by `anvil-cli` (CIB-248). Runs the demo check in-process so
     /// autoplay never re-enters the licence-gated `anvil check` CLI.
     autoplay_runner: Option<executor::AutoplayRunner>,
+    /// CIB-349: when true, gated tutorial commands become a sign-in
+    /// bridge instead of a runnable check. Default false so isolated TUI
+    /// tests keep their existing command-step behaviour.
+    requires_sign_in: bool,
+    /// CLI-injected probe keyed to `CLI_GATED_COMMANDS`. Absent, the
+    /// executor fallback covers the CIB-349 class.
+    licence_gated_command: Option<LicenceGateProbe>,
     autoplay_failure: Option<String>,
     autoplay_teardown_requested: bool,
     autoplay_saved_context: Option<AutoplaySavedContext>,
@@ -430,6 +445,8 @@ impl TutorialState {
             autoplay_command: None,
             autoplay_command_advance: false,
             autoplay_runner: None,
+            requires_sign_in: false,
+            licence_gated_command: None,
             autoplay_failure: None,
             autoplay_teardown_requested: false,
             autoplay_saved_context: None,
@@ -693,6 +710,13 @@ impl TutorialState {
             .as_ref()
             .filter(|r| !r.is_showcase)
             .map(|r| r.count_by_domain(path));
+        if self.requires_sign_in {
+            let probe = self.licence_gated_command.clone();
+            executor::apply_sign_in_bridge(&mut self.steps, |cmd| match &probe {
+                Some(probe) => probe(cmd),
+                None => executor::command_needs_licence_gate_fallback(cmd),
+            });
+        }
         self.phase = TutorialPhase::Running;
     }
 
@@ -835,6 +859,32 @@ impl TutorialState {
     /// reports itself unavailable rather than shelling out to a gated CLI.
     pub fn set_autoplay_runner(&mut self, runner: executor::AutoplayRunner) {
         self.autoplay_runner = Some(runner);
+    }
+
+    /// CIB-349: when `requires_sign_in` is true, gated tutorial commands
+    /// are rewritten into a sign-in bridge on path load. `command_is_gated`
+    /// should be the CLI's `tutorial_command_needs_licence_gate` so the
+    /// probe stays aligned with `CLI_GATED_COMMANDS`.
+    pub fn set_sign_in_bridge(
+        &mut self,
+        requires_sign_in: bool,
+        command_is_gated: impl Fn(&str) -> bool + Send + Sync + 'static,
+    ) {
+        self.requires_sign_in = requires_sign_in;
+        self.licence_gated_command = Some(std::sync::Arc::new(command_is_gated));
+    }
+
+    /// Test helper: enable the sign-in bridge with the TUI fallback
+    /// classifier (no CLI injection).
+    pub fn set_requires_sign_in(&mut self, requires_sign_in: bool) {
+        self.requires_sign_in = requires_sign_in;
+    }
+
+    fn command_is_gated(&self, command: &str) -> bool {
+        match &self.licence_gated_command {
+            Some(probe) => probe(command),
+            None => executor::command_needs_licence_gate_fallback(command),
+        }
     }
 
     pub fn autoplay_failure(&self) -> Option<&str> {
@@ -1200,11 +1250,20 @@ impl TutorialState {
                     // Watch demo step: signal the TUI loop to launch the demo.
                     self.wants_watch_demo = true;
                 } else if let Some(step) = self.steps.get(self.current_step) {
-                    if let Some(cmd) = step.command.clone() {
-                        // WOW-002: don't execute yet — start the typed
-                        // reveal. The command runs when the reveal completes
-                        // (via ticks or a fast-forwarding keypress).
-                        self.reveal = Some(CommandReveal::new(cmd));
+                    if step.sign_in_bridge {
+                        // CIB-349: not a runnable check — Enter continues.
+                        self.advance_step();
+                    } else if let Some(cmd) = step.command.clone() {
+                        if self.requires_sign_in && self.command_is_gated(&cmd) {
+                            if let Some(step) = self.steps.get_mut(self.current_step) {
+                                executor::bridge_command_step(step, &cmd);
+                            }
+                        } else {
+                            // WOW-002: don't execute yet — start the typed
+                            // reveal. The command runs when the reveal completes
+                            // (via ticks or a fast-forwarding keypress).
+                            self.reveal = Some(CommandReveal::new(cmd));
+                        }
                     } else {
                         // No command — informational step, advance immediately.
                         self.advance_step();
@@ -1428,6 +1487,16 @@ impl TutorialState {
             }
             return false;
         }
+        // CIB-349: never spawn a licence-gated child from a signed-out
+        // welcome/tutorial walk. Autoplay stays on its in-process runner
+        // (CIB-248) and is not rewritten here.
+        if !self.autoplay_session && self.requires_sign_in && self.command_is_gated(cmd) {
+            if let Some(step) = self.steps.get_mut(self.current_step) {
+                let gated = cmd.to_string();
+                executor::bridge_command_step(step, &gated);
+            }
+            return false;
+        }
         if self.autoplay_session {
             let Some(root) = self.working_root.as_deref() else {
                 return false;
@@ -1485,10 +1554,19 @@ impl TutorialState {
 
     /// WOW-001: whether the current step executes a shell command on Enter.
     /// Drives the command/informational split in the footer help.
+    /// CIB-349: a sign-in bridge is not a runnable check.
     pub fn current_step_has_command(&self) -> bool {
         self.steps
             .get(self.current_step)
-            .is_some_and(|s| s.command.is_some())
+            .is_some_and(|s| s.command.is_some() && !s.sign_in_bridge)
+    }
+
+    /// CIB-349: whether the current step is a sign-in bridge rather than
+    /// a runnable gated command.
+    pub fn current_step_is_sign_in_bridge(&self) -> bool {
+        self.steps
+            .get(self.current_step)
+            .is_some_and(|s| s.sign_in_bridge)
     }
 
     fn handle_complete(&mut self, action: Action) {
@@ -1541,6 +1619,8 @@ impl crate::surface::Surface for TutorialState {
                     "e edit inline  space next  esc paths  q quit"
                 } else if self.static_mode {
                     "enter next  esc paths  q quit"
+                } else if self.current_step_is_sign_in_bridge() {
+                    "enter next  run anvil auth login first  esc paths  q quit"
                 } else if self.current_step_has_command() {
                     // WOW-001: command steps say what Enter really does and
                     // make the skip-without-running escape hatch visible.
@@ -1615,8 +1695,9 @@ impl crate::surface::Surface for TutorialState {
         self.completion_baseline = None;
         self.completion_delta = None;
         self.resuming_notice = None;
-        // static_mode, static_notice, and completed_paths are intentionally
-        // preserved — they represent environment/session state, not transient.
+        // static_mode, static_notice, completed_paths, requires_sign_in, and
+        // licence_gated_command are intentionally preserved — they represent
+        // environment/session state, not transient.
     }
 
     fn render(
@@ -4621,5 +4702,163 @@ mod tests {
             Some(".anvil/architecture.yaml")
         );
         assert!(layers_step.seed_template.is_some());
+    }
+
+    /// CIB-349: a signed-out Policy walk must not present `anvil policy test`
+    /// as a runnable check. The step names `anvil auth login` first and
+    /// Enter advances without spawning.
+    #[test]
+    fn signed_out_policy_test_is_a_sign_in_bridge() {
+        let mut state = TutorialState::new();
+        state.set_requires_sign_in(true);
+        state.load_steps(TutorialPath::Policy);
+
+        let test = state
+            .steps
+            .iter()
+            .find(|step| step.title == "Test the Policy")
+            .expect("policy test step");
+        assert!(test.sign_in_bridge);
+        assert!(
+            test.command.is_none(),
+            "must not stay a runnable check: {:?}",
+            test.command
+        );
+        assert!(
+            test.instruction.contains("anvil auth login"),
+            "bridge must name login first: {}",
+            test.instruction
+        );
+        assert!(
+            test.instruction.contains("anvil policy test"),
+            "bridge must still name the deferred command: {}",
+            test.instruction
+        );
+
+        let test_index = state
+            .steps
+            .iter()
+            .position(|step| step.title == "Test the Policy")
+            .expect("index");
+        state.current_step = test_index;
+        assert!(!state.current_step_has_command());
+        assert!(state.current_step_is_sign_in_bridge());
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert!(
+            help.contains("anvil auth login"),
+            "footer must name login before the command: {help}"
+        );
+        assert!(
+            !help.contains("run command"),
+            "footer must not offer Enter as run: {help}"
+        );
+
+        state.handle_key(Action::Select);
+        assert!(
+            state.steps[test_index].output.is_none(),
+            "Enter must not execute the gated command"
+        );
+        assert_eq!(state.current_step, test_index + 1);
+    }
+
+    #[test]
+    fn signed_out_policy_gate_copy_names_login_first() {
+        let mut state = TutorialState::new();
+        state.set_requires_sign_in(true);
+        state.load_steps(TutorialPath::Policy);
+
+        let fire = state
+            .steps
+            .iter()
+            .find(|step| step.title == "See the Policy Fire")
+            .expect("policy fire step");
+        assert!(fire.sign_in_bridge);
+        assert!(
+            fire.instruction.contains("anvil auth login"),
+            "run-now gate copy must name login first: {}",
+            fire.instruction
+        );
+
+        let severity = state
+            .steps
+            .iter()
+            .find(|step| step.title == "Customise Severity")
+            .expect("severity step");
+        assert!(
+            severity.instruction.contains("anvil auth login"),
+            "re-run gate copy must name login first: {}",
+            severity.instruction
+        );
+    }
+
+    #[test]
+    fn signed_out_architecture_validate_is_a_sign_in_bridge() {
+        let mut state = TutorialState::new();
+        state.set_requires_sign_in(true);
+        state.load_steps(TutorialPath::Architecture);
+
+        let validate = state
+            .steps
+            .iter()
+            .find(|step| step.title == "Validate the Architecture")
+            .expect("architecture validate step");
+        assert!(validate.sign_in_bridge);
+        assert!(validate.command.is_none());
+        assert!(
+            validate.instruction.contains("anvil auth login"),
+            "{}",
+            validate.instruction
+        );
+        assert!(validate.instruction.contains("anvil architecture validate"));
+    }
+
+    #[test]
+    fn signed_out_protection_loop_keeps_verify_probe_runnable() {
+        let mut state = TutorialState::new();
+        state.set_requires_sign_in(true);
+        state.load_steps(TutorialPath::ProtectionLoop);
+
+        let verifier = state.steps.last().expect("verifier");
+        assert!(!verifier.sign_in_bridge);
+        assert_eq!(
+            verifier.command.as_deref(),
+            Some("anvil start --verify"),
+            "the free --verify probe must stay runnable unsigned-in"
+        );
+    }
+
+    #[test]
+    fn signed_in_policy_test_stays_runnable() {
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        let test = state
+            .steps
+            .iter()
+            .find(|step| step.title == "Test the Policy")
+            .expect("policy test step");
+        assert!(!test.sign_in_bridge);
+        assert_eq!(test.command.as_deref(), Some("anvil policy test"));
+    }
+
+    #[test]
+    fn execute_intercept_converts_leftover_gated_command() {
+        let mut state = TutorialState::new();
+        state.set_requires_sign_in(true);
+        state.phase = TutorialPhase::Running;
+        state.steps = vec![TutorialStep {
+            title: "Test the Policy".to_string(),
+            description: "run it".to_string(),
+            instruction: "Run: anvil policy test".to_string(),
+            command: Some("anvil policy test".to_string()),
+            effect: Some(CommandEffect::ReadOnly),
+            ..TutorialStep::default()
+        }];
+        assert!(!state.execute_current_command("anvil policy test"));
+        assert!(state.steps[0].sign_in_bridge);
+        assert!(state.steps[0].command.is_none());
+        assert!(
+            state.steps[0].output.is_none(),
+            "must not surface a failed-command auth wall"
+        );
     }
 }

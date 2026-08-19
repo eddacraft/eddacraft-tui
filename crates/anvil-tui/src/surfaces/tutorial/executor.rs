@@ -372,6 +372,126 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
     }
 }
 
+/// Command named by the CIB-349 sign-in bridge. Tutorial copy and the
+/// footer must mention this *before* any licence-gated command so a
+/// first-time unsigned-in walk does not dead-end on an auth wall.
+pub(super) const AUTH_LOGIN_COMMAND: &str = "anvil auth login";
+
+/// Conservative fallback used when the CLI has not injected
+/// [`crate::feature_flags::tutorial_command_needs_licence_gate`]. Covers
+/// the CIB-349 class (`policy` / `gate` / `architecture`) plus other
+/// tutorial commands that would hit the licence wall. `start --verify`
+/// and `status --verify` stay free.
+pub(super) fn command_needs_licence_gate_fallback(command: &str) -> bool {
+    let mut words = command.split_ascii_whitespace();
+    let Some(program) = words.next() else {
+        return false;
+    };
+    if program != "anvil" {
+        return false;
+    }
+    let Some(sub) = words.next() else {
+        return false;
+    };
+    if matches!(sub, "start" | "status")
+        && command
+            .split_ascii_whitespace()
+            .any(|word| word == "--verify")
+    {
+        return false;
+    }
+    matches!(
+        sub,
+        "policy"
+            | "gate"
+            | "architecture"
+            | "check"
+            | "drift"
+            | "status"
+            | "start"
+            | "init"
+            | "watch"
+            | "audit"
+    )
+}
+
+fn instruction_offers_run(instruction: &str) -> bool {
+    let lower = instruction.to_ascii_lowercase();
+    lower.contains("run:") || lower.contains("re-run anvil") || lower.contains("run anvil")
+}
+
+fn instruction_mentions_gated_command(
+    instruction: &str,
+    command_is_gated: &impl Fn(&str) -> bool,
+) -> bool {
+    let tokens: Vec<&str> = instruction.split_ascii_whitespace().collect();
+    for (index, token) in tokens.iter().enumerate() {
+        let cleaned = token.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-');
+        if cleaned != "anvil" {
+            continue;
+        }
+        let Some(next) = tokens.get(index + 1) else {
+            continue;
+        };
+        let sub = next.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-');
+        let mut candidate = format!("anvil {sub}");
+        if let Some(flag) = tokens.get(index + 2) {
+            let flag = flag.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-');
+            if flag == "--verify" {
+                candidate.push_str(" --verify");
+            }
+        }
+        if command_is_gated(&candidate) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Rewrite a gated command step so Enter cannot run it. The original
+/// command stays in the instruction as the follow-up after sign-in.
+pub(super) fn bridge_command_step(step: &mut super::TutorialStep, cmd: &str) {
+    step.description = format!(
+        "This check is licence-gated. Sign in before running `{cmd}` so the walk does not stop on an auth wall."
+    );
+    step.instruction = format!("Run: {AUTH_LOGIN_COMMAND}, then `{cmd}`.");
+    step.command = None;
+    step.effect = None;
+    step.verify = None;
+    step.verify_hint = None;
+    step.sign_in_bridge = true;
+}
+
+fn bridge_informational_step(step: &mut super::TutorialStep) {
+    if !step.instruction.contains(AUTH_LOGIN_COMMAND) {
+        step.instruction = format!(
+            "Sign in first: {AUTH_LOGIN_COMMAND}. Then {}",
+            step.instruction
+        );
+    }
+    step.sign_in_bridge = true;
+}
+
+/// Convert gated command steps (and informational "run now" copy that
+/// names a gated command) into a sign-in bridge. Call only when the
+/// current session would hit the licence wall.
+pub(super) fn apply_sign_in_bridge(
+    steps: &mut [super::TutorialStep],
+    command_is_gated: impl Fn(&str) -> bool,
+) {
+    for step in steps {
+        if let Some(cmd) = step.command.clone() {
+            if command_is_gated(&cmd) {
+                bridge_command_step(step, &cmd);
+            }
+        } else if instruction_offers_run(&step.instruction)
+            && instruction_mentions_gated_command(&step.instruction, &command_is_gated)
+        {
+            bridge_informational_step(step);
+        }
+    }
+}
+
 fn command_output(result: std::io::Result<std::process::Output>) -> CommandOutput {
     match result {
         Ok(output) => {
@@ -470,6 +590,97 @@ mod cross_platform_tests {
         );
         assert_eq!(second.exit_code, Some(0));
         assert!(root.path().join(".anvil/policies").is_dir());
+    }
+
+    /// CIB-349: the fallback classifier matches the welcome/tutorial
+    /// commands that would hit the licence wall, and leaves the free
+    /// `--verify` probes and non-anvil operations alone.
+    #[test]
+    fn fallback_licence_gate_matches_cib_349_commands() {
+        assert!(command_needs_licence_gate_fallback("anvil policy test"));
+        assert!(command_needs_licence_gate_fallback("anvil gate"));
+        assert!(command_needs_licence_gate_fallback(
+            "anvil architecture validate"
+        ));
+        assert!(command_needs_licence_gate_fallback("anvil status --json"));
+        assert!(!command_needs_licence_gate_fallback("anvil start --verify"));
+        assert!(!command_needs_licence_gate_fallback(
+            "anvil status --verify"
+        ));
+        assert!(!command_needs_licence_gate_fallback(
+            "anvil gctx egress status"
+        ));
+        assert!(!command_needs_licence_gate_fallback(
+            "mkdir -p .anvil/policies"
+        ));
+    }
+
+    #[test]
+    fn apply_sign_in_bridge_rewrites_gated_command_steps() {
+        let mut steps = vec![super::super::TutorialStep {
+            title: "Test the Policy".to_string(),
+            description: "Before enforcing a policy, confirm anvil can exercise it.".to_string(),
+            instruction: "Run: anvil policy test to execute your Rego tests.".to_string(),
+            command: Some("anvil policy test".to_string()),
+            effect: Some(super::super::CommandEffect::ReadOnly),
+            verify: Some(super::super::verify::Verify::ExitCode(0)),
+            verify_hint: Some("failed".to_string()),
+            ..super::super::TutorialStep::default()
+        }];
+        apply_sign_in_bridge(&mut steps, command_needs_licence_gate_fallback);
+        let step = &steps[0];
+        assert!(step.sign_in_bridge);
+        assert!(step.command.is_none(), "must not stay a runnable check");
+        assert!(step.effect.is_none());
+        assert!(step.verify.is_none());
+        assert!(
+            step.instruction.contains(AUTH_LOGIN_COMMAND),
+            "bridge must name auth login before the gated command: {}",
+            step.instruction
+        );
+        assert!(
+            step.instruction.contains("anvil policy test"),
+            "bridge must still name the deferred command: {}",
+            step.instruction
+        );
+    }
+
+    #[test]
+    fn apply_sign_in_bridge_rewrites_informational_run_now_copy() {
+        let mut steps = vec![super::super::TutorialStep {
+            title: "See the Policy Fire".to_string(),
+            description: "Add a TODO comment.".to_string(),
+            instruction: "Run: anvil gate to evaluate policies against the codebase.".to_string(),
+            ..super::super::TutorialStep::default()
+        }];
+        apply_sign_in_bridge(&mut steps, command_needs_licence_gate_fallback);
+        let step = &steps[0];
+        assert!(step.sign_in_bridge);
+        assert!(
+            step.instruction.contains(AUTH_LOGIN_COMMAND),
+            "informational run-now copy must name login first: {}",
+            step.instruction
+        );
+        assert!(
+            step.instruction.to_ascii_lowercase().contains("anvil gate"),
+            "deferred gate command must still be named: {}",
+            step.instruction
+        );
+    }
+
+    #[test]
+    fn apply_sign_in_bridge_leaves_verify_probes_runnable() {
+        let mut steps = vec![super::super::TutorialStep {
+            title: "Verify".to_string(),
+            description: "Read-only probe.".to_string(),
+            instruction: "Run: anvil start --verify".to_string(),
+            command: Some("anvil start --verify".to_string()),
+            effect: Some(super::super::CommandEffect::ReadOnly),
+            ..super::super::TutorialStep::default()
+        }];
+        apply_sign_in_bridge(&mut steps, command_needs_licence_gate_fallback);
+        assert!(!steps[0].sign_in_bridge);
+        assert_eq!(steps[0].command.as_deref(), Some("anvil start --verify"));
     }
 }
 

@@ -60,6 +60,13 @@ fn tutorial_state_with_scan(
     // re-enters the licence-gated `anvil check` CLI with a sandbox HOME that
     // hides the user's credentials.
     state.set_autoplay_runner(crate::commands::tutorial::autoplay::in_process_check_runner());
+    // CIB-349: unsigned-in welcome must not offer gated path commands
+    // (`anvil policy test`, `anvil architecture validate`, …) as runnable
+    // checks. The sign-in bridge names `anvil auth login` first.
+    state.set_sign_in_bridge(
+        start_prompts_sign_in(),
+        crate::feature_flags::tutorial_command_needs_licence_gate,
+    );
     state
 }
 
@@ -1738,7 +1745,7 @@ fn welcome_next_step(prompts_sign_in: bool) -> &'static str {
 /// `anvil start` and the free `--verify` probe). Revisit this heuristic when
 /// `cli.licence-gate` / `CLI_GATED_COMMANDS` are reworked for the free/paid
 /// tier split — the gated set it reads is expected to change there.
-fn start_prompts_sign_in() -> bool {
+pub(crate) fn start_prompts_sign_in() -> bool {
     let gate = crate::feature_flags::resolve_cli_licence_gate();
     if !matches!(
         crate::feature_flags::local_auth_precheck(&gate),
@@ -1821,6 +1828,59 @@ mod tests {
         };
         state.open_step_editor();
         state.save_step_editor().expect("save rooted editor");
+    }
+
+    #[test]
+    fn welcome_tutorial_state_bridges_gated_policy_step_when_unsigned() {
+        let dir = tempfile::tempdir().expect("isolated home");
+        let xdg = dir.path().join("xdg");
+        std::fs::create_dir_all(&xdg).expect("xdg");
+        temp_env::with_vars(
+            [
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+                ("ANVIL_HOME", Some(dir.path().to_str().unwrap())),
+                ("XDG_CONFIG_HOME", Some(xdg.to_str().unwrap())),
+            ],
+            || {
+                let mut state = tutorial_state_with_scan(
+                    anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+                );
+                state.load_steps(anvil_tui::surfaces::tutorial::TutorialPath::Policy);
+                let test = state
+                    .steps
+                    .iter()
+                    .find(|step| step.title == "Test the Policy")
+                    .expect("policy test step");
+                assert!(
+                    test.sign_in_bridge,
+                    "unsigned-in welcome must not offer policy test as a runnable check"
+                );
+                assert!(test.command.is_none());
+                assert!(
+                    test.instruction.contains("anvil auth login"),
+                    "bridge must name login first: {}",
+                    test.instruction
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn welcome_tutorial_state_keeps_policy_command_under_dev_bypass() {
+        temp_env::with_var("ANVIL_DEV", Some("1"), || {
+            let mut state = tutorial_state_with_scan(
+                anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+            );
+            state.load_steps(anvil_tui::surfaces::tutorial::TutorialPath::Policy);
+            let test = state
+                .steps
+                .iter()
+                .find(|step| step.title == "Test the Policy")
+                .expect("policy test step");
+            assert!(!test.sign_in_bridge);
+            assert_eq!(test.command.as_deref(), Some("anvil policy test"));
+        });
     }
 
     #[test]

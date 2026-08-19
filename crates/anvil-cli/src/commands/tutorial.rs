@@ -106,6 +106,13 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let progress = load_progress(&progress_path);
     let mut state = TutorialState::new();
+    // CIB-349: `anvil tutorial` is ungated (same class as welcome). Wire
+    // the sign-in bridge so Policy / Architecture command steps cannot
+    // dead-end on the licence wall.
+    state.set_sign_in_bridge(
+        crate::commands::welcome::start_prompts_sign_in(),
+        crate::feature_flags::tutorial_command_needs_licence_gate,
+    );
     state.bind_working_root(&workspace_root)?;
 
     // Populate completed paths so the selector shows checkmarks.
