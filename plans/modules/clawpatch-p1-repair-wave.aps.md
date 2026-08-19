@@ -13,6 +13,9 @@ changed-file validation also exposed and repaired inherited TUI formatting and
 E2E fixture drift. Review evidence is recorded below; PR publication follows
 the landing gates.
 
+**Pull request:** [#4010](https://github.com/eddacraft/anvil-001/pull/4010)
+against `main`; work remains `In Progress` pending integration.
+
 ## Purpose
 
 Close the six highest-priority correctness and containment clusters selected
