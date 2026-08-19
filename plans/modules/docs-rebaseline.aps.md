@@ -5,7 +5,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 2/11 |
+| DOCRB | — | high | Ready | 4/11 |
 
 **Last reviewed:** 2026-08-19 against the repository component/documentation
 inventory at `c4fd624ce`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
@@ -107,8 +107,8 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Migration and public pipeline | DOCRB-005..008 | Duplicate authorities are retired, cross-system views rebuilt, and public source/export parity works |
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
-DOCRB-001 and DOCRB-002 are Merged. DOCRB-011 is Ready and does not wait on
-diagram items. Other items stay Draft until their dependencies and expected
+DOCRB-001, DOCRB-002, DOCRB-003, and DOCRB-011 are Merged. DOCRB-004 remains
+Draft. Other items stay Draft until their dependencies and expected
 evidence are present.
 
 ## Success Criteria
@@ -176,8 +176,7 @@ evidence are present.
 
 ### DOCRB-003: Add the advisory diagram trigger and co-located documentation standard
 
-- **Status:** In Progress 2026-08-19 — operator-promoted after DOCRB-001/-002
-  dependency and design evidence was re-verified
+- **Status:** Merged 2026-08-20 via PR #4027
 - **Intent:** Give contributors and agents a small, consistent rule for
   reviewing documentation and diagram impact while the corpus is being
   re-baselined.
@@ -208,8 +207,8 @@ evidence are present.
   The template's corrected metadata is mechanically reflected in the four
   generated discovery indexes named above. Lifecycle bookkeeping is separately
   owned:
-  `plans/index.aps.md` records DOCRB-003 as In Progress and is validated
-  against the repaired tree with APS index and drift checks. The hosted
+  `plans/index.aps.md` records DOCRB-003 as Merged via PR #4027 and is
+  validated against the merged tree with APS index and drift checks. The hosted
   freshness repair manually reviewed the seven binding downstream documents
   named in Files against their changed file-level upstreams on 2026-08-20; no
   substantive contradiction was found, so their metadata records that review.
@@ -315,7 +314,7 @@ evidence are present.
 
 ### DOCRB-011: Unhide the live public definition layer
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4009
 - **Intent:** Make already-written Anvil definition pages findable on the
   live host without waiting for public diagram work.
 - **Expected Outcome:** `apps/anvil-docs-private/sidebars/anvil.ts` has a
