@@ -144,7 +144,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-004: Generate CLI subcommands and flags
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4037
 - **Intent:** Replace the top-level command table with source-derived
   subcommands and flags so testers do not have to run `--help` for the
   definition layer.
