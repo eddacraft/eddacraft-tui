@@ -40,8 +40,9 @@ MCP tools admit a caller `workspaceRoot` when its canonical path is:
 "Registered" means the on-disk Git layout Git itself writes: the main
 worktree is the parent of the common git dir when that dir is named
 `.git`; linked worktrees are the parents of the paths recorded in
-`<common>/worktrees/*/gitdir`. Resolution reuses the existing gitdir /
-commondir readers and does **not** spawn `git`.
+`<common>/worktrees/*/gitdir`. Resolution parses those files in the MCP
+layer (portable; intercept's gitdir helpers are unix-gated) and does
+**not** spawn `git`.
 
 Refuse:
 

@@ -82,14 +82,65 @@ pub fn redact_workspace_root(workspace_root: &Path, server_root: &Path) -> Strin
     }
 }
 
+/// Resolve `<root>/.git` as a directory or as a linked-worktree `gitdir:` file.
+/// Portable file parse — intercept's copy is unix-gated (`graph_base_trigger`).
+fn resolve_git_dir(repo_root: &Path) -> Option<PathBuf> {
+    let dot_git = repo_root.join(".git");
+    let meta = std::fs::symlink_metadata(&dot_git).ok()?;
+    if meta.is_dir() {
+        return Some(dot_git);
+    }
+    let contents = std::fs::read_to_string(&dot_git).ok()?;
+    let line = contents.lines().find_map(|l| {
+        l.trim()
+            .strip_prefix("gitdir:")
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+    })?;
+    let git_dir = Path::new(line);
+    Some(if git_dir.is_absolute() {
+        git_dir.to_path_buf()
+    } else {
+        lexical_join(repo_root, git_dir)
+    })
+}
+
+fn resolve_common_dir(git_dir: &Path) -> PathBuf {
+    match std::fs::read_to_string(git_dir.join("commondir")) {
+        Ok(raw) => {
+            let rel = Path::new(raw.trim());
+            if rel.is_absolute() {
+                rel.to_path_buf()
+            } else {
+                lexical_join(git_dir, rel)
+            }
+        }
+        Err(_) => git_dir.to_path_buf(),
+    }
+}
+
+fn lexical_join(base: &Path, rel: &Path) -> PathBuf {
+    let mut out = base.to_path_buf();
+    for comp in rel.components() {
+        match comp {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
 /// Registered Git worktree roots of the repository that owns `server_root`,
 /// including the main worktree. Empty when `server_root` is not a Git
 /// checkout. Does not spawn `git`; reads the on-disk gitdir layout.
 fn registered_worktree_roots(server_root: &Path) -> Vec<PathBuf> {
-    let Ok(git_dir) = anvil_intercept::graph_base_trigger::resolve_git_dir(server_root) else {
+    let Some(git_dir) = resolve_git_dir(server_root) else {
         return Vec::new();
     };
-    let common = anvil_intercept::graph_base_trigger::resolve_common_dir(&git_dir);
+    let common = resolve_common_dir(&git_dir);
     let Ok(common) = common.canonicalize() else {
         return Vec::new();
     };
