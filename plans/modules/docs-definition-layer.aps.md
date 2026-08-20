@@ -164,7 +164,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-005: Document policy packs, boundaries, and baseline
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4035
 - **Intent:** Explain the user-visible policy pack lifecycle, architecture
   boundaries, and baseline without publishing the ADR-108 authoring corpus.
 - **Expected Outcome:** Public pages cover pack install / show / validate /
