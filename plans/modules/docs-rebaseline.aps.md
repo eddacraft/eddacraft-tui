@@ -288,7 +288,7 @@ pass; it is not promoted by this closeout.
 
 ### DOCRB-005: Migrate component truth and remove duplicate authorities
 
-- **Status:** Merged 2026-08-20 via PR #4055 (rebase-merge commit
+- **Status:** Merged 2026-08-20 via PR #4055 (rebase-merge receipt
   `5db473d504ea702b9e1e9fe69878d780d45cf71a`)
 - **Intent:** Move maintainable component truth beside code and leave central
   documents as links or genuine cross-system authorities.
