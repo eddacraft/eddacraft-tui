@@ -1069,7 +1069,7 @@ mod tests {
                     at_byte.push((x, line.len()));
                     line.push_str(buf[(x, y)].symbol());
                 }
-                if !line.contains(&label) {
+                if !line.contains(label) {
                     continue;
                 }
                 if let Some(byte_idx) = line.find(needle) {
