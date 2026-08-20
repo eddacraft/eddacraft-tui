@@ -92,6 +92,23 @@ review remains advisory until DOCRB-009.
 
 Include a short `Docs Closeout` note in the final response.
 
+## Continuous-improvement closeout
+
+Before the final response on non-trivial work, run `pnpm ci-log:append` (pending
+by default). `Improvement: none` is a valid note. Do **not** skip it because the
+note is unrelated to the feature PR — the pending queue is PR-independent by
+design (CIB-191).
+
+This rule already lived in `plans/project-context.md`, which nothing loads
+automatically; the pointer above it was not enough to make the closeout happen.
+Pending notes are written under the git common dir, so they are invisible in
+diffs and PRs until someone runs `pnpm ci-log:harvest` on a bookkeeping branch —
+check `pnpm ci-log:status` rather than the tracked log to see whether the
+practice is alive.
+
+Full procedure, including harvest and triage:
+`docs/guides/continuous-improvement-log.md`.
+
 ## Validation
 
 Prefer the narrowest relevant validation first.
