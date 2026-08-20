@@ -3,7 +3,7 @@
 **Work item:** DOCRB-007
 **Status:** In Progress
 **Risk:** high — mandatory documentation tooling processes attacker-controlled XML/SVG and filesystem paths
-**Base:** `e23a60200093dab330b5d61c92a0ae0fdc2a9d85`
+**Base:** `8c8825389d41da72f575704eec34b214a60987ad`
 
 ## ReadyItem
 
@@ -12,7 +12,7 @@
 - **Status:** Ready
 - **Expected behaviour:** The five public-family `assets/diagrams` directories accept only lower-kebab paired `.drawio`/`.svg` assets; the pinned exporter embeds canonically matching source, writes atomically without following symlinks, and records deterministic provenance; namespace-aware checks reject malformed, stale, active, inaccessible, weakly referenced, or unreviewed raster diagram assets; both production Docusaurus renderers build.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`, `plans/execution/DOCRB-007.actions.md`, `plans/reviews/2026-08-20-docrb-007-public-svg-pipeline.md`, `package.json`, `scripts/docs/docs-check.mjs`, `scripts/docs/docs-check.test.sh`, `scripts/docs/check-public-diagrams.mjs`, `scripts/docs/export-public-diagram.mjs`, `scripts/docs/lib/public-diagrams.mjs`, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.test.mjs`, `scripts/docs/fixtures/public-diagrams/**`, `docs/guides/architecture-diagrams.md`, and generated documentation indexes if freshness metadata changes require them.
-- **Validation commands:** `node --test scripts/docs/check-public-diagrams.test.mjs`; `pnpm test:docs-check`; `pnpm docs:check`; `pnpm --filter @eddacraft/anvil-docs-private build`; `pnpm --filter @eddacraft/docs-public build`; `pnpm format:check`; `pnpm docs:index`; `pnpm docs:index:check`; `pnpm docs:owed --since e23a602000`; `pnpm aps:active-lint`; `pnpm aps:index:check`; `pnpm aps:drift --json`; `git diff --check`.
+- **Validation commands:** `node --test scripts/docs/check-public-diagrams.test.mjs`; `pnpm test:docs-check`; `pnpm docs:check`; `pnpm --filter @eddacraft/anvil-docs-private build`; `pnpm --filter @eddacraft/docs-public build`; `pnpm format:check`; `pnpm docs:index`; `pnpm docs:index:check`; `pnpm docs:owed --since 8c8825389`; `pnpm aps:active-lint`; `pnpm aps:index:check`; `pnpm aps:drift --json`; `git diff --check`.
 - **Dependencies:** DOCRB-001 and DOCRB-002 are Merged.
 - **Risk:** high.
 - **Design source:** ADR-123 and `plans/specs/2026-08-16-docs-rebaseline.md`.
@@ -30,7 +30,7 @@ At the exact base:
 - `docs/public/start-here` is retained but disabled and is outside this pipeline;
 - no live governed `.drawio` assets exist, so fixtures can establish the contract without authoring production diagrams;
 - Draw.io Desktop `31.1.8` is the pinned exporter, using `--export --format svg --embed-diagram --crop --border 0`; and
-- the existing docs, APS active, and drift gates run at the base; the inherited DOCDEF progress mismatch remains advisory and unrelated.
+- the existing docs, APS active, index, and drift gates run cleanly at the publication base.
 
 ## Actions
 

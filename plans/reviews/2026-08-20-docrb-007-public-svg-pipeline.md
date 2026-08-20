@@ -9,28 +9,33 @@
 DOCRB-007 started from exact `origin/main`
 `e23a60200093dab330b5d61c92a0ae0fdc2a9d85` in the fresh Worktrunk
 `/home/aneki/Projects/src/anvil-001.docs-docrb-007-public-svg-pipeline` on
-`docs/docrb-007-public-svg-pipeline`. The exact implementation lineage is:
+`docs/docrb-007-public-svg-pipeline`. Before publication, the completed
+series was rebased onto exact `origin/main`
+`8c8825389d41da72f575704eec34b214a60987ad`. The rebased implementation
+lineage is:
 
-- `f5a8d131539beb4dc74dfeeb6241e19dc25703e6` — initial pipeline;
-- `bbed33824e237d32bc37df664cfc960f0b44da44` — committed Council safety
+- `27903654f16a85e783ce6edcfdf97da1c71f6a6d` — initial pipeline;
+- `4b566d0940af7e52eb48dae977ec58e1477a9394` — committed Council safety
   repair, including renderer AST and exclusion governance;
-- `97e3e6db2` — committed evidence head for that renderer-governance repair;
-- `46b72dc2398537ea25033b784de486e079312f6d` — exact
+- `5e36d2f67f1c2857befa273355442087fd21119b` — committed evidence head for
+  that renderer-governance repair;
+- `ace8aa35dd1a1845f2d035bb429b69fe7b7459f1` — exact
   operator-approved contraction candidate;
-- `a6a9d4b22f2d8cdf9443d0cedd166c843b531447` — retained-scope SVG
+- `04f33177bd3fc65ff63e2a2029c9fe84c764849b` — retained-scope SVG
   safety, directory-boundary, and freshness repair; and
-- `632132ff6279826ed30e835f5b290cfe0b349f64` — manifest-root
+- `5c2f5854e79b70e96ac7264ccef34c7d6a6430e8` — manifest-root
   preflight repair.
 
 The first Git-reproducible retained-scope repair range is
-`46b72dc2398537ea25033b784de486e079312f6d..a6a9d4b22f2d8cdf9443d0cedd166c843b531447`.
+`ace8aa35dd1a1845f2d035bb429b69fe7b7459f1..04f33177bd3fc65ff63e2a2029c9fe84c764849b`.
 The final manifest-root repair range is
-`7c07a29194cee60a2b4f1758664e0e25dbdd15fb..632132ff6279826ed30e835f5b290cfe0b349f64`.
+`e591abe0dbf0d47d009ec469336a826c766c3890..5c2f5854e79b70e96ac7264ccef34c7d6a6430e8`.
 
-`bbed33824e237d32bc37df664cfc960f0b44da44` committed the Docusaurus
+`4b566d0940af7e52eb48dae977ec58e1477a9394` committed the Docusaurus
 configuration AST analysis, exact mount-set enforcement, and renderer/root
-exclusion-schema governance; `97e3e6db2` then committed its evidence report.
-Only after `97e3e6db2` did a transient uncommitted repair wave add checker-time
+exclusion-schema governance; `5e36d2f67f1c2857befa273355442087fd21119b`
+then committed its evidence report. Only after that commit did a transient
+uncommitted repair wave add checker-time
 trusted Draw.io re-export and render attestation. The operator explicitly
 approved removal of both scope expansions after the broader-need assessment:
 
@@ -76,7 +81,8 @@ second Docusaurus configuration analyser.
 
 Core LOC is the sum of the checker, exporter, shared library, and focused test
 file. The previously reported 2,081 LOC and 72 tests were observed after
-`97e3e6db2` in the transient uncommitted checker-time re-export wave, layered
+`5e36d2f67f1c2857befa273355442087fd21119b` in the transient uncommitted
+checker-time re-export wave, layered
 on the already committed renderer AST/exclusion governance. No Git object
 captures that snapshot, so those figures are retained only as a
 non-reproducible observation and are not presented as an exact commit
@@ -84,13 +90,13 @@ comparison.
 
 | Git-reproducible snapshot | Core LOC | Focused tests | Meaning |
 | ------------------------- | -------: | ------------: | ------- |
-| `97e3e6db2` | 1,434 | 44 | Committed renderer AST/exclusion head, before the transient re-export wave |
-| `46b72dc2398537ea25033b784de486e079312f6d` | 1,670 | 64 | Exact operator-approved contraction candidate |
-| `a6a9d4b22f2d8cdf9443d0cedd166c843b531447` | 1,688 | 69 | First retained-scope repair head |
-| `632132ff6279826ed30e835f5b290cfe0b349f64` | 1,810 | 71 | Final manifest-root preflight repair head |
+| `5e36d2f67f1c2857befa273355442087fd21119b` | 1,434 | 44 | Committed renderer AST/exclusion head, before the transient re-export wave |
+| `ace8aa35dd1a1845f2d035bb429b69fe7b7459f1` | 1,670 | 64 | Exact operator-approved contraction candidate |
+| `04f33177bd3fc65ff63e2a2029c9fe84c764849b` | 1,688 | 69 | First retained-scope repair head |
+| `5c2f5854e79b70e96ac7264ccef34c7d6a6430e8` | 1,810 | 71 | Final manifest-root preflight repair head |
 
-The exact `46b72dc23..a6a9d4b22` repair adds 18 core lines and five focused
-tests. The exact `7c07a2919..632132ff6` manifest-root repair adds 122 core
+The exact `ace8aa35d..04f33177b` repair adds 18 core lines and five focused
+tests. The exact `e591abe0d..5c2f5854e` manifest-root repair adds 122 core
 lines and two focused tests. Relative to the transient observation, the
 contraction candidate removed 411 core lines and eight tests, but that delta is
 not a Git-reproducible range. The removed AST, render-attestation, and
@@ -143,7 +149,7 @@ pipeline and DOCRB-008 owns production diagram authoring.
 ## Fresh evidence
 
 These results were captured at exact implementation head
-`632132ff6279826ed30e835f5b290cfe0b349f64`:
+`5c2f5854e79b70e96ac7264ccef34c7d6a6430e8` after the publication rebase:
 
 | Gate | Result |
 | ---- | ------ |
@@ -155,10 +161,10 @@ These results were captured at exact implementation head
 | `pnpm --filter @eddacraft/docs-public build` | Exit 0; generated static files |
 | `pnpm format:check` | Exit 0; 1,695 files checked |
 | `pnpm docs:index:check` | Exit 0; 0 errors, 0 warnings, 6 files checked |
-| `pnpm docs:owed --since e23a602000` | Exit 0; 0 owed across 3 checked documents |
+| `pnpm docs:owed --since 8c8825389` | Exit 0; 0 owed across 3 checked documents |
 | `pnpm aps:active-lint` | Exit 0; 140 files checked |
-| `pnpm aps:index:check` | Exit 0; only the inherited DOCDEF `0/6` versus `4/6` advisory |
-| `pnpm aps:drift` | Exit 0; the same inherited DOCDEF advisory |
+| `pnpm aps:index:check` | Exit 0; stored counts match lifecycle truth |
+| `pnpm aps:drift` | Exit 0; 0 findings |
 | `git diff --check` | Exit 0 |
 
 The first restricted `pnpm test:docs-check` attempt reached fixture case D and
@@ -166,9 +172,6 @@ failed when `chmod` met the sibling Worktrunk's read-only sandbox boundary.
 The identical scoped Worktrunk-write rerun passed all cases. Both restricted
 formatter and harness failures are tooling-environment evidence, not product
 failures.
-
-The DOCDEF count warning exists at the base and belongs to
-`plans/modules/docs-definition-layer.aps.md`; DOCRB-007 does not absorb it.
 
 ## Rollback
 
