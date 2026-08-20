@@ -64,8 +64,10 @@ KERN owns `quality-model.md`, BAUTH owns `auth-as-built.md`, and EDDA owns
 `edda-stack.md`. Component internals remain in component-root
 `ARCHITECTURE.md` files and are linked rather than copied.
 
-Independent verification and Council review remain pending. This report is not
-a completion, release, or deployment claim.
+Independent verify-loop and architecture/security Council review both returned
+PASS at exact head `91f6c7feb17c634c1803c72af2033f60a3c9bad5`. When this
+report was first published, hosted PR checks and merge remained pending. This
+report does not itself establish completion, release, deployment, or merge.
 
 ## Per-view source-edge trace
 
