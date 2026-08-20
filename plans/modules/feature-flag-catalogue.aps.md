@@ -15,9 +15,9 @@ represented consistently, feature flags do not reference catalogue features,
 and the count-floor test cannot detect omissions. ADR-076 is now
 operator-accepted with a four-noun contract (product feature, product feature
 group, delivery surface, feature flag). FLAGCAT-010 Merged 2026-08-20 via PR
-#4054; FLAGCAT-011 is Ready for current-product schema and back-capture.
-FLAGCAT-012..015 now sequence the drift gates, flag linkage, generated views,
-and tier mapping.
+#4054; FLAGCAT-011 remains Draft pending an approved physical-schema,
+migration, and rollback design. FLAGCAT-012..015 then sequence the drift gates,
+flag linkage, generated views, and tier mapping.
 
 **Earlier — 2026-06-01** — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -738,7 +738,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-011: Back-capture the current product feature inventory
 
-- **Status:** Ready
+- **Status:** Draft
 - **Intent:** Replace the incomplete CLI-only snapshot with an honest current
   inventory before assigning product tiers.
 - **Expected Outcome:** Before inventory expansion, the schema pins stable
@@ -756,14 +756,18 @@ Status promoted Draft → **Ready** 2026-05-28.
   `packages/anvil/flags-catalogue/src/manifest.ts`,
   `packages/anvil/flags-catalogue/tests/surfaces.test.ts`
 - **Dependencies:** FLAGCAT-010.
-- **Design Source:** ADR-076 (Accepted 2026-08-20); its four-noun authority and
-  FLAGCAT-011 physical-schema ownership are binding.
+- **Design Source:** ADR-076 (Accepted 2026-08-20) pins the four-noun logical
+  authority and assigns the physical schema to FLAGCAT-011, but deliberately
+  does not pre-design that representation.
+- **Readiness Gate:** Pin and approve the physical feature, product-feature-
+  group, and delivery-surface schema; v1 migration and stable-key rules; and
+  rollback procedure before promotion.
 - **Validation:** `pnpm exec nx test flags-catalogue`;
   `pnpm typecheck`; `pnpm format:check`.
 - **Risk:** high — cross-surface product taxonomy with no runtime behaviour
   change.
-- **Confidence:** high — the accepted design boundary, current schema, and
-  executable baseline validation pin the implementation surface.
+- **Confidence:** medium — current files and validation commands are
+  executable, but the physical schema and migration contract remain unapproved.
 
 ### FLAGCAT-012: Gate catalogue completeness against shipping hosts
 
