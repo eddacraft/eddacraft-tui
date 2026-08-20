@@ -1,4 +1,4 @@
-# anvil-api Service — As-Built
+# anvil-api service compatibility record
 
 | Type     | Authority  | Owner | Status     | Freshness                                                                                                                |
 | -------- | ---------- | ----- | ---------- | ------------------------------------------------------------------------------------------------------------------------ |

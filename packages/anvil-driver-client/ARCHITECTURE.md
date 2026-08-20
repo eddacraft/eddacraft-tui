@@ -1,4 +1,4 @@
-# anvil Driver Client Architecture
+# anvil driver client architecture
 
 | Type         | Authority | Owner | Status | Freshness                                                                                        |
 | ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------ |

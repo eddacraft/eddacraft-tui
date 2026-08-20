@@ -1,4 +1,4 @@
-# anvil-intercept — As-Built
+# anvil-intercept compatibility record
 
 | Type     | Authority  | Owner     | Status     | Freshness                                                                                                                        |
 | -------- | ---------- | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |

@@ -29,9 +29,9 @@
 | [Tutorial Subsystem — Compatibility Record](../../docs/architecture/tutorial-as-built.md)        | `docs/architecture/tutorial-as-built.md`            | As-built | Derived    | TUI/LAUNCH | Deprecated |
 | [Widget Catalogue — Compatibility Record](../../docs/architecture/widgets-as-built.md)           | `docs/architecture/widgets-as-built.md`             | As-built | Derived    | TUI        | Deprecated |
 | [anvil MCP Shim — Compatibility Record](../../docs/architecture/mcp-shim-as-built.md)            | `docs/architecture/mcp-shim-as-built.md`            | As-built | Derived    | CLI/MCP    | Deprecated |
-| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md)                          | `docs/architecture/api-as-built.md`                 | As-built | Historical | APGOV      | Deprecated |
-| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md)                      | `docs/architecture/intercept-as-built.md`           | As-built | Historical | INTD, DSV  | Deprecated |
-| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                            | `docs/architecture/kernel-as-built.md`              | As-built | Historical | KERN       | Deprecated |
+| [anvil-api service compatibility record](../../docs/architecture/api-as-built.md)                | `docs/architecture/api-as-built.md`                 | As-built | Historical | APGOV      | Deprecated |
+| [anvil-intercept compatibility record](../../docs/architecture/intercept-as-built.md)            | `docs/architecture/intercept-as-built.md`           | As-built | Historical | INTD, DSV  | Deprecated |
+| [anvil-kernel compatibility record](../../docs/architecture/kernel-as-built.md)                  | `docs/architecture/kernel-as-built.md`              | As-built | Historical | KERN       | Deprecated |
 | [anvil-observability — Historical As-Built](../../docs/architecture/observability-as-built.md)   | `docs/architecture/observability-as-built.md`       | As-built | Historical | OBS        | Deprecated |
 | [anvil-tui — Compatibility Record](../../docs/architecture/tui-as-built.md)                      | `docs/architecture/tui-as-built.md`                 | As-built | Derived    | TUI        | Deprecated |
 

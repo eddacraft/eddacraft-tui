@@ -55,9 +55,9 @@
 
 ## APGOV
 
-| Document                                                                | Path                                | Type     | Authority  | Owner | Status     |
-| ----------------------------------------------------------------------- | ----------------------------------- | -------- | ---------- | ----- | ---------- |
-| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md) | `docs/architecture/api-as-built.md` | As-built | Historical | APGOV | Deprecated |
+| Document                                                                          | Path                                | Type     | Authority  | Owner | Status     |
+| --------------------------------------------------------------------------------- | ----------------------------------- | -------- | ---------- | ----- | ---------- |
+| [anvil-api service compatibility record](../../docs/architecture/api-as-built.md) | `docs/architecture/api-as-built.md` | As-built | Historical | APGOV | Deprecated |
 
 ## API
 
@@ -298,9 +298,9 @@
 
 ## INTD, DSV
 
-| Document                                                                    | Path                                      | Type     | Authority  | Owner     | Status     |
-| --------------------------------------------------------------------------- | ----------------------------------------- | -------- | ---------- | --------- | ---------- |
-| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md) | `docs/architecture/intercept-as-built.md` | As-built | Historical | INTD, DSV | Deprecated |
+| Document                                                                              | Path                                      | Type     | Authority  | Owner     | Status     |
+| ------------------------------------------------------------------------------------- | ----------------------------------------- | -------- | ---------- | --------- | ---------- |
+| [anvil-intercept compatibility record](../../docs/architecture/intercept-as-built.md) | `docs/architecture/intercept-as-built.md` | As-built | Historical | INTD, DSV | Deprecated |
 
 ## KERN
 
@@ -311,7 +311,7 @@
 | [Quality Model](../../docs/architecture/quality-model.md)                                  | `docs/architecture/quality-model.md`                | Guide    | Authoritative | KERN  | Live       |
 | [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md) | `docs/architecture/rust-architecture-overview.md`   | Guide    | Derived       | KERN  | Live       |
 | [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)              | `docs/architecture/rust-kernel-spec.md`             | Spec     | Historical    | KERN  | Deprecated |
-| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                      | `docs/architecture/kernel-as-built.md`              | As-built | Historical    | KERN  | Deprecated |
+| [anvil-kernel compatibility record](../../docs/architecture/kernel-as-built.md)            | `docs/architecture/kernel-as-built.md`              | As-built | Historical    | KERN  | Deprecated |
 
 ## KFIT
 
