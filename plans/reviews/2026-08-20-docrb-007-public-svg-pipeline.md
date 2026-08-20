@@ -24,7 +24,10 @@ lineage is:
 - `04f33177bd3fc65ff63e2a2029c9fe84c764849b` — retained-scope SVG
   safety, directory-boundary, and freshness repair; and
 - `5c2f5854e79b70e96ac7264ccef34c7d6a6430e8` — manifest-root
-  preflight repair.
+  preflight repair; and
+- `aedebcc4e7de479b2b60a351ba89bf2e314a6365` — PR review repair for
+  confined summary counting, upper-case invalid-file accounting, and complete
+  exporter usage.
 
 The first Git-reproducible retained-scope repair range is
 `ace8aa35dd1a1845f2d035bb429b69fe7b7459f1..04f33177bd3fc65ff63e2a2029c9fe84c764849b`.
@@ -94,6 +97,7 @@ comparison.
 | `ace8aa35dd1a1845f2d035bb429b69fe7b7459f1` | 1,670 | 64 | Exact operator-approved contraction candidate |
 | `04f33177bd3fc65ff63e2a2029c9fe84c764849b` | 1,688 | 69 | First retained-scope repair head |
 | `5c2f5854e79b70e96ac7264ccef34c7d6a6430e8` | 1,810 | 71 | Final manifest-root preflight repair head |
+| `aedebcc4e7de479b2b60a351ba89bf2e314a6365` | 1,858 | 74 | PR review repair head |
 
 The exact `ace8aa35d..04f33177b` repair adds 18 core lines and five focused
 tests. The exact `e591abe0d..5c2f5854e` manifest-root repair adds 122 core
@@ -101,6 +105,9 @@ lines and two focused tests. Relative to the transient observation, the
 contraction candidate removed 411 core lines and eight tests, but that delta is
 not a Git-reproducible range. The removed AST, render-attestation, and
 exclusion-schema tests remain absent.
+
+The PR review repair adds 48 core lines and three focused tests without
+reintroducing either removed subsystem.
 
 ## Pipeline contract
 
@@ -144,16 +151,19 @@ pipeline and DOCRB-008 owns production diagram authoring.
 | Generic SVG attribute URLs | Provenance-correct `shape-inside`, `shape-subtract`, and arbitrary-attribute external URLs produced no `unsafe-svg`; `ping` was accepted | Every attribute containing `url(...)` is fragment-only and `ping` is rejected outright |
 | Family reference symlink boundary | An unrelated family symlink produced `symlink-path` | Markdown/MDX discovery skips it without reporting or traversal; explicit diagram-root links still fail closed |
 | Manifest-root preflight | An absolute family root produced no contract finding, and a parent-traversing diagram root reached its symlink tripwire | Both emit `invalid-contract` before content traversal; the tripwire produces no `symlink-path` |
-| Retained safety | Existing adversarial cases stayed green during all repairs | The full focused suite passes 71/71 |
+| Summary confinement | The checker summary traversed an invalid parent-relative diagram root after validation rejected it | Summary counting reuses validated manifest roots and reports zero checked files for the invalid root |
+| Summary invalid-extension accounting | An upper-case governed `.SVG` produced a finding but was omitted from `filesChecked` | The failing file is included in the summary count |
+| Exporter usage | The supported `--root <path>` option was absent from the usage error | Usage lists both `--root` and `--drawio-bin` |
+| Retained safety | Existing adversarial cases stayed green during all repairs | The full focused suite passes 74/74 |
 
 ## Fresh evidence
 
 These results were captured at exact implementation head
-`5c2f5854e79b70e96ac7264ccef34c7d6a6430e8` after the publication rebase:
+`aedebcc4e7de479b2b60a351ba89bf2e314a6365` after the publication rebase:
 
 | Gate | Result |
 | ---- | ------ |
-| `node --test scripts/docs/check-public-diagrams.test.mjs` | Exit 0; 71/71 tests passed |
+| `node --test scripts/docs/check-public-diagrams.test.mjs` | Exit 0; 74/74 tests passed |
 | `pnpm docs:public:diagrams` | Exit 0; 0 errors, 0 warnings, 0 production files |
 | `pnpm test:docs-check` | Exit 0; focused suite and all shell-harness cases through `AK` passed |
 | `pnpm docs:check` | Exit 0; 12/12 surfaces passed |
