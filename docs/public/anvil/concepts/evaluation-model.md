@@ -147,11 +147,12 @@ Error-severity findings still fail the gate on their own merit.
 
 ## When anvil runs (pre-write, save-time, daemon, witness)
 
-| Moment                   | What it is                             | Typical path                                                                           |
-| ------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------- |
-| **Pre-write validation** | Evaluates a write **before** it lands. | Local daemon / intercept, and MCP `anvil_validate_write` / `anvil_apply_patch`.        |
-| **Save-time validation** | Evaluates after a save.                | `anvil watch` and optional Git hooks. A fallback, not the same guarantee as pre-write. |
-| **On demand**            | You run a command.                     | `anvil check` (planless pair) or `anvil gate` (merge judgement).                       |
+| Moment                   | What it is                             | Typical path                                                                    |
+| ------------------------ | -------------------------------------- | ------------------------------------------------------------------------------- |
+| **Pre-write validation** | Evaluates a write **before** it lands. | Local daemon / intercept, and MCP `anvil_validate_write` / `anvil_apply_patch`. |
+| **Save-time validation** | Evaluates after a save.                | `anvil watch`. A fallback, not the same guarantee as pre-write.                 |
+| **Git hooks**            | Optional, before commit or push.       | Installed Git hooks.                                                            |
+| **On demand**            | You run a command.                     | `anvil check` (planless pair) or `anvil gate` (merge judgement).                |
 
 The **daemon** is the local process that keeps protection on (`anvil start`,
 bare `anvil` daily ensure, intercept). **Protection state** is whether that
