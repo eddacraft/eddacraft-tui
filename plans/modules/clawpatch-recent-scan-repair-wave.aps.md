@@ -10,6 +10,8 @@
 **Last reviewed:** 2026-08-20 — validated against Clawpatch run
 `20260819T164749-cb786b` and current `origin/main`.
 
+**Pull request:** [#4049](https://github.com/eddacraft/anvil-001/pull/4049) — open against `main`; pending integration.
+
 ## Purpose
 
 Close the actionable product, contract-gate, and test-harness findings from the
