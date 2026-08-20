@@ -2,7 +2,7 @@
 
 | Type   | Authority | Owner | Status | Freshness |
 | ------ | --------- | ----- | ------ | --------- |
-| Review | Advisory  | DOCRB | Open   | Implementation evidence assembled 2026-08-20 from exact base `f0f834b39` and migration content commit `b9c3e5898`; exact-head independent verification and Council pending |
+| Review | Advisory  | DOCRB | Open   | Evidence assembled 2026-08-20 from exact base `f0f834b39`; independent verifier PASS and Council results recorded at reviewed head `8859cd72c`; targeted closure and hosted checks pending |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -13,9 +13,10 @@
 DOCRB-005 started from exact `origin/main`
 `f0f834b39bbdbc3ff9c8c198ec6098f3afc33389` in the isolated Worktrunk
 `docs/docrb-005-component-truth-migration`. The immutable migration-content
-commit is `b9c3e5898f6fc89426b9d036200c0195ed71e4f0`. A later evidence-only
-commit records docs-owed repairs, this report, and exact-head review results
-without changing product behaviour.
+commit is `b9c3e5898f6fc89426b9d036200c0195ed71e4f0`. The reviewed evidence
+head is `8859cd72cc3b503b144c242a484a0f167e0c49dc`; later evidence-only
+commits record docs-owed repairs, this report, and review closure without
+changing product behaviour.
 
 The final bounded feature scope is 46 exact paths:
 
@@ -211,15 +212,23 @@ Before the evidence-only closeout, fresh repository gates reported:
 After the migration commit, `pnpm docs:owed --since f0f834b39` reported two
 gating file-level edges and four directory-granularity advisories. The two
 gating edges are the bounded link repairs described above; the four advisories
-do not justify unrelated freshness churn. The final exact-head gate run and
-docs-owed result are appended before review publication.
+do not justify unrelated freshness churn. At reviewed head `8859cd72c`, the
+final gate run passed `format:check`, `docs:index:check`, all 12 `docs:check`
+surfaces, `aps:active-lint`, `aps:index:check`, `aps:drift` with zero findings,
+and `git diff --check`. The final diff-pinned `docs:owed` result was zero gating
+findings plus the same four directory-granularity advisories.
 
 ## Independent review
 
-Independent verify-loop and exact-head Council results are pending. Only
-binding in-scope findings will alter this change. Requests for public content,
-new checker automation, unrelated component rollout, or DOCRB-008/-009 work are
-scope expansion and will not be applied.
+Independent verification passed at reviewed head `8859cd72c`: all 12 literal
+replacement commands exited `0`, the diff stayed at 46 paths, C-001 through
+C-004 were closed, and all fresh gates above passed. The Council general axis
+found no issues. Its adversarial axis confirmed C-001, C-002, and C-004 closed,
+and kept only C-003 open because the module summary still described DOCRB-005 as
+Draft; this closeout corrects that stale lifecycle prose without changing the
+item, count, or scope. Targeted exact-head closure and hosted checks follow this
+evidence-only correction. Requests for public content, new checker automation,
+unrelated component rollout, or DOCRB-008/-009 work remain scope expansion.
 
 ## Docs Closeout
 
@@ -231,5 +240,5 @@ scope expansion and will not be applied.
   generation and the full repository link surface are green.
 - **Public diagram impact:** unaffected; no public content or diagram asset
   changed.
-- **Remaining risk:** exact-head independent verification, Council, and hosted
-  checks are pending.
+- **Remaining risk:** targeted exact-head closure of the evidence-only lifecycle
+  correction and hosted checks are pending.

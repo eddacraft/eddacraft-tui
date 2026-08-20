@@ -108,10 +108,9 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-006, DOCRB-007, and
-DOCRB-011 are Merged. DOCRB-005 and DOCRB-008 now have all dependencies
-Merged, but both stay Draft until their expected evidence is present. DOCRB-005
-is the next dependency-ordered readiness candidate because it continues the
-component migration and is required by DOCRB-009.
+DOCRB-011 are Merged. DOCRB-005 is In Progress against its accepted action plan
+and continues the component migration required by DOCRB-009. DOCRB-008 has all
+dependencies Merged but remains Draft and is not promoted by this work.
 
 ## Success Criteria
 
