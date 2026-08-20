@@ -252,13 +252,20 @@ function checkNavigation() {
 function checkLiveAnvilNavigation() {
   const livePath = ANVIL_LIVE_SIDEBAR_PATH;
   const publicPath = normalise(relative(REPO_ROOT, livePath));
-  // Fixtures may not ship the live app. It is required in this repository;
-  // skip the live-nav contract when that app is absent.
-  if (!existsSync(resolve(REPO_ROOT, 'apps/anvil-docs-private'))) return;
   if (!existsSync(livePath)) {
     add(publicPath, 1, 'live anvil sidebar is missing');
     return;
   }
+
+  // Skip the live-nav contract when this is not the real corpus. The check
+  // asserts that named definition pages stay on nav; against a fixture that
+  // ships two pages it would demand 21 ids that were never meant to exist.
+  // Presence of the required documents is the honest signal — this previously
+  // keyed off `apps/anvil-docs-private` existing, which stopped discriminating
+  // once fixtures began writing the live sidebar there (the rollback host that
+  // used to hold the fixture sidebar was deleted).
+  const publishedForGuard = publishedAnvilDocumentIds();
+  if (!LIVE_REQUIRED_ANVIL_IDS.some((id) => publishedForGuard.has(id))) return;
 
   let liveIds;
   try {

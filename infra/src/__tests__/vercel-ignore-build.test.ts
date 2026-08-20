@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, globSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -237,11 +237,18 @@ describe('Vercel project configs', () => {
     expect(config.ignoreCommand).toContain(commandFragment);
   });
 
-  it('apps/docs-site/vercel.json always skips builds for the retired project', () => {
-    const config = JSON.parse(
-      readFileSync(join(repoRoot, 'apps/docs-site/vercel.json'), 'utf8')
-    ) as { ignoreCommand?: string };
-
-    expect(config.ignoreCommand).toContain('--always-skip');
+  // The `--always-skip` case this suite used to cover was
+  // apps/docs-site/vercel.json. That host was retired 2026-07-08 and deleted;
+  // no project uses --always-skip now, so there is nothing left to assert.
+  // Reinstate a case here if another project is ever retired that way.
+  it('no Vercel project is configured with --always-skip', () => {
+    const configs = globSync('apps/*/vercel.json', { cwd: repoRoot });
+    expect(configs.length).toBeGreaterThan(0);
+    for (const configPath of configs) {
+      const config = JSON.parse(readFileSync(join(repoRoot, configPath), 'utf8')) as {
+        ignoreCommand?: string;
+      };
+      expect(config.ignoreCommand ?? '').not.toContain('--always-skip');
+    }
   });
 });
