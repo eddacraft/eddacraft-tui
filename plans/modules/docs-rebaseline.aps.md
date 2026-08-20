@@ -338,6 +338,13 @@ items stay Draft until their dependencies and expected evidence are present.
   boundaries. The final review records per-view source-edge traces, temporary
   pinned Mermaid 11.16.0 render outputs, link resolution, duplicate-authority
   checks, Draw.io retirement references, exact range, and repository gates.
+  For publication, the six implementation patches rebased range-diff-equivalent
+  from original base `d9b30b23daef0da05f74a7d44dfa3accd0e03fe7` onto
+  `8bf8622e755324452304bd9226830bdf507fcac3`; the rebased implementation
+  head before evidence reconciliation is
+  `ce83aa1fcdfbe64ebcb1fb04783757110e46a49b`. All ten upstream
+  config-catalogue paths remain blob-identical, and the DOCRB range remains 24
+  changed paths.
 - **Scope:** The five required DOCRB-006 views; retained supporting central
   authorities; diagram disposition and discovery; context/checklist navigation;
   governance and directly owed downstream freshness review; the save-time
@@ -350,7 +357,7 @@ items stay Draft until their dependencies and expected evidence are present.
 - **Dependencies:** DOCRB-001, DOCRB-002
 - **Confidence:** high
 - **Validation:** manual pinned Mermaid 11.16.0 render/source-edge/link trace,
-  then `pnpm format:check && pnpm docs:index && pnpm docs:index:check && pnpm docs:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json && git diff --check`; independent verify-loop and Council
+  then `pnpm format:check && pnpm docs:index && pnpm docs:index:check && pnpm docs:check && pnpm docs:owed --since 8bf8622e7 && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json && git diff --check`; independent verify-loop and Council
 
 ### DOCRB-007: Establish the Draw.io-to-accessible-SVG public asset pipeline
 

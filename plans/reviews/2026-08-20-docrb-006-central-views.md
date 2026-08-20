@@ -6,21 +6,39 @@
 
 ## Scope and source revision
 
-This report records the implementation evidence for DOCRB-006. The exact
-comparison base is
-`d9b30b23daef0da05f74a7d44dfa3accd0e03fe7`. Initial source reconciliation
-used that revision. Council repair reconciliation used exact head
-`97899b00a92a9a29040a854fdfb42e6f2bf03ecf`; targeted
-`git diff d9b30b23d..97899b00a -- crates apps infra tools docs/public`
-remained empty. There was therefore no product, deployment, tooling, or
-public-content source drift between the pinned base, the Council-reviewed head,
-and the live-source reads used for the repaired views.
+This report records the implementation evidence for DOCRB-006. The original
+implementation base was
+`d9b30b23daef0da05f74a7d44dfa3accd0e03fe7`; the exact publication comparison
+base is `8bf8622e755324452304bd9226830bdf507fcac3`. The rebased
+implementation head before this evidence-only reconciliation is
+`ce83aa1fcdfbe64ebcb1fb04783757110e46a49b`.
 
-The branch changes documentation, planning, four generated documentation
-indexes, a freshness-only `docs/README.md` downstream reconciliation, and the
-retirement of exactly two live Draw.io sources. It changes no product source,
-package manifest, lockfile, repository script, Mermaid automation, CI
-enforcement, public asset, deployment, or release claim.
+The six documentation patches rebased without conflicts and `git range-diff`
+reported every patch unchanged:
+
+| Original commit | Rebased commit |
+| --------------- | -------------- |
+| `97899b00a92a9a29040a854fdfb42e6f2bf03ecf` | `624f98eea5bb58d98d14152e18c9044dea92cd25` |
+| `b217b4c6f2b3a77cb937db3a7ea850a14c55decf` | `cf6e8731c489c1a489bfb1d3278bf9474d6a76a0` |
+| `6ce2c7abca5194fe61d4cd9e9d9fb4fbcdf9aa21` | `bd11220c8ca2e6f7559ae0515ed7672e7f9add52` |
+| `086a537ef4cdc5ae746afb722ffd62b07d0869f2` | `b5237e3733249448c3124800b432e05e240af3ac` |
+| `16e778cd928ed4c46059503b073edd0fdddab861` | `d0dee691e08907f249e8d86b2603f7ce671dda48` |
+| `dc245ddc442b1a3a5a2f2f83853fa3d4f51639ca` | `ce83aa1fcdfbe64ebcb1fb04783757110e46a49b` |
+
+The new base adds one source-cited config-catalogue commit across ten upstream
+paths. Those ten paths are blob-identical between `8bf8622e7` and the rebased
+implementation head, and none overlaps the 24 DOCRB-006 changed paths. The
+catalogue, its public navigation, docs-check extension, fixtures, formatting
+configuration, and DOCDEF bookkeeping are therefore preserved. They do not
+alter the trust, save-validation, deployment, or docs-delivery source facts
+traced below; the final gates run with the upstream tooling in place.
+
+The branch changes exactly 24 documentation and planning paths: four generated
+documentation indexes, a freshness-only `docs/README.md` downstream
+reconciliation, the retirement of exactly two live Draw.io sources, and the
+owned source documents. It changes no product source, package manifest,
+lockfile, repository script, Mermaid automation, CI enforcement, public asset,
+deployment, or release claim.
 
 Anvil's developer-function gate could not authorise the sibling worktree root
 directly because the MCP server trusts the primary checkout root. Every
@@ -65,18 +83,13 @@ remain supporting central authorities outside the five required DOCRB-006 views.
 
 ## Mermaid render evidence
 
-After final formatting, all eight exact Mermaid blocks were extracted directly
-from their Markdown owners and rendered manually with
-`@mermaid-js/mermaid-cli@11.16.0`. All inputs and outputs remained under
-`/tmp/docrb006-render.nSx6et`. The successful run used that directory's
+After the publication rebase and final formatting, all eight exact Mermaid
+blocks were extracted directly from their Markdown owners and rendered manually
+with `@mermaid-js/mermaid-cli@11.16.0`. All inputs and outputs remained under
+`/tmp/docrb006-rebase-render.uHquM4`. The successful run used that directory's
 temporary `puppeteer.json`, containing only `--no-sandbox` and
 `--disable-setuid-sandbox`. No renderer dependency, configuration, output,
 script, or generated asset entered the repository.
-
-After the final initial-snapshot wording repair and formatting, that exact
-changed block was extracted again and rendered with the same pinned CLI and
-sandbox arguments under `/tmp/docrb006-initial-fix.5ipM5n`. The other seven
-blocks were unchanged.
 
 | Mermaid owner/block | Final SVG bytes |
 | ------------------- | --------------: |
@@ -89,11 +102,9 @@ blocks were unchanged.
 | `docs/architecture/auth-as-built.md` | 17,189 |
 | `docs/architecture/edda-stack.md` | 12,548 |
 
-Every final output was non-empty. An earlier repair exposed sequence-label
-tokenisation; the final corrected block rendered successfully with the literal
-`check --all` edge and the post-initial condition. The changed save block's
-byte size is from that final wording render; the other seven recorded sizes
-remain from their unchanged post-format blocks, including both overview
+Every final output was non-empty. The save block rendered successfully with the
+literal `check --all` edge and the post-initial condition. All eight recorded
+byte sizes are from the exact post-rebase blocks, including both overview
 outputs.
 
 ## Links, duplication, and retirement evidence
@@ -177,20 +188,20 @@ owed document. The newly committed governance-guide review had made its direct
 `docs/README.md` downstream stale. A manually reviewed, freshness-only
 downstream follow-up then cleared that finding.
 
-The final post-repair, report-inclusive rerun produced:
+The final publication-rebase, report-inclusive rerun produced:
 
 | Gate | Exit/result |
 | ---- | ----------- |
-| `pnpm format:check` | 0; all 1,684 matched files formatted |
+| `pnpm format:check` | 0; all 1,685 matched files formatted |
 | `pnpm docs:index` | 0; six generated indexes refreshed with no owned-field drift |
 | `pnpm docs:index:check` | 0; 0 errors, 0 warnings, 6 files checked |
 | `pnpm docs:check` | 0; 11/11 surfaces passed, 0 failed |
-| `pnpm docs:owed --since d9b30b23d` | 0; exact range reported 0 owed, 0 gating, 0 advisory, 0 review, 0 baselined |
+| `pnpm docs:owed --since 8bf8622e7` | 0; publication range reported 0 owed, 0 gating, 0 advisory, 0 review, 0 baselined |
 | `pnpm aps:active-lint` | 0; 139 files checked, all clean |
-| `pnpm aps:index:check` | 0; inherited DOCDEF stored `0/6` versus computed `1/6` advisory only |
-| `pnpm aps:drift --json` | 0; advisory `findingCount: 1`, the same inherited DOCDEF `aps-progress-mismatch` |
+| `pnpm aps:index:check` | 0; inherited DOCDEF stored `0/6` versus computed `2/6` advisory only |
+| `pnpm aps:drift --json` | 0; advisory `findingCount: 1`, the same inherited DOCDEF `0/6` versus `2/6` `aps-progress-mismatch` |
 | `git diff --check` | 0; no whitespace errors |
-| Focused scope/link/duplicate/retirement assertions | 0; all Council and final repair claims and the authorised owned/downstream path constraints passed |
+| Focused scope/link/duplicate/retirement/provenance assertions | 0; all Council and final repair claims, 24-path scope, six-commit mapping, and ten-path upstream preservation checks passed |
 
 Before the successful final set, the restricted linked-worktree
 `pnpm docs:index` attempt exited 1 with `EROFS`; after the six generated

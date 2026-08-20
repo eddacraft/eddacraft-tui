@@ -3,7 +3,14 @@
 **Work item:** DOCRB-006
 **Status:** In Progress
 **Risk:** high — the diagrams describe trust, deployment, validation, and failure boundaries
-**Base:** `d9b30b23daef0da05f74a7d44dfa3accd0e03fe7`
+**Base:** `8bf8622e755324452304bd9226830bdf507fcac3`
+**Original base:** `d9b30b23daef0da05f74a7d44dfa3accd0e03fe7`
+**Rebased implementation head:** `ce83aa1fcdfbe64ebcb1fb04783757110e46a49b`
+**Changed paths:** 24
+
+The six implementation patches are range-diff equivalent after the publication
+rebase. The new base's ten config-catalogue paths remain blob-identical at the
+rebased implementation head and do not overlap this file map.
 
 ## Goal
 
@@ -115,6 +122,7 @@ pnpm format:check
 pnpm docs:index
 pnpm docs:index:check
 pnpm docs:check
+pnpm docs:owed --since 8bf8622e7
 pnpm aps:active-lint
 pnpm aps:index:check
 pnpm aps:drift --json
