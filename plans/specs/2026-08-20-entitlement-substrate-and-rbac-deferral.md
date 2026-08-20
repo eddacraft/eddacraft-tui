@@ -35,23 +35,33 @@ introduced that would multiply the blast radius of getting it wrong.
 
 ## Facts established
 
-- **The private-docs gate does not discriminate.** `apps/docs-shell/lib/jwt.ts`
-  accepts `tier ∈ {beta, pro, enterprise}`. Post-BACT-013 `signLicence` writes
-  `tier: claims.plan`, and `plan` is `beta` for every account — the only value
-  `beta_users.plan`'s CHECK admits. Every validly-signed licence passes.
-  SEC-009 is recorded Done for this gate; it shipped the mechanism, not the
-  discrimination.
-- **Two verifiers disagree.** `apps/docs-site/middleware.ts` resolves through
-  the catalogue (`canonicalAccountTier` maps `beta` → `plan-beta`) and fails
-  **closed** on a missing claim. `apps/docs-shell` hardcodes its own `Set` and
-  inherits the API's permissive default. Same product decision, two
-  implementations, opposite failure directions.
+- **The private-docs gate does not discriminate between real accounts.**
+  `apps/docs-shell/lib/jwt.ts` accepts `tier ∈ {beta, pro, enterprise}`.
+  Post-BACT-013 `signLicence` writes `tier: claims.plan`, and `plan` is `beta`
+  for every account — the only value `beta_users.plan`'s CHECK admits. Every
+  validly-signed licence from a real account therefore passes. SEC-009 is
+  recorded Done for this gate; it shipped the mechanism, and the mechanism has
+  nothing to discriminate on while one plan exists. **Corrected 2026-08-20**
+  after review: an earlier draft said the gate "does not discriminate" full
+  stop and that docs-shell "inherits the API's permissive default". Neither is
+  right. `docs.access` targets `plan-beta/pro/enterprise` with
+  `defaultVariant: disabled`, and docs-shell fails **closed** on a missing
+  `tier` with its own local set — it never consults the API's default. The
+  defect is narrower: the *claim feeding* the gates was fabricated.
+- **Two verifiers, two implementations.** `apps/docs-site` resolves through the
+  catalogue — `lib/feature-flags.ts`'s `evaluateDocsAccess` calls
+  `canonicalAccountTier(tier)` to map `beta` → `plan-beta` before resolving the
+  flag, while `middleware.ts` only reads `payload.tier` and passes it in.
+  `apps/docs-shell` hardcodes an equivalent `Set` instead of importing the
+  catalogue. Both fail closed on an absent claim; they differ in whether the
+  entitled-plan list can drift from `flags/manifest.json`.
 - **Stale licences assert a plan no account holds.** Pre-BACT-013 licences carry
   `tier: 'pro'` and no `plan` (`apps/anvil-api/src/lib/session.ts:85,165` at
   `f94ba7fe5^`). `verifyLicence` resolves `plan = rawPlan ?? rawTier ?? 'beta'`,
   so those tokens read as `plan = 'pro'` → `plan-pro` → `docs.access` enabled.
   `/auth/verify` is unaffected (BACT-013 prefers the DB plan), but the two edge
-  verifiers do no DB round trip and believe the claim.
+  verifiers do no DB round trip and believe the claim. This — not a missing
+  gate — is the actual over-entitlement.
 - **The window is 90 days, not 7.** `LICENCE_TTL_DAYS = 90`; the 7 is
   `RC_AFTER_DAYS`, a recommended-refresh hint, not an expiry. Pre-BACT-013
   licences therefore live until roughly **2026-11-11**. SEC-007's original
