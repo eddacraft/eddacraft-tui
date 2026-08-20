@@ -252,20 +252,28 @@ function checkNavigation() {
 function checkLiveAnvilNavigation() {
   const livePath = ANVIL_LIVE_SIDEBAR_PATH;
   const publicPath = normalise(relative(REPO_ROOT, livePath));
+
+  // Applicability first, existence second. This contract asserts that named
+  // anvil definition pages stay on nav, so it only means anything against a
+  // corpus that actually ships those pages. A fixture exercising the APS
+  // surface has no `docs/public/anvil` at all, and one exercising a two-page
+  // anvil corpus has none of the 21 required ids — in both cases there is no
+  // contract to enforce and no sidebar to demand.
+  //
+  // This previously keyed off `apps/anvil-docs-private` existing. That stopped
+  // discriminating once fixtures began writing the live sidebar there, which
+  // they must now that the rollback host holding the fixture sidebar is gone.
+  // Checking for the required documents is the honest signal; checking the
+  // sidebar first would report "live anvil sidebar is missing" for a corpus
+  // that was never supposed to have one.
+  if (!existsSync(ANVIL_ROOT)) return;
+  const publishedForGuard = publishedAnvilDocumentIds();
+  if (!LIVE_REQUIRED_ANVIL_IDS.some((id) => publishedForGuard.has(id))) return;
+
   if (!existsSync(livePath)) {
     add(publicPath, 1, 'live anvil sidebar is missing');
     return;
   }
-
-  // Skip the live-nav contract when this is not the real corpus. The check
-  // asserts that named definition pages stay on nav; against a fixture that
-  // ships two pages it would demand 21 ids that were never meant to exist.
-  // Presence of the required documents is the honest signal — this previously
-  // keyed off `apps/anvil-docs-private` existing, which stopped discriminating
-  // once fixtures began writing the live sidebar there (the rollback host that
-  // used to hold the fixture sidebar was deleted).
-  const publishedForGuard = publishedAnvilDocumentIds();
-  if (!LIVE_REQUIRED_ANVIL_IDS.some((id) => publishedForGuard.has(id))) return;
 
   let liveIds;
   try {
