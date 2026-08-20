@@ -1,7 +1,15 @@
 {
   "schemaVersion": 1,
   "drawioDesktopVersion": "31.1.8",
+  "drawioDesktopVersionOutput": "31.1.8",
   "exportArgs": ["--export", "--format", "svg", "--embed-diagram", "--crop", "--border", "0"],
+  "productionRenderers": [
+    "apps/anvil-docs-private/docusaurus.config.ts",
+    "apps/docs-public/docusaurus.config.ts"
+  ],
+  "excludedRoots": ["docs/public/start-here"],
+  "excludedRenderers": ["apps/docs-site/docusaurus.config.ts"],
+  "rasterExceptions": [],
   "families": [
     {
       "name": "anvil",

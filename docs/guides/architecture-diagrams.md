@@ -48,12 +48,15 @@ Each governed public (or public-facing central) diagram commits:
 
 1. the editable `.drawio` source;
 2. a deterministic `.svg` export with the matching base name;
-3. alt text or an adjacent textual explanation of the same meaning;
+3. meaningful alt text or an explicitly associated adjacent textual explanation
+   of the same meaning;
 4. ownership and upstream metadata through the containing document.
 
-SVG is the default export. Raster export is an explicit exception. Do not commit
-a PNG in place of the SVG pair. The DOCRB-007 checker enforces source-export
-parity for mounted public families.
+SVG is the default export. A raster is governed only when it shares a stem with
+a Draw.io/SVG asset or lives below a `diagrams/` directory; ordinary product
+screenshots remain outside this diagram contract. A raster-only diagram needs an
+exact-path entry in `rasterExceptions` with the consumer limitation and an
+`ADR-123` review. Do not silently commit a PNG in place of the SVG pair.
 
 **One diagram per concern.** A second audience gets a linked or deliberately
 simplified view, not a copied diagram that can drift.
@@ -94,26 +97,50 @@ enforcement are outside this pipeline.
 1. Install
    [Draw.io Desktop 31.1.8](https://github.com/jgraph/drawio-desktop/releases/tag/v31.1.8).
    The version is pinned because Desktop export changes can alter committed SVG
-   bytes.
+   bytes. The wrapper accepts only the exact stdout `31.1.8` with no stderr,
+   prefix, suffix, or second version. Selecting the executable remains an
+   operator-trusted boundary: `--drawio-bin` must name an authentic local
+   Draw.io Desktop binary.
 2. Create or edit a single-page, lower-kebab `.drawio` source below a governed
-   root. On the `<mxfile>` element, set non-empty `anvil-title` and
-   `anvil-description` attributes; these become the SVG accessible name and
-   description.
+   root. The source, every ancestor below the repository root, and any existing
+   output must be regular non-symlink paths. On the `<mxfile>` element, set
+   non-empty `anvil-title` and `anvil-description` attributes; these become the
+   SVG accessible name and description.
 3. Export with
    `pnpm docs:public:diagrams:export -- docs/public/<family>/<path>.drawio`. The
    wrapper verifies Desktop 31.1.8 and invokes
    `--export --format svg --embed-diagram --crop --border 0`. It writes the
    same-name sibling `.svg`, adds `role="img"`, `<title>`, and `<desc>`, and
-   records the source hash, export hash, version, and flags. Do not hand-edit
-   the SVG.
+   verifies that the canonical embedded Draw.io XML equals the sibling source,
+   records raw-source and canonical-embedded hashes, the final export hash,
+   exact observed version output, version, and flags, then creates the
+   destination through a same-directory exclusive temporary file and atomic
+   rename. Do not hand-edit the SVG.
 4. Reference the SVG from Markdown in the same family using meaningful,
-   non-empty alt text, or use intentionally empty alt text when adjacent prose
-   states the equivalent material meaning.
+   non-empty alt text. For intentionally empty alt text, bind the adjacent
+   explanation explicitly:
+
+   ```markdown
+   <!-- diagram-description: system-context.svg -->
+
+   The diagram shows ...
+
+   ![](system-context.svg)
+   ```
+
+   Arbitrary nearby prose, code-fence examples, comments, and one-word alt text
+   do not satisfy the reference contract.
+
 5. Run `pnpm docs:public:diagrams`. It rejects unpaired or non-lower-kebab
-   assets, raster exports, stale or missing provenance, missing embedded source,
-   active content or external references, inaccessible SVG, renderer mount
-   drift, and unreferenced exports. `pnpm docs:check` runs the same validator as
-   its `public-diagrams` surface.
+   assets, governed raster candidates without a reviewed exception, stale or
+   missing provenance, embedded-source mismatch, symlink traversal, inaccessible
+   SVG, and unreferenced exports. Namespace-aware XML DOM inspection fails
+   closed on declarations, processing instructions, custom entities, active or
+   namespaced elements/attributes, external/non-fragment references, and CSS
+   imports or external URLs after entity, percent, and CSS-escape decoding.
+   Production mount discovery parses both renderer configs structurally, ignores
+   comments, and requires exact renderer/root equality with the manifest.
+   `pnpm docs:check` runs the same validator as its `public-diagrams` surface.
 
 ## Review checklist
 

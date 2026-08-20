@@ -2,7 +2,7 @@
 
 **Work item:** DOCRB-007
 **Status:** In Progress
-**Risk:** standard — documentation tooling and a new mandatory `docs:check` surface
+**Risk:** high — mandatory documentation tooling processes attacker-controlled XML/SVG and filesystem paths
 **Base:** `e23a60200093dab330b5d61c92a0ae0fdc2a9d85`
 
 ## ReadyItem
@@ -10,11 +10,11 @@
 - **Goal:** Establish a reproducible, source-controlled Draw.io Desktop to accessible SVG pipeline for mounted public documentation families.
 - **Work item:** DOCRB-007
 - **Status:** Ready
-- **Expected behaviour:** Mounted public family roots accept only lower-kebab paired `.drawio`/`.svg` assets; the pinned exporter embeds source and deterministic provenance; checks reject stale, unsafe, inaccessible, unmounted, unreferenced, or raster-only diagram assets; both production Docusaurus renderers build.
+- **Expected behaviour:** Mounted public family roots accept only lower-kebab paired `.drawio`/`.svg` assets; the pinned exporter embeds canonically matching source, writes atomically without following symlinks, and records deterministic provenance; namespace-aware checks reject stale, active, inaccessible, mount-drifted, weakly referenced, or unreviewed raster diagram assets; both production Docusaurus renderers build.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`, `plans/execution/DOCRB-007.actions.md`, `plans/reviews/2026-08-20-docrb-007-public-svg-pipeline.md`, `package.json`, `scripts/docs/docs-check.mjs`, `scripts/docs/docs-check.test.sh`, `scripts/docs/check-public-diagrams.mjs`, `scripts/docs/export-public-diagram.mjs`, `scripts/docs/lib/public-diagrams.mjs`, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.test.mjs`, `scripts/docs/fixtures/public-diagrams/**`, `docs/guides/architecture-diagrams.md`, and generated documentation indexes if freshness metadata changes require them.
 - **Validation commands:** `node --test scripts/docs/check-public-diagrams.test.mjs`; `pnpm test:docs-check`; `pnpm docs:check`; `pnpm --filter @eddacraft/anvil-docs-private build`; `pnpm --filter @eddacraft/docs-public build`; `pnpm format:check`; `pnpm docs:index`; `pnpm docs:index:check`; `pnpm docs:owed --since e23a602000`; `pnpm aps:active-lint`; `pnpm aps:index:check`; `pnpm aps:drift --json`; `git diff --check`.
 - **Dependencies:** DOCRB-001 and DOCRB-002 are Merged.
-- **Risk:** standard.
+- **Risk:** high.
 - **Design source:** ADR-123 and `plans/specs/2026-08-16-docs-rebaseline.md`.
 - **Constraints / non-goals:** No production diagram authoring; no `docs/public/start-here` activation; no legacy `docs/architecture/**.drawio` handling; no DOCRB-009 component-Mermaid or affected-change enforcement.
 - **PR base:** integration (`main`).
@@ -82,6 +82,26 @@ changed paths in the review report.
 
 **Checkpoint:** the report-inclusive commit candidate passes every ReadyItem
 command and retains no production diagram asset.
+
+## Council FIX ALL repair
+
+The exact-head Council review at `e1eebcaa8` raised the implementation risk.
+The repair keeps the original file and publication boundary while adding these
+binding behaviours:
+
+1. fail-closed SVG/XML token, namespace, entity, CSS, and reference inspection;
+2. canonical embedded-source equality and stronger provenance;
+3. canonical non-symlink family confinement plus atomic destination replacement;
+4. structural exact-set mount extraction from both production renderer ASTs;
+5. Markdown AST references with meaningful alt text or an auditable
+   target-bound description marker;
+6. candidate-scoped raster enforcement with an ADR-123 reviewed exception; and
+7. exact semver stdout equality with the actual output recorded, while the
+   operator remains responsible for selecting an authentic Desktop binary.
+
+Each behaviour has an adversarial replacement RED/GREEN fixture. No production
+diagram, renderer mount, dependency, lockfile, CI workflow, or excluded surface
+enters scope.
 
 ## Rollback
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmod, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
@@ -10,8 +10,17 @@ import { annotateSvg, loadContract, validatePublicDiagrams } from './lib/public-
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 const FIXTURE_ROOT = resolve(import.meta.dirname, 'fixtures/public-diagrams');
 const CONTRACT = await loadContract(REPO_ROOT);
-const RAW_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120" content="&lt;mxfile&gt;&lt;diagram/&gt;&lt;/mxfile&gt;"><rect width="400" height="120"/></svg>';
+function xmlAttribute(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function rawSvg(source) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120" content="${xmlAttribute(source)}"><rect width="400" height="120"/></svg>`;
+}
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'anvil-public-diagrams-'));
@@ -21,10 +30,14 @@ async function fixture() {
   await mkdir(dirname(renderer), { recursive: true });
   await cp(join(FIXTURE_ROOT, 'sample-flow.drawio'), join(familyRoot, 'sample-flow.drawio'));
   await cp(join(FIXTURE_ROOT, 'sample-flow.md'), join(familyRoot, 'sample-flow.md'));
-  await writeFile(renderer, "path: '../../docs/public/anvil', routeBasePath: '/',\n", 'utf8');
+  await writeFile(
+    renderer,
+    "export default { plugins: [['@docusaurus/plugin-content-docs', { path: '../../docs/public/anvil', routeBasePath: '/' }]] };\n",
+    'utf8'
+  );
   const source = await readFile(join(familyRoot, 'sample-flow.drawio'), 'utf8');
   const svg = annotateSvg({
-    svg: RAW_SVG,
+    svg: rawSvg(source),
     source,
     sourceName: 'sample-flow.drawio',
     contract: CONTRACT,
@@ -32,6 +45,7 @@ async function fixture() {
   await writeFile(join(familyRoot, 'sample-flow.svg'), svg, 'utf8');
   const contract = {
     ...CONTRACT,
+    productionRenderers: ['apps/anvil-docs-private/docusaurus.config.ts'],
     families: [
       {
         name: 'anvil',
@@ -51,6 +65,49 @@ async function findingsFor(mutate = async () => {}) {
   } finally {
     await rm(state.root, { recursive: true, force: true });
   }
+}
+
+async function installFakeDrawio(root, versionOutput = '31.1.8') {
+  const fakeDrawio = join(root, 'fake-drawio-safety.mjs');
+  await mkdir(join(root, 'scripts/docs'), { recursive: true });
+  await writeFile(
+    join(root, 'scripts/docs/public-diagrams.json'),
+    JSON.stringify(CONTRACT),
+    'utf8'
+  );
+  await writeFile(
+    fakeDrawio,
+    `#!/usr/bin/env node
+import { readFileSync, writeFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+if (args[0] === '--version') {
+  process.stdout.write(${JSON.stringify(versionOutput)} + '\\n');
+} else {
+  const output = args[args.indexOf('--output') + 1];
+  const source = readFileSync(args.at(-1), 'utf8');
+  const embedded = source.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  writeFileSync(output, '<svg xmlns="http://www.w3.org/2000/svg" content="' + embedded + '"><rect/></svg>');
+}
+`,
+    'utf8'
+  );
+  await chmod(fakeDrawio, 0o755);
+  return fakeDrawio;
+}
+
+function runExport(root, fakeDrawio) {
+  return spawnSync(
+    process.execPath,
+    [
+      resolve(import.meta.dirname, 'export-public-diagram.mjs'),
+      'docs/public/anvil/sample-flow.drawio',
+      '--root',
+      root,
+      '--drawio-bin',
+      fakeDrawio,
+    ],
+    { encoding: 'utf8' }
+  );
 }
 
 test('valid mounted, paired, referenced and provenanced diagram passes', async () => {
@@ -95,6 +152,22 @@ test('missing embedded source fails', async () => {
   assert.ok(findings.some(({ code }) => code === 'source-not-embedded'));
 });
 
+test('embedded Draw.io source must canonically match the sibling source', async () => {
+  const findings = await findingsFor(async ({ familyRoot }) => {
+    const path = join(familyRoot, 'sample-flow.svg');
+    const mismatched = '<mxfile><diagram id="different"/></mxfile>';
+    await writeFile(
+      path,
+      (await readFile(path, 'utf8')).replace(
+        / content="[^"]*"/,
+        ` content="${xmlAttribute(mismatched)}"`
+      ),
+      'utf8'
+    );
+  });
+  assert.ok(findings.some(({ code }) => code === 'embedded-source-mismatch'));
+});
+
 test('unsafe active SVG content fails', async () => {
   const findings = await findingsFor(async ({ familyRoot }) => {
     const path = join(familyRoot, 'sample-flow.svg');
@@ -105,6 +178,35 @@ test('unsafe active SVG content fails', async () => {
     );
   });
   assert.ok(findings.some(({ code }) => code === 'unsafe-svg'));
+});
+
+test('namespace-aware SVG safety fails closed on active XML and URL tricks', async (t) => {
+  const attacks = [
+    ['doctype', '<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'],
+    ['processing instruction', '<?xml-stylesheet href="https://example.invalid/a.css"?>'],
+    ['custom entity', '<text>&attack;</text>'],
+    ['malformed XML', '<g>'],
+    ['namespaced element', '<evil:script xmlns:evil="urn:evil">alert(1)</evil:script>'],
+    ['namespaced event attribute', '<rect evil:onload="alert(1)" xmlns:evil="urn:evil"/>'],
+    ['spoofed default namespace', '<g xmlns="http://www.w3.org/1999/xhtml"><a href="#x"/></g>'],
+    ['CSS import', '<style>@import "https://example.invalid/a.css";</style>'],
+    ['CSS external URL', '<rect style="fill:url(https://example.invalid/a.svg#x)"/>'],
+    ['encoded dangerous scheme', '<a href="&#x6a;avascript:alert(1)"><text>x</text></a>'],
+    ['non-fragment reference', '<use href="data:image/svg+xml;base64,PHN2Zy8+"/>'],
+  ];
+  for (const [name, attack] of attacks) {
+    await t.test(name, async () => {
+      const findings = await findingsFor(async ({ familyRoot }) => {
+        const path = join(familyRoot, 'sample-flow.svg');
+        await writeFile(
+          path,
+          (await readFile(path, 'utf8')).replace('</svg>', `${attack}</svg>`),
+          'utf8'
+        );
+      });
+      assert.ok(findings.some(({ code }) => code === 'unsafe-svg'));
+    });
+  }
 });
 
 test('missing accessible description fails', async () => {
@@ -126,7 +228,18 @@ test('unreferenced SVG fails', async () => {
   assert.ok(findings.some(({ code }) => code === 'unreferenced-svg'));
 });
 
-test('adjacent equivalent prose permits an empty Markdown alt', async () => {
+test('explicit adjacent description association permits an empty Markdown alt', async () => {
+  const findings = await findingsFor(async ({ familyRoot }) => {
+    await writeFile(
+      join(familyRoot, 'sample-flow.md'),
+      '# Sample flow\n\n<!-- diagram-description: sample-flow.svg -->\n\nThe diagram shows a request moving from input to output.\n\n![](sample-flow.svg)\n',
+      'utf8'
+    );
+  });
+  assert.deepEqual(findings, []);
+});
+
+test('arbitrary adjacent prose does not authorise an empty alt', async () => {
   const findings = await findingsFor(async ({ familyRoot }) => {
     await writeFile(
       join(familyRoot, 'sample-flow.md'),
@@ -134,7 +247,40 @@ test('adjacent equivalent prose permits an empty Markdown alt', async () => {
       'utf8'
     );
   });
-  assert.deepEqual(findings, []);
+  assert.ok(findings.some(({ code }) => code === 'unreferenced-svg'));
+});
+
+test('weak alt text is not meaningful', async () => {
+  const findings = await findingsFor(async ({ familyRoot }) => {
+    await writeFile(
+      join(familyRoot, 'sample-flow.md'),
+      '# Sample flow\n\n![diagram](sample-flow.svg)\n',
+      'utf8'
+    );
+  });
+  assert.ok(findings.some(({ code }) => code === 'unreferenced-svg'));
+});
+
+test('image-like references inside code and comments are ignored', async () => {
+  const findings = await findingsFor(async ({ familyRoot }) => {
+    await writeFile(
+      join(familyRoot, 'sample-flow.md'),
+      '# Sample flow\n\n```md\n![Misleading alt text](sample-flow.svg)\n```\n\n<!-- ![Another misleading alt](sample-flow.svg) -->\n',
+      'utf8'
+    );
+  });
+  assert.ok(findings.some(({ code }) => code === 'unreferenced-svg'));
+});
+
+test('description association must name the adjacent SVG target', async () => {
+  const findings = await findingsFor(async ({ familyRoot }) => {
+    await writeFile(
+      join(familyRoot, 'sample-flow.md'),
+      '<!-- diagram-description: different.svg -->\n\nThe diagram shows a request moving from input to output.\n\n![](sample-flow.svg)\n',
+      'utf8'
+    );
+  });
+  assert.ok(findings.some(({ code }) => code === 'unreferenced-svg'));
 });
 
 test('non-lower-kebab diagram names fail', async () => {
@@ -151,6 +297,45 @@ test('raster sibling fails', async () => {
   assert.ok(findings.some(({ code }) => code === 'raster-diagram'));
 });
 
+test('ordinary public screenshot is outside the governed diagram candidate set', async () => {
+  const findings = await findingsFor(async ({ familyRoot }) => {
+    await writeFile(join(familyRoot, 'installation-screenshot.png'), 'screenshot', 'utf8');
+  });
+  assert.deepEqual(findings, []);
+});
+
+test('ADR-123 reviewed raster consumer exception is accepted', async () => {
+  const findings = await findingsFor(async ({ familyRoot, contract }) => {
+    await mkdir(join(familyRoot, 'diagrams'), { recursive: true });
+    await writeFile(join(familyRoot, 'diagrams/email-client.png'), 'raster', 'utf8');
+    contract.rasterExceptions = [
+      {
+        path: 'docs/public/anvil/diagrams/email-client.png',
+        consumer: 'Transactional email client cannot render SVG',
+        reviewedAgainst: 'ADR-123',
+      },
+    ];
+  });
+  assert.deepEqual(findings, []);
+});
+
+test('unreviewed raster diagram exception fails closed', async () => {
+  const findings = await findingsFor(async ({ familyRoot, contract }) => {
+    await mkdir(join(familyRoot, 'diagrams'), { recursive: true });
+    await writeFile(join(familyRoot, 'diagrams/email-client.png'), 'raster', 'utf8');
+    contract.rasterExceptions = [
+      {
+        path: 'docs/public/anvil/diagrams/email-client.png',
+        consumer: '',
+        reviewedAgainst: 'ADR-122',
+      },
+    ];
+  });
+  assert.ok(
+    findings.some(({ code }) => code === 'invalid-raster-exception' || code === 'raster-diagram')
+  );
+});
+
 test('declared family must remain mounted by its production renderer', async () => {
   const findings = await findingsFor(async ({ root }) => {
     await writeFile(
@@ -160,6 +345,110 @@ test('declared family must remain mounted by its production renderer', async () 
     );
   });
   assert.ok(findings.some(({ code }) => code === 'family-not-mounted'));
+});
+
+test('commented public mount text does not enter the structural mount set', async () => {
+  const findings = await findingsFor(async ({ root }) => {
+    const path = join(root, 'apps/anvil-docs-private/docusaurus.config.ts');
+    await writeFile(
+      path,
+      `${await readFile(path, 'utf8')}\n// path: '../../docs/public/commented-out'\n`,
+      'utf8'
+    );
+  });
+  assert.deepEqual(findings, []);
+});
+
+test('undeclared active production mount fails exact manifest equality', async () => {
+  const findings = await findingsFor(async ({ root }) => {
+    const path = join(root, 'apps/anvil-docs-private/docusaurus.config.ts');
+    await writeFile(
+      path,
+      `${await readFile(path, 'utf8')}\nexport const rogue = { path: '../../docs/public/rogue' };\n`,
+      'utf8'
+    );
+  });
+  assert.ok(findings.some(({ code }) => code === 'undeclared-family-mount'));
+});
+
+test('contract explicitly excludes start-here and rollback-only docs-site', () => {
+  assert.deepEqual(CONTRACT.excludedRoots, ['docs/public/start-here']);
+  assert.deepEqual(CONTRACT.excludedRenderers, ['apps/docs-site/docusaurus.config.ts']);
+});
+
+test('checker rejects symlinked diagram entries instead of traversing them', async () => {
+  const findings = await findingsFor(async ({ root, familyRoot }) => {
+    const external = join(root, 'external.drawio');
+    await cp(join(familyRoot, 'sample-flow.drawio'), external);
+    await rm(join(familyRoot, 'sample-flow.drawio'));
+    await symlink(external, join(familyRoot, 'sample-flow.drawio'));
+  });
+  assert.ok(findings.some(({ code }) => code === 'symlink-path'));
+});
+
+test('export refuses an external symlink source', async () => {
+  const { root, familyRoot } = await fixture();
+  try {
+    const fakeDrawio = await installFakeDrawio(root);
+    const external = join(root, 'external.drawio');
+    await cp(join(familyRoot, 'sample-flow.drawio'), external);
+    await rm(join(familyRoot, 'sample-flow.drawio'));
+    await symlink(external, join(familyRoot, 'sample-flow.drawio'));
+    const result = runExport(root, fakeDrawio);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /symlink/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('export refuses a symlinked intermediate family directory', async () => {
+  const { root, familyRoot } = await fixture();
+  try {
+    const fakeDrawio = await installFakeDrawio(root);
+    const externalFamily = join(root, 'external-family');
+    await cp(familyRoot, externalFamily, { recursive: true });
+    await rm(familyRoot, { recursive: true, force: true });
+    await symlink(externalFamily, familyRoot);
+    const result = runExport(root, fakeDrawio);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /symlink/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('export refuses an existing output symlink without changing its target', async () => {
+  const { root, familyRoot } = await fixture();
+  try {
+    const fakeDrawio = await installFakeDrawio(root);
+    const externalOutput = join(root, 'external.svg');
+    await writeFile(externalOutput, 'unchanged', 'utf8');
+    await rm(join(familyRoot, 'sample-flow.svg'));
+    await symlink(externalOutput, join(familyRoot, 'sample-flow.svg'));
+    const result = runExport(root, fakeDrawio);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /symlink/i);
+    assert.equal(await readFile(externalOutput, 'utf8'), 'unchanged');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('export requires exact unambiguous Desktop version output', async (t) => {
+  for (const versionOutput of ['31.1.80', 'Draw.io 31.1.8', '31.1.8 31.1.9']) {
+    await t.test(versionOutput, async () => {
+      const { root } = await fixture();
+      try {
+        const fakeDrawio = await installFakeDrawio(root, versionOutput);
+        const result = runExport(root, fakeDrawio);
+        assert.notEqual(result.status, 0);
+        assert.match(result.stderr, /exact version output/i);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  }
 });
 
 test('export CLI enforces the pinned Desktop flags and writes the sibling SVG', async () => {
@@ -175,14 +464,16 @@ test('export CLI enforces the pinned Desktop flags and writes the sibling SVG', 
   await writeFile(
     fakeDrawio,
     `#!/usr/bin/env node
-import { appendFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 if (args[0] === '--version') {
   process.stdout.write('31.1.8\\n');
 } else {
   appendFileSync(${JSON.stringify(callsPath)}, JSON.stringify(args) + '\\n');
   const output = args[args.indexOf('--output') + 1];
-  writeFileSync(output, '<svg xmlns="http://www.w3.org/2000/svg" content="&lt;mxfile&gt;&lt;diagram/&gt;&lt;/mxfile&gt;"><rect/></svg>');
+  const source = readFileSync(args.at(-1), 'utf8');
+  const embedded = source.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  writeFileSync(output, '<svg xmlns="http://www.w3.org/2000/svg" content="' + embedded + '"><rect/></svg>');
 }
 `,
     'utf8'
@@ -207,6 +498,14 @@ if (args[0] === '--version') {
     assert.match(
       await readFile(join(familyRoot, 'sample-flow.svg'), 'utf8'),
       /data-drawio-version="31\.1\.8"/
+    );
+    assert.match(
+      await readFile(join(familyRoot, 'sample-flow.svg'), 'utf8'),
+      /data-drawio-version-output="31\.1\.8"/
+    );
+    assert.match(
+      await readFile(join(familyRoot, 'sample-flow.svg'), 'utf8'),
+      /data-embedded-source-sha256="[a-f0-9]{64}"/
     );
   } finally {
     await rm(root, { recursive: true, force: true });

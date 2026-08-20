@@ -368,11 +368,12 @@ until their dependencies and expected evidence are present.
   accessible, and reproducible.
 - **Expected Outcome:** A pinned Draw.io Desktop export path governs the five
   mounted public family roots, commits lower-kebab paired `.drawio`/`.svg`
-  files with embedded source and deterministic provenance, and checks pairing,
-  source/export parity, safety, accessibility, mounted-family membership, and
-  Markdown references. The validator is a first-class `docs:check` surface,
-  fixture tests exercise failure modes, and both production Docusaurus
-  renderers build.
+  files with canonically equal embedded source and deterministic provenance.
+  Fail-closed checks cover XML/SVG activity, canonical non-symlink confinement,
+  atomic output, exact structural production mounts, accessibility, auditable
+  Markdown references, and candidate-scoped ADR-123 raster exceptions. The
+  validator is a first-class `docs:check` surface, adversarial fixture tests
+  exercise failure modes, and both production Docusaurus renderers build.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
   `plans/execution/DOCRB-007.actions.md`,
   `plans/reviews/2026-08-20-docrb-007-public-svg-pipeline.md`,
@@ -394,7 +395,7 @@ until their dependencies and expected evidence are present.
   `docs/architecture/**.drawio`; rollback-only `apps/docs-site`; and
   DOCRB-009 component-Mermaid or affected-change enforcement
 - **Dependencies:** DOCRB-001, DOCRB-002
-- **Confidence:** medium
+- **Confidence:** high
 - **Validation:** `node --test scripts/docs/check-public-diagrams.test.mjs && pnpm test:docs-check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build && pnpm format:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json`
 
 ### DOCRB-008: Re-baseline public information architecture and curated diagrams
