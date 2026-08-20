@@ -345,7 +345,7 @@ describe('verifyLicence', () => {
       expect(claims?.plan).toBe('beta');
     });
 
-    it('falls back to the legacy `tier` claim on a licence minted before BACT-013, so an already-issued token keeps verifying', async () => {
+    it('SEC-012: downgrades a pre-BACT-013 licence to `beta` — a stale `tier` is never promoted into `plan`', async () => {
       const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
       // Pre-BACT-013 shape: only `tier`, no `plan` claim at all.
       const legacyJwt = await new SignJWT({
@@ -365,8 +365,14 @@ describe('verifyLicence', () => {
         .sign(privateKey);
 
       const claims = await verifyLicence(legacyJwt);
+      // The licence still authenticates — this is a de-escalation, not a
+      // rejection, so no pre-BACT-013 user is forced to re-authenticate.
       expect(claims).not.toBeNull();
-      expect(claims?.plan).toBe('pro');
+      // ...but its `tier: 'pro'` is NOT inherited. No account holds `pro`
+      // (beta_users.plan CHECK admits only 'beta'), and both edge verifiers
+      // read this claim with no DB round trip, so promoting it would let a
+      // stale token assert a plan nobody has.
+      expect(claims?.plan).toBe('beta');
     });
 
     it('prefers `plan` over `tier` when a licence somehow carries both (dual-write window)', async () => {
@@ -392,7 +398,7 @@ describe('verifyLicence', () => {
       expect(claims?.plan).toBe('beta');
     });
 
-    it('defaults to `beta` (the beta_users.plan column DEFAULT) when neither `plan` nor `tier` is present', async () => {
+    it('SEC-012: resolves `plan` to null when neither claim is present — fails closed, no permissive default', async () => {
       const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
       const jwt = await new SignJWT({
         email: 'noplan@example.com',
@@ -407,7 +413,83 @@ describe('verifyLicence', () => {
         .sign(privateKey);
 
       const claims = await verifyLicence(jwt);
-      expect(claims?.plan).toBe('beta');
+      // Identity still verifies — plan is an entitlement axis, not an
+      // authentication one, so a claimless licence must not 401 the caller.
+      expect(claims).not.toBeNull();
+      // No live licence lacks both claims (`tier` has been minted since
+      // 2026-03-12 and the TTL is 90 days), so failing closed here costs
+      // nothing today and denies by default the moment plans differentiate.
+      expect(claims?.plan).toBeNull();
+    });
+
+    it('SEC-012: uses the `plan` claim verbatim when present, whatever the alias says', async () => {
+      const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+      const jwt = await new SignJWT({
+        email: 'planned@example.com',
+        identity: { provider: 'github', id: null },
+        org: null,
+        plan: 'enterprise',
+        tier: 'beta',
+        scopes: ['beta'],
+        seats: 1,
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setSubject('user-planned')
+        .setIssuedAt()
+        .setIssuer('https://api.eddacraft.ai')
+        .setAudience('anvil-cli')
+        .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+        .sign(privateKey);
+
+      const claims = await verifyLicence(jwt);
+      expect(claims?.plan).toBe('enterprise');
+    });
+
+    it('SEC-012: denies a `tier` value we never minted rather than de-escalating it to beta', async () => {
+      const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+      // `tier: 'free'` was never issued by any signLicence. Treating "any
+      // tier" as beta would *elevate* it; only the real legacy value ('pro')
+      // de-escalates.
+      const jwt = await new SignJWT({
+        email: 'freetier@example.com',
+        identity: { provider: 'github', id: null },
+        org: null,
+        tier: 'free',
+        scopes: ['beta'],
+        seats: 1,
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setSubject('user-freetier')
+        .setIssuedAt()
+        .setIssuer('https://api.eddacraft.ai')
+        .setAudience('anvil-cli')
+        .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+        .sign(privateKey);
+
+      const claims = await verifyLicence(jwt);
+      expect(claims?.plan).toBeNull();
+    });
+
+    it('SEC-012: ignores a non-string `plan` claim rather than coercing it', async () => {
+      const privateKey = await (await import('jose')).importPKCS8(testPrivateKeyPem, 'ES256');
+      const jwt = await new SignJWT({
+        email: 'weird@example.com',
+        identity: { provider: 'github', id: null },
+        org: null,
+        plan: { name: 'beta' },
+        scopes: ['beta'],
+        seats: 1,
+      })
+        .setProtectedHeader({ alg: 'ES256' })
+        .setSubject('user-weird')
+        .setIssuedAt()
+        .setIssuer('https://api.eddacraft.ai')
+        .setAudience('anvil-cli')
+        .setExpirationTime(Math.floor(Date.now() / 1000) + 3600)
+        .sign(privateKey);
+
+      const claims = await verifyLicence(jwt);
+      expect(claims?.plan).toBeNull();
     });
   });
 });

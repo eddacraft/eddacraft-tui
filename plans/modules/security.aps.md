@@ -547,37 +547,79 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-012: Make the licence entitlement claim authoritative and fail closed
 
-- **Status:** Draft — filed 2026-08-19 from the auth/authz plan review; **not
-  self-authorised**. Promoted here from `beta-account-activity`'s Future-work
-  section (reserved id BACT-014), which had no authorised home for it while
-  BACT is Done 12/12.
-- **Priority:** P1 access-control correctness — this is the item that makes
-  SEC-009's shipped gate actually discriminate.
+- **Status:** In Progress — operator-authorised 2026-08-20. Filed 2026-08-19
+  from the auth/authz plan review; promoted here from
+  `beta-account-activity`'s Future-work section (reserved id BACT-014), which
+  had no authorised home for it while BACT is Done 12/12.
+- **Priority:** P1 access-control correctness.
+- **Severity restated 2026-08-20 (implementation found the earlier framing
+  overstated):** SEC-009's gate *does* discriminate. `docs.access` targets
+  `accountTier in_set [plan-beta, plan-pro, plan-enterprise]` with
+  `defaultVariant: disabled`, and `apps/docs-shell`'s local set matches that
+  targeting exactly. The defect was never "the gate admits everyone" — it was
+  that **the claim feeding the gate was fabricated when absent**:
+  `verifyLicence` invented `'beta'` for a claimless token and promoted a stale
+  `tier: 'pro'` into `plan`. Since every real account is `plan = beta`, actual
+  exposure was tokens carrying no trustworthy plan claim, not the whole
+  population.
 - **Intent:** Finish the ADR-121 / OQ-C migration so a single entitlement claim
   governs private-docs access, no verifier fills in a permissive default, and
   the two edge verifiers agree.
-- **Expected Outcome:**
-  - `apps/docs-shell/lib/jwt.ts` and `apps/docs-site/middleware.ts` read the
-    agreed entitlement claim (`plan`, or a dedicated scope — see Open Question)
-    rather than `tier`, with the `tier` fallback removed after a deprecation
-    window.
-  - `signLicence` stops emitting the `tier` compat alias
-    (`apps/anvil-api/src/lib/licence.ts`).
-  - `verifyLicence` fails **closed** when no entitlement claim is present —
-    today it defaults to `'beta'`, which is inside `DOCS_ACCESS_TIERS`.
-  - `apps/docs-site` gains a test suite covering the entitlement read path
-    (pre-existing gap, noted 2026-08-13 and still true 2026-08-19).
-- **Open Question (product decision — shared, answer once):** which claim value
-  or scope denotes "entitled to private docs", given every account is
-  `plan = beta` today? The same decision gates CIB-141's fail-open scope
-  default and CIB-143's docs-shell check. Answer it in one place; do not let
-  three items each invent a value.
+- **Expected Outcome (delivered 2026-08-20):**
+  - Both **live** verifiers — `verifyLicence`
+    (`apps/anvil-api/src/lib/licence.ts`) and `apps/docs-shell/lib/jwt.ts` —
+    resolve the entitlement claim by one shared rule: `plan` verbatim when
+    present; otherwise `beta` **only** for the exact legacy shape
+    `tier === 'pro'`; otherwise `null`, which the gate denies.
+  - `verifyLicence` fails **closed** — `LicenceClaims.plan` is
+    `string | null` on the verify side and no permissive default is
+    fabricated. `signLicence` throws rather than mint a licence with no plan.
+- **`apps/docs-site` deliberately NOT touched — the app is retired.** Its
+  `vercel.json` has carried `--always-skip` since 2026-07-08 (`847436623`,
+  *"skip retired docs-site builds"*), which
+  `tools/scripts/vercel-ignore-build.sh` documents as the flag "for retired
+  Vercel projects". Its `middleware.ts` entitlement gate therefore never runs.
+  This item's original Files list — inherited from BACT-014 — named that
+  middleware as a fix target, and the BACT-013 advisory about docs-site's
+  missing tests was really an advisory about dead code. **Corrected here:
+  fixing or testing a retired app buys no security and costs maintenance.**
+  See the residual note below for what should actually happen to it.
+- **Live request path, for the record:** `apps/docs-shell` holds the
+  entitlement gate (`verifyLicense`), then proxies to
+  `apps/anvil-docs-private` with an `x-docs-upstream-secret` header;
+  `anvil-docs-private/middleware.ts` checks only that shared secret and serves
+  the static build. `docs-site` is not in this path.
+- **Deliberately NOT in this item (see Non-scope):** `signLicence` still emits
+  the `tier` compat alias. Removing it while pre-BACT-013 licences are live
+  would break sessions; those expire ~2026-11-11 (90-day TTL), after which the
+  alias and the `tier === 'pro'` branch in all three verifiers can be deleted
+  outright. Each site carries a comment saying so.
+- **Open Question — ANSWERED 2026-08-20** (design session; see
+  `plans/specs/2026-08-20-entitlement-substrate-and-rbac-deferral.md`):
+  `plan` is the entitlement axis and `scopes` the capability axis, both fail
+  closed. Do not re-open this question in CIB-141 or CIB-143 — it was answered
+  once, for all three.
+- **Follow-up owed (not this item):** decide whether `apps/docs-site` is
+  deleted or un-retired. It has been un-deployable for six weeks yet is still
+  actively maintained — its `sidebars/anvil.ts` was updated alongside
+  `anvil-docs-private`'s as recently as 2026-08-20 (`c6d81c10c`, DOCDEF-005) —
+  and its README still claims **Status: Live**, reviewed 2026-08-03, a month
+  *after* retirement. Either state is fine; the current one costs work on
+  something that cannot ship and misleads anyone reading the README or this
+  module's old Files list.
+- **Known residual (not a security gap):** `apps/docs-shell` still expresses
+  the entitled-plan set as a local constant rather than importing the
+  catalogue, because it has no workspace dependencies (only `jose` + `next`)
+  and adding `@eddacraft/anvil-runtime` to reach `resolveFlag` would widen what
+  an edge bundle pulls. The set matches `docs.access` targeting today and both
+  sides carry a comment pointing at the other. Sourcing it from the catalogue
+  is drift-prevention, and belongs with the alias retirement.
 - **Non-scope / do not:** do not widen `beta_users.plan`'s CHECK to invent
   commercial plans; do not remove the `tier` alias before outstanding
   dual-claim tokens have expired; do not redesign the flag catalogue.
 - **Files:** `apps/anvil-api/src/lib/licence.ts`,
-  `apps/docs-shell/lib/jwt.ts`, `apps/docs-site/middleware.ts`,
-  `apps/docs-site` test setup.
+  `apps/docs-shell/lib/jwt.ts` (+ their tests). **Not**
+  `apps/docs-site/**` — retired, see above.
 - **Validation:** anvil-api licence/JWT tests for the new claim shape and the
   fail-closed path; `pnpm --filter @eddacraft/docs-shell test`; new docs-site
   middleware tests; a grep proving no production `payload.tier` reader remains.
@@ -587,11 +629,25 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
   2026-08-13), re-verified live 2026-08-19 during the auth/authz plan review.
 - **Coordinates with:** SEC-009 (residual), CIB-141, CIB-143, ADR-121
   decision 6.
-- **Confidence:** high — mechanical once the Open Question is answered.
+- **Evidence (2026-08-20):** `anvil-api` 760/760 pass (was 759 — the plan-claim
+  block grew from 4 cases to 8, two of them inversions of the previous
+  behaviour); `docs-shell` 54/54, including three new cases covering the
+  claim rule and a stale fixture correction (`tier: 'beta'` with no `plan` is
+  a shape `signLicence` has never minted). Typecheck clean via nx for both
+  projects; `format:check` clean; `lint:check` 0 errors.
+- **Confidence:** high — landed with guard coverage on every changed decision.
 
 **changeType:** fix
 **releaseIntent:** candidate
 **releaseScope:** patch
+**releaseNote:**
+
+- **audience:** operator
+- **type:** security
+- **text:** Licence verification now reads the `plan` entitlement claim and
+  never fabricates one: a token with no trustworthy claim is denied rather
+  than defaulted, and a pre-BACT-013 `tier` is de-escalated to the plan the
+  account actually holds instead of being trusted.
 
 ### SEC-013: Licence-authenticated routes must re-check account status
 

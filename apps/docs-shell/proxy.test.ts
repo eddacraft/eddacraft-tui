@@ -21,7 +21,10 @@ IJHYkuQeRvIOymU4a1n3B5WRo5moFj78Gm8j8JRSugyusu0JtksAAfUN
 
 async function signToken(
   expSecondsFromNow: number = 3600,
-  claims: Record<string, unknown> = { sub: 'test@example.com', tier: 'beta' }
+  // Real post-BACT-013 mint shape: `plan` is the entitlement claim and `tier`
+  // mirrors it byte-for-byte (anvil-api `signLicence`). A `tier`-only token
+  // with no `plan` was never minted for any value except the legacy 'pro'.
+  claims: Record<string, unknown> = { sub: 'test@example.com', plan: 'beta', tier: 'beta' }
 ): Promise<string> {
   const privateKey = await importPKCS8(TEST_PRIVATE_KEY_PEM, 'ES256');
   let builder = new SignJWT(claims)

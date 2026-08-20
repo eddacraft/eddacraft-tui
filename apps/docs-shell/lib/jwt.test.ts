@@ -55,7 +55,7 @@ describe('verifyLicense', () => {
   });
 
   it('verifies a valid token', async () => {
-    const token = await signToken({ sub: 'user@example.com', tier: 'beta' });
+    const token = await signToken({ sub: 'user@example.com', plan: 'beta', tier: 'beta' });
     const result = await verifyLicense(token);
     expect(result.valid).toBe(true);
   });
@@ -72,8 +72,33 @@ describe('verifyLicense', () => {
     expect(result.valid).toBe(false);
   });
 
+  it('SEC-012: reads the `plan` claim, not `tier`', async () => {
+    const token = await signToken({ sub: 'user@example.com', plan: 'beta', tier: 'beta' });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(true);
+    expect(result.plan).toBe('beta');
+  });
+
+  it('SEC-012: de-escalates a pre-BACT-013 `tier: pro` licence to beta instead of trusting it', async () => {
+    // Pre-BACT-013 shape: signLicence hardcoded tier:'pro' for everyone and
+    // wrote no `plan`. No account has ever held `pro`, and this verifier does
+    // no DB round trip, so inheriting the claim would let a stale token
+    // assert a plan nobody has. It still passes the gate — as beta.
+    const token = await signToken({ sub: 'user@example.com', tier: 'pro' });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(true);
+    expect(result.plan).toBe('beta');
+  });
+
+  it('SEC-012: prefers `plan` over the `tier` mirror when they disagree', async () => {
+    const token = await signToken({ sub: 'user@example.com', plan: 'free', tier: 'pro' });
+    const result = await verifyLicense(token);
+    expect(result.valid).toBe(false);
+    expect(result.plan).toBe('free');
+  });
+
   it('rejects an expired token', async () => {
-    const token = await signToken({ sub: 'user@example.com', tier: 'beta' }, -60);
+    const token = await signToken({ sub: 'user@example.com', plan: 'beta', tier: 'beta' }, -60);
     const result = await verifyLicense(token);
     expect(result.valid).toBe(false);
   });
@@ -90,7 +115,7 @@ describe('verifyLicense', () => {
   });
 
   it('rejects a signed token with unexpected issuer', async () => {
-    const token = await signToken({ sub: 'user@example.com', tier: 'beta' }, 3600, {
+    const token = await signToken({ sub: 'user@example.com', plan: 'beta', tier: 'beta' }, 3600, {
       issuer: 'https://attacker.example.com',
     });
     const result = await verifyLicense(token);
@@ -98,7 +123,7 @@ describe('verifyLicense', () => {
   });
 
   it('rejects a signed token with unexpected audience', async () => {
-    const token = await signToken({ sub: 'user@example.com', tier: 'beta' }, 3600, {
+    const token = await signToken({ sub: 'user@example.com', plan: 'beta', tier: 'beta' }, 3600, {
       audience: 'some-other-audience',
     });
     const result = await verifyLicense(token);
@@ -106,7 +131,7 @@ describe('verifyLicense', () => {
   });
 
   it('rejects a signed token missing subject', async () => {
-    const token = await signToken({ tier: 'beta' }, 3600, { subject: null });
+    const token = await signToken({ plan: 'beta', tier: 'beta' }, 3600, { subject: null });
     const result = await verifyLicense(token);
     expect(result.valid).toBe(false);
   });
