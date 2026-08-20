@@ -51,7 +51,7 @@ describe('rendered website positioning', () => {
     expect(textOf(<DecisionModel />)).toContain(
       'THE SYSTEM THAT CREATES WORK SHOULD NOT JUDGE IT ALONE.'
     );
-    expect(textOf(<CompanyBand />)).toContain('TRUST INFRASTRUCTURE');
+    expect(textOf(<CompanyBand />)).toContain('TRUST INFRASTRUCTURE FOR AI-ASSISTED WORK.');
     expect(textOf(<CLIFooter />)).toContain('BUILD WITH SPEED. SHIP WITH INTEGRITY.');
     expect(textOf(<SocialCard />)).toContain('TRUST THE CODE');
     expect(textOf(<SocialCard />)).toContain('MCP REQUEST :: anvil_validate_write');
