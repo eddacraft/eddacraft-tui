@@ -21,6 +21,9 @@
       "options": {
         "cwd": "apps/website"
       }
+    },
+    "test": {
+      "command": "node node_modules/vitest/vitest.mjs run apps/website --passWithNoTests=false"
     }
   }
 }

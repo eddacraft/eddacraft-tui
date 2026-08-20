@@ -12,6 +12,12 @@ use std::process::Command;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
+#[test]
+#[should_panic(expected = "unrecognised version")]
+fn malformed_git_version_fails_the_suite_precondition() {
+    parse_git_version("not git version output");
+}
+
 /// Ceiling for git repo discovery. Git only honours a ceiling that is a
 /// proper ancestor of the probed directory, so this must be the tempdir's
 /// parent — passing the tempdir itself is silently ignored and the walk
@@ -28,19 +34,7 @@ fn missing_git_fails_the_suite_precondition() {
     host_git_version_from("__anvil_missing_git_for_test__");
 }
 
-fn host_git_version_from(program: &str) -> (u32, u32, u32) {
-    let out = Command::new(program)
-        .arg("--version")
-        .output()
-        .unwrap_or_else(|error| {
-            panic!("Git is required for config-mode integration tests: {error}")
-        });
-    assert!(
-        out.status.success(),
-        "Git is required for config-mode integration tests: `{program} --version` exited {}",
-        out.status
-    );
-    let raw = String::from_utf8_lossy(&out.stdout).into_owned();
+fn parse_git_version(raw: &str) -> (u32, u32, u32) {
     let stripped = raw.trim().strip_prefix("git version ").unwrap_or_else(|| {
         panic!("Git is required for config-mode integration tests: unrecognised version {raw:?}")
     });
@@ -60,12 +54,28 @@ fn host_git_version_from(program: &str) -> (u32, u32, u32) {
         });
     let patch = parts
         .next()
-        .and_then(|p| {
-            let digits: String = p.chars().take_while(char::is_ascii_digit).collect();
+        .and_then(|part| {
+            let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
             digits.parse::<u32>().ok()
         })
         .unwrap_or(0);
     (major, minor, patch)
+}
+
+fn host_git_version_from(program: &str) -> (u32, u32, u32) {
+    let out = Command::new(program)
+        .arg("--version")
+        .output()
+        .unwrap_or_else(|error| {
+            panic!("Git is required for config-mode integration tests: {error}")
+        });
+    assert!(
+        out.status.success(),
+        "Git is required for config-mode integration tests: `{program} --version` exited {}",
+        out.status
+    );
+    let raw = String::from_utf8_lossy(&out.stdout);
+    parse_git_version(&raw)
 }
 
 fn host_git_version() -> (u32, u32, u32) {

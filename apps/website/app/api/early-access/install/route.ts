@@ -48,7 +48,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const data = (await response.json().catch(() => ({}))) as VerifyResponse;
+  let data: VerifyResponse;
+  try {
+    data = (await response.json()) as VerifyResponse;
+  } catch {
+    return NextResponse.json({ error: 'access_service_unavailable' }, { status: 503 });
+  }
   if (data.valid !== true || data.isEdict !== true) {
     return NextResponse.json({ error: 'invalid_key' }, { status: 401 });
   }

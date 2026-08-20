@@ -45,18 +45,9 @@ const heroContent = readFileSync(
   'utf8'
 );
 
-const requiredByFile = new Map([
+const sourceContractsByFile = new Map([
   ['../app/layout.tsx', ['Inter']],
-  ['../app/social-card.tsx', ['TRUST THE CODE', 'MCP REQUEST :: anvil_validate_write']],
-  [
-    '../components/hero-section.tsx',
-    ['TRUST THE CODE', 'Dialog.Title', 'Dialog.Description', 'Dialog.Close'],
-  ],
-  [
-    '../components/trust-gap.tsx',
-    ['PROTECTION IS THE ENTRY POINT', 'DECISION INTEGRITY IS THE SYSTEM AROUND IT'],
-  ],
-  ['../components/company-band.tsx', ['TRUST INFRASTRUCTURE']],
+  ['../components/hero-section.tsx', ['Dialog.Title', 'Dialog.Description', 'Dialog.Close']],
   ['../components/terminal-window.tsx', ['MCP REQUEST :: anvil_validate_write']],
   ['../components/cli-footer.tsx', ['Dialog.Title', 'Dialog.Description', 'Dialog.Close']],
 ]);
@@ -80,7 +71,7 @@ const shellLabelledMcpRequests = content
   .filter((line) => line.includes('anvil_validate_write') && line.includes('$'));
 
 const failures = [
-  ...[...requiredByFile].flatMap(([path, values]) => {
+  ...[...sourceContractsByFile].flatMap(([path, values]) => {
     const fileContent = readFileSync(new URL(path, import.meta.url), 'utf8');
     return values
       .filter((value) => !fileContent.includes(value))

@@ -1,30 +1,56 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const securityPage = readFileSync(new URL('../app/security/page.tsx', import.meta.url), 'utf8');
-const publishedKey = new URL('../public/.well-known/pgp-key.txt', import.meta.url);
+const DISCLOSURE_START = '{/* RESPONSIBLE DISCLOSURE */}';
+const DISCLOSURE_END = '{/* SEE ALSO */}';
+const REPORTING_KEY_GUIDANCE =
+  /\b(?:pgp|openpgp|gpg|fingerprint|encrypt(?:ed|ion)?|public[- ]key|security[- ]key|key file|certificate)\b/i;
 
-const failures = [];
-
-if (!securityPage.includes('mailto:security@eddacraft.ai')) {
-  failures.push('missing working security reporting email');
+function responsibleDisclosureSource(securityPage) {
+  const start = securityPage.indexOf(DISCLOSURE_START);
+  const end = securityPage.indexOf(DISCLOSURE_END, start + DISCLOSURE_START.length);
+  if (start < 0 || end < 0) return null;
+  return securityPage.slice(start, end);
 }
 
-const advertisesPgp =
-  securityPage.includes('For encrypted communications') ||
-  securityPage.includes('Fingerprint:') ||
-  securityPage.includes('pgp-key.txt');
+export function findPublicTrustFailures(securityPage, publishedKeyExists) {
+  const failures = [];
+  const disclosure = responsibleDisclosureSource(securityPage);
 
-if (advertisesPgp && /Fingerprint:\s*(?:XXXX\s*){10}/.test(securityPage)) {
-  failures.push('placeholder PGP fingerprint is published');
+  if (!securityPage.includes('mailto:security@eddacraft.ai')) {
+    failures.push('missing working security reporting email');
+  }
+  if (!disclosure) {
+    failures.push('missing responsible disclosure section');
+    return failures;
+  }
+
+  const advertisesPgp = REPORTING_KEY_GUIDANCE.test(disclosure);
+  if (advertisesPgp && /Fingerprint:\s*(?:XXXX\s*){4,}/i.test(disclosure)) {
+    failures.push('placeholder PGP fingerprint is published');
+  }
+  if (advertisesPgp && !publishedKeyExists) {
+    failures.push('PGP guidance is published without the advertised key');
+  }
+
+  return failures;
 }
 
-if (advertisesPgp && !existsSync(publishedKey)) {
-  failures.push('PGP guidance is published without the advertised key');
+function run() {
+  const securityPage = readFileSync(new URL('../app/security/page.tsx', import.meta.url), 'utf8');
+  const publishedKey = new URL('../public/.well-known/pgp-key.txt', import.meta.url);
+  const failures = findPublicTrustFailures(securityPage, existsSync(publishedKey));
+
+  if (failures.length > 0) {
+    console.error(failures.join('\n'));
+    process.exit(1);
+  }
+
+  console.log('website public trust contract: ok');
 }
 
-if (failures.length > 0) {
-  console.error(failures.join('\n'));
-  process.exit(1);
+const invokedPath = process.argv[1];
+if (invokedPath && import.meta.url === pathToFileURL(resolve(invokedPath)).href) {
+  run();
 }
-
-console.log('website public trust contract: ok');

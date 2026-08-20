@@ -41,6 +41,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@': resolve(__dirname, './apps/website'),
       // New package structure
       '@eddacraft/anvil-driver-client': resolve(__dirname, './packages/anvil-driver-client/src'),
       '@eddacraft/anvil-contracts': resolve(__dirname, './packages/anvil/contracts/src'),
