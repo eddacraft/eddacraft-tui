@@ -18,6 +18,12 @@ fn malformed_git_version_fails_the_suite_precondition() {
     parse_git_version("not git version output");
 }
 
+#[test]
+#[should_panic(expected = "invalid version")]
+fn malformed_git_patch_version_fails_the_suite_precondition() {
+    parse_git_version("git version 2.54.foo");
+}
+
 /// Ceiling for git repo discovery. Git only honours a ceiling that is a
 /// proper ancestor of the probed directory, so this must be the tempdir's
 /// parent — passing the tempdir itself is silently ignored and the walk
@@ -52,13 +58,12 @@ fn parse_git_version(raw: &str) -> (u32, u32, u32) {
         .unwrap_or_else(|| {
             panic!("Git is required for config-mode integration tests: invalid version {raw:?}")
         });
-    let patch = parts
-        .next()
-        .and_then(|part| {
-            let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
-            digits.parse::<u32>().ok()
+    let patch = parts.next().map_or(0, |part| {
+        let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
+        digits.parse::<u32>().unwrap_or_else(|_| {
+            panic!("Git is required for config-mode integration tests: invalid version {raw:?}")
         })
-        .unwrap_or(0);
+    });
     (major, minor, patch)
 }
 

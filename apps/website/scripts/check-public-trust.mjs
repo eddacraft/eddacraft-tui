@@ -4,8 +4,9 @@ import { pathToFileURL } from 'node:url';
 
 const DISCLOSURE_START = '{/* RESPONSIBLE DISCLOSURE */}';
 const DISCLOSURE_END = '{/* SEE ALSO */}';
-const REPORTING_KEY_GUIDANCE =
-  /\b(?:pgp|openpgp|gpg|fingerprint|encrypt(?:ed|ion)?|public[- ]key|security[- ]key|key file|certificate)\b/i;
+const REPORTING_LINK = /href\s*=\s*["']mailto:security@eddacraft\.ai["']/i;
+const STRONG_PGP_GUIDANCE = /\b(?:pgp|openpgp|gpg|fingerprint|security[- ]key|key file)\b/i;
+const REPORTING_KEY_GUIDANCE = /\b(?:encrypt(?:ed|ion)?|public[- ]key|certificate)\b/i;
 
 function responsibleDisclosureSource(securityPage) {
   const start = securityPage.indexOf(DISCLOSURE_START);
@@ -18,7 +19,7 @@ export function findPublicTrustFailures(securityPage, publishedKeyExists) {
   const failures = [];
   const disclosure = responsibleDisclosureSource(securityPage);
 
-  if (!securityPage.includes('mailto:security@eddacraft.ai')) {
+  if (!disclosure || !REPORTING_LINK.test(disclosure)) {
     failures.push('missing working security reporting email');
   }
   if (!disclosure) {
@@ -26,8 +27,9 @@ export function findPublicTrustFailures(securityPage, publishedKeyExists) {
     return failures;
   }
 
-  const advertisesPgp = REPORTING_KEY_GUIDANCE.test(disclosure);
-  if (advertisesPgp && /Fingerprint:\s*(?:XXXX\s*){4,}/i.test(disclosure)) {
+  const advertisesPgp =
+    STRONG_PGP_GUIDANCE.test(securityPage) || REPORTING_KEY_GUIDANCE.test(disclosure);
+  if (advertisesPgp && /Fingerprint:\s*(?:XXXX\s*){4,}/i.test(securityPage)) {
     failures.push('placeholder PGP fingerprint is published');
   }
   if (advertisesPgp && !publishedKeyExists) {

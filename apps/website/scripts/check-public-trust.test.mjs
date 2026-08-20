@@ -17,6 +17,35 @@ describe('public trust contract', () => {
     expect(findPublicTrustFailures(securityPage(''), false)).toEqual([]);
   });
 
+  it('rejects a reporting email outside responsible disclosure', () => {
+    const page = `
+      <a href="mailto:security@eddacraft.ai">security@eddacraft.ai</a>
+      {/* RESPONSIBLE DISCLOSURE */}
+      <p>No reporting channel is rendered here.</p>
+      {/* SEE ALSO */}
+    `;
+
+    expect(findPublicTrustFailures(page, false)).toContain(
+      'missing working security reporting email'
+    );
+  });
+
+  it('rejects placeholder PGP guidance outside responsible disclosure', () => {
+    const page = `
+      {/* RESPONSIBLE DISCLOSURE */}
+      <a href="mailto:security@eddacraft.ai">security@eddacraft.ai</a>
+      {/* SEE ALSO */}
+      <p>PGP fingerprint: XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX</p>
+    `;
+
+    expect(findPublicTrustFailures(page, false)).toEqual(
+      expect.arrayContaining([
+        'placeholder PGP fingerprint is published',
+        'PGP guidance is published without the advertised key',
+      ])
+    );
+  });
+
   it.each([
     'For encrypted communications, download our key.',
     'Encrypt reports with PGP.',

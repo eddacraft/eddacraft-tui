@@ -39,8 +39,9 @@ shared continuous-improvement backlog.
 - **Intent:** A stalled verification upstream cannot hold a website request open indefinitely.
 - **Expected Outcome:** the verification fetch has an eight-second timeout and timeout or network failure returns the existing 503 contract.
 - **Files:** `apps/website/app/api/early-access/install/route.ts`,
-  `apps/website/app/api/early-access/install/route.test.ts`, `vitest.config.ts`
-- **Validation:** `pnpm exec vitest run apps/website/app/api/early-access/install/route.test.ts`
+  `apps/website/app/api/early-access/install/route.test.ts`, `apps/website/project.json`,
+  `vitest.config.ts`
+- **Validation:** `pnpm exec vitest run apps/website/app/api/early-access/install/route.test.ts --passWithNoTests=false`
 - **Finding ID:** `fnd_sig-feat-library-d956a2897f-0f50_c3327cf9e0`
 - **Risk:** standard
 
@@ -51,6 +52,8 @@ shared continuous-improvement backlog.
 - **Expected Outcome:** the security page keeps the working reporting channel and does not publish placeholder PGP instructions or a missing key URL.
 - **Files:** `apps/website/app/security/page.tsx`,
   `apps/website/scripts/check-public-trust.mjs`,
+  `apps/website/scripts/check-public-trust.test.mjs`,
+  `apps/website/components/public-trust.test.tsx`,
   `apps/website/package.json`
 - **Validation:** `pnpm --dir apps/website test:public-trust`
 - **Finding ID:** `fnd_sig-feat-library-d956a2897f-6ccd_5f040c6ece`
@@ -61,7 +64,8 @@ shared continuous-improvement backlog.
 - **Status:** In Progress
 - **Intent:** Positioning checks prove required claims occur in the intended rendered sections.
 - **Expected Outcome:** each required claim is checked in its owning composed component, while retired claims remain absent from the scanned website surface.
-- **Files:** `apps/website/scripts/check-positioning.mjs`
+- **Files:** `apps/website/scripts/check-positioning.mjs`,
+  `apps/website/components/public-positioning.test.tsx`
 - **Validation:** `pnpm --dir apps/website test:positioning`
 - **Finding ID:** `fnd_sig-feat-library-4b97edc98b-8c51_2bd1c39f10`
 - **Risk:** standard
@@ -114,7 +118,7 @@ implemented here:
 
 - `pnpm --dir apps/website test:positioning`
 - `pnpm --dir apps/website test:public-trust`
-- `pnpm exec vitest run apps/website/app/api/early-access/install/route.test.ts`
+- `pnpm exec vitest run apps/website/app/api/early-access/install/route.test.ts --passWithNoTests=false`
 - `cargo test -p eddacraft-anvil --test mcp_serve_stdio mcp_serve_stdio_shutdown_flushes_response_before_exit_notification -- --exact`
 - `cargo test -p eddacraft-anvil --test hooks_config_mode --no-fail-fast`
 - `cargo test -p eddacraft-anvil --test mcp_heal mcp_pin_and_unpin_round_trip -- --exact`

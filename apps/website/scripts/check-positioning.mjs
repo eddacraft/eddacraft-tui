@@ -2,7 +2,6 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const appDir = new URL('../app/', import.meta.url);
 const componentsDir = new URL('../components/', import.meta.url);
-const pageFile = new URL('../app/page.tsx', import.meta.url);
 const files = [
   ...readdirSync(appDir)
     .filter((name) => name.endsWith('.tsx') || name.endsWith('.css'))
@@ -12,19 +11,6 @@ const files = [
     .map((name) => new URL(`../components/${name}`, import.meta.url)),
 ];
 const content = files.map((file) => readFileSync(file, 'utf8')).join('\n');
-const pageContent = readFileSync(pageFile, 'utf8');
-
-const composedComponents = [
-  'HeroSection',
-  'ShippingProof',
-  'TrustGap',
-  'DecisionIntegrityFlywheel',
-  'ProductStages',
-  'DeliveryBoundary',
-  'DecisionModel',
-  'CompanyBand',
-  'CLIFooter',
-];
 
 const qualifiedFiles = new Map([
   ['decision-integrity-flywheel.tsx', ['still being built', 'system being completed']],
@@ -90,13 +76,6 @@ const failures = [
     ? ['hero does not compose TerminalWindow']
     : []),
   ...(heroContent.includes('hidden md:block') ? ['hero hides the terminal on mobile'] : []),
-  ...composedComponents.flatMap((name) => {
-    const importPattern = new RegExp(`import \\{ ${name} \\} from ['"]@/components/`);
-    return [
-      ...(!importPattern.test(pageContent) ? [`not imported by page: ${name}`] : []),
-      ...(!pageContent.includes(`<${name} />`) ? [`not composed by page: ${name}`] : []),
-    ];
-  }),
   ...[...qualifiedFiles].flatMap(([name, qualifiers]) => {
     const fileContent = readFileSync(new URL(`../components/${name}`, import.meta.url), 'utf8');
     return qualifiers

@@ -9,7 +9,7 @@
     "start": "next start",
     "test": "node ../../node_modules/vitest/vitest.mjs run --root ../.. apps/website --passWithNoTests=false",
     "test:positioning": "node ../../node_modules/vitest/vitest.mjs run --root ../.. apps/website/components/public-positioning.test.tsx --passWithNoTests=false && node scripts/check-positioning.mjs",
-    "test:public-trust": "node ../../node_modules/vitest/vitest.mjs run --root ../.. apps/website/scripts/check-public-trust.test.mjs --passWithNoTests=false && node scripts/check-public-trust.mjs"
+    "test:public-trust": "node ../../node_modules/vitest/vitest.mjs run --root ../.. apps/website/components/public-trust.test.tsx apps/website/scripts/check-public-trust.test.mjs --passWithNoTests=false && node scripts/check-public-trust.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.18",

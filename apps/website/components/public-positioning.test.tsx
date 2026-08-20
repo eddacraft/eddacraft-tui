@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
+import Home from '../app/page';
 import { SocialCard } from '../app/social-card';
 import { CompanyBand } from './company-band';
 import { HeroSection } from './hero-section';
@@ -15,6 +16,24 @@ function textOf(element: ReactNode): string {
 }
 
 describe('rendered website positioning', () => {
+  it('renders every required section through the Home composition', () => {
+    const rendered = textOf(<Home />);
+
+    for (const claim of [
+      'TRUST THE CODE',
+      '12 MCP CLIENTS',
+      'PROTECTION IS THE ENTRY POINT.',
+      'DECISION INTEGRITY FLYWHEEL',
+      '// FOUR_STAGE_CONTROL_PLANE',
+      'THE CONTROL POINT SHIPS TODAY.',
+      'THE SYSTEM THAT CREATES WORK SHOULD NOT JUDGE IT ALONE.',
+      'TRUST INFRASTRUCTURE FOR AI-ASSISTED WORK.',
+      'BUILD WITH SPEED. SHIP WITH INTEGRITY.',
+    ]) {
+      expect(rendered).toContain(claim);
+    }
+  });
+
   it('renders each public claim in its owning component', () => {
     expect(textOf(<HeroSection />)).toContain('TRUST THE CODE');
     expect(textOf(<TrustGap />)).toContain('PROTECTION IS THE ENTRY POINT.');
