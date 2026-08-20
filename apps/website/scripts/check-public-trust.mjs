@@ -9,6 +9,7 @@ const STRONG_PGP_GUIDANCE = /\b(?:pgp|openpgp|gpg|fingerprint|security[- ]key|ke
 const REPORTING_KEY_GUIDANCE = /\b(?:encrypt(?:ed|ion)?|public[- ]key|certificate)\b/i;
 const REAL_FINGERPRINT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 const FINGERPRINT_VALUE = /^[0-9a-f]{4}(?:[\s:-]*[0-9a-f]{4})*/i;
+const FINGERPRINT_BOUNDARY = /^(?:$|[\s,.;)\]])/;
 const DEGENERATE_FINGERPRINT = /^([0-9a-f])\1+$/i;
 
 function hasInvalidFingerprint(securityPage) {
@@ -21,7 +22,7 @@ function hasInvalidFingerprint(securityPage) {
   return [...labels].some((label) => {
     const tail = sourceText.slice(label.index + label[0].length);
     const candidate = tail.match(FINGERPRINT_VALUE);
-    if (!candidate || /^[0-9a-f]/i.test(tail.slice(candidate[0].length))) {
+    if (!candidate || !FINGERPRINT_BOUNDARY.test(tail.slice(candidate[0].length))) {
       return true;
     }
 
