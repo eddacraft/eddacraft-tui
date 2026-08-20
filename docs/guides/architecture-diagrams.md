@@ -52,11 +52,13 @@ Each governed public (or public-facing central) diagram commits:
    of the same meaning;
 4. ownership and upstream metadata through the containing document.
 
-SVG is the default export. A raster is governed only when it shares a stem with
-a Draw.io/SVG asset or lives below a `diagrams/` directory; ordinary product
-screenshots remain outside this diagram contract. A raster-only diagram needs an
-exact-path entry in `rasterExceptions` with the consumer limitation and an
-`ADR-123` review. Do not silently commit a PNG in place of the SVG pair.
+SVG is the default export. The manifest explicitly governs only
+`assets/diagrams` below each mounted family; ordinary product screenshots and
+legacy diagram-like files elsewhere in the family remain outside this contract.
+A raster within a governed diagram directory needs an exact-path entry in
+`rasterExceptions`, the consumer limitation, an `ADR-123` review, and a real
+accessible Markdown/MDX reference. Do not silently commit a PNG in place of the
+SVG pair.
 
 **One diagram per concern.** A second audience gets a linked or deliberately
 simplified view, not a copied diagram that can drift.
@@ -101,14 +103,15 @@ enforcement are outside this pipeline.
    prefix, suffix, or second version. Selecting the executable remains an
    operator-trusted boundary: `--drawio-bin` must name an authentic local
    Draw.io Desktop binary.
-2. Create or edit a single-page, lower-kebab `.drawio` source below a governed
-   root. The source, every ancestor below the repository root, and any existing
-   output must be regular non-symlink paths. On the `<mxfile>` element, set
-   non-empty `anvil-title` and `anvil-description` attributes; these become the
-   SVG accessible name and description.
+2. Create or edit a single-page, lower-kebab `.drawio` source in the
+   manifest-declared `docs/public/<family>/assets/diagrams` directory. The
+   source, every ancestor below the repository root, and any existing output
+   must be regular non-symlink paths. On the `<mxfile>` element, set non-empty
+   `anvil-title` and `anvil-description` attributes; these become the SVG
+   accessible name and description.
 3. Export with
-   `pnpm docs:public:diagrams:export -- docs/public/<family>/<path>.drawio`. The
-   wrapper verifies Desktop 31.1.8 and invokes
+   `pnpm docs:public:diagrams:export -- docs/public/<family>/assets/diagrams/<name>.drawio`.
+   The wrapper verifies Desktop 31.1.8 and invokes
    `--export --format svg --embed-diagram --crop --border 0`. It writes the
    same-name sibling `.svg`, adds `role="img"`, `<title>`, and `<desc>`, and
    verifies that the canonical embedded Draw.io XML equals the sibling source,
@@ -138,9 +141,15 @@ enforcement are outside this pipeline.
    closed on declarations, processing instructions, custom entities, active or
    namespaced elements/attributes, external/non-fragment references, and CSS
    imports or external URLs after entity, percent, and CSS-escape decoding.
-   Production mount discovery parses both renderer configs structurally, ignores
-   comments, and requires exact renderer/root equality with the manifest.
-   `pnpm docs:check` runs the same validator as its `public-diagrams` surface.
+   Draw.io sibling and embedded XML are parsed structurally with one
+   non-namespaced `mxfile` root and exactly one valid diagram page. The checker
+   verifies the recorded source, embedded-source, export, exact version-output,
+   version, and flag provenance; it does not invoke Draw.io. Markdown and MDX
+   raw HTML fragments are parsed as DOM, so commented, hidden, code, and
+   attribute-text image decoys do not count. The manifest enumerates only the
+   five governed `assets/diagrams` directories. Both production documentation
+   builds prove renderer integration. `pnpm docs:check` runs the same validator
+   as its `public-diagrams` surface.
 
 ## Review checklist
 

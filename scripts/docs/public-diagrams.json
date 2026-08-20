@@ -3,38 +3,34 @@
   "drawioDesktopVersion": "31.1.8",
   "drawioDesktopVersionOutput": "31.1.8",
   "exportArgs": ["--export", "--format", "svg", "--embed-diagram", "--crop", "--border", "0"],
-  "productionRenderers": [
-    "apps/anvil-docs-private/docusaurus.config.ts",
-    "apps/docs-public/docusaurus.config.ts"
+  "diagramDirectories": [
+    "docs/public/anvil/assets/diagrams",
+    "docs/public/beta/assets/diagrams",
+    "docs/public/aps/assets/diagrams",
+    "docs/public/kindling/assets/diagrams",
+    "docs/public/edda-stack/assets/diagrams"
   ],
-  "excludedRoots": ["docs/public/start-here"],
-  "excludedRenderers": ["apps/docs-site/docusaurus.config.ts"],
   "rasterExceptions": [],
   "families": [
     {
       "name": "anvil",
-      "root": "docs/public/anvil",
-      "renderer": "apps/anvil-docs-private/docusaurus.config.ts"
+      "root": "docs/public/anvil"
     },
     {
       "name": "beta",
-      "root": "docs/public/beta",
-      "renderer": "apps/anvil-docs-private/docusaurus.config.ts"
+      "root": "docs/public/beta"
     },
     {
       "name": "aps",
-      "root": "docs/public/aps",
-      "renderer": "apps/docs-public/docusaurus.config.ts"
+      "root": "docs/public/aps"
     },
     {
       "name": "kindling",
-      "root": "docs/public/kindling",
-      "renderer": "apps/docs-public/docusaurus.config.ts"
+      "root": "docs/public/kindling"
     },
     {
       "name": "edda-stack",
-      "root": "docs/public/edda-stack",
-      "renderer": "apps/docs-public/docusaurus.config.ts"
+      "root": "docs/public/edda-stack"
     }
   ]
 }

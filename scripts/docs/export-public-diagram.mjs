@@ -34,20 +34,31 @@ const family = contract.families.find(({ root }) => relativeSource.startsWith(`$
 if (!family) {
   fail(`${relativeSource} is outside the governed mounted public family roots`);
 }
+const diagramDirectory = contract.diagramDirectories.find((directory) =>
+  relativeSource.startsWith(`${directory}/`)
+);
+if (!diagramDirectory) {
+  fail(`${relativeSource} is outside the explicit governed diagram directories`);
+}
 if (!/\/[a-z0-9]+(?:-[a-z0-9]+)*\.drawio$/.test(`/${relativeSource}`)) {
   fail('Draw.io source must use a lower-kebab-case .drawio basename');
 }
 const familyRoot = resolve(repoRoot, family.root);
+const diagramRoot = resolve(repoRoot, diagramDirectory);
 const outputPath = join(dirname(sourcePath), `${basename(sourcePath, '.drawio')}.svg`);
 try {
   await assertNoSymlinkPath(repoRoot, sourcePath);
   await assertNoSymlinkPath(repoRoot, outputPath, { allowMissingLeaf: true });
-  const [canonicalFamily, canonicalSource] = await Promise.all([
+  const [canonicalFamily, canonicalDiagramRoot, canonicalSource] = await Promise.all([
     realpath(familyRoot),
+    realpath(diagramRoot),
     realpath(sourcePath),
   ]);
   if (!isWithin(canonicalFamily, canonicalSource)) {
     throw new Error('Draw.io source resolves outside its governed family root');
+  }
+  if (!isWithin(canonicalDiagramRoot, canonicalSource)) {
+    throw new Error('Draw.io source resolves outside its governed diagram directory');
   }
   if (!(await lstat(sourcePath)).isFile()) {
     throw new Error('Draw.io source must be a regular file');

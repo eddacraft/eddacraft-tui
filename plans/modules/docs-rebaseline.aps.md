@@ -109,8 +109,8 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-006, and DOCRB-011 are
 Merged. DOCRB-007 is In Progress after exact-base readiness evidence confirmed
-the five mounted public family roots, production renderer topology, pinned
-exporter contract, and executable validation surfaces. Other items stay Draft
+the five intended public family roots, pinned exporter contract, and executable
+validation surfaces. Other items stay Draft
 until their dependencies and expected evidence are present.
 
 ## Success Criteria
@@ -367,13 +367,15 @@ until their dependencies and expected evidence are present.
 - **Intent:** Make polished public diagrams source-controlled, reviewable,
   accessible, and reproducible.
 - **Expected Outcome:** A pinned Draw.io Desktop export path governs the five
-  mounted public family roots, commits lower-kebab paired `.drawio`/`.svg`
-  files with canonically equal embedded source and deterministic provenance.
-  Fail-closed checks cover XML/SVG activity, canonical non-symlink confinement,
-  atomic output, exact structural production mounts, accessibility, auditable
-  Markdown references, and candidate-scoped ADR-123 raster exceptions. The
-  validator is a first-class `docs:check` surface, adversarial fixture tests
-  exercise failure modes, and both production Docusaurus renderers build.
+  public families' explicit `assets/diagrams` directories, commits lower-kebab
+  paired `.drawio`/`.svg` files with canonically equal embedded source and
+  deterministic provenance. Fail-closed checks cover structural
+  sibling/embedded XML, SVG activity, canonical non-symlink confinement, atomic
+  output, exact exporter version/output/arguments, source/export freshness,
+  accessibility, auditable real Markdown/MDX references, and directory-scoped
+  ADR-123 raster exceptions. The validator is a first-class `docs:check`
+  surface, adversarial fixture tests exercise failure modes, and both production
+  Docusaurus renderers build to prove mount integration at the system boundary.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
   `plans/execution/DOCRB-007.actions.md`,
   `plans/reviews/2026-08-20-docrb-007-public-svg-pipeline.md`,

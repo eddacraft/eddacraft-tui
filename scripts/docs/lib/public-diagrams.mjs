@@ -4,7 +4,6 @@ import { basename, dirname, extname, join, relative, resolve, sep } from 'node:p
 import { Window } from 'happy-dom';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
-import ts from 'typescript';
 import { unified } from 'unified';
 
 const CONTRACT_PATH = 'scripts/docs/public-diagrams.json';
@@ -14,6 +13,18 @@ const RASTER_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
 const XMLNS_NAMESPACE = 'http://www.w3.org/2000/xmlns/';
+const URL_PRESENTATION_ATTRIBUTES = new Set([
+  'fill',
+  'stroke',
+  'filter',
+  'clip-path',
+  'mask',
+  'marker',
+  'marker-start',
+  'marker-mid',
+  'marker-end',
+  'cursor',
+]);
 const SVG_DOM = new Window();
 
 export async function loadContract(repoRoot) {
@@ -58,28 +69,102 @@ function attr(text, name) {
   return match ? xmlDecode(match[1]) : undefined;
 }
 
+function parseDrawioSource(source) {
+  const normalised = source.replace(/\r\n?/g, '\n').trim();
+  if (/<!DOCTYPE|<!ENTITY|<\?|<!\[CDATA\[/i.test(normalised)) {
+    throw new Error('embedded Draw.io source is not canonical safe mxfile XML');
+  }
+  const document = new SVG_DOM.DOMParser().parseFromString(normalised, 'application/xml');
+  const root = document.documentElement;
+  if (
+    document.querySelector('parsererror') ||
+    !root ||
+    root.localName !== 'mxfile' ||
+    root.namespaceURI
+  ) {
+    throw new Error('embedded Draw.io source must have one non-namespaced mxfile root');
+  }
+  const elements = [root, ...root.querySelectorAll('*')];
+  for (const element of elements) {
+    if (element.namespaceURI)
+      throw new Error('Draw.io source must not contain namespaced elements');
+    for (const attribute of element.attributes) {
+      if (attribute.namespaceURI) {
+        throw new Error('Draw.io source must not contain namespaced attributes');
+      }
+    }
+  }
+  const pages = [...root.children].filter((element) => element.localName === 'diagram');
+  if (pages.length !== 1 || root.children.length !== 1) {
+    throw new Error('Draw.io source must contain exactly one diagram page');
+  }
+  const diagram = pages[0];
+  if (!diagram.getAttribute('id')?.trim()) {
+    throw new Error('Draw.io diagram page must have a non-empty id');
+  }
+  const elementChildren = [...diagram.children];
+  if (elementChildren.length === 0) {
+    if (!diagram.textContent?.trim()) {
+      throw new Error('Draw.io diagram page must contain a graph model or compressed content');
+    }
+  } else {
+    if (elementChildren.length !== 1 || elementChildren[0].localName !== 'mxGraphModel') {
+      throw new Error('Draw.io diagram page must contain exactly one graph model');
+    }
+    const graphModel = elementChildren[0];
+    const graphRoots = [...graphModel.children].filter((element) => element.localName === 'root');
+    if (
+      graphRoots.length !== 1 ||
+      graphModel.children.length !== 1 ||
+      graphRoots[0].querySelectorAll('mxCell').length === 0
+    ) {
+      throw new Error('Draw.io graph model must contain exactly one populated root');
+    }
+  }
+  return { root, diagram };
+}
+
+function canonicalXmlNode(node) {
+  if (node.nodeType === 3) {
+    const value = node.data.trim();
+    return value ? xmlEscape(value) : '';
+  }
+  if (node.nodeType !== 1) {
+    throw new Error('Draw.io source contains unsupported XML nodes');
+  }
+  const attributes = [...node.attributes]
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((attribute) => ` ${attribute.name}="${xmlEscape(attribute.value)}"`)
+    .join('');
+  const content = [...node.childNodes].map(canonicalXmlNode).join('');
+  return content
+    ? `<${node.localName}${attributes}>${content}</${node.localName}>`
+    : `<${node.localName}${attributes}/>`;
+}
+
 function sourceAccessibility(source) {
-  const mxfile = source.match(/<mxfile\b[^>]*>/)?.[0] ?? '';
-  return {
-    title: attr(mxfile, 'anvil-title'),
-    description: attr(mxfile, 'anvil-description'),
-  };
+  try {
+    const { root } = parseDrawioSource(source);
+    return {
+      title: root.getAttribute('anvil-title') ?? undefined,
+      description: root.getAttribute('anvil-description') ?? undefined,
+    };
+  } catch {
+    return {};
+  }
 }
 
 function sourcePageCount(source) {
-  return [...source.matchAll(/<diagram\b/g)].length;
+  try {
+    parseDrawioSource(source);
+    return 1;
+  } catch {
+    return 0;
+  }
 }
 
 export function canonicalDrawioSource(source) {
-  const normalised = source.replace(/\r\n?/g, '\n').trim();
-  if (
-    /<!DOCTYPE|<!ENTITY|<\?|<!\[CDATA\[/i.test(normalised) ||
-    !/^<mxfile\b[\s\S]*<\/mxfile>$/.test(normalised)
-  ) {
-    throw new Error('embedded Draw.io source is not canonical safe mxfile XML');
-  }
-  xmlDecode(normalised);
-  return normalised.replace(/>\s+</g, '><');
+  return canonicalXmlNode(parseDrawioSource(source).root);
 }
 
 function stripProvenance(svg) {
@@ -167,33 +252,64 @@ async function walk(root) {
   return { files: found.sort(), symlinks: symlinks.sort() };
 }
 
+async function symlinkAncestors(repoRoot, target) {
+  const path = relative(repoRoot, target);
+  if (path === '..' || path.startsWith(`..${sep}`) || resolve(repoRoot, path) !== target) {
+    return [target];
+  }
+  const symlinks = [];
+  let current = repoRoot;
+  const candidates = [
+    repoRoot,
+    ...path
+      .split(sep)
+      .filter(Boolean)
+      .map((part) => {
+        current = join(current, part);
+        return current;
+      }),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if ((await lstat(candidate)).isSymbolicLink()) {
+        symlinks.push(candidate);
+        break;
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') break;
+      throw error;
+    }
+  }
+  return symlinks;
+}
+
 function finding(code, path, message) {
   return { code, path, message };
 }
 
-function mountedPublicRoots(renderer, rendererPath) {
-  const source = ts.createSourceFile(
-    rendererPath,
-    renderer,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS
-  );
-  const mounts = new Set();
-  function visit(node) {
-    if (
-      ts.isPropertyAssignment(node) &&
-      ((ts.isIdentifier(node.name) && node.name.text === 'path') ||
-        (ts.isStringLiteral(node.name) && node.name.text === 'path')) &&
-      (ts.isStringLiteral(node.initializer) || ts.isNoSubstitutionTemplateLiteral(node.initializer))
-    ) {
-      const value = node.initializer.text;
-      if (value.startsWith('../../docs/public/')) mounts.add(value);
-    }
-    ts.forEachChild(node, visit);
+function contractFindings(contract) {
+  const issues = [];
+  const unique = (values) => new Set(values).size === values.length;
+  const familyRoots = (contract.families ?? []).map(({ root }) => root);
+  const familyNames = (contract.families ?? []).map(({ name }) => name);
+  const diagramDirectories = contract.diagramDirectories ?? [];
+  const expectedDiagramDirectories = familyRoots.map((root) => `${root}/assets/diagrams`);
+  if (
+    !unique(familyRoots) ||
+    !unique(familyNames) ||
+    !unique(diagramDirectories) ||
+    diagramDirectories.length !== expectedDiagramDirectories.length ||
+    diagramDirectories.some((directory) => !expectedDiagramDirectories.includes(directory))
+  ) {
+    issues.push(
+      finding(
+        'invalid-contract',
+        CONTRACT_PATH,
+        'manifest family roots, names and diagram directories must be unique and correspond exactly'
+      )
+    );
   }
-  visit(source);
-  return mounts;
+  return issues;
 }
 
 function provenanceFrom(svg) {
@@ -328,6 +444,7 @@ function hasUnsafeSvg(svg) {
           if (!reference || !/^#[A-Za-z_][A-Za-z0-9_.:-]*$/.test(reference)) return true;
         }
         if (lowerAttribute === 'style' && unsafeCss(value)) return true;
+        if (URL_PRESENTATION_ATTRIBUTES.has(lowerAttribute) && unsafeCss(value)) return true;
       }
     }
     return false;
@@ -371,12 +488,31 @@ function meaningfulText(value) {
   return value.trim().length >= 10 && words.length >= 2;
 }
 
-function htmlAttributes(value) {
-  const attributes = new Map();
-  for (const match of value.matchAll(/([A-Za-z_:][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
-    attributes.set(match[1].toLowerCase(), match[2] ?? match[3] ?? '');
+function rawHtmlImageReferences(value) {
+  const document = new SVG_DOM.DOMParser().parseFromString(value, 'text/html');
+  const references = [];
+  for (const image of document.querySelectorAll('img')) {
+    let visible = true;
+    for (let element = image; element; element = element.parentElement) {
+      const style = element.getAttribute('style') ?? '';
+      if (
+        element.hasAttribute('hidden') ||
+        element.getAttribute('aria-hidden')?.toLowerCase() === 'true' ||
+        /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:;|$)/i.test(style)
+      ) {
+        visible = false;
+        break;
+      }
+    }
+    if (visible && image.hasAttribute('src')) {
+      references.push({
+        target: image.getAttribute('src'),
+        alt: image.getAttribute('alt') ?? '',
+        associated: false,
+      });
+    }
   }
-  return attributes;
+  return references;
 }
 
 function markdownImageReferences(markdown) {
@@ -409,16 +545,7 @@ function markdownImageReferences(markdown) {
       references.push({ target, alt: image.alt ?? '', associated });
     }
     if (block.type === 'html' && !block.value.trimStart().startsWith('<!--')) {
-      for (const match of block.value.matchAll(/<img\b[^>]*>/gi)) {
-        const attributes = htmlAttributes(match[0]);
-        if (attributes.has('src')) {
-          references.push({
-            target: attributes.get('src'),
-            alt: attributes.get('alt') ?? '',
-            associated: false,
-          });
-        }
-      }
+      references.push(...rawHtmlImageReferences(block.value));
     }
   }
   return references;
@@ -445,60 +572,14 @@ function referencedWithAlt(svgPath, markdownFiles, markdownByPath) {
 }
 
 export async function validatePublicDiagrams(repoRoot, contract) {
-  const findings = [];
-
-  const expectedByRenderer = new Map(
-    contract.productionRenderers.map((renderer) => [renderer, new Set()])
-  );
-  for (const family of contract.families) {
-    const expected = expectedByRenderer.get(family.renderer);
-    if (!expected) {
-      findings.push(
-        finding(
-          'undeclared-production-renderer',
-          family.renderer,
-          `${family.root} maps to a renderer outside productionRenderers`
-        )
-      );
-      continue;
-    }
-    expected.add(`../../${family.root}`);
-  }
-  for (const [rendererPath, expected] of expectedByRenderer) {
-    let renderer = '';
-    try {
-      renderer = await readFile(resolve(repoRoot, rendererPath), 'utf8');
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-    const actual = mountedPublicRoots(renderer, rendererPath);
-    for (const mount of expected) {
-      if (!actual.has(mount)) {
-        findings.push(
-          finding(
-            'family-not-mounted',
-            rendererPath,
-            `${mount.slice(6)} is not structurally mounted by its declared production renderer`
-          )
-        );
-      }
-    }
-    for (const mount of actual) {
-      if (!expected.has(mount)) {
-        findings.push(
-          finding(
-            'undeclared-family-mount',
-            rendererPath,
-            `${mount.slice(6)} is mounted by production but absent from the manifest mapping`
-          )
-        );
-      }
-    }
-  }
+  const findings = contractFindings(contract);
 
   for (const family of contract.families) {
     const familyRoot = resolve(repoRoot, family.root);
-    const { files, symlinks } = await walk(familyRoot);
+    const ancestorSymlinks = await symlinkAncestors(repoRoot, familyRoot);
+    const { files: familyFiles, symlinks: descendantSymlinks } =
+      ancestorSymlinks.length > 0 ? { files: [], symlinks: [] } : await walk(familyRoot);
+    const symlinks = [...ancestorSymlinks, ...descendantSymlinks];
     for (const path of symlinks) {
       findings.push(
         finding(
@@ -508,10 +589,36 @@ export async function validatePublicDiagrams(repoRoot, contract) {
         )
       );
     }
+    const diagramRoots = (contract.diagramDirectories ?? [])
+      .filter((directory) => directory.startsWith(`${family.root}/`))
+      .map((directory) => resolve(repoRoot, directory));
+    const files = familyFiles.filter((path) =>
+      diagramRoots.some((directory) => {
+        const child = relative(directory, path);
+        return child === '' || (!child.startsWith(`..${sep}`) && child !== '..');
+      })
+    );
+    const markdownFiles = familyFiles.filter((path) => /\.mdx?$/.test(path));
+    const markdownByPath = new Map(
+      await Promise.all(markdownFiles.map(async (path) => [path, await readFile(path, 'utf8')]))
+    );
     const byStem = new Map();
     const rasterFiles = [];
     for (const path of files) {
-      const extension = extname(path).toLowerCase();
+      const rawExtension = extname(path);
+      const extension = rawExtension.toLowerCase();
+      if (
+        rawExtension !== extension &&
+        (RASTER_EXTENSIONS.has(extension) || extension === '.drawio' || extension === '.svg')
+      ) {
+        findings.push(
+          finding(
+            'invalid-extension',
+            relative(repoRoot, path).split(sep).join('/'),
+            'governed diagram file extensions must be lower-case'
+          )
+        );
+      }
       if (RASTER_EXTENSIONS.has(extension)) {
         rasterFiles.push(path);
         continue;
@@ -523,16 +630,16 @@ export async function validatePublicDiagrams(repoRoot, contract) {
       byStem.set(stem, values);
     }
     for (const path of rasterFiles) {
-      const extension = extname(path).toLowerCase();
-      const stem = path.slice(0, -extension.length);
-      const familyDirectory = relative(familyRoot, dirname(path)).split(sep);
-      const isCandidate = byStem.has(stem) || familyDirectory.includes('diagrams');
-      if (!isCandidate) continue;
       const relativePath = relative(repoRoot, path).split(sep).join('/');
       const exception = (contract.rasterExceptions ?? []).find(
         (candidate) => candidate.path === relativePath
       );
-      if (exception && exception.consumer?.trim() && exception.reviewedAgainst === 'ADR-123') {
+      if (
+        exception &&
+        exception.consumer?.trim() &&
+        exception.reviewedAgainst === 'ADR-123' &&
+        referencedWithAlt(path, markdownFiles, markdownByPath)
+      ) {
         continue;
       }
       findings.push(
@@ -540,16 +647,11 @@ export async function validatePublicDiagrams(repoRoot, contract) {
           exception ? 'invalid-raster-exception' : 'raster-diagram',
           relativePath,
           exception
-            ? 'raster exception requires a consumer reason and ADR-123 review'
+            ? 'raster exception requires a consumer reason, ADR-123 review and an accessible real reference'
             : 'governed diagram candidates require paired Draw.io/SVG or a reviewed raster exception'
         )
       );
     }
-
-    const markdownFiles = files.filter((path) => /\.mdx?$/.test(path));
-    const markdownByPath = new Map(
-      await Promise.all(markdownFiles.map(async (path) => [path, await readFile(path, 'utf8')]))
-    );
 
     for (const [stem, variants] of byStem) {
       const display = relative(repoRoot, stem).split(sep).join('/');

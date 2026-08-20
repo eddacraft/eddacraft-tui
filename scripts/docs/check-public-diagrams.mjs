@@ -16,8 +16,8 @@ const contract = await loadContract(repoRoot);
 const findings = await validatePublicDiagrams(repoRoot, contract);
 
 let filesChecked = 0;
-for (const family of contract.families) {
-  filesChecked += await countDiagramFiles(resolve(repoRoot, family.root));
+for (const directory of contract.diagramDirectories) {
+  filesChecked += await countDiagramFiles(resolve(repoRoot, directory));
 }
 
 if (json) {
@@ -63,7 +63,7 @@ async function countDiagramFiles(root) {
     for (const entry of entries) {
       const path = resolve(directory, entry.name);
       if (entry.isDirectory()) await visit(path);
-      else if (['.drawio', '.svg'].includes(extname(path).toLowerCase())) count += 1;
+      else if (['.drawio', '.svg'].includes(extname(path))) count += 1;
     }
   }
   await visit(root);
