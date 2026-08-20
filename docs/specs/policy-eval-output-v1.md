@@ -1,15 +1,15 @@
 # Policy Eval Output Contract — `anvil policy eval --json` v1
 
-| Type | Authority     | Owner | Status | Freshness                                                                                                                                                                                                               |
-| ---- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | CIB   | Live   | Last reviewed 2026-06-17 against `main`; frozen at v1 by CIB-078 ([`plans/modules/continuous-improvement-backlog.aps.md`](../../plans/modules/continuous-improvement-backlog.aps.md)) before EVAL binds (EVAL-001/-002) |
+| Type | Authority     | Owner | Status | Freshness                                                                                                                                                      |
+| ---- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | CIB   | Live   | Last reviewed 2026-08-20 against `crates/anvil-policy-engine/src/result.rs` (`Finding`, `Severity`, `post_process`; test-only change, v1 wire shape unchanged) |
 
 | Upstream                                                                                                                                                   | Downstream                                                                                                                                                                                    |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-cli/src/commands/policy/eval.rs` (`EvalOutput` — the serialisation site), `crates/anvil-policy-engine/src/result.rs` (`Finding`, `Severity`) | EVAL harness adapter ([`plans/archive/modules/eval-harness-integration.aps.md`](../../plans/archive/modules/eval-harness-integration.aps.md)), CI gates that parse `anvil policy eval --json` |
 
 **Version:** 1.0.0 **Status:** Live **Created:** 2026-06-17 **Last Updated:**
-2026-06-17
+2026-08-20
 
 ---
 
@@ -85,15 +85,15 @@ The first block of fields is supplied by the policy; `is_new_edge` and
 `baselined` are computed by the engine's post-processing (ADR-003) and default
 to `false` on a raw finding.
 
-| Field         | JSON type        | Description                                                                         |
-| ------------- | ---------------- | ----------------------------------------------------------------------------------- |
-| `severity`    | string           | `Severity` wire form: `"warning"` (default, never blocks) or `"error"` (blocks).    |
-| `message`     | string           | Human-readable description of the finding.                                          |
-| `from`        | string, optional | Importer side of the dependency edge this finding concerns, if any.                 |
-| `to`          | string, optional | Imported side of the dependency edge this finding concerns, if any.                 |
-| `fingerprint` | string, optional | Baseline fingerprint of this finding, if it has one.                                |
-| `is_new_edge` | boolean          | Computed: the finding concerns an edge introduced by the change set (ADR-003).      |
-| `baselined`   | boolean          | Computed: the fingerprint is in the baseline cohort, so it is suppressed (ADR-003). |
+| Field         | JSON type        | Description                                                                                         |
+| ------------- | ---------------- | --------------------------------------------------------------------------------------------------- |
+| `severity`    | string           | `Severity` wire form: `"warning"` (default, never blocks) or `"error"` (blocks).                    |
+| `message`     | string           | Human-readable description of the finding.                                                          |
+| `from`        | string, optional | Importer side of the dependency edge this finding concerns, if any.                                 |
+| `to`          | string, optional | Imported side of the dependency edge this finding concerns, if any.                                 |
+| `fingerprint` | string, optional | Baseline fingerprint of this finding, if it has one.                                                |
+| `is_new_edge` | boolean          | Computed: the finding concerns an edge introduced by the change set and is not baselined (ADR-003). |
+| `baselined`   | boolean          | Computed: the fingerprint is in the baseline cohort, so it is suppressed (ADR-003).                 |
 
 The optional fields (`from`, `to`, `fingerprint`) are **omitted when absent, not
 serialised as `null`**. Consumers must guard with a key-presence check, not a
