@@ -16,7 +16,7 @@ upstream:
   - crates/anvil-cli/src/commands/init.rs
   - crates/anvil-cli/src/commands/policy/mod.rs
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.6-beta
+verified_against: 0.9.7-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -24,7 +24,7 @@ verified_against: 0.9.6-beta
 # CLI command reference
 
 This page is generated from the command definitions shipped with anvil
-0.9.6-beta. Global flags appear once. Hidden clap commands are unpublished.
+0.9.7-beta. Global flags appear once. Hidden clap commands are unpublished.
 Flags and subcommands below cover the daily set (`start`, `check`, `gate`,
 `config`, `watch`, `doctor`, `init`, `policy`). Use `anvil <command> --help` for
 other commands and for examples on your installed version.

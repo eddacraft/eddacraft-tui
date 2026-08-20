@@ -10,7 +10,7 @@ upstream:
   - crates/anvil-cli/src/commands/check.rs
   - flags/manifest.json
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.6-beta
+verified_against: 0.9.7-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->

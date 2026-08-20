@@ -6,7 +6,7 @@ owner: DOCSYNC
 upstream:
   - patterns/compiled/registry.json
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.6-beta
+verified_against: 0.9.7-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -17,7 +17,7 @@ These rules are the body of the `antipattern-scan` check, not the list of anvil
 checks. See the [check catalogue](checks.md) for every shipped check.
 
 This catalogue covers source-pattern rules in the compiled registry shipped with
-anvil 0.9.6-beta. Secrets, architecture, policy, command-safety, and other gate
+anvil 0.9.7-beta. Secrets, architecture, policy, command-safety, and other gate
 checks have separate engines and are not listed here. The registry contains **49
 enabled rules across 11 families**.
 
