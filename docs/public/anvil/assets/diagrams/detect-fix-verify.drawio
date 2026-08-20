@@ -1,0 +1,43 @@
+<mxfile host="Electron" agent="Draw.io Desktop 31.1.8" anvil-title="Detect, fix, and verify with anvil" anvil-description="Four steps show a deliberate finding created, detected by anvil check, corrected safely, and verified by an explicit clean result.">
+  <diagram id="detect-fix-verify" name="Detect, fix, verify">
+    <mxGraphModel dx="-526" dy="-106" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="0" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="background" parent="1" style="rounded=0;html=0;strokeColor=none;fillColor=#FFFFFF;" vertex="1">
+          <mxGeometry height="337" width="965" x="20" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="title" parent="1" style="text;html=0;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=24;fontStyle=1;fontColor=#243447;" value="The protection loop" vertex="1">
+          <mxGeometry height="40" width="860" x="40" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=0;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=14;fontColor=#4B5563;" value="Use the same check before and after the correction." vertex="1">
+          <mxGeometry height="28" width="860" x="40" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="step1" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#52606D;fillColor=#F5F7FA;fontColor=#243447;fontSize=16;fontStyle=1;spacing=12;" value="1  CREATE&#xa;Add the deliberate finding" vertex="1">
+          <mxGeometry height="112" width="205" x="40" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="step2" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#C56A1A;fillColor=#FFF4E5;fontColor=#5A3513;fontSize=16;fontStyle=1;spacing=12;" value="2  DETECT&#xa;Run anvil check&#xa;Finding names the file" vertex="1">
+          <mxGeometry height="112" width="205" x="280" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="step3" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#2878A5;fillColor=#EAF6FC;fontColor=#164863;fontSize=16;fontStyle=1;spacing=12;" value="3  FIX&#xa;Make the safe correction" vertex="1">
+          <mxGeometry height="112" width="205" x="520" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="step4" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#26836A;fillColor=#E9F8F2;fontColor=#174F41;fontSize=16;fontStyle=1;spacing=12;" value="4  VERIFY&#xa;Run the same check&#xa;Explicit clean result" vertex="1">
+          <mxGeometry height="112" width="205" x="760" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="edge12" edge="1" parent="1" source="step1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="step2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge23" edge="1" parent="1" source="step2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="step3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge34" edge="1" parent="1" source="step3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="step4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="close-loop" parent="1" style="rounded=1;html=0;arcSize=20;strokeWidth=1;strokeColor=#26836A;fillColor=#F3FBF8;fontColor=#174F41;fontSize=14;fontStyle=1;align=center;" value="A clean result closes the loop." vertex="1">
+          <mxGeometry height="52" width="325" x="340" y="275" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

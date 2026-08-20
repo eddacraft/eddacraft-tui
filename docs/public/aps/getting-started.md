@@ -149,6 +149,14 @@ aps next
 Success names `TODO-001`, its module, its status, and its file. You now have a
 validated plan and an authorised next outcome; no implementation has started.
 
+## Work-item lifecycle
+
+A full APS work item continues from valid plan truth: select `Ready` work, start
+it as `In Progress`, implement the bounded outcome, run its declared validation,
+record completion, and then continue the queue.
+
+![Six-step APS work-item lifecycle from plan linting and Ready selection through implementation, validation, and completion](assets/diagrams/work-item-lifecycle.svg)
+
 ## Next step
 
 Continue with the [day-to-day workflow](workflow.md) to claim the item, run its

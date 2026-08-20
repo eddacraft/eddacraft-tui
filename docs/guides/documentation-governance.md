@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                                                                                                                                                          |
 | ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCRB | Live   | Reviewed 2026-08-20 for DOCRB-005 against ADR-123, the source-pinned corpus disposition, component-local successors, and retained central cross-system authorities |
+| Guide | Authoritative | DOCRB | Live   | Reviewed 2026-08-21 for DOCRB-008 against ADR-123, the source-pinned corpus disposition, component-local successors, and retained central cross-system authorities |
 
 | Upstream                                                                                                                                                                       | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |

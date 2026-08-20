@@ -2,16 +2,20 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   kindlingSidebar: [
-    'overview',
+    {
+      type: 'doc',
+      id: 'overview',
+      label: 'Explanation — Overview',
+    },
     {
       type: 'category',
-      label: 'Quickstart',
+      label: 'Tutorial — Quickstart',
       collapsed: false,
       items: ['quickstart/install', 'quickstart/first-memory', 'quickstart/automatic-capture'],
     },
     {
       type: 'category',
-      label: 'Core Concepts',
+      label: 'Explanation — Core concepts',
       collapsed: false,
       items: [
         'concepts/capsules',
@@ -22,7 +26,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Adapters',
+      label: 'How-to — Adapters',
       collapsed: true,
       items: [
         'adapters/claude-code',

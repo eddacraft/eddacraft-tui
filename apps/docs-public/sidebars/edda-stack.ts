@@ -2,10 +2,14 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 const sidebars: SidebarsConfig = {
   eddaStackSidebar: [
-    'overview',
+    {
+      type: 'doc',
+      id: 'overview',
+      label: 'Explanation — Overview',
+    },
     {
       type: 'category',
-      label: 'Capabilities',
+      label: 'Explanation — Capabilities',
       collapsed: false,
       items: [
         {
@@ -28,17 +32,17 @@ const sidebars: SidebarsConfig = {
     {
       type: 'doc',
       id: 'design-principles',
-      label: 'Design Principles',
+      label: 'Explanation — Design principles',
     },
     {
       type: 'doc',
       id: 'enterprise-questions',
-      label: 'Enterprise Questions',
+      label: 'Explanation — Enterprise questions',
     },
     {
       type: 'doc',
       id: 'roadmap',
-      label: 'Capability Roadmap',
+      label: 'Explanation — Capability roadmap',
     },
   ],
 };

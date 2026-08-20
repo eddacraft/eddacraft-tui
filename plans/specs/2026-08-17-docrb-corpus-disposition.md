@@ -230,8 +230,9 @@ Component internals must not be redrawn into those five.
 | `docs/public/kindling/**` | 19 | copied external | DOCSYNC | mixed | retain as copy; ADR-122 pin |
 | `docs/public/aps/**` | 15 | copied external spec | DOCSYNC | mixed | retain as copy; ADR-122 pin |
 
-No public Draw.io/SVG assets exist. DOCRB-008 selects journeys; this
-inventory does not pick public content priorities.
+DOCRB-008 selects two public journeys: anvil detect/fix/verify and the APS
+work-item lifecycle. Each has one owning page and paired Draw.io/SVG assets;
+this inventory does not grant authority for additional public diagrams.
 
 Generated public/reference pages (CLI reference and similar) stay
 `generated/vendor` — do not hand-maintain.

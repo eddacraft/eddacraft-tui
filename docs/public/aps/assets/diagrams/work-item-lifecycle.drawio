@@ -1,0 +1,63 @@
+<mxfile host="Electron" agent="Draw.io Desktop 31.1.8" anvil-title="APS work-item lifecycle" anvil-description="Six steps show APS linting a plan, selecting Ready work, starting it as In Progress, implementing the bounded outcome, running declared validation, and completing the item before continuing the queue.">
+  <diagram id="work-item-lifecycle" name="Work-item lifecycle">
+    <mxGraphModel dx="-591" dy="-109" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="0" page="0" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="background" parent="1" style="rounded=0;html=0;strokeColor=none;fillColor=#FFFFFF;" vertex="1">
+          <mxGeometry height="332" width="1095" x="20" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="title" parent="1" style="text;html=0;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=24;fontStyle=1;fontColor=#243447;" value="One bounded APS work item" vertex="1">
+          <mxGeometry height="40" width="980" x="40" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="text;html=0;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=14;fontColor=#4B5563;" value="Plan truth and declared validation govern every state change." vertex="1">
+          <mxGeometry height="28" width="980" x="40" y="68" as="geometry" />
+        </mxCell>
+        <mxCell id="lint" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#52606D;fillColor=#F5F7FA;fontColor=#243447;fontSize=15;fontStyle=1;spacing=10;" value="1  LINT&#xa;Plan is valid" vertex="1">
+          <mxGeometry height="96" width="155" x="40" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="next" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#2878A5;fillColor=#EAF6FC;fontColor=#164863;fontSize=15;fontStyle=1;spacing=10;" value="2  NEXT&#xa;Select Ready work" vertex="1">
+          <mxGeometry height="96" width="155" x="220" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="start" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#C56A1A;fillColor=#FFF4E5;fontColor=#5A3513;fontSize=15;fontStyle=1;spacing=10;" value="3  START&#xa;In Progress" vertex="1">
+          <mxGeometry height="96" width="155" x="400" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="implement" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#7253A6;fillColor=#F4EFFA;fontColor=#463266;fontSize=15;fontStyle=1;spacing=10;" value="4  IMPLEMENT&#xa;Bounded outcome" vertex="1">
+          <mxGeometry height="96" width="155" x="580" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="validate" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#2878A5;fillColor=#EAF6FC;fontColor=#164863;fontSize=15;fontStyle=1;spacing=10;" value="5  VALIDATE&#xa;Declared command" vertex="1">
+          <mxGeometry height="96" width="155" x="760" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="complete" parent="1" style="rounded=1;html=0;arcSize=14;strokeWidth=2;strokeColor=#26836A;fillColor=#E9F8F2;fontColor=#174F41;fontSize=15;fontStyle=1;spacing=10;" value="6  COMPLETE&#xa;Outcome recorded" vertex="1">
+          <mxGeometry height="96" width="155" x="940" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="edge12" edge="1" parent="1" source="lint" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="next">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge23" edge="1" parent="1" source="next" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="start">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge34" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="implement">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge45" edge="1" parent="1" source="implement" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="validate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge56" edge="1" parent="1" source="validate" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=0;strokeWidth=2;strokeColor=#52606D;endArrow=block;endFill=1;" target="complete">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="continue" parent="1" style="rounded=1;html=0;arcSize=20;strokeWidth=1;strokeColor=#26836A;fillColor=#F3FBF8;fontColor=#174F41;fontSize=14;fontStyle=1;align=center;" value="Continue the queue with aps lint and aps next" vertex="1">
+          <mxGeometry height="52" width="400" x="370" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-loop" edge="1" parent="1" source="complete" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=0;strokeWidth=2;strokeColor=#26836A;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" target="next" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1018" y="350" />
+              <mxPoint x="298" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

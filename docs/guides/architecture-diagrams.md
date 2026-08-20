@@ -1,8 +1,8 @@
 # Architecture Diagram Maintenance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                    |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 against ADR-123, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs`, `scripts/docs/export-public-diagram.mjs`, `scripts/docs/lib/public-diagrams.mjs`, both production Docusaurus configs, and `docs/guides/documentation-governance.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                  |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-21 for DOCRB-008 against ADR-123, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs`, `scripts/docs/export-public-diagram.mjs`, `scripts/docs/lib/public-diagrams.mjs`, both production Docusaurus configs, and `docs/guides/documentation-governance.md` |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                        | Downstream                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
@@ -118,7 +118,9 @@ enforcement are outside this pipeline.
    records raw-source and canonical-embedded hashes, the final export hash,
    exact observed version output, version, and flags, then creates the
    destination through a same-directory exclusive temporary file and atomic
-   rename. Do not hand-edit the SVG.
+   rename. Do not hand-edit the SVG. Before annotation and hashing, the exporter
+   normalises only Draw.io Desktop 31.1.8's exact official three-line prolog;
+   altered or other processing instructions and doctypes remain rejected.
 4. Reference the SVG from Markdown in the same family using meaningful,
    non-empty alt text. For intentionally empty alt text, bind the adjacent
    explanation explicitly:

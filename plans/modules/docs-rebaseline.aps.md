@@ -108,9 +108,9 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
-and DOCRB-011 are Merged. DOCRB-008 has all dependencies Merged and is the next
-dependency-clear DOCRB candidate, but remains Draft pending its own readiness
-pass; it is not promoted by this closeout.
+and DOCRB-011 are Merged. DOCRB-008 has all dependencies Merged and is In
+Progress on its approved public information-architecture and curated-diagram
+rebaseline; it is not a release claim. DOCRB-009 and DOCRB-010 remain Draft.
 
 ## Success Criteria
 
@@ -424,7 +424,7 @@ pass; it is not promoted by this closeout.
 
 ### DOCRB-008: Re-baseline public information architecture and curated diagrams
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Make public documentation easier to follow by organising it around
   reader needs and adding a restrained set of polished visual explanations.
 - **Expected Outcome:** In coordination with DOCSYNC, DSITE, and the owners
@@ -433,14 +433,48 @@ pass; it is not promoted by this closeout.
   avoid duplicate authority, high-value user journeys use paired Draw.io/SVG
   diagrams, current shell/private/public routing builds, and release/version
   provenance remains intact.
-- **Scope:** `docs/public/**`, selected public diagram assets, and remaining
-  public IA after DOCRB-011
-- **Non-scope:** Closing DOCSYNC or DSITE items, marketing-site redesign,
-  publishing a release, or the live sidebar unhide and live-nav check
-  (DOCRB-011)
+- **Files:** `apps/anvil-docs-private/sidebars/anvil.ts`,
+  `apps/anvil-docs-private/sidebars/beta.ts`,
+  `apps/docs-public/sidebars/kindling.ts`,
+  `apps/docs-public/sidebars/edda-stack.ts`,
+  `docs/public/anvil/first-gate.md`,
+  `docs/public/anvil/assets/diagrams/detect-fix-verify.{drawio,svg}`,
+  `docs/public/aps/getting-started.md`,
+  `docs/public/aps/assets/diagrams/work-item-lifecycle.{drawio,svg}`,
+  `scripts/docs/lib/public-diagrams.mjs`,
+  `scripts/docs/check-public-diagrams.test.mjs`,
+  `docs/guides/architecture-diagrams.md`,
+  `docs/guides/documentation-governance.md`,
+  `docs/guides/README.md`,
+  `docs/architecture/README.md`,
+  `docs/governance/tags-catalogue.md`,
+  `docs/guides/adapters/README.md`,
+  `docs/reviews/README.md`,
+  `docs/README.md`,
+  `plans/index.aps.md`,
+  `plans/specs/2026-08-17-docrb-corpus-disposition.md`,
+  `plans/execution/DOCRB-008.actions.md`, and
+  `plans/reviews/2026-08-21-docrb-008-public-ia.md`
+- **Scope:** Label/grouping-only public sidebar changes; exactly two curated
+  public Draw.io/SVG journey pairs and their mounted owning-page explanations;
+  the one public-diagram inventory note; evidence; and the exact two-file
+  prerequisite repair that removes only Draw.io Desktop 31.1.8's anchored
+  official SVG prolog before annotation/hashing while retaining fail-closed
+  checker coverage; plus the seven gating and one baselined direct file-level
+  freshness closeouts required by those approved changes; and the current-item
+  lifecycle reconciliation and bounded Council finding closeout.
+- **Approved prerequisite:** On 2026-08-21 the operator directly approved the
+  exact `public-diagrams.mjs` normaliser and
+  `check-public-diagrams.test.mjs` regression coverage after authentic Draw.io
+  output proved that the shipped exporter preserved a prolog the shipped
+  checker rejects. This does not authorise broader tooling changes.
+- **Non-scope:** Content moves or rewrites, APS sidebar or workflow-page
+  changes, generated references, extra diagrams, dependencies or lockfiles,
+  checker weakening, closing DOCSYNC or DSITE items, marketing-site redesign,
+  publishing a release, PR #4050 absorption, or DOCRB-009/-010 work.
 - **Dependencies:** DOCRB-006, DOCRB-007, DOCRB-011
 - **Confidence:** medium
-- **Validation:** `pnpm docs:public:check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build && pnpm --filter @eddacraft/docs-shell build`
+- **Validation:** `node --test scripts/docs/check-public-diagrams.test.mjs && pnpm docs:public:check && pnpm docs:public:diagrams && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build && pnpm --filter @eddacraft/docs-shell build`
 
 ### DOCRB-011: Unhide the live public definition layer
 

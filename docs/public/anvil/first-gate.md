@@ -20,6 +20,12 @@ verified_against: 0.9.0-beta
 
 **Outcome:** prove that anvil can detect a new problem and confirm its fix
 
+The protection loop has four checkpoints: create a deliberate finding, detect it
+with `anvil check`, make a safe correction, and rerun the same check until the
+result is explicitly clean.
+
+![Four-step anvil protection loop from a deliberate finding through detection and correction to a clean verification](assets/diagrams/detect-fix-verify.svg)
+
 This tutorial creates a reserved `anvil-docs-tutorial/` directory in your
 project. It refuses to start if that path already exists, so it cannot overwrite
 an existing file. Remove the directory at the end.

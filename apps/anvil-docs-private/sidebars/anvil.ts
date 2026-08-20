@@ -4,13 +4,13 @@ const sidebars: SidebarsConfig = {
   anvilSidebar: [
     {
       type: 'category',
-      label: 'Overview',
+      label: 'Explanation / how-to — Overview',
       collapsed: false,
       items: ['overview', 'when-to-use', 'beta-testing-guide'],
     },
     {
       type: 'category',
-      label: 'Quickstart',
+      label: 'Tutorial — Quickstart',
       collapsed: false,
       items: ['quickstart', 'first-project', 'first-gate'],
     },
@@ -29,7 +29,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Concepts',
+      label: 'Explanation — Concepts',
       collapsed: false,
       items: [
         'concepts/evaluation-model',
@@ -60,7 +60,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Guides',
+      label: 'How-to guides',
       collapsed: true,
       items: [
         'guides/solo-dev-flow',
@@ -72,7 +72,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Integrations',
+      label: 'How-to / reference — Integrations',
       collapsed: true,
       items: [
         'integrations/github',
@@ -84,7 +84,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Operations',
+      label: 'How-to / reference — Operations',
       collapsed: true,
       items: [
         'operations/config',
@@ -97,7 +97,7 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Release Notes',
+      label: 'Reference — Release notes',
       collapsed: true,
       items: ['releases/changelog', 'releases/upgrade-notes'],
     },
