@@ -5,7 +5,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 6/11 |
+| DOCRB | — | high | Ready | 7/11 |
 
 **Last reviewed:** 2026-08-20 against the repository component/documentation
 inventory at `0a0f00c20`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
@@ -107,11 +107,11 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Migration and public pipeline | DOCRB-005..008 | Duplicate authorities are retired, cross-system views rebuilt, and public source/export parity works |
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
-DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-006, and DOCRB-011 are
-Merged. DOCRB-007 is In Progress after exact-base readiness evidence confirmed
-the five intended public family roots, pinned exporter contract, and executable
-validation surfaces. Other items stay Draft
-until their dependencies and expected evidence are present.
+DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-006, DOCRB-007, and
+DOCRB-011 are Merged. DOCRB-005 and DOCRB-008 now have all dependencies
+Merged, but both stay Draft until their expected evidence is present. DOCRB-005
+is the next dependency-ordered readiness candidate because it continues the
+component migration and is required by DOCRB-009.
 
 ## Success Criteria
 
@@ -363,7 +363,8 @@ until their dependencies and expected evidence are present.
 
 ### DOCRB-007: Establish the Draw.io-to-accessible-SVG public asset pipeline
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4051 (rebase-merge receipt
+  `7804355bb23b61018da2f18c7cb94275daf06ff0`)
 - **Intent:** Make polished public diagrams source-controlled, reviewable,
   accessible, and reproducible.
 - **Expected Outcome:** A pinned Draw.io Desktop export path governs the five
@@ -389,6 +390,12 @@ until their dependencies and expected evidence are present.
   `scripts/docs/fixtures/public-diagrams/**`,
   `docs/guides/architecture-diagrams.md`, and generated documentation indexes
   if changed
+- **Evidence:** PR #4051 merged from final reviewed head
+  `e33926db65a9c968b55e60b12af00bffa5c3b356` after all hosted required
+  checks passed and all review threads were resolved. Rebase-merge receipt
+  `7804355bb23b61018da2f18c7cb94275daf06ff0` is an ancestor of
+  `origin/main`, and the remote
+  `docs/docrb-007-public-svg-pipeline` head no longer exists.
 - **Scope:** Documentation tooling, the mounted `anvil`, `beta`, `aps`,
   `kindling`, and `edda-stack` public family roots, export/accessibility
   guidance, fixture tests, and both production Docusaurus renderer builds
