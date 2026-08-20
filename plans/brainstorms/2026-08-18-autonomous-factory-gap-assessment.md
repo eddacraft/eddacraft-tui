@@ -179,11 +179,15 @@ station. A factory has no users in Anvil's sense; it has N ephemeral sandboxes
 per PR. Per-seat pricing against that is either trivially undercounted or
 absurdly overcounted.
 
-Compounding failure mode: unauthenticated MCP tools deliberately return an
-`authentication-required` envelope rather than `block`, so agents do not abort
-[C9]. Correct for agent ergonomics; commercially dangerous here — a
-misconfigured factory runs all quarter with zero protection and no visible
-symptom.
+Compounding failure mode: unauthenticated, the pre-write gate deliberately
+distinguishes _gate-unavailable_ from _content-veto_ — the wire shape carries
+`decision: "gateUnavailable"` (not `block`), `isError: false`, and
+`safeDefault: "allow-with-warning"`, so a well-behaved agent surfaces the
+warning and **proceeds with the write** rather than refusing to onboard [C9].
+That is the right call for agent ergonomics and for first-run onboarding, and it
+is commercially dangerous here: a misconfigured factory runs all quarter with
+zero protection, writing happily, with no visible symptom. On a laptop the human
+eventually notices they never signed in. Nobody notices in a sandbox.
 
 **Closes with:** an entitlement unit that is not a human seat — repo-scoped or
 run-scoped — plus a loud, fail-fast preflight for automation contexts. This is a
@@ -417,28 +421,35 @@ for it would be roadmap drift dressed up as foresight.
 
 ## 9. Evidence citations
 
-Every non-obvious claim above, traced to source. Read at commit `5598086`.
+Every non-obvious claim above, traced to source. First read at commit
+`5598086` (2026-08-18); **re-verified against `9b2ea85`** (`main`, 2026-08-20)
+after 388 commits of churn moved several anchors. Line numbers below are the
+re-verified ones. Every claim survived re-verification unchanged; the only
+substantive movement was C9, where the current source states the contract more
+sharply than the original reading did (`decision: "gateUnavailable"`,
+`safeDefault: "allow-with-warning"`), which strengthens G1 rather than
+weakening it.
 
 | Ref  | Claim                                            | Source                                                                     |
 | ---- | ------------------------------------------------ | -------------------------------------------------------------------------- |
 | C1   | Mission places value at file-save time           | `ROADMAP.md` §Mission                                                      |
 | C2   | Durable state tracked in-repo                    | `crates/anvil-baseline/src/io.rs:16`; `.gitignore:81-83`; ADR-073          |
 | C3   | Stdio MCP server runs standalone                 | `crates/anvil-cli/tests/mcp_serve_stdio.rs`                                |
-| C4   | Exit-code contract; SARIF                        | `docs/public/anvil/reference/cli.md:110`; `docs/public/anvil/integrations/github.md` |
-| C5   | `ai` profile: curated checks, JSON default, `strict_config` | `crates/anvil-cli/src/commands/gate.rs:78-110`                  |
+| C4   | Exit-code contract; SARIF                        | `docs/public/anvil/reference/cli.md:345`; `docs/public/anvil/integrations/github.md` |
+| C5   | `ai` profile: curated checks, JSON default, `strict_config` | `crates/anvil-cli/src/commands/gate.rs:81-98`                  |
 | C6   | Air-gapped core                                  | `crates/anvil-cli/tests/air_gapped.rs`                                     |
 | C7   | Per-user plan; device-flow login                 | `docs/guides/account-plan-activity-and-entitlements.md:28-56`              |
 | C8   | `ANVIL_LICENSE` is the automation path           | `crates/anvil-cli/src/auth/credentials.rs:141-162`; `docs/public/anvil/integrations/github.md` |
-| C9   | Auth-missing must not return `block`             | `crates/anvil-cli/src/commands/mcp.rs:454`                                 |
-| C10  | `AgentTag` daemon-minted; env advisory/forgeable | `crates/anvil-intercept-proto/src/session.rs`                              |
-| C11  | Witness appended by git hooks; path              | `crates/anvil-cli/src/commands/hook.rs:77-205`; `crates/anvil-witness/src/manifest.rs:50` |
-| C12  | `audit-chain` reports unwitnessed commits        | `crates/anvil-cli/src/commands/audit_chain.rs:1-25`                         |
+| C9   | Auth-missing returns `gateUnavailable`, not `block` | `crates/anvil-cli/src/commands/mcp.rs:501-535`                                 |
+| C10  | `AgentTag` daemon-minted; env advisory/forgeable | `crates/anvil-intercept-proto/src/session.rs:31-65`                              |
+| C11  | Witness appended by git hooks; path              | `crates/anvil-cli/src/commands/hook.rs:204`; `crates/anvil-witness/src/manifest.rs:50` |
+| C12  | `audit-chain` reports unwitnessed commits        | `crates/anvil-cli/src/commands/audit_chain.rs:1-6`                         |
 | C13  | Capsule `--out` default; in-repo staging opt-in  | ADR-078 via `plans/decisions/DECISION-LOG.md`                              |
-| C14  | Protection claim daemon-sourced; embedded fallback | `crates/anvil-cli/src/mcp/validation.rs:29-50`                           |
+| C14  | Protection claim daemon-sourced; embedded fallback | `crates/anvil-cli/src/mcp/validation.rs:12-45`                           |
 | C15  | `protecting` requires a proven pre-write path    | `docs/public/anvil/integrations/mcp.md`                                    |
 | C16  | Warnings do not fail the gate by default         | `docs/public/anvil/concepts/gates.md`                                      |
 | C17  | MCP no-config fallback is `interrupt`            | `crates/anvil-cli/src/mcp/enforcement.rs:25`                               |
-| C18  | Insights are local-only                          | `docs/public/anvil/reference/cli.md:56`                                    |
+| C18  | Insights are local-only                          | `docs/public/anvil/reference/cli.md:66`                                    |
 | C19  | Observability conditional; orchestration out of scope | `docs/vision/anvil-scope-guard.md`                                    |
 | C20  | First-touch wow posture                          | `ROADMAP.md` §Posture                                                      |
 | C21  | No headless / ephemeral horizon                  | `ROADMAP.md` §Horizons 3–5, §Big bets                                      |
