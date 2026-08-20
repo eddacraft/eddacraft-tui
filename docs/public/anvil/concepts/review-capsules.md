@@ -54,3 +54,9 @@ automatically public.
 
 Read [evidence and audit trails](audit-trail.md) for the limits of retained
 evidence.
+
+## Related definitions
+
+- [How anvil evaluates a project](evaluation-model.md)
+- [Evidence and audit trails](audit-trail.md)
+- [Policy packs](policy-model.md)

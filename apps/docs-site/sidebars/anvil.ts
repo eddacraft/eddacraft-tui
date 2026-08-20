@@ -49,6 +49,9 @@ const sidebars: SidebarsConfig = {
       items: [
         'concepts/evaluation-model',
         'concepts/gates',
+        'concepts/baseline',
+        'concepts/policy-model',
+        'concepts/boundaries',
         'concepts/plans',
         'concepts/sessions',
         'concepts/audit-trail',
@@ -65,6 +68,7 @@ const sidebars: SidebarsConfig = {
         'reference/config',
         'reference/cli-reference',
         'reference/rule-reference',
+        'reference/policy',
         'reference/support-reference',
         'operations/config',
         'operations/security',

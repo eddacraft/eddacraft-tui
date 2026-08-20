@@ -941,6 +941,13 @@ function renderCheckSection(definition, planlessSet, surfaceFlags) {
   if (definition.canonical_name === 'antipattern-scan') {
     related.push('- Rules body: [Compiled pattern catalogue](rules.md)');
   }
+  if (definition.canonical_name === 'import-boundaries') {
+    related.push('- Boundaries: [Architecture boundaries](../concepts/boundaries.md)');
+  }
+  if (definition.canonical_name === 'policy') {
+    related.push('- Packs: [Policy packs](../concepts/policy-model.md)');
+    related.push('- Commands: [Policy command reference](policy.md)');
+  }
   return (
     `## \`${definition.canonical_name}\`\n\n` +
     `${escapeCell(definition.description)}.\n\n` +

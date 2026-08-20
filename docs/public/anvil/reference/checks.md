@@ -92,6 +92,7 @@ Select with top-level `checks:`, `--only-checks`, or `--skip-checks`.
 ### Related
 
 - Model: [How anvil evaluates a project](../concepts/evaluation-model.md)
+- Boundaries: [Architecture boundaries](../concepts/boundaries.md)
 
 ## `antipattern-scan`
 
@@ -153,6 +154,8 @@ Select with top-level `checks:`, `--only-checks`, or `--skip-checks`.
 ### Related
 
 - Model: [How anvil evaluates a project](../concepts/evaluation-model.md)
+- Packs: [Policy packs](../concepts/policy-model.md)
+- Commands: [Policy command reference](policy.md)
 
 ## `lint`
 

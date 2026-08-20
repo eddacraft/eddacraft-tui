@@ -17,7 +17,8 @@ guide introduces an unfamiliar word.
 
 | Term                     | Meaning                                                                                                                                        |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Baseline**             | A record of existing findings. It lets anvil focus on newly introduced problems instead of demanding an immediate cleanup of all old debt.     |
+| **Baseline**             | Findings accepted when anvil was introduced. Not a check and not the `anvil-baseline` pack.                                                    |
+| **Boundary**             | A declared structural dependency constraint. Prefer this word over "architecture" in ordinary use.                                             |
 | **Check**                | One deterministic analysis, such as secret detection or architecture validation.                                                               |
 | **Finding**              | A check result that names what was detected, where, and why it matters.                                                                        |
 | **Gate**                 | A workflow decision made from one or more checks.                                                                                              |

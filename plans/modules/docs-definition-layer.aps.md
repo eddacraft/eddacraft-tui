@@ -164,16 +164,28 @@ edit; it does not move ownership.
 
 ### DOCDEF-005: Document policy packs, boundaries, and baseline
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Explain the user-visible policy pack lifecycle, architecture
   boundaries, and baseline without publishing the ADR-108 authoring corpus.
 - **Expected Outcome:** Public pages cover pack install / show / validate /
   test / gate / exception; authoring is the installed
   `authoring-anvil-policy` skill; `policy list` / `explain` are not taught
   as pack authoring; `policy lint` is not documented as shipped.
-- **Files:** `docs/public/anvil/concepts/`,
+- **Files:** `docs/public/anvil/concepts/policy-model.md`,
+  `docs/public/anvil/reference/policy.md`,
+  `docs/public/anvil/concepts/boundaries.md`,
+  `docs/public/anvil/concepts/baseline.md`,
   `docs/public/anvil/tutorials/policies.md`,
-  `docs/public/anvil/reference/checks.md`
+  `docs/public/anvil/tutorials/architecture.md`,
+  `docs/public/anvil/concepts/review-capsules.md`,
+  `docs/public/anvil/concepts/glossary.md`,
+  `docs/public/anvil/concepts/evaluation-model.md`,
+  `docs/public/anvil/reference/what-anvil-can-do.md`,
+  `docs/public/anvil/reference/checks.md`,
+  `scripts/docs/generate-anvil-public-reference.mjs`,
+  `scripts/docs/check-public-docs.mjs`,
+  `apps/anvil-docs-private/sidebars/anvil.ts`,
+  `apps/docs-site/sidebars/anvil.ts`
 - **Dependencies:** DOCDEF-002
 - **Confidence:** high
 - **Validation:** `pnpm docs:public:check && pnpm docs:check`

@@ -61,3 +61,10 @@ Do not use production code for this experiment when reverting it would be risky.
 ## Next step
 
 Capture and compare change over time with the [drift tutorial](drift.md).
+
+## Related definitions
+
+- [Architecture boundaries](../concepts/boundaries.md)
+- [Check catalogue: `import-boundaries`](../reference/checks.md#import-boundaries)
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Define architecture boundaries](../first-project.md)
