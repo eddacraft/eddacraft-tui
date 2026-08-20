@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 280/348  |
+| CIB | —     | In Progress | 280/353  |
 
 ## Purpose
 
@@ -11069,3 +11069,129 @@ already parked teaching as editorial).
 - **Coordinates with:** LAUNCH-014, WOW, pack-03
 - **Confidence:** high that two first-timers said it; low on the right
   depth
+
+### CIB-354: Worktrunk worktree paths land outside the writable and trusted roots
+
+- **Status:** Draft — filed from ci-log triage 2026-08-21; **not
+  self-authorised**. Seven independent reports between 2026-08-04 and
+  2026-08-17, all from codex sessions, each worked around separately.
+- **Priority:** P2 agent-throughput — every restricted-harness session pays
+  this tax, and each one invents a different workaround.
+- **Intent:** Worktrunk creates task worktrees at a configured sibling path.
+  That path routinely falls outside two different roots the session needs:
+  the harness's **writable** root, and the anvil developer-functions **MCP
+  trust** root. Neither is a product defect; both cost a manual detour.
+- **Expected Outcome:** creating a worktree in a restricted harness yields a
+  path that is writable by that harness and trusted by developer-functions,
+  without per-session env surgery. Two faces, one decision:
+  - **Writable root:** when the configured template resolves outside the
+    writable area, worktree creation selects an in-repository path (the
+    ignored `.worktrees/` convention already used as the manual workaround)
+    rather than failing or landing read-only.
+  - **Trust root:** `anvil_validate_write` / `anvil_apply_patch` accept a
+    linked worktree that shares the repository's git common directory, after
+    canonical containment checks. Today the MCP server is rooted on the main
+    clone and refuses linked worktrees, so scoped writes fall back to
+    ordinary tools and lose the gate.
+- **Evidence (verbatim frictions, tracked log):** "Worktrunk defaulted outside
+  the writable workspace" (2026-08-06) · "The default Worktrunk sibling path
+  falls outside the developer-functions MCP workspace root" (2026-08-11) ·
+  "Anvil write validation did not trust the linked worktree root" (2026-08-13)
+  · "Developer-functions did not trust the Worktrunk root, while full-content
+  fallback scanned unrelated historical fixtures" (2026-08-16) · "Worktrunk
+  user path templates can conflict with sandbox writable roots" (2026-08-16) ·
+  "Worktrunk's configured sibling path fell outside the harness writable root;
+  moved the clean linked worktree under ignored .worktrees" (2026-08-17).
+- **Non-scope / do not:** do not widen the MCP trust model beyond the same git
+  common directory; do not disable containment checks; do not make the gate
+  optional when the path is untrusted — the failure must stay loud.
+- **Validation:** in a restricted harness, `wt`/worktree creation produces a
+  writable path with no manual override; a write inside that worktree is
+  accepted by `anvil_validate_write` and rejected when the path is outside the
+  common directory.
+- **Coordinates with:** **CIB-209** (which owns the adjacent but distinct
+  *validation cache/temp* face — TMPDIR, Cargo target, tmpfs, Nx socket
+  length). CIB-209 is about where validation writes its scratch; this item is
+  about where the worktree itself lives and whether the gate trusts it.
+- **Confidence:** high — seven reports, consistent root cause, both faces
+  reproduced with named workarounds.
+
+### CIB-355: Docs metadata discovery traverses .worktrees and symlink loops
+
+- **Status:** Draft — filed from ci-log triage 2026-08-21; **not
+  self-authorised**.
+- **Priority:** P3 tooling correctness.
+- **Intent:** Documentation globs with gitignore handling enabled can still
+  walk into linked worktrees and recursive `node_modules` symlinks, so docs
+  metadata discovery traverses dependency loops that are not part of the
+  corpus.
+- **Expected Outcome:** docs discovery excludes `.worktrees/**` and recursive
+  `node_modules` symlink paths, so a repository containing linked worktrees
+  scans the same corpus as one without.
+- **Validation:** a fixture repository with a linked worktree under
+  `.worktrees/` and a self-referential `node_modules` symlink completes
+  discovery without traversing either.
+- **Identified From:** ci-log 2026-08-03 (codex), `promote: CIB`.
+- **Confidence:** medium — the traversal is reported; the exact glob surface
+  needs locating before an estimate.
+
+### CIB-356: Shipped skill wording and dev-loop bookkeeping reinflate MCP envelopes
+
+- **Status:** Draft — filed from ci-log triage 2026-08-21; **not
+  self-authorised**.
+- **Priority:** P3 agent-transcript quality — this is the residual after the
+  0.9.4-beta lean-envelope fix, not a regression of it.
+- **Intent:** Two separate causes keep flooding agent transcripts despite the
+  lean-envelope work.
+- **Expected Outcome:**
+  - `crates/anvil-cli/assets/skills/anvil-developer-functions/SKILL.md:149`
+    reads `Use detail: "full" when you need correlation, claim, or tier` —
+    still live as of 2026-08-21. Evidence-minded drain-mode agents pattern-match
+    "need" and opt back into full envelopes on routine edits. Reword so `full`
+    is scoped to driver telemetry that genuinely needs the allow envelope.
+  - dev-loop routes its own `.dev-loop/checkpoints/*.json` bookkeeping through
+    `anvil_apply_patch`, so the request arguments alone flood the transcript
+    even at `detail:minimal`. Loop-internal checkpoint files should use plain
+    writes — the gate exists for source writes.
+- **Validation:** a drain-mode run over routine edits produces no `detail:
+  "full"` calls and no checkpoint-file patch calls.
+- **Identified From:** ci-log 2026-08-11 (claude), `promote: CIB`.
+- **Coordinates with:** the 0.9.4-beta lean-envelope fix (display is the
+  harness's job; walls are a `detail:"full"` opt-in).
+- **Confidence:** high — both causes named with file and line, one verified
+  still present at triage time.
+
+### CIB-357: Remote claim payloads can carry workstation-specific metadata
+
+- **Status:** Draft — filed from ci-log triage 2026-08-21; **not
+  self-authorised**.
+- **Priority:** P2 — a coordination transport that leaks host detail into a
+  shared repository is a privacy surface, not just untidiness.
+- **Intent:** Claim transport couples coordination identity to a payload that
+  can expose workstation-specific metadata.
+- **Expected Outcome:** remote claim payloads are opaque and repository-safe
+  while retaining compare-and-swap ownership semantics — identity sufficient
+  to arbitrate a claim, nothing describing the host that made it.
+- **Validation:** a claim round-trip proves CAS ownership still works with an
+  opaque payload; an inspection of a pushed claim shows no host, path, or user
+  detail.
+- **Identified From:** ci-log 2026-08-06 (codex, during CIB-157),
+  `promote: CIB`.
+- **Confidence:** medium — the exposure is named; the payload schema needs
+  review before scoping.
+
+### CIB-358: Beta intake should validate declared ID counts mechanically
+
+- **Status:** Draft — filed from ci-log triage 2026-08-21; **not
+  self-authorised**.
+- **Priority:** P3 intake hygiene.
+- **Intent:** Beta pack 06 declared 29 IDs but enumerated 20 new plus 10
+  carried, and grouped-pattern headings embedded carried IDs. The mismatch was
+  found by hand during disposition.
+- **Expected Outcome:** intake mechanically validates a pack's declared ID
+  count against the enumerated IDs, and reports carried-versus-new
+  composition, before disposition mapping begins.
+- **Validation:** a fixture pack whose declared count disagrees with its
+  enumeration fails intake with the discrepancy named.
+- **Identified From:** ci-log 2026-08-12 (codex), `promote: CIB`.
+- **Confidence:** high — mechanical check over data already present.

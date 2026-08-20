@@ -49,7 +49,7 @@ Full operator guide:
 > the same change as adding one. Prefer `pnpm ci-log:append` /
 > `pnpm ci-log:harvest` over hand-editing.
 
-> **Last triaged:** 2026-07-30
+> **Last triaged:** 2026-08-20
 ## Template
 
 ```md
@@ -3769,5 +3769,25 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Failed:** I fixed and wrote 15 tests for apps/docs-site/middleware.ts before checking whether the app deploys. SEC-012's own Files list named it, and a BACT-013 advisory flagged its 'missing tests' — both were pointing at dead code, and I followed them without verifying.
 - **Friction:** Two gates only fail in CI: docs-owed reads COMMITTED dates so it passes on a dirty tree, and the canonical APS lint needs APS_CANONICAL_BIN which local aps:active-lint runs without. Separately, docs-check.test.sh runs long enough that a truncated run reports exit 0 having executed 1 of 22 cases — I cited that false green twice. Its real signal is the 'all cases passed' verdict line, not the exit status.
 - **Improvement:** Add an orphan check to the flag catalogue: a manifest flag with no non-test consumer should fail, or be explicitly marked retired. docs.access reached that state silently and flags-catalogue tests still pass on it. Secondary: make docs-check.test.sh print a case count so a truncated run is visibly incomplete.
+- **Follow-up:** promote: CIB
+
+### 2026-08-20 — grok
+
+- **Task:** v0.9.7-beta prepare
+- **Outcome:** worktree cleaned; preflight 13/13 with umask 022; prepare #4066 tracking #4065; assess defaulted to v0.10.0-beta, kept locked v0.9.7-beta
+- **Worked:** —
+- **Failed:** none
+- **Friction:** capsule tests fail under umask 002 because tempfile dirs are group-writable and staging parent rejects 0o022
+- **Improvement:** none
+- **Follow-up:** file CIB for capsule umask 002; merge #4066 then readiness + tag after human gate
+
+### 2026-08-20 — claude — CIB triage wave 2026-08-21
+
+- **Task:** Triage the continuous-improvement log: harvest, review since the 2026-07-30 watermark, disposition into CIB, advance the watermark.
+- **Outcome:** 112 entries reviewed (2026-07-30 to 2026-08-20). Promoted CIB-354..358 as Draft; absorbed two clusters into existing owners; left the rest. Watermark 2026-07-30 -> 2026-08-20. Log 250 -> 281 entries.
+- **Worked:** Clustering on the authors' own Follow-up tags surfaced the dominant theme immediately: seven separate theme tags (worktrunk-write-gate, worktrunk-sandbox-root, worktree-sandbox-path, worktree-mcp-root, worktree-developer-functions, worktree-ci-environment, codex-workspace-paths) were one root cause reported seven times and worked around seven different ways. That became CIB-354.
+- **Failed:** Nearly ran the triage in the main checkout while the harvest sat unmerged in PR #4062. That would have advanced the watermark past 30 notes that are not on main yet, marking them triaged without anyone reading them. Caught before running; triage moved onto the harvest branch so harvest and watermark stay atomic.
+- **Friction:** Splitting harvest and triage across a PR boundary is unsafe by construction: the watermark lives in the same file the harvest writes, so a triage on an unharvested tree silently strands notes. The skill's phase order (harvest -> review -> disposition -> watermark) assumes one pass; nothing enforces it.
+- **Improvement:** ci-log:set-watermark should refuse, or at least warn, when the pending queue is non-empty or when the tracked log differs from origin/main — the states in which advancing the watermark strands notes.
 - **Follow-up:** promote: CIB
 
