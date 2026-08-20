@@ -12,23 +12,30 @@ DOCRB-007 started from exact `origin/main`
 `docs/docrb-007-public-svg-pipeline`. The exact implementation lineage is:
 
 - `f5a8d131539beb4dc74dfeeb6241e19dc25703e6` — initial pipeline;
-- `bbed33824e237d32bc37df664cfc960f0b44da44` — first Council safety repair;
-- `97e3e6db2` — committed pre-contraction hardening and evidence head;
+- `bbed33824e237d32bc37df664cfc960f0b44da44` — committed Council safety
+  repair, including renderer AST and exclusion governance;
+- `97e3e6db2` — committed evidence head for that renderer-governance repair;
 - `46b72dc2398537ea25033b784de486e079312f6d` — exact
-  operator-approved contraction candidate; and
+  operator-approved contraction candidate;
 - `a6a9d4b22f2d8cdf9443d0cedd166c843b531447` — retained-scope SVG
-  safety, directory-boundary, and freshness repair.
+  safety, directory-boundary, and freshness repair; and
+- `632132ff6279826ed30e835f5b290cfe0b349f64` — manifest-root
+  preflight repair.
 
-The Git-reproducible retained-scope repair range is
+The first Git-reproducible retained-scope repair range is
 `46b72dc2398537ea25033b784de486e079312f6d..a6a9d4b22f2d8cdf9443d0cedd166c843b531447`.
+The final manifest-root repair range is
+`7c07a29194cee60a2b4f1758664e0e25dbdd15fb..632132ff6279826ed30e835f5b290cfe0b349f64`.
 
-After `97e3e6db2`, a transient uncommitted repair wave added two subsystems that
-exceeded ADR-123 and the original DOCRB-007 acceptance boundary. The operator
-explicitly approved their removal after the broader-need assessment:
+`bbed33824e237d32bc37df664cfc960f0b44da44` committed the Docusaurus
+configuration AST analysis, exact mount-set enforcement, and renderer/root
+exclusion-schema governance; `97e3e6db2` then committed its evidence report.
+Only after `97e3e6db2` did a transient uncommitted repair wave add checker-time
+trusted Draw.io re-export and render attestation. The operator explicitly
+approved removal of both scope expansions after the broader-need assessment:
 
-1. checker-time trusted Draw.io re-export and render attestation; and
-2. Docusaurus configuration AST analysis, exact mount-set enforcement, and
-   renderer/root exclusion-schema governance.
+1. the committed renderer AST, exact-set, and exclusion governance; and
+2. the later uncommitted checker-time re-export and attestation.
 
 This contraction does not remove essential XML/SVG or file-write safety. It
 adds no production diagram, public-content priority, workflow, deployment,
@@ -53,7 +60,7 @@ second Docusaurus configuration analyser.
 | Lower-kebab sibling `.drawio`/`.svg` pairs | Kept | Missing pairs, wrong names, and upper-case extensions fail |
 | Well-formed single-page Draw.io XML and embedded-source equality | Kept | Namespace-aware structural parsing and canonical comparison |
 | SVG active-content and external-reference rejection | Kept | DOM, namespace, entity, CSS, fragment-only `url(...)` in every attribute, and outright `ping` checks |
-| Path confinement, symlink refusal, exclusive temporary file, atomic rename | Kept | Exporter covers source/ancestor/output paths; checker enforcement is limited to explicit diagram roots |
+| Path confinement, symlink refusal, exclusive temporary file, atomic rename | Kept | Every manifest root is preflighted before traversal; exporter covers source/ancestor/output paths; checker enforcement is limited to explicit diagram roots |
 | Exact Desktop version/output/arguments | Kept | Export wrapper validates `31.1.8` and the pinned flag sequence |
 | Raw source, canonical embedded source, and export freshness hashes | Kept | Checker detects stale source and changed SVG bytes |
 | Accessible real Markdown/MDX reference | Kept | Meaningful alt or exact target-bound adjacent description |
@@ -68,21 +75,26 @@ second Docusaurus configuration analyser.
 ## Size and test contraction
 
 Core LOC is the sum of the checker, exporter, shared library, and focused test
-file. The previously reported 2,081 LOC and 72 tests were observed in the
-transient uncommitted pre-contraction working tree. No Git object captures that
-snapshot, so those figures are retained only as a non-reproducible observation
-and are not presented as an exact commit comparison.
+file. The previously reported 2,081 LOC and 72 tests were observed after
+`97e3e6db2` in the transient uncommitted checker-time re-export wave, layered
+on the already committed renderer AST/exclusion governance. No Git object
+captures that snapshot, so those figures are retained only as a
+non-reproducible observation and are not presented as an exact commit
+comparison.
 
 | Git-reproducible snapshot | Core LOC | Focused tests | Meaning |
 | ------------------------- | -------: | ------------: | ------- |
-| `97e3e6db2` | 1,434 | 44 | Committed pre-contraction head, before the transient scope wave |
+| `97e3e6db2` | 1,434 | 44 | Committed renderer AST/exclusion head, before the transient re-export wave |
 | `46b72dc2398537ea25033b784de486e079312f6d` | 1,670 | 64 | Exact operator-approved contraction candidate |
-| `a6a9d4b22f2d8cdf9443d0cedd166c843b531447` | 1,688 | 69 | Retained-scope repair head |
+| `a6a9d4b22f2d8cdf9443d0cedd166c843b531447` | 1,688 | 69 | First retained-scope repair head |
+| `632132ff6279826ed30e835f5b290cfe0b349f64` | 1,810 | 71 | Final manifest-root preflight repair head |
 
 The exact `46b72dc23..a6a9d4b22` repair adds 18 core lines and five focused
-tests. Relative to the transient observation, the contraction candidate removed
-411 core lines and eight tests, but that delta is not a Git-reproducible range.
-The removed AST, render-attestation, and exclusion-schema tests remain absent.
+tests. The exact `7c07a2919..632132ff6` manifest-root repair adds 122 core
+lines and two focused tests. Relative to the transient observation, the
+contraction candidate removed 411 core lines and eight tests, but that delta is
+not a Git-reproducible range. The removed AST, render-attestation, and
+exclusion-schema tests remain absent.
 
 ## Pipeline contract
 
@@ -102,10 +114,14 @@ raster exceptions. The export wrapper:
    provenance; and
 8. writes through an exclusive same-directory temporary file and atomic rename.
 
-The checker scans regular Markdown/MDX files in the five public families but
-skips unrelated symlinks without reporting or following them. Symlink
-ancestor/descendant enforcement applies only to the five explicit diagram
-directories. Inside that boundary it validates pairing, naming, lower-case
+Before any content walk or read, the checker preflights every manifest family
+and diagram root for normalised repository-relative syntax, absence of parent
+traversal, realpath confinement, and non-symlink ancestors; invalid roots emit
+a contract finding and are not traversed. It then scans regular Markdown/MDX
+files in the five public families but skips unrelated descendant symlinks
+without reporting or following them. Descendant symlink enforcement applies
+only to the five explicit diagram directories. Inside that boundary it
+validates pairing, naming, lower-case
 extensions, provenance, structural XML parity, SVG safety, accessibility, real
 same-family Markdown/MDX references, and reviewed raster exceptions. It never
 invokes Draw.io and does not inspect Docusaurus configuration source.
@@ -121,16 +137,17 @@ pipeline and DOCRB-008 owns production diagram authoring.
 | No renderer-analysis schema | The live contract still contained renderer and exclusion fields | The contract test proves all fields and per-family renderer mappings are absent |
 | Generic SVG attribute URLs | Provenance-correct `shape-inside`, `shape-subtract`, and arbitrary-attribute external URLs produced no `unsafe-svg`; `ping` was accepted | Every attribute containing `url(...)` is fragment-only and `ping` is rejected outright |
 | Family reference symlink boundary | An unrelated family symlink produced `symlink-path` | Markdown/MDX discovery skips it without reporting or traversal; explicit diagram-root links still fail closed |
-| Retained safety | Existing adversarial cases stayed green during both repairs | The full focused suite passes 69/69 |
+| Manifest-root preflight | An absolute family root produced no contract finding, and a parent-traversing diagram root reached its symlink tripwire | Both emit `invalid-contract` before content traversal; the tripwire produces no `symlink-path` |
+| Retained safety | Existing adversarial cases stayed green during all repairs | The full focused suite passes 71/71 |
 
 ## Fresh evidence
 
 These results were captured at exact implementation head
-`a6a9d4b22f2d8cdf9443d0cedd166c843b531447`:
+`632132ff6279826ed30e835f5b290cfe0b349f64`:
 
 | Gate | Result |
 | ---- | ------ |
-| `node --test scripts/docs/check-public-diagrams.test.mjs` | Exit 0; 69/69 tests passed |
+| `node --test scripts/docs/check-public-diagrams.test.mjs` | Exit 0; 71/71 tests passed |
 | `pnpm docs:public:diagrams` | Exit 0; 0 errors, 0 warnings, 0 production files |
 | `pnpm test:docs-check` | Exit 0; focused suite and all shell-harness cases through `AK` passed |
 | `pnpm docs:check` | Exit 0; 12/12 surfaces passed |
