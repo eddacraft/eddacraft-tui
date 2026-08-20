@@ -1,17 +1,36 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                       |
-| ----- | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-05-25 against `plans/modules/feature-flag-catalogue.aps.md` and FLAGM/FLAGS archived modules |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                              |
+| ----- | --------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-20 against ADR-076, `plans/modules/feature-flag-catalogue.aps.md`, and the live flag inventories |
 
 | Upstream                                                                                                                                                                                           | Downstream                                                 |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `plans/archive/modules/feature-flagging.aps.md`, `plans/archive/modules/feature-flag-migration.aps.md`, `plans/modules/feature-flag-catalogue.aps.md`, source flag definitions listed in the table | Feature-flag migration audits, `feature-flag-reference.md` |
 
-This document classifies existing feature-flag-like controls in Anvil and maps
-them onto the shared flagging model defined in `FLAGS`.
+This document classifies existing feature-flag-like controls in anvil and maps
+them onto the shared flagging model defined in `FLAGS`. It is a migration and
+operations inventory for controls, not the definitive list of product features
+or product feature groups.
 
 Created for: `FLAGS-009`
+
+## Catalogue Boundaries
+
+| Concern                                                         | Authority                            |
+| --------------------------------------------------------------- | ------------------------------------ |
+| Product features, product feature groups, and delivery surfaces | `flags/surfaces.json` under ADR-076  |
+| Operational rollout, entitlement, and kill-switch controls      | `flags/manifest.json`                |
+| Technical defaults shared by flags                              | `flags/groups.json`                  |
+| Evaluation audiences                                            | `flags/audiences.json`               |
+| Deployment environments                                         | `flags/environments.json`            |
+| Comprehensive human-readable feature views                      | Generated from `flags/surfaces.json` |
+
+The legacy `surfaces.json` filename does not narrow its authority to UI or CLI
+entry points. A product feature may be available through several delivery
+surfaces, and it may be intentionally unflagged. FLAGCAT-011..014 complete the
+registry, add host drift gates and flag references, and generate its prose
+views.
 
 **Migration status:** All **migrated** controls below are **retired** — the
 `FLAGM` module closed under FLAGM-006. Each migrated entry now routes through
@@ -22,21 +41,22 @@ evaluation context, and rollback paths are documented in
 
 ## Adding a Flag
 
-The flag catalogue is the **single source of truth**: a flag is defined once in
-`flags/manifest.json` and consumed everywhere through generated/typed accessors
-— there is no per-surface flag literal to keep in sync (FLAGCAT-002…005). The
-per-surface modules in the table below are now thin consumers of the catalogue
-(`@eddacraft/anvil-flags-catalogue` re-exports + host-local evaluation glue),
-not flag definitions.
+The operational flag catalogue is the **single source of truth for flags**: a
+flag is defined once in `flags/manifest.json` and consumed everywhere through
+generated/typed accessors — there is no per-surface flag literal to keep in sync
+(FLAGCAT-002…005). The per-surface modules in the table below are now thin
+consumers of the catalogue (`@eddacraft/anvil-flags-catalogue` re-exports +
+host-local evaluation glue), not flag definitions.
 
 To add a flag:
 
 1. **Edit one file** — add a flag entry to `flags/manifest.json` (keep the array
-   sorted by `key`). Declare the parts of a feature: `key`; `primaryGroup` (an
-   id from `flags/groups.json`, which carries the group's default `class` +
-   audiences); audience targeting using canonical `flags/audiences.json` ids;
-   behaviour (`variants` + `defaultVariant`); and, for a `rollout`, the
-   `flags/environments.json` ids it is enabled in.
+   sorted by `key`). Declare the parts of a feature flag: `key`; `primaryGroup`
+   (an id from `flags/groups.json`, which is a flag default group carrying
+   default `class` and audiences); audience targeting using canonical
+   `flags/audiences.json` ids; behaviour (`variants` + `defaultVariant`); and,
+   for a `rollout`, the `flags/environments.json` ids it is enabled in.
+   FLAGCAT-013 will add the separate, bidirectional product-feature linkage.
 2. **Regenerate (no hand-syncing)** — TS accessors load the manifest at module
    load via `@eddacraft/anvil-flags-catalogue`; the Rust constants regenerate
    from the same file via the `eddacraft-anvil-kernel-types` `build.rs` on the
@@ -229,8 +249,9 @@ the start when they are built.
 
 ### Tier-based product capabilities
 
-- **Current state:** No formal flag exists. Future tiers will need gating of
-  specific Anvil features by plan level.
+- **Current state:** Individual entitlement flags exist, but there is no
+  approved, comprehensive product-feature-to-plan mapping. FLAGCAT-015 remains
+  Draft until that product boundary is approved.
 - **Classification:** **adopt**
 - **Target flags:** Individual `entitlement` class flags per gated capability,
   each with `accountTier`/`licencePlan` targeting.
@@ -239,8 +260,10 @@ the start when they are built.
 
 ### Web dashboard capabilities
 
-- **Current state:** Dashboard is under development (`DASH*` modules). No
-  feature gating exists yet.
+- **Current state:** The web-dashboard launch has the `dashboard.web` rollout
+  flag documented above, and terminal dashboard features ship. Per-view product
+  packaging and entitlement mapping are not yet defined; those depend on the
+  completed ADR-076 registry rather than a dashboard-only list.
 - **Classification:** **adopt**
 - **Target flags:** Per-view `entitlement` flags gating advanced dashboard
   features by tier, audience, or environment.

@@ -5,9 +5,20 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | In Progress | 8/9      |
+| FLAGCAT | —     | high     | In Progress | 8/15     |
 
-**Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
+**Last reviewed:** 2026-08-20 — Live catalogue audit found the flag-definition
+layer maintained (17 flags), but the product-feature layer incomplete and
+weakly drift-gated. `flags/surfaces.json` remains a CLI-first seed: nine
+current visible commands are absent, non-CLI delivery surfaces are not
+represented consistently, feature flags do not reference catalogue features,
+and the count-floor test cannot detect omissions. ADR-076 is now
+operator-accepted with a four-noun contract (product feature, product feature
+group, delivery surface, feature flag). FLAGCAT-010 is In Progress;
+FLAGCAT-011..015 sequence current
+back-capture, drift gates, flag linkage, generated views, and tier mapping.
+
+**Earlier — 2026-06-01** — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
 `welcome`) is deliberate beta access control, deferred to GA — not a
 planless-first defect. Planless-first is Anvil's zero-config *product
@@ -48,7 +59,7 @@ blocked). FLAGCAT-008 stays Draft pending the planless-membership triage
 **Earlier — 2026-05-19** — Feature gating model landed at
 [`plans/specs/2026-05-19-feature-gating-model.md`](../specs/2026-05-19-feature-gating-model.md)
 with architectural pin [ADR-048](../decisions/048-feature-group-architectural-model.md):
-Feature Groups are defaults carriers (class + audiences + lifecycle) under a
+Flag default groups are defaults carriers (class + audiences + lifecycle) under a
 hybrid `primaryGroup` (surface) + `tags` (capability) taxonomy, with universal
 kill-switch via the existing emergency-override channel. Spec adds canonical
 audiences (9) and environments (5, `prod` → `production` and `dev` →
@@ -92,6 +103,16 @@ Anvil's extended schema (which is already a superset of OpenFeature's vanilla
 extensions (`class`, `owner`, `intent`, `targeting`, `createdFor`, `status`)
 are the governance guarantees we've already invested in via FLAGS.
 
+ADR-076 extends that direction beyond operational flags. The catalogue must
+also state what the product is made of without conflating four different
+concepts: a **product feature** is independently packageable or gateable; a
+**product feature group** is its customer-value/capability family; a **delivery
+surface** is a CLI, MCP, API, dashboard, docs, hook, daemon, or integration
+entry point; and a **feature flag** controls rollout, entitlement, or emergency
+behaviour. ADR-048's `Feature Group` is called a **flag default group** in
+this product-catalogue context. The machine-readable registry is authoritative;
+prose views are generated from it.
+
 ## In Scope
 
 - Authoritative manifest: a single `flags/manifest.json` at the repo root
@@ -129,6 +150,13 @@ are the governance guarantees we've already invested in via FLAGS.
   `.clawpatch/features/*.json` during design/discovery to inventory candidate
   surfaces, entrypoints, tags, and trust boundaries before manually curating the
   shipped flag definitions into `flags/manifest.json`
+- Product-feature registry maintenance under ADR-076: evolve
+  `flags/surfaces.json` from its CLI seed into the canonical registry of
+  shipped features, product feature groups, delivery surfaces, dependencies, and
+  declared access posture; add host-specific completeness gates and generated
+  human-readable views rather than a second manual list
+- Referential integrity between operational flags and the features they
+  control, while permitting explicitly unflagged features
 
 ## Out of Scope
 
@@ -151,6 +179,9 @@ are the governance guarantees we've already invested in via FLAGS.
 - Treating `.clawpatch/features/*.json` as source of truth, runtime input, or a
   CI gate — Clawpatch output is advisory discovery data only; FLAGCAT remains
   human-curated and APS-governed
+- Deciding the commercial boundary between Individual, Teams, and Enterprise
+  before FLAGCAT-015; the catalogue supplies the evidence and entitlement
+  mapping but does not invent the product decision
 
 ## Interfaces
 
@@ -166,6 +197,8 @@ are the governance guarantees we've already invested in via FLAGS.
 
 - `flags/manifest.json` — canonical source of truth, versioned under
   `FEATURE_FLAG_SCHEMA_VERSION`
+- `flags/surfaces.json` — canonical product-feature and delivery-surface
+  registry (the filename is retained until an explicit schema migration)
 - `@eddacraft/anvil-flags-catalogue` — TS loader package with typed accessors
 - Rust constants emitted into `anvil-kernel-types` (or sibling crate) matching
   the TS accessors by key and variant names
@@ -209,6 +242,18 @@ are the governance guarantees we've already invested in via FLAGS.
       `audiences.json` (`organisationId` excluded as free-form); every
       environment target exists in `environments.json`; group
       `defaultAudiences[]` exist in `audiences.json` (FLAGCAT-006)
+- [ ] Every shipped independently usable or gateable product feature is present
+      in the canonical registry with one product feature group and its delivery
+      surfaces (FLAGCAT-011)
+- [ ] Host inventories fail CI when a shipped CLI command, MCP tool, API route,
+      dashboard route, or other governed surface is absent without an explicit
+      exclusion (FLAGCAT-012)
+- [ ] Every operational flag names the catalogue feature or features it
+      controls; every reference resolves and deliberately unflagged features
+      remain representable (FLAGCAT-013)
+- [ ] Human-readable feature and feature-group views are generated from the
+      canonical registry, never maintained as a second source of truth
+      (FLAGCAT-014)
 
 ## Constraints
 
@@ -664,3 +709,137 @@ Status promoted Draft → **Ready** 2026-05-28.
   layer, deriving `CLI_GATED_COMMANDS` from the catalogue, Rust `build.rs`
   codegen for surfaces, per-environment + staff-axis runtime plumbing.
 - **Confidence:** high — additive data + schema + tests, no consumer wiring.
+
+### FLAGCAT-010: Ratify the definitive catalogue contract
+
+- **Status:** In Progress
+- **Intent:** Make the source-of-truth boundary explicit before expanding the
+  one-off CLI seed or using it to design product tiers.
+- **Expected Outcome:** ADR-076 is Accepted with binding definitions for
+  product feature, product feature group, delivery surface, and feature flag;
+  `flags/surfaces.json` is named as the canonical machine-readable feature
+  registry despite its legacy filename; `flags/groups.json` remains a
+  flag-defaults inventory rather than masquerading as the complete product
+  grouping; maintenance obligations and generated-view rules are explicit;
+  the feature-flag inventory guide is labelled as a control-migration guide,
+  not the definitive feature list.
+- **Files:** `plans/modules/feature-flag-catalogue.aps.md`,
+  `plans/index.aps.md`,
+  `plans/decisions/076-feature-catalogue-surface-registry.md`,
+  `plans/decisions/DECISION-LOG.md`,
+  `docs/guides/feature-flag-inventory.md`
+- **Dependencies:** FLAGCAT-009 Released/Shipped; operator approval recorded
+  2026-08-20.
+- **Validation:** `pnpm docs:check`; `pnpm aps:active-lint`;
+  `pnpm aps:index:check`; `pnpm adr:check`; `pnpm format:check`.
+- **Risk:** high — product framing and a cross-surface authority boundary.
+- **Confidence:** high — the live audit and accepted vocabulary pin the change.
+
+### FLAGCAT-011: Back-capture the current product feature inventory
+
+- **Status:** Draft
+- **Intent:** Replace the incomplete CLI-only snapshot with an honest current
+  inventory before assigning product tiers.
+- **Expected Outcome:** Before inventory expansion, the schema pins stable
+  product-feature keys, stable delivery-surface identities, their one-to-many
+  relationship, and how current `categories[]` become product feature groups.
+  The canonical registry then covers shipped CLI, MCP, API, daemon, dashboard,
+  documentation, hook, and integration features at the smallest independently
+  packageable/gateable granularity. Each feature has one product feature group
+  plus its delivery surfaces, lifecycle, ownership, and hard dependencies.
+  Current missing CLI entries are reconciled. User-visible foundational
+  capabilities are catalogued; only internal plumbing may use a narrow,
+  reviewed exclusion with a classification and reason.
+- **Files:** `flags/surfaces.json`,
+  `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`,
+  `packages/anvil/flags-catalogue/src/manifest.ts`,
+  `packages/anvil/flags-catalogue/tests/surfaces.test.ts`
+- **Dependencies:** FLAGCAT-010.
+- **Validation:** `pnpm exec nx test flags-catalogue`;
+  `pnpm typecheck`; `pnpm format:check`.
+- **Risk:** high — cross-surface product taxonomy with no runtime behaviour
+  change.
+
+### FLAGCAT-012: Gate catalogue completeness against shipping hosts
+
+- **Status:** Draft
+- **Intent:** Make catalogue maintenance executable rather than relying on a
+  minimum-count assertion.
+- **Expected Outcome:** Host-owned projections compare the registry with the
+  authoritative CLI command tree, MCP tool registrations, API routes,
+  dashboard routes, and other selected delivery registries. A new or renamed
+  governed surface fails CI until catalogued or explicitly excluded with a
+  reviewed internal-plumbing classification and reason. User-visible features
+  cannot be excluded. The `surfaces.length >= 40` completeness claim is
+  retired.
+- **Files:** `packages/anvil/flags-catalogue/tests/`,
+  `crates/anvil-cli/src/main.rs`, host registries selected by FLAGCAT-011,
+  CI/change-classification wiring if required
+- **Dependencies:** FLAGCAT-011.
+- **Validation:** `pnpm exec nx test flags-catalogue`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`;
+  `pnpm validate:changed`.
+- **Risk:** high — cross-language CI contract.
+
+### FLAGCAT-013: Link operational flags to catalogue features
+
+- **Status:** Draft
+- **Intent:** Make entitlement and rollout policy traceable to the product
+  capability it controls.
+- **Expected Outcome:** Each operational flag declares the catalogue feature
+  keys it controls, and every catalogue feature declares exactly one reviewed
+  linkage disposition: linked to resolving operational flag keys, or
+  intentionally unflagged with a reason. Both directions validate; retired keys
+  remain historically stable; TS and Rust generated contracts stay in parity.
+- **Files:** `flags/manifest.json`, `flags/surfaces.json`,
+  `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`,
+  `packages/anvil/flags-catalogue/`,
+  `crates/anvil-kernel-types/build.rs`
+- **Dependencies:** FLAGCAT-011.
+- **Validation:** `pnpm exec nx test flags-catalogue`;
+  `cargo test -p eddacraft-anvil-kernel-types`; `pnpm typecheck`.
+- **Risk:** high — shared TS/Rust catalogue contract.
+
+### FLAGCAT-014: Generate human-readable feature catalogue views
+
+- **Status:** Draft
+- **Intent:** Give product and engineering readers a definitive feature and
+  product-feature-group view without creating a shadow source of truth.
+- **Expected Outcome:** Repository tooling generates stable feature,
+  product-feature-group, delivery-surface, lifecycle, and flag-linkage views
+  from the canonical registry. Documentation links to those views and contains
+  no separately maintained comprehensive list. ADR-076's dated seed appendix is
+  replaced by, or links to, the generated view without becoming another
+  maintained inventory.
+- **Files:** generator and generated documentation paths selected during
+  FLAGCAT-011; `docs/guides/feature-flag-inventory.md`;
+  `plans/decisions/076-feature-catalogue-surface-registry.md`
+- **Dependencies:** FLAGCAT-011, FLAGCAT-013.
+- **Validation:** `pnpm docs:check`; generator check mode exits zero with no
+  diff; `pnpm format:check`.
+- **Risk:** standard — generated documentation and source-of-truth hygiene.
+
+### FLAGCAT-015: Map product features to plan audiences
+
+- **Status:** Draft
+- **Intent:** Use the current catalogue to design Individual, Teams, and
+  Enterprise packaging from evidence rather than dashboard-first assumptions.
+- **Expected Outcome:** Every product feature records a reviewed availability
+  disposition against an approved canonical plan vocabulary, or remains
+  explicitly undecided. That decision must reconcile the live `plan-free`,
+  `plan-beta`, `plan-pro`, and `plan-enterprise` audience ids with any
+  proposed Individual, Teams, or Enterprise names before implementation.
+  Entitlement flags and plan audiences implement only approved boundaries; the
+  potential Teams-tier programme consumes this mapping without duplicating it.
+  If approved identifiers require account-claim, JWT, or runtime migration,
+  that migration is handed to a separately authorised owning item rather than
+  being absorbed here.
+- **Files:** canonical catalogue and plan-audience inventories selected after
+  the commercial plan decision; generated catalogue view from FLAGCAT-014.
+- **Dependencies:** FLAGCAT-011, FLAGCAT-012, FLAGCAT-013, FLAGCAT-014, and an
+  approved product-plan boundary. Fresh host-completeness evidence must pass
+  before plan mapping is approved or generated.
+- **Validation:** `pnpm exec nx test flags-catalogue`; `pnpm docs:check`;
+  `pnpm typecheck`.
+- **Risk:** high — commercial entitlement semantics; remains Draft until the
+  product-plan boundary is approved.

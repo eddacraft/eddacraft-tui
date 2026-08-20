@@ -1,16 +1,18 @@
-# ADR-076: Feature catalogue — register the full surface inventory as multi-axis features
+# ADR-076: Feature catalogue — register product features and their delivery surfaces
 
 ## Status
 
-**Proposed** — 2026-06-09. The five open questions were resolved and a
-**feature-dependency facet** added (see Resolved Questions); a five-reviewer
-council pass then ran (feasibility, scope, coherence, adversarial,
-architecture) and its findings are folded in below — most consequentially:
-the dependency facet is **declared-edges + static checks only** (runtime
-cascade-off deferred to its own ADR), §6 is reframed from catalogue-*derived
-lists* to catalogue-*declared posture* (preserving host ownership), and the
-"off ⇒ refuse uniformly" invariant gains explicit exceptions for
-system-invoked and recovery-critical surfaces. Extends — does not supersede —
+**Accepted** — 2026-08-20. Operator ratification accepts the catalogue authority
+and four-noun product model below after FLAGCAT-009 proved the CLI seed. The
+2026-06-09 five-reviewer council findings remain binding: dependency edges are
+declared data with static checks only; each host owns enforcement derived from
+catalogue-declared posture; system-invoked and recovery-critical surfaces are
+categorical exceptions only to catalogue-derived availability refusal, never
+to host-owned authentication, authorisation, credential, integrity, or
+issuance checks. Acceptance does not claim that the inventory or runtime
+projection is complete: FLAGCAT-011..014 back-capture the
+current product, add host completeness gates, link operational flags, and
+generate human-readable views. Extends — does not supersede —
 [ADR-048](048-feature-group-architectural-model.md).
 
 ## Date
@@ -20,15 +22,17 @@ system-invoked and recovery-critical surfaces. Extends — does not supersede �
 ## Context
 
 [ADR-048](048-feature-group-architectural-model.md) established **how a new
-gating decision is structured**: a Feature Group is a defaults carrier (class +
-audiences + lifecycle), flags override per-entry, and the shape is deliberately
-chosen to translate to FeatureBoard's `Feature → categoryIds[]` model by
-configuration rather than rewrite. FLAGCAT then landed the catalogue itself —
-`flags/manifest.json` plus the `groups`/`audiences`/`environments` inventories,
-codegen for TS and Rust, and CI-gated drift.
+gating decision is structured**: what this ADR calls a **flag default group**
+is ADR-048's `Feature Group`, a defaults carrier (class + audiences +
+lifecycle). Flags override per-entry, and the shape is deliberately chosen to
+translate to FeatureBoard's `Feature → categoryIds[]` model by configuration
+rather than rewrite. FLAGCAT then landed the catalogue itself —
+`flags/manifest.json` plus the `groups`/`audiences`/`environments`
+inventories, codegen for TS and Rust, and CI-gated drift.
 
-What the catalogue does **not** yet do is record **what the product is made
-of**. It holds six boolean *policies* (`api.scope.*`, `cli.licence-gate`,
+At the June 2026 proposal snapshot, the catalogue did **not** yet record **what
+the product is made of**. It held six boolean *policies* (`api.scope.*`,
+`cli.licence-gate`,
 `docs.access`, and now `tui-dashboard.aps-dashboard` from CIB-046). A CLI
 surface only appears implicitly — e.g. licence gating is one flag
 (`cli.licence-gate`) carrying a hand-maintained list of 19 command names as
@@ -52,6 +56,14 @@ notion of a surface at all. The desired direction — articulated by Josh — is
 **catalogue every surface/feature**, where auth is just *one* of several lenses
 you may flag a feature by (the others being tiered benefit, safety kill-switch,
 and environment availability).
+
+The acceptance audit on 2026-08-20 found the operational flag layer maintained
+at 17 flags, while the product registry remained an incomplete CLI-first seed.
+Nine current visible CLI commands were absent, non-CLI delivery surfaces were
+not represented consistently, flags did not reference catalogue features, and
+the minimum-count test could not detect omissions. The registry therefore
+needed a ratified contract and executable maintenance sequence before it could
+support Individual, Teams, or Enterprise product decisions.
 
 Part of this is cheaper than it sounds; part is genuinely net-new. Being
 precise about which (council feasibility + architecture review):
@@ -78,24 +90,50 @@ precise about which (council feasibility + architecture review):
 
 ## Decision
 
-Make the **surface/feature the catalogue's primary noun**, register the full
-inventory, and drive flagging through the dimensions that already exist.
+Make the **product feature the catalogue's primary noun**, register the full
+feature inventory and its delivery surfaces, and drive flagging through the
+dimensions that already exist.
+
+The following nouns and authority boundaries are binding:
+
+- A **product feature** is the smallest independently usable capability that
+  anvil could package, gate, or ship on a different lifecycle.
+- A **product feature group** is the stable customer-value or capability family
+  used to organise product features. It is distinct from the **flag default
+  group** in `flags/groups.json` defined by ADR-048.
+- A **delivery surface** is a host entry point through which a feature is used,
+  including CLI, MCP, API, dashboard, documentation, hook, daemon, and
+  integration surfaces. One feature may have several delivery surfaces.
+- A **feature flag** is an operational control for rollout, entitlement, or
+  emergency behaviour. A product feature can be intentionally unflagged.
+
+`flags/surfaces.json` is the canonical machine-readable product-feature
+registry despite its legacy filename. `flags/manifest.json` remains the
+operational flag authority and `flags/groups.json` remains the flag-default
+group inventory. Comprehensive prose views are generated from the registry,
+never maintained as a second source of truth.
+
+The logical relationship is binding: a product feature has one stable product
+feature key, belongs to one product feature group, and may be delivered through
+one or more separately identifiable delivery surfaces. FLAGCAT-011 owns the
+physical `surfaces.json` schema, stable delivery-surface identities, and the
+migration from the current single `surfaces[]` seed; this ADR does not
+pre-design that representation.
 
 1. **Feature = the smallest unit you would ever ship or gate independently.**
    Split where flagging diverges (`mcp install` is licence-gated, `mcp serve` is
    an ungated capability → two features), merge where it never would (`drift`
    snapshot/compare/report/list → one feature).
 
-2. **Categories partition the `cli` surface by capability.** Every entry here
-   lives under ADR-048's `cli` surface, so `category` is the **capability axis**
-   (closer to ADR-048's `tags` than to its surface-primary `primaryGroup`) — a
-   distinction to make explicit so this does not read as rotating ADR-048's
-   primary axis from surface to capability. A `foundational` category holds base
-   plumbing (`doctor`, `version`, `config`, `auth`, …) that defaults every axis
-   on. These are **inventoried but rarely flagged**; an open question (below) is
-   whether they carry a `catalogued: false` marker so they are recorded without
-   adding drift-gated maintenance for commands that have no gate, tier, or
-   environment override today. Environment targeting is in principle universal
+2. **Product feature groups organise capability; delivery surfaces identify hosts.**
+   The initial seed partitions the `cli` delivery surface by capability, but
+   the same feature may be delivered through CLI, MCP, API, dashboard, or
+   another governed host. A `foundational` product feature group holds base plumbing
+   (`doctor`, `version`, `config`, `auth`, …) that defaults every axis on.
+   These features are inventoried even when rarely flagged; deliberately
+   excluded internal plumbing requires an explicit, reviewed exclusion rather
+   than a `catalogued: false` escape hatch. Environment targeting is in
+   principle universal
    (any feature can be scoped to `local`/`development`/`preview`/`demo`/
    `production`) — but see the runtime-gap risk: the CLI host does not yet supply
    an environment signal.
@@ -125,7 +163,11 @@ inventory, and drive flagging through the dimensions that already exist.
      that restores access; a kill-switch here is an irrecoverable lockout). The
      model therefore needs a small set of surface markers — a `system`
      invocation context and a kill-switch exemption for recovery-critical
-     surfaces — and these are categorical, not optional.
+     surfaces — and these are categorical, not optional. These exceptions
+     apply only to catalogue-derived availability, entitlement, environment,
+     and kill-switch refusal. They do not bypass host-owned authentication,
+     authorisation, credential validation or issuance, input integrity, or
+     other security validation.
 
 4. **Keep it lean via category defaults.** A feature inherits its category's
    class/audience/environment and declares only **overrides** (e.g. `mcp.serve`
@@ -217,7 +259,8 @@ to its own trigger. `surfaces.json` codegen + drift is its own multi-item slice
   blast-radius report; the inventory translates to FeatureBoard by configuration.
 - **Negative:** the catalogue expands from 6 to ~43 entries; `surfaces.json`
   codegen + drift is a real multi-item slice, not a free extension; risk of
-  over-cataloguing pure plumbing (the `catalogued: false` open question).
+  over-cataloguing pure plumbing unless explicit exclusions stay narrow and
+  reviewed.
 - **Risks:** (1) **two runtime gaps of the same shape** — the CLI evaluation
   context has no staff signal (CIB-046; → RBAC) *and* hard-codes
   `EnvironmentName::Production`, so neither staff-audience nor per-environment
@@ -295,9 +338,11 @@ drove:
   **`ResolutionDetails.reason`** propagation required; `object`-codegen and
   `bypass_auth` regression-pin gaps noted.
 
-Open for the eventual council ratification to Accepted: the `catalogued: false`
-treatment of `foundational` plumbing, and confirming the AND-projection against
-the live resolver.
+**Acceptance resolution (2026-08-20):** foundational product capabilities are
+catalogued; only internal plumbing may use a narrow, reviewed exclusion. The
+AND-projection remains a prerequisite for any host enforcement change, not a
+prerequisite for accepting the registry contract. No host may claim derived
+enforcement until its projection is verified against the live resolver.
 
 ## References
 
@@ -309,11 +354,18 @@ the live resolver.
 - External: FeatureBoard `Feature → categoryIds[]` model (adoption target per
   ADR-048)
 
-## Appendix: Seed inventory (first-draft granularity pass)
+## Appendix: Historical design seed (non-authoritative)
 
-Granularity rule applied across all 38 commands + subcommands. "Now" = current
-posture (evidence); "Class" = proposed *why-you-flag*. Most features inherit
-their category default; only divergent ones declare an override.
+This dated June 2026 first-draft granularity pass records the evidence and
+reasoning that shaped the decision. It is not a current or authoritative
+product-feature inventory; `flags/surfaces.json` owns that data. FLAGCAT-014
+must replace this comprehensive table with, or reduce it to a link to, the
+generated catalogue view.
+
+The seed applied the granularity rule across the then-known 38 commands and
+subcommands. "Now" meant posture at that audit; "Class" meant the proposed
+*why-you-flag*. Most entries inherited their category default; only divergent
+entries declared an override.
 
 | Category | Feature | Now | Class / axis | Granularity note |
 |----------|---------|-----|--------------|------------------|
