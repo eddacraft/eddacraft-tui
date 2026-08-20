@@ -329,9 +329,7 @@ mod tests {
         let text = plain(terminal.backend().buffer());
         assert!(
             text.contains("▸ Review gate decision")
-                && text.contains(
-                    "See whether the current findings pass your workflow gate"
-                ),
+                && text.contains("See whether the current findings pass your workflow gate"),
             "welcome menu should render label + description through Select rows; got:\n{text}"
         );
     }
@@ -358,9 +356,8 @@ mod tests {
                 .split_whitespace()
                 .next()
                 .expect("hub descriptions are non-empty");
-            let col = cell_column(buf, needle, opt.label()).unwrap_or_else(|| {
-                panic!("description for {} not rendered\n{text}", opt.label())
-            });
+            let col = cell_column(buf, needle, opt.label())
+                .unwrap_or_else(|| panic!("description for {} not rendered\n{text}", opt.label()));
             starts.push((opt.label(), col));
         }
         let first = starts[0].1;
