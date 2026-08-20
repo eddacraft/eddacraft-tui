@@ -5,12 +5,13 @@
 
 | ID     | Owner | Priority | Status | Progress |
 | ------ | ----- | -------- | ------ | -------- |
-| DOCDEF | —     | high     | Ready  | 0/6      |
+| DOCDEF | —     | high     | Done   | 6/6      |
 
-**Last reviewed:** 2026-08-19 against the operator-approved
-[definition-layer design](../specs/2026-08-19-anvil-docs-definition-layer.md),
-live sidebar `apps/anvil-docs-private/sidebars/anvil.ts`, ADR-123, ADR-108,
-and DOCRB public-IA ownership.
+**Last reviewed:** 2026-08-20 against `origin/main` after all six work items
+Merged (#4028, #4030, #4034, #4037, #4035, #4036). Design:
+[definition-layer design](../specs/2026-08-19-anvil-docs-definition-layer.md).
+Live IA/nav remains DOCRB. Stored `N/M` is reconciled on this bookkeeping
+branch (ADR-053).
 
 > **Exclusive module.** DOCDEF owns public Anvil *definition content* and the
 > public-reference generator. Live information architecture and the live
@@ -120,7 +121,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-003: Publish the source-cited config field catalogue
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4034
 - **Intent:** Give testers one place to look up every `.anvil` key we can
   honestly extract from writers, readers, and the file `anvil init` writes.
 - **Expected Outcome:** `docs/public/anvil/reference/config.md` exists with
@@ -141,6 +142,9 @@ edit; it does not move ownership.
 - **Dependencies:** DOCRB-011
 - **Confidence:** high
 - **Validation:** `pnpm docs:public:check && pnpm docs:check`
+- **Evidence:** PR #4034 rebase-merged to `main` at `8bf8622e7`. Ancestor of
+  `origin/main`. `pnpm docs:public:check` 0 errors, 102 files; `pnpm docs:check`
+  11/11.
 
 ### DOCDEF-004: Generate CLI subcommands and flags
 
