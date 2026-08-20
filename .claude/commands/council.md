@@ -20,6 +20,21 @@ for risk-triggered PR escalation. It follows the operating-model review tiers in
 Council findings are review evidence, not validation proof. CI and local checks
 remain validation authority.
 
+## Governing contract
+
+If a specification exists, it is the contract. The diff is evidence of the
+change, not a completeness target for the surrounding subsystem.
+
+Resolve the spec from the user, the APS item, or the design document this
+change implements. Pass its acceptance criteria and non-goals to every
+reviewer. Classify findings as `in_contract`, `later_item`, `out_of_scope`,
+or `no_contract`. `critical` and `major` require `in_contract` when a spec
+is present. `later_item` is not `must_fix` for this review.
+
+One pack per invocation. After the judge, stop. Do not implement and re-run
+unless the user asks for a scoped re-review of the repaired lines, at most
+once.
+
 ## Usage
 
 ```text

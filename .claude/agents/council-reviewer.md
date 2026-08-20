@@ -14,8 +14,12 @@ provided review target and produce structured findings.
 You will receive:
 
 - The review target: diff, files, or commit.
-- Review context: what is being built, changed, or fixed.
+- The governing specification when one exists (ReadyItem, APS item, design
+  spec, or ADR, including acceptance and non-goals).
 - Existing findings from prior rounds when re-reviewing.
+
+If a spec is supplied, it is the contract. The diff is evidence, not a
+licence to complete the surrounding subsystem.
 
 ## Output Format
 
@@ -30,7 +34,9 @@ Return a single valid JSON object with no prose before or after it:
       "description": "Clear, actionable description of the issue",
       "file": "path/to/file.ts",
       "line": 42,
-      "suggestion": "Concrete fix or improvement"
+      "suggestion": "Concrete fix or improvement",
+      "contractDisposition": "in_contract|later_item|out_of_scope|no_contract",
+      "contractRef": "optional spec path or item id"
     }
   ],
   "summary": "X findings. Key concerns: ... Overall: ..."
@@ -47,4 +53,6 @@ If there are no findings, return:
 
 Prioritize security, correctness, edge cases, architecture, performance, test
 coverage, then style. Only flag real issues. Be specific, cite file and line,
-and suggest fixes.
+and suggest fixes. When a spec is present, classify every finding. `critical`
+and `major` require `in_contract`. File `later_item` with the owning item id;
+do not make it a blocker for this review.
