@@ -759,9 +759,9 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Design Source:** ADR-076 (Accepted 2026-08-20) pins the four-noun logical
   authority and assigns the physical schema to FLAGCAT-011, but deliberately
   does not pre-design that representation.
-- **Readiness Gate:** Pin and approve the physical feature, product-feature-
-  group, and delivery-surface schema; v1 migration and stable-key rules; and
-  rollback procedure before promotion.
+- **Readiness Gate:** Pin and approve the physical feature,
+  product-feature-group, and delivery-surface schema; v1 migration and
+  stable-key rules; and rollback procedure before promotion.
 - **Validation:** `pnpm exec nx test flags-catalogue`;
   `pnpm typecheck`; `pnpm format:check`.
 - **Risk:** high — cross-surface product taxonomy with no runtime behaviour
