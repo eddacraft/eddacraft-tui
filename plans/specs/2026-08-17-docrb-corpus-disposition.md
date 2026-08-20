@@ -174,7 +174,7 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | `docs/architecture/tui-as-built.md` | component (misplaced) | TUI | TUI surfaces | move → `crates/anvil-tui/ARCHITECTURE.md` |
 | `docs/architecture/widgets-as-built.md` | component (misplaced) | TUI | Widget catalogue | merge into tui ARCHITECTURE or keep as appendix link |
 | `docs/architecture/api-as-built.md` | component (misplaced) | API | anvil-api | move → `apps/anvil-api/ARCHITECTURE.md` |
-| `docs/architecture/auth-as-built.md` | central / split | API | Auth across CLI, API, docs-shell | retain as cross-system; strip docs-site-as-live wording in DOCRB-005 |
+| `docs/architecture/auth-as-built.md` | central / split | BAUTH | Auth across CLI, API, docs-shell | retain as cross-system; strip docs-site-as-live wording in DOCRB-005 |
 | `docs/architecture/driver-framework-as-built.md` | component (misplaced) | DRVR | Driver protocol | move toward `packages/anvil-driver-client` / intercept-proto |
 | `docs/architecture/observability-as-built.md` | component (misplaced) | OBS | Observability crate | move → `crates/anvil-observability/ARCHITECTURE.md` |
 | `docs/architecture/capsule-as-built.md` | component (misplaced) | CAPS | Capsules | move → `crates/anvil-capsule/ARCHITECTURE.md` |

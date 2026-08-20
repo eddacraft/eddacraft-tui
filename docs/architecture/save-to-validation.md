@@ -51,7 +51,7 @@ sequenceDiagram
         Editor->>Editor: persist file save
         Driver->>Driver: evaluate routing eligibility
         alt disabled, no-daemon, non-check action, unsupported platform, or default-on daemon not live
-            Driver->>Checks: subprocess check, scoped paths or all flag for an empty delete/initial cycle
+            Driver->>Checks: selected subprocess action
         else eligible because daemon is live or routing is forced
             Driver->>Daemon: validate_paths(workspace, changed paths)
             alt daemon verdict
@@ -59,9 +59,12 @@ sequenceDiagram
                 Guard-->>Daemon: guarded bytes or explicit refusal
                 Daemon->>Checks: validate guarded content and assurance
                 Checks-->>Daemon: diagnostics, coverage, assurance
+                opt SaveTimeObservationEmitter is wired
+                    Daemon-->>Observe: best-effort save-time gate_evaluated observation
+                end
                 Daemon-->>Driver: post-save verdict
             else absent, refused, error, disconnect, or timeout
-                Driver->>Checks: scoped subprocess fallback
+                Driver->>Checks: selected subprocess action
                 Driver->>Driver: unavailable daemon-absent assurance and warn once
             end
             opt later daemon response after disconnect
@@ -87,23 +90,30 @@ instead sends changed path descriptors through `validate_paths`; the daemon
 admits the workspace, reads the paths through its guarded boundary, and returns
 diagnostics plus coverage and assurance.
 
-Only MidEdit enters the best-effort observation path shown here. Missing
-emitters, throttling, sink errors, and later queue loss do not change the
-MidEdit verdict. PreWrite does not enter that path, and the post-save lane must
-not be collapsed into the caller-buffer lane.
+Only MidEdit enters the MidEdit observation path shown here. Missing emitters,
+throttling, sink errors, and later queue loss do not change the MidEdit verdict.
+PreWrite does not enter that path. Independently, `validate_paths` emits a
+best-effort save-time `gate_evaluated` observation after validation and before
+the verdict response when `SaveTimeObservationEmitter` is wired. Emission
+failure is swallowed and cannot change the verdict. This independent post-save
+observation does not collapse the post-save lane into the caller-buffer lane.
 
 Routing is eligible only for a `check` watch when daemon routing is not
 disabled, `--no-daemon` is absent, the platform has a transport, and either a
 live daemon answers the default-on probe or routing is forced. Disabled,
-not-live, unsupported, and non-check cases bypass the client and keep the
-subprocess path. Empty delete- or initial-driven cycles also bypass
-`validate_paths` and retain the existing `--all` safety net.
+not-live, unsupported, and non-check cases bypass the client and run the
+selected subprocess action. For `check`, changed paths form the scoped action
+and empty delete- or initial-driven cycles retain the existing `--all` safety
+net. `gate` instead self-scopes through Git status and receives no changed-path
+arguments.
 
 Once routed, daemon absence, refusal, JSON-RPC error, disconnect, or timeout
 produces no verdict. The watch client reports `unavailable{daemon-absent}`,
-warns once for the disconnect, and runs the subprocess fallback scoped to the
-changed paths. A later successful response requests a full scan on reconnect and
-clears the warning latch.
+warns once for the disconnect, and runs the selected subprocess action. Because
+only `check` is daemon-eligible, that fallback is the `check` action scoped to
+the changed paths; a `gate` action never enters the daemon route. A later
+successful response requests a full scan on reconnect and clears the warning
+latch.
 
 Fence persistence is a separate safety transition. The Linux spoof cross-check's
 production path reaches `fence_worktree_for_spoof` and is live. The
@@ -120,6 +130,12 @@ assurance does not fence a worktree.
   latency/observation conditions trace to
   `crates/anvil-intercept/src/midedit.rs` and the `scan_buffer` dispatch in
   `crates/anvil-intercept/src/ipc.rs`.
+- The independent post-save observation traces from the `validate_paths`
+  dispatch and best-effort emit in `crates/anvil-intercept/src/ipc.rs`, through
+  the optional `SaveTimeObservationEmitter` state in
+  `crates/anvil-intercept/src/save_time.rs` and
+  `crates/anvil-intercept/src/lib.rs`, to the producer injection in
+  `crates/anvil-cli/src/commands/intercept.rs`.
 - Routing eligibility, empty-cycle `--all`, scoped daemon fallback,
   `unavailable{daemon-absent}`, warn-once, and reconnect/full-scan behaviour
   trace to `crates/anvil-cli/src/commands/watch.rs` and
