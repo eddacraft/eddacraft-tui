@@ -4,9 +4,9 @@
 | ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-20 at `97899b00a`: DOCRB-006 architecture-pointer sweep; CIB-324 Windows update/version honesty reviewed 2026-08-14 |
 
-| Upstream                                                                                                                                                                                                                                                 | Downstream                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `CONTEXT.md`, [`overview.md`](../architecture/overview.md), [`rust-architecture-overview.md`](../architecture/rust-architecture-overview.md), [`quality-model.md`](../architecture/quality-model.md), `docs/architecture/*-as-built.md`, Cargo workspace | Council / adversarial review sessions, follow-up APS |
+| Upstream                                                                                                                                                                                                                                                                                                 | Downstream                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `CONTEXT.md`, [docs/architecture/overview.md](../architecture/overview.md), [docs/architecture/rust-architecture-overview.md](../architecture/rust-architecture-overview.md), [docs/architecture/quality-model.md](../architecture/quality-model.md), `docs/architecture/*-as-built.md`, Cargo workspace | Council / adversarial review sessions, follow-up APS |
 
 This checklist maps the **shipped Anvil product** into reviewable chunks. Use it
 as a living tracker: mark sessions, record findings, and link follow-up work. It
