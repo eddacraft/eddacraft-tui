@@ -7,6 +7,15 @@ const DISCLOSURE_END = '{/* SEE ALSO */}';
 const REPORTING_LINK = /href\s*=\s*["']mailto:security@eddacraft\.ai["']/i;
 const STRONG_PGP_GUIDANCE = /\b(?:pgp|openpgp|gpg|fingerprint|security[- ]key|key file)\b/i;
 const REPORTING_KEY_GUIDANCE = /\b(?:encrypt(?:ed|ion)?|public[- ]key|certificate)\b/i;
+const REAL_FINGERPRINT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
+
+function hasInvalidFingerprint(securityPage) {
+  const statements = securityPage.matchAll(/\bfingerprint\s*:?\s*([^\n<}{]+)/gi);
+  return [...statements].some(([, value]) => {
+    const compact = value.trim().replace(/[\s:-]/g, '');
+    return !REAL_FINGERPRINT.test(compact);
+  });
+}
 
 function responsibleDisclosureSource(securityPage) {
   const start = securityPage.indexOf(DISCLOSURE_START);
@@ -29,7 +38,7 @@ export function findPublicTrustFailures(securityPage, publishedKeyExists) {
 
   const advertisesPgp =
     STRONG_PGP_GUIDANCE.test(securityPage) || REPORTING_KEY_GUIDANCE.test(disclosure);
-  if (advertisesPgp && /Fingerprint:\s*(?:XXXX\s*){4,}/i.test(securityPage)) {
+  if (advertisesPgp && hasInvalidFingerprint(securityPage)) {
     failures.push('placeholder PGP fingerprint is published');
   }
   if (advertisesPgp && !publishedKeyExists) {

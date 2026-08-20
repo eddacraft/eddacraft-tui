@@ -24,6 +24,21 @@ fn malformed_git_patch_version_fails_the_suite_precondition() {
     parse_git_version("git version 2.54.foo");
 }
 
+#[test]
+#[should_panic(expected = "invalid version")]
+fn attached_git_patch_garbage_fails_the_suite_precondition() {
+    parse_git_version("git version 2.54.1garbage");
+}
+
+#[test]
+fn delimited_git_patch_suffixes_remain_supported() {
+    assert_eq!(
+        parse_git_version("git version 2.54.1.windows.1"),
+        (2, 54, 1)
+    );
+    assert_eq!(parse_git_version("git version 2.54.1-rc0"), (2, 54, 1));
+}
+
 /// Ceiling for git repo discovery. Git only honours a ceiling that is a
 /// proper ancestor of the probed directory, so this must be the tempdir's
 /// parent — passing the tempdir itself is silently ignored and the walk
@@ -59,7 +74,13 @@ fn parse_git_version(raw: &str) -> (u32, u32, u32) {
             panic!("Git is required for config-mode integration tests: invalid version {raw:?}")
         });
     let patch = parts.next().map_or(0, |part| {
-        let digits: String = part.chars().take_while(char::is_ascii_digit).collect();
+        let digit_count = part.chars().take_while(char::is_ascii_digit).count();
+        let (digits, suffix) = part.split_at(digit_count);
+        if digits.is_empty()
+            || (!suffix.is_empty() && !suffix.starts_with('-') && !suffix.starts_with('+'))
+        {
+            panic!("Git is required for config-mode integration tests: invalid version {raw:?}");
+        }
         digits.parse::<u32>().unwrap_or_else(|_| {
             panic!("Git is required for config-mode integration tests: invalid version {raw:?}")
         })

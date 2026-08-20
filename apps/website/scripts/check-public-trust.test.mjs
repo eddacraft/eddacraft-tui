@@ -58,12 +58,32 @@ describe('public trust contract', () => {
     );
   });
 
-  it('rejects a placeholder fingerprint even when a key file exists', () => {
-    expect(
-      findPublicTrustFailures(
-        securityPage('Fingerprint: XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX'),
-        true
-      )
-    ).toContain('placeholder PGP fingerprint is published');
+  it.each([
+    'Fingerprint: XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX',
+    'PGP Fingerprint: XXXX-XXXX-XXXX-XXXX',
+    'PGP Fingerprint: XXXX:XXXX:XXXX:XXXX',
+    'PGP Fingerprint: XXXX_XXXX_XXXX_XXXX',
+    'OpenPGP Fingerprint: TO BE PUBLISHED',
+    'OpenPGP Fingerprint: NOT YET PUBLISHED',
+    'OpenPGP Fingerprint: TODO',
+    'OpenPGP Fingerprint: TBA',
+    'OpenPGP Fingerprint: ???? ???? ???? ????',
+    'OpenPGP Fingerprint: [redacted]',
+    `GPG Fingerprint: ${Array.from({ length: 4 }, () => '0'.repeat(4)).join(' ')}`,
+    `GPG Fingerprint: ${Array.from({ length: 4 }, () => '0'.repeat(4)).join(':')}`,
+  ])('rejects a placeholder fingerprint even when a key exists: %s', (guidance) => {
+    expect(findPublicTrustFailures(securityPage(guidance), true)).toContain(
+      'placeholder PGP fingerprint is published'
+    );
+  });
+
+  it('accepts a structurally valid fingerprint when the published key exists', () => {
+    const fingerprint = Array.from({ length: 10 }, (_, index) =>
+      (0xa000 + index).toString(16).toUpperCase()
+    ).join(' ');
+
+    expect(findPublicTrustFailures(securityPage(`PGP Fingerprint: ${fingerprint}`), true)).toEqual(
+      []
+    );
   });
 });
