@@ -30,7 +30,7 @@ textwrap = { version = "0.16", features = ["smawk"] }
 # small public footprint. Bumps should go through `cargo audit` and a
 # manual review. Depend on `-core` directly so the unused
 # `animate-macros` proc-macro never enters the graph.
-animate-core = { version = "=0.3.0" }
+animate-core = { version = "=0.4.1" }
 ratatui-image = { version = "11", default-features = false, features = [
   "crossterm",
 ], optional = true }
