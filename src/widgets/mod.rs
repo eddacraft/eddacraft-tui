@@ -1,4 +1,4 @@
-use animate_core::{Lerp, Once};
+use animate_core::{Tween, TweenAnim};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
@@ -33,29 +33,29 @@ pub mod tree;
 pub mod wrappers;
 
 /// Animated `f64` value that eases toward its target over [`ANIM_DURATION_MS`].
-pub(crate) type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+pub(crate) type AnimatedF64 = Tween<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
 
 /// Animated `u8` value that eases toward its target over [`ANIM_DURATION_MS`].
-pub(crate) type AnimatedU8 = Once<u8, fn(f64) -> f64, fn(&u8, &u8, f64) -> u8>;
+pub(crate) type AnimatedU8 = Tween<u8, fn(f64) -> f64, fn(&u8, &u8, f64) -> u8>;
 
 /// Default animation duration shared by progress widgets (milliseconds).
 pub(crate) const ANIM_DURATION_MS: f64 = 250.0;
 
 pub(crate) fn animated_f64(initial: f64) -> AnimatedF64 {
-    Once::new(
+    Tween::new(
         initial,
         ANIM_DURATION_MS,
         animate_core::easing::quad_out as fn(f64) -> f64,
-        <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
+        <f64 as TweenAnim>::tween as fn(&f64, &f64, f64) -> f64,
     )
 }
 
 pub(crate) fn animated_u8(initial: u8) -> AnimatedU8 {
-    Once::new(
+    Tween::new(
         initial,
         ANIM_DURATION_MS,
         animate_core::easing::quad_out as fn(f64) -> f64,
-        <u8 as Lerp>::lerp as fn(&u8, &u8, f64) -> u8,
+        <u8 as TweenAnim>::tween as fn(&u8, &u8, f64) -> u8,
     )
 }
 
