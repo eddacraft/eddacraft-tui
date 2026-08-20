@@ -5,11 +5,12 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 8/11 |
+| DOCRB | — | high | Ready | 9/11 |
 
-**Last reviewed:** 2026-08-20 against the repository component/documentation
-inventory at `0a0f00c20`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
-operator-approved
+**Last reviewed:** 2026-08-21 against DOCRB-008 rebase-merge receipt
+`182d77b6329f460f4635e3e946b329ff9af84445`, the repository
+component/documentation inventory at `0a0f00c20`, current
+DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the operator-approved
 [documentation re-baseline design](../specs/2026-08-16-docs-rebaseline.md),
 and the
 [definition-layer design](../specs/2026-08-19-anvil-docs-definition-layer.md)
@@ -108,9 +109,9 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
-and DOCRB-011 are Merged. DOCRB-008 has all dependencies Merged and is In
-Progress on its approved public information-architecture and curated-diagram
-rebaseline; it is not a release claim. DOCRB-009 and DOCRB-010 remain Draft.
+DOCRB-008, and DOCRB-011 are Merged. DOCRB-009 is the next readiness candidate
+now that all of its dependencies are Merged, but it remains Draft and is not
+authorised for implementation. DOCRB-010 also remains Draft.
 
 ## Success Criteria
 
@@ -424,7 +425,8 @@ rebaseline; it is not a release claim. DOCRB-009 and DOCRB-010 remain Draft.
 
 ### DOCRB-008: Re-baseline public information architecture and curated diagrams
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-21 via PR #4068 (rebase-merge receipt
+  `182d77b6329f460f4635e3e946b329ff9af84445`)
 - **Intent:** Make public documentation easier to follow by organising it around
   reader needs and adding a restrained set of polished visual explanations.
 - **Expected Outcome:** In coordination with DOCSYNC, DSITE, and the owners
@@ -455,6 +457,12 @@ rebaseline; it is not a release claim. DOCRB-009 and DOCRB-010 remain Draft.
   `plans/specs/2026-08-17-docrb-corpus-disposition.md`,
   `plans/execution/DOCRB-008.actions.md`, and
   `plans/reviews/2026-08-21-docrb-008-public-ia.md`
+- **Evidence:** PR #4068 merged from final reviewed head
+  `294a93234ae511de4d7f6f91aebd7a4fffa63d23` after all required hosted
+  checks passed and unresolved review threads were zero. Rebase-merge receipt
+  `182d77b6329f460f4635e3e946b329ff9af84445` is an ancestor of
+  `origin/main`, and the remote `docs/docrb-008-public-ia` branch no longer
+  exists.
 - **Scope:** Label/grouping-only public sidebar changes; exactly two curated
   public Draw.io/SVG journey pairs and their mounted owning-page explanations;
   the one public-diagram inventory note; evidence; and the exact two-file
