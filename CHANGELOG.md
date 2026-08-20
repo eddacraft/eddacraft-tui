@@ -8,11 +8,13 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft for `v0.9.7-beta`.** Customer-facing changes on `main` since
-> `v0.9.6-beta`. Theme locked: first-session honesty. Version and date land at
-> the cut.
+> **Draft.** Customer-facing changes on `main` since the last tagged release.
+> Version and date land at the next cut.
 
-## [0.9.7-beta] — 2026-08-20
+## [0.9.7-beta] — 2026-08-20 — First-session honesty
+
+First-session welcome, gate progress, learning path, and Audit Next Steps tell
+the truth after the published 0.9.6-beta run.
 
 ### Fixed
 

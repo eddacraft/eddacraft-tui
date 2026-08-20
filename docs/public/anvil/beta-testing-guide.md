@@ -10,7 +10,7 @@ upstream:
   - crates/anvil-cli/src/commands/auth.rs
   - crates/anvil-cli/src/commands/ensure.rs
   - crates/anvil-cli/src/commands/version.rs
-verified_against: 0.9.6-beta
+verified_against: 0.9.7-beta
 ---
 
 # Beta test brief
@@ -26,7 +26,7 @@ This is a **test brief**, not a second setup manual. Setup lives only in the
 [quickstart](quickstart.md). Install or update there, then return here.
 
 **Current published beta:**
-[v0.9.6-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.6-beta).
+[v0.9.7-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.7-beta).
 Confirm with `anvil version`. A newer beta is valid.
 
 ## The product under test
@@ -69,18 +69,16 @@ From a real project root, in order:
 A clean scan is not a failure. The question is whether the result is explicit,
 repeatable, and recoverable without outside help.
 
-## 0.9.5-beta focus pass
+## 0.9.7-beta focus pass
 
-Exercise the paths that changed in this release when they apply to your setup:
+Exercise the first-session honesty paths that changed in this release:
 
-| Focus                       | Exercise                                                                                                                                   | Expected evidence                                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| MCP live-heal after upgrade | Upgrade anvil, leave a protected client open, then run bare `anvil` or `anvil start`                                                       | Owned MCP entries rewrite to PATH-stable `anvil mcp serve --stdio` and live children heal without requiring a full editor restart |
-| Pin freezes heal            | Set `anvil mcp pin` (or `ANVIL_MCP_PIN=1`), make configs skew, run daily ensure                                                            | Daily heal and in-process recycle stay frozen until unpin                                                                         |
-| Emergency cascade           | Run `anvil mcp refresh --json` (and optionally `--processes report`)                                                                       | Report covers rewrite / recycle / poke; default process mode lists orphans without signalling live editor children                |
-| One project config file     | In a disposable project, `anvil init`, then `anvil config show` and `anvil doctor`                                                         | Fresh configs are `.anvil.yaml` (or chosen format); dual-file / legacy-key states are named clearly                               |
-| Migrate older names         | Drop a leftover `.anvilrc` or `.anvil/gate-config.json`, run `anvil migrate format` / `anvil migrate gate-config` (preview then `--apply`) | Destination matches chosen format; gate composition moves into the project file                                                   |
-| Claude project MCP path     | Project-scope `anvil mcp install --client claude-code` in a disposable repo                                                                | Writes project `.mcp.json` (not workspace `.claude.json`) for the scope Claude actually loads                                     |
+| Focus                        | Exercise                                                               | Expected evidence                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Unsigned Policy/Architecture | `anvil welcome` without signing in, then a Policy or Architecture path | Sign-in bridge names `anvil auth login` first; no bare auth failure on a gated command |
+| Hub gate progress            | Hub "Review gate decision" on a real or large repo                     | Loading line updates as the workspace is scanned and as each check starts              |
+| Choose a learning path       | Hub or first-run "Choose a learning path"                              | Path picker is the next screen; discovery does not run first                           |
+| Audit Next Steps             | Audit TUI, focus a Next Steps row, Enter                               | Matching issue is focused and expanded; footer matches what the panel can do           |
 
 Use disposable projects and worktrees for the mutating exercises. Do not test
 installer or registration paths against a production checkout.

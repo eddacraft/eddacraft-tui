@@ -7,7 +7,7 @@ owner: DOCSYNC
 upstream:
   - CHANGELOG.md
   - RELEASE-PLAN.md
-verified_against: 0.9.6-beta
+verified_against: 0.9.7-beta
 ---
 
 # Current release notes
@@ -17,7 +17,10 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.7-beta — 20 August 2026
+## 0.9.7-beta — 20 August 2026 — First-session honesty
+
+First-session welcome, gate progress, learning path, and Audit Next Steps tell
+the truth after the published 0.9.6-beta run.
 
 ### Fixed
 
