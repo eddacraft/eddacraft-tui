@@ -25,27 +25,23 @@ flowchart LR
         AnvilSource[docs/public/anvil and docs/public/beta]
         PublicSource[docs/public/aps, kindling, edda-stack, and public blog]
         ShellSource[apps/docs-shell]
-        RollbackSource[apps/docs-site]
     end
 
     subgraph Build["Vercel production builds from main"]
         PrivateBuild[build anvil-docs-private]
         PublicBuild[build docs-public]
         ShellBuild[build docs-shell]
-        RollbackSkip[always skip docs-site build]
     end
 
     subgraph Deploy["Protected deployments"]
         Private[anvil-docs-private renderer]
         Public[docs-public renderer]
         Shell[docs.eddacraft.ai docs shell]
-        Rollback[docs-site rollback-only project]
     end
 
     AnvilSource --> PrivateBuild --> Private
     PublicSource --> PublicBuild --> Public
     ShellSource --> ShellBuild --> Shell
-    RollbackSource -.-> RollbackSkip -.-> Rollback
 
     Reader[documentation reader] --> Shell
     Shell -->|/anvil entitlement required; protected upstream secret| Private
@@ -68,9 +64,15 @@ boundaries reject matched direct requests that do not carry the matching secret.
 Their matcher excludes `/favicon.ico`, so the shared-secret statement is
 deliberately not universal to every renderer path.
 
-`apps/docs-site` has no production domain, and its ignore command is
-`--always-skip`; it is retained only as a rollback artefact and has no live
-request edge in the diagram.
+`apps/docs-site` was the rollback artefact: no production domain, ignore command
+`--always-skip`, no live request edge. It was retired on 2026-07-08
+(`847436623`) and **deleted** once the rollback window closed — the shell had
+been live for six weeks without a rollback being needed. Its navigation
+authority moved to the live hosts (`apps/anvil-docs-private/sidebars/anvil.ts`
+and `apps/docs-public/sidebars/aps.ts`), which is what
+`scripts/docs/check-public-docs.mjs` now reads. `docs/public/start-here` went
+with it: only docs-site rendered that section, so it had been unpublished since
+the same date.
 
 ## Source trace and ownership gap
 
@@ -89,7 +91,7 @@ request edge in the diagram.
 - Detailed login, proxy, failure, and fallback behaviour remains in
   `apps/docs-shell/ARCHITECTURE.md`; this macro view does not duplicate it.
 
-The owner remains deliberately unresolved: DOCRB documents the live topology,
-while DSITE still owns recorded legacy `apps/docs-site` host work. This
-**DOCRB/DSITE ownership gap** does not change either module's status and must
-stay visible until its owning bookkeeping work resolves it.
+The **DOCRB/DSITE ownership gap** is closed on the topology side: DOCRB
+documents the live hosts, and the legacy `apps/docs-site` host that DSITE owned
+no longer exists. Any remaining DSITE work is recorded history, not a live
+surface.

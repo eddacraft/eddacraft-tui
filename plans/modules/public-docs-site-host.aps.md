@@ -6,9 +6,23 @@
 | ----- | ---------- | ----------- | -------- |
 | DSITE | @eddacraft | In Progress | 2/3      |
 
-**Last reviewed:** 2026-06-21
+**Last reviewed:** 2026-08-20 — **the host this module was named for no longer
+exists.** `apps/docs-site` was retired 2026-07-08 (`847436623`, `--always-skip`)
+and deleted 2026-08-20 once the rollback window closed. The sections it hosted
+now live on `apps/anvil-docs-private` (anvil, beta) and `apps/docs-public` (aps,
+kindling, edda-stack). DSITE-001/-002 are recorded history against a deleted
+host; DSITE-003 is retargeted below because its content trees are still real.
+**Bookkeeping owed:** decide whether this module is closed or renamed to the
+live hosts — header status and the index `N/M` were deliberately left untouched
+here per ADR-053 (feature PRs do not bump module counts).
 
 ## Purpose
+
+**Superseded premise (2026-08-20):** this module assumed a single shared
+Docusaurus host. That host is gone; delivery is now split across a gated host
+and a public one, fronted by `apps/docs-shell`. See
+`docs/architecture/docs-delivery.md`. The original purpose is kept below as the
+record of what DSITE-001/-002 delivered.
 
 The public docs-site (`apps/docs-site`, Docusaurus) is a **single shared host**
 for several products in the Edda Craft family: Anvil, Kindling, APS, Edda Stack,
@@ -125,8 +139,12 @@ siblings; DOCSYNC for Anvil).
 - **Expected Outcome:** the live sibling sections beyond Kindling — APS
   (`docs/public/aps/`) and Edda Stack (`docs/public/edda-stack/`) — are
   registered here, and a standing convention exists for adding the next sibling
-  section (sidebar + content tree + host wiring via DSITE-001). The
-  `eddacraft-tui` content tree is delegated to TUIN-013.
+  section (sidebar + content tree + host wiring). The `eddacraft-tui` content
+  tree is delegated to TUIN-013.
+- **Retargeted 2026-08-20:** "host wiring via DSITE-001" referred to
+  `apps/docs-site`, now deleted. Sibling sidebars live on `apps/docs-public`
+  (`sidebars/aps.ts`, `sidebars/edda-stack.ts`, `sidebars/kindling.ts`). The
+  content trees this item tracks are unchanged, so the item stays actionable.
 - **Validation:** `pnpm aps:drift` recognises changes under the registered
   sibling content trees; new sibling sections are added under this item rather
   than left drift-flagged.
@@ -138,7 +156,7 @@ siblings; DOCSYNC for Anvil).
 ## Notes
 
 - The drift check matches a changed file against an item's `Files` patterns:
-  a trailing-slash entry (e.g. `apps/docs-site/sidebars/`) matches everything
+  a trailing-slash entry (e.g. `apps/docs-public/sidebars/`) matches everything
   beneath it, so the host-wiring item covers each sibling sidebar without listing
   them one by one.
 - Anvil's own section (`docs/public/anvil/`, `apps/docs-site/sidebars/anvil.ts`)

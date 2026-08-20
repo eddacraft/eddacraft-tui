@@ -8,6 +8,7 @@ upstream:
   - crates/anvil-cli/src/activation/render.rs
   - crates/anvil-cli/src/commands/start.rs
 verified_against: 0.9.0-beta
+public_unlisted: true
 ---
 
 # Activation states

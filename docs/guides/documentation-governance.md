@@ -129,12 +129,13 @@ Live production, deployed by `infra/src/vercel.ts`:
 | `apps/docs-shell`         | Public entrypoint at `docs.eddacraft.ai`. Authenticates `/anvil/*` and proxies the two upstream Docusaurus apps. |
 | `apps/anvil-docs-private` | Gated Anvil and beta docs.                                                                                       |
 | `apps/docs-public`        | Public APS, Kindling, edda-stack, and blog docs.                                                                 |
-| `apps/docs-site`          | Legacy Docusaurus host retained for rollback only. Domain moved to `docs-shell`.                                 |
+| _(removed)_               | `apps/docs-site` was the rollback-only host; retired 2026-07-08 and deleted once the window closed.              |
 
-**Ownership gap:** the DSITE module still describes `apps/docs-site` as the
-shared host and remains the owner of those recorded work items. DOCRB records
-the live topology here and in ADR-123. It does **not** change DSITE status or
-open a successor DSITE item. Until DSITE or a bookkeeping change adopts the live
+**Ownership gap (closed on the topology side):** DSITE described
+`apps/docs-site` as the shared host; that host has been deleted, so its work
+items are recorded history rather than a live surface. DOCRB records the live
+topology here and in ADR-123. It does **not** change DSITE status or open a
+successor DSITE item. Until DSITE or a bookkeeping change adopts the live
 topology, implementation truth is `infra/src/vercel.ts`.
 
 ## Change-impact review
@@ -188,7 +189,7 @@ diagram-specific update procedure. The contract (ADR-123) is:
 | DOCFRESH        | Declared-upstream freshness (ADR-119) and release-boundary freshness                                                                                                     | Authority or diagram placement                                         |
 | DOCSYNC         | Substantive public content and release-aligned public refreshes                                                                                                          | Public information architecture and diagram conventions                |
 | DOCDEF          | Public Anvil definition content and the public-reference generator (evaluation model, check/config/CLI catalogues, policy model)                                         | Live sidebar; public Draw.io diagrams; DOCSYNC journeys                |
-| DSITE           | Recorded legacy `apps/docs-site` host and section-wiring work                                                                                                            | Live production topology (above)                                       |
+| DSITE           | Recorded legacy docs-host and section-wiring work (host deleted 2026-08-20)                                                                                              | Live production topology (above)                                       |
 | Archived DOCGOV | Historical evidence                                                                                                                                                      | Living rules — do not rewrite or reopen it                             |
 
 DOCRB is not a release claim, readiness gate, or release-cut dependency.

@@ -9,6 +9,7 @@ upstream:
   - crates/anvil-cli/src/commands/migrate.rs
   - dist-workspace.toml
 verified_against: 0.9.0-beta
+public_unlisted: true
 ---
 
 # Native Rust migration

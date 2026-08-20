@@ -510,67 +510,6 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.1)(vite@8.2.0(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.1)(tsx@4.22.4)(yaml@2.9.0))
 
-  apps/docs-site:
-    dependencies:
-      '@docusaurus/core':
-        specifier: 3.10.1
-        version: 3.10.1(@docusaurus/faster@3.10.1(@docusaurus/types@3.10.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@swc/helpers@0.5.23)(esbuild@0.28.1))(@mdx-js/react@3.1.1(@types/react@19.2.17)(react@19.2.7))(@rspack/core@1.7.11(@swc/helpers@0.5.23))(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
-      '@docusaurus/faster':
-        specifier: 3.10.1
-        version: 3.10.1(@docusaurus/types@3.10.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@swc/helpers@0.5.23)(esbuild@0.28.1)
-      '@docusaurus/plugin-content-docs':
-        specifier: 3.10.1
-        version: 3.10.1(@docusaurus/faster@3.10.1(@docusaurus/types@3.10.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@swc/helpers@0.5.23)(esbuild@0.28.1))(@mdx-js/react@3.1.1(@types/react@19.2.17)(react@19.2.7))(@rspack/core@1.7.11(@swc/helpers@0.5.23))(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
-      '@docusaurus/preset-classic':
-        specifier: 3.10.1
-        version: 3.10.1(@algolia/client-search@5.50.1)(@docusaurus/faster@3.10.1(@docusaurus/types@3.10.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@swc/helpers@0.5.23)(esbuild@0.28.1))(@mdx-js/react@3.1.1(@types/react@19.2.17)(react@19.2.7))(@rspack/core@1.7.11(@swc/helpers@0.5.23))(@swc/core@1.15.40(@swc/helpers@0.5.23))(@types/react@19.2.17)(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(search-insights@2.17.3)(typescript@6.0.3)
-      '@docusaurus/types':
-        specifier: 3.10.1
-        version: 3.10.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@eddacraft/anvil-contracts':
-        specifier: workspace:*
-        version: link:../../packages/anvil/contracts
-      '@eddacraft/anvil-flags-catalogue':
-        specifier: workspace:*
-        version: link:../../packages/anvil/flags-catalogue
-      '@eddacraft/anvil-runtime':
-        specifier: workspace:*
-        version: link:../../packages/anvil/runtime
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      jose:
-        specifier: ^6.2.3
-        version: 6.2.3
-      prism-react-renderer:
-        specifier: ^2.4.1
-        version: 2.4.1(react@19.2.7)
-      react:
-        specifier: 19.2.7
-        version: 19.2.7
-      react-dom:
-        specifier: 19.2.7
-        version: 19.2.7(react@19.2.7)
-    devDependencies:
-      '@docusaurus/module-type-aliases':
-        specifier: 3.10.1
-        version: 3.10.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@docusaurus/tsconfig':
-        specifier: 3.10.1
-        version: 3.10.1
-      '@types/node':
-        specifier: ^25.9.3
-        version: 25.9.3
-      '@types/react':
-        specifier: 19.2.17
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 19.2.3
-        version: 19.2.3(@types/react@19.2.17)
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-
   apps/e2e:
     dependencies:
       '@eddacraft/anvil-adapters':

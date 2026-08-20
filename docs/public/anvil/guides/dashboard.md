@@ -9,6 +9,7 @@ upstream:
   - crates/anvil-cli/src/commands/dashboard/drift.rs
   - crates/anvil-cli/src/commands/dashboard/suppressions.rs
 verified_against: 0.9.0-beta
+public_unlisted: true
 ---
 
 # Browse local dashboards

@@ -50,8 +50,8 @@ commercial if-trees that bypass FLAGCAT.
 and access-token/licence re-verify all sign the account's current plan, never a
 hardcoded value). A **`tier`** claim is still written on the wire,
 byte-identical to `plan`, purely as a compat alias for edge verifiers that read
-the raw JWT without a DB round trip (`apps/docs-shell`, `apps/docs-site`) — it
-is not a second semantic axis.
+the raw JWT without a DB round trip (`apps/docs-shell`) — it is not a second
+semantic axis.
 
 **Claim resolution (SEC-012):** a token never elevates itself. `verifyLicence`
 resolves in three cases: a `plan` claim is used verbatim; a licence carrying

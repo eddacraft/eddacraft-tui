@@ -1,4 +1,0 @@
-{
-  "ignoreCommand": "cd ../.. && bash tools/scripts/vercel-ignore-build.sh --always-skip",
-  "rewrites": [{ "source": "/auth/:path*", "destination": "/api/auth/:path*" }]
-}

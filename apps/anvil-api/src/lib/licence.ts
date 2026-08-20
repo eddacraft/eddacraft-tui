@@ -202,9 +202,9 @@ export async function signLicence(
     identity: claims.identity,
     org: claims.org,
     plan: claims.plan,
-    // BACT-013 / OQ-C: `tier` compat alias for apps/docs-shell and
-    // apps/docs-site, which verify the raw JWT at the edge and still read
-    // `tier` directly (DOCS_ACCESS_TIERS / evaluateDocsAccess). Mirrors
+    // BACT-013 / OQ-C: `tier` compat alias for apps/docs-shell, which
+    // verifies the raw JWT at the edge. (apps/docs-site was the other reader
+    // and has been deleted along with its retired host.) Mirrors
     // `plan` byte-for-byte — never a second semantic axis (ADR-121 decision
     // 6). Drop once those edge verifiers read `plan` instead.
     tier: claims.plan,

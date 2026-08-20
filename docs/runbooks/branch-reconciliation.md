@@ -126,7 +126,9 @@ The 47 dev-only additions are concentrated in:
   module
 - `crates/anvil-cli/src/services/` (2): WELCOME first-run detection
 - `crates/anvil-checks/src/filter.rs` (1): WELCOME scan filter
-- `apps/docs-site/api/auth/` and `middleware.ts` (4): DOCSAUTH OAuth
+- the retired docs-site host's auth endpoints and middleware (4; host deleted
+  2026-08-20, endpoints superseded by `apps/docs-shell/app/auth/`): DOCSAUTH
+  OAuth
 - `apps/anvil-api/src/routes/auth-github.ts` and a db migration (2): DOCSAUTH
   backend
 - New plans, ADRs, vision docs, package READMEs

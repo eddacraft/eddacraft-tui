@@ -87,7 +87,7 @@ fi
 
 # Case 4: --no-baseline reveals the baselined corpus errors. The metadata surface
 # is fully backfilled (DOCGOV-011), so assert that *some* baselineable surface
-# with retained corpus debt — links (docs-site absolute links), tags, or
+# with retained corpus debt — links (legacy absolute docs links), tags, or
 # asbuilt-paths — fails without the baseline.
 echo "case 4: --no-baseline surfaces underlying errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" --no-baseline 2>&1 || true)"
@@ -294,7 +294,7 @@ fi
 # procedures while accepting a complete lowercase fixture.
 echo "case 13: public-doc boundary enforces the newcomer trust contract"
 public_root="${tmp_root}/public-docs-fixture"
-mkdir -p "${public_root}/docs/public/anvil/guides" "${public_root}/apps/docs-site/sidebars" \
+mkdir -p "${public_root}/docs/public/anvil/guides" "${public_root}/apps/anvil-docs-private/sidebars" \
   "${public_root}/crates/anvil-cli/src"
 printf 'fn main() {}\n' >"${public_root}/crates/anvil-cli/src/main.rs"
 cat >"${public_root}/docs/public/anvil/quickstart.md" <<'EOF'
@@ -330,7 +330,7 @@ verified_against: 0.9.4-beta
 
 Continue after the canonical install task.
 EOF
-cat >"${public_root}/apps/docs-site/sidebars/anvil.ts" <<'EOF'
+cat >"${public_root}/apps/anvil-docs-private/sidebars/anvil.ts" <<'EOF'
 export default {
   anvilSidebar: [{
     type: 'category',
@@ -377,7 +377,7 @@ curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.sh | sh
 ```
 EOF
-cat >>"${public_root}/apps/docs-site/sidebars/anvil.ts" <<'EOF'
+cat >>"${public_root}/apps/anvil-docs-private/sidebars/anvil.ts" <<'EOF'
 export const productLabel = 'Anvil';
 export const editUrl = 'https://github.com/eddacraft/anvil-001';
 export const omittedPage = 'internal';
@@ -453,11 +453,11 @@ fi
 echo "case 13c: public pages declare governance frontmatter"
 gov_root="${tmp_root}/public-governance-fixture"
 mkdir -p "${gov_root}/docs/public/anvil" "${gov_root}/docs/public/kindling" \
-  "${gov_root}/docs/public/edda-stack" "${gov_root}/apps/docs-site/sidebars" \
+  "${gov_root}/docs/public/edda-stack" "${gov_root}/apps/anvil-docs-private/sidebars" \
   "${gov_root}/crates/anvil-cli/src" "${gov_root}/packages/edda-stack"
 printf 'fn main() {}\n' >"${gov_root}/crates/anvil-cli/src/main.rs"
 printf '# edda-stack\n' >"${gov_root}/packages/edda-stack/README.md"
-cat >"${gov_root}/apps/docs-site/sidebars/anvil.ts" <<'EOF'
+cat >"${gov_root}/apps/anvil-docs-private/sidebars/anvil.ts" <<'EOF'
 export default {
   anvilSidebar: ['governed'],
 };
@@ -1202,7 +1202,7 @@ fi
 # discovery.
 echo "case 15: APS public docs enforce the newcomer trust contract"
 aps_public_root="${tmp_root}/aps-public-docs-fixture"
-mkdir -p "${aps_public_root}/docs/public/aps/guides" "${aps_public_root}/apps/docs-site/sidebars"
+mkdir -p "${aps_public_root}/docs/public/aps/guides" "${aps_public_root}/apps/docs-public/sidebars"
 cat >"${aps_public_root}/docs/public/aps/getting-started.md" <<'EOF'
 ---
 id: getting-started
@@ -1229,7 +1229,7 @@ verified_against: 0.6.0
 
 Start a ready item before asking an agent to implement it.
 EOF
-cat >"${aps_public_root}/apps/docs-site/sidebars/aps.ts" <<'EOF'
+cat >"${aps_public_root}/apps/docs-public/sidebars/aps.ts" <<'EOF'
 export default {
   apsSidebar: ['getting-started', { type: 'category', label: 'Guides', items: ['guides/agents'] }],
 };

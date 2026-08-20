@@ -17,10 +17,11 @@ Git history; they are not duplicate component authority.
 
 **Production docs host (ADR-123):** `docs.eddacraft.ai` is `apps/docs-shell`,
 which proxies `apps/anvil-docs-private` (gated Anvil/beta) and
-`apps/docs-public` (APS, Kindling, edda-stack, blog). `apps/docs-site` is
-retained only for rollback. DSITE still owns its recorded legacy host work
-items; this README records the live topology and the ownership gap without
-changing DSITE status. Implementation truth is `infra/src/vercel.ts`.
+`apps/docs-public` (APS, Kindling, edda-stack, blog). `apps/docs-site`, the
+rollback-only host, was retired 2026-07-08 and deleted once the window closed.
+DSITE's remaining work items are recorded history, not a live surface; this
+README records the live topology without changing DSITE status. Implementation
+truth is `infra/src/vercel.ts`.
 
 **Authority order:** code, schemas, and tests beat prose. For current component
 internals, prefer the component-root `ARCHITECTURE.md`. A live central

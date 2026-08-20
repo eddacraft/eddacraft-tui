@@ -28,9 +28,16 @@ const APS_ROOT = resolve(REPO_ROOT, 'docs/public/aps');
 // owner plus verified_against as the imported product version; optional
 // upstream must still resolve. edda-stack is in-tree (ADR-122).
 const COPIED_SECTIONS = new Set(['kindling', 'aps']);
-const ANVIL_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/anvil.ts');
-const ANVIL_LIVE_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/anvil-docs-private/sidebars/anvil.ts');
-const APS_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-site/sidebars/aps.ts');
+// Navigation authority now sits on the live hosts. `apps/docs-site` was the
+// rollback host and carried the completeness sidebars; it was retired on
+// 2026-07-08 (`847436623`) and deleted once the rollback window closed, so
+// the live sidebars are the only ones that exist. `checkProductNavigation`
+// (every page listed or `public_unlisted`) and `checkLiveAnvilNavigation`
+// (required ids on, flag-gated ids off) now run against the same anvil file
+// and are complementary rather than two-host cross-checks.
+const ANVIL_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/anvil-docs-private/sidebars/anvil.ts');
+const ANVIL_LIVE_SIDEBAR_PATH = ANVIL_SIDEBAR_PATH;
+const APS_SIDEBAR_PATH = resolve(REPO_ROOT, 'apps/docs-public/sidebars/aps.ts');
 const LIVE_REQUIRED_ANVIL_IDS = [
   'beta-testing-guide',
   'concepts/baseline',
@@ -84,15 +91,17 @@ const CONFIG_CATALOGUE_REQUIRED = [
   'config show --json',
   'Not in this catalogue',
 ];
-const SITE_SHELL_PATHS = [
-  ANVIL_SIDEBAR_PATH,
-  ANVIL_LIVE_SIDEBAR_PATH,
-  APS_SIDEBAR_PATH,
-  resolve(REPO_ROOT, 'apps/docs-site/docusaurus.config.ts'),
-  resolve(REPO_ROOT, 'apps/docs-site/src/pages/index.tsx'),
-  resolve(REPO_ROOT, 'apps/docs-site/api/auth/login.ts'),
-  resolve(REPO_ROOT, 'apps/docs-site/api/auth/callback.ts'),
-];
+// De-duplicated: ANVIL_LIVE_SIDEBAR_PATH aliases ANVIL_SIDEBAR_PATH now that
+// there is one host. The retired docs-site shell files (docusaurus.config.ts,
+// src/pages/index.tsx, api/auth/{login,callback}.ts) are gone; the auth
+// endpoints were already superseded by apps/docs-shell/app/auth/*/route.ts.
+//
+// The live hosts' own docusaurus configs are deliberately NOT added here.
+// Scanning them would *expand* this gate rather than rehome it, and they
+// carry pre-existing violations that need their own decision (product-name
+// casing, and an internal repository name on a public footer link). Tracked
+// separately; see the deletion PR that retired docs-site.
+const SITE_SHELL_PATHS = [ANVIL_SIDEBAR_PATH, APS_SIDEBAR_PATH];
 
 const findings = [];
 const contentFiles = [
@@ -230,9 +239,11 @@ function markdownFiles(root) {
 }
 
 function checkNavigation() {
-  // Rollback host remains the completeness check: every public page must be
-  // listed or marked public_unlisted. The live host is a second check that
-  // required definition pages stay on nav and flag-gated surfaces stay off it.
+  // Completeness: every public page must be listed or marked public_unlisted.
+  // Live contract: required definition pages stay on nav and flag-gated
+  // surfaces stay off it. Both now read the live host — a page deliberately
+  // kept off nav (see LIVE_FORBIDDEN_ANVIL_IDS) must therefore carry
+  // `public_unlisted: true`, which is what that frontmatter key means.
   checkProductNavigation(ANVIL_ROOT, ANVIL_SIDEBAR_PATH, 'anvilSidebar', 'anvil');
   checkLiveAnvilNavigation();
   checkProductNavigation(APS_ROOT, APS_SIDEBAR_PATH, 'apsSidebar', 'APS');
@@ -241,8 +252,8 @@ function checkNavigation() {
 function checkLiveAnvilNavigation() {
   const livePath = ANVIL_LIVE_SIDEBAR_PATH;
   const publicPath = normalise(relative(REPO_ROOT, livePath));
-  // Fixtures only ship the rollback host. The live app is required in this
-  // repository; skip the live-nav contract when that app is absent.
+  // Fixtures may not ship the live app. It is required in this repository;
+  // skip the live-nav contract when that app is absent.
   if (!existsSync(resolve(REPO_ROOT, 'apps/anvil-docs-private'))) return;
   if (!existsSync(livePath)) {
     add(publicPath, 1, 'live anvil sidebar is missing');

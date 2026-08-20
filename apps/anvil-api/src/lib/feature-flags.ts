@@ -97,7 +97,7 @@ export interface AuthenticatedEvaluationSubject {
  * only ever seeing the anonymous default context.
  *
  * Reuses `canonicalAccountTier` — the same reconciliation helper
- * `apps/docs-site`'s `evaluateDocsAccess` uses to turn a bare plan name
+ * the deleted `apps/docs-site`'s `evaluateDocsAccess` used to turn a bare plan name
  * (`beta`) into its canonical `plan-*` audience id — so there is exactly one
  * audience inventory (`flags/audiences.json`), never a second one invented
  * here. The `accountTier` attribute name matches the one shipped flag that

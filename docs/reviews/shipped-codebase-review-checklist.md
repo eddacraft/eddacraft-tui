@@ -730,8 +730,7 @@ Use when the review scope is whole-product rather than the shipped binary.
 ### Chunk 15 — Web / docs apps (optional, P2)
 
 - [ ] `apps/website/`
-- [ ] `apps/docs-public/`, `apps/docs-shell/`, `apps/docs-site/`,
-      `apps/docs-public-astro/`
+- [ ] `apps/docs-public/`, `apps/docs-shell/`, `apps/docs-public-astro/`
 - [ ] `apps/anvil-docs-private/`
 
 ### Chunk 16 — TS residual domain (optional, P2)

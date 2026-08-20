@@ -80,7 +80,7 @@ To add a flag:
 | Control                          | Location                                      | Classification | Flag class    | Mechanism         |
 | -------------------------------- | --------------------------------------------- | -------------- | ------------- | ----------------- |
 | CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | default/target    |
-| Docs access gating               | `apps/docs-site/lib/feature-flags.ts`         | migrated       | `entitlement` | targeting         |
+| Docs access gating               | _no runtime consumer_ (see note)              | orphaned       | `entitlement` | targeting         |
 | `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | local override    |
 | `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement` | —                 |
 | API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement` | default           |
@@ -131,8 +131,14 @@ is now the sole source of truth.
 
 ### Docs access gating — Migrated (FLAGM-004, closed FLAGM-006)
 
-- **Resolver location:** `apps/docs-site/lib/feature-flags.ts` —
-  `evaluateDocsAccess()` is called from the Docusaurus middleware.
+- **Resolver location:** none. The only catalogue-based resolver lived in
+  `apps/docs-site/lib/feature-flags.ts`, deleted with that retired app. The live
+  gate is `apps/docs-shell/lib/jwt.ts`, which matches this flag's targeting with
+  a local constant rather than resolving the flag. **`docs.access` therefore has
+  no runtime consumer** — either docs-shell adopts the catalogue or the flag
+  should be retired. Nothing gates this today; the catalogue tests pass on an
+  unused flag. Previously described as: `evaluateDocsAccess()` is called from
+  the Docusaurus middleware.
 - **Flag key:** `docs.access` (class: `entitlement`).
 - **Current state:** After JWT validation, the middleware resolves `docs.access`
   directly via `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags`.
