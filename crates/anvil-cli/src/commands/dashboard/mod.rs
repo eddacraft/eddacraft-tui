@@ -31,10 +31,9 @@ pub struct DashboardArgs {
 
     /// Serve the browser dashboard on a loopback port instead of opening a
     /// terminal dashboard. Read-only, and reachable only from this machine.
-    /// Cannot be combined with a dashboard name (`architecture`, `drift`,
-    /// `suppressions`); those are terminal-only. Gated by the `dashboard.web`
-    /// feature flag (default-off); set `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1`
-    /// to enable.
+    /// Cannot be combined with a dashboard name; named dashboards are
+    /// terminal-only. Gated by the `dashboard.web` feature flag (default-off);
+    /// set `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1` to enable.
     #[arg(long, conflicts_with = "name")]
     pub web: bool,
 
