@@ -1,5 +1,13 @@
 # anvil-tui
 
+| Type   | Authority     | Owner | Status | Freshness                                                                                                            |
+| ------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | TUI   | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/surfaces/**`, `src/lib.rs`, tutorial tests, and `ARCHITECTURE.md` |
+
+| Upstream                                           | Downstream                                              |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `src/**`, `crates/eddacraft-tui`, ADR-115, ADR-123 | TUI contributors and interactive anvil command surfaces |
+
 Anvil TUI surfaces built on `eddacraft-tui` — interactive terminal interfaces
 for governance workflows.
 

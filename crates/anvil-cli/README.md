@@ -1,5 +1,13 @@
 # anvil-cli
 
+| Type   | Authority     | Owner          | Status | Freshness                                                                                                            |
+| ------ | ------------- | -------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/activation/**`, `src/mcp/**`, `src/tui.rs`, and `ARCHITECTURE.md` |
+
+| Upstream                                                                 | Downstream                                                         |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `src/**`, kernel/intercept contracts, ADR-092, ADR-106, ADR-113, ADR-123 | CLI contributors, anvil command surfaces, MCP clients, and the TUI |
+
 The anvil CLI binary — structural governance for AI-assisted development.
 
 ## Supported Platforms

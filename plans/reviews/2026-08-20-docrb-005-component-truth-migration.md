@@ -17,11 +17,11 @@ commit is `b9c3e5898f6fc89426b9d036200c0195ed71e4f0`. A later evidence-only
 commit records docs-owed repairs, this report, and exact-head review results
 without changing product behaviour.
 
-The final bounded feature scope is 45 exact paths:
+The final bounded feature scope is 46 exact paths:
 
 - 14 central move/merge architecture paths;
 - 18 component-local authority or README discovery paths;
-- 2 APS planning paths;
+- 3 APS planning paths, including the index's DOCRB-005 lifecycle row;
 - 9 fixed authority, discovery, generated-index, and evidence closeout paths;
 - 2 binding file-level docs-owed repairs.
 
@@ -33,6 +33,12 @@ record. Manual review confirmed their handshake claims against
 `mcp_client.rs::all_clients`, `probe_all`, and `agent_registry.rs`; the
 edits only repoint current runtime authority and refresh review metadata. Four
 directory-granularity advisories remain untouched.
+
+Independent verification found that the initial path matrix omitted
+`plans/index.aps.md`: its NBI and module-catalogue prose still called
+DOCRB-005 Draft/Schedule after the authorised module transition to In Progress.
+The bounded correction changes only DOCRB-005 lifecycle truth. It leaves the
+aggregate at 7/11 and does not promote DOCRB-008 or another item.
 
 No public DOCSYNC content, docs-site/start-here retirement, product code,
 configuration, checker subsystem, mandatory CI rule, sibling APS status, or
@@ -76,6 +82,50 @@ named or offered an `ARCHITECTURE.md`. DOCRB-005 preserves the more specific
 component classification. Current leaf invariants moved to READMEs, stale
 counts and resolved-gap narratives remain historical, and no unnecessary
 architecture unit was created.
+
+## Per-section and material-source disposition
+
+Legend: **L** is a local successor, **X** is a retained cross-system authority,
+**H-body** is a full historical snapshot retained in the central file, and
+**H-git** is omitted compatibility-record detail recoverable with
+`git log --follow`.
+
+| Input | Complete base section and source-link coverage | Disposition and proof |
+| ----- | ---------------------------------------------- | --------------------- |
+| `kernel-as-built.md` | **L/X:** §1 overview; §3 diagram; §4 layout; §5 watcher (§5.1–5.4); §6 parser (§6.1–6.5); §7 graph (§7.1–7.7); §8 policy (§8.1–8.4); §9 protocol (§9.1–9.3); §10 embedded API (§10.1–10.4); §11 loop (§11.1–11.4); §12 dispatcher; §13 cross-cutting (§13.1–13.5); §14 performance; §16 source groups for kernel, benches, tests, and kernel-types; §17 related authorities. **H-body:** §2 spec reconciliation and §15 G-01..G-06. | Current kernel orchestration/invariants are in `crates/anvil-kernel/ARCHITECTURE.md`; graph ownership and cross-system context link to graph-cache and `rust-architecture-overview.md`. Dated budgets, spec reconciliation, gaps, and the exhaustive source catalogue remain in the central historical body. |
+| `checks-as-built.md` | **L/X:** §1 overview; §2 diagram; §3 model; §4 registry (§4.1–4.8); §5 finding; §6 suppressions; §7 language profile; §8 baseline/drift; §9 surfaces (§9.1–9.5); §10 performance; §11 cross-cutting (§11.1–11.5); §13 source groups for checks, AST/NAPI, kernel types, intercept rules, and CLI seams; §14 related authorities. **H-body:** §12 G-01..G-09. | Registry, family, finding, suppression, and performance truth is in `crates/anvil-checks/ARCHITECTURE.md`. Registry-to-CLI/daemon/MCP/baseline composition remains the slim live central concern; `quality-model.md` retains conceptual authority. Old counts/gaps and the exhaustive catalogue remain historical. |
+| `intercept-as-built.md` | **L/X:** §1 overview; §2 architecture; §3 process; §4 IPC (§4.1–4.5); §4a save-time (§4a.1–4a.6); §5 trust; §6 fence; §7 persistence; §8 recovery; §9 interrupt; §10 registry; §11 telemetry/DoS; §12 embedded; §13 redaction; §14 CLI; §15 Win32; §17.1–17.4 intercept/proto/rules/Win32 source groups; §18 related authorities. **H-body:** §16 known gaps. | Daemon lanes, admission, guarded reads, fencing, and failure invariants are in `crates/anvil-intercept/ARCHITECTURE.md`. Protocol/client/trust relationships remain in driver, save-to-validation, and trust-boundary authorities. Gaps and the full old source map remain historical. |
+| `mcp-shim-as-built.md` | **L/X:** §1 overview; §2 diagram; §3 process (§3.1 dual-era); §4 tools (§4.1–4.4); §5 routing; §6 fallback; §7 correlation; §8 enforcement; §9 redaction; §10 install; §11 config; §12 call path; §13 cross-cutting; §15.1–15.3 MCP/command/cross-crate source groups; §16 related authorities. **H-git:** §14 G-01..G-06 and the exhaustive catalogue. | Current process, registry, containment, enforcement, and fallback are in `crates/anvil-cli/ARCHITECTURE.md#mcp-shim`; design intent remains in `rust-mcp-server-spec.md`, with daemon/capability context linked. The compatibility record names those successors and the exact Git-history command. |
+| `activation-as-built.md` | **L/X:** overview; diagram; protection vocabulary; mutating and read-only lifecycles; watch fallback; save-time routing; language profile; MCP install; diagnostics; cross-cutting honesty/idempotency/state/exclusions; tutorial integration; version; activation/command source groups and related authorities. **H-git:** G-01..G-04. | Orchestration, `ProtectionState`, client registry/install, and failure honesty are in `crates/anvil-cli/ARCHITECTURE.md#activation-orchestration`. System/auth/spec/runbook concerns remain linked; dated rollout/gaps are routed to Git history. |
+| `cli-tui-runner-as-built.md` | **L/X:** overview; diagram; `SurfaceExit`; `surface_loop`; animation; watch/tutorial loops; shared terminal; errors; panic/thread/determinism/global-state invariants; `tui.rs` symbols, command call sites, and related authorities. **H-git:** G-01..G-06. | Terminal lifecycle, event loops, dirty redraw, panic containment, and channel failure are in `crates/anvil-cli/ARCHITECTURE.md#cli-tui-runner`; surface/render authority links to TUI. Old counts/gaps are routed to Git history. |
+| `tui-as-built.md` | **L/X:** overview; diagram; layout; dispatcher; every named surface; watch model/adapter/render/footer/notifications; tutorial; welcome/wizard/onboarding; doctor/status/audit/gate/browser/init; widget vocabulary; snapshots; determinism/compatibility/migration/zoom; TUI source modules and CLI consumers. **H-git:** G-01..G-07. | Anvil surface/state/render/snapshot truth is in `crates/anvil-tui/ARCHITECTURE.md`. Terminal polling remains CLI-owned, shared primitives remain eddacraft-owned, and dashboard context remains central. Counts/gaps are routed to Git history. |
+| `widgets-as-built.md` | **L/X:** overview; crate resolution; diagram; theme; keyboard; every upstream widget; anvil composites; snapshot pinning; determinism/theme/zoom/mouse/Unicode invariants; upstream, downstream, and consumer source groups. **H-git:** G-01..G-07. | Shared contracts remain in `crates/eddacraft-tui/README.md`; anvil composites/presentation are in `crates/anvil-tui/ARCHITECTURE.md`. The compatibility record links both owners and routes the exhaustive old catalogue/counts/gaps to Git. |
+| `api-as-built.md` | **L/X:** §1 overview; §2 diagram; §3 cold start; §4 routes (§4.1); §5 middleware (§5.1–5.4); §6 DB (§6.1–6.3); §7 migrations (§7.1–7.4); §8 migration history; §9 health/observability (§9.1–9.4); §10 deploy; §12 cross-cutting (§12.1–12.4); §14 live API and archived CLI source groups; §15 related authorities. **H-body:** §11 archived Node CLI (§11.1–11.4) and §13 G-01..G-07. | HTTP, persistence, migration, health, and failure invariants are in `apps/anvil-api/ARCHITECTURE.md`; authentication remains in the central auth map. Archived CLI, rollout details, gaps, and the full old catalogue remain in the historical body. |
+| `driver-framework-as-built.md` | **X/L:** §1 overview; §2 diagram; §3 wire (§3.1–3.5); §4 enforcement; §5 trust (§5.1–5.3); §6 TS client (§6.1–6.5); §7 Rust clients; §8 rules (§8.1–8.4); §9 Win32; §10 capability; §11 cross-cutting (§11.1–11.4); §12 spec/code reconciliation; §14 proto/rules/client/Win32 source groups; §15 related authorities. **H-body:** §13 gaps. | Client internals are in `packages/anvil-driver-client/ARCHITECTURE.md`; protocol orientation is in `crates/anvil-intercept-proto/README.md`. The multi-owner wire/version/capability/trust map remains live centrally; gaps and the exhaustive old map remain historical. |
+| `observability-as-built.md` | **L:** §1 overview; §2 diagram; §3 layout; §4 subscriber and all six subconcerns; §5 namespace; §6 redaction; §7 traceparent; §8 cross-cutting; §10 manifest/source/consumer groups; §11 related authorities. **H-body:** §9 G-01..G-05. | Entry points, redaction/traceparent invariants, and failures are in `crates/anvil-observability/README.md`. Dated diagram/counts/gaps and the exhaustive source map remain in the central historical body. |
+| `capsule-as-built.md` | **L/X:** overview; diagram; create/verify/prune lifecycle; surfaces; canonical digest, empty discipline, schemas, witness chain, Git integrity, and determinism; capsule source/manifest/CLI/test groups and related authorities. **H-body:** G-01..G-06. | Current lifecycle, contract, and failure truth is in `crates/anvil-capsule/README.md`; public explanation and ADRs remain separate. The old diagram, gaps, rollout specifics, and source catalogue remain in the historical body. |
+| `adapter-packages-as-built.md` | **L/X split:** §1 overview; §2 diagram; Part 1 and §§3–7 adapters/SpecKit/BMAD/other formats/contracts; Part 2 and §§8–13 APS validation/templates/examples/scripts/schema; Part 3 and §§14–18 kindling contracts/capture/scripts/benchmarks; §19 cross-cutting; §21.1–21.3 three package source groups; §22 related authorities. **H-body:** §20 G-01..G-08 plus dated counts/readiness/status. | Authority is split among `packages/adapters/README.md`, `packages/aps/README.md`, and `packages/kindling-integration/README.md`/`CONTRACTS.md`; no duplicate architecture unit was created. Sibling-module status, stale counts, resolved gaps, combined diagram, and exhaustive catalogue remain historical. |
+| `tutorial-as-built.md` | **L/X:** overview; diagram; path inventory; state machine/transitions/per-step/reset; discovery domain/filter/state/render; ProtectionLoop; executor; fix; verify; watch demo; showcase; render affordances; copy invariants; snapshots; determinism/honesty/offline/notifications/reset; tutorial module, CLI, public, and ADR source groups. **H-git:** G-01..G-06. | State/render/copy/snapshot truth is in `crates/anvil-tui/ARCHITECTURE.md#tutorial-engine`; terminal/effect delivery remains CLI-owned and public tutorials remain separate. Dated counts/gaps and the exhaustive catalogue are routed to Git history. |
+
+No material base H2/H3 section or material source-link group was unaccounted
+for: every entry above resolves to one current local owner, one retained
+cross-system owner, a visibly historical retained body, or an explicit
+`git log --follow` route.
+
+## Reproducible replacement commands
+
+All commands below were run from the isolated Worktrunk with
+`BASE=f0f834b39bbdbc3ff9c8c198ec6098f3afc33389`; every RED and GREEN command
+returned exit `0`.
+
+| Slice | RED command | GREEN command |
+| ----- | ----------- | ------------- |
+| Pilots | `for n in kernel intercept api; do git show "${BASE}:docs/architecture/${n}-as-built.md" \| rg -q '^\\| As-built \\| Derived .*\\| Live'; done` plus base pilot-deferral assertions | `for n in kernel intercept api; do rg -q '^\\| As-built \\| Historical .*\\| Deprecated' "docs/architecture/${n}-as-built.md"; done` plus `This document is the live component authority` assertions in all three successors |
+| Checks | `git show "${BASE}:docs/architecture/checks-as-built.md" \| rg -q '^\\| As-built \\| Derived .*\\| Live'; ! git cat-file -e "${BASE}:crates/anvil-checks/ARCHITECTURE.md"` | `rg -q '^## Current cross-system authority' docs/architecture/checks-as-built.md; rg -q '^## Historical pre-migration component snapshot' docs/architecture/checks-as-built.md; rg -q 'This document is the live component authority' crates/anvil-checks/ARCHITECTURE.md` |
+| CLI | `for n in activation mcp-shim cli-tui-runner; do git show "${BASE}:docs/architecture/${n}-as-built.md" \| rg -q '^\\| As-built \\| Derived .*\\| Live'; done; ! git cat-file -e "${BASE}:crates/anvil-cli/ARCHITECTURE.md"` | `for n in activation mcp-shim cli-tui-runner; do rg -q '^\\| As-built \\| Derived .*\\| Deprecated' "docs/architecture/${n}-as-built.md"; rg -q 'git log --follow -- docs/architecture/' "docs/architecture/${n}-as-built.md"; done` plus the three CLI architecture heading/source assertions |
+| TUI | `for n in tui widgets tutorial; do git show "${BASE}:docs/architecture/${n}-as-built.md" \| rg -q '^\\| As-built \\| Derived .*\\| Live'; done; ! git cat-file -e "${BASE}:crates/anvil-tui/ARCHITECTURE.md"` | `for n in tui widgets tutorial; do rg -q '^\\| As-built \\| Derived .*\\| Deprecated' "docs/architecture/${n}-as-built.md"; rg -q 'git log --follow -- docs/architecture/' "docs/architecture/${n}-as-built.md"; done` plus TUI surface/widget/tutorial heading and source-root assertions |
+| Driver/protocol | `git show "${BASE}:docs/architecture/driver-framework-as-built.md" \| rg -q '^\\| As-built \\| Derived .*\\| Live'; ! git cat-file -e "${BASE}:packages/anvil-driver-client/ARCHITECTURE.md"; ! git cat-file -e "${BASE}:crates/anvil-intercept-proto/README.md"` | `rg -q '^## Current cross-system authority' docs/architecture/driver-framework-as-built.md; rg -q '^## Historical pre-migration component snapshot' docs/architecture/driver-framework-as-built.md` plus client-flow, proto-invariant, rules, and Win32 source assertions |
+| README-only leaves | `for n in observability capsule adapter-packages; do git show "${BASE}:docs/architecture/${n}-as-built.md" \| rg -q '^\\| As-built \\| Derived .*\\| Live'; done; ! git cat-file -e "${BASE}:crates/anvil-observability/README.md"; ! git cat-file -e "${BASE}:crates/anvil-capsule/README.md"; ! git show "${BASE}:packages/adapters/README.md" \| rg -q '^## Current component authority'` | `for n in observability capsule adapter-packages; do rg -q '^\\| As-built \\| Historical .*\\| Deprecated' "docs/architecture/${n}-as-built.md"; done` plus observability entry-point, capsule lifecycle, adapters authority, APS README, and kindling README assertions |
 
 ## Replacement RED and GREEN
 

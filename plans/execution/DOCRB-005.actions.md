@@ -23,15 +23,19 @@ without creating duplicate authority
   content-free tombstones. The retained auth authority stays unchanged because
   its host correction is already present. No concern has two apparent live
   authorities.
-- **Files:** 45 exact paths: the fourteen central move/merge as-builts; eighteen
+- **Files:** 46 exact paths: the fourteen central move/merge as-builts; eighteen
   bounded component-local authority/discovery paths; `docs/architecture/README.md`,
   `docs/guides/documentation-governance.md`,
   `docs/guides/architecture-diagrams.md`, the corpus disposition, four
   generated documentation indexes, this action plan, one evidence report, and
-  the DOCRB-005 item record; plus the two binding file-level docs-owed repairs
+  the DOCRB-005 item record and `plans/index.aps.md`; plus the two binding file-level docs-owed repairs
   `docs/architecture/rust-mcp-server-spec.md` and
   `docs/reviews/2026-08-16-gctx-dogfood-failure-points.md`. The four
-  directory-granularity docs-owed advisories remain untouched.
+  directory-granularity docs-owed advisories remain untouched. The index was a
+  path-matrix omission corrected after independent verification found its
+  Draft/Schedule prose contradicted the authorised In Progress module state;
+  the correction does not change the aggregate 7/11 count or promote another
+  item.
 - **Validation commands:** replacement RED/GREEN assertions per slice; fresh
   source/link/metadata trace; `pnpm format:check`; `pnpm docs:index`;
   `pnpm docs:index:check`; `pnpm docs:check`;

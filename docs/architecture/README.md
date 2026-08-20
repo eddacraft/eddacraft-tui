@@ -22,10 +22,11 @@ retained only for rollback. DSITE still owns its recorded legacy host work
 items; this README records the live topology and the ownership gap without
 changing DSITE status. Implementation truth is `infra/src/vercel.ts`.
 
-**Authority order:** code, schemas, and tests beat prose. Prefer a
-`*-as-built.md` for "what ships today". Prefer a Spec for frozen design
-contracts still tracked by implementation. Prefer ADRs in `plans/decisions/` for
-"why we chose this".
+**Authority order:** code, schemas, and tests beat prose. For current component
+internals, prefer the component-root `ARCHITECTURE.md`. A live central
+`*-as-built.md` owns only its stated cross-system concern; a Deprecated one is a
+migration/history route. Prefer a Spec for frozen design contracts still tracked
+by implementation. Prefer ADRs in `plans/decisions/` for "why we chose this".
 
 ## Cross-system as-built docs and compatibility records
 
@@ -103,9 +104,11 @@ Kept only for provenance; not live architecture authority.
 
 - [anvil-architecture-evolution.md](anvil-architecture-evolution.md) — Current →
   H1 → H2 rollout plan that superseded ADR-011. H1 largely shipped; read
-  as-builts for present state. Status: Historical
+  component-local architecture and retained live cross-system maps for present
+  state. Status: Historical
 - [rust-kernel-spec.md](rust-kernel-spec.md) — H1 kernel design intent.
-  `kernel-as-built.md` owns "what shipped"
+  `crates/anvil-kernel/ARCHITECTURE.md` owns current shipped internals;
+  `kernel-as-built.md` preserves migration discovery and history
 - _Archived 2026-05-23 (DOCGOV-008):_
   [`monorepo-structure.md`](../archive/architecture/monorepo-structure.md)
 - _Archived 2026-08-05:_
