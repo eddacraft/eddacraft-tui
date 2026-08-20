@@ -95,7 +95,12 @@ See
   their classifier signal is false). These ensure exactly one conclusion per
   required check name on every PR (no more duplicate success+skipped from twin
   filler jobs per CIB-038). On push the primaries provide `skipped` where
-  appropriate (accepted by the `Integration Readiness` aggregator).
+  appropriate (accepted by the `Integration Readiness` aggregator). `Docs Lint`
+  is the required aggregator only. Corpus checks run as `docs-lint-corpus`; the
+  ~9 min docs-check fixture suite runs as `docs-lint-tooling` so a corpus
+  failure can be re-run without the fixtures, and both run in parallel when
+  needed. New documentation assertions belong in `pnpm docs:check`, not as extra
+  `Docs Lint` steps.
 - **In-flight docs/plans PRs after this change:** A PR whose head was last
   evaluated under the old twin-skip workflow may still carry duplicate or
   skipped conclusions for the affected names. To unblock, push a new commit

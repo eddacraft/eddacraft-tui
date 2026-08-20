@@ -100,30 +100,43 @@ jobs:
         id: changes
         uses: ./trusted-classifier/.github/actions/detect-changes
 
-  # Runs markdown lint (plus format, docs:check, APS index/lint checks) whenever
-  # any `.md` change is present (or on any PR, for the required-check name).
-  # The job now internally provides the "Docs Lint" required status conclusion
-  # on all PRs (quick success filler path when not markdownlint-required; full
-  # work otherwise). This ensures exactly one conclusion per required context
-  # name (no more duplicate success+skipped from twin filler jobs). See CIB-038.
+  # Docs corpus, tooling fixtures, and the required "Docs Lint" aggregator.
   #
-  # Note: `Lint & Format` (Job 1 below) currently also runs `pnpm run lint:md`
-  # as part of its PR lint step. That overlap is intentional during the
-  # rejoin window — keep `Lint & Format` as the markdownlint failsafe until
-  # required-status reporting on `Docs Lint` is stable. A follow-up can
-  # remove the duplicate.
-  docs-lint:
-    name: Docs Lint
+  # Measured on 2026-08-20 (DOCDEF-005, 14 min success): setup ~2.5 min,
+  # docs:check ~1 min, docs-check fixture tests ~9 min. Putting the fixture
+  # suite in the same required job as the corpus means a docs:check or owed
+  # failure on a scripts-touching PR, or a fixture failure after a green
+  # corpus, costs a full re-run of both. Split them:
+  #   docs-lint-corpus  — lint, format, docs:check, owed, command probes, APS
+  #   docs-lint-tooling — pnpm test:docs-check / active-lint / install.sh
+  #   docs-lint         — required name "Docs Lint"; cheap aggregator
+  # Re-run failed jobs then re-runs only the failed worker. When both are
+  # needed they run in parallel. New documentation assertions still belong
+  # in `pnpm docs:check`, not as extra GitHub steps.
+  #
+  # `Lint & Format` currently also runs `pnpm run lint:md`. That overlap is
+  # the markdownlint failsafe until required-status reporting on `Docs Lint`
+  # is stable.
+
+  docs-lint-corpus:
+    name: Docs corpus
     timeout-minutes: 15
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
+    # Same trigger as the pre-split Docs Lint *work* path: every PR that
+    # needs corpus checks, and markdown-bearing pushes. Do not run on
+    # code-only pushes — the old combined job skipped those entirely
+    # (the required name is a PR-ruleset concern).
     if: |
       always() && (
         needs.detect-changes.result != 'success' ||
         needs.detect-changes.outputs.markdownlint-required == 'true' ||
-        github.event_name == 'pull_request'
+        (github.event_name == 'pull_request' && (
+          needs.detect-changes.outputs.source-changed == 'true' ||
+          needs.detect-changes.outputs.code-changed == 'true'
+        ))
       )
 
     steps:
@@ -131,49 +144,12 @@ jobs:
         if: needs.detect-changes.result != 'success'
         run: exit 1
 
-      # Internal PR-only filler so that "Docs Lint" (a required check name) always
-      # has exactly one conclusion per run. When no .md changes, this job still
-      # runs (to own the name) but short-circuits with success; heavy steps are
-      # step-conditional and do not execute. This eliminates the prior twin
-      # `docs-lint-skip` job (same name) that produced success+skipped duplicates
-      # under the ruleset. See CIB-038.
-      # DOCFRESH-003 adds `code-changed` to this exclusion list: the freshness
-      # step below runs on any non-docs change, so a run that executed it must
-      # not also announce that no docs checks ran.
-      - name: Skip (filler) when no .md changes on PR
-        if: |
-          github.event_name == 'pull_request' &&
-          needs.detect-changes.result == 'success' &&
-          needs.detect-changes.outputs.markdownlint-required != 'true' &&
-          needs.detect-changes.outputs.source-changed != 'true' &&
-          needs.detect-changes.outputs.script-fixtures-required != 'true' &&
-          needs.detect-changes.outputs.code-changed != 'true'
-        run: |
-          echo "Skipped — no .md changes detected (CIB-038)"
-          echo '::notice title=Docs Lint (filler)::Job concluded success without executing docs lint/format/docs:check/APS checks. Provides the single required "Docs Lint" conclusion for docs-only PRs so the main ruleset sees CLEAN (no success+skipped duplicate). Real work only on markdownlint-required paths.'
-
-      # `code-changed` joins the gate here for DOCFRESH-003. The documentation
-      # freshness check keys on *any* non-docs change, so the workspace has to
-      # exist for changes that no other Docs Lint step cares about — a Rust-only
-      # or workflow-only pull request, for instance.
       - name: Checkout repository
-        if:
-          needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true' ||
-          needs.detect-changes.outputs.source-changed == 'true' ||
-          needs.detect-changes.outputs.script-fixtures-required == 'true' ||
-          needs.detect-changes.outputs.code-changed == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup workspace
-        if:
-          needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true' ||
-          needs.detect-changes.outputs.source-changed == 'true' ||
-          needs.detect-changes.outputs.script-fixtures-required == 'true' ||
-          needs.detect-changes.outputs.code-changed == 'true'
         uses: ./.github/actions/setup-workspace
 
       - name: Run markdown lint
@@ -188,9 +164,8 @@ jobs:
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run format:check
 
-      # Also required by the DOCFRESH-003 step below, which parses governance
-      # metadata through this package on `code-changed` runs where no other
-      # docs step executes.
+      # docs-meta is required by the owed-docs gate on code-only PRs where
+      # no other docs step runs.
       - name: Build docs-meta package for docs:check
         if:
           needs.detect-changes.result != 'success' ||
@@ -198,10 +173,10 @@ jobs:
           needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm -F @eddacraft/anvil-docs-meta build
 
-      # DOCFRESH-007 (ADR-119 D7): the command-probe binary must be the newest
-      # public release. A stale pin silently validates every fenced `anvil …`
-      # example against an old binary. Cheap file-read; fail before download.
-      - name: Check public command-probe pin (DOCFRESH-007)
+      # ADR-119 D7: the command-probe binary must be the newest public
+      # release. A stale pin silently validates fenced `anvil …` examples
+      # against an old binary. Cheap file-read; fail before download.
+      - name: Check public command-probe pin
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
@@ -230,44 +205,24 @@ jobs:
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run docs:public:commands
 
-      - name: Run docs:check (DOCGOV-005)
+      - name: Run docs:check
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run docs:check
 
-      # DOCFRESH-003 (ADR-119). The structural gap this closes: every heavy step
-      # above keys on `markdownlint-required`, so documentation was validated
-      # when documentation changed and staled when *code* changed. A pull request
-      # rewriting `crates/anvil-cli/src/commands/hooks.rs` — the declared
-      # upstream of `docs/guides/git-hook-compatibility.md` — ran no
-      # documentation check at all.
-      #
-      # Why `code-changed` and not `source-changed`: `source-changed` is
-      # format|lint|typecheck|unit-tests, which a Rust-only or workflow-only
-      # change never sets. That is precisely the case the check exists for.
-      #
-      # Diff-scoped on purpose (ADR-117): this reports only what THIS change
-      # owes, so it can fail only for something the commit did. The corpus
-      # backlog is not this step's business.
-      #
-      # `--fail-on-owed` restricts failure further, to unbaselined findings that
-      # are gate-eligible — `owed` AND backed by a file-level upstream (ADR-119
-      # D2/D8). A document already in the baseline stays absorbed when its
-      # upstream moves again, so only a document newly entering the owed set can
-      # turn this red.
-      - name: Check documentation owed by this change (DOCFRESH-003)
+      # ADR-119 / ADR-117: documentation owed by THIS change. `code-changed`
+      # (not `source-changed`) so a Rust-only or workflow-only PR that moves a
+      # declared file-level upstream still runs the check. Diff-scoped:
+      # `--fail-on-owed` only fails unbaselined owed findings with a
+      # file-level upstream.
+      - name: Check documentation owed by this change
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
           needs.detect-changes.outputs.code-changed == 'true'
         env:
-          # Set on `pull_request` only.
           DOCS_OWED_PR_BASE: ${{ github.event.pull_request.base.sha }}
-          # Set on `push` only. Preferred over HEAD~1 because a push can carry
-          # several commits (a rebase-merge to `main` typically does), and HEAD~1
-          # would silently scope the check to the last one and under-report what
-          # the earlier commits owe.
           DOCS_OWED_PUSH_BASE: ${{ github.event.before }}
         run: |
           base="${DOCS_OWED_PR_BASE:-${DOCS_OWED_PUSH_BASE:-}}"
@@ -284,13 +239,13 @@ jobs:
           echo "Comparing declared upstreams against ${base}"
           node scripts/docs/check-docs-owed.mjs --since "${base}" --fail-on-owed
 
-      - name: Report APS index count drift (CIB-022/025 advisory)
+      - name: Report APS index count drift
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run aps:index:check
 
-      - name: Check eddacraft-tui stability markers (TUIN-006, warn-only)
+      - name: Check eddacraft-tui stability markers
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
@@ -298,43 +253,9 @@ jobs:
         run: node scripts/check-stability-markers.mjs
         continue-on-error: true
 
-      # These are self-tests of the docs-check/active-lint tooling itself (run
-      # against the live corpus only to exercise output contract/format, per
-      # docs-check.test.sh's own header comment) — not a content check of this
-      # PR's markdown. Gate on script-fixtures-required (scripts/**/*.mjs|.sh,
-      # which covers scripts/docs/* and scripts/aps/*) instead of the much
-      # broader markdownlint-required (any *.md), so a plans/*.md-only PR
-      # doesn't pay for a ~280s tool self-test on every run. Content
-      # correctness is unaffected: `docs:check` above still gates on
-      # markdownlint-required exactly as it did before this change.
-      - name: Run docs-check fixture tests
-        if:
-          needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.script-fixtures-required == 'true'
-        run: pnpm run test:docs-check
-
-      - name: Run active-lint self-test
-        if:
-          needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.script-fixtures-required == 'true'
-        run: pnpm run test:aps-active-lint
-
-      # CIB-288: `scripts/install.test.sh` predates this step and was never
-      # wired anywhere, so the post-install banner — the first Anvil copy a new
-      # user reads — had no gate at all. It runs the real `install.sh` against
-      # a fake curl, so it is fast and needs no network.
-      - name: Run install.sh tests
-        if:
-          needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.script-fixtures-required == 'true'
-        run: pnpm run test:install-sh
-
-      # CIB-036: gate the active APS corpus on canonical `aps lint`. Check out
-      # the canonical CLI (anvil-plan-spec) pinned to an IMMUTABLE commit and
-      # point APS_CANONICAL_BIN at it, rather than piping a curl|bash installer
-      # or tracking the mutable `main` ref. Bump this SHA intentionally when
-      # adopting new canonical `aps` semantics, per the APS adoption-boundary
-      # spec (plans/specs/2026-05-25-aps-cli-adoption-boundary.md).
+      # Pin the canonical `aps` CLI to an immutable commit. Bump this SHA
+      # when adopting new canonical `aps` semantics (see
+      # plans/specs/2026-05-25-aps-cli-adoption-boundary.md).
       - name: Check out canonical aps CLI
         if:
           needs.detect-changes.result != 'success' ||
@@ -342,15 +263,106 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: EddaCraft/anvil-plan-spec
-          # anvil-plan-spec@main as of the E005 terminal-item exemption (PR #56).
           ref: 202d2a148538f0322727164c6fdc403952999fa0
           path: .aps-cli
 
-      - name: Canonical APS lint (CIB-036)
+      - name: Canonical APS lint
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: APS_CANONICAL_BIN="$GITHUB_WORKSPACE/.aps-cli/bin/aps" pnpm run aps:active-lint
+
+  docs-lint-tooling:
+    name: Docs tooling
+    timeout-minutes: 15
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    needs: detect-changes
+    # Fixtures previously ran only when the combined Docs Lint job ran
+    # *and* script-fixtures-required was set. That job ran on every PR
+    # and on markdown-bearing pushes — not on scripts-only pushes.
+    if: |
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        (needs.detect-changes.outputs.script-fixtures-required == 'true' && (
+          github.event_name == 'pull_request' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
+        ))
+      )
+
+    steps:
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+
+      # Self-tests of the docs-check / active-lint / install.sh tooling.
+      # Not a content check of this PR's markdown. Gated on
+      # script-fixtures-required so a plans-only PR does not pay ~9 min.
+      - name: Run docs-check fixture tests
+        run: pnpm run test:docs-check
+
+      - name: Run active-lint self-test
+        run: pnpm run test:aps-active-lint
+
+      - name: Run install.sh tests
+        run: pnpm run test:install-sh
+
+  # Required-check aggregator. Owns the name "Docs Lint" on every PR so the
+  # ruleset sees exactly one conclusion (no success+skipped duplicate).
+  # Fail if a worker that ran failed; succeed when both workers skipped.
+  docs-lint:
+    name: Docs Lint
+    timeout-minutes: 5
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    needs:
+      - detect-changes
+      - docs-lint-corpus
+      - docs-lint-tooling
+    if: |
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.markdownlint-required == 'true' ||
+        github.event_name == 'pull_request'
+      )
+
+    steps:
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
+      - name: Fail when docs corpus failed
+        if:
+          needs.docs-lint-corpus.result == 'failure' || needs.docs-lint-corpus.result == 'cancelled'
+        run: |
+          echo "::error::Docs corpus failed. Re-run the Docs corpus job; Docs tooling that already passed will not re-run."
+          exit 1
+
+      - name: Fail when docs tooling failed
+        if:
+          needs.docs-lint-tooling.result == 'failure' || needs.docs-lint-tooling.result ==
+          'cancelled'
+        run: |
+          echo "::error::Docs tooling failed. Re-run the Docs tooling job; Docs corpus that already passed will not re-run."
+          exit 1
+
+      - name: Skip (filler) when no .md changes on PR
+        if: |
+          github.event_name == 'pull_request' &&
+          needs.detect-changes.result == 'success' &&
+          needs.docs-lint-corpus.result == 'skipped' &&
+          needs.docs-lint-tooling.result == 'skipped'
+        run: |
+          echo "Skipped — no docs corpus or tooling work for this change"
+          echo '::notice title=Docs Lint (filler)::Job concluded success without executing docs lint/format/docs:check/APS checks. Provides the single required "Docs Lint" conclusion so the main ruleset sees CLEAN (no success+skipped duplicate).'
 
   metadata-validation:
     name: CI Metadata Checks

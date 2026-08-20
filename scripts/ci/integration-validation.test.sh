@@ -107,6 +107,118 @@ for need in detect-changes docs-lint metadata-validation platform-smoke aps-drif
   }
 done
 
+# Docs Lint split: the required check name stays on the `docs-lint`
+# aggregator. Corpus work lives in `docs-lint-corpus`. The fixture suite
+# lives in `docs-lint-tooling` so a corpus failure can be re-run without
+# paying for tooling, and both run in parallel when a change needs both.
+assert_contains "${ci_workflow}" '  docs-lint-corpus:'
+assert_contains "${ci_workflow}" '    name: Docs corpus'
+assert_contains "${ci_workflow}" '  docs-lint-tooling:'
+assert_contains "${ci_workflow}" '    name: Docs tooling'
+
+job_block_contains() {
+  local job="$1"
+  local needle="$2"
+  awk -v job="^  ${job}:$" -v needle="${needle}" '
+    $0 ~ job { inside = 1; next }
+    inside && /^  [a-z]/ { inside = 0 }
+    inside && index($0, needle) { found = 1 }
+    END { exit (found ? 0 : 1) }
+  ' "${ci_workflow}"
+}
+
+job_block_excludes() {
+  local job="$1"
+  local needle="$2"
+  if job_block_contains "${job}" "${needle}"; then
+    echo "expected ${job} in ${ci_workflow} not to contain: ${needle}" >&2
+    exit 1
+  fi
+}
+
+for need in detect-changes docs-lint-corpus docs-lint-tooling; do
+  job_block_contains docs-lint "- ${need}" || {
+    echo "expected docs-lint aggregator to depend on ${need}" >&2
+    exit 1
+  }
+done
+
+job_block_contains docs-lint-tooling 'pnpm run test:docs-check' || {
+  echo "expected docs-lint-tooling to run pnpm run test:docs-check" >&2
+  exit 1
+}
+job_block_contains docs-lint-tooling 'pnpm run test:aps-active-lint' || {
+  echo "expected docs-lint-tooling to run pnpm run test:aps-active-lint" >&2
+  exit 1
+}
+job_block_contains docs-lint-tooling 'pnpm run test:install-sh' || {
+  echo "expected docs-lint-tooling to run pnpm run test:install-sh" >&2
+  exit 1
+}
+
+job_block_excludes docs-lint-corpus 'pnpm run test:docs-check'
+job_block_excludes docs-lint-corpus 'pnpm run test:aps-active-lint'
+job_block_excludes docs-lint-corpus 'pnpm run test:install-sh'
+job_block_excludes docs-lint 'pnpm run test:docs-check'
+job_block_excludes docs-lint 'pnpm run docs:check'
+
+job_block_contains docs-lint-corpus 'pnpm run docs:check' || {
+  echo "expected docs-lint-corpus to run pnpm run docs:check" >&2
+  exit 1
+}
+job_block_contains docs-lint-corpus 'check-docs-owed.mjs' || {
+  echo "expected docs-lint-corpus to run the owed-docs gate" >&2
+  exit 1
+}
+
+# Pin the required-check name and fail-closed aggregator. A rename or an
+# `if` that drops `always()` / worker failure would skip-satisfy the
+# ruleset the way the old twin filler jobs did.
+job_block_contains docs-lint 'name: Docs Lint' || {
+  echo "expected docs-lint aggregator to be named Docs Lint" >&2
+  exit 1
+}
+job_block_contains docs-lint "needs.docs-lint-corpus.result == 'failure'" || {
+  echo "expected docs-lint aggregator to fail when corpus failed" >&2
+  exit 1
+}
+job_block_contains docs-lint "needs.docs-lint-tooling.result == 'failure'" || {
+  echo "expected docs-lint aggregator to fail when tooling failed" >&2
+  exit 1
+}
+
+awk '
+  /^  docs-lint:$/ { inside = 1; next }
+  inside && /^  [a-z]/ { inside = 0 }
+  inside && $0 ~ /^    if:/ { seen_if = 1 }
+  inside && seen_if && /always\(\)/ { found = 1 }
+  END { exit (found ? 0 : 1) }
+' "${ci_workflow}" || {
+  echo "expected docs-lint aggregator job if to include always()" >&2
+  exit 1
+}
+
+# Push must not grow a new corpus/tooling bill: code-only and scripts-only
+# pushes skipped the combined job. Workers may run those paths on PRs.
+awk '
+  /^  docs-lint-corpus:$/ { inside = 1; next }
+  inside && /^  [a-z]/ { inside = 0 }
+  inside && /github.event_name == .pull_request./ { found = 1 }
+  END { exit (found ? 0 : 1) }
+' "${ci_workflow}" || {
+  echo "expected docs-lint-corpus to gate code-only work on pull_request" >&2
+  exit 1
+}
+awk '
+  /^  docs-lint-tooling:$/ { inside = 1; next }
+  inside && /^  [a-z]/ { inside = 0 }
+  inside && /github.event_name == .pull_request./ { found = 1 }
+  END { exit (found ? 0 : 1) }
+' "${ci_workflow}" || {
+  echo "expected docs-lint-tooling to keep scripts-only pushes from always running" >&2
+  exit 1
+}
+
 # Security summary remains PR-only — push integration must not post a
 # PR-style comment because there is no PR to comment on.
 assert_contains "${security_workflow}" "github.event_name == 'pull_request'"
