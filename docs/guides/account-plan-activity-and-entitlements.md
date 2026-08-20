@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                   |
 | ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | BACT  | Live   | Last reviewed 2026-08-13 against `flags/audiences.json`, `flags/manifest.json`, `apps/anvil-api/src/lib/feature-flags.ts`, `apps/anvil-api/src/lib/licence.ts`, and ADR-121 |
+| Guide | Authoritative | BACT  | Live   | Last reviewed 2026-08-20 against `flags/audiences.json`, `flags/manifest.json`, `apps/anvil-api/src/lib/feature-flags.ts`, `apps/anvil-api/src/lib/licence.ts`, and ADR-121 |
 
 | Upstream                                                                                                                                                                                                | Downstream                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -51,9 +51,21 @@ and access-token/licence re-verify all sign the account's current plan, never a
 hardcoded value). A **`tier`** claim is still written on the wire,
 byte-identical to `plan`, purely as a compat alias for edge verifiers that read
 the raw JWT without a DB round trip (`apps/docs-shell`, `apps/docs-site`) — it
-is not a second semantic axis, and `verifyLicence` falls back to a licence's
-legacy `tier` claim only when `plan` is absent, so already-issued tokens keep
-verifying. Drop the alias once those verifiers read `plan` instead.
+is not a second semantic axis.
+
+**Claim resolution (SEC-012):** a token never elevates itself. `verifyLicence`
+resolves in three cases: a `plan` claim is used verbatim; a licence carrying
+**only** `tier: 'pro'` — the one legacy shape pre-BACT-013 `signLicence` ever
+minted — resolves to `beta`, the plan those accounts actually hold; anything
+else resolves to `null` and the gate denies. The earlier rule, which promoted
+any `tier` into `plan` so as not to "downgrade an in-flight session", was an
+over-entitlement vector: no account has ever held `pro` (`beta_users.plan` CHECK
+admits only `beta`) and the edge verifiers believe the claim without a DB round
+trip. De-escalating keeps those sessions working at their real plan with no
+forced re-authentication. `LicenceClaims.plan` is therefore `string | null` on
+the verify side; `signLicence` rejects a null plan rather than mint an
+unevaluable licence. Drop the alias — and the `tier: 'pro'` branch — once the
+last pre-BACT-013 licence expires (90-day TTL from 2026-08-13, so ~2026-11-11).
 
 See also [feature-flag-governance.md](./feature-flag-governance.md) and the
 [feature gating model](../../plans/specs/2026-05-19-feature-gating-model.md).

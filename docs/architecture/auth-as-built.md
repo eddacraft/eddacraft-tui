@@ -236,7 +236,8 @@ Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
 | `email`    | `beta_users.email` | User email                           |
 | `identity` | Per-flow (caller)  | `email` or `github` — see below      |
 | `org`      | Hardcoded          | `null`                               |
-| `tier`     | Hardcoded          | `"pro"`                              |
+| `plan`     | `beta_users.plan`  | Entitlement axis, e.g. `"beta"`      |
+| `tier`     | Mirrors `plan`     | Compat alias only — see G-02         |
 | `scopes`   | Active-token union | e.g. `["beta"]` — see below          |
 | `seats`    | Hardcoded          | `1`                                  |
 | `rcAfter`  | Computed           | `iat + 7 days` (refresh-check-after) |
@@ -388,24 +389,32 @@ or malformed, and `/health` reports `signingKey: unavailable` with HTTP 503 when
 the key can't load — so misconfiguration surfaces at deploy time rather than on
 the first `/device/poll` that reaches the licence-minting path.
 
-### G-02: org, tier, seats are hardcoded
+### G-02: org and seats are hardcoded; `tier` is a retiring alias
 
 ```typescript
 org: null,
-tier: 'pro',
 seats: 1,
 ```
 
-`identity` is resolved per flow now (GHCLIAUTH-003) and `scopes` come from the
-user's active tokens, but every licence still claims `pro` tier with no org and
-a single seat — hardcoded in the shared claims block
-(`apps/anvil-api/src/lib/session.ts:66-69`) and in the token verify/refresh
-paths (`apps/anvil-api/src/routes/auth.ts:77-80`). This is fine for beta but
-will need to become dynamic before GA — particularly `tier` and `org`.
+`identity` is resolved per flow (GHCLIAUTH-003) and `scopes` come from the
+user's active tokens, but every licence still claims no org and a single seat,
+hardcoded in the shared claims block (`apps/anvil-api/src/lib/session.ts`). Both
+need to become dynamic before GA.
 
-**Risk:** Low for beta. High if external systems start consuming these claims.
-**Fix:** Derive from `beta_users` or a separate `organisations` table when
-needed.
+**`tier` is no longer hardcoded** (this section described the pre-BACT-013
+state). Since BACT-013 (2026-08-13) `signLicence` writes `tier: claims.plan`,
+byte-identical to `plan`, purely for edge verifiers that read the raw JWT with
+no DB round trip. Since SEC-012 the read side never lets a token elevate itself:
+`plan` is used verbatim when present; a licence carrying only `tier: 'pro'` —
+the one legacy shape ever minted — resolves to `beta`; anything else resolves to
+`null` and the gate denies. `LicenceClaims.plan` is `string | null` on the
+verify side and `signLicence` rejects a null plan. The alias and its `'pro'`
+branch retire once the last pre-BACT-013 licence expires (90-day TTL, so
+~2026-11-11).
+
+**Risk:** Low for beta. High if external systems start consuming `org` or
+`seats`, which remain hardcoded. **Fix:** Derive from `beta_users` or a separate
+`organisations` table when needed.
 
 ### G-03: Refresh endpoint leaks failure reasons
 
