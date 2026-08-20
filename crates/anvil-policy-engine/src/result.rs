@@ -470,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn baselined_new_edge_is_not_annotated_is_new_edge() {
+    fn baselined_edge_finding_is_not_marked_new_edge() {
         let raw = json!([{
             "message": "legacy edge",
             "from": "src/app.rs",
