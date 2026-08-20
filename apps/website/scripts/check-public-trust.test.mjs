@@ -69,21 +69,31 @@ describe('public trust contract', () => {
     'OpenPGP Fingerprint: TBA',
     'OpenPGP Fingerprint: ???? ???? ???? ????',
     'OpenPGP Fingerprint: [redacted]',
+    '<p>PGP fingerprint</p><code>XXXX XXXX XXXX XXXX</code>',
+    '<p>OpenPGP fingerprint</p>\n<pre>NOT YET PUBLISHED</pre>',
     `GPG Fingerprint: ${Array.from({ length: 4 }, () => '0'.repeat(4)).join(' ')}`,
     `GPG Fingerprint: ${Array.from({ length: 4 }, () => '0'.repeat(4)).join(':')}`,
+    `GPG Fingerprint: ${Array.from({ length: 10 }, () => '0'.repeat(4)).join(' ')}`,
+    `GPG Fingerprint: ${Array.from({ length: 10 }, () => '0'.repeat(4)).join(':')}`,
+    `GPG Fingerprint: ${Array.from({ length: 10 }, () => '0'.repeat(4)).join('-')}`,
+    `GPG Fingerprint: ${Array.from({ length: 16 }, () => '0'.repeat(4)).join(' ')}`,
+    `GPG Fingerprint: ${Array.from({ length: 10 }, () => 'F'.repeat(4)).join(' ')}`,
   ])('rejects a placeholder fingerprint even when a key exists: %s', (guidance) => {
     expect(findPublicTrustFailures(securityPage(guidance), true)).toContain(
       'placeholder PGP fingerprint is published'
     );
   });
 
-  it('accepts a structurally valid fingerprint when the published key exists', () => {
-    const fingerprint = Array.from({ length: 10 }, (_, index) =>
-      (0xa000 + index).toString(16).toUpperCase()
-    ).join(' ');
+  it.each([10, 16])(
+    'accepts a structurally valid %d-group fingerprint when the published key exists',
+    (groupCount) => {
+      const fingerprint = Array.from({ length: groupCount }, (_, index) =>
+        (0xa000 + index).toString(16).toUpperCase()
+      ).join(' ');
 
-    expect(findPublicTrustFailures(securityPage(`PGP Fingerprint: ${fingerprint}`), true)).toEqual(
-      []
-    );
-  });
+      expect(
+        findPublicTrustFailures(securityPage(`PGP Fingerprint: ${fingerprint}`), true)
+      ).toEqual([]);
+    }
+  );
 });

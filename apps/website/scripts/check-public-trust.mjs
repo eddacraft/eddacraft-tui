@@ -8,12 +8,25 @@ const REPORTING_LINK = /href\s*=\s*["']mailto:security@eddacraft\.ai["']/i;
 const STRONG_PGP_GUIDANCE = /\b(?:pgp|openpgp|gpg|fingerprint|security[- ]key|key file)\b/i;
 const REPORTING_KEY_GUIDANCE = /\b(?:encrypt(?:ed|ion)?|public[- ]key|certificate)\b/i;
 const REAL_FINGERPRINT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
+const FINGERPRINT_VALUE = /^[0-9a-f]{4}(?:[\s:-]*[0-9a-f]{4})*/i;
+const DEGENERATE_FINGERPRINT = /^([0-9a-f])\1+$/i;
 
 function hasInvalidFingerprint(securityPage) {
-  const statements = securityPage.matchAll(/\bfingerprint\s*:?\s*([^\n<}{]+)/gi);
-  return [...statements].some(([, value]) => {
-    const compact = value.trim().replace(/[\s:-]/g, '');
-    return !REAL_FINGERPRINT.test(compact);
+  const sourceText = securityPage
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ');
+  const labels = sourceText.matchAll(/\bfingerprint\b\s*:?\s*/gi);
+
+  return [...labels].some((label) => {
+    const tail = sourceText.slice(label.index + label[0].length);
+    const candidate = tail.match(FINGERPRINT_VALUE);
+    if (!candidate || /^[0-9a-f]/i.test(tail.slice(candidate[0].length))) {
+      return true;
+    }
+
+    const compact = candidate[0].replace(/[\s:-]/g, '');
+    return !REAL_FINGERPRINT.test(compact) || DEGENERATE_FINGERPRINT.test(compact);
   });
 }
 
