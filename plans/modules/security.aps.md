@@ -565,7 +565,7 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **Intent:** Finish the ADR-121 / OQ-C migration so a single entitlement claim
   governs private-docs access, no verifier fills in a permissive default, and
   the two edge verifiers agree.
-- **Expected Outcome (delivered 2026-08-20):**
+- **Expected Outcome:** _(delivered 2026-08-20)_
   - Both **live** verifiers — `verifyLicence`
     (`apps/anvil-api/src/lib/licence.ts`) and `apps/docs-shell/lib/jwt.ts` —
     resolve the entitlement claim by one shared rule: `plan` verbatim when
