@@ -29,6 +29,11 @@ name: Acknowledgements Autofix
 # a fine-grained PAT scoped to `Contents: Read and write` on this repo
 # only (no cross-repo scope, unlike MIRROR_PUSH_TOKEN /
 # ANVIL_RELEASES_TOKEN, which are scoped to other repos entirely).
+#
+# The Contents PUT body is written to a JSON file and sent with
+# `gh api --input`. Passing the base64 of ACKNOWLEDGEMENTS.md (~400 KiB)
+# as `gh api -f content=...` exceeds Linux ARG_MAX ("Argument list too
+# long") — that is what left uuid/axoupdater Dependabot PRs red.
 
 on:
   workflow_run:
@@ -118,10 +123,23 @@ jobs:
             echo "No drift after regen; the upstream failure wasn't ACKNOWLEDGEMENTS.md staleness."
             exit 0
           fi
-          CONTENT=$(base64 -w 0 ACKNOWLEDGEMENTS.md)
+          # Keep the base64 body off argv. `gh api -f content="$CONTENT"`
+          # fails with "Argument list too long" once ACKNOWLEDGEMENTS.md
+          # is hundreds of KiB (Dependabot cargo PRs for uuid / axoupdater).
+          export EXISTING_SHA
           EXISTING_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/contents/ACKNOWLEDGEMENTS.md?ref=${HEAD_BRANCH}" --jq '.sha')
-          gh api "repos/${GITHUB_REPOSITORY}/contents/ACKNOWLEDGEMENTS.md" -X PUT \
-            -f message="chore(attribution): regen ACKNOWLEDGEMENTS.md" \
-            -f content="$CONTENT" \
-            -f branch="$HEAD_BRANCH" \
-            -f sha="$EXISTING_SHA"
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
+
+          payload = {
+              "message": "chore(attribution): regen ACKNOWLEDGEMENTS.md",
+              "content": base64.b64encode(Path("ACKNOWLEDGEMENTS.md").read_bytes()).decode("ascii"),
+              "branch": os.environ["HEAD_BRANCH"],
+              "sha": os.environ["EXISTING_SHA"],
+          }
+          Path(os.environ["RUNNER_TEMP"], "ack-put.json").write_text(json.dumps(payload))
+          PY
+          gh api "repos/${GITHUB_REPOSITORY}/contents/ACKNOWLEDGEMENTS.md" -X PUT --input "$RUNNER_TEMP/ack-put.json"
