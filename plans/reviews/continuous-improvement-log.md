@@ -3471,3 +3471,303 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Improvement:** Keep documentation authority references as repo-relative inline-code paths so docs-owed freshness tooling can extract them.
 - **Follow-up:** theme:docs-authority-drift
 
+### 2026-08-16 — grok — CIB-341..343 bookkeeping
+
+- **Task:** Reconcile CIB-341..343 Merged, harvest pending CI-log, refresh APS counts
+- **Outcome:** PR #3969 opened; auto-merge rebase armed
+- **Worked:** Marked 341-343 Merged with ancestor SHAs; left 344 Ready for lock reap; harvested 77 pending notes; aps:index 273/339 to 276/339
+- **Failed:** Harvest first failed on malformed CIB-275 pending heading; normalised then harvested
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** CIB-344 produce-lock reap remains Ready
+
+### 2026-08-17 — other
+
+- **Task:** Start DOCRB via dev-loop-grok as stacked PRs
+- **Outcome:** Opened #3975 (DOCRB-001 ADR-123) and stacked #3976 (DOCRB-002 inventory); merge to main withheld
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-17 — codex
+
+- **Task:** Draft the v0.9.6-beta customer changelog
+- **Outcome:** Added the four customer-visible post-v0.9.5 fixes to CHANGELOG.md Unreleased in an isolated branch; docs and format gates passed
+- **Worked:** Fresh tag, release-plan, source, and merged-PR evidence kept the draft scoped to landed fixes without inventing a locked theme
+- **Failed:** Initial format check found Markdown wrapping; oxfmt corrected it and the rerun passed
+- **Friction:** Worktrunk's configured sibling path fell outside the harness writable root; moved the clean linked worktree under ignored .worktrees before editing
+- **Improvement:** Let wt-new select an in-repository writable path for restricted harnesses
+- **Follow-up:** theme:worktrunk-sandbox-root
+
+### 2026-08-17 — codex
+
+- **Task:** Add v0.9.6-beta engineering notes to the changelog draft
+- **Outcome:** Added post-v0.9.5 engineering notes and promoted the stale 0.9.5 Engineering History draft to its shipped section; docs and format gates passed
+- **Worked:** The complete tag-to-main commit range plus source, ADR-123, DOCRB, release record, and merged PR evidence separated engineering changes from customer notes and planning-only churn
+- **Failed:** none
+- **Friction:** anvil MCP developer functions remained unavailable; used the documented content-mode validation fallback
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-17 — grok
+
+- **Task:** planning-workflow SURFSH-008 pipe-to-shell/eval/chmod
+- **Outcome:** design approved; SURFSH-008 Ready; SURFSH-009 Draft; spec written
+- **Worked:** grill-design one-at-a-time; codebase-backed facts before questions; accepted spec + APS update
+- **Failed:** none
+- **Friction:** SURFSH-008 was Proposed and CommandRule cannot express pipelines; needed design before Ready
+- **Improvement:** none
+- **Follow-up:** session: run dev-loop on SURFSH-008 when operator asks
+
+### 2026-08-17 — grok
+
+- **Task:** dev-loop SURFSH-008
+- **Outcome:** review-ready PR #3984
+- **Worked:** Worktrunk isolate; TDD shell rules + analyse_compound; fresh verifier pass-with-advisories
+- **Failed:** none
+- **Friction:** aps start cannot see SURFSH items; anvil write-gate rejects worktree root; heal-anchor stashed main planning files
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-17 — codex
+
+- **Task:** Publish the v0.9.6 release-note draft
+- **Outcome:** Opened draft PR #3985 with the customer changelog and engineering notes.
+- **Worked:** Live release/source reconciliation, focused Council review, and fresh documentation gates kept the draft accurate without inventing a frozen 0.9.6 claim.
+- **Failed:** None.
+- **Friction:** Anvil developer-function MCP tools were unavailable in this harness, so the documented file-level fallback was used.
+- **Improvement:** At claim freeze, promote Unreleased with the canonical 0.9.6 title, date, and locked claim.
+- **Follow-up:** theme:0.9.6 claim freeze
+
+### 2026-08-17 — grok
+
+- **Task:** council full SURFSH-008 PR 3984
+- **Outcome:** BLOCK: sh -c FN + docs-owed
+- **Worked:** full pack 5 reviewers + supervisor + debate + judge
+- **Failed:** none
+- **Friction:** supervisor rejected 3 for severity inflation; debate still made sh -c critical must-fix
+- **Improvement:** none
+- **Follow-up:** session: user picks fix/defer on council-a80a55ec must_fix
+
+### 2026-08-17 — grok
+
+- **Task:** fix council BLOCK then handoff anvil:10.1
+- **Outcome:** pushed 5add438a7; Codex council requested on anvil:10.1
+- **Worked:** repaired all findings except deferred ripgrep FP
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-18 — codex
+
+- **Task:** Triage Clawpatch runs after the 2026-08-12 durable review
+- **Outcome:** Dispositioned all 67 findings from the 2026-08-13, 2026-08-16, and 2026-08-18 runs: 5 false-positive, 1 fixed, 3 wont-fix, 26 actionable open, 32 advisory test gaps; no open high remains
+- **Worked:** Verified current source and prior APS/review ownership before local clawpatch triage; exact production rules_sha test and Cargo feature evidence corrected scanner overclaims
+- **Failed:** none
+- **Friction:** Shared checkout switched to docs/readme-bench-headlines with an unrelated README.md edit during the run; preserved it and made no tracked writes
+- **Improvement:** none
+- **Follow-up:** session: operator selects whether to file/promote the P1 repair clusters
+
+### 2026-08-18 — other
+
+- **Task:** SURFSH-008 restore designed matcher
+- **Outcome:** Merged #3992; designed slice back on main
+- **Worked:** Restored five Rust files from 55da15ea4; kept rollback-honesty docs; resolved Copilot threads as later gaps
+- **Failed:** none
+- **Friction:** Council/Copilot loop treats named evasions as restore blockers
+- **Improvement:** Freeze the designed matcher before any gap patch; do not run full Council on shell analysis until the contract is re-frozen
+- **Follow-up:** session: SURFSH-008 named-gap review
+
+### 2026-08-18 — other
+
+- **Task:** SURFSH-008 FP re-check and eval-dynamic widen
+- **Outcome:** PR #3993; SURFSH-008 FP 0% on Anvil+ripgrep; eval //$name/suffix
+- **Worked:** Classified gate findings by rule; widened regex without ANSI-C leftover FP
+- **Failed:** none
+- **Friction:** anvil gate path-as-plan-file scanned cwd instead of ripgrep; inherited rm-rf-root fail-closed is noisy but out of slice
+- **Improvement:** Report SURFSH-008 FP by new rule ids, not the whole shell-scripts check
+- **Follow-up:** none
+
+### 2026-08-19 — codex
+
+- **Task:** CLAWFIX P1 repair wave
+- **Outcome:** Six promoted findings repaired; exact-diff Council and independent verification converged
+- **Worked:** TDD plus Windows-target Clippy exposed and closed cfg, ACL, and docs symlink containment gaps; exact frozen evidence was re-reviewed after every repair
+- **Failed:** Helper-only Windows cross-check initially missed capsule cfg warnings; followSymbolicLinks false alone did not reject a static symlink node; raw component walking allowed a cancelling-prefix bypass
+- **Friction:** anvil MCP pre-write gate unavailable without credentials; full docs contract is intentionally slow; full native Windows capsule tests cannot run on Unix
+- **Improvement:** Include capsule Windows-target strict Clippy in CLAWFIX-005 validation and cover glob, static, and lexically cancelled symlink references in docs containment tests
+- **Follow-up:** none
+
+### 2026-08-19 — codex — team-owned APS module freshness audit
+
+- **Task:** Review all active @team-owned APS modules and ensure they are current
+- **Outcome:** Audited BMAD4 and OPENSPEC against current local source and canonical upstream releases; prepared reconciliation proposal pending the required APS write checkpoint
+- **Worked:** Exact owner-marker scope, canonical upstream release and schema checks, executable probes against BMAD v4.44.1 artefacts, and local adapter-contract inspection
+- **Failed:** anvil graph assurance was stale after scan timeout, so bounded graph search returned no symbols; source inspection provided the required evidence
+- **Friction:** pnpm attempted a read-only global store registration during one read-only Nx query; direct node_modules binaries provided the project and CLI truth without mutation
+- **Improvement:** none
+- **Follow-up:** session:apply approved BMAD4 and OPENSPEC reconciliation in an isolated Worktrunk
+
+### 2026-08-19 — codex
+
+- **Task:** Reconcile DOCRB-003 and DOCRB-011 after merged PRs #4027 and #4009
+- **Outcome:** Both work items now record Merged lifecycle evidence and the single-writer stored progress roll-up is 4/11
+- **Worked:** Exact RED/GREEN assertions plus the documented APS count generator kept the two-file bookkeeping change deterministic
+- **Failed:** The sibling Worktrunk was mounted read-only for ordinary process writes, requiring the approved narrow permission for the generator and Git index
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-19 — codex
+
+- **Task:** DOCRB-004 co-located component documentation pilots
+- **Outcome:** Implemented six source-linked component README/architecture pilots, the docs-shell spoke, and a source-pinned findings report; focused and repository gates passed.
+- **Worked:** Replacement RED/GREEN assertions, trusted-root pre-write validation, manual 123-link trace, and six Mermaid CLI renders caught draft path errors before closeout.
+- **Failed:** Initial Cargo/Vitest and Mermaid attempts hit sandbox-only EROFS/Chromium launch restrictions; authorised Worktrunk cache access and a temporary container Puppeteer launch config resolved them without repository tooling changes.
+- **Friction:** Current docs:check does not inspect copied component-root metadata, cited paths, or links, so the pilot required a separate manual trace.
+- **Improvement:** Extend low-noise component-root checks only when DOCRB-009 activates enforcement.
+- **Follow-up:** owned: DOCRB-009
+
+### 2026-08-20 — codex
+
+- **Task:** DOCRB-004 Council documentation repair
+- **Outcome:** Corrected source claims, rerendered diagrams, and passed focused and repository gates.
+- **Worked:** Full-content anvil pre-write gates plus source-linked replacement assertions kept the repair bounded to eight existing paths.
+- **Failed:** Two focused Vitest runs initially hit EROFS while creating Vite temporary config files in the sibling Worktrunk under the restricted sandbox; unchanged reruns with authorised Worktrunk writes passed.
+- **Friction:** The assigned Worktrunk is outside the session's declared writable root even though repository patch writes are permitted.
+- **Improvement:** Make assigned Worktrunk roots available to test subprocess writes or document the required focused-command escalation.
+- **Follow-up:** none
+
+### 2026-08-20 — grok
+
+- **Task:** DOCDEF-005 policy / boundaries / baseline public pages
+- **Outcome:** review-ready
+- **Worked:** Hand-written policy-model, policy reference, boundaries, and baseline pages; live-nav unhide for review-capsules; generator related links for policy and import-boundaries.
+- **Failed:** Independent verifier harness could not run pnpm docs gates (no command runner); first verifier hit max turns.
+- **Friction:** anvil MCP write-gate rejects worktree workspaceRoot (content-mode). Verifier isolation can miss uncommitted work.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-20 — other
+
+- **Task:** DOCDEF-006 journey-to-definition links
+- **Outcome:** review-ready PR #4036
+- **Worked:** LIVE_REQUIRED failing-then-passing plus Related definitions footers; spec PR-links outranks APS review-capsules unhide
+- **Failed:** none
+- **Friction:** verify-loop first pass had no shell and isolated onto stale main; resume with execute on the feature worktree recovered
+- **Improvement:** dev-loop-verifier default read-only isolation cannot run docs gates; prefer execute and isolation none on the named worktree
+- **Follow-up:** none
+
+### 2026-08-20 — grok — DOCDEF-004
+
+- **Task:** DOCDEF-004 CLI flags/subcommands
+- **Outcome:** PR #4037 review-ready
+- **Worked:** Worktree isolation from origin/main; clap-source generator extension; help-snapshot fixtures; docs:public:check and docs:check green
+- **Failed:** Independent verifier harness had no shell so it blocked on missing gate re-run; orchestrator already had exit 0 evidence
+- **Friction:** anvil_validate_write rejects worktree workspaceRoot (content-mode); Grok verifier subagent cannot exec
+- **Improvement:** Give verify-loop subagents execute capability for binding gates, or pass orchestrator evidence without calling that a product block
+- **Follow-up:** none
+
+### 2026-08-20 — codex — team-feature APS audit
+
+- **Task:** Audit modules focused on team-based product features against current source, release, docs, and hosted work.
+- **Outcome:** Direct scope is DASHOPS plus team-scoped ORGHIER. The shipped browser dashboard is explicitly local, single-workspace, not multi-user, and not a team view. DASHOPS is stale because its Team Lead, user, AI-tool, and role behaviour lacks an authoritative Rust data or identity contract; its plan-view paths lag DASH-011; and its config viewer predates SETCON and SETINS. ORGHIER remains correctly Draft and demand-gated but has a circular POLFED dependency and should clarify configured team scopes versus membership.
+- **Worked:** Fetched origin/main at 8bf8622e7; searched all active and archived modules; inspected dashboard code and API, witness and APS read models, release record, local dashboard authority guide, GitHub PRs, issues and branches, and policy and settings dependencies.
+- **Failed:** none
+- **Friction:** The clean local main is 30 commits behind origin/main, so current truth was read directly from the fetched remote tree.
+- **Improvement:** Reconcile DASHOPS and index language to distinguish a local operator dashboard from a real team surface; repair ORGHIER and POLFED topology; use the settings truth read model instead of a second config renderer.
+- **Follow-up:** session:await operator approval for APS reconciliation writes
+
+### 2026-08-20 — grok
+
+- **Task:** DOCDEF-005 rebase merge on green
+- **Outcome:** integrated
+- **Worked:** Rebased onto main, fixed Copilot signature nits, rebase-merged #4035 at aa050810, ancestor check passed.
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-20 — codex
+
+- **Task:** DOCRB-007 retained-scope root validation closeout
+- **Outcome:** Added pre-traversal manifest-root confinement and corrected evidence chronology; all gates passed.
+- **Worked:** Focused RED/GREEN plus exact implementation-head harness and production builds.
+- **Failed:** none
+- **Friction:** The full docs harness temporarily modified tracked benchmark-results.md before restoring it, creating a transient dirty-tree signal for another agent.
+- **Improvement:** Keep tracked-fixture mutations isolated or surface their temporary lifecycle so concurrent status checks are unambiguous.
+- **Follow-up:** theme:docs-harness-fixture-isolation
+
+### 2026-08-20 — grok
+
+- **Task:** lock v0.9.7-beta first-session honesty claim
+- **Outcome:** PR #4048 opened; telemetry disclosure prominence kept off this cut
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** merge #4048 then cut v0.9.7-beta for tonight's tester
+
+### 2026-08-20 — codex
+
+- **Task:** Repair and land recent Clawpatch scan findings CLAWSCAN-001..006
+- **Outcome:** PR #4049 merged with all checks green; PR #4052 merged APS closeout; six findings fixed and four verified non-actionable findings dispositioned.
+- **Worked:** Fresh Worktrunk isolation, exact-snapshot Council convergence, adversarial parser and gate probes, normal rebase auto-merge, and Clawpatch readback.
+- **Failed:** Initial hosted nx lint process exited by SIGSEGV; a clean failed-job rerun passed without source changes.
+- **Friction:** The default Worktrunk sibling path was outside the managed writable root and was moved under the repository worktree directory.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-20 — codex
+
+- **Task:** DOCRB-007 post-merge APS reconciliation
+- **Outcome:** PR #4053 rebase-merged; receipt f0f834b39 is on origin/main and the remote branch is deleted
+- **Worked:** Fresh exact-receipt Worktrunk, two-file single-writer APS closeout, full local and hosted docs/APS gates
+- **Failed:** gh pr merge returned non-zero only because local main was already checked out after the hosted merge succeeded
+- **Friction:** Local cleanup step in gh could not switch to main from a linked Worktrunk; hosted state verification prevented an unsafe retry
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-20 — grok
+
+- **Task:** rebase-merge PR 4048 on green
+- **Outcome:** merged 5f9073b54 on origin/main; ancestor check passed; no admin bypass
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-20 — codex
+
+- **Task:** DOCRB-008 public information architecture and curated diagrams
+- **Outcome:** Implementation in progress; sidebar slice green, authentic Draw.io 31.1.8 export environment blocked pending an existing display server
+- **Worked:** Official release checksum and exact version verification; explicit --root avoids argument parsing defect
+- **Failed:** node scripts/docs/export-public-diagram.mjs PATH --drawio-bin BIN reports usage because absent --root makes rootIndex+1 equal positional index 0; authentic 31.1.8 export under Ozone headless then exits 139 without output
+- **Friction:** The export wrapper optional --root path is broken and Draw.io officially requires an X server for CLI export; this host has no Xvfb, Xorg, Weston, active DISPLAY, or Wayland display
+- **Improvement:** DOCRB documentation-tooling owner should correct positional filtering when optional flag indexes are -1 and add an actual default-root export invocation test
+- **Follow-up:** theme:public-diagram-export
+
+### 2026-08-20 — grok
+
+- **Task:** Dave 2026-08-20 UI findings: file and fix B26 plus dashboard --web help
+- **Outcome:** Filed #4057 and #4058. Padded Select and tutorial path-picker titles so descriptions share a column. Documented --web exclusive of NAME. Branch fix/dave-ui-b26-menu-columns @ d93a8b728.
+- **Worked:** Select pad_to_display_width; tutorial render_path_select; clap --web help; local-dashboard.md; insta snapshots
+- **Failed:** none
+- **Friction:** anvil write-gate trusts only main checkout (content-mode from worktree); github MCP issue_write 404 so used gh
+- **Improvement:** Select now column-aligns descriptions; first-run menus match init_complete/dashboard picker house style
+- **Follow-up:** promote: CIB; session: open PR for #4057 #4058
+
+### 2026-08-20 — claude — docs.access orphaned; no gate detects an unused catalogue flag
+
+- **Task:** Delete the retired apps/docs-site host (PR #4050), after SEC-012 (#4043) fixed licence claim resolution.
+- **Outcome:** Deletion landed green, but it left flags/manifest.json's docs.access entitlement flag with zero runtime consumers, and nothing anywhere detects that.
+- **Worked:** Checking vercel.json ignoreCommand before touching an app. docs-site had carried --always-skip since 2026-07-08 ('for retired Vercel projects'), so its middleware gate never ran — one file would have told me that before I fixed and test-harnessed dead code. Also: breaking a gate deliberately and watching the specific assertion fire, then restoring, was the only evidence that held all session.
+- **Failed:** I fixed and wrote 15 tests for apps/docs-site/middleware.ts before checking whether the app deploys. SEC-012's own Files list named it, and a BACT-013 advisory flagged its 'missing tests' — both were pointing at dead code, and I followed them without verifying.
+- **Friction:** Two gates only fail in CI: docs-owed reads COMMITTED dates so it passes on a dirty tree, and the canonical APS lint needs APS_CANONICAL_BIN which local aps:active-lint runs without. Separately, docs-check.test.sh runs long enough that a truncated run reports exit 0 having executed 1 of 22 cases — I cited that false green twice. Its real signal is the 'all cases passed' verdict line, not the exit status.
+- **Improvement:** Add an orphan check to the flag catalogue: a manifest flag with no non-test consumer should fail, or be explicitly marked retired. docs.access reached that state silently and flags-catalogue tests still pass on it. Secondary: make docs-check.test.sh print a case count so a truncated run is visibly incomplete.
+- **Follow-up:** promote: CIB
+
