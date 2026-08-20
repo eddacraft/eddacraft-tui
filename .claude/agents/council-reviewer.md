@@ -35,8 +35,7 @@ Return a single valid JSON object with no prose before or after it:
       "file": "path/to/file.ts",
       "line": 42,
       "suggestion": "Concrete fix or improvement",
-      "contractDisposition": "in_contract|later_item|out_of_scope|no_contract",
-      "contractRef": "optional spec path or item id"
+      "contractDisposition": "in_contract|later_item|out_of_scope|no_contract"
     }
   ],
   "summary": "X findings. Key concerns: ... Overall: ..."
@@ -53,6 +52,7 @@ If there are no findings, return:
 
 Prioritize security, correctness, edge cases, architecture, performance, test
 coverage, then style. Only flag real issues. Be specific, cite file and line,
-and suggest fixes. When a spec is present, classify every finding. `critical`
-and `major` require `in_contract`. File `later_item` with the owning item id;
-do not make it a blocker for this review.
+and suggest fixes. When a spec is present, classify every finding and keep
+honest severity. Only `in_contract` critical/major findings block this review.
+Include `contractRef` only for `later_item` (owning item id) or when citing a
+spec path; omit it otherwise.
