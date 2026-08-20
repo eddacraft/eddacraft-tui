@@ -1,22 +1,22 @@
 use std::time::{Duration, Instant};
 
-use animate_core::{Animate, Lerp, Once};
+use animate_core::{Animate, Tween, TweenAnim};
 use anvil_kernel_types::EngineEvent;
 use eddacraft_tui::keyboard::Action;
 
 use crate::surfaces::watch::WatchData;
 use crate::surfaces::watch::event_adapter::WatchEventAdapter;
 
-type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+type AnimatedF64 = Tween<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
 
 const OVERLAY_ANIM_DURATION_MS: f64 = 220.0;
 
 fn animated_f64(initial: f64) -> AnimatedF64 {
-    Once::new(
+    Tween::new(
         initial,
         OVERLAY_ANIM_DURATION_MS,
         animate_core::easing::quad_out as fn(f64) -> f64,
-        <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
+        <f64 as TweenAnim>::tween as fn(&f64, &f64, f64) -> f64,
     )
 }
 

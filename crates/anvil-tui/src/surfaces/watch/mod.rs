@@ -4,22 +4,22 @@ mod time_display;
 
 use std::collections::VecDeque;
 
-use animate_core::{Animate, Lerp, Once};
+use animate_core::{Animate, Tween, TweenAnim};
 use anvil_kernel_types::{Notification, NotificationContext};
 use eddacraft_tui::keyboard::Action;
 
 use crate::surfaces::notifications::NotificationSource;
 
-type AnimatedF64 = Once<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+type AnimatedF64 = Tween<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
 
 const ANIM_DURATION_MS: f64 = 250.0;
 
 fn animated_f64(initial: f64) -> AnimatedF64 {
-    Once::new(
+    Tween::new(
         initial,
         ANIM_DURATION_MS,
         animate_core::easing::quad_out as fn(f64) -> f64,
-        <f64 as Lerp>::lerp as fn(&f64, &f64, f64) -> f64,
+        <f64 as TweenAnim>::tween as fn(&f64, &f64, f64) -> f64,
     )
 }
 

@@ -7332,7 +7332,7 @@ SOFTWARE.
 
 Used by:
 
-- `animate-core` 0.3.0
+- `animate-core` 0.4.1
 - `axoupdater` 0.10.2
 - `backtrace-ext` 0.2.1
 - `block2` 0.6.2
@@ -9648,7 +9648,7 @@ the following restrictions:
 | `fluent-uri` | 0.4.1 | MIT License | https://github.com/yescallop/fluent-uri-rs |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
-| `animate-core` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
+| `animate-core` | 0.4.1 | MIT License | https://github.com/vyfor/animate |
 | `axoupdater` | 0.10.2 | MIT License | https://github.com/axodotdev/axoupdater |
 | `backtrace-ext` | 0.2.1 | MIT License | https://github.com/gankra/backtrace-ext |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
@@ -9833,7 +9833,8 @@ section above; this block focuses on the build-time runtime surface.
 | @jest/diff-sequences | 30.0.1 | MIT | https://github.com/jestjs/jest |
 | @jridgewell/sourcemap-codec | 1.5.5 | MIT | https://github.com/jridgewell/sourcemaps |
 | @napi-rs/wasm-runtime | 0.2.4 | MIT | https://github.com/napi-rs/napi-rs |
-| @nx/nx-linux-x64-gnu | 22.7.8 | MIT | https://github.com/nrwl/nx |
+| @nx/nx-linux-x64-gnu | 22.7.5 | MIT | https://github.com/nrwl/nx |
+| @nx/nx-linux-x64-musl | 22.7.5 | MIT | https://github.com/nrwl/nx |
 | @oxc-project/types | 0.133.0 | MIT | https://github.com/oxc-project/oxc |
 | @oxfmt/binding-linux-x64-gnu | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
 | @oxfmt/binding-linux-x64-musl | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
@@ -9862,7 +9863,6 @@ section above; this block focuses on the build-time runtime surface.
 | @yarnpkg/lockfile | 1.1.0 | BSD-2-Clause | https://github.com/yarnpkg/yarn/blob/master/packages/lockfile |
 | @zkochan/js-yaml | 0.0.7 | MIT | https://github.com/nodeca/js-yaml |
 | abbrev | 1.1.1 | ISC | https://github.com/isaacs/abbrev-js |
-| agent-base | 6.0.2 | MIT | https://github.com/TooTallNate/node-agent-base |
 | ansi-colors | 4.1.3 | MIT | https://github.com/doowb/ansi-colors |
 | ansi-regex | 5.0.1 | MIT | https://github.com/chalk/ansi-regex |
 | ansi-regex | 6.2.2 | MIT | https://github.com/chalk/ansi-regex |
@@ -9873,14 +9873,14 @@ section above; this block focuses on the build-time runtime surface.
 | asap | 2.0.6 | MIT | https://github.com/kriskowal/asap |
 | assertion-error | 2.0.1 | MIT | https://github.com/chaijs/assertion-error |
 | asynckit | 0.4.0 | MIT | https://github.com/alexindigo/asynckit |
-| axios | 1.18.1 | MIT | https://github.com/axios/axios |
+| axios | 1.16.0 | MIT | https://github.com/axios/axios |
 | balanced-match | 1.0.2 | MIT | https://github.com/juliangruber/balanced-match |
 | balanced-match | 4.0.3 | MIT | https://github.com/juliangruber/balanced-match |
 | balanced-match | 4.0.4 | MIT | https://github.com/juliangruber/balanced-match |
 | base64-js | 1.5.1 | MIT | https://github.com/beatgammit/base64-js |
 | bl | 4.1.0 | MIT | https://github.com/rvagg/bl |
-| brace-expansion | 1.1.18 | MIT | https://github.com/juliangruber/brace-expansion |
-| brace-expansion | 5.0.9 | MIT | https://github.com/juliangruber/brace-expansion |
+| brace-expansion | 1.1.14 | MIT | https://github.com/juliangruber/brace-expansion |
+| brace-expansion | 5.0.6 | MIT | https://github.com/juliangruber/brace-expansion |
 | buffer | 5.7.1 | MIT | https://github.com/feross/buffer |
 | call-bind-apply-helpers | 1.0.2 | MIT | https://github.com/ljharb/call-bind-apply-helpers |
 | chai | 6.2.2 | MIT | https://github.com/chaijs/chai |
@@ -9954,7 +9954,6 @@ section above; this block focuses on the build-time runtime surface.
 | hasown | 2.0.3 | MIT | https://github.com/inspect-js/hasOwn |
 | hasown | 2.0.4 | MIT | https://github.com/inspect-js/hasOwn |
 | hosted-git-info | 2.8.9 | ISC | https://github.com/npm/hosted-git-info |
-| https-proxy-agent | 5.0.1 | MIT | https://github.com/TooTallNate/node-https-proxy-agent |
 | husky | 9.1.7 | MIT | https://github.com/typicode/husky |
 | ieee754 | 1.2.1 | BSD-3-Clause | https://github.com/feross/ieee754 |
 | ignore | 7.0.5 | MIT | https://github.com/kaelzhang/node-ignore |
@@ -9971,7 +9970,7 @@ section above; this block focuses on the build-time runtime surface.
 | is-interactive | 1.0.0 | MIT | https://github.com/sindresorhus/is-interactive |
 | is-unicode-supported | 0.1.0 | MIT | https://github.com/sindresorhus/is-unicode-supported |
 | is-wsl | 2.2.0 | MIT | https://github.com/sindresorhus/is-wsl |
-| js-yaml | 4.3.1 | MIT | https://github.com/nodeca/js-yaml |
+| js-yaml | 4.2.0 | MIT | https://github.com/nodeca/js-yaml |
 | json-parse-even-better-errors | 2.3.1 | MIT | https://github.com/npm/json-parse-even-better-errors |
 | json5 | 2.2.3 | MIT | https://github.com/json5/json5 |
 | jsonc-parser | 3.2.0 | MIT | https://github.com/microsoft/node-jsonc-parser |
@@ -9983,7 +9982,7 @@ section above; this block focuses on the build-time runtime surface.
 | lightningcss-linux-x64-musl | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lightningcss | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lines-and-columns | 2.0.3 | MIT | https://github.com/eventualbuddha/lines-and-columns |
-| linkify-it | 5.0.2 | MIT | https://github.com/markdown-it/linkify-it |
+| linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
 | log-symbols | 4.1.0 | MIT | https://github.com/sindresorhus/log-symbols |
 | magic-string | 0.30.21 | MIT | https://github.com/Rich-Harris/magic-string |
 | markdown-it | 14.2.0 | MIT | https://github.com/markdown-it/markdown-it |
@@ -10024,12 +10023,12 @@ section above; this block focuses on the build-time runtime surface.
 | minimist | 1.2.8 | MIT | https://github.com/minimistjs/minimist |
 | mkdirp | 0.5.6 | MIT | https://github.com/substack/node-mkdirp |
 | ms | 2.1.3 | MIT | https://github.com/vercel/ms |
-| nanoid | 3.3.18 | MIT | https://github.com/ai/nanoid |
+| nanoid | 3.3.12 | MIT | https://github.com/ai/nanoid |
 | nopt | 4.0.3 | ISC | https://github.com/npm/nopt |
 | normalize-package-data | 2.5.0 | BSD-2-Clause | https://github.com/npm/normalize-package-data |
 | npm-normalize-package-bin | 1.0.1 | ISC | https://github.com/npm/npm-normalize-package-bin |
 | npm-run-path | 4.0.1 | MIT | https://github.com/sindresorhus/npm-run-path |
-| nx | 22.7.8 | MIT | https://github.com/nrwl/nx |
+| nx | 22.7.5 | MIT | https://github.com/nrwl/nx |
 | obug | 2.1.1 | MIT | https://github.com/sxzz/obug |
 | once | 1.4.0 | ISC | https://github.com/isaacs/once |
 | onetime | 5.1.2 | MIT | https://github.com/sindresorhus/onetime |
@@ -10049,7 +10048,7 @@ section above; this block focuses on the build-time runtime surface.
 | picomatch | 4.0.4 | MIT | https://github.com/micromatch/picomatch |
 | playwright-core | 1.60.0 | Apache-2.0 | https://github.com/microsoft/playwright |
 | playwright | 1.60.0 | Apache-2.0 | https://github.com/microsoft/playwright |
-| postcss | 8.5.23 | MIT | https://github.com/postcss/postcss |
+| postcss | 8.5.15 | MIT | https://github.com/postcss/postcss |
 | proxy-from-env | 2.1.0 | MIT | https://github.com/Rob--W/proxy-from-env |
 | punycode.js | 2.3.1 | MIT | https://github.com/mathiasbynens/punycode.js |
 | read-installed | 4.0.3 | ISC | https://github.com/isaacs/read-installed |
