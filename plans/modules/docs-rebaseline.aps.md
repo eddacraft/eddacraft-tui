@@ -297,13 +297,15 @@ component migration and is required by DOCRB-009.
   owners/upstreams; central as-built material is reduced or reshaped without
   losing decision history; redirects and links preserve discovery; no concern
   retains two apparent authorities.
-- **Files:** `plans/execution/DOCRB-005.actions.md`, the fourteen central
-  move/merge as-builts and their bounded component destinations,
-  documentation authority/discovery records, generated documentation indexes,
+- **Files:** 45 exact paths: `plans/execution/DOCRB-005.actions.md`, the
+  fourteen central move/merge as-builts, eighteen bounded component-local
+  authority/discovery paths, documentation authority/discovery records, four
+  generated documentation indexes, two binding file-level docs-owed repairs,
   `plans/reviews/2026-08-20-docrb-005-component-truth-migration.md`, and this
   item record
-- **Scope:** Component `README.md`/`ARCHITECTURE.md`, `docs/architecture/**`,
-  generated documentation indexes
+- **Scope:** Component `README.md`/`ARCHITECTURE.md`,
+  `docs/architecture/**`, generated documentation indexes, and only the two
+  source-proved file-level freshness edges reported by `docs:owed`
 - **Non-scope:** Substantive public content refresh owned by DOCSYNC
 - **Dependencies:** DOCRB-003, DOCRB-004
 - **Confidence:** medium

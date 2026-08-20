@@ -1,17 +1,17 @@
 # Rust MCP Server Parity Spec
 
-| Type | Authority     | Owner       | Status | Freshness                                                                                                                                                   |
-| ---- | ------------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | RMCPF/MCP26 | Live   | Last reviewed 2026-08-17 against CIB-343 handshake ladder in `docs/architecture/mcp-shim-as-built.md` §10; prior ADR-113 / MCP26 dual-era review 2026-07-29 |
+| Type | Authority     | Owner       | Status | Freshness                                                                                                                                                          |
+| ---- | ------------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Spec | Authoritative | RMCPF/MCP26 | Live   | DOCRB-005 link review 2026-08-20 against `crates/anvil-cli/ARCHITECTURE.md`, `mcp_client.rs::all_clients` / `probe_all`, and `agent_registry.rs`; design unchanged |
 
-| Upstream                                                                                                             | Downstream                                                                    |
-| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| ADR-033, ADR-113, DRVR-006/DRVR-007, `docs/architecture/mcp-shim-as-built.md`, `anvil-archive/anvil-mcp-server/src/` | RMCPF parity, MCP26 dual-era conformance, eventual official Rust SDK adoption |
+| Upstream                                                                                                                                                                                                             | Downstream                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| ADR-033, ADR-113, DRVR-006/DRVR-007, `crates/anvil-cli/ARCHITECTURE.md`, `crates/anvil-cli/src/activation/mcp_client.rs`, `crates/anvil-cli/src/activation/agent_registry.rs`, `anvil-archive/anvil-mcp-server/src/` | RMCPF parity, MCP26 dual-era conformance, eventual official Rust SDK adoption |
 
 This spec defines the architecture of the Rust MCP server in the `anvil` binary.
 The parity port is complete enough to expose the anvil-owned tool and resource
 catalogue, and MCP26 adds a typed dual-era stdio protocol boundary. The current
-runtime is documented in `docs/architecture/mcp-shim-as-built.md`.
+runtime is documented in `crates/anvil-cli/ARCHITECTURE.md`.
 
 ## Goals
 
