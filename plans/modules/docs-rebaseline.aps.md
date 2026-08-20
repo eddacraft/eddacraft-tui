@@ -289,7 +289,7 @@ component migration and is required by DOCRB-009.
 
 ### DOCRB-005: Migrate component truth and remove duplicate authorities
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Move maintainable component truth beside code and leave central
   documents as links or genuine cross-system authorities.
 - **Expected Outcome:** All inventory entries assigned `move`, `merge`, or
@@ -297,6 +297,11 @@ component migration and is required by DOCRB-009.
   owners/upstreams; central as-built material is reduced or reshaped without
   losing decision history; redirects and links preserve discovery; no concern
   retains two apparent authorities.
+- **Files:** `plans/execution/DOCRB-005.actions.md`, the fourteen central
+  move/merge as-builts and their bounded component destinations,
+  documentation authority/discovery records, generated documentation indexes,
+  `plans/reviews/2026-08-20-docrb-005-component-truth-migration.md`, and this
+  item record
 - **Scope:** Component `README.md`/`ARCHITECTURE.md`, `docs/architecture/**`,
   generated documentation indexes
 - **Non-scope:** Substantive public content refresh owned by DOCSYNC
