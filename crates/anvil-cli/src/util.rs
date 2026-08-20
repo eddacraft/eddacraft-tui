@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -253,6 +253,10 @@ pub fn format_user_error(err: &anyhow::Error, verbose: bool) -> String {
 /// Best-effort: any git failure (no repo, git absent, non-zero exit) yields an
 /// empty set, so anti-pattern scanning behaves exactly as before wherever the
 /// attribute is unused.
+///
+/// stdin and stdout are drained concurrently. Writing the whole path list
+/// before reading `check-attr` output deadlocks once the stdout pipe fills
+/// (a few hundred files).
 pub(crate) fn git_generated_paths(
     root: &Path,
     paths: &[String],
@@ -261,6 +265,9 @@ pub(crate) fn git_generated_paths(
 
     let mut generated = std::collections::HashSet::new();
     if paths.is_empty() {
+        return generated;
+    }
+    if !attributes_declare_linguist_generated(root) {
         return generated;
     }
 
@@ -276,24 +283,43 @@ pub(crate) fn git_generated_paths(
         return generated;
     };
 
-    if let Some(mut stdin) = child.stdin.take() {
-        let mut buf = Vec::new();
-        for path in paths {
-            buf.extend_from_slice(path.as_bytes());
-            buf.push(0);
-        }
-        // Ignore write errors — a broken pipe surfaces as a non-success exit,
-        // which we already treat as "no exclusions".
-        let _ = stdin.write_all(&buf);
-    }
-
-    let output = match child.wait_with_output() {
-        Ok(output) if output.status.success() => output,
-        _ => return generated,
+    let Some(mut stdin) = child.stdin.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return generated;
+    };
+    let Some(mut stdout) = child.stdout.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return generated;
     };
 
+    let mut buf = Vec::new();
+    for path in paths {
+        buf.extend_from_slice(path.as_bytes());
+        buf.push(0);
+    }
+    let writer = std::thread::spawn(move || {
+        let _ = stdin.write_all(&buf);
+        drop(stdin);
+    });
+
+    let mut stdout_buf = Vec::new();
+    let read_ok = stdout.read_to_end(&mut stdout_buf).is_ok();
+    let _ = writer.join();
+    let status = child.wait();
+    if !read_ok {
+        return generated;
+    }
+    let Ok(status) = status else {
+        return generated;
+    };
+    if !status.success() {
+        return generated;
+    }
+
     // `-z` output is NUL-separated triples: <path>\0<attr>\0<value>\0…
-    let mut fields = output.stdout.split(|&byte| byte == 0);
+    let mut fields = stdout_buf.split(|&byte| byte == 0);
     while let (Some(path), Some(_attr), Some(value)) = (fields.next(), fields.next(), fields.next())
     {
         let value = std::str::from_utf8(value).unwrap_or_default();
@@ -303,6 +329,60 @@ pub(crate) fn git_generated_paths(
     }
 
     generated
+}
+
+/// True when any attributes file in `root` mentions `linguist-generated`.
+/// Used to skip the `git check-attr` spawn on repos that never set the
+/// attribute (the common case).
+fn attributes_declare_linguist_generated(root: &Path) -> bool {
+    const NEEDLE: &[u8] = b"linguist-generated";
+    let contains_needle = |path: &Path| {
+        std::fs::read(path)
+            .is_ok_and(|bytes| bytes.windows(NEEDLE.len()).any(|window| window == NEEDLE))
+    };
+
+    if let Some(info) = git_dir_info_attributes(root)
+        && contains_needle(&info)
+    {
+        return true;
+    }
+
+    let walker = ignore::WalkBuilder::new(root)
+        .follow_links(false)
+        .standard_filters(true)
+        .hidden(false)
+        .build();
+    for entry in walker.filter_map(Result::ok) {
+        if entry.file_name() != ".gitattributes" {
+            continue;
+        }
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            continue;
+        }
+        if contains_needle(entry.path()) {
+            return true;
+        }
+    }
+    false
+}
+
+fn git_dir_info_attributes(root: &Path) -> Option<PathBuf> {
+    let git = root.join(".git");
+    if git.is_file() {
+        let text = std::fs::read_to_string(&git).ok()?;
+        let line = text.lines().find_map(|l| l.strip_prefix("gitdir:"))?;
+        let git_dir = PathBuf::from(line.trim());
+        let git_dir = if git_dir.is_relative() {
+            root.join(git_dir)
+        } else {
+            git_dir
+        };
+        Some(git_dir.join("info/attributes"))
+    } else if git.is_dir() {
+        Some(git.join("info/attributes"))
+    } else {
+        None
+    }
 }
 
 /// Write `data` to `path` atomically by writing to a uniquely-named temporary
@@ -1043,6 +1123,102 @@ mod tests {
     fn git_generated_paths_empty_for_empty_input() {
         let tmp = tempfile::TempDir::new().unwrap();
         assert!(git_generated_paths(tmp.path(), &[]).is_empty());
+    }
+
+    fn init_git_repo(root: &Path) -> bool {
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["init", "-q"])
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+
+    fn call_with_timeout(
+        root: &Path,
+        paths: Vec<String>,
+    ) -> Result<std::collections::HashSet<String>, String> {
+        let root = root.to_path_buf();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(git_generated_paths(&root, &paths));
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(20))
+            .map_err(|_| "git_generated_paths deadlocked on git check-attr pipes".to_string())
+    }
+
+    #[test]
+    fn git_generated_paths_does_not_deadlock_on_large_stdin() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        if !init_git_repo(root) {
+            return;
+        }
+        std::fs::write(
+            root.join(".gitattributes"),
+            "*.gen.ts linguist-generated=true\n",
+        )
+        .unwrap();
+
+        let mut paths: Vec<String> = (0..3_000).map(|i| format!("src/f{i}.ts")).collect();
+        paths.push("routeTree.gen.ts".to_string());
+
+        let generated = call_with_timeout(root, paths).expect("must not deadlock");
+        assert!(
+            generated.contains("routeTree.gen.ts"),
+            "the glob-marked generated file must still be excluded"
+        );
+        assert!(
+            !generated.contains("src/f0.ts"),
+            "unmarked files must not be excluded"
+        );
+    }
+
+    #[test]
+    fn git_generated_paths_skips_git_when_attribute_unused() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        if !init_git_repo(root) {
+            return;
+        }
+        std::fs::write(root.join(".gitattributes"), "*.ts text eol=lf\n").unwrap();
+
+        assert!(
+            !attributes_declare_linguist_generated(root),
+            "a gitattributes file without the attribute must not spawn check-attr"
+        );
+
+        let paths: Vec<String> = (0..3_000).map(|i| format!("src/f{i}.ts")).collect();
+        let generated = call_with_timeout(root, paths).expect("must not deadlock");
+        assert!(
+            generated.is_empty(),
+            "unused linguist-generated must exclude nothing"
+        );
+    }
+
+    #[test]
+    fn attributes_declare_linguist_generated_from_nested_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        if !init_git_repo(root) {
+            return;
+        }
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join(".gitattributes"), "*.ts text\n").unwrap();
+        std::fs::write(
+            root.join("src/.gitattributes"),
+            "stubs.ts linguist-generated=true\n",
+        )
+        .unwrap();
+
+        assert!(attributes_declare_linguist_generated(root));
+
+        let generated = git_generated_paths(
+            root,
+            &["src/stubs.ts".to_string(), "src/app.ts".to_string()],
+        );
+        assert!(generated.contains("src/stubs.ts"));
+        assert!(!generated.contains("src/app.ts"));
     }
 
     fn suppression(provenance: AllowlistProvenance) -> Suppression {

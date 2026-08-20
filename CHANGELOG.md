@@ -11,6 +11,13 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Fixed
+
+- **`anvil gate` and `anvil check` no longer hang while excluding generated
+  files.** Anti-pattern scanning still honours `.gitattributes`
+  `linguist-generated`. On a large repo it used to stall inside `git check-attr`
+  and ignore Ctrl+C. Repos that never set the attribute skip that lookup.
+
 ## [0.9.7-beta] — 2026-08-20 — First-session honesty
 
 First-session welcome, gate progress, learning path, and Audit Next Steps tell
