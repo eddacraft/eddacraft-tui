@@ -14,6 +14,11 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **MCP tools accept linked Git worktrees of the same repository.** Agent
+  sessions that start `anvil mcp serve` from the primary checkout can pass a
+  sibling Worktrunk or harness worktree as `workspaceRoot`. Other repositories
+  and unregistered directories are still refused.
+
 - **Unsigned `anvil welcome` no longer dead-ends on gated Policy or Architecture
   steps.** Those commands still need a signed-in session. When you are not
   signed in, the path names `anvil auth login` first and does not present the

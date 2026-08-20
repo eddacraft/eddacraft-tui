@@ -721,7 +721,7 @@ mod tests {
             serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(
             payload["error"],
-            "workspaceRoot must be inside the MCP server root"
+            crate::mcp::tools::shared::WORKSPACE_ROOT_NOT_ADMITTED
         );
     }
 

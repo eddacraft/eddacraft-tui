@@ -127,7 +127,7 @@ fn mcp_serve_stdio_tools_call_status_rejects_workspace_outside_server_root() {
     let payload = parse_tool_payload(&parsed);
     assert_eq!(
         payload["error"],
-        "workspaceRoot must be inside the MCP server root"
+        "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository"
     );
 }
 
@@ -1107,7 +1107,7 @@ fn mcp_serve_stdio_tools_call_check_rejects_workspace_outside_server_root() {
     let payload = parse_tool_payload(&parsed);
     assert_eq!(
         payload["error"],
-        "workspaceRoot must be inside the MCP server root"
+        "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository"
     );
 }
 
@@ -1520,7 +1520,7 @@ fn mcp_serve_stdio_tools_call_suppress_rejects_workspace_outside_server_root() {
     let payload = parse_tool_payload(&parsed);
     assert_eq!(
         payload["error"],
-        "workspaceRoot must be inside the MCP server root"
+        "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository"
     );
 
     // The mutating tool must not have touched the sibling file on disk.
@@ -1727,7 +1727,7 @@ fn mcp_serve_stdio_tools_call_fix_rejects_workspace_outside_server_root() {
     let payload = parse_tool_payload(&parsed);
     assert_eq!(
         payload["error"],
-        "workspaceRoot must be inside the MCP server root"
+        "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository"
     );
 
     // The mutating tool must not have touched the sibling file on disk.

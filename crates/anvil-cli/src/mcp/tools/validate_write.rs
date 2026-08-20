@@ -13,7 +13,9 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
-use crate::mcp::tools::shared::{WorkspacePathKind, normalise_workspace_relative_path};
+use crate::mcp::tools::shared::{
+    WorkspacePathKind, normalise_workspace_relative_path, workspace_root_is_admitted,
+};
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient,
     PRE_WRITE_MODE, PreWriteValidationRequest, ValidationBackend, ValidationBackendFailure,
@@ -47,7 +49,7 @@ pub fn descriptor() -> Value {
             "properties": {
                 "workspaceRoot": {
                     "type": "string",
-                    "description": "Absolute workspace root. Defaults to the server cwd when omitted."
+                    "description": "Absolute workspace root. Defaults to the server cwd when omitted. Linked git worktrees of the same repository are admitted."
                 },
                 "path": {
                     "type": "string",
@@ -529,7 +531,7 @@ fn problem_payload(
 fn untrusted_workspace_root_payload(expected: &Path, enforcement_mode: EnforcementMode) -> Value {
     let problem = ToolProblem::new(
         "untrusted-workspace-root",
-        "workspaceRoot must match the MCP server workspace.",
+        "workspaceRoot must match the MCP server workspace or a linked git worktree of the same repository.",
     );
     let mut payload = problem_payload(problem, None, enforcement_mode);
     payload["error"]["expectedWorkspaceRoot"] = json!(expected.to_string_lossy());
@@ -1076,13 +1078,13 @@ fn workspace_root(
                 .into());
             }
             let root = canonical_workspace_root(&root)?;
-            if root == default_workspace_root {
+            if workspace_root_is_admitted(&root, &default_workspace_root) {
                 Ok(root)
             } else {
                 // CIB-007: surface the shim's expected workspace root
                 // so the caller can self-correct on the next call.
-                // Trust boundary is unchanged — the mismatch still
-                // blocks the write.
+                // ADR-125 admits registered linked worktrees of the
+                // same repository; other roots still block.
                 Err(ParseError::UntrustedWorkspaceRoot {
                     expected: default_workspace_root,
                 })
@@ -3700,6 +3702,39 @@ mod tests {
             json!(expected.to_string_lossy()),
             "untrusted-workspace-root must carry expectedWorkspaceRoot",
         );
+    }
+
+    #[test]
+    fn registered_linked_worktree_is_an_admitted_workspace_root() {
+        let root = tempdir().expect("fixture root");
+        let main = root.path().join("main");
+        let common = main.join(".git");
+        fs::create_dir_all(common.join("refs")).expect("git refs");
+        fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+        fs::create_dir_all(&main).expect("main worktree");
+
+        let admin = common.join("worktrees").join("linked");
+        fs::create_dir_all(&admin).expect("worktree admin");
+        fs::write(admin.join("commondir"), b"../..\n").expect("commondir");
+        let linked = root.path().join("linked");
+        fs::create_dir_all(&linked).expect("linked worktree");
+        let git_file = linked.join(".git");
+        fs::write(&git_file, format!("gitdir: {}\n", admin.display())).expect(".git file");
+        fs::write(admin.join("gitdir"), format!("{}\n", git_file.display())).expect("gitdir");
+
+        let payload = call_payload(
+            &main,
+            &json!({
+                "detail": "full",
+                "workspaceRoot": linked.to_string_lossy(),
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "allow");
+        assert_ne!(payload["error"]["code"], "untrusted-workspace-root");
     }
 
     #[test]

@@ -19,9 +19,17 @@ use anvil_checks::antipattern::{Warning, WarningCategory, WarningSeverity};
 /// scanner runs.
 pub const MAX_FILE_ENTRIES: usize = 10_000;
 
-/// Validate that `workspace_root` resolves to a directory inside
+/// Caller-facing refusal when `workspaceRoot` is not the server cwd, a
+/// path inside it, or a registered linked worktree of the same repository
+/// (ADR-125).
+pub const WORKSPACE_ROOT_NOT_ADMITTED: &str = "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository";
+
+/// Validate that `workspace_root` is an admitted MCP workspace for
 /// `server_root`. Returns the canonicalised `(server_root, workspace_root)`
 /// pair on success.
+///
+/// Admitted roots are the server cwd, a directory inside it, or a
+/// registered Git worktree of the same repository (ADR-125).
 pub fn validate_workspace_root(
     workspace_root: &Path,
     server_root: &Path,
@@ -41,23 +49,86 @@ pub fn validate_workspace_root(
     let workspace_root = workspace_root
         .canonicalize()
         .map_err(|err| format!("workspaceRoot is not accessible: {err}"))?;
-    if !workspace_root.starts_with(&server_root) {
-        return Err("workspaceRoot must be inside the MCP server root".to_string());
+    if !workspace_root_is_admitted(&workspace_root, &server_root) {
+        return Err(WORKSPACE_ROOT_NOT_ADMITTED.to_string());
     }
     Ok((server_root, workspace_root))
 }
 
-/// Redact an absolute workspace path to a server-root-relative form.
-pub fn redact_workspace_root(workspace_root: &Path, server_root: &Path) -> String {
-    let relative = workspace_root
-        .strip_prefix(server_root)
-        .expect("workspace root containment must be validated before redaction");
-
-    if relative.as_os_str().is_empty() {
-        ".".to_string()
-    } else {
-        relative.to_string_lossy().replace('\\', "/")
+/// Whether a canonical `workspace_root` may be used as an MCP tool workspace
+/// for this server cwd (ADR-125).
+pub fn workspace_root_is_admitted(workspace_root: &Path, server_root: &Path) -> bool {
+    if workspace_root == server_root || workspace_root.starts_with(server_root) {
+        return true;
     }
+    registered_worktree_roots(server_root)
+        .iter()
+        .any(|root| workspace_root.starts_with(root))
+}
+
+/// Redact an absolute workspace path to a server-root-relative form.
+/// Linked worktrees that are not inside the server cwd redact to
+/// `worktree:<basename>` so the response stays identity-only (ADR-125).
+pub fn redact_workspace_root(workspace_root: &Path, server_root: &Path) -> String {
+    if let Ok(relative) = workspace_root.strip_prefix(server_root) {
+        if relative.as_os_str().is_empty() {
+            return ".".to_string();
+        }
+        return relative.to_string_lossy().replace('\\', "/");
+    }
+    match workspace_root.file_name() {
+        Some(name) => format!("worktree:{}", name.to_string_lossy()),
+        None => "worktree".to_string(),
+    }
+}
+
+/// Registered Git worktree roots of the repository that owns `server_root`,
+/// including the main worktree. Empty when `server_root` is not a Git
+/// checkout. Does not spawn `git`; reads the on-disk gitdir layout.
+fn registered_worktree_roots(server_root: &Path) -> Vec<PathBuf> {
+    let Ok(git_dir) = anvil_intercept::graph_base_trigger::resolve_git_dir(server_root) else {
+        return Vec::new();
+    };
+    let common = anvil_intercept::graph_base_trigger::resolve_common_dir(&git_dir);
+    let Ok(common) = common.canonicalize() else {
+        return Vec::new();
+    };
+
+    let mut roots = Vec::new();
+    if common.file_name().is_some_and(|name| name == ".git")
+        && let Some(parent) = common.parent()
+        && let Ok(main) = parent.canonicalize()
+    {
+        roots.push(main);
+    }
+
+    let Ok(entries) = std::fs::read_dir(common.join("worktrees")) else {
+        return roots;
+    };
+    for entry in entries.flatten() {
+        let admin = entry.path();
+        if !admin.is_dir() {
+            continue;
+        }
+        let Ok(raw) = std::fs::read_to_string(admin.join("gitdir")) else {
+            continue;
+        };
+        let pointed = Path::new(raw.trim());
+        let pointed = if pointed.is_absolute() {
+            pointed.to_path_buf()
+        } else {
+            admin.join(pointed)
+        };
+        let Some(root) = pointed.parent() else {
+            continue;
+        };
+        if let Ok(canon) = root.canonicalize()
+            && !roots.iter().any(|existing| existing == &canon)
+        {
+            roots.push(canon);
+        }
+    }
+    roots
 }
 
 /// Select whether the returned path is a policy key or a filesystem spelling.
@@ -760,5 +831,106 @@ mod tests {
             assert_eq!(resolved.len(), 1);
             assert!(resolved[0].ends_with("real.ts"));
         }
+    }
+
+    fn linked_worktree_layout(root: &Path) -> (PathBuf, PathBuf) {
+        let main = root.join("main");
+        let common = main.join(".git");
+        std::fs::create_dir_all(common.join("refs")).expect("git refs dir");
+        std::fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+        std::fs::create_dir_all(&main).expect("main worktree");
+
+        let admin = common.join("worktrees").join("linked");
+        std::fs::create_dir_all(&admin).expect("worktree admin dir");
+        std::fs::write(admin.join("HEAD"), b"ref: refs/heads/feature\n").expect("linked HEAD");
+        std::fs::write(admin.join("commondir"), b"../..\n").expect("commondir");
+
+        let linked = root.join("linked");
+        std::fs::create_dir_all(&linked).expect("linked worktree");
+        let git_file = linked.join(".git");
+        std::fs::write(&git_file, format!("gitdir: {}\n", admin.display())).expect(".git file");
+        std::fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
+            .expect("gitdir back-pointer");
+
+        let main = main.canonicalize().expect("main canonicalises");
+        let linked = linked.canonicalize().expect("linked canonicalises");
+        (main, linked)
+    }
+
+    #[test]
+    fn admits_registered_linked_worktree_of_the_same_repository() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, linked) = linked_worktree_layout(root.path());
+
+        let (server, workspace) =
+            validate_workspace_root(&linked, &main).expect("linked worktree is admitted");
+        assert_eq!(server, main);
+        assert_eq!(workspace, linked);
+        assert_eq!(redact_workspace_root(&linked, &main), "worktree:linked");
+    }
+
+    #[test]
+    fn admits_main_checkout_when_server_is_a_linked_worktree() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, linked) = linked_worktree_layout(root.path());
+
+        validate_workspace_root(&main, &linked)
+            .expect("main checkout is admitted from a linked-worktree server");
+    }
+
+    #[test]
+    fn admits_directory_inside_a_registered_linked_worktree() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, linked) = linked_worktree_layout(root.path());
+        let nested = linked.join("src");
+        std::fs::create_dir_all(&nested).expect("nested dir");
+
+        validate_workspace_root(&nested, &main).expect("nested path inside linked worktree");
+    }
+
+    #[test]
+    fn refuses_unrelated_sibling_directory() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, _linked) = linked_worktree_layout(root.path());
+        let other = tempfile::tempdir().expect("other repo");
+
+        let err = validate_workspace_root(other.path(), &main).expect_err("foreign root refused");
+        assert_eq!(err, WORKSPACE_ROOT_NOT_ADMITTED);
+    }
+
+    #[test]
+    fn refuses_forged_gitdir_pointer_that_is_not_registered() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, _linked) = linked_worktree_layout(root.path());
+        let fake = root.path().join("forged");
+        std::fs::create_dir_all(&fake).expect("forged dir");
+        std::fs::write(
+            fake.join(".git"),
+            format!("gitdir: {}\n", main.join(".git").display()),
+        )
+        .expect("forged gitdir pointer");
+
+        let err = validate_workspace_root(&fake, &main).expect_err("forged pointer refused");
+        assert_eq!(err, WORKSPACE_ROOT_NOT_ADMITTED);
+    }
+
+    #[test]
+    fn still_admits_nested_directory_inside_the_server_root() {
+        let cwd = std::env::current_dir().expect("test cwd");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+        let nested = workspace.path().join("pkg");
+        std::fs::create_dir_all(&nested).expect("nested");
+
+        validate_workspace_root(&nested, workspace.path()).expect("nested under server root");
+        assert_eq!(
+            redact_workspace_root(
+                &nested.canonicalize().expect("nested canonicalises"),
+                &workspace
+                    .path()
+                    .canonicalize()
+                    .expect("workspace canonicalises"),
+            ),
+            "pkg"
+        );
     }
 }
