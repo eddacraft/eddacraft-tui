@@ -15,8 +15,8 @@ represented consistently, feature flags do not reference catalogue features,
 and the count-floor test cannot detect omissions. ADR-076 is now
 operator-accepted with a four-noun contract (product feature, product feature
 group, delivery surface, feature flag). FLAGCAT-010 is In Progress;
-FLAGCAT-011..015 sequence current
-back-capture, drift gates, flag linkage, generated views, and tier mapping.
+FLAGCAT-011..015 now sequence the current-product back-capture, drift gates,
+flag linkage, generated views, and tier mapping.
 
 **Earlier — 2026-06-01** — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including

@@ -8,9 +8,9 @@ and four-noun product model below after FLAGCAT-009 proved the CLI seed. The
 declared data with static checks only; each host owns enforcement derived from
 catalogue-declared posture; system-invoked and recovery-critical surfaces are
 categorical exceptions only to catalogue-derived availability refusal, never
-to host-owned authentication, authorisation, credential, integrity, or
-issuance checks. Acceptance does not claim that the inventory or runtime
-projection is complete: FLAGCAT-011..014 back-capture the
+to host-owned authentication, authorisation, credential validation, input
+integrity, or issuance checks. Acceptance does not claim that the inventory or
+runtime projection is complete: FLAGCAT-011..014 back-capture the
 current product, add host completeness gates, link operational flags, and
 generate human-readable views. Extends — does not supersede —
 [ADR-048](048-feature-group-architectural-model.md).
