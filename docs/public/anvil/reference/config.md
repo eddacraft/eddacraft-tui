@@ -15,14 +15,12 @@ verified_against: 0.9.6-beta
 
 # Configuration fields
 
-There is no published typed schema for project configuration. anvil parses the
-file as an open document. This catalogue is the union of keys the init writer
-emits, keys the gate and rule-mode readers recognise, keys migrate and discover
-honour, keys tests assert, and the checked-in fixture of the file `anvil init`
-writes.
+anvil does not publish a typed schema for `.anvil.yaml`. This page lists the
+keys `anvil init` writes and the keys commands actually read. Unknown keys are
+ignored.
 
-`anvil config show --json` is **not** a key census. It returns a file **label**,
-the four rule modes, and an optional deprecation note. See
+`anvil config show --json` is **not** a dump of those keys. It returns a file
+**label**, the four rule modes, and an optional deprecation note. See
 [Inspection contract](#inspection-contract).
 
 For inspect, convert, and migrate steps, use

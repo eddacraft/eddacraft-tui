@@ -31,7 +31,7 @@ an existing file. Remove the directory at the end.
 - Run `anvil auth whoami` and confirm that it shows the identity you intend to
   use. The `anvil check` command in this tutorial requires authentication.
 - Run from the root of a project.
-- Confirm `anvil --version` works.
+- Confirm `anvil version` works.
 
 ## 1. Create a deliberate finding
 
@@ -117,8 +117,8 @@ retrying cleanup.
 
 ## What you proved
 
-You observed the complete loop: create a change, receive a deterministic
-finding, make a safe correction, and verify the result.
+You observed the complete loop: create a change, receive a finding, make a safe
+correction, and verify the result.
 
 ## Next step
 

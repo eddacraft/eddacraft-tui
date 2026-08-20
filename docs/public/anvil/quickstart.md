@@ -151,9 +151,10 @@ After one successful `anvil start`, the daily command is:
 anvil
 ```
 
-That ensures the local daemon and **already configured** MCP entries. It does
-not open a setup picker and does not reinstall clients you skipped. Never
-activated? Recovery names `anvil start` or `anvil welcome`.
+That turns on the local daemon and **already configured** MCP entries. It does
+not open a setup picker and does not reinstall clients you skipped. If this
+project was never activated, the command tells you to run `anvil start` or
+`anvil welcome`.
 
 Machine-readable:
 
@@ -178,7 +179,7 @@ With approved access and a confirmed identity, prove detection end-to-end:
 
 → [Ten-minute protection tutorial](first-gate.md)
 
-Invited beta tester recording evidence:
+Invited to the beta and recording evidence:
 
 → [Beta test brief](beta-testing-guide.md)
 

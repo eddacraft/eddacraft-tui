@@ -30,7 +30,7 @@ anvil evaluates **checks**. A **gate** is the workflow judgement over those
 checks. A **scan** is how evidence is gathered for a check, not a third kind of
 result.
 
-## The four nouns testers mix up
+## Check, finding, gate, and scan
 
 ### Check
 
@@ -52,8 +52,8 @@ advance or merge? `anvil gate` is the only surface that answers that question.
 
 ### Scan
 
-These sentences are the public model for check, scan, and gate. Read them as
-written.
+These ten sentences are the model for check, scan, and gate. **Planless** means
+`anvil check` does not need a plan file or a full project setup.
 
 1. A **check** is the smallest thing anvil evaluates: one concern, one name you
    can put in `checks:` or `--only-checks`.
@@ -163,9 +163,8 @@ commands do not follow that gitignore rule.
 
 ## Honesty rules and known gaps
 
-- Implementation is still converging. Some checks exist in analysis before they
-  are fully wired into a gate. This page does not invent extra names for those
-  checks.
+- This page names only the public checks. If a check is not listed here, do not
+  treat it as a public engine.
 - Surface checks are shipped with flag status: they are default-on in gate
   today, not list-editable via `checks:`.
 

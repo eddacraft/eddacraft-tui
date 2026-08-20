@@ -2,8 +2,8 @@
 id: policy-model
 title: Policy packs
 description:
-  How policy packs are discovered, installed, validated, tested, gated, and
-  excepted. Policy is a gate check, not part of anvil check.
+  How policy packs are discovered, installed, validated, tested, and enforced.
+  Policy is a gate check, not part of anvil check.
 owner: DOCDEF
 upstream:
   - crates/anvil-cli/src/commands/policy/mod.rs

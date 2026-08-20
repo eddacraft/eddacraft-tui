@@ -18,11 +18,11 @@ verified_against: 0.9.1-beta
 **Outcome:** decide whether anvil belongs in your workflow and know the next
 step
 
-anvil is a local-first code-governance tool. It checks new code changes for
-unsafe shortcuts, secrets, architecture drift, and policy violations while the
-change is still easy to fix.
+anvil checks new code for secrets, unsafe shortcuts, architecture drift, and
+policy violations while the change is still easy to fix. It runs on your machine
+— before a supported AI tool writes, when you save, and when you ask.
 
-You do not need to know anvil terminology before starting.
+You do not need anvil terminology before you start.
 
 ## The problem it solves
 
@@ -30,7 +30,7 @@ Fast code generation increases review volume. Tests can prove that code runs
 without proving that it still respects your architecture, avoids broad
 suppressions, or follows your team's policies.
 
-anvil adds deterministic checks at the points where code changes:
+anvil adds checks at the points where code changes:
 
 1. **Before an AI tool writes**, when a supported client is connected.
 2. **When a file is saved**, through the local watcher.
@@ -75,7 +75,7 @@ timing, retention, and off controls.
 **Run it.** Start with [install and get first value](quickstart.md) or the
 [ten-minute protection tutorial](first-gate.md).
 
-**Look it up.** Start with
+**Look something up.** Start with
 [how anvil evaluates a project](concepts/evaluation-model.md) and the short
 [what anvil can do](reference/what-anvil-can-do.md) index. Then use the
 [CLI reference](reference/cli.md),
@@ -94,4 +94,4 @@ timing, retention, and off controls.
   [compiled pattern catalogue](reference/rules.md).
 - Already installed: [run the ten-minute protection tutorial](first-gate.md).
 - Already activated: run bare `anvil` for the daily ensure path.
-- Invited tester: [beta test brief](beta-testing-guide.md).
+- Invited to the beta: [beta test brief](beta-testing-guide.md).

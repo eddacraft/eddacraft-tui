@@ -19,7 +19,7 @@ and when anvil runs — is [How anvil evaluates a project](evaluation-model.md).
 
 ## Checks
 
-Use `anvil check` for a quick, file-focused scan:
+Use `anvil check` for a quick, file-focused run:
 
 ```text
 anvil check src/example.ts --format plain

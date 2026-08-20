@@ -19,7 +19,7 @@ guide introduces an unfamiliar word.
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Baseline**             | Findings accepted when anvil was introduced. Not a check and not the `anvil-baseline` pack.                                                    |
 | **Boundary**             | A declared structural dependency constraint. Prefer this word over "architecture" in ordinary use.                                             |
-| **Check**                | One deterministic analysis, such as secret detection or architecture validation.                                                               |
+| **Check**                | One concern anvil evaluates, such as secret detection or an import boundary.                                                                   |
 | **Finding**              | A check result that names what was detected, where, and why it matters.                                                                        |
 | **Gate**                 | A workflow decision made from one or more checks.                                                                                              |
 | **Protection state**     | The final status reported by activation: protecting, restart required, watching, needs action, unsupported, or error.                          |
@@ -28,11 +28,12 @@ guide introduces an unfamiliar word.
 | **Save-time validation** | A local watcher validates a file after it is saved. It is a fallback, not the same guarantee as pre-write validation.                          |
 | **Daemon**               | A per-user background process that serves local validation requests.                                                                           |
 | **MCP**                  | Model Context Protocol, a standard connection used by supported AI clients to call local tools.                                                |
+| **Planless**             | `anvil check` runs on the files you name and does not need a plan file, profile, or full project setup.                                        |
 | **Policy**               | A project rule evaluated by a gate.                                                                                                            |
 | **Suppression**          | A narrow, explained exception to a finding. Fixing the cause is preferred.                                                                     |
 | **SARIF**                | A standard JSON format used by code-analysis tools and CI systems.                                                                             |
 | **Witness**              | Local evidence that a protected workflow ran for a change.                                                                                     |
-| **Review capsule**       | A portable bundle of governance evidence for a commit range.                                                                                   |
+| **Review capsule**       | A portable bundle of review evidence for a commit range.                                                                                       |
 | **TUI**                  | Terminal user interface: an interactive screen drawn inside a terminal.                                                                        |
 | **Audit**                | A broader exploratory report over findings (`anvil audit`). It is not a merge decision and not a substitute for `anvil check` or `anvil gate`. |
 | **Config**               | The project file `.anvil.yaml` (also `.yml` / `.json` / `.toml`). Legacy `.anvilrc` is a read-only fallback.                                   |
