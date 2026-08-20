@@ -50,9 +50,7 @@ sequenceDiagram
         Note over Editor,Checks: Post-save lane - validate the saved paths
         Editor->>Editor: persist file save
         Driver->>Driver: evaluate routing eligibility
-        alt disabled, no-daemon, non-check action, unsupported platform, or default-on daemon not live
-            Driver->>Checks: selected subprocess action
-        else eligible because daemon is live or routing is forced
+        alt check action, non-empty changed paths, and routing eligible or forced
             Driver->>Daemon: validate_paths(workspace, changed paths)
             alt daemon verdict
                 Daemon->>Guard: admit workspace and read guarded paths
@@ -71,6 +69,10 @@ sequenceDiagram
                 Driver->>Daemon: request full scan on reconnect
                 Driver->>Driver: clear warning latch
             end
+        else empty initial or delete check cycle
+            Driver->>Checks: selected subprocess check --all
+        else routing ineligible or selected action is not check
+            Driver->>Checks: selected subprocess action
         end
     end
 
@@ -98,13 +100,15 @@ the verdict response when `SaveTimeObservationEmitter` is wired. Emission
 failure is swallowed and cannot change the verdict. This independent post-save
 observation does not collapse the post-save lane into the caller-buffer lane.
 
-Routing is eligible only for a `check` watch when daemon routing is not
-disabled, `--no-daemon` is absent, the platform has a transport, and either a
-live daemon answers the default-on probe or routing is forced. Disabled,
-not-live, unsupported, and non-check cases bypass the client and run the
-selected subprocess action. For `check`, changed paths form the scoped action
-and empty delete- or initial-driven cycles retain the existing `--all` safety
-net. `gate` instead self-scopes through Git status and receives no changed-path
+The daemon branch requires a `check` action, non-empty changed paths, and
+eligible or forced routing. Routing is eligible when it is not disabled,
+`--no-daemon` is absent, the platform has a transport, and a live daemon answers
+the default-on probe; forced routing bypasses that live-probe requirement. An
+empty initial- or delete-driven `check` cycle goes directly to the selected
+subprocess `check --all` action and never calls `validate_paths`. Disabled,
+not-live, unsupported, and non-check cases also bypass the client and run the
+selected subprocess action. A scoped `check` uses its non-empty changed paths,
+while `gate` self-scopes through Git status and receives no changed-path
 arguments.
 
 Once routed, daemon absence, refusal, JSON-RPC error, disconnect, or timeout
@@ -136,9 +140,10 @@ assurance does not fence a worktree.
   `crates/anvil-intercept/src/save_time.rs` and
   `crates/anvil-intercept/src/lib.rs`, to the producer injection in
   `crates/anvil-cli/src/commands/intercept.rs`.
-- Routing eligibility, empty-cycle `--all`, scoped daemon fallback,
-  `unavailable{daemon-absent}`, warn-once, and reconnect/full-scan behaviour
-  trace to `crates/anvil-cli/src/commands/watch.rs` and
+- The non-empty-path daemon condition, routing eligibility, direct empty-cycle
+  `check --all` path, scoped daemon fallback, `unavailable{daemon-absent}`,
+  warn-once, and reconnect/full-scan behaviour trace to
+  `crates/anvil-cli/src/commands/watch.rs` and
   `crates/anvil-cli/src/commands/watch_save_time.rs`; supervision opt-out and
   live/not-live state trace to `save_time_driver.rs`.
 - Workspace admission, guarded reads, path validation, diagnostics, coverage,

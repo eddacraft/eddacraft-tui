@@ -56,7 +56,7 @@ a completion, release, or deployment claim.
 | System context: developer/editor/CI → local anvil; local auth → hosted API; reader → docs shell → hosted API | `crates/anvil-cli/README.md`, `crates/anvil-intercept/ARCHITECTURE.md`, `apps/anvil-api/ARCHITECTURE.md`, `apps/docs-shell/ARCHITECTURE.md`, `infra/src/vercel.ts` | Pass; actors and cross-system calls only |
 | Container/component: CLI/MCP/daemon/kernel/check/TUI/dashboard relationships and hosted API/data/docs containers | `Cargo.toml`, local component architecture documents under `crates/anvil-kernel`, `crates/anvil-intercept`, `crates/anvil-dashboard-server`, `apps/dashboard`, `apps/anvil-api`, and `apps/docs-shell`, plus `infra/src/vercel.ts` | Pass; internal request flows stay local |
 | Trust/deployment: native Rust Unix path + connected daemon UID; TypeScript Unix path-only validation and rebound TOCTOU; native Windows server SID; TypeScript SID-derived name and #2484; cross-platform registration lineage separated from Linux-only ancestry/tag/spoof fencing; public and protected API ingress | Native registration/GCTX clients, `crates/anvil-intercept/src/ipc.rs` and `lib.rs`, `crates/anvil-intercept-win32/src/lib.rs`, `packages/anvil-driver-client/src/transport/{unix,windows}.ts`, driver protocol types, API index/routes, and APGOV/BAUTH/docs-shell authorities | Pass; no universal session binding or blanket credentials-before-persistence claim; explicitly records no server-side Unix caller-UID comparison |
-| Save-to-validation: MidEdit and PreWrite caller-buffer modes; MidEdit-only MidEdit observation; independent best-effort post-save `gate_evaluated` observation; routing eligibility; separate post-save `validate_paths`; selected subprocess action with scoped/all `check` versus self-scoped `gate`; scoped failures, unavailable assurance, warn/reconnect; live versus unwired fences | `crates/anvil-cli/src/mcp/validation.rs`, `commands/intercept.rs`, `watch.rs`, `watch_save_time.rs`, `save_time_driver.rs`, `crates/anvil-intercept/src/midedit.rs`, `ipc.rs`, `save_time.rs`, `lib.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, and `fence.rs` | Pass; MidEdit alone enters its observation path, PreWrite does not, and wired `validate_paths` independently observes the save-time verdict after validation and before response; caller-buffer and post-save lanes stay separate; spoof fence is live; unsafe-interrupt and unregistered/watcher fence paths are labelled defined-but-unwired |
+| Save-to-validation: MidEdit and PreWrite caller-buffer modes; MidEdit-only MidEdit observation; independent best-effort post-save `gate_evaluated` observation; routing eligibility; separate post-save `validate_paths`; selected subprocess action with scoped/all `check` versus self-scoped `gate`; scoped failures, unavailable assurance, warn/reconnect; live versus unwired fences | `crates/anvil-cli/src/mcp/validation.rs`, `commands/intercept.rs`, `watch.rs`, `watch_save_time.rs`, `save_time_driver.rs`, `crates/anvil-intercept/src/midedit.rs`, `ipc.rs`, `save_time.rs`, `lib.rs`, `validate_paths.rs`, `interrupt.rs`, `unregistered.rs`, and `fence.rs` | Pass; the daemon branch requires a `check`, non-empty changed paths, and eligible or forced routing, while an empty initial/delete cycle goes directly to selected subprocess `check --all`; MidEdit alone enters its observation path, PreWrite does not, and wired `validate_paths` independently observes the save-time verdict after validation and before response; spoof fence is live; unwired fences remain labelled |
 | Documentation delivery: governed sources → private/public builds → deployed renderers; docs shell routing → protected matched upstreams; rollback-only legacy project | Docusaurus configurations, `apps/docs-shell/proxy.ts`, `apps/docs-shell/lib/jwt.ts`, both renderer middleware matchers, `infra/src/vercel.ts`, `infra/src/components/vercel-app.ts`, app `vercel.json` files, and `tools/scripts/vercel-ignore-build.sh` | Pass; `/anvil` entitlement, public routing, renderer `/favicon.ico` exclusion, protected upstream secret, rollback-only `apps/docs-site`, and the DOCRB/DSITE gap remain visible |
 
 The supporting Mermaid blocks in the quality, BAUTH, and EDDA documents were
@@ -73,27 +73,28 @@ temporary `puppeteer.json`, containing only `--no-sandbox` and
 `--disable-setuid-sandbox`. No renderer dependency, configuration, output,
 script, or generated asset entered the repository.
 
-After the final save-flow repair and formatting, that exact changed block was
-extracted again and rendered with the same pinned CLI and sandbox arguments
-under `/tmp/docrb006-final.8VYMve`. The other seven blocks were unchanged.
+After the narrow final routing repair and formatting, that exact changed block
+was extracted again and rendered with the same pinned CLI and sandbox arguments
+under `/tmp/docrb006-routing-final.NhDvRh`. The other seven blocks were
+unchanged.
 
 | Mermaid owner/block | Final SVG bytes |
 | ------------------- | --------------: |
 | `docs/architecture/overview.md` — system context | 20,159 |
 | `docs/architecture/overview.md` — container/component | 32,103 |
 | `docs/architecture/trust-and-deployment-boundaries.md` | 38,542 |
-| `docs/architecture/save-to-validation.md` | 45,691 |
+| `docs/architecture/save-to-validation.md` | 46,340 |
 | `docs/architecture/docs-delivery.md` | 29,092 |
 | `docs/architecture/quality-model.md` | 17,620 |
 | `docs/architecture/auth-as-built.md` | 17,189 |
 | `docs/architecture/edda-stack.md` | 12,548 |
 
-Every final output was non-empty. The repair render exposed sequence-label
-`--all` and semicolon tokenisation; the label was made render-safe while the
-adjacent prose retained the exact `--all` contract, and the repaired exact
-block rendered successfully. The changed save block's byte size is from its
-final repair render; the other seven recorded sizes remain from their unchanged
-post-format blocks, including both overview outputs.
+Every final output was non-empty. An earlier repair exposed sequence-label
+tokenisation; the narrow final block rendered successfully with the literal
+`check --all` edge, so the diagram and adjacent prose now carry the exact
+contract. The changed save block's byte size is from its final routing render;
+the other seven recorded sizes remain from their unchanged post-format blocks,
+including both overview outputs.
 
 ## Links, duplication, and retirement evidence
 
@@ -155,6 +156,11 @@ The final repair RED/GREEN assertions proved the corrected BAUTH owner, the
 independent wired `validate_paths` observation between validation and response,
 and the selected subprocess action distinction between scoped/all `check` and
 self-scoped `gate` were absent before the repair and present afterwards.
+
+The narrow final Council repair assertion proved that the diagram did not
+previously make non-empty changed paths part of the daemon-branch condition;
+GREEN proves that condition and the direct empty initial/delete
+`check --all` subprocess path.
 
 Supporting-authority and retirement assertions then proved the old overview
 duplicates and two live Draw.io files were gone while their owning documents
