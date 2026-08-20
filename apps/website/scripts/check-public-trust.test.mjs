@@ -84,7 +84,7 @@ describe('public trust contract', () => {
     );
   });
 
-  it.each(['Z', '_TBD', '-TBD', ':TBD'])(
+  it.each(['Z', '_TBD', '-TBD', ':TBD', '.TBD', ',TBD', ';TBD', ')TBD', ']TBD'])(
     'rejects an invalid adjacent fingerprint suffix: %s',
     (suffix) => {
       const fingerprint = Array.from({ length: 10 }, (_, index) =>
@@ -97,6 +97,22 @@ describe('public trust contract', () => {
           true
         )
       ).toContain('placeholder PGP fingerprint is published');
+    }
+  );
+
+  it.each(['. ', ', ', '; ', ') ', '] ', '! ', '? ', '— ', ']; '])(
+    'accepts a fingerprint followed by terminal punctuation: %s',
+    (boundary) => {
+      const fingerprint = Array.from({ length: 10 }, (_, index) =>
+        (0xa000 + index).toString(16).toUpperCase()
+      ).join('');
+
+      expect(
+        findPublicTrustFailures(
+          securityPage(`<p>PGP fingerprint</p><code>${fingerprint}${boundary}Read more.</code>`),
+          true
+        )
+      ).toEqual([]);
     }
   );
 
