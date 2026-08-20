@@ -1,8 +1,8 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 at `d9b30b23d` against `crates/anvil-cli/**`, `crates/anvil-intercept/**`, `apps/anvil-api/**`, `apps/docs-shell/**`, and `infra/src/vercel.ts` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                  |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-21 at `d9b30b23d` against `Cargo.toml` (`0.9.7-beta` prepare bump; no architecture change), `crates/anvil-cli/**`, `crates/anvil-intercept/**`, `apps/anvil-api/**`, `apps/docs-shell/**`, and `infra/src/vercel.ts` |
 
 | Upstream                                                                                                                                                                                      | Downstream                                                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |

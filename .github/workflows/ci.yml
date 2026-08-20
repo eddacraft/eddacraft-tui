@@ -298,6 +298,11 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Live pin check in test:docs-check needs published tags so a
+          # prepare-window changelog heading (untagged) is not treated as the
+          # command-probe pin target.
+          fetch-tags: true
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
