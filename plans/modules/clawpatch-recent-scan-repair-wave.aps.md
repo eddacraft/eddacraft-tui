@@ -3,14 +3,14 @@
 
 # Clawpatch Recent Scan Repair Wave
 
-| ID       | Owner | Priority | Status      | Progress |
-| -------- | ----- | -------- | ----------- | -------- |
-| CLAWSCAN | —     | P2       | In Progress | 0/6      |
+| ID       | Owner | Priority | Status | Progress |
+| -------- | ----- | -------- | ------ | -------- |
+| CLAWSCAN | —     | P2       | Merged | 6/6      |
 
-**Last reviewed:** 2026-08-20 — validated against Clawpatch run
-`20260819T164749-cb786b` and current `origin/main`.
+**Last reviewed:** 2026-08-20 — PR #4049 merged into `main` at `9cf5d49a8`
+after all required checks passed.
 
-**Pull request:** [#4049](https://github.com/eddacraft/anvil-001/pull/4049) — open against `main`; pending integration.
+**Pull request:** [#4049](https://github.com/eddacraft/anvil-001/pull/4049) — merged into `main` on 2026-08-20.
 
 ## Purpose
 
@@ -37,7 +37,7 @@ shared continuous-improvement backlog.
 
 ### CLAWSCAN-001: Bound early-access verification
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4049
 - **Intent:** A stalled verification upstream cannot hold a website request open indefinitely.
 - **Expected Outcome:** the verification fetch has an eight-second timeout and timeout or network failure returns the existing 503 contract.
 - **Files:** `apps/website/app/api/early-access/install/route.ts`,
@@ -49,7 +49,7 @@ shared continuous-improvement backlog.
 
 ### CLAWSCAN-002: Keep security reporting guidance usable
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4049
 - **Intent:** Public security guidance does not advertise unverifiable encryption material.
 - **Expected Outcome:** the security page keeps the working reporting channel and does not publish placeholder PGP instructions or a missing key URL.
 - **Files:** `apps/website/app/security/page.tsx`,
@@ -63,7 +63,7 @@ shared continuous-improvement backlog.
 
 ### CLAWSCAN-003: Bind positioning claims to composed sections
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4049
 - **Intent:** Positioning checks prove required claims occur in the intended rendered sections.
 - **Expected Outcome:** each required claim is checked in its owning composed component, while retired claims remain absent from the scanned website surface.
 - **Files:** `apps/website/scripts/check-positioning.mjs`,
@@ -74,7 +74,7 @@ shared continuous-improvement backlog.
 
 ### CLAWSCAN-004: Bound MCP shutdown-response reads
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4049
 - **Intent:** A broken MCP server cannot hang the shutdown integration test.
 - **Expected Outcome:** initialise and shutdown responses use the suite's bounded stdout receiver before the bounded child-exit wait.
 - **Files:** `crates/anvil-cli/tests/mcp_serve_stdio.rs`
@@ -84,7 +84,7 @@ shared continuous-improvement backlog.
 
 ### CLAWSCAN-005: Fail config-mode tests when Git is absent
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4049
 - **Intent:** A missing Git executable is a failed suite precondition rather than a passing skip.
 - **Expected Outcome:** old supported test hosts may skip config-mode integration paths, but missing or unparsable Git fails loudly and is regression-tested.
 - **Files:** `crates/anvil-cli/tests/hooks_config_mode.rs`
@@ -94,7 +94,7 @@ shared continuous-improvement backlog.
 
 ### CLAWSCAN-006: Verify explicit MCP pin persistence
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4049
 - **Intent:** The CLI round trip proves the requested pin version is durably stored.
 - **Expected Outcome:** the integration test checks the exact persisted version before unpinning.
 - **Files:** `crates/anvil-cli/tests/mcp_heal.rs`
