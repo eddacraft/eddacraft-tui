@@ -43,10 +43,10 @@ This page is the model. The happy path is the
 | Step           | Command                           | Meaning                                                    |
 | -------------- | --------------------------------- | ---------------------------------------------------------- |
 | Discover packs | `anvil policy install --list`     | What can be installed. Not `anvil policy list`.            |
-| Inspect a pack | `anvil policy show`               | What a pack contains, without writing files.               |
-| Install        | `anvil policy install`            | Writes under `.anvil/policies/`.                           |
-| Validate       | `anvil policy validate`           | Manifest and pack well-formedness.                         |
-| Test           | `anvil policy test`               | Pack tests.                                                |
+| Inspect a pack | `anvil policy show <pack>`        | What a pack contains, without writing files.               |
+| Install        | `anvil policy install <pack>`     | Writes under `.anvil/policies/`.                           |
+| Validate       | `anvil policy validate <path>`    | Manifest and pack well-formedness.                         |
+| Test           | `anvil policy test [path]`        | Pack tests. Path is optional.                              |
 | Enforce        | `anvil gate --only-checks policy` | Policy is a **gate** check. `anvil check` will not run it. |
 | Exceptions     | `anvil exception`                 | Recorded exceptions to a policy finding.                   |
 

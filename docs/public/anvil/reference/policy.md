@@ -27,20 +27,20 @@ Policy is a **gate** check (`policy`). `anvil check` will not run it.
 | `anvil policy show <pack>`        | Preview a bundled pack without writing files.       |
 | `anvil policy install <pack>`     | Install a bundled pack under `.anvil/policies/`.    |
 | `anvil policy validate <path>`    | Check manifest, metadata, structure, and tests.     |
-| `anvil policy test <path>`        | Run the pack's included tests.                      |
+| `anvil policy test [path]`        | Run the pack's included tests. Path is optional.    |
 | `anvil gate --only-checks policy` | Enforce installed packs as the `policy` gate check. |
 
 The shipped starter pack is `anvil-baseline`.
 
 ## Exceptions
 
-| Command                                        | Purpose                                      |
-| ---------------------------------------------- | -------------------------------------------- |
-| `anvil exception grant --policy <id> --reason` | Record a scoped, attributed exception.       |
-| `anvil exception list`                         | List tracked exceptions and their verdicts.  |
-| `anvil exception show <id>`                    | Show one exception in full.                  |
-| `anvil exception revoke <id> --reason`         | Revoke a grant and keep the audit trail.     |
-| `anvil exception verify`                       | Verify scope, expiry, revocation, and owner. |
+| Command                                               | Purpose                                      |
+| ----------------------------------------------------- | -------------------------------------------- |
+| `anvil exception grant --policy <id> --reason <text>` | Record a scoped, attributed exception.       |
+| `anvil exception list`                                | List tracked exceptions and their verdicts.  |
+| `anvil exception show <id>`                           | Show one exception in full.                  |
+| `anvil exception revoke <id> --reason <text>`         | Revoke a grant and keep the audit trail.     |
+| `anvil exception verify`                              | Verify scope, expiry, revocation, and owner. |
 
 ## Evaluation surfaces
 
