@@ -5,7 +5,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 5/11 |
+| DOCRB | — | high | Ready | 6/11 |
 
 **Last reviewed:** 2026-08-20 against the repository component/documentation
 inventory at `0a0f00c20`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
@@ -107,9 +107,10 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Migration and public pipeline | DOCRB-005..008 | Duplicate authorities are retired, cross-system views rebuilt, and public source/export parity works |
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
-DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, and DOCRB-011 are Merged.
-DOCRB-006 is Ready after its DOCRB-001/-002 dependencies were verified. Other
-items stay Draft until their dependencies and expected evidence are present.
+DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-006, and DOCRB-011 are
+Merged. DOCRB-007's DOCRB-001/-002 dependencies are satisfied, but it remains
+Draft until its expected evidence is present. Other items stay Draft until
+their dependencies and expected evidence are present.
 
 ## Success Criteria
 
@@ -304,8 +305,8 @@ items stay Draft until their dependencies and expected evidence are present.
 
 ### DOCRB-006: Rebuild central cross-system and operational diagrams
 
-- **Status:** In Progress 2026-08-20 — operator-authorised whole-module
-  execution after DOCRB-001/-002 dependency and source-drift verification
+- **Status:** Merged 2026-08-20 via PR #4040 (squash-merge commit
+  `a6885875948f3ddfc10279cc05d7b8fe7da36421`)
 - **Intent:** Replace stale or over-broad central diagrams with a small set of
   authoritative cross-system views.
 - **Expected Outcome:** The five required DOCRB-006 views are authoritative and
