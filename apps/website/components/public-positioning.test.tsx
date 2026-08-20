@@ -4,8 +4,14 @@ import { describe, expect, it } from 'vitest';
 
 import Home from '../app/page';
 import { SocialCard } from '../app/social-card';
+import { CLIFooter } from './cli-footer';
 import { CompanyBand } from './company-band';
+import { DecisionIntegrityFlywheel } from './decision-integrity-flywheel';
+import { DecisionModel } from './decision-model';
+import { DeliveryBoundary } from './delivery-boundary';
 import { HeroSection } from './hero-section';
+import { ProductStages } from './product-stages';
+import { ShippingProof } from './shipping-proof';
 import { TrustGap } from './trust-gap';
 
 function textOf(element: ReactNode): string {
@@ -36,9 +42,17 @@ describe('rendered website positioning', () => {
 
   it('renders each public claim in its owning component', () => {
     expect(textOf(<HeroSection />)).toContain('TRUST THE CODE');
+    expect(textOf(<ShippingProof />)).toContain('12 MCP CLIENTS');
     expect(textOf(<TrustGap />)).toContain('PROTECTION IS THE ENTRY POINT.');
     expect(textOf(<TrustGap />)).toContain('DECISION INTEGRITY IS THE SYSTEM AROUND IT.');
+    expect(textOf(<DecisionIntegrityFlywheel />)).toContain('DECISION INTEGRITY FLYWHEEL');
+    expect(textOf(<ProductStages />)).toContain('// FOUR_STAGE_CONTROL_PLANE');
+    expect(textOf(<DeliveryBoundary />)).toContain('THE CONTROL POINT SHIPS TODAY.');
+    expect(textOf(<DecisionModel />)).toContain(
+      'THE SYSTEM THAT CREATES WORK SHOULD NOT JUDGE IT ALONE.'
+    );
     expect(textOf(<CompanyBand />)).toContain('TRUST INFRASTRUCTURE');
+    expect(textOf(<CLIFooter />)).toContain('BUILD WITH SPEED. SHIP WITH INTEGRITY.');
     expect(textOf(<SocialCard />)).toContain('TRUST THE CODE');
     expect(textOf(<SocialCard />)).toContain('MCP REQUEST :: anvil_validate_write');
   });

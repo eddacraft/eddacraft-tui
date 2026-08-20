@@ -10,7 +10,7 @@ const REPORTING_KEY_GUIDANCE = /\b(?:encrypt(?:ed|ion)?|public[- ]key|certificat
 const REAL_FINGERPRINT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 const FINGERPRINT_VALUE = /^[0-9a-f]{4}(?:[\s:-]*[0-9a-f]{4})*/i;
 const FINGERPRINT_BOUNDARY = /^(?:$|\s|\p{P}+(?:$|\s))/u;
-const DEGENERATE_FINGERPRINT = /^([0-9a-f])\1+$/i;
+const DEGENERATE_FINGERPRINT = /^([0-9a-f]{4})\1+$/i;
 
 function hasInvalidFingerprint(securityPage) {
   const sourceText = securityPage

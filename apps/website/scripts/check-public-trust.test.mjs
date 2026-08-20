@@ -78,6 +78,7 @@ describe('public trust contract', () => {
     `GPG Fingerprint: ${Array.from({ length: 10 }, () => '0'.repeat(4)).join('-')}`,
     `GPG Fingerprint: ${Array.from({ length: 16 }, () => '0'.repeat(4)).join(' ')}`,
     `GPG Fingerprint: ${Array.from({ length: 10 }, () => 'F'.repeat(4)).join(' ')}`,
+    `GPG Fingerprint: ${Array.from({ length: 10 }, () => 'ABCD').join(' ')}`,
   ])('rejects a placeholder fingerprint even when a key exists: %s', (guidance) => {
     expect(findPublicTrustFailures(securityPage(guidance), true)).toContain(
       'placeholder PGP fingerprint is published'
