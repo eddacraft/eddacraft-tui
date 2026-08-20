@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const INSTALL_COMMAND = 'brew install eddacraft/tap/anvil';
+const VERIFY_TIMEOUT_MS = 8_000;
 
 interface VerifyResponse {
   valid?: boolean;
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token: accessKey }),
     cache: 'no-store',
+    signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
   }).catch(() => null);
 
   if (!response) {

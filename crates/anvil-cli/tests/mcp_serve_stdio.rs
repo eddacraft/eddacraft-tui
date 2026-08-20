@@ -355,11 +355,9 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
 
 #[test]
 fn mcp_serve_stdio_shutdown_flushes_response_before_exit_notification() {
-    use std::io::BufRead;
-
     let mut child = spawn_mcp_server();
     let stdout = child.stdout.take().expect("child stdout is piped");
-    let mut reader = BufReader::new(stdout);
+    let stdout_rx = spawn_stdout_reader(stdout);
 
     {
         let stdin = child.stdin.as_mut().expect("child stdin is piped");
@@ -400,12 +398,8 @@ fn mcp_serve_stdio_shutdown_flushes_response_before_exit_notification() {
         .expect("failed to send exit frame");
     }
 
-    let mut init_line = String::new();
-    reader
-        .read_line(&mut init_line)
-        .expect("initialize response");
-    let mut line = String::new();
-    reader.read_line(&mut line).expect("shutdown response");
+    let init_line = recv_stdout_line(&mut child, &stdout_rx);
+    let line = recv_stdout_line(&mut child, &stdout_rx);
     let status = wait_for_exit(&mut child);
     assert!(
         status.success(),

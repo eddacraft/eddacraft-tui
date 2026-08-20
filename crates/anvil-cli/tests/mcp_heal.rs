@@ -86,14 +86,20 @@ fn mcp_pin_and_unpin_round_trip() {
         stdout.contains("pinned") && stdout.contains("0.9.2-beta"),
         "{stdout}"
     );
-    assert!(home.path().join("mcp-heal.pin").is_file());
+    let pin_path = home.path().join("mcp-heal.pin");
+    assert!(pin_path.is_file());
+    assert_eq!(
+        fs::read_to_string(&pin_path).expect("read persisted MCP pin"),
+        "0.9.2-beta\n",
+        "explicit pin version must be persisted exactly"
+    );
 
     let unpin = isolated(home.path())
         .args(["mcp", "unpin"])
         .output()
         .expect("mcp unpin");
     assert_success(&unpin);
-    assert!(!home.path().join("mcp-heal.pin").is_file());
+    assert!(!pin_path.is_file());
 }
 
 fn init_activated_repo(root: &Path) {

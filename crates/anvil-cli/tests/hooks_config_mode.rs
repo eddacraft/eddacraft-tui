@@ -3,6 +3,7 @@
 //! when the host's Git is older than 2.54 because that is the floor the
 //! `--config` opt-in defends; verifying the refusal path on older Git is
 //! covered by the unit tests in `commands/hooks.rs`.
+//! A missing or unparsable Git executable is a failed suite precondition.
 //!
 //! See `plans/modules/git-config-hooks.aps.md#GHOOK-002` and
 //! `docs/guides/git-hook-compatibility.md` for the rollout policy.
@@ -21,20 +22,42 @@ fn discovery_ceiling(dir: &std::path::Path) -> &std::path::Path {
     dir.parent().expect("tempdir has a parent")
 }
 
-/// Returns `Some((major, minor, patch))` when `git --version` parses, or
-/// `None` when the binary is missing. Tests bail (skip) on `None` and on
-/// any version below 2.54.
-fn host_git_version() -> Option<(u32, u32, u32)> {
-    let out = Command::new("git").arg("--version").output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
+#[test]
+#[should_panic(expected = "Git is required for config-mode integration tests")]
+fn missing_git_fails_the_suite_precondition() {
+    host_git_version_from("__anvil_missing_git_for_test__");
+}
+
+fn host_git_version_from(program: &str) -> (u32, u32, u32) {
+    let out = Command::new(program)
+        .arg("--version")
+        .output()
+        .unwrap_or_else(|error| {
+            panic!("Git is required for config-mode integration tests: {error}")
+        });
+    assert!(
+        out.status.success(),
+        "Git is required for config-mode integration tests: `{program} --version` exited {}",
+        out.status
+    );
     let raw = String::from_utf8_lossy(&out.stdout).into_owned();
-    let stripped = raw.trim().strip_prefix("git version ")?;
+    let stripped = raw.trim().strip_prefix("git version ").unwrap_or_else(|| {
+        panic!("Git is required for config-mode integration tests: unrecognised version {raw:?}")
+    });
     let core = stripped.split_whitespace().next().unwrap_or(stripped);
     let mut parts = core.split('.');
-    let major = parts.next()?.parse::<u32>().ok()?;
-    let minor = parts.next()?.parse::<u32>().ok()?;
+    let major = parts
+        .next()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or_else(|| {
+            panic!("Git is required for config-mode integration tests: invalid version {raw:?}")
+        });
+    let minor = parts
+        .next()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or_else(|| {
+            panic!("Git is required for config-mode integration tests: invalid version {raw:?}")
+        });
     let patch = parts
         .next()
         .and_then(|p| {
@@ -42,18 +65,22 @@ fn host_git_version() -> Option<(u32, u32, u32)> {
             digits.parse::<u32>().ok()
         })
         .unwrap_or(0);
-    Some((major, minor, patch))
+    (major, minor, patch)
 }
 
-fn skip_if_git_too_old() -> Option<()> {
-    let (major, minor, patch) = host_git_version()?;
+fn host_git_version() -> (u32, u32, u32) {
+    host_git_version_from("git")
+}
+
+fn skip_if_git_too_old() -> bool {
+    let (major, minor, patch) = host_git_version();
     if (major, minor) < (2, 54) {
         eprintln!(
             "skipping GHOOK-002 integration test: host git is {major}.{minor}.{patch} (< 2.54)",
         );
-        return None;
+        return true;
     }
-    Some(())
+    false
 }
 
 fn git_init(dir: &std::path::Path) {
@@ -96,7 +123,7 @@ fn config_get_all(dir: &std::path::Path, key: &str) -> Vec<String> {
 
 #[test]
 fn hooks_install_config_writes_command_for_pre_commit_and_pre_push() {
-    if skip_if_git_too_old().is_none() {
+    if skip_if_git_too_old() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
@@ -163,7 +190,7 @@ fn hooks_install_config_writes_command_for_pre_commit_and_pre_push() {
 
 #[test]
 fn hooks_uninstall_config_clears_command_entries() {
-    if skip_if_git_too_old().is_none() {
+    if skip_if_git_too_old() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
@@ -213,7 +240,7 @@ fn hooks_uninstall_config_clears_command_entries() {
 
 #[test]
 fn hooks_install_config_does_not_stack_duplicates_on_repeat() {
-    if skip_if_git_too_old().is_none() {
+    if skip_if_git_too_old() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();
@@ -244,10 +271,7 @@ fn hooks_install_config_does_not_stack_duplicates_on_repeat() {
 
 #[test]
 fn hooks_install_config_refuses_when_host_git_too_old() {
-    let Some((major, minor, patch)) = host_git_version() else {
-        eprintln!("skipping: git --version unavailable");
-        return;
-    };
+    let (major, minor, patch) = host_git_version();
     if (major, minor) >= (2, 54) {
         eprintln!(
             "skipping: host git is {major}.{minor}.{patch} (>= 2.54); refusal path \
@@ -285,7 +309,7 @@ fn hooks_install_config_refuses_when_host_git_too_old() {
 
 #[test]
 fn hooks_install_config_warns_when_file_mode_hook_already_exists() {
-    if skip_if_git_too_old().is_none() {
+    if skip_if_git_too_old() {
         return;
     }
     let dir = tempfile::tempdir().unwrap();

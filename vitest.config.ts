@@ -25,6 +25,7 @@ export default defineConfig({
       // New monorepo structure: include tests from all packages by default
       'packages/**/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'apps/anvil-api/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'apps/website/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: [
       '**/node_modules/**',

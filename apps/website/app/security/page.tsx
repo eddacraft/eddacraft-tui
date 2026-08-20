@@ -222,21 +222,6 @@ export default function SecurityPage() {
             </div>
           </section>
 
-          {/* PGP KEY */}
-          <section>
-            <h2 className="text-anvil font-bold mb-2">PGP KEY</h2>
-            <div className="text-text-muted pl-6 space-y-2">
-              <p>For encrypted communications, use our PGP key:</p>
-              <pre className="bg-surface border border-structure p-3 mt-2 text-xs overflow-x-auto">
-                <code>Fingerprint: XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX</code>
-              </pre>
-              <p className="text-xs">
-                Full key available at{' '}
-                <span className="text-anvil">https://eddacraft.ai/.well-known/pgp-key.txt</span>
-              </p>
-            </div>
-          </section>
-
           {/* SEE ALSO */}
           <section>
             <h2 className="text-anvil font-bold mb-2">SEE ALSO</h2>

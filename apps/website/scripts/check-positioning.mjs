@@ -15,6 +15,7 @@ const content = files.map((file) => readFileSync(file, 'utf8')).join('\n');
 const pageContent = readFileSync(pageFile, 'utf8');
 
 const composedComponents = [
+  'HeroSection',
   'ShippingProof',
   'TrustGap',
   'DecisionIntegrityFlywheel',
@@ -44,17 +45,21 @@ const heroContent = readFileSync(
   'utf8'
 );
 
-const required = [
-  'TRUST THE CODE',
-  'PROTECTION IS THE ENTRY POINT',
-  'DECISION INTEGRITY IS THE SYSTEM AROUND IT',
-  'TRUST INFRASTRUCTURE',
-  'MCP REQUEST :: anvil_validate_write',
-  'Inter',
-  'Dialog.Title',
-  'Dialog.Description',
-  'Dialog.Close',
-];
+const requiredByFile = new Map([
+  ['../app/layout.tsx', ['Inter']],
+  ['../app/social-card.tsx', ['TRUST THE CODE', 'MCP REQUEST :: anvil_validate_write']],
+  [
+    '../components/hero-section.tsx',
+    ['TRUST THE CODE', 'Dialog.Title', 'Dialog.Description', 'Dialog.Close'],
+  ],
+  [
+    '../components/trust-gap.tsx',
+    ['PROTECTION IS THE ENTRY POINT', 'DECISION INTEGRITY IS THE SYSTEM AROUND IT'],
+  ],
+  ['../components/company-band.tsx', ['TRUST INFRASTRUCTURE']],
+  ['../components/terminal-window.tsx', ['MCP REQUEST :: anvil_validate_write']],
+  ['../components/cli-footer.tsx', ['Dialog.Title', 'Dialog.Description', 'Dialog.Close']],
+]);
 
 const forbidden = [
   'FORCE PROBABILISTIC TOOLS',
@@ -75,7 +80,12 @@ const shellLabelledMcpRequests = content
   .filter((line) => line.includes('anvil_validate_write') && line.includes('$'));
 
 const failures = [
-  ...required.filter((value) => !content.includes(value)).map((value) => `missing: ${value}`),
+  ...[...requiredByFile].flatMap(([path, values]) => {
+    const fileContent = readFileSync(new URL(path, import.meta.url), 'utf8');
+    return values
+      .filter((value) => !fileContent.includes(value))
+      .map((value) => `missing in ${path}: ${value}`);
+  }),
   ...forbidden.filter((value) => content.includes(value)).map((value) => `retired: ${value}`),
   ...[...new Set(offPaletteColours)].map((value) => `off-palette: ${value}`),
   ...(shellLabelledMcpRequests.length > 0 ? ['MCP request presented as a shell command'] : []),
