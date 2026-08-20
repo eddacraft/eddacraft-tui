@@ -1,6 +1,16 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, readdir } from 'node:fs/promises';
-import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  normalize,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
 import { Window } from 'happy-dom';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
@@ -269,6 +279,92 @@ async function symlinkAncestors(repoRoot, target) {
     }
   }
   return symlinks;
+}
+
+function isConfinedPath(root, target) {
+  const path = relative(root, target);
+  return path === '' || (path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path));
+}
+
+function isNormalisedManifestRoot(value) {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    isAbsolute(value) ||
+    /^[A-Za-z]:[\\/]/.test(value) ||
+    value.includes('\\')
+  ) {
+    return false;
+  }
+  const segments = value.split('/');
+  return (
+    segments.every((segment) => segment && segment !== '.' && segment !== '..') &&
+    normalize(value).split(sep).join('/') === value
+  );
+}
+
+async function realpathOfExistingAncestor(target) {
+  let current = target;
+  while (true) {
+    try {
+      return await realpath(current);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      const parent = dirname(current);
+      if (parent === current) throw error;
+      current = parent;
+    }
+  }
+}
+
+async function validateManifestRoots(repoRoot, contract) {
+  const issues = [];
+  const valid = new Set();
+  const symlinks = new Set();
+  const repositoryRealpath = await realpath(repoRoot);
+  const roots = [
+    ...(contract.families ?? []).map(({ root }) => root),
+    ...(contract.diagramDirectories ?? []),
+  ];
+
+  for (const root of new Set(roots)) {
+    let reason;
+    const target = typeof root === 'string' ? resolve(repoRoot, root) : repoRoot;
+    if (!isNormalisedManifestRoot(root)) {
+      reason = 'must be a normalised repository-relative path without parent traversal';
+    } else {
+      const ancestorSymlinks = await symlinkAncestors(repoRoot, target);
+      ancestorSymlinks.forEach((path) => symlinks.add(path));
+      if (ancestorSymlinks.length > 0) {
+        reason = 'must have non-symlink ancestors';
+      } else if (!isConfinedPath(repositoryRealpath, await realpathOfExistingAncestor(target))) {
+        reason = 'must remain realpath-confined beneath the repository';
+      }
+    }
+
+    if (reason) {
+      issues.push(
+        finding(
+          'invalid-contract',
+          CONTRACT_PATH,
+          `manifest root ${JSON.stringify(root)} ${reason}`
+        )
+      );
+    } else {
+      valid.add(root);
+    }
+  }
+
+  for (const path of symlinks) {
+    issues.push(
+      finding(
+        'symlink-path',
+        relative(repoRoot, path).split(sep).join('/'),
+        'governed diagram paths must not contain or traverse symlinks'
+      )
+    );
+  }
+  return { issues, valid };
 }
 
 function finding(code, path, message) {
@@ -562,12 +658,17 @@ function referencedWithAlt(svgPath, markdownFiles, markdownByPath) {
 
 export async function validatePublicDiagrams(repoRoot, contract) {
   const findings = contractFindings(contract);
+  const manifestRoots = await validateManifestRoots(repoRoot, contract);
+  findings.push(...manifestRoots.issues);
 
-  for (const family of contract.families) {
+  for (const family of contract.families ?? []) {
+    if (!manifestRoots.valid.has(family.root)) continue;
     const familyRoot = resolve(repoRoot, family.root);
     const { files: familyFiles } = await walk(familyRoot);
     const diagramRoots = (contract.diagramDirectories ?? [])
-      .filter((directory) => directory.startsWith(`${family.root}/`))
+      .filter(
+        (directory) => manifestRoots.valid.has(directory) && directory.startsWith(`${family.root}/`)
+      )
       .map((directory) => resolve(repoRoot, directory));
     const files = [];
     const symlinks = new Set();

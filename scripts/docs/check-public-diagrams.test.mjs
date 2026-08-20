@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmod, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -479,6 +479,27 @@ test('missing or duplicate explicit diagram directories fail closed', async () =
     ];
   });
   assert.ok(findings.some(({ code }) => code === 'invalid-contract'));
+});
+
+test('checker rejects an absolute manifest family root before traversal', async () => {
+  const findings = await findingsFor(async ({ root, contract }) => {
+    const familyRoot = join(root, 'missing-absolute-family');
+    contract.families = [{ name: 'anvil', root: familyRoot }];
+    contract.diagramDirectories = [`${familyRoot}/assets/diagrams`];
+  });
+  assert.ok(findings.some(({ code }) => code === 'invalid-contract'));
+});
+
+test('checker rejects a parent-traversing manifest diagram root before traversal', async () => {
+  const findings = await findingsFor(async ({ root, contract }) => {
+    const diagramRoot = `docs/public/anvil/../../../${basename(root)}-escape`;
+    const escapedRoot = resolve(root, diagramRoot);
+    await mkdir(escapedRoot);
+    await symlink(join(root, 'external.drawio'), join(escapedRoot, 'tripwire.drawio'));
+    contract.diagramDirectories = [diagramRoot];
+  });
+  assert.ok(findings.some(({ code }) => code === 'invalid-contract'));
+  assert.ok(findings.every(({ code }) => code !== 'symlink-path'));
 });
 
 test('checker rejects symlinked diagram entries instead of traversing them', async () => {
