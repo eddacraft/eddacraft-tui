@@ -7333,7 +7333,7 @@ SOFTWARE.
 Used by:
 
 - `animate-core` 0.3.0
-- `axoupdater` 0.10.0
+- `axoupdater` 0.10.2
 - `backtrace-ext` 0.2.1
 - `block2` 0.6.2
 - `chrono` 0.4.45
@@ -9649,7 +9649,7 @@ the following restrictions:
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
 | `animate-core` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
-| `axoupdater` | 0.10.0 | MIT License | https://github.com/axodotdev/axoupdater |
+| `axoupdater` | 0.10.2 | MIT License | https://github.com/axodotdev/axoupdater |
 | `backtrace-ext` | 0.2.1 | MIT License | https://github.com/gankra/backtrace-ext |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
 | `chrono` | 0.4.45 | MIT License | https://github.com/chronotope/chrono |
