@@ -148,7 +148,7 @@ Validate a proposed file write before the MCP client applies it.
 
 | Field | Required | Notes |
 | --- | :---: | --- |
-| `workspaceRoot` | no | Defaults to server cwd. Must resolve to an existing directory that is the server cwd, a path inside it, or a registered linked Git worktree of the same repository (ADR-125). |
+| `workspaceRoot` | no | Defaults to server cwd. Must resolve to an existing directory that is the server cwd, a path inside it, a registered linked Git worktree of the same repository, or a path inside such a worktree (ADR-125). |
 | `path` | yes | Workspace-relative path or absolute path inside `workspaceRoot`. Escapes are rejected. |
 | `operation` | yes | `create`, `update`, `delete`, or `rename`. |
 | `proposedContent` | conditional | Full proposed UTF-8 content after the operation. Required for `create`/`update` unless `patch` is present. |

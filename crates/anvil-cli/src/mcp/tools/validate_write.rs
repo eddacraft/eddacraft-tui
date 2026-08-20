@@ -531,7 +531,7 @@ fn problem_payload(
 fn untrusted_workspace_root_payload(expected: &Path, enforcement_mode: EnforcementMode) -> Value {
     let problem = ToolProblem::new(
         "untrusted-workspace-root",
-        "workspaceRoot must match the MCP server workspace or a linked git worktree of the same repository.",
+        "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository.",
     );
     let mut payload = problem_payload(problem, None, enforcement_mode);
     payload["error"]["expectedWorkspaceRoot"] = json!(expected.to_string_lossy());

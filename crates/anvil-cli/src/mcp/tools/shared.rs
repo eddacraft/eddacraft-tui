@@ -43,11 +43,9 @@ pub fn validate_workspace_root(
     if !workspace_root.is_dir() {
         return Err("workspaceRoot must be a directory".to_string());
     }
-    let server_root = server_root
-        .canonicalize()
+    let server_root = dunce::canonicalize(server_root)
         .map_err(|err| format!("MCP server root is not accessible: {err}"))?;
-    let workspace_root = workspace_root
-        .canonicalize()
+    let workspace_root = dunce::canonicalize(workspace_root)
         .map_err(|err| format!("workspaceRoot is not accessible: {err}"))?;
     if !workspace_root_is_admitted(&workspace_root, &server_root) {
         return Err(WORKSPACE_ROOT_NOT_ADMITTED.to_string());
@@ -141,14 +139,14 @@ fn registered_worktree_roots(server_root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     };
     let common = resolve_common_dir(&git_dir);
-    let Ok(common) = common.canonicalize() else {
+    let Ok(common) = dunce::canonicalize(&common) else {
         return Vec::new();
     };
 
     let mut roots = Vec::new();
     if common.file_name().is_some_and(|name| name == ".git")
         && let Some(parent) = common.parent()
-        && let Ok(main) = parent.canonicalize()
+        && let Ok(main) = dunce::canonicalize(parent)
     {
         roots.push(main);
     }
@@ -173,7 +171,7 @@ fn registered_worktree_roots(server_root: &Path) -> Vec<PathBuf> {
         let Some(root) = pointed.parent() else {
             continue;
         };
-        if let Ok(canon) = root.canonicalize()
+        if let Ok(canon) = dunce::canonicalize(root)
             && !roots.iter().any(|existing| existing == &canon)
         {
             roots.push(canon);
@@ -903,8 +901,8 @@ mod tests {
         std::fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
             .expect("gitdir back-pointer");
 
-        let main = main.canonicalize().expect("main canonicalises");
-        let linked = linked.canonicalize().expect("linked canonicalises");
+        let main = dunce::canonicalize(&main).expect("main canonicalises");
+        let linked = dunce::canonicalize(&linked).expect("linked canonicalises");
         (main, linked)
     }
 
@@ -975,11 +973,8 @@ mod tests {
         validate_workspace_root(&nested, workspace.path()).expect("nested under server root");
         assert_eq!(
             redact_workspace_root(
-                &nested.canonicalize().expect("nested canonicalises"),
-                &workspace
-                    .path()
-                    .canonicalize()
-                    .expect("workspace canonicalises"),
+                &dunce::canonicalize(&nested).expect("nested canonicalises"),
+                &dunce::canonicalize(workspace.path()).expect("workspace canonicalises"),
             ),
             "pkg"
         );
