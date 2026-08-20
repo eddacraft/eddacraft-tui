@@ -349,8 +349,15 @@ fn attributes_declare_linguist_generated(root: &Path) -> bool {
 
     let walker = ignore::WalkBuilder::new(root)
         .follow_links(false)
-        .standard_filters(true)
+        .standard_filters(false)
         .hidden(false)
+        .filter_entry(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            if entry.file_type().is_some_and(|ft| ft.is_dir()) {
+                return !is_ignored_dir_name(&name);
+            }
+            true
+        })
         .build();
     for entry in walker.filter_map(Result::ok) {
         if entry.file_name() != ".gitattributes" {
@@ -1219,6 +1226,47 @@ mod tests {
         );
         assert!(generated.contains("src/stubs.ts"));
         assert!(!generated.contains("src/app.ts"));
+    }
+
+    #[test]
+    fn attributes_declare_linguist_generated_despite_gitignore() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        if !init_git_repo(root) {
+            return;
+        }
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join(".gitignore"), "src/\n").unwrap();
+        std::fs::write(
+            root.join("src/.gitattributes"),
+            "stubs.ts linguist-generated=true\n",
+        )
+        .unwrap();
+
+        assert!(
+            attributes_declare_linguist_generated(root),
+            "gitignored nested .gitattributes must still be seen, matching the source walker"
+        );
+    }
+
+    #[test]
+    fn attributes_declare_linguist_generated_skips_ignored_dirs() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        if !init_git_repo(root) {
+            return;
+        }
+        std::fs::create_dir_all(root.join("node_modules")).unwrap();
+        std::fs::write(
+            root.join("node_modules/.gitattributes"),
+            "* linguist-generated=true\n",
+        )
+        .unwrap();
+
+        assert!(
+            !attributes_declare_linguist_generated(root),
+            "canonical ignore-dirs must not trigger a check-attr spawn"
+        );
     }
 
     fn suppression(provenance: AllowlistProvenance) -> Suppression {
