@@ -184,3 +184,9 @@ Invited beta tester recording evidence:
 
 Still deciding fit: [when to use anvil](when-to-use.md) ·
 [support matrix](reference/support.md) · [eddacraft.ai](https://eddacraft.ai)
+
+## Related definitions
+
+- [How anvil evaluates a project](concepts/evaluation-model.md)
+- [What anvil can do](reference/what-anvil-can-do.md)
+- [CLI command reference](reference/cli.md)

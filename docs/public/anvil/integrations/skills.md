@@ -87,3 +87,8 @@ A skill alone does not activate pre-write protection.
 
 Use [AI-assisted write protection](../guides/agent-harness.md) for the full
 client workflow.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [CLI command reference](../reference/cli.md)

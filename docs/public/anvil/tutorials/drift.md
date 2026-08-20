@@ -60,4 +60,10 @@ intentional architecture change, an incorrect definition, or accidental drift.
 
 Review architecture and drift in the terminal with
 `anvil dashboard architecture` and `anvil dashboard drift`, or the
-[dashboard guide](../guides/dashboard.md).
+[dashboard guide](../guides/dashboard.md). The dashboard remains flag-gated and
+is not a live-nav destination.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Check catalogue](../reference/checks.md)

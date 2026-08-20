@@ -129,4 +129,5 @@ Use [protect AI-assisted writes](guides/agent-harness.md) or
 
 - [How anvil evaluates a project](concepts/evaluation-model.md)
 - [What anvil can do](reference/what-anvil-can-do.md)
+- [Check catalogue](reference/checks.md)
 - [Glossary](concepts/glossary.md)

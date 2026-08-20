@@ -66,3 +66,9 @@ do not claim the same rule depth as the primary language set.
 ## Next step
 
 Configure [continuous integration](../integrations/github.md).
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Check catalogue](../reference/checks.md)
+- [Policy packs](../concepts/policy-model.md)

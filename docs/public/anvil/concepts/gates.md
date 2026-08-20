@@ -81,3 +81,9 @@ where a command offers it, and use the process exit code for control flow.
 
 Try [the first finding tutorial](../first-gate.md) or add
 [continuous integration](../integrations/github.md).
+
+## Related definitions
+
+- [How anvil evaluates a project](evaluation-model.md)
+- [What anvil can do](../reference/what-anvil-can-do.md)
+- [Check catalogue](../reference/checks.md)

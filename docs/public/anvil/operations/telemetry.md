@@ -99,3 +99,8 @@ evidence rather than verified customer counts.
 
 For the broader local and network data boundary, see
 [local data and security](security.md).
+
+## Related definitions
+
+- [Review local insights](../guides/insights.md)
+- [CLI command reference](../reference/cli.md)

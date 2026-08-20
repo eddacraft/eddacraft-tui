@@ -59,3 +59,9 @@ before it reaches disk.
 
 Add [Git hooks](../operations/git-hooks.md) or
 [continuous integration](../integrations/github.md) as a later safety net.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Watch output reference](../integrations/watch-output.md)
+- [Catch a saved change](../tutorials/first-save-caught.md)

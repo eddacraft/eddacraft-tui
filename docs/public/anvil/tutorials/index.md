@@ -30,3 +30,8 @@ tutorial.
 Each tutorial states its prerequisites and expected result. Tutorials that
 create temporary files include an explicit cleanup step; read it before
 beginning.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [What anvil can do](../reference/what-anvil-can-do.md)

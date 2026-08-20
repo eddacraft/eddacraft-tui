@@ -192,7 +192,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-006: Link journeys through to the definition layer
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Every kept journey page points at the definition it used, and
   remaining safe existing pages are on live nav.
 - **Expected Outcome:** Quickstart, first-gate, tutorials, and core how-tos
@@ -200,7 +200,14 @@ edit; it does not move ownership.
   uninstall, insights, watch-output, review-capsules, beta-testing-guide)
   are on live nav with local-only wording where required; dashboard stays
   off live nav.
-- **Files:** `docs/public/anvil/**`
+- **Files:** `docs/public/anvil/**`,
+  `apps/anvil-docs-private/sidebars/anvil.ts`,
+  `scripts/docs/check-public-docs.mjs`
+- **Evidence:** `pnpm docs:public:check` (0 errors, 101 files);
+  `pnpm docs:check` (11/11 surfaces);
+  `pnpm --filter @eddacraft/anvil-docs-private build` (exit 0).
+  review-capsules stays on DOCDEF-005 (spec PR-policy).
+  PR #4036.
 - **Dependencies:** DOCDEF-001
 - **Confidence:** high
 - **Validation:** `pnpm docs:public:check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build`

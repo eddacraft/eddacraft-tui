@@ -94,3 +94,9 @@ Then use [save-time validation](save-time-validation.md) and terminal gates.
 ## Next step
 
 Run the [first finding tutorial](../first-gate.md) from the same project.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Agent skills](../integrations/skills.md)
+- [Use save-time validation](save-time-validation.md)

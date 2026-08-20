@@ -43,3 +43,8 @@ guide introduces an unfamiliar word.
 
 Return to [what anvil does](../overview.md) or
 [install and get first value](../quickstart.md).
+
+## Related definitions
+
+- [How anvil evaluates a project](evaluation-model.md)
+- [What anvil can do](../reference/what-anvil-can-do.md)

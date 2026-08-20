@@ -166,3 +166,9 @@ the project unless the command says otherwise.
 
 Look up keys in the [configuration field catalogue](../reference/config.md), or
 read [local data and security](security.md).
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Configuration field catalogue](../reference/config.md)
+- [Check catalogue](../reference/checks.md)

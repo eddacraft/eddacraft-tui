@@ -34,3 +34,8 @@ and it does not grow past these 12 rows.
 For the model behind these rows, read
 [how anvil evaluates a project](../concepts/evaluation-model.md). For every
 public command, read the [CLI command reference](cli.md).
+
+## Try it
+
+- [Install and get first value](../quickstart.md)
+- [Ten-minute protection tutorial](../first-gate.md)

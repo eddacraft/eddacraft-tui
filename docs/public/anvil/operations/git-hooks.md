@@ -80,3 +80,9 @@ one mode per event.
 ## Next step
 
 Add [continuous integration](../integrations/github.md) as the shared authority.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Use save-time validation](../guides/save-time-validation.md)
+- [CLI command reference](../reference/cli.md)

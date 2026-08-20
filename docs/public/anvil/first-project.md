@@ -114,3 +114,9 @@ that violates the declared direction after this point.
 Read [checks, findings, and gates](concepts/gates.md), then add
 [Git hooks](operations/git-hooks.md) or
 [continuous integration](integrations/github.md).
+
+## Related definitions
+
+- [How anvil evaluates a project](concepts/evaluation-model.md)
+- [Check catalogue](reference/checks.md)
+- [Checks, findings, and gates](concepts/gates.md)

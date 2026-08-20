@@ -73,3 +73,9 @@ anvil complements rather than replaces:
 If the fit is promising, [install and get first value](quickstart.md). If a
 required capability is absent, record that gap before rolling anvil out to a
 team.
+
+## Related definitions
+
+- [How anvil evaluates a project](concepts/evaluation-model.md)
+- [What anvil can do](reference/what-anvil-can-do.md)
+- [Glossary](concepts/glossary.md)

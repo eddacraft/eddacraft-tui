@@ -20,6 +20,9 @@ verified_against: 0.9.0-beta
 
 **Outcome:** understand recent protection activity and areas needing attention
 
+Insights are **local-only**. They summarise activity on this machine. They are
+not a team dashboard, and they are not uploaded with the anonymous usage beacon.
+
 Run:
 
 ```text
@@ -47,3 +50,9 @@ Detailed insight rows remain local in the current public beta.
 ## Next step
 
 Read [evidence and audit trails](../concepts/audit-trail.md).
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Evidence and audit trails](../concepts/audit-trail.md)
+- [Anonymous usage telemetry](../operations/telemetry.md)

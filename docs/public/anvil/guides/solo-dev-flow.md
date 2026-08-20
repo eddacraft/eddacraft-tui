@@ -46,3 +46,10 @@ change, and how to stop or remove each integration.
 
 Use [Git hooks](../operations/git-hooks.md) when the manual pre-push step
 becomes easy to forget.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Check catalogue](../reference/checks.md)
+- [Configuration field catalogue](../reference/config.md)
+- [Use save-time validation](save-time-validation.md)

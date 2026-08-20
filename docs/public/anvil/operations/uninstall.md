@@ -84,3 +84,8 @@ anvil --version
 A command-not-found result confirms the binary is no longer on PATH. Also run
 `anvil hooks status` before removing the binary if you need evidence that
 project hooks were cleaned up.
+
+## Related definitions
+
+- [CLI command reference](../reference/cli.md)
+- [Add Git hooks](git-hooks.md)

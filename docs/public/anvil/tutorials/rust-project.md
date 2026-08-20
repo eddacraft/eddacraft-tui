@@ -58,3 +58,9 @@ the [support matrix](../reference/support.md) and
 ## Next step
 
 Define [architecture boundaries](../first-project.md) for a layered crate.
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Check catalogue](../reference/checks.md)
+- [Compiled pattern catalogue](../reference/rules.md)

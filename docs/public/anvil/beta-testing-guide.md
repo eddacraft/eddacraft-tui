@@ -154,4 +154,11 @@ unless you opt into a snippet; paths are hashed by default.
 
 After the core pass, stress the path you actually use:
 [team gates](guides/team-flow.md), [CI](integrations/github.md), or
-[local dashboards](guides/dashboard.md).
+[local dashboards](guides/dashboard.md). The dashboard remains flag-gated and is
+not a live-nav destination.
+
+## Related definitions
+
+- [How anvil evaluates a project](concepts/evaluation-model.md)
+- [What anvil can do](reference/what-anvil-can-do.md)
+- [CLI command reference](reference/cli.md)

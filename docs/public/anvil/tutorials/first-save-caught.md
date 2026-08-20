@@ -55,3 +55,9 @@ check works, use
 ## Next step
 
 Add [Git hooks](../operations/git-hooks.md).
+
+## Related definitions
+
+- [How anvil evaluates a project](../concepts/evaluation-model.md)
+- [Use save-time validation](../guides/save-time-validation.md)
+- [Watch output reference](../integrations/watch-output.md)
