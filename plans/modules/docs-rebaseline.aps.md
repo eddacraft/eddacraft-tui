@@ -5,7 +5,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 7/11 |
+| DOCRB | — | high | Ready | 8/11 |
 
 **Last reviewed:** 2026-08-20 against the repository component/documentation
 inventory at `0a0f00c20`, current DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the
@@ -107,10 +107,10 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Migration and public pipeline | DOCRB-005..008 | Duplicate authorities are retired, cross-system views rebuilt, and public source/export parity works |
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
-DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-006, DOCRB-007, and
-DOCRB-011 are Merged. DOCRB-005 is In Progress against its accepted action plan
-and continues the component migration required by DOCRB-009. DOCRB-008 has all
-dependencies Merged but remains Draft and is not promoted by this work.
+DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
+and DOCRB-011 are Merged. DOCRB-008 has all dependencies Merged and is the next
+dependency-clear DOCRB candidate, but remains Draft pending its own readiness
+pass; it is not promoted by this closeout.
 
 ## Success Criteria
 
@@ -288,7 +288,8 @@ dependencies Merged but remains Draft and is not promoted by this work.
 
 ### DOCRB-005: Migrate component truth and remove duplicate authorities
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-20 via PR #4055 (rebase-merge commit
+  `5db473d504ea702b9e1e9fe69878d780d45cf71a`)
 - **Intent:** Move maintainable component truth beside code and leave central
   documents as links or genuine cross-system authorities.
 - **Expected Outcome:** All inventory entries assigned `move`, `merge`, or
@@ -305,13 +306,18 @@ dependencies Merged but remains Draft and is not promoted by this work.
   item record
 - **Scope:** Component `README.md`/`ARCHITECTURE.md`,
   `docs/architecture/**`, generated documentation indexes, and only the two
-  source-proved file-level freshness edges reported by `docs:owed`; the index
-  correction reconciles only DOCRB-005's In Progress truth and leaves the
-  aggregate count and every other item unchanged
+  source-proved file-level freshness edges reported by `docs:owed`; this
+  merge closeout reconciles only DOCRB-005's Merged truth and the aggregate
+  count, while every other item status remains unchanged
 - **Non-scope:** Substantive public content refresh owned by DOCSYNC
 - **Dependencies:** DOCRB-003, DOCRB-004
 - **Confidence:** medium
 - **Validation:** `pnpm format:check && pnpm docs:check && pnpm aps:drift --json`
+- **Evidence:** PR #4055 merged from final head
+  `a3897465eddccb56c849c1cbd0c91e1c771cd02c` after all 40 hosted checks
+  completed acceptably and all review threads were resolved. The
+  rebase-merge receipt `5db473d504ea702b9e1e9fe69878d780d45cf71a` is an
+  ancestor of `origin/main`, and the remote feature branch is deleted.
 
 ### DOCRB-006: Rebuild central cross-system and operational diagrams
 
