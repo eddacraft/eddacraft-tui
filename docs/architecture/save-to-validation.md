@@ -69,7 +69,7 @@ sequenceDiagram
                 Driver->>Daemon: request full scan on reconnect
                 Driver->>Driver: clear warning latch
             end
-        else empty initial or delete check cycle
+        else deletion-driven or otherwise empty post-initial check cycle
             Driver->>Checks: selected subprocess check --all
         else routing ineligible or selected action is not check
             Driver->>Checks: selected subprocess action
@@ -100,16 +100,17 @@ the verdict response when `SaveTimeObservationEmitter` is wired. Emission
 failure is swallowed and cannot change the verdict. This independent post-save
 observation does not collapse the post-save lane into the caller-buffer lane.
 
-The daemon branch requires a `check` action, non-empty changed paths, and
-eligible or forced routing. Routing is eligible when it is not disabled,
-`--no-daemon` is absent, the platform has a transport, and a live daemon answers
-the default-on probe; forced routing bypasses that live-probe requirement. An
-empty initial- or delete-driven `check` cycle goes directly to the selected
-subprocess `check --all` action and never calls `validate_paths`. Disabled,
-not-live, unsupported, and non-check cases also bypass the client and run the
-selected subprocess action. A scoped `check` uses its non-empty changed paths,
-while `gate` self-scopes through Git status and receives no changed-path
-arguments.
+The first snapshot establishes the baseline and is skipped by action dispatch.
+On later snapshots, the daemon branch requires a `check` action, non-empty
+changed paths, and eligible or forced routing. Routing is eligible when it is
+not disabled, `--no-daemon` is absent, the platform has a transport, and a live
+daemon answers the default-on probe; forced routing bypasses that live-probe
+requirement. A deletion-driven or otherwise empty post-initial `check` cycle
+goes directly to the selected subprocess `check --all` action and never calls
+`validate_paths`. Disabled, not-live, unsupported, and non-check cases also
+bypass the client and run the selected subprocess action. A scoped `check` uses
+its non-empty changed paths, while `gate` self-scopes through Git status and
+receives no changed-path arguments.
 
 Once routed, daemon absence, refusal, JSON-RPC error, disconnect, or timeout
 produces no verdict. The watch client reports `unavailable{daemon-absent}`,
@@ -140,10 +141,10 @@ assurance does not fence a worktree.
   `crates/anvil-intercept/src/save_time.rs` and
   `crates/anvil-intercept/src/lib.rs`, to the producer injection in
   `crates/anvil-cli/src/commands/intercept.rs`.
-- The non-empty-path daemon condition, routing eligibility, direct empty-cycle
-  `check --all` path, scoped daemon fallback, `unavailable{daemon-absent}`,
-  warn-once, and reconnect/full-scan behaviour trace to
-  `crates/anvil-cli/src/commands/watch.rs` and
+- The first-snapshot skip, non-empty-path daemon condition, routing eligibility,
+  direct empty post-initial `check --all` path, scoped daemon fallback,
+  `unavailable{daemon-absent}`, warn-once, and reconnect/full-scan behaviour
+  trace to `crates/anvil-cli/src/commands/watch.rs` and
   `crates/anvil-cli/src/commands/watch_save_time.rs`; supervision opt-out and
   live/not-live state trace to `save_time_driver.rs`.
 - Workspace admission, guarded reads, path validation, diagnostics, coverage,
