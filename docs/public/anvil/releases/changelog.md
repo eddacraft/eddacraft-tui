@@ -17,6 +17,27 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
+## 0.9.7-beta — 20 August 2026
+
+### Fixed
+
+- **Unsigned `anvil welcome` no longer dead-ends on gated Policy or Architecture
+  steps.** Those commands still need a signed-in session. When you are not
+  signed in, the path names `anvil auth login` first and does not present the
+  gated command as a runnable check. Free `--verify` probes stay runnable.
+
+- **Hub "Review gate decision" shows live progress.** On a large repo the hub no
+  longer sits on a frozen "Running quality checks..." line. The loading line
+  updates as the workspace is scanned and as each check starts.
+
+- **"Choose a learning path" opens the path picker.** Hub and first-run no
+  longer run a discovery scan before the picker. Guided setup can still wow with
+  discovery before offering the menu.
+
+- **Audit Next Steps jump to the matching issue.** Enter on a Next Steps row
+  focuses and expands that issue. One large-file step lands on that file. The
+  footer no longer promises expand on a panel that cannot expand.
+
 ## 0.9.6-beta — 18 August 2026 — Beta field fixes and shell command-safety
 
 After 0.9.5-beta, hooks and warnings tell the truth again, and shell scripts get
