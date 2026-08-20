@@ -9,16 +9,22 @@
 DOCRB-007 started from exact `origin/main`
 `e23a60200093dab330b5d61c92a0ae0fdc2a9d85` in the fresh Worktrunk
 `/home/aneki/Projects/src/anvil-001.docs-docrb-007-public-svg-pipeline` on
-`docs/docrb-007-public-svg-pipeline`. The implementation commits before this
-repair are:
+`docs/docrb-007-public-svg-pipeline`. The exact implementation lineage is:
 
 - `f5a8d131539beb4dc74dfeeb6241e19dc25703e6` — initial pipeline;
 - `bbed33824e237d32bc37df664cfc960f0b44da44` — first Council safety repair;
-- `97e3e6db2` — hardening evidence report at the current committed head.
+- `97e3e6db2` — committed pre-contraction hardening and evidence head;
+- `46b72dc2398537ea25033b784de486e079312f6d` — exact
+  operator-approved contraction candidate; and
+- `a6a9d4b22f2d8cdf9443d0cedd166c843b531447` — retained-scope SVG
+  safety, directory-boundary, and freshness repair.
 
-A later uncommitted repair wave added two subsystems that exceeded ADR-123 and
-the original DOCRB-007 acceptance boundary. The operator explicitly approved
-their removal after the broader-need assessment:
+The Git-reproducible retained-scope repair range is
+`46b72dc2398537ea25033b784de486e079312f6d..a6a9d4b22f2d8cdf9443d0cedd166c843b531447`.
+
+After `97e3e6db2`, a transient uncommitted repair wave added two subsystems that
+exceeded ADR-123 and the original DOCRB-007 acceptance boundary. The operator
+explicitly approved their removal after the broader-need assessment:
 
 1. checker-time trusted Draw.io re-export and render attestation; and
 2. Docusaurus configuration AST analysis, exact mount-set enforcement, and
@@ -46,8 +52,8 @@ second Docusaurus configuration analyser.
 | Five explicit `docs/public/*/assets/diagrams` directories | Kept | Manifest requires one directory for each governed family |
 | Lower-kebab sibling `.drawio`/`.svg` pairs | Kept | Missing pairs, wrong names, and upper-case extensions fail |
 | Well-formed single-page Draw.io XML and embedded-source equality | Kept | Namespace-aware structural parsing and canonical comparison |
-| SVG active-content and external-reference rejection | Kept | DOM, namespace, entity, CSS, URL, and fragment checks |
-| Path confinement, symlink refusal, exclusive temporary file, atomic rename | Kept | Exporter and checker fixtures cover source, ancestor, and output paths |
+| SVG active-content and external-reference rejection | Kept | DOM, namespace, entity, CSS, fragment-only `url(...)` in every attribute, and outright `ping` checks |
+| Path confinement, symlink refusal, exclusive temporary file, atomic rename | Kept | Exporter covers source/ancestor/output paths; checker enforcement is limited to explicit diagram roots |
 | Exact Desktop version/output/arguments | Kept | Export wrapper validates `31.1.8` and the pinned flag sequence |
 | Raw source, canonical embedded source, and export freshness hashes | Kept | Checker detects stale source and changed SVG bytes |
 | Accessible real Markdown/MDX reference | Kept | Meaningful alt or exact target-bound adjacent description |
@@ -61,19 +67,22 @@ second Docusaurus configuration analyser.
 
 ## Size and test contraction
 
-The pre-contraction snapshot was measured before the approved edits. Core LOC is
-the sum of the checker, exporter, shared library, and focused test file.
+Core LOC is the sum of the checker, exporter, shared library, and focused test
+file. The previously reported 2,081 LOC and 72 tests were observed in the
+transient uncommitted pre-contraction working tree. No Git object captures that
+snapshot, so those figures are retained only as a non-reproducible observation
+and are not presented as an exact commit comparison.
 
-| Measure | Before | After | Delta |
-| ------- | -----: | ----: | ----: |
-| Core implementation and focused-test LOC | 2,081 | 1,670 | -411 (-19.8%) |
-| Focused Node tests | 72 | 64 | -8 net |
-| Scope-drift tests removed | 10 | 0 | -10 |
-| Contraction-boundary tests added | 0 | 2 | +2 |
+| Git-reproducible snapshot | Core LOC | Focused tests | Meaning |
+| ------------------------- | -------: | ------------: | ------- |
+| `97e3e6db2` | 1,434 | 44 | Committed pre-contraction head, before the transient scope wave |
+| `46b72dc2398537ea25033b784de486e079312f6d` | 1,670 | 64 | Exact operator-approved contraction candidate |
+| `a6a9d4b22f2d8cdf9443d0cedd166c843b531447` | 1,688 | 69 | Retained-scope repair head |
 
-The two new tests prove that committed provenance validates without invoking
-Draw.io and that the contract contains no renderer-analysis or exclusion
-schema.
+The exact `46b72dc23..a6a9d4b22` repair adds 18 core lines and five focused
+tests. Relative to the transient observation, the contraction candidate removed
+411 core lines and eight tests, but that delta is not a Git-reproducible range.
+The removed AST, render-attestation, and exclusion-schema tests remain absent.
 
 ## Pipeline contract
 
@@ -93,8 +102,10 @@ raster exceptions. The export wrapper:
    provenance; and
 8. writes through an exclusive same-directory temporary file and atomic rename.
 
-The checker walks the five public families but governs diagram-like files only
-inside the explicit directories. It validates pairing, naming, lower-case
+The checker scans regular Markdown/MDX files in the five public families but
+skips unrelated symlinks without reporting or following them. Symlink
+ancestor/descendant enforcement applies only to the five explicit diagram
+directories. Inside that boundary it validates pairing, naming, lower-case
 extensions, provenance, structural XML parity, SVG safety, accessibility, real
 same-family Markdown/MDX references, and reviewed raster exceptions. It never
 invokes Draw.io and does not inspect Docusaurus configuration source.
@@ -108,22 +119,29 @@ pipeline and DOCRB-008 owns production diagram authoring.
 | ----- | --- | ----- |
 | No checker-time Desktop dependency | Validation without a supplied fake binary produced `render-verification-unavailable` | The checker validates committed provenance without invoking Draw.io |
 | No renderer-analysis schema | The live contract still contained renderer and exclusion fields | The contract test proves all fields and per-family renderer mappings are absent |
-| Retained safety | Existing adversarial cases stayed green during both removals | The full focused suite passes 64/64 |
+| Generic SVG attribute URLs | Provenance-correct `shape-inside`, `shape-subtract`, and arbitrary-attribute external URLs produced no `unsafe-svg`; `ping` was accepted | Every attribute containing `url(...)` is fragment-only and `ping` is rejected outright |
+| Family reference symlink boundary | An unrelated family symlink produced `symlink-path` | Markdown/MDX discovery skips it without reporting or traversal; explicit diagram-root links still fail closed |
+| Retained safety | Existing adversarial cases stayed green during both repairs | The full focused suite passes 69/69 |
 
 ## Fresh evidence
 
+These results were captured at exact implementation head
+`a6a9d4b22f2d8cdf9443d0cedd166c843b531447`:
+
 | Gate | Result |
 | ---- | ------ |
-| `node --test scripts/docs/check-public-diagrams.test.mjs` | Exit 0; 64/64 tests passed |
+| `node --test scripts/docs/check-public-diagrams.test.mjs` | Exit 0; 69/69 tests passed |
 | `pnpm docs:public:diagrams` | Exit 0; 0 errors, 0 warnings, 0 production files |
-| `pnpm test:docs-check` | Exit 0; focused suite and all shell-harness cases passed |
+| `pnpm test:docs-check` | Exit 0; focused suite and all shell-harness cases through `AK` passed |
 | `pnpm docs:check` | Exit 0; 12/12 surfaces passed |
 | `pnpm --filter @eddacraft/anvil-docs-private build` | Exit 0; generated static files, with the inherited `/anvil/` shell-routing warnings |
 | `pnpm --filter @eddacraft/docs-public build` | Exit 0; generated static files |
-| `pnpm exec oxfmt --write <four changed files>` | Exit 0; repository formatter applied after the restricted write attempt failed with `EROFS` |
+| `pnpm format:check` | Exit 0; 1,695 files checked |
+| `pnpm docs:index:check` | Exit 0; 0 errors, 0 warnings, 6 files checked |
+| `pnpm docs:owed --since e23a602000` | Exit 0; 0 owed across 3 checked documents |
 | `pnpm aps:active-lint` | Exit 0; 140 files checked |
 | `pnpm aps:index:check` | Exit 0; only the inherited DOCDEF `0/6` versus `4/6` advisory |
-| `pnpm aps:drift --json` | Exit 0; the same inherited DOCDEF advisory |
+| `pnpm aps:drift` | Exit 0; the same inherited DOCDEF advisory |
 | `git diff --check` | Exit 0 |
 
 The first restricted `pnpm test:docs-check` attempt reached fixture case D and
