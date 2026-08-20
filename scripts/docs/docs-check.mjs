@@ -12,6 +12,7 @@
 //   tags              — scripts/docs/check-tags.mjs (real)
 //   links             — scripts/docs/check-links.mjs (real)
 //   public-docs       — scripts/docs/check-public-docs.mjs (real)
+//   public-diagrams   — scripts/docs/check-public-diagrams.mjs (real)
 //   aps               — scripts/docs/check-aps.mjs (delegates to scripts/aps/drift-check.mjs)
 //   adr               — scripts/docs/check-adr.mjs (delegates to scripts/docs/adr-integrity.sh)
 //   index-freshness   — scripts/docs/check-index-freshness.mjs (real)
@@ -50,6 +51,11 @@ const DEFAULT_SURFACES = [
   {
     name: 'public-docs',
     script: 'scripts/docs/check-public-docs.mjs',
+    baselineable: false,
+  },
+  {
+    name: 'public-diagrams',
+    script: 'scripts/docs/check-public-diagrams.mjs',
     baselineable: false,
   },
   { name: 'aps', script: 'scripts/docs/check-aps.mjs', baselineable: false },

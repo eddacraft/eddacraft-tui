@@ -108,9 +108,10 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-006, and DOCRB-011 are
-Merged. DOCRB-007's DOCRB-001/-002 dependencies are satisfied, but it remains
-Draft until its expected evidence is present. Other items stay Draft until
-their dependencies and expected evidence are present.
+Merged. DOCRB-007 is In Progress after exact-base readiness evidence confirmed
+the five mounted public family roots, production renderer topology, pinned
+exporter contract, and executable validation surfaces. Other items stay Draft
+until their dependencies and expected evidence are present.
 
 ## Success Criteria
 
@@ -362,20 +363,39 @@ their dependencies and expected evidence are present.
 
 ### DOCRB-007: Establish the Draw.io-to-accessible-SVG public asset pipeline
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Make polished public diagrams source-controlled, reviewable,
   accessible, and reproducible.
-- **Expected Outcome:** A documented deterministic export path commits paired
-  `.drawio` and `.svg` files, checks pairing and source-export parity, validates
-  rendering/build inclusion, requires alt text or adjacent equivalent prose,
-  and rejects silent raster-only or stale-export drift.
-- **Scope:** Documentation tooling, public asset conventions, fixture tests,
-  both production Docusaurus renderers and their asset/build integration
-- **Non-scope:** Redrawing all public diagrams or selecting public content
-  priorities
+- **Expected Outcome:** A pinned Draw.io Desktop export path governs the five
+  mounted public family roots, commits lower-kebab paired `.drawio`/`.svg`
+  files with embedded source and deterministic provenance, and checks pairing,
+  source/export parity, safety, accessibility, mounted-family membership, and
+  Markdown references. The validator is a first-class `docs:check` surface,
+  fixture tests exercise failure modes, and both production Docusaurus
+  renderers build.
+- **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
+  `plans/execution/DOCRB-007.actions.md`,
+  `plans/reviews/2026-08-20-docrb-007-public-svg-pipeline.md`,
+  `package.json`, `scripts/docs/docs-check.mjs`,
+  `scripts/docs/docs-check.test.sh`,
+  `scripts/docs/check-public-diagrams.mjs`,
+  `scripts/docs/export-public-diagram.mjs`,
+  `scripts/docs/lib/public-diagrams.mjs`,
+  `scripts/docs/public-diagrams.json`,
+  `scripts/docs/check-public-diagrams.test.mjs`,
+  `scripts/docs/fixtures/public-diagrams/**`,
+  `docs/guides/architecture-diagrams.md`, and generated documentation indexes
+  if changed
+- **Scope:** Documentation tooling, the mounted `anvil`, `beta`, `aps`,
+  `kindling`, and `edda-stack` public family roots, export/accessibility
+  guidance, fixture tests, and both production Docusaurus renderer builds
+- **Non-scope:** Production diagram authoring or content prioritisation;
+  unmounted `docs/public/start-here`; retired or legacy
+  `docs/architecture/**.drawio`; rollback-only `apps/docs-site`; and
+  DOCRB-009 component-Mermaid or affected-change enforcement
 - **Dependencies:** DOCRB-001, DOCRB-002
 - **Confidence:** medium
-- **Validation:** `pnpm test:docs-check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build`
+- **Validation:** `node --test scripts/docs/check-public-diagrams.test.mjs && pnpm test:docs-check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build && pnpm format:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json`
 
 ### DOCRB-008: Re-baseline public information architecture and curated diagrams
 

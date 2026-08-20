@@ -1,12 +1,12 @@
 # Architecture Diagram Maintenance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                     |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 against ADR-123, `docs/architecture/`, and `docs/guides/documentation-governance.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                              |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 against ADR-123, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs`, and `docs/guides/documentation-governance.md` |
 
-| Upstream                                                                                                                                              | Downstream                                  |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| ADR-123, `docs/guides/documentation-governance.md`, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md` | Architecture diagram reviews and PR hygiene |
+| Upstream                                                                                                                                                                                                                             | Downstream                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| ADR-123, `docs/guides/documentation-governance.md`, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs` | Architecture diagram reviews and PR hygiene |
 
 This guide covers diagram format and maintenance procedure. The durable contract
 is ADR-123. Documentation governance owns the
@@ -52,8 +52,8 @@ Each governed public (or public-facing central) diagram commits:
 4. ownership and upstream metadata through the containing document.
 
 SVG is the default export. Raster export is an explicit exception. Do not commit
-a PNG in place of the SVG pair. Source-export parity is enforced from DOCRB-007;
-until then, new public diagrams still commit both files.
+a PNG in place of the SVG pair. The DOCRB-007 checker enforces source-export
+parity for mounted public families.
 
 **One diagram per concern.** A second audience gets a linked or deliberately
 simplified view, not a copied diagram that can drift.
@@ -84,13 +84,36 @@ diagram update under ADR-123.
 
 ### Draw.io diagrams
 
-1. Open the `.drawio` file in draw.io (desktop app or VS Code extension).
-2. Make changes and save the source.
-3. Export the sibling `.svg` through the documented export path (DOCRB-007).
-   Until that path exists, export SVG from the same source and commit both files
-   together.
-4. Confirm alt text or adjacent prose still matches the picture.
-5. Do not commit a PNG instead of the SVG pair.
+The governed roots are the families mounted by the two production renderers:
+`docs/public/anvil` and `docs/public/beta` through `apps/anvil-docs-private`;
+`docs/public/aps`, `docs/public/kindling`, and `docs/public/edda-stack` through
+`apps/docs-public`. The disabled `docs/public/start-here`, rollback-only
+`apps/docs-site`, legacy `docs/architecture/**.drawio`, and component Mermaid
+enforcement are outside this pipeline.
+
+1. Install
+   [Draw.io Desktop 31.1.8](https://github.com/jgraph/drawio-desktop/releases/tag/v31.1.8).
+   The version is pinned because Desktop export changes can alter committed SVG
+   bytes.
+2. Create or edit a single-page, lower-kebab `.drawio` source below a governed
+   root. On the `<mxfile>` element, set non-empty `anvil-title` and
+   `anvil-description` attributes; these become the SVG accessible name and
+   description.
+3. Export with
+   `pnpm docs:public:diagrams:export -- docs/public/<family>/<path>.drawio`. The
+   wrapper verifies Desktop 31.1.8 and invokes
+   `--export --format svg --embed-diagram --crop --border 0`. It writes the
+   same-name sibling `.svg`, adds `role="img"`, `<title>`, and `<desc>`, and
+   records the source hash, export hash, version, and flags. Do not hand-edit
+   the SVG.
+4. Reference the SVG from Markdown in the same family using meaningful,
+   non-empty alt text, or use intentionally empty alt text when adjacent prose
+   states the equivalent material meaning.
+5. Run `pnpm docs:public:diagrams`. It rejects unpaired or non-lower-kebab
+   assets, raster exports, stale or missing provenance, missing embedded source,
+   active content or external references, inaccessible SVG, renderer mount
+   drift, and unreferenced exports. `pnpm docs:check` runs the same validator as
+   its `public-diagrams` surface.
 
 ## Review checklist
 
