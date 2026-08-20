@@ -112,6 +112,31 @@ function runExport(root, fakeDrawio) {
   );
 }
 
+test('export usage documents the supported repository root option', () => {
+  const result = spawnSync(
+    process.execPath,
+    [resolve(import.meta.dirname, 'export-public-diagram.mjs')],
+    { encoding: 'utf8' }
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--root <path>/);
+});
+
+async function runChecker(root, contract) {
+  await mkdir(join(root, 'scripts/docs'), { recursive: true });
+  await writeFile(
+    join(root, 'scripts/docs/public-diagrams.json'),
+    JSON.stringify(contract),
+    'utf8'
+  );
+  const result = spawnSync(
+    process.execPath,
+    [resolve(import.meta.dirname, 'check-public-diagrams.mjs'), '--root', root, '--json'],
+    { encoding: 'utf8' }
+  );
+  return { result, output: JSON.parse(result.stdout) };
+}
+
 test('valid mounted, paired, referenced and provenanced diagram passes', async () => {
   assert.deepEqual(await findingsFor(), []);
 });
@@ -408,6 +433,18 @@ test('governed diagram extensions must be lower-case', async () => {
   assert.ok(findings.some(({ code }) => code === 'invalid-extension'));
 });
 
+test('checker summary counts governed files with invalid extension casing', async () => {
+  const state = await fixture();
+  try {
+    await cp(join(state.familyRoot, 'sample-flow.svg'), join(state.familyRoot, 'uppercase.SVG'));
+    const { result, output } = await runChecker(state.root, state.contract);
+    assert.notEqual(result.status, 0);
+    assert.equal(output.summary.filesChecked, 3);
+  } finally {
+    await rm(state.root, { recursive: true, force: true });
+  }
+});
+
 test('raster sibling fails', async () => {
   const findings = await findingsFor(async ({ familyRoot }) => {
     await writeFile(join(familyRoot, 'sample-flow.png'), 'not a public export', 'utf8');
@@ -500,6 +537,22 @@ test('checker rejects a parent-traversing manifest diagram root before traversal
   });
   assert.ok(findings.some(({ code }) => code === 'invalid-contract'));
   assert.ok(findings.every(({ code }) => code !== 'symlink-path'));
+});
+
+test('checker summary does not traverse an invalid manifest diagram root', async () => {
+  const state = await fixture();
+  const escapedRoot = join(resolve(state.root, '..'), `${basename(state.root)}-summary-escape`);
+  try {
+    await mkdir(escapedRoot);
+    await writeFile(join(escapedRoot, 'outside.svg'), '<svg/>', 'utf8');
+    state.contract.diagramDirectories = [`../${basename(escapedRoot)}`];
+    const { result, output } = await runChecker(state.root, state.contract);
+    assert.notEqual(result.status, 0);
+    assert.equal(output.summary.filesChecked, 0);
+  } finally {
+    await rm(state.root, { recursive: true, force: true });
+    await rm(escapedRoot, { recursive: true, force: true });
+  }
 });
 
 test('checker rejects symlinked diagram entries instead of traversing them', async () => {

@@ -20,7 +20,9 @@ const positional = args.filter(
     index !== rootIndex + 1
 );
 if (positional.length !== 1) {
-  fail('usage: node scripts/docs/export-public-diagram.mjs <path.drawio> [--drawio-bin <path>]');
+  fail(
+    'usage: node scripts/docs/export-public-diagram.mjs <path.drawio> [--root <path>] [--drawio-bin <path>]'
+  );
 }
 
 const repoRoot =

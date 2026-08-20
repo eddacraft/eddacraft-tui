@@ -367,6 +367,19 @@ async function validateManifestRoots(repoRoot, contract) {
   return { issues, valid };
 }
 
+export async function countPublicDiagramFiles(repoRoot, contract) {
+  const manifestRoots = await validateManifestRoots(repoRoot, contract);
+  let count = 0;
+  for (const directory of contract.diagramDirectories ?? []) {
+    if (!manifestRoots.valid.has(directory)) continue;
+    const { files } = await walk(resolve(repoRoot, directory));
+    count += files.filter((path) =>
+      ['.drawio', '.svg'].includes(extname(path).toLowerCase())
+    ).length;
+  }
+  return count;
+}
+
 function finding(code, path, message) {
   return { code, path, message };
 }
