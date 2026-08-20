@@ -34,6 +34,18 @@ fn ascii_mode() -> bool {
     })
 }
 
+fn pad_to_display_width(text: &str, width: usize) -> String {
+    let used = UnicodeWidthStr::width(text);
+    if used >= width {
+        text.to_string()
+    } else {
+        let mut out = String::with_capacity(text.len() + (width - used));
+        out.push_str(text);
+        out.push_str(&" ".repeat(width - used));
+        out
+    }
+}
+
 /// Fit `title` inside a block whose outer width is `area_width`. A Ratatui
 /// block title is rendered between two border cells and a space on each side,
 /// so the effective budget is `area_width - 4`. Overflowing titles are
@@ -359,6 +371,12 @@ fn render_path_select(
     let inner = block.inner(box_area);
     frame.render_widget(block, box_area);
 
+    let label_width = (0..state.picker_len())
+        .filter_map(|i| state.picker_label(i))
+        .map(UnicodeWidthStr::width)
+        .max()
+        .unwrap_or(0);
+
     let items: Vec<Line> = (0..state.picker_len())
         .map(|i| {
             let path = state.picker_path(i);
@@ -382,7 +400,7 @@ fn render_path_select(
                 ));
             }
             spans.push(Span::styled(
-                state.picker_label(i).unwrap_or_default(),
+                pad_to_display_width(state.picker_label(i).unwrap_or_default(), label_width),
                 name_style,
             ));
             spans.push(Span::styled(
@@ -1018,6 +1036,61 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    /// Dave B26 / #4057: path-picker descriptions must share a column even
+    /// when titles vary in width. Fixed two-space gap after the raw title
+    /// makes the second column ragged.
+    #[test]
+    fn path_select_descriptions_share_a_column() {
+        let backend = TestBackend::new(100, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        let mut starts = Vec::new();
+        for i in 0..state.picker_len() {
+            let label = state.picker_label(i).unwrap_or_default();
+            let desc = state.picker_description(i).unwrap_or_default();
+            let needle = desc
+                .split_whitespace()
+                .next()
+                .unwrap_or_else(|| panic!("empty description for {label}"));
+            let mut found = None;
+            for y in buf.area.y..buf.area.y + buf.area.height {
+                let mut line = String::new();
+                let mut at_byte = Vec::new();
+                for x in buf.area.x..buf.area.x + buf.area.width {
+                    at_byte.push((x, line.len()));
+                    line.push_str(buf[(x, y)].symbol());
+                }
+                if !line.contains(&label) {
+                    continue;
+                }
+                if let Some(byte_idx) = line.find(needle) {
+                    found = at_byte
+                        .into_iter()
+                        .find(|(_, b)| *b == byte_idx)
+                        .map(|(x, _)| x);
+                    break;
+                }
+            }
+            starts.push((
+                label.to_string(),
+                found.unwrap_or_else(|| panic!("description for {label} not rendered")),
+            ));
+        }
+        assert!(starts.len() >= 2, "picker must list more than one path");
+        let first = starts[0].1;
+        assert!(
+            starts.iter().all(|(_, col)| *col == first),
+            "path descriptions must share a column, got {starts:?}"
+        );
     }
 
     /// Guards against arithmetic underflow, clipped borders, and zero-width

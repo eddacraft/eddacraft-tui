@@ -31,8 +31,10 @@ pub struct DashboardArgs {
 
     /// Serve the browser dashboard on a loopback port instead of opening a
     /// terminal dashboard. Read-only, and reachable only from this machine.
-    /// Gated by the `dashboard.web` feature flag (default-off); set
-    /// `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1` to enable.
+    /// Cannot be combined with a dashboard name (`architecture`, `drift`,
+    /// `suppressions`); those are terminal-only. Gated by the `dashboard.web`
+    /// feature flag (default-off); set `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1`
+    /// to enable.
     #[arg(long, conflicts_with = "name")]
     pub web: bool,
 
@@ -504,6 +506,17 @@ fn format_picker(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn web_help_says_exclusive_of_name() {
+        let cmd = clap::Command::new("dashboard");
+        let mut cmd = DashboardArgs::augment_args(cmd);
+        let help = cmd.render_long_help().to_string();
+        assert!(
+            help.contains("Cannot be combined with a dashboard name"),
+            "expected --web help to name the NAME exclusivity, got:\n{help}"
+        );
+    }
 
     #[test]
     fn catalog_wires_all_three_dashboards() {

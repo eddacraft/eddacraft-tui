@@ -328,11 +328,67 @@ mod tests {
 
         let text = plain(terminal.backend().buffer());
         assert!(
-            text.contains(
-                "▸ Review gate decision  See whether the current findings pass your workflow gate"
-            ),
+            text.contains("▸ Review gate decision")
+                && text.contains(
+                    "See whether the current findings pass your workflow gate"
+                ),
             "welcome menu should render label + description through Select rows; got:\n{text}"
         );
+    }
+
+    /// Dave B26 / #4057: hub descriptions must share a column. The Select
+    /// widget used to put a fixed two-space gap after a variable-width title.
+    #[test]
+    fn menu_descriptions_share_a_column() {
+        let backend = TestBackend::new(120, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = WelcomeState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        let text = plain(buf);
+        let mut starts = Vec::new();
+        for opt in QuickStartOption::ALL {
+            let needle = opt
+                .description()
+                .split_whitespace()
+                .next()
+                .expect("hub descriptions are non-empty");
+            let col = cell_column(buf, needle, opt.label()).unwrap_or_else(|| {
+                panic!("description for {} not rendered\n{text}", opt.label())
+            });
+            starts.push((opt.label(), col));
+        }
+        let first = starts[0].1;
+        assert!(
+            starts.iter().all(|(_, col)| *col == first),
+            "hub descriptions must share a column, got {starts:?}"
+        );
+    }
+
+    fn cell_column(buf: &ratatui::buffer::Buffer, needle: &str, label: &str) -> Option<u16> {
+        for y in buf.area.y..buf.area.y + buf.area.height {
+            let mut line = String::new();
+            let mut at_byte = Vec::new();
+            for x in buf.area.x..buf.area.x + buf.area.width {
+                at_byte.push((x, line.len()));
+                line.push_str(buf[(x, y)].symbol());
+            }
+            if !line.contains(label) {
+                continue;
+            }
+            if let Some(byte_idx) = line.find(needle) {
+                return at_byte
+                    .into_iter()
+                    .find(|(_, b)| *b == byte_idx)
+                    .map(|(x, _)| x);
+            }
+        }
+        None
     }
 
     /// Plain-text (style-stripped) render of a buffer for substring assertions.

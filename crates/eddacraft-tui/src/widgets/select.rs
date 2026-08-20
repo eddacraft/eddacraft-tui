@@ -2,8 +2,33 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, StatefulWidget, Widget};
+use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
+
+/// Pad `text` with trailing spaces until its Unicode display width is `width`.
+fn pad_to_display_width(text: &str, width: usize) -> String {
+    let used = UnicodeWidthStr::width(text);
+    if used >= width {
+        text.to_string()
+    } else {
+        let mut out = String::with_capacity(text.len() + (width - used));
+        out.push_str(text);
+        out.push_str(&" ".repeat(width - used));
+        out
+    }
+}
+
+/// Widest label among items that actually show a description, so the second
+/// column starts at one shared offset (Dave B26 / #4057).
+fn description_label_width(items: &[SelectItem]) -> usize {
+    items
+        .iter()
+        .filter(|item| item.description.as_ref().is_some_and(|d| !d.is_empty()))
+        .map(|item| UnicodeWidthStr::width(item.label.as_str()))
+        .max()
+        .unwrap_or(0)
+}
 
 #[derive(Debug, Clone)]
 pub struct SelectItem {
@@ -107,6 +132,8 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
             state.offset = state.selected - visible_height + 1;
         }
 
+        let label_width = description_label_width(&self.items);
+
         for (i, item) in self
             .items
             .iter()
@@ -131,7 +158,10 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
                 let desc_style = label_style.fg(self.theme.muted());
 
                 Line::from(vec![
-                    Span::styled(format!("{prefix}{}", item.label), label_style),
+                    Span::styled(
+                        format!("{prefix}{}", pad_to_display_width(&item.label, label_width)),
+                        label_style,
+                    ),
                     Span::styled(
                         "  ",
                         if i == state.selected {
@@ -208,5 +238,64 @@ mod tests {
         let item = SelectItem::new("Run audit", "Scan for issues");
         assert_eq!(item.label, "Run audit");
         assert_eq!(item.description, Some("Scan for issues".to_string()));
+    }
+
+    #[test]
+    fn descriptions_share_a_column_across_variable_width_labels() {
+        use crate::theme::EddaCraftTheme;
+
+        let area = Rect::new(0, 0, 60, 3);
+        let mut buf = Buffer::empty(area);
+        let mut state = SelectState::default();
+        let theme = EddaCraftTheme;
+        StatefulWidget::render(
+            Select::new(
+                vec![
+                    SelectItem::new("Short", "alpha"),
+                    SelectItem::new("Much longer label", "bravo"),
+                ],
+                &theme,
+            ),
+            area,
+            &mut buf,
+            &mut state,
+        );
+
+        let text = buffer_plain(&buf);
+        let alpha = cell_column(&buf, "alpha").unwrap_or_else(|| panic!("alpha missing:\n{text}"));
+        let bravo = cell_column(&buf, "bravo").unwrap_or_else(|| panic!("bravo missing:\n{text}"));
+        assert_eq!(
+            alpha, bravo,
+            "descriptions must share a column (alpha={alpha}, bravo={bravo}):\n{text}"
+        );
+    }
+
+    fn buffer_plain(buf: &Buffer) -> String {
+        let mut out = String::new();
+        for y in buf.area.y..buf.area.y + buf.area.height {
+            for x in buf.area.x..buf.area.x + buf.area.width {
+                out.push_str(buf[(x, y)].symbol());
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    fn cell_column(buf: &Buffer, needle: &str) -> Option<u16> {
+        for y in buf.area.y..buf.area.y + buf.area.height {
+            let mut line = String::new();
+            let mut at_byte = Vec::new();
+            for x in buf.area.x..buf.area.x + buf.area.width {
+                at_byte.push((x, line.len()));
+                line.push_str(buf[(x, y)].symbol());
+            }
+            if let Some(byte_idx) = line.find(needle) {
+                return at_byte
+                    .into_iter()
+                    .find(|(_, b)| *b == byte_idx)
+                    .map(|(x, _)| x);
+            }
+        }
+        None
     }
 }

@@ -1,8 +1,8 @@
 # Local Dashboard
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                          |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DASH  | Live   | Last reviewed 2026-07-31 against `dashboard.web` feature flag + `anvil dashboard --web` (DASH-012) |
+| Type  | Authority     | Owner | Status | Freshness                                                                                             |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DASH  | Live   | Last reviewed 2026-08-20 against `dashboard.web` feature flag + `--web` exclusive of `[NAME]` (#4058) |
 
 | Upstream                                                                                                                                                                                                  | Downstream                                               |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -17,7 +17,8 @@ from your own machine.
 The browser surface is gated by the `dashboard.web` rollout flag
 (**default-off** for the `v0.10.0-beta` cut). Terminal `anvil dashboard`
 surfaces (architecture / drift / suppressions / gate-summary) are **not**
-affected.
+affected. `--web` cannot be combined with a dashboard name — named dashboards
+are terminal-only.
 
 Opt in for a session:
 
