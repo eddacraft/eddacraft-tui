@@ -8,8 +8,28 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft.** Customer-facing changes on `main` since the last tagged release.
-> Version and date land at the next cut.
+> **Draft for `v0.9.7-beta`.** Customer-facing changes on `main` since
+> `v0.9.6-beta`. Theme locked: first-session honesty. Version and date land at
+> the cut.
+
+### Fixed
+
+- **Unsigned `anvil welcome` no longer dead-ends on gated Policy or Architecture
+  steps.** Those commands still need a signed-in session. When you are not
+  signed in, the path names `anvil auth login` first and does not present the
+  gated command as a runnable check. Free `--verify` probes stay runnable.
+
+- **Hub "Review gate decision" shows live progress.** On a large repo the hub no
+  longer sits on a frozen "Running quality checks..." line. The loading line
+  updates as the workspace is scanned and as each check starts.
+
+- **"Choose a learning path" opens the path picker.** Hub and first-run no
+  longer run a discovery scan before the picker. Guided setup can still wow with
+  discovery before offering the menu.
+
+- **Audit Next Steps jump to the matching issue.** Enter on a Next Steps row
+  focuses and expands that issue. One large-file step lands on that file. The
+  footer no longer promises expand on a panel that cannot expand.
 
 ## [0.9.6-beta] — 2026-08-18 — Beta field fixes and shell command-safety
 

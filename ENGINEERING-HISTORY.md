@@ -7,9 +7,43 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft
+## [Unreleased] — Draft — First-session honesty
 
-Draft / unreleased. Technical work landed on `main` since `v0.9.6-beta`.
+Draft / unreleased. Technical work landed on `main` since `v0.9.6-beta`. The
+locked `v0.9.7-beta` claim is **first-session honesty** after Chris Bridle's
+published-`0.9.6-beta` run: unsigned welcome does not shell gated Policy or
+Architecture commands, the hub gate paints live progress, "Choose a learning
+path" opens the picker, and audit Next Steps jump to Issues. Docs definition
+work, the website redesign, produce-lock reap, and telemetry-disclosure
+prominence remain beside this window, not the cut claim.
+
+### First-session welcome and audit honesty
+
+- **Gated tutorial steps become a sign-in bridge when unsigned-in.**
+  `anvil welcome` stays ungated. Policy and Architecture paths that would shell
+  `anvil policy test`, `anvil gate`, or `anvil architecture validate` rewrite
+  those steps to name `anvil auth login` first and are not runnable checks until
+  signed in. Free `--verify` probes stay runnable. In-process autoplay is
+  unchanged (CIB-248).
+- **Hub RunGate reports per-check progress.** `collect_gate_data_with_progress`
+  redraws the loading line as the workspace is scanned and as each check starts,
+  so a large-repo run no longer looks hung.
+- **Learning-path label matches the next screen.** Hub and first-run "Choose a
+  learning path" open the tutorial picker. Discovery / first-win may still run
+  as a first-run wow _before_ the menu.
+- **Audit Next Steps drive Issues.** Enter on a count-only Next Steps rollup
+  focuses and expands the matching issue. One large-file step lands on that
+  file; N>1 jumps to the first match. Footer copy only advertises expand when
+  the focused panel can expand.
+
+### Adjacent freight (ships on the same tip; not the cut claim)
+
+- **Stale graph-base produce-locks are reaped.** `anvil doctor` names dead-pid
+  `.producing/*.lock` files; `--fix`, intercept start, and graph-base trigger
+  start sweep them. A live in-flight producer is left alone.
+- **Docs definition layer and public catalogues** continue on `main` (DOCDEF /
+  DOCRB). Not this claim.
+- **Website decision-integrity redesign** deploys independently of the CLI tag.
 
 ## [0.9.6-beta] — 2026-08-18 — Beta field fixes and shell command-safety
 
