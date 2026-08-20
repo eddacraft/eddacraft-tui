@@ -9,6 +9,7 @@ import {
   annotateSvg,
   canonicalDrawioSource,
   loadContract,
+  sha256,
   validatePublicDiagrams,
 } from './lib/public-diagrams.mjs';
 
@@ -25,6 +26,14 @@ function xmlAttribute(value) {
 
 function rawSvg(source) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120" content="${xmlAttribute(source)}"><rect width="400" height="120"/></svg>`;
+}
+
+function withCurrentExportHash(svg) {
+  const content = svg.replace(/\s*<metadata\s+id="anvil-drawio-provenance"[^>]*\/>\s*/, '');
+  return svg.replace(
+    /data-export-sha256="[a-f0-9]{64}"/,
+    `data-export-sha256="${sha256(content)}"`
+  );
 }
 
 async function fixture() {
@@ -238,16 +247,23 @@ test('namespace-aware SVG safety fails closed on active XML and URL tricks', asy
       `external ${attribute} URL`,
       `<rect ${attribute}="url(https://example.invalid/shape.svg#x)"/>`,
     ]),
+    ['ping attribute', '<a ping="https://example.invalid/audit"><text>x</text></a>'],
+    ['external shape-inside URL', '<rect shape-inside="url(https://example.invalid/a.svg#x)"/>'],
+    [
+      'external shape-subtract URL',
+      '<rect shape-subtract="url(https://example.invalid/a.svg#x)"/>',
+    ],
+    [
+      'external arbitrary attribute URL',
+      '<rect data-shape="url(https://example.invalid/a.svg#x)"/>',
+    ],
   ];
   for (const [name, attack] of attacks) {
     await t.test(name, async () => {
       const findings = await findingsFor(async ({ familyRoot }) => {
         const path = join(familyRoot, 'sample-flow.svg');
-        await writeFile(
-          path,
-          (await readFile(path, 'utf8')).replace('</svg>', `${attack}</svg>`),
-          'utf8'
-        );
+        const svg = (await readFile(path, 'utf8')).replace('</svg>', `${attack}</svg>`);
+        await writeFile(path, withCurrentExportHash(svg), 'utf8');
       });
       assert.ok(findings.some(({ code }) => code === 'unsafe-svg'));
     });
@@ -483,6 +499,16 @@ test('checker rejects a symlink in any ancestor from the repository root', async
     await symlink(externalDocs, join(root, 'docs'));
   });
   assert.ok(findings.some(({ code, path }) => code === 'symlink-path' && path === 'docs'));
+});
+
+test('checker skips an unrelated family symlink without reporting or following it', async () => {
+  const findings = await findingsFor(async ({ root, publicFamilyRoot }) => {
+    const external = join(root, 'external-reference');
+    await mkdir(external);
+    await writeFile(join(external, 'decoy.md'), '![decoy](sample-flow.svg)\n', 'utf8');
+    await symlink(external, join(publicFamilyRoot, 'unrelated-link'));
+  });
+  assert.deepEqual(findings, []);
 });
 
 test('export refuses an external symlink source', async () => {

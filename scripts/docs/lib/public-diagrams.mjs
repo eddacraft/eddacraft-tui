@@ -13,18 +13,6 @@ const RASTER_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
 const XMLNS_NAMESPACE = 'http://www.w3.org/2000/xmlns/';
-const URL_PRESENTATION_ATTRIBUTES = new Set([
-  'fill',
-  'stroke',
-  'filter',
-  'clip-path',
-  'mask',
-  'marker',
-  'marker-start',
-  'marker-mid',
-  'marker-end',
-  'cursor',
-]);
 const SVG_DOM = new Window();
 
 export async function loadContract(repoRoot) {
@@ -439,12 +427,13 @@ function hasUnsafeSvg(svg) {
         ) {
           return true;
         }
+        if (lowerAttribute === 'ping') return true;
         if (lowerAttribute === 'href' || lowerAttribute === 'src') {
           const reference = normaliseReference(value);
           if (!reference || !/^#[A-Za-z_][A-Za-z0-9_.:-]*$/.test(reference)) return true;
         }
         if (lowerAttribute === 'style' && unsafeCss(value)) return true;
-        if (URL_PRESENTATION_ATTRIBUTES.has(lowerAttribute) && unsafeCss(value)) return true;
+        if (/url\s*\(/i.test(decodeCssEscapes(value)) && unsafeCss(value)) return true;
       }
     }
     return false;
@@ -576,10 +565,22 @@ export async function validatePublicDiagrams(repoRoot, contract) {
 
   for (const family of contract.families) {
     const familyRoot = resolve(repoRoot, family.root);
-    const ancestorSymlinks = await symlinkAncestors(repoRoot, familyRoot);
-    const { files: familyFiles, symlinks: descendantSymlinks } =
-      ancestorSymlinks.length > 0 ? { files: [], symlinks: [] } : await walk(familyRoot);
-    const symlinks = [...ancestorSymlinks, ...descendantSymlinks];
+    const { files: familyFiles } = await walk(familyRoot);
+    const diagramRoots = (contract.diagramDirectories ?? [])
+      .filter((directory) => directory.startsWith(`${family.root}/`))
+      .map((directory) => resolve(repoRoot, directory));
+    const files = [];
+    const symlinks = new Set();
+    for (const diagramRoot of diagramRoots) {
+      const ancestors = await symlinkAncestors(repoRoot, diagramRoot);
+      if (ancestors.length > 0) {
+        ancestors.forEach((path) => symlinks.add(path));
+        continue;
+      }
+      const governed = await walk(diagramRoot);
+      governed.files.forEach((path) => files.push(path));
+      governed.symlinks.forEach((path) => symlinks.add(path));
+    }
     for (const path of symlinks) {
       findings.push(
         finding(
@@ -589,15 +590,6 @@ export async function validatePublicDiagrams(repoRoot, contract) {
         )
       );
     }
-    const diagramRoots = (contract.diagramDirectories ?? [])
-      .filter((directory) => directory.startsWith(`${family.root}/`))
-      .map((directory) => resolve(repoRoot, directory));
-    const files = familyFiles.filter((path) =>
-      diagramRoots.some((directory) => {
-        const child = relative(directory, path);
-        return child === '' || (!child.startsWith(`..${sep}`) && child !== '..');
-      })
-    );
     const markdownFiles = familyFiles.filter((path) => /\.mdx?$/.test(path));
     const markdownByPath = new Map(
       await Promise.all(markdownFiles.map(async (path) => [path, await readFile(path, 'utf8')]))
