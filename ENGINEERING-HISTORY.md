@@ -11,7 +11,7 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 Draft / unreleased. Technical work landed on `main` since `v0.9.6-beta`. The
 locked `v0.9.7-beta` claim is **first-session honesty** after Chris Bridle's
-published-`0.9.6-beta` run: unsigned welcome does not shell gated Policy or
+published `v0.9.6-beta` run: unsigned welcome does not shell gated Policy or
 Architecture commands, the hub gate paints live progress, "Choose a learning
 path" opens the picker, and audit Next Steps jump to Issues. Docs definition
 work, the website redesign, produce-lock reap, and telemetry-disclosure

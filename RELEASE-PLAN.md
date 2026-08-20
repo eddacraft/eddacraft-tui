@@ -59,7 +59,7 @@ Remaining cut work is the standing bar and preflight → prepare → readiness �
 tag. Changelog `[Unreleased]` is curated in this lock.
 
 **Customer one-liner:** First-session welcome, gate progress, learning path, and
-audit next steps tell the truth.
+Audit Next Steps tell the truth.
 
 **Authority:** Chris Bridle first-session pack-09 on published `v0.9.6-beta`
 (2026-08-19). Operator locked 2026-08-20 so the next tester gets the published
