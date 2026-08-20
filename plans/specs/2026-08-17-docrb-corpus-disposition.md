@@ -2,14 +2,17 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCRB-002 inventory | [DOCRB](../modules/docs-rebaseline.aps.md) | Ready | 2026-08-17 — source-pinned to `4588f1be8` (DOCRB-001 tip) |
+| Spec | Authoritative for DOCRB-002 inventory | [DOCRB](../modules/docs-rebaseline.aps.md) | Ready | Original inventory source-pinned 2026-08-17 to `4588f1be8`; DOCRB-005 dispositions reconciled 2026-08-20 against `f0f834b39` and current component source |
 
 | Upstream | Downstream |
 | -------- | ---------- |
 | ADR-123; `plans/specs/2026-08-16-docs-rebaseline.md`; `Cargo.toml` workspace members; `apps/*/package.json`; `packages/**/package.json`; `docs/architecture/**`; `docs/public/**` | DOCRB-003..008 migration, pilots, and diagram rebuilds |
 
-This artefact is the DOCRB-002 ownership map. It does not migrate files,
-change sibling-module status, or activate mandatory checks.
+This artefact is the DOCRB-002 ownership map and the disposition authority used
+by DOCRB-005. The original counts below remain source-pinned inventory
+evidence. DOCRB-005 resolution notes update only the assigned move/merge/retire
+outcomes; they do not change sibling-module status or activate mandatory
+checks.
 
 ## 1. Method
 
@@ -69,7 +72,7 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 
 | Root | Class | Owner | Authoritative concern | Target | Required diagram | Disposition |
 | ---- | ----- | ----- | --------------------- | ------ | ---------------- | ----------- |
-| `crates/anvil-cli` | component-doc required | CLI | Command dispatch, activation, MCP shim, TUI runner | Local README + ARCHITECTURE; keep `cli-tui-runner-as-built.md` / `mcp-shim-as-built.md` as links until merge | Request flow CLI → kernel / MCP | move central as-built detail here |
+| `crates/anvil-cli` | component-doc required | CLI | Command dispatch, activation, MCP shim, TUI runner | Local README + ARCHITECTURE; central files are deprecated compatibility records | Request flow CLI → kernel / MCP | central detail moved here in DOCRB-005 |
 | `crates/anvil-run` | README only | CLI | Process launcher / air-gapped run | Local README | none | README only |
 | `crates/anvil-config` | component-doc required | UCFG | Config discovery, formats, delegation | Local README + ARCHITECTURE | Discovery/precedence | component-doc required |
 | `crates/anvil-hook` | README only | HOOK | Hook coexistence | Local README | none unless lifecycle grows | README only |
@@ -134,7 +137,7 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | `packages/anvil/runtime` | README only | TSCOMPAT | TS runtime for API/archive | Keep README | none | README only |
 | `packages/anvil/observability` | README only | OBS | TS observability helpers | Keep README | none | README only |
 | `packages/anvil/flags-catalogue` | README only | FLAGCAT | Flag catalogue helpers | Keep README | none | README only |
-| `packages/anvil-driver-client` | component-doc required | DRVR | Editor-driver client | Keep README; ARCHITECTURE if protocol detail stays here | wire protocol (link driver as-built) | README + possible ARCHITECTURE |
+| `packages/anvil-driver-client` | component-doc required | DRVR | Editor-driver client | README + ARCHITECTURE for client internals; link retained cross-system driver map | wire protocol (link driver as-built) | client detail moved here in DOCRB-005 |
 | `packages/adapters` | README only | OPENSPEC | Plan-format adapters | Keep README/AGENTS | none | README only |
 | `packages/aps` | README only | APS | Local APS tooling (not public APS product) | Keep README/AGENTS | none | README only |
 | `packages/docs-meta` | README only | DOCRB | Docs metadata parser | Keep README/AGENTS | none | README only |
@@ -165,21 +168,21 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | `docs/architecture/oss-surface.md` | central cross-system authority | OSS | Three OSS repos | retain |
 | `docs/architecture/jsts-release-surfaces.md` | central cross-system authority | REL | JS/TS release tiers | retain |
 | `docs/architecture/edda-stack.md` | central cross-system authority | EDDA | Kindling/Ember/Edda contract | retain |
-| `docs/architecture/kernel-as-built.md` | component (misplaced) | KERN | Kernel internals | move → `crates/anvil-kernel/ARCHITECTURE.md`; leave a stub link |
-| `docs/architecture/checks-as-built.md` | component (misplaced) | SCAN | Checks pipeline | move → `crates/anvil-checks/ARCHITECTURE.md` |
-| `docs/architecture/intercept-as-built.md` | component (misplaced) | INTD | Intercept daemon | move → `crates/anvil-intercept/ARCHITECTURE.md` |
-| `docs/architecture/mcp-shim-as-built.md` | component (misplaced) | MCP | MCP shim | merge into `crates/anvil-cli/ARCHITECTURE.md` |
-| `docs/architecture/activation-as-built.md` | component (misplaced) | LAUNCH | `anvil start` | merge into `crates/anvil-cli/ARCHITECTURE.md` |
-| `docs/architecture/cli-tui-runner-as-built.md` | component (misplaced) | TUI | CLI TUI runner | merge into `crates/anvil-cli/ARCHITECTURE.md` |
-| `docs/architecture/tui-as-built.md` | component (misplaced) | TUI | TUI surfaces | move → `crates/anvil-tui/ARCHITECTURE.md` |
-| `docs/architecture/widgets-as-built.md` | component (misplaced) | TUI | Widget catalogue | merge into tui ARCHITECTURE or keep as appendix link |
-| `docs/architecture/api-as-built.md` | component (misplaced) | API | anvil-api | move → `apps/anvil-api/ARCHITECTURE.md` |
+| `docs/architecture/kernel-as-built.md` | historical compatibility | KERN | Kernel internals | moved to `crates/anvil-kernel/ARCHITECTURE.md`; deprecated record preserves discovery/history |
+| `docs/architecture/checks-as-built.md` | central / split | SCAN | Checks pipeline across CLI, daemon, MCP, and baseline | local internals moved to `crates/anvil-checks/ARCHITECTURE.md`; retain slim cross-system consumer map |
+| `docs/architecture/intercept-as-built.md` | historical compatibility | INTD | Intercept daemon | moved to `crates/anvil-intercept/ARCHITECTURE.md`; deprecated record preserves discovery/history |
+| `docs/architecture/mcp-shim-as-built.md` | historical compatibility | MCP | MCP shim | merged into `crates/anvil-cli/ARCHITECTURE.md`; deprecated record preserves discovery/history |
+| `docs/architecture/activation-as-built.md` | historical compatibility | LAUNCH | `anvil start` | merged into `crates/anvil-cli/ARCHITECTURE.md`; deprecated record preserves discovery/history |
+| `docs/architecture/cli-tui-runner-as-built.md` | historical compatibility | TUI | CLI TUI runner | merged into `crates/anvil-cli/ARCHITECTURE.md`; deprecated record links TUI authority |
+| `docs/architecture/tui-as-built.md` | historical compatibility | TUI | TUI surfaces | moved to `crates/anvil-tui/ARCHITECTURE.md`; deprecated record preserves discovery/history |
+| `docs/architecture/widgets-as-built.md` | historical compatibility | TUI | Widget catalogue | anvil composites moved to local TUI architecture; shared eddacraft contracts remain in its README |
+| `docs/architecture/api-as-built.md` | historical compatibility | API | anvil-api | moved to `apps/anvil-api/ARCHITECTURE.md`; deprecated record preserves discovery/history |
 | `docs/architecture/auth-as-built.md` | central / split | BAUTH | Auth across CLI, API, docs-shell | retain as cross-system; strip docs-site-as-live wording in DOCRB-005 |
-| `docs/architecture/driver-framework-as-built.md` | component (misplaced) | DRVR | Driver protocol | move toward `packages/anvil-driver-client` / intercept-proto |
-| `docs/architecture/observability-as-built.md` | component (misplaced) | OBS | Observability crate | move → `crates/anvil-observability/ARCHITECTURE.md` |
-| `docs/architecture/capsule-as-built.md` | component (misplaced) | CAPS | Capsules | move → `crates/anvil-capsule/ARCHITECTURE.md` |
-| `docs/architecture/adapter-packages-as-built.md` | component (misplaced) | OPENSPEC | Adapters | move → `packages/adapters/ARCHITECTURE.md` or keep README |
-| `docs/architecture/tutorial-as-built.md` | component (misplaced) | TUI | Tutorial engine | merge into `crates/anvil-tui/ARCHITECTURE.md` |
+| `docs/architecture/driver-framework-as-built.md` | central / split | DRVR | Driver protocol across client, wire, daemon, rules, and Windows | retain slim cross-system map; client internals moved to `packages/anvil-driver-client/ARCHITECTURE.md`, protocol orientation to `crates/anvil-intercept-proto/README.md` |
+| `docs/architecture/observability-as-built.md` | historical compatibility | OBS | Observability crate | moved to `crates/anvil-observability/README.md`; README-only component classification wins over the stale central-row ARCHITECTURE target |
+| `docs/architecture/capsule-as-built.md` | historical compatibility | CAPS | Capsules | moved to `crates/anvil-capsule/README.md`; README-only component classification wins over the stale central-row ARCHITECTURE target |
+| `docs/architecture/adapter-packages-as-built.md` | historical compatibility | OPENSPEC | Adapters | split into existing README authorities for adapters, APS tooling, and the kindling bridge; no duplicate ARCHITECTURE |
+| `docs/architecture/tutorial-as-built.md` | historical compatibility | TUI | Tutorial engine | merged into `crates/anvil-tui/ARCHITECTURE.md`; deprecated record preserves discovery/history |
 | `docs/architecture/_as-built-template.md` | generated/vendor (template) | DOCRB | Authoring template | retain as template; retarget to component ARCHITECTURE in DOCRB-003 |
 | `docs/architecture/rust-kernel-spec.md` | historical | KERN | H1 kernel intent | historical; `kernel-as-built` / local ARCHITECTURE owns shipped truth |
 | `docs/architecture/anvil-architecture-evolution.md` | historical | KERN | H1/H2 rollout | historical |
@@ -238,9 +241,9 @@ Generated public/reference pages (CLI reference and similar) stay
 | Concern | Apparent authorities | Resolution |
 | ------- | -------------------- | ---------- |
 | Live docs host | DSITE module (`apps/docs-site` as shared host); `docs/architecture/README.md` (pre-001); `infra/src/vercel.ts` | ADR-123: vercel.ts is implementation truth; README/governance record the gap; DSITE status unchanged |
-| Kernel internals | `kernel-as-built.md` and `rust-kernel-spec.md` | spec is historical; as-built then local ARCHITECTURE |
+| Kernel internals | `kernel-as-built.md` and `rust-kernel-spec.md` | local ARCHITECTURE is live; both central paths now route discovery/history |
 | System map | `overview.md` Mermaid and retired `anvil-system-components.drawio` | `overview.md` is the sole live engineering authority after DOCRB-006 |
-| TUI surfaces | `tui-as-built.md`, `widgets-as-built.md`, `cli-tui-runner-as-built.md` | one crate ARCHITECTURE + links |
+| TUI surfaces | `tui-as-built.md`, `widgets-as-built.md`, `cli-tui-runner-as-built.md` | anvil TUI and CLI internals are local; shared eddacraft contracts remain in its README; central records are links/history |
 | Auth | `auth-as-built.md`, docs-site AGENTS, docs-shell tests, ADR-066 | keep one cross-system as-built; update host names in DOCRB-005 |
 | Public Anvil behaviour | `docs/public/anvil/**` vs internal as-builts | public describes shipped product; internal describes implementation; do not copy |
 | APS public vs `packages/aps` | public APS pages vs local tooling | ADR-122 already splits these |
@@ -248,8 +251,9 @@ Generated public/reference pages (CLI reference and similar) stay
 
 ## 8. Broken or weak discovery paths
 
-- **No component `ARCHITECTURE.md` exists.** Maintainers cannot start beside
-  code for internals.
+- **At the pinned inventory revision, no component `ARCHITECTURE.md` existed.**
+  DOCRB-004 added the pilots; DOCRB-005 promoted kernel, intercept, API, checks,
+  CLI, TUI, and driver-client component authority beside source.
 - **25 of 36 workspace crates** have no root README
   (`anvil-attribution`, `anvil-baseline`, `anvil-capsule`,
   `anvil-checks-ast`, `anvil-config`, `anvil-dashboard-server`,
@@ -266,8 +270,8 @@ Generated public/reference pages (CLI reference and similar) stay
   have no README.
 - **`crates/anvil-plan-read-model`** is on disk but not a workspace member —
   easy to miss in crate indexes.
-- **Both Draw.io sources lack SVG**, so they cannot be reviewed or published
-  as accessible public assets.
+- **At the pinned inventory revision, both Draw.io sources lacked SVG.**
+  DOCRB-006 retired those sources after replacement and disposition review.
 - **`docs/architecture/README.md` (before DOCRB-001)** pointed readers at
   `apps/docs-site` as the public renderer. Fixed on the stack base; inbound
   archive docs still say that.

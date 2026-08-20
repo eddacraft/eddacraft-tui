@@ -1,17 +1,33 @@
 # anvil-intercept — As-Built
 
-| Type     | Authority | Owner     | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------- | --------- | --------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | INTD, DSV | Live   | Last reviewed 2026-07-04 (ADR-098 AD-3: daemon `Mode` is now the shared `EnforcementMode`; `Mode::Off` is a real always-`Allow` posture in the embedded honoured-config table); prior sweep 2026-07-02 (`ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX, `stop`/`unblock` CLI subcommands shipped, repinned lib.rs/intercept.rs/protocol.rs line refs) against main `d1fded280`; delta review 2026-06-10 (DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority  | Owner     | Status     | Freshness                                                                                                                        |
+| -------- | ---------- | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | INTD, DSV | Deprecated | Superseded 2026-08-20 by `crates/anvil-intercept/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
 
 | Upstream                                                                                                                                                                             | Downstream                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, `crates/anvil-graph-cache`, `crates/anvil-checks`, ADR-015 | MCP shim validation client (RMCP), driver framework clients (DRVR), CLI intercept surface, embedded fallback path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-04 (ADR-098 AD-3: daemon
-> `Mode` is now the shared `EnforcementMode`; `Mode::Off` is a real
-> always-`Allow` posture in the embedded honoured-config table); prior sweep
-> 2026-07-02 (`ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX,
+> **Compatibility record:** current daemon, save-time validation, and fencing
+> truth now lives in
+> [`crates/anvil-intercept/ARCHITECTURE.md`](../../crates/anvil-intercept/ARCHITECTURE.md),
+> with contributor discovery in
+> [`crates/anvil-intercept/README.md`](../../crates/anvil-intercept/README.md).
+> The cross-component client/protocol view remains in the
+> [driver framework as-built](driver-framework-as-built.md), while
+> [ADR-015](../../plans/decisions/015-intercept-loop-enforcement.md),
+> [ADR-085](../../plans/decisions/085-daemon-full-scan-executor.md),
+> [ADR-090](../../plans/decisions/090-daemon-worktree-scoped-health-envelopes.md),
+> and
+> [ADR-123](../../plans/decisions/123-documentation-authority-and-diagram-model.md)
+> retain their decision authority. The full pre-migration body below is a
+> historical snapshot, not a second live authority; earlier revisions remain
+> available through this file's Git history.
+>
+> **Snapshot status at last review:** Live (beta). **Last reviewed:** 2026-07-04
+> (ADR-098 AD-3: daemon `Mode` is now the shared `EnforcementMode`; `Mode::Off`
+> is a real always-`Allow` posture in the embedded honoured-config table); prior
+> sweep 2026-07-02 (`ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX,
 > `stop`/`unblock` CLI subcommands shipped, repinned
 > lib.rs/intercept.rs/protocol.rs line refs) against main `d1fded280`; delta
 > review 2026-06-10 (DSV save-time validation arc, ADR-070 peer-SID gate,

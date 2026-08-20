@@ -1,21 +1,34 @@
-# Adapter Packages — As-Built
+# Adapter Packages — Historical As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                        |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | APSMD | Live   | Last reviewed 2026-06-10 (targeted delta review: validator rules, resolved schema drift, version anchors) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority  | Owner    | Status     | Freshness                                                                                                                                            |
+| -------- | ---------- | -------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | OPENSPEC | Deprecated | Migrated 2026-08-20 to the component READMEs for adapters, APS tooling, and Kindling integration; this pre-migration snapshot remains for provenance |
 
-| Upstream                                                                                    | Downstream                                                                                                 |
-| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `packages/adapters/`, `packages/aps/`, `packages/kindling-integration/`, `crates/anvil-cli` | anvil validate / gate / export CLI, APS document tooling, Kindling capture bridge, edda-stack memory layer |
+| Upstream                                                                                               | Downstream                                        |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| `packages/adapters/README.md`, `packages/aps/README.md`, and `packages/kindling-integration/README.md` | historical inbound links and migration provenance |
 
-> **Status:** Live (beta) for all three packages. Specific adapters within
-> `packages/adapters/` have varying readiness (SpecKit, BMAD, APS Markdown, and
-> Generic are complete; Open-Spec and BMAD v4 backward-compat are still in
-> progress per public docs and `plans/modules/`). **Last reviewed:** 2026-06-10
-> (targeted delta) against main `45dd1047a`; full review 2026-05-07 against
-> `v0.6.0-beta` slate. **Locations:** `packages/adapters/`, `packages/aps/`,
-> `packages/kindling-integration/` — all TypeScript packages built via `pnpm` /
-> `nx` (`packages/adapters/package.json:11`, `packages/aps/package.json:18`,
+Current component authority is split deliberately:
+
+- [format conversion and detection](../../packages/adapters/README.md);
+- [APS parsing, loading, validation, state, and templates](../../packages/aps/README.md);
+- [the bounded Kindling bridge](../../packages/kindling-integration/README.md)
+  and its [contract summary](../../packages/kindling-integration/CONTRACTS.md).
+
+The content below is the pre-DOCRB-005 combined snapshot. It is not live
+component or roadmap authority; line counts, readiness labels, resolved gaps,
+and sibling-module status remain only as historical context. Use Git history at
+this path for earlier revisions.
+
+> **Historical snapshot:** all three packages were described together. Specific
+> adapters within `packages/adapters/` have varying readiness (SpecKit, BMAD,
+> APS Markdown, and Generic are complete; Open-Spec and BMAD v4 backward-compat
+> are still in progress per public docs and `plans/modules/`). **Last
+> reviewed:** 2026-06-10 (targeted delta) against main `45dd1047a`; full review
+> 2026-05-07 against `v0.6.0-beta` slate. **Locations:** `packages/adapters/`,
+> `packages/aps/`, `packages/kindling-integration/` — all TypeScript packages
+> built via `pnpm` / `nx` (`packages/adapters/package.json:11`,
+> `packages/aps/package.json:18`,
 > `packages/kindling-integration/package.json:91`). **Module owners (APS):**
 >
 > - `packages/adapters/` — APSMD (Complete,

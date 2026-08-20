@@ -1,7 +1,19 @@
 # anvil-checks
 
-Quality gate checks ported from TypeScript to Rust for performance-critical
-evaluation in the Anvil kernel.
+| Type   | Authority     | Owner | Status | Freshness                                                                                           |
+| ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------- |
+| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/lib.rs`, `src/surface/**`, and `ARCHITECTURE.md` |
+
+| Upstream                                                  | Downstream                                              |
+| --------------------------------------------------------- | ------------------------------------------------------- |
+| `src/**`, compiled pattern registry, ADR-029, and ADR-087 | CLI, intercept rules, activation, MCP, and contributors |
+
+Reusable quality checks for performance-sensitive evaluation across anvil's CLI,
+kernel, and interception surfaces. Read the source-linked
+[local architecture](ARCHITECTURE.md) before changing family boundaries,
+suppression, finding shapes, or guarded-byte evaluation. The former central
+[checks as-built](../../docs/architecture/checks-as-built.md) is a dated
+compatibility and history record.
 
 ## Modules
 
@@ -19,7 +31,8 @@ evaluation in the Anvil kernel.
 - **`surface`** — `.env`, `.env.*`, and `.envrc` parsing (SURFENV-001) that
   routes values through the existing secret patterns and reports findings with
   the variable name and source line; suppress with
-  `# @anvil-ignore SURFENV-001`.
+  `# @anvil-ignore SURFENV-001`, plus SQL, Dockerfile, GitHub Actions, and shell
+  source-specific checks.
 - **`command_safety`** — shell command safety analysis.
 
 ## Parallel Scanning
@@ -30,9 +43,6 @@ pattern. First-run scans honour the `ANVIL_SCAN_THREADS` environment variable
 and default to `min(num_cpus, 4)` so the parallel walk does not starve TUI or
 editor work. Raise the cap on dedicated CI runners; lower it on shared laptops
 if you see contention.
-
-The 0.5.0-beta SCAN benchmark recorded a 7.39× wall-time improvement on a
-synthetic 3,000-file surface over the previous serial scan baseline.
 
 ## Benchmarks
 

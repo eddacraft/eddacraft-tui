@@ -55,9 +55,9 @@
 
 ## APGOV
 
-| Document                                                                | Path                                | Type     | Authority | Owner | Status |
-| ----------------------------------------------------------------------- | ----------------------------------- | -------- | --------- | ----- | ------ |
-| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md) | `docs/architecture/api-as-built.md` | As-built | Derived   | APGOV | Live   |
+| Document                                                                | Path                                | Type     | Authority  | Owner | Status     |
+| ----------------------------------------------------------------------- | ----------------------------------- | -------- | ---------- | ----- | ---------- |
+| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md) | `docs/architecture/api-as-built.md` | As-built | Historical | APGOV | Deprecated |
 
 ## API
 
@@ -65,12 +65,6 @@
 | ------------------------------------------------------------------------------------- | --------------------------------------------- | ------- | ------------- | ----- | ------ |
 | [Release Announcement Email](../../docs/runbooks/release-announcement-email.md)       | `docs/runbooks/release-announcement-email.md` | Runbook | Authoritative | API   | Live   |
 | [Waitlist Email Operations (Admin)](../../docs/runbooks/waitlist-email-operations.md) | `docs/runbooks/waitlist-email-operations.md`  | Runbook | Authoritative | API   | Live   |
-
-## APSMD
-
-| Document                                                                            | Path                                             | Type     | Authority | Owner | Status |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | --------- | ----- | ------ |
-| [Adapter Packages — As-Built](../../docs/architecture/adapter-packages-as-built.md) | `docs/architecture/adapter-packages-as-built.md` | As-built | Derived   | APSMD | Live   |
 
 ## ARCHCFG
 
@@ -98,6 +92,12 @@
 | [Pack Coverage Survey — Full](../../docs/surveys/pack-coverage-survey.md)      | `docs/surveys/pack-coverage-survey.md`     | Guide | Advisory  | BETA  | Live   |
 | [Pack Coverage Survey — Quick](../../docs/surveys/pack-coverage-quickstart.md) | `docs/surveys/pack-coverage-quickstart.md` | Guide | Advisory  | BETA  | Live   |
 
+## CAPS
+
+| Document                                                                             | Path                                    | Type     | Authority  | Owner | Status     |
+| ------------------------------------------------------------------------------------ | --------------------------------------- | -------- | ---------- | ----- | ---------- |
+| [Review Capsules — Historical As-Built](../../docs/architecture/capsule-as-built.md) | `docs/architecture/capsule-as-built.md` | As-built | Historical | CAPS  | Deprecated |
+
 ## CIB
 
 | Document                                                                                                 | Path                                                     | Type  | Authority     | Owner | Status |
@@ -117,6 +117,24 @@
 | Document                                                            | Path                                | Type  | Authority     | Owner | Status |
 | ------------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ----- | ------ |
 | [CLI Output Stream Policy](../../docs/guides/cli-output-streams.md) | `docs/guides/cli-output-streams.md` | Guide | Authoritative | CLAR  | Live   |
+
+## CLI
+
+| Document                                                                                    | Path                                           | Type     | Authority | Owner | Status     |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------- | -------- | --------- | ----- | ---------- |
+| [CLI TUI Runner — Compatibility Record](../../docs/architecture/cli-tui-runner-as-built.md) | `docs/architecture/cli-tui-runner-as-built.md` | As-built | Derived   | CLI   | Deprecated |
+
+## CLI/LAUNCH
+
+| Document                                                                                         | Path                                       | Type     | Authority | Owner      | Status     |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | --------- | ---------- | ---------- |
+| [Activation Orchestrator — Compatibility Record](../../docs/architecture/activation-as-built.md) | `docs/architecture/activation-as-built.md` | As-built | Derived   | CLI/LAUNCH | Deprecated |
+
+## CLI/MCP
+
+| Document                                                                              | Path                                     | Type     | Authority | Owner   | Status     |
+| ------------------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ------- | ---------- |
+| [anvil MCP Shim — Compatibility Record](../../docs/architecture/mcp-shim-as-built.md) | `docs/architecture/mcp-shim-as-built.md` | As-built | Derived   | CLI/MCP | Deprecated |
 
 ## CLIC
 
@@ -254,12 +272,6 @@
 | ---------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ----- | ------ |
 | [Git Hook Compatibility Policy](../../docs/guides/git-hook-compatibility.md) | `docs/guides/git-hook-compatibility.md` | Guide | Authoritative | GHOOK | Live   |
 
-## GITGOV
-
-| Document                                                                  | Path                                    | Type     | Authority | Owner  | Status |
-| ------------------------------------------------------------------------- | --------------------------------------- | -------- | --------- | ------ | ------ |
-| [Review Capsules — As-Built](../../docs/architecture/capsule-as-built.md) | `docs/architecture/capsule-as-built.md` | As-built | Derived   | GITGOV | Live   |
-
 ## GV2
 
 | Document                                                                                                              | Path                                                    | Type  | Authority | Owner | Status |
@@ -286,9 +298,9 @@
 
 ## INTD, DSV
 
-| Document                                                                    | Path                                      | Type     | Authority | Owner     | Status |
-| --------------------------------------------------------------------------- | ----------------------------------------- | -------- | --------- | --------- | ------ |
-| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md) | `docs/architecture/intercept-as-built.md` | As-built | Derived   | INTD, DSV | Live   |
+| Document                                                                    | Path                                      | Type     | Authority  | Owner     | Status     |
+| --------------------------------------------------------------------------- | ----------------------------------------- | -------- | ---------- | --------- | ---------- |
+| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md) | `docs/architecture/intercept-as-built.md` | As-built | Historical | INTD, DSV | Deprecated |
 
 ## KERN
 
@@ -299,7 +311,7 @@
 | [Quality Model](../../docs/architecture/quality-model.md)                                  | `docs/architecture/quality-model.md`                | Guide    | Authoritative | KERN  | Live       |
 | [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md) | `docs/architecture/rust-architecture-overview.md`   | Guide    | Derived       | KERN  | Live       |
 | [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)              | `docs/architecture/rust-kernel-spec.md`             | Spec     | Historical    | KERN  | Deprecated |
-| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                      | `docs/architecture/kernel-as-built.md`              | As-built | Derived       | KERN  | Live       |
+| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                      | `docs/architecture/kernel-as-built.md`              | As-built | Historical    | KERN  | Deprecated |
 
 ## KFIT
 
@@ -320,18 +332,6 @@
 | -------------------------------------------------------------------------- | ----------------------------------------- | ----- | ------------- | ------- | ------ |
 | [Anchor Re-Scoring Process](../../docs/guides/anchor-rescoring-process.md) | `docs/guides/anchor-rescoring-process.md` | Guide | Authoritative | LANGCOV | Live   |
 
-## LAUNCH
-
-| Document                                                                      | Path                                     | Type     | Authority | Owner  | Status |
-| ----------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ------ | ------ |
-| [Tutorial Subsystem — As-Built](../../docs/architecture/tutorial-as-built.md) | `docs/architecture/tutorial-as-built.md` | As-built | Derived   | LAUNCH | Live   |
-
-## LAUNCH/MCP26
-
-| Document                                                                             | Path                                       | Type     | Authority | Owner        | Status |
-| ------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | --------- | ------------ | ------ |
-| [Activation Orchestrator — As-Built](../../docs/architecture/activation-as-built.md) | `docs/architecture/activation-as-built.md` | As-built | Derived   | LAUNCH/MCP26 | Live   |
-
 ## MODULE-CODE
 
 | Document                                                  | Path                              | Type    | Authority     | Owner       | Status |
@@ -340,9 +340,10 @@
 
 ## OBS
 
-| Document                                                                    | Path                                    | Type    | Authority     | Owner | Status |
-| --------------------------------------------------------------------------- | --------------------------------------- | ------- | ------------- | ----- | ------ |
-| [Observability Triage Runbook](../../docs/runbooks/observability-triage.md) | `docs/runbooks/observability-triage.md` | Runbook | Authoritative | OBS   | Live   |
+| Document                                                                                       | Path                                          | Type     | Authority     | Owner | Status     |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------- | -------- | ------------- | ----- | ---------- |
+| [Observability Triage Runbook](../../docs/runbooks/observability-triage.md)                    | `docs/runbooks/observability-triage.md`       | Runbook  | Authoritative | OBS   | Live       |
+| [anvil-observability — Historical As-Built](../../docs/architecture/observability-as-built.md) | `docs/architecture/observability-as-built.md` | As-built | Historical    | OBS   | Deprecated |
 
 ## OPAG
 
@@ -352,9 +353,10 @@
 
 ## OPENSPEC
 
-| Document                                                                                          | Path                                     | Type  | Authority | Owner    | Status |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----- | --------- | -------- | ------ |
-| [Adapter Implementation & Developer Workflow Guide](../../docs/guides/adapters/workflow-guide.md) | `docs/guides/adapters/workflow-guide.md` | Guide | Advisory  | OPENSPEC | Live   |
+| Document                                                                                          | Path                                             | Type     | Authority  | Owner    | Status     |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | ---------- | -------- | ---------- |
+| [Adapter Implementation & Developer Workflow Guide](../../docs/guides/adapters/workflow-guide.md) | `docs/guides/adapters/workflow-guide.md`         | Guide    | Advisory   | OPENSPEC | Live       |
+| [Adapter Packages — Historical As-Built](../../docs/architecture/adapter-packages-as-built.md)    | `docs/architecture/adapter-packages-as-built.md` | As-built | Historical | OPENSPEC | Deprecated |
 
 ## OPMODEL
 
@@ -382,14 +384,6 @@
 | Document                                                               | Path                               | Type  | Authority     | Owner  | Status |
 | ---------------------------------------------------------------------- | ---------------------------------- | ----- | ------------- | ------ | ------ |
 | [Policy Pack Validation Guide](../../docs/guides/policy-validation.md) | `docs/guides/policy-validation.md` | Guide | Authoritative | POLVAL | Live   |
-
-## RATS
-
-| Document                                                                        | Path                                           | Type     | Authority | Owner | Status |
-| ------------------------------------------------------------------------------- | ---------------------------------------------- | -------- | --------- | ----- | ------ |
-| [CLI TUI Runner — As-Built](../../docs/architecture/cli-tui-runner-as-built.md) | `docs/architecture/cli-tui-runner-as-built.md` | As-built | Derived   | RATS  | Live   |
-| [Widget Catalogue — As-Built](../../docs/architecture/widgets-as-built.md)      | `docs/architecture/widgets-as-built.md`        | As-built | Derived   | RATS  | Live   |
-| [anvil-tui — As-Built](../../docs/architecture/tui-as-built.md)                 | `docs/architecture/tui-as-built.md`            | As-built | Derived   | RATS  | Live   |
 
 ## RCLI3
 
@@ -433,12 +427,6 @@
 | Document                                                     | Path                                | Type  | Authority | Owner                                                                        | Status |
 | ------------------------------------------------------------ | ----------------------------------- | ----- | --------- | ---------------------------------------------------------------------------- | ------ |
 | [Benchmark Results](../../docs/testing/benchmark-results.md) | `docs/testing/benchmark-results.md` | Guide | Advisory  | RLB (plans/modules/resource-load-benchmarking.aps.md); KFIT kindling section | Live   |
-
-## RMCP/MCP26
-
-| Document                                                                  | Path                                     | Type     | Authority | Owner      | Status |
-| ------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ---------- | ------ |
-| [anvil MCP Shim — As-Built](../../docs/architecture/mcp-shim-as-built.md) | `docs/architecture/mcp-shim-as-built.md` | As-built | Derived   | RMCP/MCP26 | Live   |
 
 ## RMCPF/MCP26
 
@@ -491,11 +479,23 @@
 
 ## TRACE
 
-| Document                                                                                 | Path                                          | Type     | Authority     | Owner | Status |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------- | -------- | ------------- | ----- | ------ |
-| [Anvil Observability Namespace Registry](../../docs/observability/namespace-registry.md) | `docs/observability/namespace-registry.md`    | Guide    | Authoritative | TRACE | Live   |
-| [Local Tracing](../../docs/observability/local-tracing.md)                               | `docs/observability/local-tracing.md`         | Guide    | Derived       | TRACE | Live   |
-| [anvil-observability — As-Built](../../docs/architecture/observability-as-built.md)      | `docs/architecture/observability-as-built.md` | As-built | Derived       | TRACE | Live   |
+| Document                                                                                 | Path                                       | Type  | Authority     | Owner | Status |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------ | ----- | ------------- | ----- | ------ |
+| [Anvil Observability Namespace Registry](../../docs/observability/namespace-registry.md) | `docs/observability/namespace-registry.md` | Guide | Authoritative | TRACE | Live   |
+| [Local Tracing](../../docs/observability/local-tracing.md)                               | `docs/observability/local-tracing.md`      | Guide | Derived       | TRACE | Live   |
+
+## TUI
+
+| Document                                                                               | Path                                    | Type     | Authority | Owner | Status     |
+| -------------------------------------------------------------------------------------- | --------------------------------------- | -------- | --------- | ----- | ---------- |
+| [Widget Catalogue — Compatibility Record](../../docs/architecture/widgets-as-built.md) | `docs/architecture/widgets-as-built.md` | As-built | Derived   | TUI   | Deprecated |
+| [anvil-tui — Compatibility Record](../../docs/architecture/tui-as-built.md)            | `docs/architecture/tui-as-built.md`     | As-built | Derived   | TUI   | Deprecated |
+
+## TUI/LAUNCH
+
+| Document                                                                                  | Path                                     | Type     | Authority | Owner      | Status     |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ---------- | ---------- |
+| [Tutorial Subsystem — Compatibility Record](../../docs/architecture/tutorial-as-built.md) | `docs/architecture/tutorial-as-built.md` | As-built | Derived   | TUI/LAUNCH | Deprecated |
 
 ## TUIR (plans/archive/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050
 

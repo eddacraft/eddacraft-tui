@@ -1,17 +1,16 @@
 # anvil kernel architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                    |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Derived   | KERN  | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `crates/anvil-kernel/src/watch.rs`, `crates/anvil-kernel/src/parser/`, and `crates/anvil-kernel/src/protocol/` |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                            |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | KERN  | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/watch.rs`, `src/embedded.rs`, `src/parser/**`, `src/policy/**`, and `../anvil-graph-cache/src/**` |
 
-| Upstream                                                                              | Downstream                             |
-| ------------------------------------------------------------------------------------- | -------------------------------------- |
-| `crates/anvil-kernel/src/**`, `crates/anvil-graph-cache/src/**`, ADR-064, and ADR-123 | Kernel maintainers and event consumers |
+| Upstream                                                                              | Downstream                                            |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `crates/anvil-kernel/src/**`, `crates/anvil-graph-cache/src/**`, ADR-064, and ADR-123 | Kernel maintainers, CLI surfaces, and event consumers |
 
-> **DOCRB-004 pilot:** this document proves the component-local shape. The
-> retained central [kernel as-built](../../docs/architecture/kernel-as-built.md)
-> remains the implementation-map authority until DOCRB-005 migrates or
-> deliberately retains it.
+This document is the live component authority. The former central
+[kernel as-built](../../docs/architecture/kernel-as-built.md) is retained as a
+dated compatibility and history record.
 
 ## Scope and boundaries
 
@@ -41,6 +40,41 @@ and [`protocol/`](src/protocol). In prose: a watcher event selects a changed
 source file; the parser extracts symbols; the graph applies and resolves the
 change; the policy engine evaluates that delta; the protocol emitter publishes a
 finding or updated snapshot.
+
+## Runtime shapes and source map
+
+The crate exposes two orchestration shapes over the same parser, graph, and
+policy vocabulary:
+
+- [`watch.rs`](src/watch.rs) performs validated initial discovery before
+  consuming debounced filesystem changes. The initial scan establishes the
+  baseline graph before incremental policy evaluation, and the change loop
+  isolates a per-file panic with `catch_unwind`.
+- [`embedded.rs`](src/embedded.rs) provides `run_embedded` and
+  `run_embedded_cancellable` for one-shot in-process callers. Its
+  `EmbeddedConfig::plan` field is reserved but is not consumed by the
+  implementation.
+- [`watcher/`](src/watcher) owns notify integration, the internal file filter,
+  user glob filtering, event batches, and the bounded debouncer.
+- [`parser/`](src/parser) owns tree-sitter selection, AST caching, and symbol
+  and import extraction. The language enum and grammar bindings are defined in
+  [`languages.rs`](src/parser/languages.rs); per-language extraction lives under
+  [`extract/`](src/parser/extract).
+- [`policy/`](src/policy) loads and validates architecture configuration,
+  evaluates the cross-layer, new-dependency, public-API, and privilege-expansion
+  invariants, and emits deduplicated violations.
+- [`protocol/emitter.rs`](src/protocol/emitter.rs) serialises ordered engine
+  events for watch consumers.
+
+The semantic graph is deliberately a sibling component. The kernel re-exports
+`anvil_graph_cache` as `graph`, while
+[`anvil-graph-cache`](../anvil-graph-cache) owns graph mutation, dependency
+resolution, trust annotation, bounded certification, hot reads, overlays,
+composition, persistence snapshots, and the multi-workspace registry. The
+cross-component shape is described by the
+[Rust architecture overview](../../docs/architecture/rust-architecture-overview.md);
+save-time graph use belongs to the
+[intercept architecture](../anvil-intercept/ARCHITECTURE.md).
 
 ## Invariants, failure, and fallback
 

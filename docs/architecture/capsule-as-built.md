@@ -1,12 +1,25 @@
-# Review Capsules — As-Built
+# Review Capsules — Historical As-Built
 
-| Type     | Authority | Owner                                                              | Status | Freshness                                                                                                            |
-| -------- | --------- | ------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | [GITGOV](../../plans/archive/modules/git-native-governance.aps.md) | Live   | Last reviewed 2026-06-10 against main `d6e7b4189` and source paths listed in [Source references](#source-references) |
+| Type     | Authority  | Owner | Status     | Freshness                                                                                                   |
+| -------- | ---------- | ----- | ---------- | ----------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | CAPS  | Deprecated | Migrated 2026-08-20 to `crates/anvil-capsule/README.md`; this pre-migration snapshot remains for provenance |
 
-| Upstream                                                                                                                                                                                                                                                                                                                      | Downstream                                                                                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/anvil-capsule`, `crates/anvil-cli` (capsule command lane), `crates/anvil-witness` (chain verifier), `crates/anvil-checks` (secret scan), `crates/anvil-policy` (exception verify), `crates/anvil-config` / `crates/anvil-rules` / `crates/anvil-baseline` (digest inputs), `crates/anvil-sarif` (diagnostics adapter) | `anvil capsule` CLI surface, CI consumers of `verify --json` / `explain --json`, reviewers and auditors consuming capsule directories, `docs/public/anvil/concepts/review-capsules.md` |
+| Upstream                                                        | Downstream                                        |
+| --------------------------------------------------------------- | ------------------------------------------------- |
+| `crates/anvil-capsule/README.md`, ADR-072, ADR-073, and ADR-074 | historical inbound links and migration provenance |
+
+Current format, lifecycle, invariants, failure behaviour, source links, and
+local validation now live in
+[`crates/anvil-capsule/README.md`](../../crates/anvil-capsule/README.md). The
+public explanation remains
+[`docs/public/anvil/concepts/review-capsules.md`](../public/anvil/concepts/review-capsules.md),
+while ADR-072/-073/-074 preserve decision authority.
+
+The content below is the pre-DOCRB-005 snapshot. It is not live component
+authority; keep it for migration/source-link history and use Git history at this
+path for earlier revisions.
+
+## Historical snapshot
 
 ## Overview
 

@@ -1,12 +1,12 @@
 # anvil API
 
-| Type   | Authority     | Owner | Status | Freshness                                                                                                       |
-| ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| README | Authoritative | APGOV | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `apps/anvil-api/src/index.ts`, and `apps/anvil-api/src/routes/**` |
+| Type   | Authority     | Owner | Status | Freshness                                                                                            |
+| ------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------- |
+| README | Authoritative | APGOV | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/index.ts`, `src/routes/**`, and `ARCHITECTURE.md` |
 
-| Upstream                                                                                                                         | Downstream                                              |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `apps/anvil-api/src/**`, ADR-066, ADR-123, `docs/architecture/api-as-built.md`, and BAUTH's `docs/architecture/auth-as-built.md` | CLI, docs shell, operator tooling, and API contributors |
+| Upstream                                                                                    | Downstream                                              |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `apps/anvil-api/src/**`, ADR-066, ADR-123, and BAUTH's `docs/architecture/auth-as-built.md` | CLI, docs shell, operator tooling, and API contributors |
 
 > **Status:** Beta access system (v1.0)
 
@@ -34,11 +34,11 @@ boundaries.
 ## Architecture and authorities
 
 Read the source-linked [local architecture](ARCHITECTURE.md) before changing
-middleware order, trust boundaries, or persistence flow. The retained central
-[API as-built](../../docs/architecture/api-as-built.md) remains the
-pre-migration implementation map until DOCRB-005. Authentication authority stays
-with BAUTH's [auth as-built](../../docs/architecture/auth-as-built.md); these
-pilot docs do not supersede it.
+middleware order, trust boundaries, or persistence flow. It is the live
+implementation-map authority; the former central
+[API as-built](../../docs/architecture/api-as-built.md) is a dated compatibility
+and history record. Authentication authority stays with BAUTH's
+[auth as-built](../../docs/architecture/auth-as-built.md).
 
 ## Endpoints
 
@@ -124,16 +124,6 @@ server-side; CLI requests will not see the misconfiguration directly. Provision
 both via your secret manager (Pulumi handles this for the EddaCraft-managed
 deployment).
 
-### CORS and Vercel hardening (post-0.5.0-beta deploy)
-
-The post-release Vercel/CORS hardening lowered the CORS preflight cache
-lifetime, restored the Hono/Vercel entrypoint after the post-tag deploy break,
-scoped the API tsconfig, controlled Nx framework detection, and added the
-`svix>uuid` runtime override exception so production deploys do not trip on
-dependency drift. Operators upgrading their `anvil-api` deployment for the
-0.5.0-beta release should redeploy from the current `dev` or `main` branch
-rather than cherry-picking individual fixes.
-
 ## Local validation
 
 ```bash
@@ -156,7 +146,7 @@ Run `src/db/schema.sql` against your Neon Postgres database to create the
 required tables (`beta_users`, `access_tokens`, `audit_log`, `device_codes`,
 `otp_codes`, `refresh_tokens`).
 
-### SQL Migration Runner (0.5.0-beta)
+### SQL migration runner
 
 `anvil-api` ships a first-party SQL migration runner that drives schema changes
 on every deploy. It supports:
@@ -169,8 +159,10 @@ on every deploy. It supports:
 - **Manual runbook** — operator instructions for re-running the migration step
   if a deploy stops between Pulumi Up and the application rollout.
 
-See the migration runbook under `docs/runbooks/db-migrations.md` for the
-operator workflow. Migrations are idempotent and safe to re-run.
+See the [database migration runbook](../../docs/runbooks/db-migrations.md) for
+the operator workflow. The runner checks recorded hashes for drift, serialises
+real runs with a PostgreSQL advisory lock, and applies each pending migration
+with its tracking row in one transaction.
 
 ## Deployment
 

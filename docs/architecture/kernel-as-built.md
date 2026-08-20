@@ -1,26 +1,44 @@
 # anvil-kernel — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                      |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | KERN  | Live   | Last reviewed 2026-07-02 (drift sweep against main `d1fded280`: language registry now 15 grammars, `anvil-graph-cache` module count, snapshot persistence, KERN archived-Complete). Prior: targeted delta 2026-06-10 (GV2-024 hot-read split/seal, ADR-077 depth cap) against `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-kernel`, `crates/anvil-kernel-types` |
+| Type     | Authority  | Owner | Status     | Freshness                                                                                                                     |
+| -------- | ---------- | ----- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | KERN  | Deprecated | Superseded 2026-08-20 by `crates/anvil-kernel/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
 
 | Upstream                                                    | Downstream                                                                               |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `crates/anvil-kernel`, `crates/anvil-kernel-types`, ADR-030 | engine ports (RENG), TUI / RATS surfaces, watch CLI (LAUNCH), MCP shim embedded fallback |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (drift sweep against
-> main `d1fded280`: language registry, `anvil-graph-cache` modules, snapshot
-> persistence, KERN archived-Complete); prior targeted delta 2026-06-10 (GV2-024
-> hot-read split/seal, ADR-077 depth cap) against `a1c41e284`; full review
-> 2026-05-07 against `v0.6.0-beta` slate (HEAD `97b61fd0`) **Crate / location:**
-> `crates/anvil-kernel` (+ `crates/anvil-kernel-types`) **Module owner (APS):**
-> KERN (kernel substrate, **Complete** — archived at
-> `plans/archive/modules/rust-kernel.aps.md`; 22/25 items Done, 3 daemon-mode
-> items KERN-050..052 superseded by INTD per ADR-030); downstream callers in
-> RENG (engine ports), surfaces in RATS / TUI, watch CLI in LAUNCH **Used by:**
-> `anvil watch`, `anvil check` / `gate` / `audit` (via embedded API),
-> `anvil-checks` registry consumers, MCP shim's `LocalDaemonValidationClient`
-> embedded fallback (validation routes through the kernel for parse + graph)
+> **Compatibility record:** current kernel implementation truth now lives in
+> [`crates/anvil-kernel/ARCHITECTURE.md`](../../crates/anvil-kernel/ARCHITECTURE.md),
+> with contributor discovery in
+> [`crates/anvil-kernel/README.md`](../../crates/anvil-kernel/README.md).
+> Cross-system graph and policy relationships remain in the
+> [Rust architecture overview](rust-architecture-overview.md),
+> [quality model](quality-model.md), and
+> [intercept architecture](../../crates/anvil-intercept/ARCHITECTURE.md).
+> Component and graph boundaries remain governed by
+> [ADR-030](../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md)
+> and
+> [ADR-064](../../plans/decisions/064-intercept-graph-cache-crate-boundary.md);
+> placement is governed by
+> [ADR-123](../../plans/decisions/123-documentation-authority-and-diagram-model.md).
+> The full pre-migration body below is a historical snapshot, not a second live
+> authority. Earlier revisions remain available through this file's Git history.
+>
+> **Snapshot status at last review:** Live (beta). **Last reviewed:** 2026-07-02
+> (drift sweep against main `d1fded280`: language registry, `anvil-graph-cache`
+> modules, snapshot persistence, KERN archived-Complete); prior targeted delta
+> 2026-06-10 (GV2-024 hot-read split/seal, ADR-077 depth cap) against
+> `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
+> `97b61fd0`) **Crate / location:** `crates/anvil-kernel` (+
+> `crates/anvil-kernel-types`) **Module owner (APS):** KERN (kernel substrate,
+> **Complete** — archived at `plans/archive/modules/rust-kernel.aps.md`; 22/25
+> items Done, 3 daemon-mode items KERN-050..052 superseded by INTD per ADR-030);
+> downstream callers in RENG (engine ports), surfaces in RATS / TUI, watch CLI
+> in LAUNCH **Used by:** `anvil watch`, `anvil check` / `gate` / `audit` (via
+> embedded API), `anvil-checks` registry consumers, MCP shim's
+> `LocalDaemonValidationClient` embedded fallback (validation routes through the
+> kernel for parse + graph)
 
 ## 1. Overview
 

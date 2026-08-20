@@ -1,17 +1,18 @@
 # anvil API architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                       |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | APGOV | Live   | Last reviewed 2026-08-20 against `88bd41647`, `apps/anvil-api/src/index.ts`, `apps/anvil-api/src/middleware/**`, `apps/anvil-api/src/routes/**`, and `apps/anvil-api/src/db/**` |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                           |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/index.ts`, `src/middleware/**`, `src/routes/**`, and `src/db/**` |
 
-| Upstream                                                                                                                         | Downstream                                       |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `apps/anvil-api/src/**`, ADR-066, ADR-123, `docs/architecture/api-as-built.md`, and BAUTH's `docs/architecture/auth-as-built.md` | API maintainers, CLI, docs shell, and operations |
+| Upstream                                                                                    | Downstream                                       |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `apps/anvil-api/src/**`, ADR-066, ADR-123, and BAUTH's `docs/architecture/auth-as-built.md` | API maintainers, CLI, docs shell, and operations |
 
-> **DOCRB-004 pilot:** this APGOV-owned component map remains subordinate to the
-> retained central [API as-built](../../docs/architecture/api-as-built.md) until
-> DOCRB-005. BAUTH's [auth as-built](../../docs/architecture/auth-as-built.md)
-> remains authoritative for authentication and authorisation.
+This document is the live APGOV component authority. The former central
+[API as-built](../../docs/architecture/api-as-built.md) is retained as a dated
+compatibility and history record. BAUTH's
+[auth as-built](../../docs/architecture/auth-as-built.md) remains authoritative
+for authentication and authorisation.
 
 ## Scope and boundaries
 
@@ -52,6 +53,43 @@ Global middleware traces to [`index.ts`](src/index.ts) and
 prose: every request crosses the shared middleware chain, then a route's public,
 authenticated, operator, or cron boundary. The validated handler calls Neon or
 an external provider and returns a structured result.
+
+## Composition and source map
+
+[`index.ts`](src/index.ts) mounts the `/api/v1` application. Its global
+middleware order is logger, configured-origin CORS, trace context, then the
+shared rate limiter; the health route and route modules execute behind that
+chain. Boot probes signing and verifying keys, GitHub CLI OAuth credentials, and
+Resend credentials without preventing the process from starting. The `/health`
+response reports those states alongside database reachability.
+
+Route ownership is split by trust and job:
+
+- [`routes/auth.ts`](src/routes/auth.ts),
+  [`routes/auth-device.ts`](src/routes/auth-device.ts),
+  [`routes/auth-otp.ts`](src/routes/auth-otp.ts),
+  [`routes/auth-session.ts`](src/routes/auth-session.ts),
+  [`routes/auth-github.ts`](src/routes/auth-github.ts), and
+  [`routes/auth-github-device.ts`](src/routes/auth-github-device.ts) implement
+  the BAUTH-owned access flows.
+- [`routes/admin.ts`](src/routes/admin.ts) and
+  [`routes/admin-schemas.ts`](src/routes/admin-schemas.ts) own operator
+  orchestration and validated request shapes; authentication and actor-scoped
+  limiting live in [`middleware/admin-auth.ts`](src/middleware/admin-auth.ts)
+  and [`middleware/admin-rate-limit.ts`](src/middleware/admin-rate-limit.ts).
+- [`routes/waitlist.ts`](src/routes/waitlist.ts),
+  [`routes/telemetry.ts`](src/routes/telemetry.ts),
+  [`routes/account-activity.ts`](src/routes/account-activity.ts), and
+  [`routes/cron.ts`](src/routes/cron.ts) own their bounded public,
+  identity-bound, and scheduled surfaces.
+
+[`db/client.ts`](src/db/client.ts) owns Neon client construction and test
+replacement. [`db/queries.ts`](src/db/queries.ts) owns validated persistence
+operations. [`db/migrate.ts`](src/db/migrate.ts) discovers ordered SQL files,
+checks stored hashes for drift, serialises real runs with a PostgreSQL advisory
+lock, and applies each migration transactionally with its tracking row. The
+[database migration runbook](../../docs/runbooks/db-migrations.md) remains the
+operator authority.
 
 ## Invariants, failure, and fallback
 

@@ -1,14 +1,28 @@
 # @eddacraft/anvil-driver-client
 
+| Type   | Authority     | Owner | Status | Freshness                                                                                                                                                      |
+| ------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | DRVR  | Live   | Last reviewed 2026-08-20 against `packages/anvil-driver-client/src`, its tests, and the Rust protocol mirror at `crates/anvil-intercept-proto/src/protocol.rs` |
+
+| Upstream                                                                                                                          | Downstream                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `packages/anvil-driver-client/src`, `crates/anvil-intercept-proto/src/protocol.rs`, ADR-030, and the editor-driver protocol specs | TypeScript editor/driver consumers and the cross-system driver-framework map |
+
 Shared TypeScript driver-client library for the `anvil-intercept` daemon. Editor
 and future TS-side driver surfaces use it to speak the daemon's JSON-RPC 2.0 +
 NDJSON protocol with platform-correct transport selection (Unix domain socket on
 Linux/macOS, named pipe on Windows), structured timeouts, transparent
 reconnection, and reliability-budget quarantine.
 
+See [Architecture](ARCHITECTURE.md) for the client boundary, request lifecycle,
+transport checks, failure behaviour, and source map. The
+[cross-system driver framework](../../docs/architecture/driver-framework-as-built.md)
+links this package to the Rust protocol and daemon without making this package
+authoritative for them.
+
 Lands DRVR-001 of the
-[`surface-drivers`](../../plans/modules/surface-drivers.aps.md) APS module; sits
-behind ADR-030 and consumes the daemon contracts pinned by ADR-015.
+[`surface-drivers`](../../plans/archive/modules/surface-drivers.aps.md) APS
+module; sits behind ADR-030 and consumes the daemon contracts pinned by ADR-015.
 
 ## Public API
 

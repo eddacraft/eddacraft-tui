@@ -12,24 +12,24 @@
 
 ## As-built
 
-| Document                                                                                              | Path                                             | Type     | Authority | Owner        | Status |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | --------- | ------------ | ------ |
-| [Activation Orchestrator — As-Built](../../docs/architecture/activation-as-built.md)                  | `docs/architecture/activation-as-built.md`       | As-built | Derived   | LAUNCH/MCP26 | Live   |
-| [Adapter Packages — As-Built](../../docs/architecture/adapter-packages-as-built.md)                   | `docs/architecture/adapter-packages-as-built.md` | As-built | Derived   | APSMD        | Live   |
-| [Auth System — As-Built](../../docs/architecture/auth-as-built.md)                                    | `docs/architecture/auth-as-built.md`             | As-built | Derived   | BAUTH        | Live   |
-| [CLI TUI Runner — As-Built](../../docs/architecture/cli-tui-runner-as-built.md)                       | `docs/architecture/cli-tui-runner-as-built.md`   | As-built | Derived   | RATS         | Live   |
-| [Driver Framework + intercept-proto — As-Built](../../docs/architecture/driver-framework-as-built.md) | `docs/architecture/driver-framework-as-built.md` | As-built | Derived   | DRVR         | Live   |
-| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md)       | `docs/architecture/jsts-release-surfaces.md`     | As-built | Derived   | @aneki       | Live   |
-| [Review Capsules — As-Built](../../docs/architecture/capsule-as-built.md)                             | `docs/architecture/capsule-as-built.md`          | As-built | Derived   | GITGOV       | Live   |
-| [Tutorial Subsystem — As-Built](../../docs/architecture/tutorial-as-built.md)                         | `docs/architecture/tutorial-as-built.md`         | As-built | Derived   | LAUNCH       | Live   |
-| [Widget Catalogue — As-Built](../../docs/architecture/widgets-as-built.md)                            | `docs/architecture/widgets-as-built.md`          | As-built | Derived   | RATS         | Live   |
-| [anvil MCP Shim — As-Built](../../docs/architecture/mcp-shim-as-built.md)                             | `docs/architecture/mcp-shim-as-built.md`         | As-built | Derived   | RMCP/MCP26   | Live   |
-| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md)                               | `docs/architecture/api-as-built.md`              | As-built | Derived   | APGOV        | Live   |
-| [anvil-checks Pipeline — As-Built](../../docs/architecture/checks-as-built.md)                        | `docs/architecture/checks-as-built.md`           | As-built | Derived   | SCAN         | Live   |
-| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md)                           | `docs/architecture/intercept-as-built.md`        | As-built | Derived   | INTD, DSV    | Live   |
-| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                                 | `docs/architecture/kernel-as-built.md`           | As-built | Derived   | KERN         | Live   |
-| [anvil-observability — As-Built](../../docs/architecture/observability-as-built.md)                   | `docs/architecture/observability-as-built.md`    | As-built | Derived   | TRACE        | Live   |
-| [anvil-tui — As-Built](../../docs/architecture/tui-as-built.md)                                       | `docs/architecture/tui-as-built.md`              | As-built | Derived   | RATS         | Live   |
+| Document                                                                                              | Path                                             | Type     | Authority  | Owner      | Status     |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | ---------- | ---------- | ---------- |
+| [Activation Orchestrator — Compatibility Record](../../docs/architecture/activation-as-built.md)      | `docs/architecture/activation-as-built.md`       | As-built | Derived    | CLI/LAUNCH | Deprecated |
+| [Adapter Packages — Historical As-Built](../../docs/architecture/adapter-packages-as-built.md)        | `docs/architecture/adapter-packages-as-built.md` | As-built | Historical | OPENSPEC   | Deprecated |
+| [Auth System — As-Built](../../docs/architecture/auth-as-built.md)                                    | `docs/architecture/auth-as-built.md`             | As-built | Derived    | BAUTH      | Live       |
+| [CLI TUI Runner — Compatibility Record](../../docs/architecture/cli-tui-runner-as-built.md)           | `docs/architecture/cli-tui-runner-as-built.md`   | As-built | Derived    | CLI        | Deprecated |
+| [Driver Framework + intercept-proto — As-Built](../../docs/architecture/driver-framework-as-built.md) | `docs/architecture/driver-framework-as-built.md` | As-built | Derived    | DRVR       | Live       |
+| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md)       | `docs/architecture/jsts-release-surfaces.md`     | As-built | Derived    | @aneki     | Live       |
+| [Review Capsules — Historical As-Built](../../docs/architecture/capsule-as-built.md)                  | `docs/architecture/capsule-as-built.md`          | As-built | Historical | CAPS       | Deprecated |
+| [Tutorial Subsystem — Compatibility Record](../../docs/architecture/tutorial-as-built.md)             | `docs/architecture/tutorial-as-built.md`         | As-built | Derived    | TUI/LAUNCH | Deprecated |
+| [Widget Catalogue — Compatibility Record](../../docs/architecture/widgets-as-built.md)                | `docs/architecture/widgets-as-built.md`          | As-built | Derived    | TUI        | Deprecated |
+| [anvil MCP Shim — Compatibility Record](../../docs/architecture/mcp-shim-as-built.md)                 | `docs/architecture/mcp-shim-as-built.md`         | As-built | Derived    | CLI/MCP    | Deprecated |
+| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md)                               | `docs/architecture/api-as-built.md`              | As-built | Historical | APGOV      | Deprecated |
+| [anvil-checks Pipeline — As-Built](../../docs/architecture/checks-as-built.md)                        | `docs/architecture/checks-as-built.md`           | As-built | Derived    | SCAN       | Live       |
+| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md)                           | `docs/architecture/intercept-as-built.md`        | As-built | Historical | INTD, DSV  | Deprecated |
+| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                                 | `docs/architecture/kernel-as-built.md`           | As-built | Historical | KERN       | Deprecated |
+| [anvil-observability — Historical As-Built](../../docs/architecture/observability-as-built.md)        | `docs/architecture/observability-as-built.md`    | As-built | Historical | OBS        | Deprecated |
+| [anvil-tui — Compatibility Record](../../docs/architecture/tui-as-built.md)                           | `docs/architecture/tui-as-built.md`              | As-built | Derived    | TUI        | Deprecated |
 
 ## Guide
 

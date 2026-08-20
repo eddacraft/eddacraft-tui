@@ -52,6 +52,15 @@ covering TUI surfaces, governance gates, policy management, and authentication.
 - **`output/`** — structured output formatting (JSON, table, plain)
 - **`tui.rs`** — TUI runner functions (`run_surface`, `run_watch`)
 
+## Architecture
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the component-owned implementation
+map covering:
+
+- activation orchestration and the evidence-based `ProtectionState` contract;
+- the in-binary MCP server, tool registry, trust boundary, and fallback; and
+- CLI-owned terminal lifecycle and TUI event loops.
+
 ## Pre-write validator (`anvil_validate_write`)
 
 The MCP pre-write validation gate lives in

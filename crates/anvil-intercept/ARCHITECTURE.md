@@ -1,16 +1,16 @@
 # anvil intercept architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                                                                        |
-| ------------ | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | INTD  | Live   | Last reviewed 2026-08-20 at `ba17bf70a` against `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/midedit.rs`, `crates/anvil-intercept/src/kindling_observation.rs`, and `crates/anvil-cli/src/mcp/validation.rs` |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                        |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-20 at `f0f834b39` against `src/ipc.rs`, `src/midedit.rs`, `src/save_time.rs`, `src/fence.rs`, and `crates/anvil-cli/src/mcp/validation.rs` |
 
-| Upstream                                                                                                  | Downstream                                     |
-| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `crates/anvil-intercept/src/**`, ADR-085, ADR-090, ADR-123, and `docs/architecture/intercept-as-built.md` | Save-time clients and interception maintainers |
+| Upstream                                                       | Downstream                                     |
+| -------------------------------------------------------------- | ---------------------------------------------- |
+| `crates/anvil-intercept/src/**`, ADR-085, ADR-090, and ADR-123 | Save-time clients and interception maintainers |
 
-> **DOCRB-004 pilot:** this local explanation does not replace the retained
-> central [intercept as-built](../../docs/architecture/intercept-as-built.md).
-> DOCRB-005 owns its migration or deliberate retention.
+This document is the live component authority. The former central
+[intercept as-built](../../docs/architecture/intercept-as-built.md) is retained
+as a dated compatibility and history record.
 
 ## Scope and boundaries
 
@@ -114,6 +114,37 @@ state plus the five-events-in-60-seconds cascade to [`fence.rs`](src/fence.rs).
 A spoof blocks immediately and independently attempts to persist a fence; even
 if that durable write fails, the request remains blocked. Interrupt-safety
 failures and unattributed or unregistered changes independently request fences.
+
+## Responsibility and source map
+
+- [`ipc.rs`](src/ipc.rs) owns JSON-RPC framing, method dispatch, bounded
+  `scan_buffer` requests, peer context, and platform listener wiring.
+- [`midedit.rs`](src/midedit.rs) scans caller-supplied bytes for MidEdit and
+  PreWrite. [`kindling_observation.rs`](src/kindling_observation.rs) adds the
+  optional, rate-limited observation lane without changing the verdict.
+- [`workspace_admission.rs`](src/workspace_admission.rs),
+  [`workspace_anchor.rs`](src/workspace_anchor.rs), and
+  [`path_safety.rs`](src/path_safety.rs) own canonical workspace admission and
+  guarded reads.
+- [`validate_paths.rs`](src/validate_paths.rs),
+  [`save_time.rs`](src/save_time.rs), and
+  [`save_time_driver.rs`](src/save_time_driver.rs) compose save-time validation
+  over guarded bytes.
+- [`fence.rs`](src/fence.rs), [`interrupt.rs`](src/interrupt.rs), and
+  [`unregistered.rs`](src/unregistered.rs) own durable fencing triggers, state,
+  and recovery inputs.
+- [`assurance.rs`](src/assurance.rs), [`kernel_cache.rs`](src/kernel_cache.rs),
+  and [`graph_base_warm_start.rs`](src/graph_base_warm_start.rs) own graph
+  assurance and warm state; stale or missing assurance is reported rather than
+  silently upgraded.
+- [`registration_store.rs`](src/registration_store.rs),
+  [`registry.rs`](src/registry.rs), and [`status.rs`](src/status.rs) own
+  session/workspace registration and operator-visible state.
+
+The shared wire vocabulary and platform-specific transport internals remain in
+`anvil-intercept-proto` and `anvil-intercept-win32`; the
+[driver framework as-built](../../docs/architecture/driver-framework-as-built.md)
+owns their cross-component client and capability relationship.
 
 ## Invariants, failure, and fallback
 

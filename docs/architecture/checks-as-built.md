@@ -1,16 +1,50 @@
 # anvil-checks Pipeline — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                  |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | SCAN  | Live   | Last reviewed 2026-07-02 (targeted delta) against main `d1fded280` — re-verified rule catalogue (44 rules / 10 families), ADR-087 `insecure-construction` security families (UR/WC), and the shipped `python-reliability` family; prior delta 2026-06-10 against `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                  |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | SCAN  | Live   | Cross-system boundary reviewed 2026-08-20 against the checks registry, CLI check/gate/audit/watch consumers, intercept scan paths, MCP validation, and baseline composition at `f0f834b39` |
 
 | Upstream                                                                                                     | Downstream                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-checks`, `crates/anvil-checks-ast`, `crates/anvil-checks-napi`, `crates/anvil-intercept-rules` | anvil check / gate / audit / watch CLI, intercept daemon scan_buffer, MCP shim anvil_validate_write, activation baseline, welcome screen analyser |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (targeted delta review:
-> rule catalogue re-count — 44 rules / 10 families — the ADR-087
-> `insecure-construction` security families `unsafe-rendering` +
+## Current cross-system authority
+
+This document owns only the relationship between the registry-backed check
+engine and the surfaces that compose its findings. Component internals live in
+[`crates/anvil-checks/ARCHITECTURE.md`](../../crates/anvil-checks/ARCHITECTURE.md),
+with contributor discovery in
+[`crates/anvil-checks/README.md`](../../crates/anvil-checks/README.md).
+
+- The CLI check, gate, audit, and watch surfaces select inputs and turn registry
+  findings into their surface-specific decisions.
+- The intercept daemon's buffered and embedded validation paths consume the same
+  registry rather than owning a second rule catalogue.
+- MCP `anvil_validate_write` routes validation into that shared engine; its
+  transport and enforcement boundary remains CLI-owned.
+- Baseline comparison and the conceptual finding-to-gate relationship remain
+  separate authorities in the baseline component and
+  [quality model](quality-model.md).
+
+Suppression parsing remains governed by
+[ADR-029](../../plans/decisions/029-suppression-parser-authority.md), the
+security category by
+[ADR-087](../../plans/decisions/087-security-antipattern-category.md), and
+documentation placement by
+[ADR-123](../../plans/decisions/123-documentation-authority-and-diagram-model.md).
+Daemon composition remains in the
+[intercept architecture](../../crates/anvil-intercept/ARCHITECTURE.md).
+
+## Historical pre-migration component snapshot
+
+The remainder of this file is the pre-DOCRB-005 component snapshot. It is
+preserved for source-link and migration history, not as current component
+authority. Prefer the local documents above for maintained behaviour and use Git
+history at this path for earlier revisions.
+
+> **Snapshot status at last review:** Live (beta). **Last reviewed:** 2026-07-02
+> (targeted delta review: rule catalogue re-count — 44 rules / 10 families — the
+> ADR-087 `insecure-construction` security families `unsafe-rendering` +
 > `weak-cryptography` realised by the INSEC catalogue, the shipped
 > `python-reliability` family and its default `.py` scan-set, and the RS AST
 > tier extended to `RS-001..008`) against main `d1fded280`; prior delta

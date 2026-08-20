@@ -8,11 +8,12 @@
 | ------------------------------------------------------------------------- | ------------------------------- |
 | ADR-123, `docs/guides/documentation-governance.md`, `infra/src/vercel.ts` | Architecture document discovery |
 
-This directory holds Anvil's living **cross-system** architecture references:
+This directory holds anvil's living **cross-system** architecture references:
 source-pinned as-built maps, conceptual guides, and frozen or active design
-specs. Component-internal truth moves to component-root `ARCHITECTURE.md` files
-under DOCRB (ADR-123). Until that migration, existing `*-as-built.md` files
-remain the derived maps they are today.
+specs. Component-internal truth lives in component-root `README.md` and
+`ARCHITECTURE.md` files under ADR-123. Deprecated central `*-as-built.md`
+records preserve stable discovery, retained cross-system links, and a route to
+Git history; they are not duplicate component authority.
 
 **Production docs host (ADR-123):** `docs.eddacraft.ai` is `apps/docs-shell`,
 which proxies `apps/anvil-docs-private` (gated Anvil/beta) and
@@ -26,13 +27,13 @@ changing DSITE status. Implementation truth is `infra/src/vercel.ts`.
 contracts still tracked by implementation. Prefer ADRs in `plans/decisions/` for
 "why we chose this".
 
-## Cross-system as-built docs
+## Cross-system as-built docs and compatibility records
 
-These are dated, source-pinned descriptions of cross-system concerns plus
-temporary central component maps awaiting DOCRB-005 migration. Do not add new
-component-internal authority here. For a new or migrated component, use the
-[component-documentation template](_as-built-template.md) to create a
-component-root `README.md` and, when its internals warrant it,
+These are dated, source-pinned descriptions of retained cross-system concerns
+plus deprecated compatibility records for component maps migrated by DOCRB-005.
+Do not add new component-internal authority here. For a new or migrated
+component, use the [component-documentation template](_as-built-template.md) to
+create a component-root `README.md` and, when its internals warrant it,
 `ARCHITECTURE.md`.
 
 > Freshness note: treat each doc's own metadata header as authoritative. Entries
@@ -42,36 +43,31 @@ component-root `README.md` and, when its internals warrant it,
 
 - [Auth System](auth-as-built.md) — beta auth API, token lifecycle, GitHub
   OAuth + OTP/device-code flows, JWT licence, local admin key lifecycle
-- [Intercept daemon](intercept-as-built.md) — IPC surface (UDS + named pipe),
-  peer-cred trust boundary, fence-on-failure, save-time `validate_paths`
-  pipeline
-- [Activation orchestrator](activation-as-built.md) — `anvil start` flow,
-  six-state protection vocabulary, MCP install, watch-fallback, gate posture
-- [MCP shim](mcp-shim-as-built.md) — Rust MCP server, tool registry including
-  GCTX tools, `anvil_validate_write`, daemon-backed vs embedded validation
+- [Intercept daemon compatibility record](intercept-as-built.md) — local
+  internals moved to `crates/anvil-intercept/ARCHITECTURE.md`; retained
+  save/trust views remain linked
+- [Activation compatibility record](activation-as-built.md) and
+  [MCP shim compatibility record](mcp-shim-as-built.md) — local authority moved
+  to `crates/anvil-cli/ARCHITECTURE.md`
 - [Checks pipeline](checks-as-built.md) — `anvil-checks` registry, rule
   families, suppressions, language-profile gating, baseline
-- [Kernel](kernel-as-built.md) — watcher, tree-sitter parser, semantic graph,
-  policy engine, embedded API, watch loop, GV2 hot-read surface. Supersedes
-  `rust-kernel-spec.md` for "what shipped"
-- [TUI surfaces](tui-as-built.md) — Ratatui surfaces, shared widgets, dashboard
-  surface family
+- [Kernel compatibility record](kernel-as-built.md) — shipped internals moved to
+  `crates/anvil-kernel/ARCHITECTURE.md`; historical design intent remains in
+  `rust-kernel-spec.md`
+- [TUI compatibility records](tui-as-built.md), [widgets](widgets-as-built.md),
+  [tutorial](tutorial-as-built.md), and [CLI runner](cli-tui-runner-as-built.md)
+  — local authority lives in `crates/anvil-tui/ARCHITECTURE.md`,
+  `crates/anvil-cli/ARCHITECTURE.md`, and the shared
+  `crates/eddacraft-tui/README.md`
 - [Driver framework + intercept-proto](driver-framework-as-built.md) — JSON-RPC
   wire protocol, driver clients, intercept-rules hot path
-- [anvil-api service](api-as-built.md) — Hono on Vercel, admin surfaces, Neon
-  DB; auth flows live in `auth-as-built.md`
-- [anvil-observability](observability-as-built.md) — namespace registry, tracing
-  subscriber, redaction
-- [Tutorial subsystem](tutorial-as-built.md) — TUI tutorial engine and
-  ProtectionLoop default path
-- [Widget catalogue](widgets-as-built.md) — `anvil-tui` composites +
-  `eddacraft-tui` shared widgets
-- [CLI TUI runner](cli-tui-runner-as-built.md) — terminal session lifecycle in
-  `crates/anvil-cli/src/tui.rs`
-- [Adapter packages](adapter-packages-as-built.md) — SpecKit / BMAD / Generic /
-  APS-Markdown adapters, APS validator, Kindling capture bridge
-- [Review capsules](capsule-as-built.md) — `anvil capsule`
-  create/verify/explain/prune
+- [anvil-api compatibility record](api-as-built.md) — service internals moved to
+  `apps/anvil-api/ARCHITECTURE.md`; auth remains cross-system
+- [anvil-observability compatibility record](observability-as-built.md) and
+  [review-capsule compatibility record](capsule-as-built.md) — narrow leaf
+  authority moved to the respective component-root READMEs
+- [Adapter compatibility record](adapter-packages-as-built.md) — split local
+  authority links for adapters, APS tooling, and the kindling bridge
 - [JS/TS release surfaces](jsts-release-surfaces.md) — inventory of JS/TS
   surfaces still on the release path vs canary/archive
 

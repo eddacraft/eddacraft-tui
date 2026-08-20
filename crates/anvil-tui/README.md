@@ -26,6 +26,14 @@ Located in `src/surfaces/`:
 - **`migration.rs`** — Ink-to-Ratatui migration utilities
 - **`compat.rs`** — backwards compatibility layer
 
+## Architecture
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the component-owned surface,
+event-adapter, tutorial, snapshot, and failure contracts. Terminal lifecycle and
+input polling remain owned by [`anvil-cli`](../anvil-cli/ARCHITECTURE.md);
+generic theme, keyboard, shell, widget, lifecycle, and snapshot contracts remain
+owned by [`eddacraft-tui`](../eddacraft-tui/README.md).
+
 ## Part of
 
 [eddacraft Anvil](../../README.md) monorepo (`crates/anvil-tui`).

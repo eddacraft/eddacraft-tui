@@ -168,8 +168,10 @@ When reviewing a PR that changes architecture or a public user journey:
       together?
 - [ ] Does the change avoid creating a second authority for the same concern?
 
-Until DOCRB-005, central `*-as-built.md` files may still hold component detail.
-Prefer linking to them rather than copying their diagrams.
+For components migrated by DOCRB-005, link to the component-root authority.
+Deprecated central `*-as-built.md` records are compatibility and history routes,
+not sources to copy. Retained central as-builts continue to own only genuine
+cross-system concerns.
 
 ## Quarterly audit
 

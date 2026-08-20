@@ -1,18 +1,63 @@
 # Driver Framework + intercept-proto — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-07-04 (ADR-098 AD-3: `mode` resolves through the shared `EnforcementMode`; `off`/`advisory`/`proceed` parse to the real `Off` posture, not a `Warn` clamp); prior sweep 2026-07-02 (`ALL_ANVIL_METHODS` reconciled to 19 constants incl. DSV + witness + GCTX, repinned protocol.rs line refs to agree with intercept-as-built) against main `d1fded280`; delta review 2026-06-10 (INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | DRVR  | Live   | Cross-system boundary reviewed 2026-08-20 against `crates/anvil-intercept-proto/src`, `packages/anvil-driver-client/src`, `crates/anvil-intercept/src`, `crates/anvil-intercept-rules/src`, and `crates/anvil-intercept-win32/src` at `f0f834b39`; pre-migration component snapshot retained below as historical context |
 
 | Upstream                                                                                                                                         | Downstream                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, `packages/anvil-driver-client`, ADR-030, ADR-033 | intercept daemon (INTD), MCP shim (RMCP), CLI intercept surface, future editor / CI driver integrations |
 
-> **Status:** Live (beta) for the proto + driver-client TypeScript glue;
-> framework spec is partially shipped (DRVR Waves 1-3 active; Wave 4 deferred
-> per ADR-033). **Last reviewed:** 2026-07-04 (ADR-098 AD-3: `mode` resolves
-> through the shared `EnforcementMode`; `off`/`advisory`/`proceed` parse to the
-> real `Off` posture, not a `Warn` clamp); delta review 2026-06-10
+## Current cross-system authority
+
+This document now owns only the relationship between the Rust protocol, daemon
+admission/enforcement, TypeScript client, rule hot path, and Win32 transport.
+Component internals moved to
+[the TypeScript client](../../packages/anvil-driver-client/ARCHITECTURE.md) and
+[the Rust protocol crate](../../crates/anvil-intercept-proto/README.md).
+
+- Rust protocol types own method names, capabilities, manifests, and payloads;
+  TypeScript mirrors provide consumer types, and Rust wins on drift.
+- The TypeScript package owns client transport, framing, timeout, reconnect,
+  notification, and process-local reliability behaviour.
+- The daemon owns workspace admission, server-side peer assurance, capability
+  decisions, validation, and fencing.
+- `anvil-intercept-rules` owns the bounded rule-resolution hot path, while
+  `anvil-intercept-win32` owns server-side Windows transport primitives.
+
+The wire is JSON-RPC 2.0 framed as NDJSON. Participation requires both
+server-side admission and advertised acknowledgement capability; a client type
+or manifest cannot grant itself server capability. Worktree roots are
+canonicalised and confined by the daemon. Client path/SID checks are
+defence-in-depth and do not replace server peer checks.
+
+On failure, malformed requests are rejected at the boundary, transport drops
+cancel in-flight client requests without automatic replay, missing method
+advertisement can downgrade capability, and unproved platform assurance is
+reported as absent or bounded rather than treated as verified.
+
+Related live authorities:
+
+- [Driver-client orientation](../../packages/anvil-driver-client/README.md)
+- [Driver-client architecture](../../packages/anvil-driver-client/ARCHITECTURE.md)
+- [Rust protocol orientation](../../crates/anvil-intercept-proto/README.md)
+- [Intercept architecture](../../crates/anvil-intercept/ARCHITECTURE.md)
+- [Save-to-validation sequence](save-to-validation.md)
+- [Trust and deployment boundaries](trust-and-deployment-boundaries.md)
+- [Editor-driver protocol](../../plans/specs/2026-05-06-editor-driver-protocol.md)
+
+## Historical pre-migration component snapshot
+
+The remainder of this file is the pre-DOCRB-005 component snapshot. It is
+preserved for source-link and migration history, not as current component
+authority. Prefer the local documents above for maintained behaviour and use Git
+history at this path for earlier revisions.
+
+> **Historical snapshot:** the proto + driver-client TypeScript glue; framework
+> spec is partially shipped (DRVR Waves 1-3 active; Wave 4 deferred per
+> ADR-033). **Last reviewed:** 2026-07-04 (ADR-098 AD-3: `mode` resolves through
+> the shared `EnforcementMode`; `off`/`advisory`/`proceed` parse to the real
+> `Off` posture, not a `Warn` clamp); delta review 2026-06-10
 > (INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against
 > main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
 > `d223b8d9`; 2026-07-02 drift sweep against `d1fded280`). **Crates /

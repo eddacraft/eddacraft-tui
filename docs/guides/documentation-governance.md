@@ -1,8 +1,8 @@
 # Documentation Governance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                    |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCRB | Live   | Manually reviewed 2026-08-20 at `97899b00a` against ADR-123, `infra/src/vercel.ts`, and the 2026-08-17 DOCRB corpus disposition; no semantic change required |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                          |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Reviewed 2026-08-20 for DOCRB-005 against ADR-123, the source-pinned corpus disposition, component-local successors, and retained central cross-system authorities |
 
 | Upstream                                                                                                                                                                       | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
@@ -39,28 +39,28 @@ Other documents link to that home instead of restating it.
 No document should duplicate another document's authority. Link to the upstream
 source instead.
 
-Until DOCRB-005 migrates component-internal truth beside code, existing central
-`*-as-built.md` files remain the derived implementation maps they are today.
-After migration, a central as-built remains only when it owns a genuine
-cross-system concern.
+DOCRB-005 migrated the assigned component-internal truth beside code. A central
+as-built remains live only when it owns a genuine cross-system concern.
+Deprecated central compatibility records preserve inbound discovery, retained
+authority links, and Git-history routes without duplicating local authority.
 
 ## Document Types
 
-| Type              | Purpose                                                 | Location                                                                                                                                                                                           |
-| ----------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| APS index         | Module discovery and active state                       | `plans/index.aps.md`                                                                                                                                                                               |
-| APS module        | Execution authority                                     | `plans/modules/*.aps.md`                                                                                                                                                                           |
-| Release plan      | Current release-slate summary                           | `RELEASE-PLAN.md`                                                                                                                                                                                  |
-| ADR               | Durable decision rationale                              | `plans/decisions/*.md`                                                                                                                                                                             |
-| Spec              | Intended design before or during work                   | `plans/specs/`, `docs/specs/`                                                                                                                                                                      |
-| As-built          | Current cross-system implementation map                 | `docs/architecture/*-as-built.md` (component internals move to `ARCHITECTURE.md` under DOCRB-005)                                                                                                  |
-| Architecture      | Component-internal as-built                             | Component-root `ARCHITECTURE.md` (ADR-123; pilots in DOCRB-004)                                                                                                                                    |
-| Runbook           | Operational procedure                                   | `docs/runbooks/*.md`                                                                                                                                                                               |
-| Guide             | Developer practice and operational policy               | `docs/guides/*.md`, `docs/policies/*.md`                                                                                                                                                           |
-| README            | Local orientation                                       | nearest package, crate, app, or directory                                                                                                                                                          |
-| Contributor guide | Contribution workflow and expectations                  | `CONTRIBUTING.md`                                                                                                                                                                                  |
-| Public docs       | User-facing tutorial, how-to, reference, or explanation | `docs/public/**/*.md` (published at `docs.eddacraft.ai` via `docs-shell`; internal docs MUST NOT link into the public surface for navigation, and the public surface owns its own discovery layer) |
-| Archive           | Historical reference                                    | `docs/archive/`, `plans/archive/`                                                                                                                                                                  |
+| Type              | Purpose                                                                | Location                                                                                                                                                                                           |
+| ----------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| APS index         | Module discovery and active state                                      | `plans/index.aps.md`                                                                                                                                                                               |
+| APS module        | Execution authority                                                    | `plans/modules/*.aps.md`                                                                                                                                                                           |
+| Release plan      | Current release-slate summary                                          | `RELEASE-PLAN.md`                                                                                                                                                                                  |
+| ADR               | Durable decision rationale                                             | `plans/decisions/*.md`                                                                                                                                                                             |
+| Spec              | Intended design before or during work                                  | `plans/specs/`, `docs/specs/`                                                                                                                                                                      |
+| As-built          | Current cross-system implementation map or deprecated migration record | `docs/architecture/*-as-built.md`; component internals live in component-root docs, while deprecated records preserve discovery and history                                                        |
+| Architecture      | Component-internal as-built                                            | Component-root `ARCHITECTURE.md` (ADR-123; pilots in DOCRB-004)                                                                                                                                    |
+| Runbook           | Operational procedure                                                  | `docs/runbooks/*.md`                                                                                                                                                                               |
+| Guide             | Developer practice and operational policy                              | `docs/guides/*.md`, `docs/policies/*.md`                                                                                                                                                           |
+| README            | Local orientation                                                      | nearest package, crate, app, or directory                                                                                                                                                          |
+| Contributor guide | Contribution workflow and expectations                                 | `CONTRIBUTING.md`                                                                                                                                                                                  |
+| Public docs       | User-facing tutorial, how-to, reference, or explanation                | `docs/public/**/*.md` (published at `docs.eddacraft.ai` via `docs-shell`; internal docs MUST NOT link into the public surface for navigation, and the public surface owns its own discovery layer) |
+| Archive           | Historical reference                                                   | `docs/archive/`, `plans/archive/`                                                                                                                                                                  |
 
 ## Canonical Folder Layout
 

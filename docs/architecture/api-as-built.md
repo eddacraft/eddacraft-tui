@@ -1,20 +1,35 @@
 # anvil-api Service — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | APGOV | Live   | As-built drift sweep 2026-07-02 against main `d1fded280` (`index.ts` §3/§5/§9 anchors re-pinned after 145→179 growth; migration 016 added to §8; `queries.ts`/`admin.ts`/`schema.sql`/migration-count line figures refreshed; `anvil-archive/admin-cli-node/` sibling-repo note). Last reviewed 2026-06-10 (targeted delta review: broadcast generalisation, middleware, migrations 012-015) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority  | Owner | Status     | Freshness                                                                                                                |
+| -------- | ---------- | ----- | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Historical | APGOV | Deprecated | Superseded 2026-08-20 by `apps/anvil-api/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
 
 | Upstream                                                  | Downstream                                                                                                                                 |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `apps/anvil-api`, `anvil-archive/admin-cli-node`, ADR-018 | anvil CLI (auth flows, license refresh, update-check), operator admin CLI, anvil admin Rust command (RCLI2-009), eddacraft.ai install site |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-07-02 as-built drift sweep
-> against main `d1fded280` (`index.ts` re-anchor, migration 016, line-count
-> refresh, archive sibling-repo note); 2026-06-10 (targeted delta review:
-> broadcast generalisation, middleware, migrations 012-015) against main
-> `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
-> `d223b8d9`) **Service / location:** `apps/anvil-api` (Hono on Vercel; Neon
-> Postgres backing) **Module owner (APS):** APGOV
+> **Compatibility record:** current service composition and persistence truth
+> now lives in
+> [`apps/anvil-api/ARCHITECTURE.md`](../../apps/anvil-api/ARCHITECTURE.md), with
+> contributor discovery in
+> [`apps/anvil-api/README.md`](../../apps/anvil-api/README.md). Authentication
+> and authorisation remain cross-system concerns owned by the
+> [auth as-built](auth-as-built.md); migrations remain governed by the
+> [database migration runbook](../runbooks/db-migrations.md).
+> [ADR-018](../../plans/decisions/018-product-ip-architecture.md),
+> [ADR-066](../../plans/decisions/066-github-device-flow-cli-auth.md), and
+> [ADR-123](../../plans/decisions/123-documentation-authority-and-diagram-model.md)
+> retain decision authority. The full pre-migration body below is a historical
+> snapshot, not a second live authority; earlier revisions remain available
+> through this file's Git history.
+>
+> **Snapshot status at last review:** Live (beta). **Last reviewed:** 2026-07-02
+> as-built drift sweep against main `d1fded280` (`index.ts` re-anchor, migration
+> 016, line-count refresh, archive sibling-repo note); 2026-06-10 (targeted
+> delta review: broadcast generalisation, middleware, migrations 012-015)
+> against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
+> (HEAD `d223b8d9`) **Service / location:** `apps/anvil-api` (Hono on Vercel;
+> Neon Postgres backing) **Module owner (APS):** APGOV
 > (`plans/modules/api-governance.aps.md` — Draft); BAUTH
 > (`plans/archive/modules/beta-auth-streamline.aps.md`, 20/20 Complete) owns the
 > auth flows; ADMINCLI / ADMINCLIH (`plans/archive/modules/admin-cli.aps.md`,

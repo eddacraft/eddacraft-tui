@@ -1,7 +1,62 @@
 # Anvil Format Adapters
 
+| Type   | Authority     | Owner    | Status | Freshness                                                                                                                    |
+| ------ | ------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | OPENSPEC | Live   | Last reviewed 2026-08-20 against `packages/adapters/src`, `packages/adapters/package.json`, and package tests at `f0f834b39` |
+
+| Upstream                                                                             | Downstream                                                 |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `packages/adapters/src`, APS types from `packages/aps`, and adapter format contracts | anvil planning import/export and format-specific consumers |
+
 Format adapters for converting between external planning formats (SpecKit, BMAD,
 etc.) and Anvil Plan Specification (APS).
+
+## Current component authority
+
+`src/base/types.ts` defines the `FormatAdapter` contract: detection, parse,
+serialise, validation, import/export capability, metadata, and optional
+path-aware detection. `src/base/registry.ts` owns registration, lookup,
+best-confidence detection, and supported-format discovery.
+
+`src/index.ts` exports the base framework and the APS Markdown, BMAD, SpecKit,
+and Generic implementations. Importing the package registers those four adapters
+in that order; Generic remains the fallback. Format-specific parsing and
+serialisation live under their own `src/<format>/` directories and must return
+the structured result/error types from the base contract.
+
+Component boundaries:
+
+- `packages/adapters` owns conversion and detection.
+- [`packages/aps`](../aps/README.md) owns APS parsing, loading, validation,
+  state, templates, and the canonical local tooling surface.
+- [`packages/kindling-integration`](../kindling-integration/README.md) owns the
+  bounded Kindling observation/query bridge; it is not an adapter.
+- Active format-roadmap status remains in APS modules rather than this README.
+
+Local validation:
+
+```bash
+pnpm --filter @eddacraft/anvil-adapters test
+pnpm --filter @eddacraft/anvil-adapters typecheck
+pnpm --filter @eddacraft/anvil-adapters build
+```
+
+Load-bearing source paths:
+
+- `packages/adapters/src/index.ts`
+- `packages/adapters/src/base/types.ts`
+- `packages/adapters/src/base/registry.ts`
+- `packages/adapters/src/aps-markdown/`
+- `packages/adapters/src/bmad/`
+- `packages/adapters/src/speckit/`
+- `packages/adapters/src/generic/`
+
+## Historical pre-migration snapshot
+
+The detailed counts, readiness labels, and combined APS/Kindling package survey
+below are retained as the pre-DOCRB-005 snapshot. They are not current package
+authority. Use the component documents linked above and Git history for
+historical comparison.
 
 ## Overview
 
@@ -70,7 +125,8 @@ if (adapter) {
 
 ### Creating Custom Adapters
 
-See [ADAPTER_WORKFLOW_GUIDE.md](./ADAPTER_WORKFLOW_GUIDE.md) for:
+See the [adapter workflow guide](../../docs/guides/adapters/workflow-guide.md)
+for:
 
 - Complete workflow guide with real-world examples
 - Technical deep dive into adapter implementation

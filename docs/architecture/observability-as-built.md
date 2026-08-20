@@ -1,18 +1,30 @@
-# anvil-observability — As-Built
+# anvil-observability — Historical As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                   |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | TRACE | Live   | Line-count reconciliation 2026-07-02 against main `d1fded280` (`redaction.rs` 409→638; SENSITIVE_FIELDS/REDACTED/lib.rs/traceparent.rs counts re-verified unchanged); prior targeted delta review 2026-06-10 against main `45dd1047a`; full content review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority  | Owner | Status     | Freshness                                                                                                         |
+| -------- | ---------- | ----- | ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | OBS   | Deprecated | Migrated 2026-08-20 to `crates/anvil-observability/README.md`; this pre-migration snapshot remains for provenance |
 
-| Upstream                               | Downstream                                      |
-| -------------------------------------- | ----------------------------------------------- |
-| `crates/anvil-observability/`, ADR-035 | CLI tracing, intercept tracing, MCP correlation |
+| Upstream                                        | Downstream                                        |
+| ----------------------------------------------- | ------------------------------------------------- |
+| `crates/anvil-observability/README.md`, ADR-035 | historical inbound links and migration provenance |
 
-> **Status:** Live (beta) **Last reviewed:** line-count reconciliation
-> 2026-07-02 against main `d1fded280`; prior targeted delta review 2026-06-10
-> (live redaction layer, trace sink, TS mirror, TRACE-004 namespaces) against
-> main `45dd1047a`; full content review 2026-05-07 against `v0.6.0-beta` (HEAD
-> `d223b8d9`) **Crate / location:** `crates/anvil-observability` (package
+Current component truth, invariants, failure behaviour, source links, and local
+validation now live in
+[`crates/anvil-observability/README.md`](../../crates/anvil-observability/README.md).
+The namespace catalogue remains in
+[`docs/observability/namespace-registry.md`](../observability/namespace-registry.md),
+and operational diagnosis remains in the
+[observability runbook](../runbooks/observability-triage.md).
+
+The content below is the pre-DOCRB-005 snapshot. It is not live component
+authority; keep it for migration/source-link history and use Git history at this
+path for earlier revisions.
+
+> **Historical snapshot:** line-count reconciliation 2026-07-02 against main
+> `d1fded280`; prior targeted delta review 2026-06-10 (live redaction layer,
+> trace sink, TS mirror, TRACE-004 namespaces) against main `45dd1047a`; full
+> content review 2026-05-07 against `v0.6.0-beta` (HEAD `d223b8d9`) **Crate /
+> location:** `crates/anvil-observability` (package
 > `eddacraft-anvil-observability`, lib name `anvil_observability`) **Module
 > owner (APS):** TRACE
 > ([`plans/modules/tracing-foundation.aps.md`](../../plans/modules/tracing-foundation.aps.md),
