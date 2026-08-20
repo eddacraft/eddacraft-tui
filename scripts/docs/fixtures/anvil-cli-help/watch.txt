@@ -1,0 +1,76 @@
+Watch files and report save-time findings after the baseline scan
+
+Usage: anvil watch [OPTIONS]
+
+Options:
+  -f, --file <FILE>
+          File or directory to scope the watcher (when a file is given, its parent directory is watched; other files there may also trigger events)
+
+      --json
+          Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command. Where a command has `--format`, an explicit `--format` takes precedence
+
+  -a, --action <ACTION>
+          Action to run on each change: check (default), gate, or none for an architecture/dependency-only watch with no code-quality scan
+
+      --no-tui
+          Disable TUI rendering; use plain text output
+
+      --plans
+          Watch planning documents
+
+  -v, --verbose
+          Enable verbose logging
+
+      --anvil-home <PATH>
+          Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install. Takes precedence over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project root; durable project mutations are gated unless `--touch-project-state` is also set
+
+      --source
+          Watch source files. Built-in local-noise directories are ignored
+
+      --all
+          Watch everything except built-in local-noise/generated/cache directories
+
+      --touch-project-state
+          Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`. Without it such writes run read-only / dry-run so an unreleased candidate cannot silently corrupt a real project
+
+      --patterns <PATTERNS>
+          Glob patterns to watch (comma-separated, e.g. "src/**/*.ts,lib/**/*.ts"). Empty = watch everything that passes the built-in denylist
+
+      --exclude <EXCLUDE>
+          Glob patterns to exclude (comma-separated, e.g. "vendor/**,**/*.test.ts"). Bare directory names like "vendor" only match the directory itself; use "vendor/**" to exclude contents
+
+      --debounce <DEBOUNCE>
+          Debounce interval in milliseconds
+
+      --no-daemon
+          Skip starting (or offering to start) the per-user save-time daemon. With no daemon answering, an interactive `anvil watch` offers to start one so save-time validation is daemon-backed; pass `--no-daemon` to disable daemon contact and rely on the scoped fallback, even when a daemon is already running. `ANVIL_WATCH_DAEMON=0` is the equivalent environment opt-out. No daemon is ever started or offered in `--json`, headless, CI, hook, or piped contexts — those fall back deterministically
+
+      --save-time-driver
+          Internal: run as the headless save-time driver the intercept daemon's supervisor spawns per registered worktree. Forces plain headless output (no TUI, no stdout banners), never offers or starts a daemon, routes save-time checks through the already-running daemon, and appends findings to the driver log (`ANVIL_SAVE_TIME_DRIVER_LOG`) instead of stdout. Exits non-zero only on unrecoverable setup failure — never on findings. The scope flags are rejected so the supervisor argv contract stays canonical
+
+      --worktree <PATH>
+          Canonical worktree root to drive (save-time driver mode only)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Behaviour:
+  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.
+  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.
+  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output.
+
+Save-time daemon:
+  - Save-time validation is served by the anvil daemon. When none is running, an interactive `anvil watch` offers to start one (run `anvil start` to auto-start it instead); pass --no-daemon to decline and use the scoped fallback. Headless, --json, CI, hook, and piped runs never start or offer a daemon and fall back deterministically. A daemon already running is reused without prompting.
+  - ANVIL_WATCH_DAEMON controls routing: unset routes through a live daemon when one answers (default), ANVIL_WATCH_DAEMON=0 opts out (no reuse, no start, no offer), ANVIL_WATCH_DAEMON=1 forces daemon routing (falls back to a scoped check with a warning when no daemon answers).
+  - When daemon routing is engaged but the daemon stops answering (forced-on start, or a mid-session disconnect), watch falls back to a scoped check and reports assurance unavailable{daemon-absent}.
+
+WHEN TO USE:
+  During active development as a real-time save-time feedback loop. Falls back gracefully when MCP pre-write validation is not available.
+
+COMMON FLAGS:
+  --json       Output results as JSON instead of human-readable text.
+  --no-tui     Disable TUI rendering; use plain text output.
+  -v, --verbose  Enable verbose logging.
+
+LEARN MORE:
+  docs/runbooks/cli-surface.md#anvil-watch

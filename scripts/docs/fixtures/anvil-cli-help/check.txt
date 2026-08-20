@@ -1,0 +1,77 @@
+Scan files for anti-patterns and hardcoded secrets (planless mode).
+
+Honours `.anvilrc#checks` (and `.anvil.<ext>`) for the planless-eligible subset: `antipattern-scan` and `secret-detection`. Profile-based or config-heavy checks (`architecture`, `policy`, `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`, `dependency`) live under `anvil gate`.
+
+Usage: anvil check [OPTIONS] [FILES]...
+
+Arguments:
+  [FILES]...
+          Files to analyse (optional if using --changed, --staged, --since, or --all). Explicit file paths take precedence over --changed/--staged/--since
+
+Options:
+      --changed
+          Analyse git-changed files only (ignored if explicit file paths are given)
+
+      --json
+          Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command. Where a command has `--format`, an explicit `--format` takes precedence
+
+      --no-tui
+          Disable TUI rendering; use plain text output
+
+      --staged
+          Analyse only staged files (implies --changed; ignored if explicit file paths are given)
+
+      --since <SINCE>
+          Compare against a git ref, e.g. main, HEAD~3 (implies --changed; ignored if explicit file paths are given)
+
+  -v, --verbose
+          Enable verbose logging
+
+      --all
+          Analyse all source files in the project
+
+      --anvil-home <PATH>
+          Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install. Takes precedence over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project root; durable project mutations are gated unless `--touch-project-state` is also set
+
+      --extensions <EXTENSIONS>
+          Comma-separated file extensions to analyse (e.g. .ts,.tsx,.html)
+
+      --touch-project-state
+          Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`. Without it such writes run read-only / dry-run so an unreleased candidate cannot silently corrupt a real project
+
+      --severity <SEVERITY>
+          Minimum severity for blocking: error, warning, info (default: error)
+          
+          [default: error]
+
+      --include-opt-in
+          Include opt-in patterns
+
+      --artifact <ARTIFACT>
+          Artifact kind: source, pr-description, commit-message, agent-output. Non-source kinds read each file as the artifact content and route through `scan_artifact` with the matching `ArtifactKind`. Non-source kinds are incompatible with `--all`, `--changed`, `--staged`, `--since`, and `--extensions`
+          
+          [default: source]
+
+      --format <FORMAT>
+          Output format: auto (default), tui, plain, json, or sarif. `json` is the `--json` alias; `sarif` emits SARIF 2.1.0 and is never auto-selected
+
+          Possible values:
+          - auto:  Pick the renderer from `--json` / `--no-tui` + TTY detection
+          - tui:   Force the interactive TUI renderer
+          - plain: Force plain-text output
+          - json:  Force the bespoke per-command JSON shape (same as `--json`)
+          - sarif: Emit SARIF 2.1.0 (finding-emitting commands only)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+WHEN TO USE:
+  Quick ad-hoc scan of specific files or changed files without a full gate profile. For architecture, policy, and dependency checks use `anvil gate`.
+
+COMMON FLAGS:
+  --json       Output results as JSON instead of human-readable text.
+  --no-tui     Disable TUI rendering; use plain text output.
+  -v, --verbose  Enable verbose logging.
+
+LEARN MORE:
+  docs/runbooks/cli-surface.md#anvil-check

@@ -710,6 +710,12 @@ pub const EXIT_OK: u8 = 0;
 pub const EXIT_ERROR: u8 = 1;
 pub const EXIT_AUTH_REQUIRED: u8 = 3;
 
+pub struct GlobalArgs {
+    /// Output results as JSON
+    #[arg(long, global = true)]
+    pub json: bool,
+}
+
 enum Commands {
     /// Check one file.
     #[command(name = "run-check")]
@@ -720,6 +726,8 @@ enum Commands {
     Configure {
         path: String,
     },
+    /// Open a native read-only dashboard over local anvil state.
+    Dashboard,
     /// Hidden runtime command.
     #[command(hide = true)]
     Hidden,
@@ -745,6 +753,70 @@ const CLIENTS: &[AgentClient] = &[
 EOF
 cat >"${generated_root}/crates/anvil-cli/src/commands/check.rs" <<'EOF'
 const PLANLESS_ELIGIBLE_CHECKS: &[&str] = &["secret-detection", "antipattern-scan"];
+
+pub struct CheckArgs {
+    /// Analyse git-changed files only.
+    #[arg(long)]
+    changed: bool,
+    /// Hidden runtime flag.
+    #[arg(long, hide = true)]
+    secret: bool,
+}
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/gate.rs" <<'EOF'
+pub struct GateArgs {
+    /// Stop on first check failure.
+    #[arg(long)]
+    fail_fast: bool,
+}
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/config.rs" <<'EOF'
+pub struct ConfigArgs {
+    #[command(subcommand)]
+    command: ConfigCommand,
+}
+
+enum ConfigCommand {
+    /// Show the effective anvil config.
+    Show,
+    /// Set a rule mode in the project config.
+    Set,
+}
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/watch.rs" <<'EOF'
+pub struct WatchArgs {
+    /// Watch planning documents.
+    #[arg(long)]
+    plans: bool,
+}
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/doctor.rs" <<'EOF'
+pub struct DoctorArgs {
+    /// Auto-fix issues where possible.
+    #[arg(long)]
+    fix: bool,
+}
+EOF
+cat >"${generated_root}/crates/anvil-cli/src/commands/init.rs" <<'EOF'
+pub struct InitArgs {
+    /// Overwrite existing configuration without prompting.
+    #[arg(long)]
+    force: bool,
+}
+EOF
+mkdir -p "${generated_root}/crates/anvil-cli/src/commands/policy"
+cat >"${generated_root}/crates/anvil-cli/src/commands/policy/mod.rs" <<'EOF'
+pub struct PolicyArgs {
+    #[command(subcommand)]
+    command: PolicyCommand,
+}
+
+enum PolicyCommand {
+    /// List available policies.
+    List,
+    /// Install a bundled starter policy pack.
+    Install,
+}
 EOF
 cat >"${generated_root}/crates/anvil-cli/src/commands/check_catalog.rs" <<'EOF'
 pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
@@ -829,11 +901,64 @@ generated_cli="${generated_root}/docs/public/anvil/reference/cli.md"
 if grep -q 'anvil run-check' "${generated_cli}" \
   && grep -q 'anvil status' "${generated_cli}" \
   && grep -q 'anvil configure' "${generated_cli}" \
+  && grep -q '| `--json`' "${generated_cli}" \
+  && grep -q '| `--changed`' "${generated_cli}" \
+  && grep -q '| `--fail-fast`' "${generated_cli}" \
+  && grep -q 'anvil config show' "${generated_cli}" \
+  && grep -q 'flag-gated' "${generated_cli}" \
+  && ! grep -q '| `--secret`' "${generated_cli}" \
   && ! grep -qE 'anvil (hidden|unreleased)' "${generated_cli}"; then
   shape_status=0
 else
   shape_status=1
 fi
+snapshot_dir="${generated_root}/scripts/docs/fixtures/anvil-cli-help"
+mkdir -p "${snapshot_dir}"
+cat >"${snapshot_dir}/check.txt" <<'EOF'
+Usage: anvil check [OPTIONS]
+
+Options:
+      --changed
+          Analyse git-changed files only
+EOF
+cat >"${snapshot_dir}/gate.txt" <<'EOF'
+Usage: anvil gate [OPTIONS]
+
+Options:
+      --fail-fast
+          Stop on first check failure
+EOF
+cat >"${snapshot_dir}/config.txt" <<'EOF'
+Usage: anvil config [OPTIONS] <COMMAND>
+
+Commands:
+  show  Show the effective anvil config
+  set   Set a rule mode
+EOF
+cat >"${snapshot_dir}/policy.txt" <<'EOF'
+Usage: anvil policy [OPTIONS] <COMMAND>
+
+Commands:
+  list     List available policies
+  install  Install a bundled starter policy pack
+EOF
+node "${generator}" --root "${generated_root}" --check >/dev/null 2>&1
+snapshot_ok_status=$?
+printf '      --bogus-flag\n' >>"${snapshot_dir}/check.txt"
+node "${generator}" --root "${generated_root}" --check >/dev/null 2>&1
+snapshot_bad_status=$?
+# Restore a matching snapshot so the later stale-edit check stays single-cause.
+cat >"${snapshot_dir}/check.txt" <<'EOF'
+Usage: anvil check [OPTIONS]
+
+Options:
+      --changed
+          Analyse git-changed files only
+EOF
+if [[ "${snapshot_ok_status}" -ne 0 || "${snapshot_bad_status}" -eq 0 ]]; then
+  fail "help-snapshot check failed (match ${snapshot_ok_status}, mismatch ${snapshot_bad_status})"
+fi
+
 printf '\nmanual edit\n' >>"${generated_root}/docs/public/anvil/reference/cli.md"
 node "${generator}" --root "${generated_root}" --check >/dev/null 2>&1
 stale_status=$?

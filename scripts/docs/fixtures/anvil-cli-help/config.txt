@@ -1,0 +1,39 @@
+Show, set, and convert anvil project config
+
+Usage: anvil config [OPTIONS] <COMMAND>
+
+Commands:
+  show     Show the effective anvil config
+  set      Set a rule mode in the project config
+  convert  Convert the project config to another canonical format
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+      --json
+          Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command. Where a command has `--format`, an explicit `--format` takes precedence
+
+      --no-tui
+          Disable TUI rendering; use plain text output
+
+  -v, --verbose
+          Enable verbose logging
+
+      --anvil-home <PATH>
+          Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install. Takes precedence over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project root; durable project mutations are gated unless `--touch-project-state` is also set
+
+      --touch-project-state
+          Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`. Without it such writes run read-only / dry-run so an unreleased candidate cannot silently corrupt a real project
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+WHEN TO USE:
+  To inspect the project config, change an enforcement rule mode, or convert `.anvil.<ext>` (a leftover `.anvilrc` is still read as a fallback).
+
+COMMON FLAGS:
+  --json       Output results as JSON instead of human-readable text.
+  --no-tui     Disable TUI rendering; use plain text output.
+  -v, --verbose  Enable verbose logging.
+
+LEARN MORE:
+  docs/runbooks/cli-surface.md#anvil-config

@@ -1,0 +1,70 @@
+Activate anvil in this repository. Writes `.anvil.yaml` if missing (or `.anvil.<ext>` with `--format`) and offers MCP install for every supported client (interactive consent; nothing is written until you select a client). Pass `--verify` for a read-only probe, or `--mcp-client` / `--all-mcp-clients` for scripted multi-client install
+
+Usage: anvil start [OPTIONS]
+
+Options:
+      --json
+          Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command. Where a command has `--format`, an explicit `--format` takes precedence
+
+      --verify
+          Run a non-mutating activation probe — skip init, first-scan, and the MCP install step. Produces the same output as `anvil status --verify`
+
+      --no-tui
+          Disable TUI rendering; use plain text output
+
+      --watch
+          After activation, run the save-time watch fallback when MCP cannot pre-write attach. Streams watch events on stdout until Ctrl-C. An honest fallback — never equivalent to MCP pre-write validation
+
+  -v, --verbose
+          Enable verbose logging
+
+      --anvil-home <PATH>
+          Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install. Takes precedence over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project root; durable project mutations are gated unless `--touch-project-state` is also set
+
+      --format <FORMAT>
+          Pick a config file format for first-run activation. When set, the orchestrator writes `.anvil.<ext>` (yaml / yml / json / toml) instead of the legacy `.anvilrc`. Incompatible with `--verify` / `--json` (read-only)
+          
+          [possible values: yaml, yml, json, toml]
+
+      --new-identity
+          Mint a fresh project UUID and record the previous one as `forked_from`. Use after cloning a repo whose `anvil/project-id` was inherited from the parent. Incompatible with `--verify` (read-only)
+
+      --touch-project-state
+          Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`. Without it such writes run read-only / dry-run so an unreleased candidate cannot silently corrupt a real project
+
+      --why
+          Print per-tier activation evidence to stderr alongside the normal verdict on stdout. Most useful when `--verify` stalls at `ready_restart_required` and you need to see which tier is the missing piece. Stdout is byte-identical with or without this flag — scripted consumers of `anvil start --verify` are unaffected
+
+      --no-daemon
+          Skip auto-starting the per-user save-time daemon. In an interactive terminal `anvil start` auto-starts the daemon so save-time validation is daemon-backed; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress that and rely on the scoped fallback. A daemon already running is still reused; only the auto-start is suppressed. No-op under `--verify` / `--json` (those read-only probes never start a daemon). Non-interactive contexts (CI, hooks, piped output) already fall back automatically
+
+      --no-mcp
+          Skip MCP config installation. The daemon-backed activation spine still runs; this is for corporate environments where editor MCP integration is blocked or deliberately disabled. Equivalent to setting `ANVIL_NO_MCP` to any non-empty value — note that, like `ANVIL_NO_DAEMON`, this is presence- based: `ANVIL_NO_MCP=0` (or `false`) still ENABLES the opt-out; only leaving it unset or empty keeps MCP install on
+
+      --all-mcp-clients
+          Non-interactive: wire every supported MCP client even when that client is not detected on this host. Interactive `anvil start` already *offers* every registry client (unticked by default); this flag only changes the headless auto-install path so it writes configs for undetected clients too. Equivalent to setting `ANVIL_ALL_MCP_CLIENTS` to any non-empty value (presence-based, like `--no-mcp`). Existing anvil entries are always managed regardless of this flag
+
+      --mcp-client <MCP_CLIENT>
+          Explicitly configure one or more MCP clients from the full registry. Repeat the option to select multiple clients
+          
+          [possible values: claude-code, cursor, codex, opencode, gemini-cli, antigravity, openclaw, vscode, copilot-cli, grok, warp, zed]
+
+      --mcp-scope <MCP_SCOPE>
+          Scope for clients selected with --mcp-client (and first-wave install). Global is the default; project scope uses each client's documented repository path. Clients that only support project scope (for example VS Code and Zed) appear as project offers on interactive start
+          
+          [default: global]
+          [possible values: global, project]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+WHEN TO USE:
+  First-time setup, adding MCP after a prior decline, or repairing activation after a config change. Writes `.anvil.yaml` (or the `--format` choice) if no project config exists and can install MCP / workflow consent items. For a quiet daily on-switch without reinstall, use bare `anvil` instead.
+
+COMMON FLAGS:
+  --json       Output results as JSON instead of human-readable text.
+  --no-tui     Disable TUI rendering; use plain text output.
+  -v, --verbose  Enable verbose logging.
+
+LEARN MORE:
+  docs/runbooks/cli-surface.md#anvil-start

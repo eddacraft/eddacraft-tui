@@ -144,7 +144,7 @@ edit; it does not move ownership.
 
 ### DOCDEF-004: Generate CLI subcommands and flags
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Replace the top-level command table with source-derived
   subcommands and flags so testers do not have to run `--help` for the
   definition layer.
@@ -154,6 +154,8 @@ edit; it does not move ownership.
   `pnpm docs:public:check`.
 - **Files:** `scripts/docs/generate-anvil-public-reference.mjs`,
   `docs/public/anvil/reference/cli.md`,
+  `scripts/docs/fixtures/anvil-cli-help/`,
+  `scripts/docs/docs-check.test.sh`,
   `crates/anvil-cli/src/main.rs`,
   `crates/anvil-cli/src/commands/`
 - **Dependencies:** DOCRB-011

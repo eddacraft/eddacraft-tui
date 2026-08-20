@@ -1,0 +1,68 @@
+Run gate checks against the current project
+
+Usage: anvil gate [OPTIONS] [PLAN]
+
+Arguments:
+  [PLAN]
+          Plan file to run gates against (omit for full codebase scan)
+
+Options:
+      --json
+          Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command. Where a command has `--format`, an explicit `--format` takes precedence
+
+  -p, --profile <PROFILE>
+          Gate profile: dev, ci, production, ai
+
+      --no-tui
+          Disable TUI rendering; use plain text output
+
+      --skip-checks <SKIP_CHECKS>
+          Comma-separated list of checks to skip
+
+      --only-checks <ONLY_CHECKS>
+          Only run these checks (comma-separated canonical names or aliases). `architecture` is an alias of `import-boundaries`; results use the canonical name. `secret` is an alias of `secret-detection`
+
+  -v, --verbose
+          Enable verbose logging
+
+      --anvil-home <PATH>
+          Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install. Takes precedence over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project root; durable project mutations are gated unless `--touch-project-state` is also set
+
+      --fail-fast
+          Stop on first check failure
+
+      --fail-on-warnings
+          Treat warning-severity findings as blocking (exit non-zero). Covers anti-pattern warnings and the four warn-only surfaces (dockerfile, shell-scripts, sql-migrations, github-actions). Off by default; also settable via `ANVIL_FAIL_ON_WARNINGS`. Error-severity rules always block
+
+      --touch-project-state
+          Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`. Without it such writes run read-only / dry-run so an unreleased candidate cannot silently corrupt a real project
+
+      --progress
+          Show real-time progress
+
+      --list-profiles
+          List available gate profiles
+
+      --format <FORMAT>
+          Output format: auto (default), tui, plain, json, or sarif. `json` is the `--json` alias; `sarif` emits SARIF 2.1.0 and is never auto-selected
+
+          Possible values:
+          - auto:  Pick the renderer from `--json` / `--no-tui` + TTY detection
+          - tui:   Force the interactive TUI renderer
+          - plain: Force plain-text output
+          - json:  Force the bespoke per-command JSON shape (same as `--json`)
+          - sarif: Emit SARIF 2.1.0 (finding-emitting commands only)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+WHEN TO USE:
+  Pre-commit, pre-push (via hooks), CI pipelines, or on-demand code quality checks with full profile support.
+
+COMMON FLAGS:
+  --json       Output results as JSON instead of human-readable text.
+  --no-tui     Disable TUI rendering; use plain text output.
+  -v, --verbose  Enable verbose logging.
+
+LEARN MORE:
+  docs/runbooks/cli-surface.md#anvil-gate

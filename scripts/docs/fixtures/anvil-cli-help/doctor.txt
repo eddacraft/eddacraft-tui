@@ -1,0 +1,36 @@
+Run diagnostic checks on your environment
+
+Usage: anvil doctor [OPTIONS]
+
+Options:
+      --fix
+          Auto-fix issues where possible
+
+      --json
+          Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command. Where a command has `--format`, an explicit `--format` takes precedence
+
+      --no-tui
+          Disable TUI rendering; use plain text output
+
+  -v, --verbose
+          Enable verbose logging
+
+      --anvil-home <PATH>
+          Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install. Takes precedence over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project root; durable project mutations are gated unless `--touch-project-state` is also set
+
+      --touch-project-state
+          Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`. Without it such writes run read-only / dry-run so an unreleased candidate cannot silently corrupt a real project
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+WHEN TO USE:
+  When Anvil is behaving unexpectedly or a setup step failed. Also useful as a pre-flight in CI. Doctor also runs daily MCP self-heal (rewrite drifted owned entries and poke live children) unless MCP heal is pinned.
+
+COMMON FLAGS:
+  --json       Output results as JSON instead of human-readable text.
+  --no-tui     Disable TUI rendering; use plain text output.
+  -v, --verbose  Enable verbose logging.
+
+LEARN MORE:
+  docs/runbooks/cli-surface.md#anvil-doctor

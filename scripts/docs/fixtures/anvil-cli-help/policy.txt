@@ -1,0 +1,47 @@
+Manage and evaluate policies
+
+Usage: anvil policy [OPTIONS] <COMMAND>
+
+Commands:
+  eval               Evaluate a Rego policy against an input document
+  eval-regression    Run trust-regression eval suites and report regressions against the persisted baseline
+  attack-regression  Run a prompt-attack regression pack and gate on the fail-policy verdict
+  probe-trends       Show adversarial probe pass/fail trends by category from the eval history
+  list               List available policies
+  explain            Explain a specific policy
+  diff               Show policy differences
+  validate           Validate a policy pack: manifest, metadata, structure, and tests
+  install            Install a bundled starter policy pack into `.anvil/policies/`
+  show               Show a bundled starter policy pack without installing it
+  test               Run policy tests
+  help               Print this message or the help of the given subcommand(s)
+
+Options:
+      --json
+          Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command. Where a command has `--format`, an explicit `--format` takes precedence
+
+      --no-tui
+          Disable TUI rendering; use plain text output
+
+  -v, --verbose
+          Enable verbose logging
+
+      --anvil-home <PATH>
+          Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install. Takes precedence over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project root; durable project mutations are gated unless `--touch-project-state` is also set
+
+      --touch-project-state
+          Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`. Without it such writes run read-only / dry-run so an unreleased candidate cannot silently corrupt a real project
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+WHEN TO USE:
+  To install starter packs, validate pack manifests, evaluate Rego, run trust-regression CI locally, or inspect active policies.
+
+COMMON FLAGS:
+  --json       Output results as JSON instead of human-readable text.
+  --no-tui     Disable TUI rendering; use plain text output.
+  -v, --verbose  Enable verbose logging.
+
+LEARN MORE:
+  docs/runbooks/cli-surface.md#anvil-policy

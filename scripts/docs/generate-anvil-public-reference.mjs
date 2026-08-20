@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
@@ -17,8 +17,36 @@ const ROOT = flagValue('--root')
   ? resolve(flagValue('--root'))
   : resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const CHECK = argv.includes('--check');
+const UPDATE_HELP_SNAPSHOTS = argv.includes('--update-help-snapshots');
+const ANVIL_BIN = flagValue('--anvil-bin') ?? 'anvil';
 
 const PLANLESS_CHECK_NAMES = ['secret-detection', 'antipattern-scan'];
+
+const SCOPED_COMMANDS = [
+  { name: 'start', path: 'crates/anvil-cli/src/commands/start.rs', args: 'StartArgs' },
+  { name: 'check', path: 'crates/anvil-cli/src/commands/check.rs', args: 'CheckArgs' },
+  { name: 'gate', path: 'crates/anvil-cli/src/commands/gate.rs', args: 'GateArgs' },
+  { name: 'config', path: 'crates/anvil-cli/src/commands/config.rs', args: 'ConfigArgs' },
+  { name: 'watch', path: 'crates/anvil-cli/src/commands/watch.rs', args: 'WatchArgs' },
+  { name: 'doctor', path: 'crates/anvil-cli/src/commands/doctor.rs', args: 'DoctorArgs' },
+  { name: 'init', path: 'crates/anvil-cli/src/commands/init.rs', args: 'InitArgs' },
+  { name: 'policy', path: 'crates/anvil-cli/src/commands/policy/mod.rs', args: 'PolicyArgs' },
+];
+const HELP_SNAPSHOT_COMMANDS = [
+  'check',
+  'gate',
+  'policy',
+  'config',
+  'start',
+  'watch',
+  'doctor',
+  'init',
+];
+const REQUIRED_HELP_SNAPSHOTS = ['check', 'gate', 'policy', 'config'];
+const HELP_SNAPSHOT_DIR = resolve(ROOT, 'scripts/docs/fixtures/anvil-cli-help');
+const GLOBAL_FLAG_NAMES = ['json', 'no-tui', 'verbose', 'anvil-home', 'touch-project-state'];
+const SNAPSHOT_SKIP_FLAGS = new Set(['help', 'version', ...GLOBAL_FLAG_NAMES]);
+const SNAPSHOT_SKIP_COMMANDS = new Set(['help']);
 
 // Surface-check flag ids are an explicit generator table, not comments from
 // check_catalog.rs. Each flag_id must exist in flags/manifest.json.
@@ -50,6 +78,12 @@ const inputs = {
   cli: resolve(ROOT, 'crates/anvil-cli/src/main.rs'),
   start: resolve(ROOT, 'crates/anvil-cli/src/commands/start.rs'),
   check: resolve(ROOT, 'crates/anvil-cli/src/commands/check.rs'),
+  gate: resolve(ROOT, 'crates/anvil-cli/src/commands/gate.rs'),
+  config: resolve(ROOT, 'crates/anvil-cli/src/commands/config.rs'),
+  watch: resolve(ROOT, 'crates/anvil-cli/src/commands/watch.rs'),
+  doctor: resolve(ROOT, 'crates/anvil-cli/src/commands/doctor.rs'),
+  init: resolve(ROOT, 'crates/anvil-cli/src/commands/init.rs'),
+  policy: resolve(ROOT, 'crates/anvil-cli/src/commands/policy/mod.rs'),
   checkCatalog: resolve(ROOT, 'crates/anvil-cli/src/commands/check_catalog.rs'),
   flagManifest: resolve(ROOT, 'flags/manifest.json'),
   // Full MCP install registry (MCPX / ADR-106), not the two-client v1
@@ -76,9 +110,11 @@ if (!sourceRefResolved) {
 }
 
 const registry = JSON.parse(readProductSource(inputs.registry));
-const commands = parseCommands(readProductSource(inputs.cli));
-const startFlags = parseStartFlags(readProductSource(inputs.start));
-const exitCodes = parseExitCodes(readProductSource(inputs.cli));
+const cliSource = readProductSource(inputs.cli);
+const commands = parseCommands(cliSource);
+const globalFlags = parseArgsStruct(cliSource, 'GlobalArgs')?.flags ?? [];
+const scopedCommands = parseScopedCommands();
+const exitCodes = parseExitCodes(cliSource);
 const clients = parseClients(readProductSource(inputs.clients));
 const languages = parseLanguages(readProductSource(inputs.languages));
 const targets = parseTargets(readProductSource(inputs.dist));
@@ -98,7 +134,10 @@ const ruleExtensions = new Set(
 );
 
 const rendered = new Map([
-  [resolve(ROOT, 'docs/public/anvil/reference/cli.md'), renderCli(commands, startFlags, exitCodes)],
+  [
+    resolve(ROOT, 'docs/public/anvil/reference/cli.md'),
+    renderCli(commands, globalFlags, scopedCommands, exitCodes),
+  ],
   [resolve(ROOT, 'docs/public/anvil/reference/rules.md'), renderRules(registry)],
   [
     resolve(ROOT, 'docs/public/anvil/reference/checks.md'),
@@ -127,8 +166,13 @@ for (const [path, content] of outputs) {
   }
 }
 
+if (UPDATE_HELP_SNAPSHOTS) {
+  writeHelpSnapshots();
+}
+
 if (CHECK) {
   if (stale > 0) fail(`${stale} generated reference file(s) need regeneration`);
+  checkHelpSnapshots(outputs.get(resolve(ROOT, 'docs/public/anvil/reference/cli.md')) ?? '');
   process.stdout.write(`[anvil-reference] ${outputs.size} generated reference files are current\n`);
 }
 
@@ -290,65 +334,363 @@ function clientDisplayName(variant) {
   return names[variant] ?? variant;
 }
 
-// Parse public long flags from `StartArgs` in `commands/start.rs`.
-// Skips hidden flags (for example the retained `--tui` no-op).
-function parseStartFlags(source) {
-  const start = source.indexOf('pub struct StartArgs {');
-  if (start < 0) fail('could not locate StartArgs');
-  // End at the next top-level item after the struct body.
-  const after = source.slice(start);
-  let endRel = after.search(/\n}\n\n(?:\/\/\/|#\[|pub |fn |const |struct |enum |impl )/);
-  if (endRel < 0) {
-    // Fixture / end-of-file structs: close on the first top-level `}`.
-    const close = after.search(/\n}\s*$/);
-    if (close < 0) fail('could not locate end of StartArgs');
-    endRel = close;
+function parseScopedCommands() {
+  const details = new Map();
+  for (const spec of SCOPED_COMMANDS) {
+    const path = resolve(ROOT, spec.path);
+    const source = readOptionalProductSource(path);
+    if (!source) continue;
+    const parsed = parseArgsStruct(source, spec.args, path) ?? emptyCommandSurface();
+    if (spec.name === 'start' && parsed.flags.length === 0) {
+      fail('StartArgs produced no public flags');
+    }
+    details.set(spec.name, parsed);
   }
-  const end = start + endRel;
+  return details;
+}
 
+function emptyCommandSurface() {
+  return { flags: [], arguments: [], subcommands: [] };
+}
+
+function parseArgsStruct(source, typeName, filePath) {
+  const body = extractTypeBody(source, 'struct', typeName);
+  if (!body) return null;
+  return parseArgsBody(body, source, filePath);
+}
+
+function extractTypeBody(source, kind, name) {
+  const match = new RegExp(`\\b${kind}\\s+${name}\\s*\\{`).exec(source);
+  if (!match) return null;
+  const brace = match.index + match[0].length - 1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = brace; index < source.length; index += 1) {
+    const character = source[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === '{') depth += 1;
+    else if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(brace + 1, index);
+    }
+  }
+  fail(`could not locate the end of ${kind} ${name}`);
+}
+
+function parseArgsBody(body, source, filePath) {
   const flags = [];
+  const args = [];
+  let subcommands = [];
   let docs = [];
-  let longName;
-  let hidden = false;
-  let hasLong = false;
+  let argAttr = '';
+  let commandAttr = '';
 
-  for (const line of source.slice(start, end).split(/\r?\n/).slice(1)) {
-    const comment = /^\s*\/\/\/\s?(.*)$/.exec(line);
+  const flush = (fieldName, fieldType) => {
+    const description = firstSentence(docs);
+    const commandBody = commandAttr;
+    const parsedArg = parseArgAttribute(argAttr);
+    docs = [];
+    argAttr = '';
+    commandAttr = '';
+    if (!fieldName) return;
+    if (/\bsubcommand\b/.test(commandBody)) {
+      const typeName = rustTypeName(fieldType);
+      subcommands = parseSubcommandEnum(source, typeName, filePath);
+      return;
+    }
+    if (/\bflatten\b/.test(commandBody) || parsedArg.hidden) return;
+    if (parsedArg.hasLong) {
+      flags.push({
+        flag: `--${parsedArg.longName ?? fieldName.replaceAll('_', '-')}`,
+        description: lowerBrands(description || `See \`anvil --help\``),
+      });
+      return;
+    }
+    args.push({
+      name: parsedArg.valueName ?? fieldName.toUpperCase(),
+      description: lowerBrands(description || 'Positional argument'),
+    });
+  };
+
+  for (const line of splitClapLines(body)) {
+    const comment = /^\/\/\/\s?(.*)$/.exec(line);
     if (comment) {
       docs.push(comment[1]);
       continue;
     }
-    const attribute = /^\s*#\[arg\((.*)\)\]/.exec(line);
+    const attribute = /^#\[(arg|command)\((.*)\)\]$/.exec(line);
     if (attribute) {
-      const body = attribute[1];
-      const explicitLong = /long\s*=\s*"([^"]+)"/.exec(body)?.[1];
-      if (explicitLong) {
-        longName = explicitLong;
-        hasLong = true;
-      } else if (/\blong\b/.test(body)) {
-        hasLong = true;
-      }
-      if (/\bhide\s*=\s*true\b/.test(body)) hidden = true;
+      if (attribute[1] === 'arg') argAttr += (argAttr ? ' ' : '') + attribute[2];
+      else commandAttr += (commandAttr ? ' ' : '') + attribute[2];
       continue;
     }
-    const field = /^\s*pub\s+([a-z0-9_]+)\s*:/.exec(line);
-    if (!field) continue;
-    if (hasLong && !hidden) {
-      const name = longName ?? field[1].replaceAll('_', '-');
-      const description = docs.filter(Boolean).join(' ').split(/\.\s/)[0].replace(/\.$/, '').trim();
-      flags.push({
-        flag: `--${name}`,
-        description: lowerBrands(description || 'See `anvil start --help`'),
-      });
+    const field = /^(?:pub(?:\([^)]+\))?\s+)?([a-z][a-z0-9_]*)\s*:\s*(.+?),?\s*$/.exec(line);
+    if (field) {
+      flush(field[1], field[2].replace(/,$/, ''));
+      continue;
     }
-    docs = [];
-    longName = undefined;
-    hidden = false;
-    hasLong = false;
   }
 
-  if (flags.length === 0) fail('StartArgs produced no public flags');
-  return flags;
+  return { flags, arguments: args, subcommands };
+}
+
+function parseSubcommandEnum(source, typeName, filePath) {
+  const body = extractTypeBody(source, 'enum', typeName);
+  if (!body) return [];
+  const commands = [];
+  const lines = body.split(/\r?\n/);
+  let index = 0;
+  while (index < lines.length) {
+    let line = lines[index].trim();
+    if (!line || (line.startsWith('//') && !line.startsWith('///'))) {
+      index += 1;
+      continue;
+    }
+    const docs = [];
+    let explicitName;
+    let hidden = false;
+    while (index < lines.length) {
+      line = lines[index].trim();
+      const comment = /^\/\/\/\s?(.*)$/.exec(line);
+      if (comment) {
+        docs.push(comment[1]);
+        index += 1;
+        continue;
+      }
+      const attribute = /^#\[command\((.*)\)\]$/.exec(line);
+      if (attribute) {
+        explicitName = /name\s*=\s*"([^"]+)"/.exec(attribute[1])?.[1];
+        hidden = /\bhide\s*=\s*true\b/.test(attribute[1]);
+        index += 1;
+        continue;
+      }
+      break;
+    }
+    if (index >= lines.length) break;
+    line = lines[index].trim();
+    if (!line || line.startsWith('//')) {
+      index += 1;
+      continue;
+    }
+    const tuple = /^([A-Z][A-Za-z0-9]*)\s*\(([^)]*)\)\s*,?\s*$/.exec(line);
+    const unit = /^([A-Z][A-Za-z0-9]*)\s*,?\s*$/.exec(line);
+    const structStart = /^([A-Z][A-Za-z0-9]*)\s*\{/.exec(line);
+    let variantName;
+    let nested = emptyCommandSurface();
+    if (tuple) {
+      variantName = tuple[1];
+      nested = resolveNestedArgs(tuple[2].trim(), source, filePath);
+      index += 1;
+    } else if (structStart) {
+      variantName = structStart[1];
+      const openLine = lines[index];
+      const open = openLine.indexOf('{');
+      let depth = delimiterBalance(openLine.slice(open));
+      const chunks = [openLine.slice(open + 1)];
+      index += 1;
+      while (index < lines.length && depth > 0) {
+        chunks.push(lines[index]);
+        depth += delimiterBalance(lines[index]);
+        index += 1;
+      }
+      const structBody = chunks.join('\n').replace(/\}\s*,?\s*$/, '');
+      nested = parseArgsBody(structBody, source, filePath);
+    } else if (unit) {
+      variantName = unit[1];
+      index += 1;
+    } else {
+      fail(`could not parse ${typeName} variant: ${line}`);
+    }
+    if (hidden) continue;
+    const name = explicitName ?? kebabCase(variantName);
+    commands.push({
+      name,
+      description: lowerBrands(firstSentence(docs) || `See \`anvil ${name} --help\``),
+      flags: nested.flags,
+      arguments: nested.arguments,
+      subcommands: nested.subcommands,
+    });
+  }
+  return commands;
+}
+
+function resolveNestedArgs(typeExpr, source, filePath) {
+  const parts = typeExpr.split('::').map((part) => part.trim());
+  if (parts.length === 1) {
+    return parseArgsStruct(source, parts[0], filePath) ?? emptyCommandSurface();
+  }
+  if (parts.length === 2 && filePath) {
+    const nestedPath = resolve(dirname(filePath), `${parts[0]}.rs`);
+    const nestedSource = readOptionalProductSource(nestedPath);
+    if (!nestedSource) return emptyCommandSurface();
+    return parseArgsStruct(nestedSource, parts[1], nestedPath) ?? emptyCommandSurface();
+  }
+  return emptyCommandSurface();
+}
+
+function parseArgAttribute(body) {
+  const explicitLong = /long\s*=\s*"([^"]+)"/.exec(body)?.[1];
+  return {
+    longName: explicitLong,
+    hasLong: Boolean(explicitLong) || /(^|[^a-zA-Z])long([^a-zA-Z]|$)/.test(body),
+    hidden: /\bhide\s*=\s*true\b/.test(body),
+    valueName: /value_name\s*=\s*"([^"]+)"/.exec(body)?.[1],
+  };
+}
+
+function splitClapLines(body) {
+  const lines = [];
+  let buffer = '';
+  let depth = 0;
+  for (const line of body.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!buffer && trimmed.startsWith('#[')) {
+      buffer = trimmed;
+      depth = delimiterBalance(trimmed);
+      if (depth === 0) {
+        lines.push(buffer);
+        buffer = '';
+      }
+      continue;
+    }
+    if (buffer) {
+      buffer += trimmed;
+      depth += delimiterBalance(trimmed);
+      if (depth <= 0) {
+        lines.push(buffer);
+        buffer = '';
+        depth = 0;
+      }
+      continue;
+    }
+    if (trimmed) lines.push(trimmed);
+  }
+  if (buffer) lines.push(buffer);
+  return lines;
+}
+
+function firstSentence(docs) {
+  const text = docs
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\b(e\.g|i\.e)\./gi, '$1\u2024')
+    .trim();
+  return text.split(/\.\s/)[0].replace(/\.$/, '').replaceAll('\u2024', '.').trim();
+}
+
+function rustTypeName(fieldType) {
+  return fieldType.replace(/,$/, '').trim();
+}
+
+function readOptionalProductSource(path) {
+  if (!sourceRefResolved) {
+    if (!existsSync(path)) return undefined;
+    return readFileSync(path, 'utf8');
+  }
+  const repoPath = relative(ROOT, path).replaceAll('\\', '/');
+  const result = spawnSync('git', ['-C', ROOT, 'show', `${sourceTagRef}:${repoPath}`], {
+    encoding: 'utf8',
+  });
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+function writeHelpSnapshots() {
+  mkdirSync(HELP_SNAPSHOT_DIR, { recursive: true });
+  for (const command of HELP_SNAPSHOT_COMMANDS) {
+    const result = spawnSync(ANVIL_BIN, [command, '--help'], {
+      encoding: 'utf8',
+      env: { ...process.env, DO_NOT_TRACK: '1' },
+    });
+    const text = `${result.stdout || ''}${result.stderr || ''}`;
+    if (!text.includes('Usage:')) {
+      fail(
+        `could not capture ${ANVIL_BIN} ${command} --help: ${(result.stderr || text).trim() || `exit ${result.status}`}`
+      );
+    }
+    writeFileSync(helpSnapshotPath(command), text);
+    process.stdout.write(`[anvil-reference] wrote help snapshot for ${command}\n`);
+  }
+}
+
+function checkHelpSnapshots(page) {
+  if (!existsSync(HELP_SNAPSHOT_DIR)) return;
+  const present = new Set(
+    readdirSync(HELP_SNAPSHOT_DIR)
+      .filter((name) => name.endsWith('.txt'))
+      .map((name) => name.replace(/\.txt$/, ''))
+  );
+  if (present.size === 0) return;
+  let mismatches = 0;
+  for (const command of REQUIRED_HELP_SNAPSHOTS) {
+    if (present.has(command)) continue;
+    process.stderr.write(`[anvil-reference] missing help snapshot: ${command}.txt\n`);
+    mismatches += 1;
+  }
+  for (const command of [...present].sort()) {
+    const path = helpSnapshotPath(command);
+    const snapshot = parseHelpSnapshot(readFileSync(path, 'utf8'));
+    const missingFlags = [...snapshot.flags].filter(
+      (flag) => !SNAPSHOT_SKIP_FLAGS.has(flag) && !pageIncludesFlag(page, command, flag)
+    );
+    const missingCommands = snapshot.commands.filter(
+      (name) => !SNAPSHOT_SKIP_COMMANDS.has(name) && !page.includes(`anvil ${command} ${name}`)
+    );
+    if (missingFlags.length > 0 || missingCommands.length > 0) {
+      process.stderr.write(
+        `[anvil-reference] help-snapshot drift for ${command}: missing flags [${missingFlags.join(', ')}] missing subcommands [${missingCommands.join(', ')}]\n`
+      );
+      mismatches += 1;
+    }
+  }
+  if (mismatches > 0) fail(`${mismatches} CLI help snapshot(s) disagree with the generated page`);
+}
+
+function helpSnapshotPath(command) {
+  return resolve(HELP_SNAPSHOT_DIR, `${command}.txt`);
+}
+
+function pageIncludesFlag(page, command, flag) {
+  return commandSection(page, command).includes(`\`--${flag}\``);
+}
+
+function commandSection(page, command) {
+  const start = page.indexOf(`### \`anvil ${command}\``);
+  if (start < 0) return '';
+  const rest = page.slice(start);
+  const next = rest.slice(4).search(/\n### `/);
+  return next < 0 ? rest : rest.slice(0, next + 4);
+}
+
+function parseHelpSnapshot(text) {
+  const options = extractHelpSection(text, 'Options');
+  const commands = extractHelpSection(text, 'Commands');
+  const flags = new Set();
+  for (const match of options.matchAll(/^\s*(?:-[a-zA-Z],\s*)?--([a-z0-9][a-z0-9-]*)/gm)) {
+    flags.add(match[1]);
+  }
+  const names = [];
+  for (const match of commands.matchAll(/^\s{2}([a-z][a-z0-9-]*)(?:\s|$)/gm)) names.push(match[1]);
+  return { flags, commands: names };
+}
+
+function extractHelpSection(text, heading) {
+  const start = text.search(new RegExp(`^${heading}:\\s*$`, 'm'));
+  if (start < 0) return '';
+  const rest = text.slice(start + heading.length + 2);
+  const stop = rest.search(
+    /^(?:Arguments|Options|Commands|EXIT CODES|WHEN TO USE|COMMON FLAGS|LEARN MORE|Behaviour):/m
+  );
+  return stop < 0 ? rest : rest.slice(0, stop);
 }
 
 function parseExitCodes(source) {
@@ -385,12 +727,15 @@ function parseTargets(source) {
   return [...block.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 }
 
-function renderCli(commands, startFlags, exitCodes) {
+function renderCli(commands, globalFlags, scoped, exitCodes) {
   const rows = commands
     .map(({ name, description }) => `| \`anvil ${name}\` | ${escapeCell(description)} |`)
     .join('\n');
-  const startRows = startFlags
-    .map(({ flag, description }) => `| \`${flag}\` | ${escapeCell(description)} |`)
+  const globalRows = renderFlagRows(globalFlags);
+  const scopedSections = SCOPED_COMMANDS.map((spec) =>
+    renderScopedCommand(spec.name, scoped.get(spec.name), commands)
+  )
+    .filter(Boolean)
     .join('\n');
   const exitRows = exitCodes
     .map(({ name, code }) => {
@@ -402,11 +747,13 @@ function renderCli(commands, startFlags, exitCodes) {
     generatedHeader(
       'cli-reference',
       'CLI command reference',
-      'Discover every public top-level anvil command.'
+      'Discover every public top-level anvil command, plus flags and subcommands for the daily set.'
     ) +
     `# CLI command reference\n\n` +
     `This page is generated from the command definitions shipped with ${releaseLabel()}. ` +
-    `Use \`anvil <command> --help\` for flags, examples, and subcommands for your installed version.\n\n` +
+    `Global flags appear once. Hidden clap commands are unpublished. ` +
+    `Flags and subcommands below cover the daily set (\`start\`, \`check\`, \`gate\`, \`config\`, \`watch\`, \`doctor\`, \`init\`, \`policy\`). ` +
+    `Use \`anvil <command> --help\` for other commands and for examples on your installed version.\n\n` +
     `For a first installation, use the [quickstart](../quickstart.md).\n\n` +
     `## Daily ensure\n\n` +
     `With no subcommand, bare \`anvil\` runs the daily ensure surface: it turns protection on for an already-activated project (daemon + existing MCP entries). ` +
@@ -414,13 +761,12 @@ function renderCli(commands, startFlags, exitCodes) {
     `| Command | Purpose |\n| --- | --- |\n` +
     `| \`anvil\` | Turn protection on for an already-activated project (daily ensure) |\n` +
     `${rows}\n\n` +
-    `## \`anvil start\` flags\n\n` +
-    `Activation entrypoint. Flags below are generated from the shipped CLI; confirm with \`anvil start --help\` on your binary.\n\n` +
+    `## Global flags\n\n` +
+    `These flags are available on every command. They are not repeated in the per-command tables.\n\n` +
     `| Flag | Purpose |\n| --- | --- |\n` +
-    `${startRows}\n\n` +
-    `Interactive \`anvil start\` offers every installable MCP client (unticked by default). ` +
-    `Scripted multi-client install uses \`--mcp-client <id>\` (repeatable), \`--all-mcp-clients\`, and \`--mcp-scope global|project\`. ` +
-    `Discover client ids with \`anvil mcp install --help\`.\n\n` +
+    `${globalRows}\n\n` +
+    `## Command flags and subcommands\n\n` +
+    scopedSections +
     `## Exit codes\n\n` +
     `Stable process exit codes used by the CLI. Scripts should gate on these values rather than parsing human-readable prose.\n\n` +
     `| Code | Meaning |\n| --- | --- |\n` +
@@ -432,6 +778,64 @@ function renderCli(commands, startFlags, exitCodes) {
     `- Read-only activation probes (\`anvil start --verify\`, \`anvil status --verify\`) bypass the pre-dispatch auth wall entirely.\n\n` +
     `When \`--json\` is set, action-command auth-required responses use an informational envelope (\`state: "authRequired"\`, \`next\`, optional \`earlyAccessUrl\`) on stdout while still exiting \`3\`.\n`
   );
+}
+
+function renderScopedCommand(name, surface, commands) {
+  if (!surface) return '';
+  const summary = commands.find((command) => command.name === name)?.description;
+  const heading = `### \`anvil ${name}\`\n\n`;
+  const purpose = summary ? `${escapeCell(summary)}.\n\n` : '';
+  const argumentTable = renderNamedRows('Argument', surface.arguments, (item) => [
+    item.name,
+    item.description,
+  ]);
+  const flagTable = renderNamedRows('Flag', surface.flags, (item) => [item.flag, item.description]);
+  const subcommandTable = renderNamedRows('Subcommand', surface.subcommands, (item) => [
+    `anvil ${name} ${item.name}`,
+    item.description,
+  ]);
+  const nested = surface.subcommands
+    .map((item) => renderNestedSurface(`anvil ${name} ${item.name}`, item))
+    .join('');
+  const extra =
+    name === 'start'
+      ? `Interactive \`anvil start\` offers every installable MCP client (unticked by default). ` +
+        `Scripted multi-client install uses \`--mcp-client <id>\` (repeatable), \`--all-mcp-clients\`, and \`--mcp-scope global|project\`. ` +
+        `Discover client ids with \`anvil mcp install --help\`.\n\n`
+      : '';
+  if (!argumentTable && !flagTable && !subcommandTable && !nested && !extra) return '';
+  return heading + purpose + argumentTable + flagTable + subcommandTable + nested + extra;
+}
+
+function renderNestedSurface(title, surface) {
+  const argumentTable = renderNamedRows('Argument', surface.arguments, (item) => [
+    item.name,
+    item.description,
+  ]);
+  const flagTable = renderNamedRows('Flag', surface.flags, (item) => [item.flag, item.description]);
+  const subcommandTable = renderNamedRows('Subcommand', surface.subcommands, (item) => [
+    item.name,
+    item.description,
+  ]);
+  if (!argumentTable && !flagTable && !subcommandTable) return '';
+  return `#### \`${title}\`\n\n` + argumentTable + flagTable + subcommandTable;
+}
+
+function renderFlagRows(flags) {
+  return flags
+    .map(({ flag, description }) => `| \`${flag}\` | ${escapeCell(description)} |`)
+    .join('\n');
+}
+
+function renderNamedRows(header, items, cells) {
+  if (!items || items.length === 0) return '';
+  const rows = items
+    .map((item) => {
+      const [name, description] = cells(item);
+      return `| \`${name}\` | ${escapeCell(description)} |`;
+    })
+    .join('\n');
+  return `| ${header} | Purpose |\n| --- | --- |\n${rows}\n\n`;
 }
 
 function exitCodeMeaning(name, code) {
@@ -601,7 +1005,20 @@ function generatedHeader(id, title, description) {
   // declares the generator inputs it renders plus the generator itself, and
   // is verified against the release its content is generated from.
   const governance = {
-    'cli-reference': { owner: 'CLICT', sources: [inputs.cli, inputs.start] },
+    'cli-reference': {
+      owner: 'CLICT',
+      sources: [
+        inputs.cli,
+        inputs.start,
+        inputs.check,
+        inputs.gate,
+        inputs.config,
+        inputs.watch,
+        inputs.doctor,
+        inputs.init,
+        inputs.policy,
+      ],
+    },
     'rule-reference': { owner: 'DOCSYNC', sources: [inputs.registry] },
     checks: {
       owner: 'DOCDEF',
@@ -694,6 +1111,7 @@ function publicCommandDescription(name, sourceDescription) {
     'audit-chain': 'Check commits that bypassed protection for missing evidence',
     baseline: 'Manage the record of findings accepted when anvil was introduced',
     capsule: 'Package review evidence for a commit range into a portable file',
+    dashboard: 'Open a native read-only dashboard over local anvil state (flag-gated)',
     edda: 'Inspect durable local memory records used by eddacraft workflows',
     ember: 'Inspect proposed memory records before they become durable records',
     exception: 'Manage recorded policy exceptions',

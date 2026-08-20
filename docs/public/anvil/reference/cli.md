@@ -1,11 +1,20 @@
 ---
 id: cli-reference
 title: CLI command reference
-description: Discover every public top-level anvil command.
+description:
+  Discover every public top-level anvil command, plus flags and subcommands for
+  the daily set.
 owner: CLICT
 upstream:
   - crates/anvil-cli/src/main.rs
   - crates/anvil-cli/src/commands/start.rs
+  - crates/anvil-cli/src/commands/check.rs
+  - crates/anvil-cli/src/commands/gate.rs
+  - crates/anvil-cli/src/commands/config.rs
+  - crates/anvil-cli/src/commands/watch.rs
+  - crates/anvil-cli/src/commands/doctor.rs
+  - crates/anvil-cli/src/commands/init.rs
+  - crates/anvil-cli/src/commands/policy/mod.rs
   - scripts/docs/generate-anvil-public-reference.mjs
 verified_against: 0.9.6-beta
 ---
@@ -15,8 +24,10 @@ verified_against: 0.9.6-beta
 # CLI command reference
 
 This page is generated from the command definitions shipped with anvil
-0.9.6-beta. Use `anvil <command> --help` for flags, examples, and subcommands
-for your installed version.
+0.9.6-beta. Global flags appear once. Hidden clap commands are unpublished.
+Flags and subcommands below cover the daily set (`start`, `check`, `gate`,
+`config`, `watch`, `doctor`, `init`, `policy`). Use `anvil <command> --help` for
+other commands and for examples on your installed version.
 
 For a first installation, use the [quickstart](../quickstart.md).
 
@@ -39,7 +50,7 @@ It does not install clients you skipped or rewrite configuration — use
 | `anvil capsule`      | Package review evidence for a commit range into a portable file           |
 | `anvil check`        | Scan files for anti-patterns and hardcoded secrets (planless mode)        |
 | `anvil config`       | Show, set, and convert anvil project config                               |
-| `anvil dashboard`    | Open a native read-only dashboard over local anvil state                  |
+| `anvil dashboard`    | Open a native read-only dashboard over local anvil state (flag-gated)     |
 | `anvil doctor`       | Run diagnostic checks on your environment                                 |
 | `anvil drift`        | Track architecture drift over time                                        |
 | `anvil edda`         | Inspect durable local memory records used by eddacraft workflows          |
@@ -79,10 +90,24 @@ It does not install clients you skipped or rewrite configuration — use
 | `anvil wizard`       | Guided project setup wizard                                               |
 | `anvil workspace`    | Control which project folders the local protection process may access     |
 
-## `anvil start` flags
+## Global flags
 
-Activation entrypoint. Flags below are generated from the shipped CLI; confirm
-with `anvil start --help` on your binary.
+These flags are available on every command. They are not repeated in the
+per-command tables.
+
+| Flag                    | Purpose                                                                                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--json`                | Output results as JSON: success stdout is exactly one JSON document (or a documented machine stream), on every command                                                       |
+| `--no-tui`              | Disable TUI rendering; use plain text output                                                                                                                                 |
+| `--verbose`             | Enable verbose logging                                                                                                                                                       |
+| `--anvil-home`          | Re-root install-owned state (user state, daemon socket/PID, kernel cache/logs) under this prefix so a pre-release candidate can run side-by-side with the production install |
+| `--touch-project-state` | Permit durable per-project mutations (baseline refresh, witness append, cutoff pinning) while running under a non-default `--anvil-home` / `ANVIL_HOME`                      |
+
+## Command flags and subcommands
+
+### `anvil start`
+
+Activate anvil in this repository.
 
 | Flag                | Purpose                                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
@@ -101,6 +126,214 @@ Interactive `anvil start` offers every installable MCP client (unticked by
 default). Scripted multi-client install uses `--mcp-client <id>` (repeatable),
 `--all-mcp-clients`, and `--mcp-scope global|project`. Discover client ids with
 `anvil mcp install --help`.
+
+### `anvil check`
+
+Scan files for anti-patterns and hardcoded secrets (planless mode).
+
+| Argument | Purpose                                                                     |
+| -------- | --------------------------------------------------------------------------- |
+| `FILES`  | Files to analyse (optional if using --changed, --staged, --since, or --all) |
+
+| Flag               | Purpose                                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `--changed`        | Analyse git-changed files only (ignored if explicit file paths are given)                                  |
+| `--staged`         | Analyse only staged files (implies --changed; ignored if explicit file paths are given)                    |
+| `--since`          | Compare against a git ref, e.g. main, HEAD~3 (implies --changed; ignored if explicit file paths are given) |
+| `--all`            | Analyse all source files in the project                                                                    |
+| `--extensions`     | Comma-separated file extensions to analyse (e.g. .ts,.tsx,.html)                                           |
+| `--severity`       | Minimum severity for blocking: error, warning, info (default: error)                                       |
+| `--include-opt-in` | Include opt-in patterns                                                                                    |
+| `--artifact`       | Artifact kind: source, pr-description, commit-message, agent-output                                        |
+| `--format`         | Output format: auto (default), tui, plain, json, or sarif                                                  |
+
+### `anvil gate`
+
+Run gate checks against the current project.
+
+| Argument | Purpose                                                      |
+| -------- | ------------------------------------------------------------ |
+| `PLAN`   | Plan file to run gates against (omit for full codebase scan) |
+
+| Flag                 | Purpose                                                            |
+| -------------------- | ------------------------------------------------------------------ |
+| `--profile`          | Gate profile: dev, ci, production, ai                              |
+| `--skip-checks`      | Comma-separated list of checks to skip                             |
+| `--only-checks`      | Only run these checks (comma-separated canonical names or aliases) |
+| `--fail-fast`        | Stop on first check failure                                        |
+| `--fail-on-warnings` | Treat warning-severity findings as blocking (exit non-zero)        |
+| `--progress`         | Show real-time progress                                            |
+| `--list-profiles`    | List available gate profiles                                       |
+| `--format`           | Output format: auto (default), tui, plain, json, or sarif          |
+
+### `anvil config`
+
+Show, set, and convert anvil project config.
+
+| Subcommand             | Purpose                                                |
+| ---------------------- | ------------------------------------------------------ |
+| `anvil config show`    | Show the effective anvil config                        |
+| `anvil config set`     | Set a rule mode in the project config                  |
+| `anvil config convert` | Convert the project config to another canonical format |
+
+#### `anvil config set`
+
+| Argument | Purpose                                                                                                               |
+| -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `RULE`   | Rule to set: `public-api-expansion`, `new-dependency-introduction`, `cross-layer-violation`, or `privilege-expansion` |
+| `MODE`   | Mode to apply: `off`, `warn`, or `enforce`                                                                            |
+
+#### `anvil config convert`
+
+| Flag           | Purpose                                                         |
+| -------------- | --------------------------------------------------------------- |
+| `--to`         | Destination format: yaml, yml, json, or toml                    |
+| `--stdout`     | Print the converted config instead of writing `.anvil.<ext>`    |
+| `--force`      | Overwrite an existing destination file                          |
+| `--remove-old` | Delete the source file when the destination is a different path |
+
+### `anvil watch`
+
+Watch files and report save-time findings after the baseline scan.
+
+| Flag                 | Purpose                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `--file`             | File or directory to scope the watcher (when a file is given, its parent directory is watched; other files there may also trigger events) |
+| `--action`           | Action to run on each change: check (default), gate, or none for an architecture/dependency-only watch with no code-quality scan          |
+| `--plans`            | Watch planning documents                                                                                                                  |
+| `--source`           | Watch source files                                                                                                                        |
+| `--all`              | Watch everything except built-in local-noise/generated/cache directories                                                                  |
+| `--patterns`         | Glob patterns to watch (comma-separated, e.g. "src/**/\*.ts,lib/**/\*.ts")                                                                |
+| `--exclude`          | Glob patterns to exclude (comma-separated, e.g. "vendor/**,**/\*.test.ts")                                                                |
+| `--debounce`         | Debounce interval in milliseconds                                                                                                         |
+| `--no-daemon`        | Skip starting (or offering to start) the per-user save-time daemon                                                                        |
+| `--save-time-driver` | Internal: run as the headless save-time driver the intercept daemon's supervisor spawns per registered worktree                           |
+| `--worktree`         | Canonical worktree root to drive (save-time driver mode only)                                                                             |
+
+### `anvil doctor`
+
+Run diagnostic checks on your environment.
+
+| Flag    | Purpose                        |
+| ------- | ------------------------------ |
+| `--fix` | Auto-fix issues where possible |
+
+### `anvil init`
+
+Initialise anvil configuration for a project.
+
+| Flag      | Purpose                                            |
+| --------- | -------------------------------------------------- |
+| `--force` | Overwrite existing configuration without prompting |
+
+### `anvil policy`
+
+Manage and evaluate policies.
+
+| Subcommand                       | Purpose                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------- |
+| `anvil policy eval`              | Evaluate a Rego policy against an input document                                       |
+| `anvil policy eval-regression`   | Run trust-regression eval suites and report regressions against the persisted baseline |
+| `anvil policy attack-regression` | Run a prompt-attack regression pack and gate on the fail-policy verdict                |
+| `anvil policy probe-trends`      | Show adversarial probe pass/fail trends by category from the eval history              |
+| `anvil policy list`              | List available policies                                                                |
+| `anvil policy explain`           | Explain a specific policy                                                              |
+| `anvil policy diff`              | Show policy differences                                                                |
+| `anvil policy validate`          | Validate a policy pack: manifest, metadata, structure, and tests                       |
+| `anvil policy install`           | Install a bundled starter policy pack into `.anvil/policies/`                          |
+| `anvil policy show`              | Show a bundled starter policy pack without installing it                               |
+| `anvil policy test`              | Run policy tests                                                                       |
+
+#### `anvil policy eval`
+
+| Argument | Purpose                                     |
+| -------- | ------------------------------------------- |
+| `POLICY` | Path to the `.rego` policy file to evaluate |
+
+| Flag                 | Purpose                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `--input`            | Path to a JSON `PolicyInput` document                                                          |
+| `--query`            | Rego query to evaluate                                                                         |
+| `--explain`          | Render line coverage for the evaluation                                                        |
+| `--why`              | Explain a finding by its 0-based index: render the evaluation trace and highlight that finding |
+| `--fail-on-warnings` | Treat warnings as blocking: exit non-zero on any non-baselined warning                         |
+
+#### `anvil policy eval-regression`
+
+| Flag                   | Purpose                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `--suites`             | Path to a JSON file defining the suites to run (an array of eval suites: `{ "name", "policy", "query", "input"? }`) |
+| `--store`              | Directory holding the eval history                                                                                  |
+| `--anvil-bin`          | The `anvil` executable used to run each suite                                                                       |
+| `--update-baseline`    | Append each run to the history, updating the baseline future runs compare against                                   |
+| `--fail-on-regression` | Block (exit non-zero) when any suite regressed                                                                      |
+
+#### `anvil policy attack-regression`
+
+| Flag           | Purpose                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `--pack`       | Path to an attack pack YAML file (a set of scenario fixtures)                                                              |
+| `--fail-above` | Block (exit non-zero) when a failing scenario's severity is strictly above this band (`low`, `medium`, `high`, `critical`) |
+
+#### `anvil policy probe-trends`
+
+| Flag      | Purpose                            |
+| --------- | ---------------------------------- |
+| `--store` | Directory holding the eval history |
+
+#### `anvil policy list`
+
+| Flag         | Purpose                    |
+| ------------ | -------------------------- |
+| `--category` | Filter by category         |
+| `--enabled`  | Show only enabled policies |
+
+#### `anvil policy explain`
+
+| Argument    | Purpose              |
+| ----------- | -------------------- |
+| `POLICY_ID` | Policy ID to explain |
+
+#### `anvil policy diff`
+
+| Argument | Purpose          |
+| -------- | ---------------- |
+| `BASE`   | Base policy file |
+| `HEAD`   | Head policy file |
+
+#### `anvil policy validate`
+
+| Argument | Purpose                                                   |
+| -------- | --------------------------------------------------------- |
+| `PATH`   | Pack manifest file, or a directory containing `pack.yaml` |
+
+#### `anvil policy install`
+
+| Argument  | Purpose                                                  |
+| --------- | -------------------------------------------------------- |
+| `PACK_ID` | Identifier of the bundled pack to install (see `--list`) |
+
+| Flag          | Purpose                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| `--list`      | List the bundled starter packs and exit                            |
+| `--force`     | Overwrite existing pack files instead of refusing                  |
+| `--workspace` | Workspace root to install into (defaults to the current workspace) |
+
+#### `anvil policy show`
+
+| Argument  | Purpose                                                       |
+| --------- | ------------------------------------------------------------- |
+| `PACK_ID` | Identifier of the bundled pack to show (see `install --list`) |
+
+#### `anvil policy test`
+
+| Argument | Purpose                |
+| -------- | ---------------------- |
+| `PATH`   | Test file or directory |
+
+| Flag           | Purpose                    |
+| -------------- | -------------------------- |
+| `--list-files` | List discovered test files |
 
 ## Exit codes
 
