@@ -69,11 +69,12 @@ To add a flag:
 
 ## Classification Key
 
-| Action       | Meaning                                                             |
-| ------------ | ------------------------------------------------------------------- |
-| **migrated** | Retired onto the shared manifest and OpenFeature-backed resolution  |
-| **adopt**    | New capability — will use the shared model from the start           |
-| **defer**    | Not ready to migrate yet; document what a future migration involves |
+| Action       | Meaning                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| **migrated** | Retired onto the shared manifest and OpenFeature-backed resolution                           |
+| **adopt**    | New capability — will use the shared model from the start                                    |
+| **defer**    | Not ready to migrate yet; document what a future migration involves                          |
+| **orphaned** | Defined in the manifest but with no runtime consumer — adopt it somewhere or retire the flag |
 
 ## Summary Table
 
