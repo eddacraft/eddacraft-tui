@@ -30,7 +30,7 @@ anvil evaluates **checks**. A **gate** is the workflow judgement over those
 checks. A **scan** is how evidence is gathered for a check, not a third kind of
 result.
 
-## Check, finding, gate, and scan
+## Where most confusion occurs
 
 ### Check
 
