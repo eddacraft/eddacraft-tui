@@ -190,8 +190,13 @@ jobs:
         with:
           shared-key: rust-ci
           save-if: 'false'
+      # ADR-126: anvil-spike is exempt from the strict lint gate. It is a leaf
+      # crate (nothing depends on it), so the RUSTC_WORKSPACE_WRAPPER caveat
+      # documented at the clippy-windows job does not apply — `--exclude`
+      # genuinely skips it. Spikes must still compile: check/test/build
+      # --workspace keep covering the crate.
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --exclude anvil-spike --all-targets -- -D warnings
 
   # CIB-193: close the cross-target cfg gap. `clippy` above is Linux-only, the
   # `cross-compile` matrix is release/hotfix/dispatch-gated, and the nightly
@@ -237,8 +242,12 @@ jobs:
       # in the graph, so `--exclude` cannot suppress a crate that another
       # selected crate depends on. Per-site allows are also the honest shape —
       # each one is a greppable debt marker that CIB-204 deletes.
+      # anvil-spike: excluded per ADR-126 — valid here because it is a leaf
+      # crate no selected member depends on (see caveat above).
       - name: Run clippy for x86_64-pc-windows-msvc
-        run: cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+        run:
+          cargo clippy --workspace --exclude anvil-spike --all-targets --target
+          x86_64-pc-windows-msvc -- -D warnings
 
   # The CIB-030 PR-side rustdoc gate (`cargo doc --no-deps -p eddacraft-tui
   # --all-features`, RUSTDOCFLAGS=-D warnings) used to live here as a dedicated
