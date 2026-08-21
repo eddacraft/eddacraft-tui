@@ -153,11 +153,16 @@ dependencies = [
 name = "anvil-spike"
 version = "0.9.7-beta"
 dependencies = [
+ "crossterm",
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-kernel-types",
  "notify",
  "petgraph",
+ "rataflow",
+ "ratatui",
  "rustix 1.1.4",
+ "serde",
  "serde_json",
  "tree-sitter",
  "tree-sitter-javascript",
@@ -4200,6 +4205,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rataflow"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37bbb54f8b326976a8ebc3efb0f6937325fb68a267d121eb6ef6803429f2f113"
+dependencies = [
+ "ratatui",
+ "rust-sugiyama",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "ratatui"
 version = "0.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4568,6 +4584,16 @@ dependencies = [
  "libsqlite3-sys",
  "smallvec",
  "sqlite-wasm-rs",
+]
+
+[[package]]
+name = "rust-sugiyama"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a81a3e22e7b3e9218ae4d1a3640a7e7ad142e120acd03e5e66d231d5861598b1"
+dependencies = [
+ "log",
+ "petgraph",
 ]
 
 [[package]]
