@@ -20,6 +20,12 @@ The kit is the canonical home of the generator. To adopt it in another repo,
 copy this directory wholesale — including [`LICENSE`](./LICENSE) (Apache-2.0) —
 and edit one file (`attribution.toml`). No script edits are required.
 
+## For agents
+
+If you are an AI coding assistant adopting or operating this kit, start at
+[`AGENTS.md`](./AGENTS.md). It is the short do/don't list. This README remains
+the contract those instructions point at.
+
 ## What ships in this kit
 
 | File                                 | Purpose                                                                                      |
@@ -42,6 +48,7 @@ and edit one file (`attribution.toml`). No script edits are required.
 | `LICENSE`                            | Apache License 2.0 grant for this kit                                                        |
 | `VERSION`                            | Kit semver; must match the newest `CHANGELOG.md` heading                                     |
 | `CHANGELOG.md`                       | Consumer-facing release notes                                                                |
+| `AGENTS.md`                          | Short instructions for coding agents operating the kit                                       |
 | `README.md`                          | This file (the marker-splice contract)                                                       |
 
 ## Adoption checklist (downstream consumer)

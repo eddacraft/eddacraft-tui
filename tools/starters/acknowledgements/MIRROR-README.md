@@ -11,6 +11,9 @@ hand-maintained bundled binaries — splicing each driver's output between
 `ACKNOWLEDGEMENTS.md`). Hand-curated content above, between, and below the
 markers is preserved verbatim.
 
+Coding agents: read [`AGENTS.md`](./AGENTS.md) before adopting or regenerating
+notices.
+
 This kit is licensed under the [Apache License 2.0](./LICENSE).
 
 > **This repository is a read-only mirror.** The canonical source lives in a
