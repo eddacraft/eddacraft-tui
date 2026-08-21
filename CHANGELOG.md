@@ -11,6 +11,14 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Changed
+
+- **`anvil start` help bar leads with arrows and hides dead Enter.** Consent and
+  the result screen advertise `↑/↓` and, when there is more than one consent
+  step, `←/→ next section`. `h`/`j`/`k`/`l` still work as aliases. Enter is
+  listed only when it does something on the focused row (unsafe-drift confirm,
+  or expand a verdict section).
+
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty
 
 First-session welcome, gate progress, learning path, and Audit Next Steps tell

@@ -354,6 +354,21 @@ impl VerdictView {
         self.tree.is_expanded(id)
     }
 
+    /// True when Enter/Space would expand or collapse the focused tree row.
+    ///
+    /// Empty sections render as leaves, so they are not advertised as expandable
+    /// even though they share a section id.
+    #[must_use]
+    pub(crate) fn selected_can_expand(&self) -> bool {
+        let Some(id) = self.selected_id() else {
+            return false;
+        };
+        self.model
+            .sections
+            .iter()
+            .any(|section| section.id == id && !section.rows.is_empty())
+    }
+
     fn nodes(&self) -> Vec<TreeNode> {
         self.model
             .sections
@@ -394,8 +409,8 @@ impl VerdictView {
             Action::Up => self.tree.move_up(self.visible_count()),
             Action::Down => self.tree.move_down(self.visible_count()),
             Action::Select | Action::Toggle => {
-                if let Some(id) = self.selected_id()
-                    && self.model.sections.iter().any(|section| section.id == id)
+                if self.selected_can_expand()
+                    && let Some(id) = self.selected_id()
                 {
                     self.tree.toggle(&id);
                 }
@@ -856,7 +871,7 @@ mod tests {
         );
         assert!(
             !out.contains("[enter/space]"),
-            "second key legend must not fight the shell j/k help"
+            "second key legend must not fight the shell help bar"
         );
         assert!(
             !out.contains("[esc/q] Quit"),

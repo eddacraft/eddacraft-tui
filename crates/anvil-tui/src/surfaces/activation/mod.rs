@@ -434,6 +434,31 @@ fn default_log_panel_state() -> LogPanelState {
     state
 }
 
+/// Consent key legend for the shell help bar. `h`/`j`/`k`/`l` still work as
+/// silent aliases; they are not advertised so first-run users see arrows.
+fn consent_help_text(consent: &ConsentState) -> &'static str {
+    let multi = consent.steps().len() > 1;
+    let current = consent.current();
+    let unsafe_row = current.is_some_and(|item| item.unsafe_drift.is_some());
+    let selectable = current.is_some_and(ConsentItem::selectable);
+    match (multi, unsafe_row, selectable) {
+        (true, true, _) => "↑/↓ move  ←/→ next section  enter confirm  a apply  esc/q quit",
+        (true, false, true) => "↑/↓ move  ←/→ next section  space toggle  a apply  esc/q quit",
+        (true, false, false) => "↑/↓ move  ←/→ next section  a apply  esc/q quit",
+        (false, true, _) => "↑/↓ move  enter confirm  a apply  esc/q quit",
+        (false, false, true) => "↑/↓ move  space toggle  a apply  esc/q quit",
+        (false, false, false) => "↑/↓ move  a apply  esc/q quit",
+    }
+}
+
+fn verdict_help_text(view: &VerdictView) -> &'static str {
+    if view.selected_can_expand() {
+        "↑/↓ move  enter expand  t prove  e evidence  esc/q quit"
+    } else {
+        "↑/↓ move  t prove  e evidence  esc/q quit"
+    }
+}
+
 impl eddacraft_tui::surface::Surface for ActivationSurface {
     // The `Surface` trait fixes the return type to `&str`; the impl signature
     // cannot widen to `&'static str`, so silence `unnecessary_literal_bound`
@@ -446,10 +471,13 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
     // One exit-key story with the welcome surface (first-run council C-014):
     // `q` always quits and `esc` backs out one level — closing the evidence
     // panel or the unsafe-drift overlay first, quitting from the base panes.
+    // Arrow keys are the advertised navigation; `h`/`j`/`k`/`l` stay silent
+    // aliases via KeyHandler. Enter is advertised only when it does something
+    // on the focused row.
     #[allow(clippy::unnecessary_literal_bound)]
     fn help_text(&self) -> &str {
         if self.tier_evidence_pane.is_visible() {
-            "j/k scroll  g/G top/bottom  esc close  q quit"
+            "↑/↓ scroll  g/G top/bottom  esc close  q quit"
         } else if matches!(
             self.phase,
             ActivationPhase::Preflight | ActivationPhase::Working
@@ -461,19 +489,11 @@ impl eddacraft_tui::surface::Surface for ActivationSurface {
                 Some(consent) if consent.unsafe_confirm_index.is_some() => {
                     "y confirm  n/esc cancel  q quit"
                 }
-                // CIB-245: `h`/`l` step between consent sections when the run
-                // offers more than one.
-                // `enter select` must stay advertised in both arms: it is the
-                // only key that opens the unsafe-drift confirm overlay, and
-                // ACTTUI-015 makes this bar the sole key legend.
-                Some(consent) if consent.steps().len() > 1 => {
-                    "j/k navigate  h/l section  space toggle  enter select  a apply  esc/q quit"
-                }
-                Some(_) => "j/k navigate  space toggle  enter select  a apply  esc/q quit",
+                Some(consent) => consent_help_text(consent),
                 None => "esc/q quit",
             }
         } else {
-            "j/k navigate  enter expand  t prove  e evidence  esc/q quit"
+            verdict_help_text(&self.verdict_view)
         }
     }
 
@@ -650,12 +670,43 @@ mod tests {
         assert_eq!(surface.consent().unwrap().selected_ids(), ["cursor"]);
     }
 
-    /// CIB-245 regression: grouping consent into steps must not drop
-    /// `enter select` from the help bar. Unsafe-drift rows are unselectable,
-    /// so Enter is the only key that opens their confirm overlay — and this
-    /// bar is the only place any consent key is advertised (ACTTUI-015).
+    /// CIB-245: grouping consent into steps must advertise section stepping.
+    /// Arrow keys are the primary legend; vim letters stay silent aliases.
+    /// Enter is reserved for the focused unsafe-drift row, not every row.
     #[test]
-    fn multi_section_consent_help_still_advertises_enter_select() {
+    fn multi_section_consent_help_advertises_arrow_section_stepping() {
+        let consent = ConsentState::new(
+            vec![
+                ConsentItem::new(
+                    "project",
+                    "Project configuration",
+                    "Create .anvil.yaml",
+                    ConsentKind::Project,
+                )
+                .repo_scoped(),
+                ConsentItem::new(
+                    "cursor",
+                    "Cursor MCP",
+                    "Write ~/.cursor/mcp.json",
+                    ConsentKind::Mcp,
+                ),
+            ],
+            false,
+        );
+        let surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        assert!(surface.consent().unwrap().steps().len() > 1);
+        let help = surface.help_text();
+        assert_eq!(
+            help,
+            "↑/↓ move  ←/→ next section  space toggle  a apply  esc/q quit"
+        );
+        assert!(!help.contains("h/l"), "{help}");
+        assert!(!help.contains("j/k"), "{help}");
+        assert!(!help.contains("enter"), "{help}");
+    }
+
+    #[test]
+    fn consent_help_advertises_enter_only_on_unsafe_drift_row() {
         let consent = ConsentState::new(
             vec![
                 ConsentItem::new(
@@ -675,11 +726,74 @@ mod tests {
             ],
             false,
         );
+        let mut surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
+        assert!(
+            !surface.help_text().contains("enter"),
+            "{}",
+            surface.help_text()
+        );
+        surface.handle_key(Action::Right);
+        assert_eq!(
+            surface.consent().unwrap().current().unwrap().kind,
+            ConsentKind::Mcp
+        );
+        assert_eq!(
+            surface.help_text(),
+            "↑/↓ move  ←/→ next section  enter confirm  a apply  esc/q quit"
+        );
+    }
+
+    #[test]
+    fn single_section_consent_help_omits_section_stepping() {
+        let consent = ConsentState::new(
+            vec![ConsentItem::new(
+                "cursor",
+                "Cursor MCP",
+                "write config",
+                ConsentKind::Mcp,
+            )],
+            false,
+        );
         let surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
-        assert!(surface.consent().unwrap().steps().len() > 1);
+        assert_eq!(
+            surface.help_text(),
+            "↑/↓ move  space toggle  a apply  esc/q quit"
+        );
+    }
+
+    #[test]
+    fn gated_consent_row_omits_toggle_and_enter() {
+        let consent = ConsentState::new(
+            vec![
+                ConsentItem::new(
+                    "project",
+                    "Project configuration",
+                    "Create .anvil.yaml",
+                    ConsentKind::Project,
+                )
+                .repo_scoped(),
+            ],
+            true,
+        );
+        let surface = ActivationSurface::from_verdict("x", false).with_consent(consent);
         let help = surface.help_text();
-        assert!(help.contains("enter select"), "{help}");
-        assert!(help.contains("h/l section"), "{help}");
+        assert_eq!(help, "↑/↓ move  a apply  esc/q quit");
+        assert!(!help.contains("space"), "{help}");
+        assert!(!help.contains("enter"), "{help}");
+    }
+
+    #[test]
+    fn verdict_help_omits_enter_on_a_leaf_row() {
+        let mut surface = ActivationSurface::from_verdict("x", false);
+        assert!(
+            surface.help_text().contains("enter expand"),
+            "{}",
+            surface.help_text()
+        );
+        surface.handle_key(Action::Down);
+        let help = surface.help_text();
+        assert_eq!(help, "↑/↓ move  t prove  e evidence  esc/q quit");
+        assert!(!help.contains("enter"), "{help}");
     }
 
     #[test]
@@ -898,7 +1012,7 @@ mod tests {
         assert_eq!(surface.surface_name(), "Activation");
         assert_eq!(
             surface.help_text(),
-            "j/k navigate  enter expand  t prove  e evidence  esc/q quit"
+            "↑/↓ move  enter expand  t prove  e evidence  esc/q quit"
         );
     }
 
@@ -911,7 +1025,7 @@ mod tests {
         surface.handle_key(production_action('e'));
         assert_eq!(
             surface.help_text(),
-            "j/k scroll  g/G top/bottom  esc close  q quit"
+            "↑/↓ scroll  g/G top/bottom  esc close  q quit"
         );
 
         let consent = ConsentState::new(
