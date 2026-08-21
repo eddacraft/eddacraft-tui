@@ -11,14 +11,7 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
-### Fixed
-
-- **`anvil gate` and `anvil check` no longer hang while excluding generated
-  files.** Anti-pattern scanning still honours `.gitattributes`
-  `linguist-generated`. On a large repo it used to stall inside `git check-attr`
-  and ignore Ctrl+C. Repos that never set the attribute skip that lookup.
-
-## [0.9.7-beta] — 2026-08-20 — First-session honesty
+## [0.9.7-beta] — 2026-08-21 — First-session honesty
 
 First-session welcome, gate progress, learning path, and Audit Next Steps tell
 the truth after the published 0.9.6-beta run.
@@ -29,6 +22,11 @@ the truth after the published 0.9.6-beta run.
   sessions that start `anvil mcp serve` from the primary checkout can pass a
   sibling Worktrunk or harness worktree as `workspaceRoot`. Other repositories
   and unregistered directories are still refused.
+
+- **`anvil gate` and `anvil check` no longer hang while excluding generated
+  files.** Anti-pattern scanning still honours `.gitattributes`
+  `linguist-generated`. On a large repo it used to stall inside `git check-attr`
+  and ignore Ctrl+C. Repos that never set the attribute skip that lookup.
 
 - **Unsigned `anvil welcome` no longer dead-ends on gated Policy or Architecture
   steps.** Those commands still need a signed-in session. When you are not

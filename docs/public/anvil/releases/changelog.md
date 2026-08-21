@@ -17,12 +17,22 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.9.7-beta — 20 August 2026 — First-session honesty
+## 0.9.7-beta — 21 August 2026 — First-session honesty
 
 First-session welcome, gate progress, learning path, and Audit Next Steps tell
 the truth after the published 0.9.6-beta run.
 
 ### Fixed
+
+- **MCP tools accept linked Git worktrees of the same repository.** Agent
+  sessions that start `anvil mcp serve` from the primary checkout can pass a
+  sibling Worktrunk or harness worktree as `workspaceRoot`. Other repositories
+  and unregistered directories are still refused.
+
+- **`anvil gate` and `anvil check` no longer hang while excluding generated
+  files.** Anti-pattern scanning still honours `.gitattributes`
+  `linguist-generated`. On a large repo it used to stall inside `git check-attr`
+  and ignore Ctrl+C. Repos that never set the attribute skip that lookup.
 
 - **Unsigned `anvil welcome` no longer dead-ends on gated Policy or Architecture
   steps.** Those commands still need a signed-in session. When you are not
