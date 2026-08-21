@@ -9,7 +9,8 @@ upstream:
   - crates/anvil-cli/src/commands/doctor.rs
   - crates/anvil-cli/src/commands/version.rs
   - crates/anvil-cli/src/commands/status.rs
-verified_against: 0.9.4-beta
+  - crates/anvil-cli/src/commands/gate.rs
+verified_against: 0.9.7-beta
 ---
 
 # Troubleshooting
@@ -113,6 +114,16 @@ the [client support](../reference/support.md), then inspect:
 anvil mcp --help
 anvil intercept status
 ```
+
+## Gate or check appears hung on a large repo
+
+From `0.9.7-beta`, `anvil gate` and `anvil check` no longer stall while
+excluding files marked `linguist-generated` in `.gitattributes`. Repos that
+never set that attribute skip the lookup. If a run still looks frozen, the hub
+"Review gate decision" path now updates the loading line as each check starts;
+cancel with Ctrl+C if you need to stop.
+
+See [configuration](config.md) for how generated-file exclusion works.
 
 ## The watcher shows no saves
 

@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                          |
-| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-20: **`v0.9.7-beta` claim locked** — first-session honesty after Chris Bridle's `v0.9.6-beta` run. Implementation already on `main`. Remaining cut work is standing bar + preflight → tag. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                             |
+| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-08-21: **`v0.9.7-beta` shipped** — closeout. Active window rolled to provisional `v0.9.8-beta` (field intake; claim not frozen). |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -32,47 +32,37 @@ nothing else.
 
 ## Current state
 
-- **Latest tag:** `v0.9.6-beta` "Beta field fixes and shell command-safety"
-  (2026-08-18 on `07cd54c3a`). Record:
-  [`plans/releases/v0.9.6-beta.md`](./plans/releases/v0.9.6-beta.md).
-- **Prior:** `v0.9.5-beta` MCP live-heal + config unification
-  ([record](./plans/releases/v0.9.5-beta.md)); `v0.9.4-beta` install advice +
-  quieter FPs; `v0.9.3-beta` honesty + Windows path.
+- **Latest tag:** `v0.9.7-beta` "First-session honesty" (2026-08-21 on
+  `89a6d2050`). Record:
+  [`plans/releases/v0.9.7-beta.md`](./plans/releases/v0.9.7-beta.md).
+- **Prior:** `v0.9.6-beta` field fixes + shell command-safety
+  ([record](./plans/releases/v0.9.6-beta.md)); `v0.9.5-beta` MCP live-heal +
+  config unification; `v0.9.4-beta` install advice + quieter FPs.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** **`v0.9.7-beta`** — first-session honesty after
-  `v0.9.6-beta`. Claim **locked** 2026-08-20. Patch on the v0.9 line. Programme
-  work (Graph Trust Surfaces Wave 0, `/settings`, live-heal soak) runs
-  **beside** this window and is not the cut claim.
+- **Active window:** provisional **`v0.9.8-beta`** — field intake after
+  `v0.9.7-beta`. Theme and claim IDs are **not frozen**.
 
 ---
 
-## Active window — `v0.9.7-beta` (claim locked)
+## Active window — `v0.9.8-beta` (provisional)
 
-**Theme:** First-session honesty after `v0.9.6-beta` — unsigned welcome does not
-dead-end on gated Policy/Architecture commands, the hub gate shows live
-progress, "Choose a learning path" opens the path picker, and audit Next Steps
-jump to the matching issue.
+**Theme:** TBD from field intake after `v0.9.7-beta` (first-session honesty
+ship).
 
-**Status:** **Claim locked; not cut-ready.** Primary items are Merged on `main`.
-Remaining cut work is the standing bar and preflight → prepare → readiness →
-tag. Changelog `[Unreleased]` is curated in this lock.
+**Status:** **Provisional; claim not locked.** Do not cut until claim freeze +
+changelog + standing bar.
 
-**Customer one-liner:** First-session welcome, gate progress, learning path, and
-Audit Next Steps tell the truth.
+**Customer one-liner:** TBD.
 
-**Authority:** Chris Bridle first-session pack-09 on published `v0.9.6-beta`
-(2026-08-19). Operator locked 2026-08-20 so the next tester gets the published
-installer, not `main`.
+**Authority:** Field signal + APS Ready/Accepted items after intake. Programme
+work (Graph Trust Surfaces Wave 0, `/settings` SETCON+, live-heal soak) may run
+**beside** this window and is not automatically the cut claim.
 
-### Primary claim (first-session honesty)
+### Primary claim
 
-| ID      | Item                                                           | Pri | State        | Notes                                              |
-| ------- | -------------------------------------------------------------- | --- | ------------ | -------------------------------------------------- |
-| CIB-349 | Unsigned welcome must not dead-end on gated tutorial commands  | P1  | Merged #4004 | Sign-in bridge names `anvil auth login` first      |
-| CIB-350 | Hub "Review gate decision" shows live progress on a large repo | P1  | Merged #4005 | Loading line updates per scan/check                |
-| CIB-351 | "Choose a learning path" opens the path picker, not discovery  | P2  | Merged #4006 | First-run wow still allowed before the hub menu    |
-| CIB-352 | Audit Next Steps jump to the matching Issues row               | P1  | Merged #4002 | Enter expands the issue; footer matches capability |
+_Not selected._ Promote only after operator intake names the theme and freezes
+IDs.
 
 ### Not a claim of this window (default)
 
@@ -84,26 +74,22 @@ installer, not `main`.
 - Standing CIB drain unless elevated to claim
 - Unquoted-variable shell follow-ups
 - Secret-detection truth (SDT) unless elevated
-- CIB-353 tutorial depth (Draft editorial; two first-timers, not this cut)
-- CIB-344 stale produce-lock reap (rides the tip as dogfood reliability; not the
-  theme)
+- CIB-353 tutorial depth (Draft editorial)
 - First-run / docs prominence of telemetry disclosure (Elliot). Existing
-  disclosed opt-out notice and `docs/public/anvil/operations/telemetry.md` stay;
-  do not add a first-session lecture this cut
+  disclosed opt-out notice and `docs/public/anvil/operations/telemetry.md` stay
 - Docs definition layer / DOCRB public-site programme
 - Website decision-integrity redesign
-- SEC-012 entitlement-claim honesty (API/docs-shell; not the CLI binary)
 
 ### Phase plan
 
-| Phase              | Scope                                       | State                               |
-| ------------------ | ------------------------------------------- | ----------------------------------- |
-| **0.9.6 closeout** | Record + APS advance + prune                | Done 2026-08-18                     |
-| **Field intake**   | Post-`v0.9.6-beta` signal → theme selection | Done 2026-08-20 (pack-09)           |
-| **Claim lock**     | Freeze primary IDs for `v0.9.7-beta`        | This change                         |
-| **Implement**      | Claim items                                 | Done on `main` (#4002, #4004–#4006) |
-| **Changelog**      | Curate `[Unreleased]`                       | This change                         |
-| **Cut**            | Preflight → prepare → readiness → tag       | Next                                |
+| Phase              | Scope                                          | State         |
+| ------------------ | ---------------------------------------------- | ------------- |
+| **0.9.7 closeout** | Record + APS advance + prune                   | This change   |
+| **Field intake**   | Post-`v0.9.7-beta` signal → theme selection    | Next          |
+| **Claim lock**     | Freeze primary/secondary IDs for `v0.9.8-beta` | Not started   |
+| **Implement**      | Claim items                                    | Not started   |
+| **Changelog**      | Curate `[Unreleased]`                          | Not started   |
+| **Cut**            | Preflight → prepare → readiness → tag          | Not scheduled |
 
 ### Cut criteria
 
@@ -112,7 +98,7 @@ installer, not `main`.
 - Claim locked with Merged primary items (and secondaries Merged or waived).
 - Changelog leads with the locked theme only — not programme freight.
 - Strategy: **direct** unless readiness forces stabilisation.
-- Version stays `v0.9.7-beta` (patch on the v0.9 line).
+- Version stays `v0.9.8-beta` until intake names a different line.
 
 ### Risks
 

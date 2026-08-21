@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 280/353  |
+| CIB | —     | In Progress | 285/353  |
 
 ## Purpose
 
@@ -10667,14 +10667,11 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
 
 ### CIB-344: Reap stale MCP shims and graph-base locks as a matter of course
 
-- **Status:** Ready — process-orphan half Merged via PR
-  [#3963](https://github.com/eddacraft/anvil-001/pull/3963) (merged
-  2026-08-16, rebase — ancestor of `main` verified by SHA
-  `b71333384`). `anvil doctor` / `anvil doctor --fix` now report and
-  SIGTERM orphan `anvil mcp serve --stdio` processes whose parent is
-  gone (Linux `/proc` walk). Produce-lock reap
-  (`graph-cache/base/.producing/*.lock` whose pid is dead) is still
-  open and stays this item.
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
+- **Pull Request:** [#4003](https://github.com/eddacraft/anvil-001/pull/4003)
+  (produce-lock reap). Process-orphan half Merged via
+  [#3963](https://github.com/eddacraft/anvil-001/pull/3963) (2026-08-16,
+  `b71333384`).
 - **Priority:** P2 — standing operator debris; not the GCTX `not_ready`
   cause
 - **Intent:** `anvil doctor` / `anvil start` / `anvil intercept status`
@@ -10919,15 +10916,16 @@ already parked teaching as editorial).
 | Chris note | Disposition | Tracking |
 | --- | --- | --- |
 | Tutorials too terse / TL;DR | Second first-timer. Design, not a defect. Editorial | **CIB-353** Draft P3 |
-| Policy check auth-failed mid-onboarding | Welcome ungated; Policy path shells gated `anvil policy test` | **CIB-349** Ready P1 |
-| Review gate on a larger repo looked like a timeout | Hub RunGate is a static loading line + blocking `collect_gate_data` | **CIB-350** Ready P1 |
-| Choose a learning path → discovery first | Label/routing mismatch | **CIB-351** Ready P2 |
-| Next steps listed, do not expand; file is in Issues | Next Steps is a lossy rollup; Enter only expands Issues | **CIB-352** Ready P1 |
+| Policy check auth-failed mid-onboarding | Welcome ungated; Policy path shells gated `anvil policy test` | **CIB-349** Released/Shipped P1 |
+| Review gate on a larger repo looked like a timeout | Hub RunGate is a static loading line + blocking `collect_gate_data` | **CIB-350** Released/Shipped P1 |
+| Choose a learning path → discovery first | Label/routing mismatch | **CIB-351** Released/Shipped P2 |
+| Next steps listed, do not expand; file is in Issues | Next Steps is a lossy rollup; Enter only expands Issues | **CIB-352** Released/Shipped P1 |
 | Look and feel is tight / pro | Preserve | no CIB |
 
 ### CIB-349: Ungated welcome must not dead-end on gated tutorial commands
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
+- **Pull Request:** [#4004](https://github.com/eddacraft/anvil-001/pull/4004)
 - **Priority:** P1 first-session friction
 - **Intent:** `anvil welcome` is ungated (ADR-080). The official beta brief
   tells testers to run it unsigned-in. The Policy path then shells
@@ -10961,7 +10959,8 @@ already parked teaching as editorial).
 
 ### CIB-350: Hub "Review gate decision" must show live progress on a large repo
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
+- **Pull Request:** [#4005](https://github.com/eddacraft/anvil-001/pull/4005)
 - **Priority:** P1 first-session
 - **Intent:** Welcome hub default item is RunGate. It draws a static
   "Running quality checks..." then `collect_gate_data()` blocks on a
@@ -10989,7 +10988,8 @@ already parked teaching as editorial).
 
 ### CIB-351: "Choose a learning path" must open the path picker
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
+- **Pull Request:** [#4006](https://github.com/eddacraft/anvil-001/pull/4006)
 - **Priority:** P2 first-session honesty
 - **Intent:** Hub and first-run onboarding label the tutorial entry
   "Choose a learning path" (CIB-246 / CIB-273). Both routes run
@@ -11017,7 +11017,8 @@ already parked teaching as editorial).
 
 ### CIB-352: Audit Next Steps must drive the matching Issues
 
-- **Status:** Ready
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
+- **Pull Request:** [#4002](https://github.com/eddacraft/anvil-001/pull/4002)
 - **Priority:** P1 first-session honesty
 - **Intent:** Next Steps are count-only rollups (`Consider splitting N
   large file(s) (>500 lines)`). The file path already lives on the

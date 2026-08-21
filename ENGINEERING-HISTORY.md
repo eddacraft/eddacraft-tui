@@ -7,15 +7,20 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft — First-session honesty
+## [Unreleased]
 
-Draft / unreleased. Technical work landed on `main` since `v0.9.6-beta`. The
-locked `v0.9.7-beta` claim is **first-session honesty** after Chris Bridle's
-published `v0.9.6-beta` run: unsigned welcome does not shell gated Policy or
-Architecture commands, the hub gate paints live progress, "Choose a learning
-path" opens the picker, and audit Next Steps jump to Issues. Docs definition
-work, the website redesign, produce-lock reap, and telemetry-disclosure
-prominence remain beside this window, not the cut claim.
+> **Draft.** Technical work landed on `main` since `v0.9.7-beta`. Version and
+> date land at the next cut.
+
+## [0.9.7-beta] — 2026-08-21 — First-session honesty
+
+Shipped 2026-08-21. First-session honesty after Chris Bridle's published
+`v0.9.6-beta` run: unsigned welcome does not shell gated Policy or Architecture
+commands, the hub gate paints live progress, "Choose a learning path" opens the
+picker, and audit Next Steps jump to Issues. Assess defaulted to `v0.10.0-beta`;
+the cut stayed on `v0.9.7-beta`. Telemetry-disclosure prominence, CIB-353
+tutorial depth, and the website redesign remained beside this window, not the
+cut claim.
 
 ### First-session welcome and audit honesty
 
@@ -24,25 +29,37 @@ prominence remain beside this window, not the cut claim.
   `anvil policy test`, `anvil gate`, or `anvil architecture validate` rewrite
   those steps to name `anvil auth login` first and are not runnable checks until
   signed in. Free `--verify` probes stay runnable. In-process autoplay is
-  unchanged (CIB-248).
+  unchanged (CIB-248). (CIB-349, #4004)
 - **Hub RunGate reports per-check progress.** `collect_gate_data_with_progress`
   redraws the loading line as the workspace is scanned and as each check starts,
-  so a large-repo run no longer looks hung.
+  so a large-repo run no longer looks hung. (CIB-350, #4005)
 - **Learning-path label matches the next screen.** Hub and first-run "Choose a
   learning path" open the tutorial picker. Discovery / first-win may still run
-  as a first-run wow _before_ the menu.
+  as a first-run wow _before_ the menu. (CIB-351, #4006)
 - **Audit Next Steps drive Issues.** Enter on a count-only Next Steps rollup
   focuses and expands the matching issue. One large-file step lands on that
   file; N>1 jumps to the first match. Footer copy only advertises expand when
-  the focused panel can expand.
+  the focused panel can expand. (CIB-352, #4002)
 
-### Adjacent freight (ships on the same tip; not the cut claim)
+### Adjacent freight (shipped on the same tip; not the cut claim)
 
+- **MCP tools accept linked Git worktrees of the same repository.**
+  `anvil mcp serve` started from the primary checkout accepts a sibling
+  Worktrunk or harness worktree as `workspaceRoot` after canonical containment
+  checks. Other repositories and unregistered directories are still refused.
+  (#4061)
+- **`anvil gate` and `anvil check` no longer hang excluding generated files.**
+  Anti-pattern scanning still honours `.gitattributes` `linguist-generated`. The
+  `git check-attr` walk no longer stalls or ignores Ctrl+C; repos that never set
+  the attribute skip that lookup. (#4060)
 - **Stale graph-base produce-locks are reaped.** `anvil doctor` names dead-pid
   `.producing/*.lock` files; `--fix`, intercept start, and graph-base trigger
-  start sweep them. A live in-flight producer is left alone.
-- **Docs definition layer and public catalogues** continue on `main` (DOCDEF /
-  DOCRB). Not this claim.
+  start sweep them. A live in-flight producer is left alone. (CIB-344, #4003)
+- **Licence entitlement claim is fail-closed.** Live verifiers read the `plan`
+  claim and no longer invent `'beta'` for a claimless token. API/docs-shell, not
+  the CLI binary claim. (SEC-012, #4043)
+- **Docs definition layer and public catalogues** continued on `main` (DOCDEF /
+  DOCRB), including deletion of the retired `docs-site` host. Not the cut claim.
 - **Website decision-integrity redesign** deploys independently of the CLI tag.
 
 ## [0.9.6-beta] — 2026-08-18 — Beta field fixes and shell command-safety

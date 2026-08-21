@@ -8,7 +8,8 @@ upstream:
   - crates/anvil-config/src/discover.rs
   - crates/anvil-config/src/format.rs
   - crates/anvil-cli/src/commands/config.rs
-verified_against: 0.9.4-beta
+  - crates/anvil-checks/src/antipattern/generated.rs
+verified_against: 0.9.7-beta
 ---
 
 # Inspect and migrate configuration
@@ -146,7 +147,9 @@ antipattern:
 
 Both apply to `anvil check` and `anvil gate`. Only the anti-pattern scan is
 affected: secret detection still inspects these files, so a credential committed
-to a generated file is still caught.
+to a generated file is still caught. From `0.9.7-beta`, repos that never set
+`linguist-generated` skip that lookup, so the scan no longer stalls inside
+`git check-attr`.
 
 ## Review rules
 

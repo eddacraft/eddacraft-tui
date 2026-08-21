@@ -9,7 +9,8 @@ upstream:
   - crates/anvil-cli/src/commands/mcp_config.rs
   - crates/anvil-cli/src/activation/agent_registry.rs
   - crates/anvil-cli/src/commands/start.rs
-verified_against: 0.9.4-beta
+  - crates/anvil-cli/src/mcp/tools/shared.rs
+verified_against: 0.9.7-beta
 ---
 
 # Model Context Protocol integration
@@ -122,6 +123,13 @@ The current CLI provides `install` and `serve`. Connection readiness is reported
 by `anvil start --verify`, not by a separate MCP status command. Subcommands can
 evolve during beta — prefer installed help over hand-copied configuration
 shapes.
+
+## Linked worktrees
+
+From `0.9.7-beta`, MCP tools accept a linked Git worktree of the same repository
+as `workspaceRoot`. Start `anvil mcp serve` from the primary checkout; pass a
+sibling Worktrunk or harness worktree. Other repositories and unregistered
+directories are still refused.
 
 ## Security boundary
 

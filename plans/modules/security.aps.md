@@ -547,8 +547,9 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-012: Make the licence entitlement claim authoritative and fail closed
 
-- **Status:** In Progress — operator-authorised 2026-08-20. Filed 2026-08-19
-  from the auth/authz plan review; promoted here from
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
+- **Pull Request:** [#4043](https://github.com/eddacraft/anvil-001/pull/4043)
+  Filed 2026-08-19 from the auth/authz plan review; promoted here from
   `beta-account-activity`'s Future-work section (reserved id BACT-014), which
   had no authorised home for it while BACT is Done 12/12.
 - **Priority:** P1 access-control correctness.
