@@ -17,7 +17,7 @@ engineering maintenance are recorded in the
   the result screen advertise `↑/↓` and, when there is more than one consent
   step, `←/→ next section`. `h`/`j`/`k`/`l` still work as aliases. Enter is
   listed only when it does something on the focused row (unsafe-drift confirm,
-  or expand a verdict section).
+  or toggle a verdict section).
 
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty
 

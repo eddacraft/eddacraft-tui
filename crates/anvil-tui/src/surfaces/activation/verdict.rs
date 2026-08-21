@@ -409,8 +409,12 @@ impl VerdictView {
             Action::Up => self.tree.move_up(self.visible_count()),
             Action::Down => self.tree.move_down(self.visible_count()),
             Action::Select | Action::Toggle => {
-                if self.selected_can_expand()
-                    && let Some(id) = self.selected_id()
+                if let Some(id) = self.selected_id()
+                    && self
+                        .model
+                        .sections
+                        .iter()
+                        .any(|section| section.id == id && !section.rows.is_empty())
                 {
                     self.tree.toggle(&id);
                 }

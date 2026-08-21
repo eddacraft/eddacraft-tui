@@ -453,7 +453,7 @@ fn consent_help_text(consent: &ConsentState) -> &'static str {
 
 fn verdict_help_text(view: &VerdictView) -> &'static str {
     if view.selected_can_expand() {
-        "↑/↓ move  enter expand  t prove  e evidence  esc/q quit"
+        "↑/↓ move  enter toggle  t prove  e evidence  esc/q quit"
     } else {
         "↑/↓ move  t prove  e evidence  esc/q quit"
     }
@@ -786,7 +786,7 @@ mod tests {
     fn verdict_help_omits_enter_on_a_leaf_row() {
         let mut surface = ActivationSurface::from_verdict("x", false);
         assert!(
-            surface.help_text().contains("enter expand"),
+            surface.help_text().contains("enter toggle"),
             "{}",
             surface.help_text()
         );
@@ -1012,7 +1012,7 @@ mod tests {
         assert_eq!(surface.surface_name(), "Activation");
         assert_eq!(
             surface.help_text(),
-            "↑/↓ move  enter expand  t prove  e evidence  esc/q quit"
+            "↑/↓ move  enter toggle  t prove  e evidence  esc/q quit"
         );
     }
 
