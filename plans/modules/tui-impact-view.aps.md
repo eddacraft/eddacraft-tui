@@ -18,8 +18,8 @@ filed against TUIN, not here.
 
 ## Purpose
 
-Anvil is a graph product with no graph view. The boundary and impact answers the
-kernel already computes — used-import edges between crates, module-level
+Anvil is a graph product with no graph view. The boundary and impact answers
+that the kernel already computes — used-import edges between crates, module-level
 structure inside a crate, the blast radius of a change — are reachable today only
 through MCP tools, JSON, or prose. This module gives a person the same answers
 interactively, in the terminal they are already in.
