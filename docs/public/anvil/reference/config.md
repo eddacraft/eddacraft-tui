@@ -10,7 +10,7 @@ upstream:
   - crates/anvil-config/src/migrations.rs
   - crates/anvil-config/src/discover.rs
   - crates/anvil-cli/src/commands/config.rs
-verified_against: 0.9.6-beta
+verified_against: 0.9.7-beta
 ---
 
 # Configuration fields
@@ -213,14 +213,14 @@ error on both `anvil gate` and `anvil check`.
 
 ### `enforcement.rules`
 
-| Field        | Value                                           |
-| ------------ | ----------------------------------------------- |
-| Path         | `.anvil.yaml` → `enforcement.rules.<rule>.mode` |
-| Type         | four named rules, each with a string `mode`     |
-| Written by   | `anvil config set` **only**                     |
-| Read by      | `anvil config show`; rule-mode reader           |
-| Default      | all four `warn`                                 |
-| Legacy names | none                                            |
+| Field        | Value                                                                         |
+| ------------ | ----------------------------------------------------------------------------- |
+| Path         | `.anvil.yaml` → `enforcement.rules.<rule>.mode`                               |
+| Type         | four named rules; each entry is a mode string or a table with a string `mode` |
+| Written by   | `anvil config set` **only**                                                   |
+| Read by      | `anvil config show`; rule-mode reader                                         |
+| Default      | all four `warn`                                                               |
+| Legacy names | none                                                                          |
 
 See [Rule modes](#rule-modes-anvil-config-set). This is the only nested object
 `anvil config set` writes.
@@ -242,6 +242,12 @@ Canonical modes: `off`, `warn`, `enforce`. Defaults are `warn`.
 Accepted aliases on parse: `off` also `disabled` / `none`; `warn` also
 `warning`; `enforce` also `block` / `error`. Owned writes store the canonical
 spelling.
+
+On read, each rule entry accepts either a bare mode string
+(`public-api-expansion: warn`) or a table with a `mode` key
+(`public-api-expansion: {mode: warn}`). When `enforcement.rules` is absent, the
+reader falls back to a top-level `rules` table with the same shape. Owned writes
+always produce the nested canonical shape.
 
 ```text
 anvil config set public-api-expansion warn
