@@ -15,6 +15,7 @@ kindling-embedded-runtime = ["dep:kindling-runtime"]
 
 [package.metadata.dist]
 dist = true
+formula = "anvil"
 
 [[bin]]
 name = "anvil"

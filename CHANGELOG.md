@@ -65,6 +65,11 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **GitHub release notes advertise `brew install eddacraft/tap/anvil`.**
+  cargo-dist used the crate name (`eddacraft-anvil`) in the Homebrew stanza
+  while the tap formula is `anvil`. Copy-paste of the v0.9.7-beta release-notes
+  line would not resolve. (#4077)
+
 - **`anvil policy eval-regression` detects rules that go silent on frozen
   fixtures.** A finding that appears or disappears now reports that the fixture
   output changed, rather than calling a disappearing finding an improvement.

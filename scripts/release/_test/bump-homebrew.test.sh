@@ -195,4 +195,12 @@ if [[ "$rc" != "78" ]]; then
 fi
 assert_contains "$(<"$tmp/notoken.err")" "GH_TOKEN"
 
+# 11. cargo-dist formula name must stay `anvil` so GitHub release notes advertise
+#     `brew install eddacraft/tap/anvil`, not the crate name (#4077).
+cli_toml="$ROOT/crates/anvil-cli/Cargo.toml"
+if ! grep -q '^formula = "anvil"$' "$cli_toml"; then
+  echo "expected formula = \"anvil\" in $cli_toml so cargo-dist names the tap formula anvil" >&2
+  exit 1
+fi
+
 echo "bump-homebrew.test.sh: all assertions passed"

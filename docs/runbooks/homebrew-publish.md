@@ -1,8 +1,8 @@
 # Homebrew Formula Publish — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                    |
-| ------- | ------------- | ------ | ------ | -------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | First filed 2026-05-17 alongside DISTRIB-003 |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                             |
+| ------- | ------------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-08-21 against `crates/anvil-cli/Cargo.toml` (formula anvil, #4077), `scripts/release/bump-homebrew.sh`, `.github/workflows/release.yml`, and `.github/workflows/homebrew-bump.yml` |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                        | Downstream                                                                                                                                                                                                                               |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -11,22 +11,26 @@
 ## TL;DR
 
 On every release tag, `release.yml` calls `scripts/release/bump-homebrew.sh` to
-patch the cargo-dist `eddacraft-anvil.rb` (class rename) and push it to
-`eddacraft/homebrew-tap` as `Formula/anvil.rb`. If that step fails, rerun the
-`Homebrew — bump and smoke` workflow with the tag as input. If both fail, run
-the same script locally.
+patch the cargo-dist Homebrew formula (`anvil.rb` after #4077; historical tags
+used `eddacraft-anvil.rb`) and push it to `eddacraft/homebrew-tap` as
+`Formula/anvil.rb`. If that step fails, rerun the `Homebrew — bump and smoke`
+workflow with the tag as input. If both fail, run the same script locally.
 
 ## What the auto-publish actually does
 
-1. cargo-dist (inside the `host` job in `release.yml`) generates
-   `eddacraft-anvil.rb` and uploads it to both the private
-   (`eddacraft/anvil-001`) and public (`eddacraft/anvil`) GitHub Releases.
+1. cargo-dist (inside the `host` job in `release.yml`) generates `anvil.rb`
+   (`formula = "anvil"` in `crates/anvil-cli/Cargo.toml`) and uploads it to both
+   the private (`eddacraft/anvil-001`) and public (`eddacraft/anvil`) GitHub
+   Releases. Tags before that change uploaded `eddacraft-anvil.rb`.
 2. The "Publish Homebrew formula" step in `release.yml` shells out to
-   `bash scripts/release/bump-homebrew.sh --release-tag <tag> --formula-source artifacts/eddacraft-anvil.rb --out $RUNNER_TEMP/anvil.rb --publish --tap-repo eddacraft/homebrew-tap`.
+   `bash scripts/release/bump-homebrew.sh --release-tag <tag> --formula-source artifacts/anvil.rb --out $RUNNER_TEMP/anvil.rb --publish --tap-repo eddacraft/homebrew-tap`
+   (falls back to `artifacts/eddacraft-anvil.rb` for historical tags).
 3. The script renames `class EddacraftAnvil < Formula` → `class Anvil < Formula`
-   (Homebrew dispatches `brew install eddacraft/tap/anvil` to a class named
-   `Anvil`) and PUTs the file to `Formula/anvil.rb` on the tap via the GitHub
-   Contents API.
+   when needed (already-named `class Anvil` is a no-op). Homebrew dispatches
+   `brew install eddacraft/tap/anvil` to a class named `Anvil` and the script
+   PUTs the file to `Formula/anvil.rb` on the tap via the GitHub Contents API.
+   cargo-dist's generated GitHub release notes use that same formula name, so
+   they must advertise `brew install eddacraft/tap/anvil`, not the crate name.
 4. The `Homebrew — bump and smoke` workflow then runs
    `brew install eddacraft/tap/anvil` on macOS arm64 (macos-14) and x64
    (macos-13) and confirms `anvil --version` reports the tag.
@@ -53,7 +57,8 @@ token, transient `gh api` issue).
    - `skip-publish`: leave `false`.
 3. The job will:
    - Run `scripts/release/_test/bump-homebrew.test.sh` (contract dry-run).
-   - Download `eddacraft-anvil.rb` from the public release.
+   - Download `anvil.rb` (or historical `eddacraft-anvil.rb`) from the public
+     release.
    - Patch + publish via `scripts/release/bump-homebrew.sh --publish`.
    - Run the macOS arm64 + x64 smoke install.
 
@@ -74,11 +79,17 @@ TAG=v0.7.0-beta
 mkdir -p /tmp/anvil-hb && cd /tmp/anvil-hb
 gh release download "$TAG" \
   --repo eddacraft/anvil \
-  --pattern 'eddacraft-anvil.rb'
+  --pattern 'anvil.rb' \
+  || gh release download "$TAG" \
+    --repo eddacraft/anvil \
+    --pattern 'eddacraft-anvil.rb'
+
+FORMULA=anvil.rb
+if [ ! -f "$FORMULA" ]; then FORMULA=eddacraft-anvil.rb; fi
 
 bash /path/to/anvil/scripts/release/bump-homebrew.sh \
   --release-tag "$TAG" \
-  --formula-source eddacraft-anvil.rb \
+  --formula-source "$FORMULA" \
   --out anvil.rb \
   --publish \
   --tap-repo eddacraft/homebrew-tap
@@ -95,9 +106,10 @@ anvil --version   # should print ${TAG#v}
 
 If the macOS install fails on `arm64` or `x86_64` specifically, the most likely
 cause is a missing bottle URL for that arch in the cargo-dist formula — not a
-`bump-homebrew.sh` bug. Check `artifacts/eddacraft-anvil.rb` for both
-`:arm64_sonoma` (or current macOS codename) and `:sonoma` bottle stanzas; if one
-is missing, the underlying problem is in the cargo-dist build matrix, not here.
+`bump-homebrew.sh` bug. Check `artifacts/anvil.rb` (or historical
+`artifacts/eddacraft-anvil.rb`) for both `:arm64_sonoma` (or current macOS
+codename) and `:sonoma` bottle stanzas; if one is missing, the underlying
+problem is in the cargo-dist build matrix, not here.
 
 ## Dry-run before tagging
 

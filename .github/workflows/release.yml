@@ -743,7 +743,12 @@ jobs:
             exit 1
           fi
 
-          FORMULA="artifacts/eddacraft-anvil.rb"
+          # cargo-dist emits anvil.rb once formula = "anvil" (#4077). Historical
+          # tags uploaded eddacraft-anvil.rb; accept either.
+          FORMULA="artifacts/anvil.rb"
+          if [ ! -f "$FORMULA" ]; then
+            FORMULA="artifacts/eddacraft-anvil.rb"
+          fi
           if [ ! -f "$FORMULA" ]; then
             echo "::warning file=.github/workflows/release.yml,title=Missing Homebrew formula artifact::$FORMULA not found in release artifacts; skipping tap publish."
             exit 0

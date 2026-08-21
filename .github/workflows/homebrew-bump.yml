@@ -118,26 +118,34 @@ jobs:
             exit 1
           fi
 
-      - name: Download eddacraft-anvil.rb from the GitHub Release
+      - name: Download Homebrew formula from the GitHub Release
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          # The cargo-dist host job uploads eddacraft-anvil.rb to BOTH the
-          # private (eddacraft/anvil-001) and public (eddacraft/anvil)
-          # release. Prefer the public repo so this recovery path mirrors
-          # what a user-facing install would resolve to.
-          gh release download "$TAG" \
+          # Prefer anvil.rb (formula = "anvil", #4077). Historical tags uploaded
+          # eddacraft-anvil.rb. Prefer the public repo so this recovery path
+          # mirrors what a user-facing install would resolve to.
+          if ! gh release download "$TAG" \
             --repo eddacraft/anvil \
-            --pattern "eddacraft-anvil.rb" \
-            --dir artifacts
+            --pattern "anvil.rb" \
+            --dir artifacts; then
+            gh release download "$TAG" \
+              --repo eddacraft/anvil \
+              --pattern "eddacraft-anvil.rb" \
+              --dir artifacts
+          fi
           ls -la artifacts/
 
       - name: Patch and publish formula
         run: |
           set -euo pipefail
+          FORMULA="artifacts/anvil.rb"
+          if [ ! -f "$FORMULA" ]; then
+            FORMULA="artifacts/eddacraft-anvil.rb"
+          fi
           bash scripts/release/bump-homebrew.sh \
             --release-tag "$TAG" \
-            --formula-source "artifacts/eddacraft-anvil.rb" \
+            --formula-source "$FORMULA" \
             --out "artifacts/anvil.rb" \
             --publish \
             --tap-repo "$TAP_REPO"

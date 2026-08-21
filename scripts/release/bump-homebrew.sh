@@ -9,11 +9,13 @@ set -euo pipefail
 # in plans/modules/distribution-and-update.aps.md and the operator runbook
 # docs/runbooks/homebrew-publish.md.
 #
-# cargo-dist emits Formula/eddacraft-anvil.rb with `class EddacraftAnvil <
+# cargo-dist now emits Formula/anvil.rb with `class Anvil < Formula` because
+# crates/anvil-cli/Cargo.toml sets `formula = "anvil"` (#4077). Historical
+# artefacts were Formula/eddacraft-anvil.rb with `class EddacraftAnvil <
 # Formula`. Homebrew dispatches `brew install eddacraft/tap/anvil` to a class
-# named `Anvil` in Formula/anvil.rb, so the only structural patch needed is the
-# class rename; the SHA256s, URLs, and version are correct as cargo-dist emits
-# them.
+# named `Anvil` in Formula/anvil.rb. This script still renames EddacraftAnvil
+# when present and is a no-op when the source is already `class Anvil`; the
+# SHA256s, URLs, and version are correct as cargo-dist emits them.
 
 readonly DEFAULT_TAP_REPO="eddacraft/homebrew-tap"
 readonly DEFAULT_TARGET_PATH="Formula/anvil.rb"
@@ -38,12 +40,13 @@ usage() {
   cat <<'USAGE'
 Usage: bump-homebrew.sh --release-tag <vX.Y.Z[-suffix]> --formula-source <path> --out <path> [--publish] [--tap-repo <owner/name>] [--target-path <path>] [--dry-run]
 
-Patch the cargo-dist Homebrew formula (rename class EddacraftAnvil -> Anvil),
-write it to --out, and optionally publish it to the Homebrew tap.
+Patch the cargo-dist Homebrew formula (rename class EddacraftAnvil -> Anvil when
+needed), write it to --out, and optionally publish it to the Homebrew tap.
 
 Required:
   --release-tag <tag>      Release tag, e.g. v0.7.0-beta (must look like vX.Y.Z[-suffix]).
-  --formula-source <path>  Path to cargo-dist's eddacraft-anvil.rb.
+  --formula-source <path>  Path to cargo-dist's anvil.rb (or historical
+                           eddacraft-anvil.rb).
   --out <path>             Local path to write the patched formula.
 
 Optional:
