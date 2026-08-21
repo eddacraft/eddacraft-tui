@@ -73,7 +73,7 @@ fn parse_args() -> Args {
         zoom_read: None,
         path: None,
     };
-    let mut it = std::env::args().skip(1);
+    let mut it = std::env::args().skip(1).peekable();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--focus" => args.focus = it.next(),
@@ -82,19 +82,24 @@ fn parse_args() -> Args {
             "--anvil-snap" => args.anvil_snap = it.next(),
             "--zoom-read" => args.zoom_read = it.next(),
             "--snapshot" => {
-                let dims = it
-                    .next()
-                    .and_then(|s| {
-                        let (w, h) = s.split_once('x')?;
-                        Some((w.parse().ok()?, h.parse().ok()?))
-                    })
-                    .unwrap_or((160, 45));
-                args.snapshot = Some(dims);
+                // dimensions are optional — only consume the next argument
+                // when it actually parses as WxH, so `--snapshot --zoom-read x`
+                // does not swallow the following flag
+                let dims = it.peek().and_then(|s| parse_dims(s));
+                if dims.is_some() {
+                    it.next();
+                }
+                args.snapshot = Some(dims.unwrap_or((160, 45)));
             }
             other => args.path = Some(other.to_string()),
         }
     }
     args
+}
+
+fn parse_dims(s: &str) -> Option<(u16, u16)> {
+    let (w, h) = s.split_once('x')?;
+    Some((w.parse().ok()?, h.parse().ok()?))
 }
 
 // ---------------------------------------------------------------------------
@@ -512,7 +517,7 @@ fn run_app(
                     rebuild |= apply_event(app, flow, ev);
                 }
             }
-            CrosstermEvent::Resize(_, _) => flow.request_fit_view(),
+            CrosstermEvent::Resize(_, _) if fit => flow.request_fit_view(),
             _ => {}
         }
 
