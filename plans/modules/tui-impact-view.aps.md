@@ -49,8 +49,8 @@ answered by building:
    and is reconciled against the actual graph on every load ("pending" →
    "now real ✓", "still present" → "gone ✓"). The same store is scriptable
    (`--flag`/`--unflag`/`--plan`/`--retire`/`--propose` with `--note`;
-   `--report` is deterministic and always exit 0), so agents, CI, and the TUI
-   share one intent surface.
+   `--report` is deterministic and always exits 0), so agents, CI, and the
+   TUI share one intent surface.
 4. **Boundary lens.** A policy file mirroring anvil-architecture's layer model
    (member patterns + `depends_on`, most-specific-match precedence: exact
    beats prefix, longer prefix beats shorter) supports both `⚠` violation
@@ -73,7 +73,11 @@ zoom clamp (0.5–2.0) caps how far fit-view can zoom out on large graphs.
 What remains is productisation: turning a spike binary into a surface in
 `crates/anvil-tui/` that a user can open against their own repository, with the
 honesty, snapshot-testing, and terminal-lifecycle discipline the shipped TUI
-surfaces already hold.
+surfaces already hold. Settled-by-the-spike is not the same as in-scope-for-
+IMPV-001: the first item ships the **read lenses only** (findings 1, 2, and 4's
+reporting side). Intent capture (finding 3) and the boundaries *view* are
+spike-proven and inform the design, but enter as later items — intent capture
+only after the graduation question in Out of Scope is decided.
 
 ## In Scope
 
