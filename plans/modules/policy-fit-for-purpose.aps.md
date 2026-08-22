@@ -164,14 +164,18 @@ They still gate the items below them.
   others are for. Names the first promotable item.
 - **Files:** `plans/decisions/` (new ADR)
 - **Validation:** `pnpm adr:check && pnpm aps:active-lint`
-- **Dependencies:** ADR-108 (Accepted 2026-07-16). **POLFIT-001 is
-  informational, not blocking** (reclassified 2026-08-22 when both were
-  promoted): every on-ramp candidate — the ACTAX YAML tier, the OPAE lint and
-  guidance chain, and pack scaffolding — targets the same `.anvil/policies/`
-  pack surface, so the ordering question is answerable regardless of how
-  precedence between *different* surfaces resolves. If POLFIT-001 concludes the
-  pack surface is not the supported authoring target, this item must be re-run.
-- **Coordinates with:** ACTAX Phase A, OPAE-013..017, CPACKS
+- **Dependencies:** ADR-108 (Accepted 2026-07-16)
+- **Coordinates with:** POLFIT-001 (non-blocking — see Notes), ACTAX Phase A,
+  OPAE-013..017, CPACKS
+- **Notes:** POLFIT-001 was listed as a dependency when this item was filed and
+  was moved here on 2026-08-22 when both were promoted to Ready, so
+  `Dependencies:` carries only what must complete first. The relationship is
+  real but not blocking: every on-ramp candidate — the ACTAX YAML tier, the
+  OPAE lint and guidance chain, and pack scaffolding — targets the same
+  `.anvil/policies/` pack surface, so the ordering question is answerable
+  regardless of how precedence between *different* surfaces resolves.
+  **Falsifier:** if POLFIT-001 concludes the pack surface is not the supported
+  authoring target, this item must be re-run.
 - **Confidence:** medium
 
 ### POLFIT-003: The public authoring door resolves to a shipped surface
