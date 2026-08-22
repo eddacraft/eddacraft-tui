@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                   |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-16 updates for the CLI-wide `--json` contract (#3947 operator decision A), the per-surface repairs on `config` (#3938/#3943) and `migrate format` (#3946), and the #3962 canonical YAML metadata correction; not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                            |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-22 addition of `anvil impact` (IMPV-001); prior: 2026-08-16 updates for the CLI-wide `--json` contract (#3947 operator decision A), the per-surface repairs on `config` (#3938/#3943) and `migrate format` (#3946), and the #3962 canonical YAML metadata correction; not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
