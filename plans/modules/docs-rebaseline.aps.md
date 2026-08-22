@@ -5,10 +5,11 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 9/11 |
+| DOCRB | — | high | Ready | 10/11 |
 
-**Last reviewed:** 2026-08-21 against DOCRB-008 rebase-merge receipt
-`182d77b6329f460f4635e3e946b329ff9af84445`, the repository
+**Last reviewed:** 2026-08-23 against DOCRB-009 rebase-merge receipt
+`93f543e671b0ddcf4ec0481eaf1539a3006a9f82`, DOCRB-008 rebase-merge
+receipt `182d77b6329f460f4635e3e946b329ff9af84445`, the repository
 component/documentation inventory at `0a0f00c20`, current
 DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the operator-approved
 [documentation re-baseline design](../specs/2026-08-16-docs-rebaseline.md),
@@ -109,9 +110,9 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
-DOCRB-008, and DOCRB-011 are Merged. DOCRB-009 is In Progress under its
-approved 35-path enforcement plan including thirteen triggered
-freshness/review metadata closeouts. DOCRB-010 remains Draft.
+DOCRB-008, DOCRB-009, and DOCRB-011 are Merged. DOCRB-010 is the next
+readiness candidate, but remains Draft and is not authorised for implementation
+by this reconciliation.
 
 ## Success Criteria
 
@@ -507,7 +508,8 @@ freshness/review metadata closeouts. DOCRB-010 remains Draft.
 
 ### DOCRB-009: Activate mandatory diagram review and render/freshness enforcement
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-23 via PR #4099 (rebase-merge receipt
+  `93f543e671b0ddcf4ec0481eaf1539a3006a9f82`)
 - **Intent:** Convert the proven advisory rule into enforceable, change-scoped
   maintenance checks without burdening unrelated changes.
 - **Expected Outcome:** The root agent contract and contributor workflow require
@@ -539,6 +541,12 @@ freshness/review metadata closeouts. DOCRB-010 remains Draft.
   `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
   `plans/execution/DOCRB-009.actions.md`, and
   `plans/reviews/2026-08-21-docrb-009-diagram-enforcement.md`
+- **Evidence:** PR #4099 merged from final reviewed head
+  `cf145163f2f5c26624bf7f972bad3c376c0bb5ec` after all required hosted
+  checks passed and unresolved review threads were zero. Rebase-merge receipt
+  `93f543e671b0ddcf4ec0481eaf1539a3006a9f82` is an ancestor of current
+  `origin/main`, and the remote `docs/docrb-009-diagram-enforcement` branch
+  no longer exists.
 - **Scope:** Mandatory agent/contributor disposition contract; one pinned
   Mermaid CLI 11.16.0 root development dependency and only its required
   Puppeteer build allowance; one composed diagram-impact docs-check surface;
