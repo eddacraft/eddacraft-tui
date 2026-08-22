@@ -5,9 +5,9 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | high     | In Progress | 9/16     |
+| FLAGCAT | —     | high     | In Progress | 10/16    |
 
-**Last reviewed:** 2026-08-21 — Live catalogue audit found the flag-definition
+**Last reviewed:** 2026-08-22 — Live catalogue audit found the flag-definition
 layer maintained (17 flags), but the product-feature layer incomplete and
 weakly drift-gated. `flags/surfaces.json` remains a CLI-first seed: nine
 current visible commands are absent, non-CLI delivery surfaces are not
@@ -19,8 +19,9 @@ group, delivery surface, feature flag). FLAGCAT-010 Merged 2026-08-20 via PR
 migration, and rollback design. FLAGCAT-012..015 then sequence the drift gates,
 flag linkage, generated views, and tier mapping.
 
-FLAGCAT-016 was promoted to Ready and started on 2026-08-22 to adopt the
-orphaned `docs.access` catalogue flag in the live documentation shell.
+FLAGCAT-016 Merged 2026-08-22 via PR #4086, adopting the formerly orphaned
+`docs.access` catalogue flag in the live documentation shell through the
+canonical resolver.
 
 **Earlier — 2026-06-01** — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -858,7 +859,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-016: Adopt `docs.access` in the live documentation shell
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-22 via PR #4086
 - **Authorisation:** Promoted to Ready and implementation authorised by the
   operator on 2026-08-22; started in the same session.
 - **Intent:** Remove the live documentation shell's duplicated entitled-plan
