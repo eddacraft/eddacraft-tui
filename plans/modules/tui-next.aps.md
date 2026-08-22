@@ -5,7 +5,7 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 7/14     |
+| TUIN | joshuaboys | In Progress | 8/14     |
 
 **Last reviewed:** 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
 convention is live — extension surface (`Theme`/`Surface`) graded `stable`,
@@ -769,7 +769,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-014: Promote flow-graph widget behind an off-by-default `flow` feature
 
-- **Status:** Ready
+- **Status:** Done (2026-08-22, PR #4097 — `flow` feature shipped with ADR-128; consumers: anvil impact view live, APS tooling planned)
 - **Intent:** Give `eddacraft-tui` a curated, themed flow-graph module wrapping
   `rataflow` (node-based flow graphs for ratatui 0.30, MIT), so consumers get
   interactive dependency/boundary graphs without taking a direct `rataflow`

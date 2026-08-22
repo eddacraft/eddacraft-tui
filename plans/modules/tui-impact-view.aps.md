@@ -5,7 +5,7 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| IMPV | —     | In Progress | 0/1      |
+| IMPV | —     | Done | 1/1      |
 
 **Last reviewed:** 2026-08-22 (created from the `spike-flow` validation spike in
 [PR #4074](https://github.com/eddacraft/anvil-001/pull/4074); findings updated
@@ -144,7 +144,7 @@ only after the graduation question in Out of Scope is decided.
 
 ### IMPV-001: Interactive impact view in the anvil TUI
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** A person can open an interactive boundary/impact graph of the
   repository they are working in, from the anvil TUI, and navigate from
   crate-level structure down to the internals of one crate.
@@ -166,6 +166,7 @@ only after the graduation question in Out of Scope is decided.
 - **Files:** `crates/anvil-tui/`, `crates/anvil-cli/`, `Cargo.toml`,
   `ACKNOWLEDGEMENTS.md`
 - **Dependencies:** —
+- **Delivered:** PR #4097 (2026-08-22) — `anvil impact` surface in `crates/anvil-tui` + CLI entry, consuming the `eddacraft-tui` `flow` feature (TUIN-014, ADR-128); read lenses, named degraded states, snapshot tests, kindling recipe, runbook entry, rataflow/rust-sugiyama attribution.
 - **Confidence:** medium-high — rendering, data source, write-side intent
   semantics, and the two-lens view split (Sugiyama dependency lens vs
   policy-driven boundary lens) are all spike-proven; the open questions are
