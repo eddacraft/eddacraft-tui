@@ -75,8 +75,10 @@ contract still begins at OPAE-012.
 
 ## Consequences
 
-- Customers and agents get a supported policy-authoring route without adding
-  probabilistic behaviour to Anvil's enforcement engine.
+- Customers and agents get a supported **Rego power-user** authoring route
+  (lint, generated guidance, small skill) without adding probabilistic
+  behaviour to Anvil's enforcement engine. The supported answer to "how do
+  I write a policy?" is YAML pack source (ADR-130).
 - Target declarations make unavailable inputs detectable before a policy is
   deployed to a surface where it can never fire, but do not activate the pack.
 - The binary grows by a bounded guidance bundle and a second managed skill.

@@ -65,16 +65,24 @@ must be re-run.
    through the CPOL Rust assertion evaluator at `anvil gate` or pre-write.
 
 2. **v1 YAML is configurative pack source**, which is the ADR-040 D-5 pin.
-   The first slice expresses closed conditions over the shipped `PolicyInput`
-   change set — the predicates `anvil-baseline` already encodes in Rego and
-   CPOL already ships as a closed enum (`changed-paths-confined-to`,
-   `changed-paths-exclude`, `changed-path-count`). v1 does **not** introduce
-   `on: domain.verb` intercept DSL, a second `*.yml` pack glob beside
-   `pack.yaml` + `policies/*.rego`, stringly-typed Rego snippets inside YAML,
-   or `config-equals` / `config-present` until OPAE-010 populates
-   `input.config`. ACTAX retains execution authority; this record narrows
-   Phase B's first slice. The intercept/taxonomy DSL stays a later ACTAX
-   slice and is not the on-ramp.
+   The first slice is a **subset** of CPOL's closed condition enum over the
+   shipped `PolicyInput` change set: `changed-path-count`,
+   `changed-paths-exclude`, and `changed-paths-confined-to`. It does **not**
+   copy the full CPOL enum. v1 omits `config-equals` / `config-present` until
+   OPAE-010 populates `input.config`, and omits `change_kind` until
+   PolicyInput carries change kinds.
+
+   Mapping to the shipped starter: `change_scope.rego` is a count threshold
+   and is in v1. `sensitive_paths.rego` uses case-insensitive substring and
+   mixed prefix/suffix heuristics that these globs cannot express; it is
+   **out of v1** unless a later decision adds a dedicated operator. Do not
+   treat "reuse CPOL" as a round-trip of both starter rules.
+
+   v1 does **not** introduce `on: domain.verb` intercept DSL, a second
+   `*.yml` pack glob beside `pack.yaml` + `policies/*.rego`, or
+   stringly-typed Rego snippets inside YAML. ACTAX retains execution
+   authority; this record narrows Phase B's first slice. The
+   intercept/taxonomy DSL stays a later ACTAX slice and is not the on-ramp.
 
 3. **Until ACTAX-012 loads generated packs, the honest interim door** is
    `anvil policy install anvil-baseline` and a copy of that directory to a new
@@ -82,10 +90,14 @@ must be re-run.
    unshipped skill. The interim door is not the supported destination. Do not
    invent `anvil policy init` or `policy scaffold`.
 
-4. **First promotable item: `ACTAX-010`**, after its expected outcome is
-   aligned to decision 2. Do not promote ACTAX-001 as authoring work. Do not
-   promote ACTAX-010 as currently specified (`on`/`when`/`risk`/`decision`
-   over `*.yml`).
+4. **First promotable item: `ACTAX-010`.** The first ACTAX PR applies this
+   dialect to ACTAX-010..014 expected outcomes: drop the ACTAX-001
+   dependency, drop `on:`/`when:`/`risk:`/`decision:` and the parallel
+   `*.yml` pack glob, and load through the existing `pack.yaml` +
+   `policies/*.rego` layout. That rewrite *is* promoting ACTAX-010; it is
+   not a new APS id. Until it lands, ACTAX-010 is not Ready. Do not promote
+   ACTAX-001 as authoring work. Do not promote ACTAX-010 as currently
+   specified.
 
 5. **Ordering**
 
@@ -96,7 +108,7 @@ must be re-run.
    | 2 | ACTAX-011 | YAML → byte-stable Rego compiler |
    | 3 | ACTAX-012 | Load generated members through existing `discover_and_load` / gate admission |
    | 4 | ACTAX-013, ACTAX-014 | Reference YAML pack + public authoring page. The supported answer may appear in docs only from here |
-   | *parallel, not on-ramp* | OPAE-012 | Manifest v2 target/input/case contract. Independently promotable as pack-contract work. **ACTAX-012 must not land before OPAE-012** so generated packs declare targets rather than loading and never firing |
+   | *parallel, not on-ramp* | OPAE-012 | Manifest v2 target/input/case contract. Independently promotable as pack-contract work. ACTAX-012 must not land before OPAE-012 so *new* packs declare targets and inputs (legacy packs already fire). Generated members fire when listed in `pack.yaml` **and** gate/pre-write share admission (POLFIT-004 / OPAE-022). The ACTAX rewrite must copy both constraints into `Dependencies:` |
    | 5 | OPAE-013, OPAE-014 | Deterministic lint: safety net for hand-written Rego and a golden check that compiler output is lint-clean |
    | 6 | OPAE-015, OPAE-016, OPAE-017 | Guidance and `authoring-anvil-policy` teach the YAML path first; Rego as escape hatch. Do not ship the skill while it can only route to unshipped commands or a Rego workshop |
    | *parallel, not on-ramp* | ACTAX-001..004 | Action-taxonomy data crate for POLCAP-009 / AGOV-007. May proceed when those modules need `ActionId`. Must not be sold as authoring |
@@ -116,9 +128,10 @@ never executed still ends in `.rego` files. Phase A never fires a rule.
 Shipping the skill first makes a documentation lie locally true. Copying the
 starter pack is honesty, not a language. YAML → Rego is the only candidate
 that answers the question, but ACTAX's currently specified YAML answers a
-future intercept-authoring question. Pinning v1 to the closed conditions that
-already match shipped packs keeps one admission layout, one runtime, and a
-first slice small enough to finish.
+future intercept-authoring question. Pinning v1 to a CPOL subset that can
+express count thresholds — not the starter's substring heuristics — keeps
+one admission layout, one runtime, and a first slice small enough to
+finish.
 
 ### Alternatives Considered
 
@@ -148,11 +161,13 @@ first slice small enough to finish.
   "temporary" production eval recreates a second runtime; ACTAX-011's own
   confidence is `low` if the compiler is unbounded.
 - **Mitigations:** Ready-gate ACTAX-010 against this dialect; loader writes
-  generated members into the existing pack layout; user strings are data in a
-  closed enum, not snippets; every YAML path's only artefact reaching regorus
-  is compiled Rego (already an ACTAX acceptance criterion); v1 YAML
-  round-trips the two starter-pack rules plus one new path-glob rule —
-  anything else waits.
+  generated members into the existing pack layout; glob and threshold
+  payloads are emitted as JSON data documents, never interpolated into
+  Rego source; every YAML path's only artefact reaching regorus is compiled
+  Rego (already an ACTAX acceptance criterion) and YAML never reaches CPOL
+  `evaluate()` at gate/pre-write; v1 YAML round-trips `change_scope` plus
+  one new path-glob rule — `sensitive_paths` heuristics and anything else
+  wait.
 
 ## References
 
@@ -163,3 +178,7 @@ first slice small enough to finish.
   (interim docs), CPACKS (starter pack), CPOL (closed assertion conditions)
 - Evidence: policy-capability audit 2026-08-22 against `origin/main` @
   `7524a599b`
+- Numbering: this record is ADR-130 because POLFIT-001 already holds
+  ADR-129 (`129-policy-surface-inventory-and-precedence.md`) in a
+  parallel worktree. If that item never lands, a later renumber-on-rename
+  should backfill 129 (ADR process gap rule).
