@@ -27,7 +27,7 @@ and it does not grow past these 12 rows.
 | 7   | Four **surface checks** (`sql-migrations`, `github-actions`, `dockerfile`, `shell-scripts`) run in gate by default, are selected by flags not `checks:`, and warn unless `--fail-on-warnings`. | shipped-with-flag-status |
 | 8   | Project file is `.anvil.yaml` (also `.yml` / `.json` / `.toml`).                                                                                                                               | shipped                  |
 | 9   | **Gate profiles:** `dev`, `ci`, `production`, `ai`.                                                                                                                                            | shipped                  |
-| 10  | Policy is a **gate check**; start with the `anvil-baseline` pack ([policy packs](../concepts/policy-model.md)). Authoring is the installed skill, not a public manual.                         | shipped                  |
+| 10  | Policy is a **gate check**; start with the `anvil-baseline` pack ([policy model](../concepts/policy-model.md)). Authoring is the installed skill, not a public manual.                         | shipped                  |
 | 11  | Full command list: [CLI command reference](cli.md).                                                                                                                                            | shipped                  |
 | 12  | Model: [How anvil evaluates a project](../concepts/evaluation-model.md).                                                                                                                       | shipped                  |
 

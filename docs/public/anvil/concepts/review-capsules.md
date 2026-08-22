@@ -59,4 +59,4 @@ evidence.
 
 - [How anvil evaluates a project](evaluation-model.md)
 - [Evidence and audit trails](audit-trail.md)
-- [Policy packs](policy-model.md)
+- [Policy model](policy-model.md)

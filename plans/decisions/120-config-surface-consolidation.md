@@ -123,9 +123,9 @@ loader, superseding ADR-016 before acceptance:
 Out of scope: user-level `workspace.yaml` (daemon confinement — different
 trust domain, ADR-094), `anvil/exceptions/` (committed-authority store,
 ADR-100), `.anvil/suppressions.json` / baselines / dashboards / `gates.json`
-(state, not configuration), `flags/manifest.json` (FLAGCAT), policy merge
-semantics (POLLC/ORGHIER), and any new config sections beyond `gate` and
-`architecture`.
+(state, not configuration), `flags/manifest.json` (FLAGCAT), org/pack
+policy merge semantics (POLLC/ORGHIER; intra-repo surface precedence is
+ADR-129), and any new config sections beyond `gate` and `architecture`.
 
 ## Rationale
 
@@ -169,7 +169,9 @@ honest move is to make the surface match the behaviour.
 ## References
 
 - Supersedes: ADR-016 (Proposed, never accepted → mark Rejected with pointer)
-- Related ADRs: ADR-002 (warnings over blocks), ADR-046 (hardened YAML parse:
+- Related ADRs: ADR-002 (warnings over blocks), ADR-129 (intra-repo policy
+  surface inventory and precedence — the half of the policy-merge carve-out
+  that is decidable without ORGHIER/POLLC), ADR-046 (hardened YAML parse:
   size cap, alias reject, depth cap — delegated targets inherit it), ADR-094
   (workspace.yaml), ADR-100 (committed authority; policy loading unchanged),
   ADR-102 (ARCHCFG architecture CLI surface — authoring commands sit atop the

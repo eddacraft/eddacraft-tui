@@ -179,7 +179,7 @@ commands do not follow that gitignore rule.
 - [What anvil can do](../reference/what-anvil-can-do.md)
 - [Glossary](glossary.md)
 - [Checks, findings, and gates](gates.md)
-- [Policy packs](policy-model.md)
+- [Policy model](policy-model.md)
 - [Architecture boundaries](boundaries.md)
 - [Introduction baseline](baseline.md)
 - [CLI command reference](../reference/cli.md)

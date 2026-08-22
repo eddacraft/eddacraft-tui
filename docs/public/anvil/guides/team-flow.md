@@ -71,4 +71,4 @@ Configure [continuous integration](../integrations/github.md).
 
 - [How anvil evaluates a project](../concepts/evaluation-model.md)
 - [Check catalogue](../reference/checks.md)
-- [Policy packs](../concepts/policy-model.md)
+- [Policy model](../concepts/policy-model.md)

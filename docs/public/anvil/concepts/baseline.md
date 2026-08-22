@@ -43,7 +43,7 @@ See [team workflow](../guides/team-flow.md).
 
 ## Related definitions
 
-- [Policy packs](policy-model.md)
+- [Policy model](policy-model.md)
 - [How anvil evaluates a project](evaluation-model.md)
 - [Team workflow](../guides/team-flow.md)
 - [Glossary](glossary.md)

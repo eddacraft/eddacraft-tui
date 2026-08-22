@@ -1,8 +1,9 @@
 ---
 id: policy-model
-title: Policy packs
+title: Policy model
 description:
-  How policy packs are discovered, installed, validated, tested, and enforced.
+  The seven surfaces that change policy behaviour, how they relate, and how
+  policy packs are discovered, installed, validated, tested, and enforced.
   Policy is a gate check, not part of anvil check.
 owner: DOCDEF
 upstream:
@@ -12,17 +13,18 @@ upstream:
   - crates/anvil-cli/src/commands/exception.rs
   - crates/anvil-cli/src/commands/check_catalog.rs
   - plans/decisions/108-policy-authoring-lint-and-agent-guidance.md
-verified_against: 0.9.6-beta
+  - plans/decisions/129-policy-surface-inventory-and-precedence.md
+verified_against: 0.9.7-beta
 ---
 
-# Policy packs
+# Policy model
 
-**For:** teams adding project-specific policy to a gate
+**For:** teams who need to know every place policy behaviour can change
 
-**Time:** 8 minutes
+**Time:** 10 minutes
 
-**Outcome:** know that policy is a gate check, how packs are installed, and
-where authoring lives
+**Outcome:** know the seven shipped surfaces, that they are complementary layers
+rather than a single stack, and how packs are installed and enforced
 
 ## What you are looking at
 
@@ -34,9 +36,52 @@ Policy is shipped as **packs**. The installer writes them under
 `.anvil/policies/`. Begin with the bundled `anvil-baseline` pack rather than
 writing a pack from scratch.
 
+Packs are one of seven shipped surfaces. The others change what anvil flags or
+how it acts on a flag, but they are not policy packs. Precedence between them is
+complementary layers, not a single winner-takes-all stack.
+
 This page is the model. The happy path is the
 [policy tutorial](../tutorials/policies.md). The command list is the
 [policy command reference](../reference/policy.md).
+
+## Surfaces
+
+| Surface                          | Where                                                | Role                                                                                   |
+| -------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Rule modes                       | `.anvil.yaml` `enforcement.rules`                    | Stored per-rule off/warn/enforce for four named rules. Not a live evaluator control    |
+| Code-policy packs                | `.anvil/policies/`                                   | Project rules evaluated as the `policy` gate check                                     |
+| Architecture definition          | `architecture` section or `.anvil/architecture.yaml` | Layer and import constraints. Not a pack. See [architecture boundaries](boundaries.md) |
+| Acceptance policy                | `anvil/policy.*`                                     | Whether a commit or push is accepted                                                   |
+| Intercept-rule registration      | `.anvil.yaml` `enforcement.intercept-rules`          | Which save-time intercept rules run                                                    |
+| Enforcement posture              | `.anvil.yaml` `enforcement.mode`                     | How strictly a block-worthy finding is acted on                                        |
+| Anti-pattern registry resolution | Internal                                             | Scanner catalogue source. Not a supported override                                     |
+
+`.anvil.yaml` stands for the canonical project config (`.anvil.yaml` / `.yml` /
+`.json` / `.toml`). Discovery is yaml-first. Three names that are not synonyms:
+`anvil/policy.*` is commit-acceptance policy; `.anvil/policies/` is pack files;
+`anvil policy` is the pack CLI (and, for `list`/`explain`, the compiled rule
+catalogue). Packs do not accept or reject a push.
+
+None of these is deprecated. They answer different questions:
+
+- **Catalogue** — what exists to fire (packs, architecture, intercept
+  registration, anti-pattern registry).
+- **Posture** — how strictly a finding is acted on (`enforcement.mode`; rule
+  modes for four named rules only).
+- **Lifecycle** — when it fires (save-time intercept / MCP, `anvil check`,
+  `anvil gate`, push acceptance).
+
+A pack finding and an architecture finding are both findings. Neither cancels
+the other. `enforcement.mode` does not unload packs. `enforcement.rules` does
+not override pack outcomes. Commit-acceptance `on_block` is not an
+enforcement-mode synonym.
+
+The overlap rules are: different questions do not merge; `enforcement.mode` is
+action-time posture, not a catalogue switch; `enforcement.rules` covers four
+named rules only and is a stored mode, not a live evaluator control;
+`anvil/policy.*` `on_block` is a commit-acceptance verb. If `enforcement.mode`
+is unset, MCP pre-write is stricter than save-time intercept. Per-key catalogue
+for config fields is the [config reference](../reference/config.md).
 
 ## Pack lifecycle
 
@@ -98,6 +143,8 @@ authoring corpus stays version-matched to the binary rather than copied here.
 
 - [Policy command reference](../reference/policy.md)
 - [Check catalogue: `policy`](../reference/checks.md#policy)
+- [Architecture boundaries](boundaries.md)
+- [Config reference](../reference/config.md)
 - [How anvil evaluates a project](evaluation-model.md)
 - [Introduction baseline](baseline.md)
 - [Policy tutorial](../tutorials/policies.md)

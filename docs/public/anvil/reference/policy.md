@@ -14,7 +14,7 @@ verified_against: 0.9.6-beta
 # Policy command reference
 
 This is the command list for policy **packs**. For the model, read
-[policy packs](../concepts/policy-model.md). For the happy path, follow the
+[policy model](../concepts/policy-model.md). For the happy path, follow the
 [policy tutorial](../tutorials/policies.md).
 
 Policy is a **gate** check (`policy`). `anvil check` will not run it.
@@ -67,7 +67,7 @@ Discover packs with `anvil policy install --list`.
 
 ## Related definitions
 
-- [Policy packs](../concepts/policy-model.md)
+- [Policy model](../concepts/policy-model.md)
 - [Check catalogue: `policy`](checks.md#policy)
 - [How anvil evaluates a project](../concepts/evaluation-model.md)
 - [Introduction baseline](../concepts/baseline.md)

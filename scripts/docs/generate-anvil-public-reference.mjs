@@ -945,7 +945,7 @@ function renderCheckSection(definition, planlessSet, surfaceFlags) {
     related.push('- Boundaries: [Architecture boundaries](../concepts/boundaries.md)');
   }
   if (definition.canonical_name === 'policy') {
-    related.push('- Packs: [Policy packs](../concepts/policy-model.md)');
+    related.push('- Packs: [Policy model](../concepts/policy-model.md)');
     related.push('- Commands: [Policy command reference](policy.md)');
   }
   return (

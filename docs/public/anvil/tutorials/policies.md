@@ -96,7 +96,7 @@ Add the proven command to the [team workflow](../guides/team-flow.md).
 
 ## Related definitions
 
-- [Policy packs](../concepts/policy-model.md)
+- [Policy model](../concepts/policy-model.md)
 - [Policy command reference](../reference/policy.md)
 - [Check catalogue: `policy`](../reference/checks.md#policy)
 - [Introduction baseline](../concepts/baseline.md)

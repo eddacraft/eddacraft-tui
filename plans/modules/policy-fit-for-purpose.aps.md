@@ -133,9 +133,9 @@ They still gate the items below them.
 
 ### POLFIT-001: Policy surface inventory and precedence decision
 
-- **Status:** Ready — promoted 2026-08-22 by operator instruction. The
-  deliverable is the decision record itself; this remains the blocking gate for
-  POLFIT-003, -004, -005, -006, and -008, which stay Draft until it lands.
+- **Status:** In Progress — 2026-08-23. Decision record ADR-129 in flight.
+  This remains the blocking gate for POLFIT-003, -004, -005, -006, and -008,
+  which stay Draft until it lands.
 - **Intent:** Decide, in one record, every surface from which a user can change
   policy behaviour, which are supported product surfaces, and what wins when
   two disagree.
@@ -149,7 +149,9 @@ They still gate the items below them.
   supported/internal/deprecated, and states precedence and merge semantics
   where two surfaces address the same behaviour. Explicitly picks up the
   "policy merge semantics" carve-out ADR-120 left unowned.
-- **Files:** `plans/decisions/` (new ADR), `docs/public/anvil/concepts/policy-model.md`
+- **Files:** `plans/decisions/129-policy-surface-inventory-and-precedence.md`,
+  `plans/decisions/DECISION-LOG.md`,
+  `docs/public/anvil/concepts/policy-model.md`
 - **Validation:** `pnpm adr:check && pnpm aps:active-lint`
 - **Dependencies:** ADR-026, ADR-037, ADR-040, ADR-098, ADR-120
 - **Coordinates with:** OPAE, ARCHCFG, DOCDEF, INSEC
