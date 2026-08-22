@@ -45,6 +45,10 @@ Final activation states are literal: `protecting`, `ready_restart_required`,
 `watching`, `needs_action`, `unsupported`, `error`. See
 [activation states](guides/start-output-contracts.md).
 
+If you install the bundled `anvil-baseline` pack, treat it as **advisory starter
+guardrails**, not a compliance programme. Known gaps live in the
+[policy tutorial](tutorials/policies.md).
+
 ## Core pass (do this)
 
 From a real project root, in order:

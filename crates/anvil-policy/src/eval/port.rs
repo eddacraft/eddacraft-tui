@@ -469,6 +469,46 @@ mod tests {
             )),
             "the suite binds its hermetic input fixture"
         );
+
+        // CPACKS-006: anvil-baseline members must appear as eval-regression
+        // suites so starter-pack regressions are visible in report-only CI.
+        let change_scope = suites
+            .iter()
+            .find(|s| s.name == "anvil_baseline_change_scope")
+            .expect("anvil-baseline change_scope suite present");
+        assert_eq!(
+            change_scope.policy,
+            PathBuf::from("policies/eval/anvil_baseline_change_scope.rego")
+        );
+        assert_eq!(
+            change_scope.query,
+            "data.anvil.policies.eval.anvil_baseline_change_scope.findings"
+        );
+        assert_eq!(
+            change_scope.input.as_deref(),
+            Some(std::path::Path::new(
+                "policies/eval/anvil_baseline_change_scope.input.json"
+            ))
+        );
+
+        let sensitive_paths = suites
+            .iter()
+            .find(|s| s.name == "anvil_baseline_sensitive_paths")
+            .expect("anvil-baseline sensitive_paths suite present");
+        assert_eq!(
+            sensitive_paths.policy,
+            PathBuf::from("policies/eval/anvil_baseline_sensitive_paths.rego")
+        );
+        assert_eq!(
+            sensitive_paths.query,
+            "data.anvil.policies.eval.anvil_baseline_sensitive_paths.findings"
+        );
+        assert_eq!(
+            sensitive_paths.input.as_deref(),
+            Some(std::path::Path::new(
+                "policies/eval/anvil_baseline_sensitive_paths.input.json"
+            ))
+        );
     }
 
     #[test]

@@ -1,0 +1,11 @@
+{
+  "schema_version": "v1",
+  "repo_state": { "files": [], "edges": [] },
+  "plans": [],
+  "decisions": [],
+  "diff": {
+    "changed_files": [".github/workflows/ci.yml"],
+    "new_edges": []
+  },
+  "baseline": { "findings": [] }
+}

@@ -514,6 +514,77 @@ fn starter_policy_pack_extractor_recognises_documented_rule_families() {
     }
 }
 
+#[test]
+fn starter_policy_pack_eval_wrappers_lockstep_messages() {
+    // CPACKS-006 wrappers copy pack copy. If the shipped pack's warning
+    // strings drift, the eval-regression suites would silently cover a
+    // different policy.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut input = PolicyInput::default();
+    input.diff.changed_files = (1..=12).map(|n| format!("f{n}.rs")).collect();
+
+    let pack_src = std::fs::read_to_string(
+        root.join("crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/change_scope.rego"),
+    )
+    .expect("read pack change_scope");
+    let wrap_src =
+        std::fs::read_to_string(root.join("policies/eval/anvil_baseline_change_scope.rego"))
+            .expect("read eval wrapper");
+
+    let mut pack_engine = Engine::new(EngineConfig::default()).expect("engine");
+    anvil_policy_engine::builtins::register_all(&mut pack_engine).expect("builtins");
+    pack_engine
+        .add_policy("change_scope.rego", pack_src)
+        .expect("compile pack");
+    let pack_raw = pack_engine
+        .eval(&input, "data.anvil.policies.change_scope.warning")
+        .expect("eval pack")
+        .value
+        .unwrap_or(serde_json::Value::Null);
+    let mut pack_msgs: Vec<String> = pack_raw
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    pack_msgs.sort();
+
+    let mut wrap_engine = Engine::new(EngineConfig::default()).expect("engine");
+    anvil_policy_engine::builtins::register_all(&mut wrap_engine).expect("builtins");
+    wrap_engine
+        .add_policy("wrapper.rego", wrap_src)
+        .expect("compile wrapper");
+    let wrap_raw = wrap_engine
+        .eval(
+            &input,
+            "data.anvil.policies.eval.anvil_baseline_change_scope.findings",
+        )
+        .expect("eval wrapper")
+        .value
+        .unwrap_or(serde_json::Value::Null);
+    let mut wrap_msgs: Vec<String> = wrap_raw
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| {
+                    v.get("message")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    wrap_msgs.sort();
+
+    assert_eq!(
+        pack_msgs, wrap_msgs,
+        "eval wrapper messages must match the shipped pack warnings"
+    );
+    assert!(!pack_msgs.is_empty(), "soft-threshold fixture must fire");
+}
+
 // ── git helper ──────────────────────────────────────────────────────
 
 /// Initialise a bare-minimum git repo in `dir` so the gate's `git status`

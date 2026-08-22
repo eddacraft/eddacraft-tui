@@ -22,6 +22,13 @@ verified_against: 0.9.7-beta
 A policy is a project rule evaluated by a gate. Begin with a bundled pack rather
 than copying an unknown policy from another repository.
 
+`anvil-baseline` is **advisory starter guardrails**, not a compliance programme.
+It does not claim OWASP, SOC 2, ISO, GDPR, or similar coverage. Findings are
+warnings and do not fail the gate. Change-size thresholds are frozen in the
+pack. Sensitive-path matchers include substring heuristics that can
+false-positive on names that merely look secret-ish. Broad framework packs are
+not shipped.
+
 ## 1. Discover available packs
 
 ```text

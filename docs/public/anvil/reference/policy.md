@@ -30,7 +30,9 @@ Policy is a **gate** check (`policy`). `anvil check` will not run it.
 | `anvil policy test [path]`        | Run the pack's included tests. Path is optional.    |
 | `anvil gate --only-checks policy` | Enforce installed packs as the `policy` gate check. |
 
-The shipped starter pack is `anvil-baseline`.
+The shipped starter pack is `anvil-baseline`. It is advisory starter guardrails,
+not a compliance programme. See the [policy tutorial](../tutorials/policies.md)
+for known gaps.
 
 ## Exceptions
 

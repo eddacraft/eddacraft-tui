@@ -106,6 +106,11 @@ secrets or CI configuration for review. Success of
 `anvil policy install anvil-baseline` reports files created under
 `.anvil/policies/anvil-baseline/`.
 
+It is **not** a compliance pack. It does not claim OWASP, SOC 2, ISO, GDPR, or
+similar coverage. Findings are warnings and never fail the gate. Thresholds are
+frozen in-rego. Sensitive-path matchers include substring heuristics that can
+false-positive. Broad framework packs stay behind a later expansion gate.
+
 Public docs name the pack and the install path. They do not reproduce pack
 source as an authoring tutorial.
 

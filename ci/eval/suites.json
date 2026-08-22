@@ -4,5 +4,17 @@
     "policy": "policies/eval/arch_boundary.rego",
     "query": "data.anvil.policies.arch_boundary.findings",
     "input": "policies/eval/arch_boundary.input.json"
+  },
+  {
+    "name": "anvil_baseline_change_scope",
+    "policy": "policies/eval/anvil_baseline_change_scope.rego",
+    "query": "data.anvil.policies.eval.anvil_baseline_change_scope.findings",
+    "input": "policies/eval/anvil_baseline_change_scope.input.json"
+  },
+  {
+    "name": "anvil_baseline_sensitive_paths",
+    "policy": "policies/eval/anvil_baseline_sensitive_paths.rego",
+    "query": "data.anvil.policies.eval.anvil_baseline_sensitive_paths.findings",
+    "input": "policies/eval/anvil_baseline_sensitive_paths.input.json"
   }
 ]

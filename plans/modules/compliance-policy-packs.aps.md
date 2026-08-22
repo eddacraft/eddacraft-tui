@@ -193,18 +193,15 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-006: Eval-regression fixture integration
 
-- **Status:** Blocked 2026-08-23 — **attempted and proven not deliverable as
-  specified.** The eval-regression harness diffs on the frozen v1 `findings`
-  array; the shipped `anvil-baseline` policies emit `warning` as a set of plain
-  strings, which the harness records as `findings: []`. Wiring the pack's
-  suites in therefore produces coverage that cannot fail. Proven, not assumed:
-  three suites were added, the baseline regenerated with a real binary
-  (0.9.7-beta), and then re-run against an input crafted so the policy emits
-  **zero** warnings — the run still reported `no regressions`. `anvil policy
-  eval` confirms the mechanism directly: the warning text lands in `value`
-  while `findings` stays `[]`. The attempt was reverted rather than landed,
-  because unfalsifiable CI coverage is worse than none — it reads as
-  protection. See the Unblock paths below.
+- **Status:** In Progress — 2026-08-24 on `feat/polfit-007-starter-pack-residue`
+  (POLFIT-007 / PR #4107). Unblock path 2 via eval wrappers, not pack members:
+  `policies/eval/anvil_baseline_*.rego` emit v1 Finding objects so the
+  harness diffs `findings` rather than the pack's `warning` string set.
+- **Files:** `ci/eval/suites.json`, `ci/eval/baseline/history.jsonl`,
+  `ci/eval/README.md`, `policies/eval/anvil_baseline_change_scope.rego`,
+  `policies/eval/anvil_baseline_sensitive_paths.rego`,
+  `crates/anvil-policy/src/eval/port.rs`,
+  `crates/anvil-cli/src/commands/policy/starter_proof.rs`
 - **Intent:** Add anvil-baseline fixtures to the report-only eval-regression
   path: `ci/eval/suites.json` currently carries only the `arch_boundary`
   suite, so the starter pack has no CI regression coverage despite being

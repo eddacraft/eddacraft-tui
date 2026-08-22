@@ -270,17 +270,16 @@ They still gate the items below them.
 
 ### POLFIT-007: Starter-pack residue closed
 
-- **Status:** Blocked 2026-08-23 — **half delivered, and the other half is
-  proven not deliverable as specified.** CPACKS-007 is done (known-gaps and
-  non-compliance-posture copy written; the audit found the copy did not exist
-  at all, contrary to that item's own status). CPACKS-006 is **Blocked**: the
-  eval-regression harness diffs on the frozen v1 `findings` array while the
-  shipped pack emits `warning` string sets, so wiring its suites in yields
-  coverage that cannot fail — demonstrated by a falsification run, not
-  assumed. This item's Expected Outcome ("CPACKS carries no live item outside
-  the CPACKS-008 expansion gate") therefore cannot be met until an owner picks
-  one of the three unblock paths recorded on CPACKS-006, two of which are
-  EVALCI's or a pack-contract decision rather than CPACKS's.
+- **Status:** In Progress — 2026-08-24 on `feat/polfit-007-starter-pack-residue`
+  (PR #4107). CPACKS-007 already Merged via #4113. Remaining work is
+  CPACKS-006: eval wrappers under `policies/eval/` emit v1 Finding objects
+  so the report-only harness can falsify, without changing the pack's
+  `warning` family.
+- **Files:** `ci/eval/suites.json`, `ci/eval/baseline/history.jsonl`,
+  `ci/eval/README.md`, `policies/eval/anvil_baseline_change_scope.rego`,
+  `policies/eval/anvil_baseline_sensitive_paths.rego`,
+  `crates/anvil-policy/src/eval/port.rs`,
+  `crates/anvil-cli/src/commands/policy/starter_proof.rs`
 - **Intent:** Finish the two small items POLRESET's first slice left open so
   CPACKS reaches a terminal state.
 - **Expected Outcome:** The `anvil-baseline` fixtures are wired into the CI eval

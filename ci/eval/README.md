@@ -7,9 +7,10 @@ check (EVALCI-005 / EVALCI-006).
 
 - `suites.json` — the suites manifest: an array of eval suites
   (`{ name, policy, query, input? }`) the `anvil policy eval-regression` command
-  loads via `--suites`. First wave is one arch-boundary suite bound to
-  `policies/eval/arch_boundary.rego` and its hermetic
-  `arch_boundary.input.json`.
+  loads via `--suites`. Suites: the first-wave arch-boundary policy plus
+  CPACKS-006 projections of the shipped `anvil-baseline` pack members
+  (`change_scope` and `sensitive_paths`) with hermetic inputs under
+  `policies/eval/`.
 - `baseline/history.jsonl` — the committed one-record-per-suite baseline the CI
   check diffs each run against (`--store ci/eval/baseline`). Append-only NDJSON
   in Anvil's canonical eval-record schema.
@@ -45,3 +46,8 @@ regress (the EVALCI-001 ratchet), so a failing run cannot poison the baseline.
 Review and commit the resulting `baseline/history.jsonl` change on its own.
 `ANVIL_DEV=1` skips the local licence pre-check so `anvil policy eval` runs
 ungated.
+
+The `anvil-baseline` eval suites are projections, not pack members. Keep their
+thresholds and advisory copy in lockstep with
+`crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/`.
+`starter_policy_pack_eval_wrappers_lockstep_messages` fails if they drift.
