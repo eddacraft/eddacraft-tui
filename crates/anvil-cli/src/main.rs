@@ -1777,6 +1777,7 @@ mod tests {
             "tutorial" => vec!["tutorial"],
             "welcome" => vec!["welcome"],
             "init" => vec!["init"],
+            "impact" => vec!["impact"],
             "insights" => vec!["insights"],
             "kindling" => vec!["kindling", "usage", "top"],
             "migrate" => vec!["migrate", "format"],
