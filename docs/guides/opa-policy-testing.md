@@ -1,8 +1,8 @@
 # OPA Policy Testing Guide
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                              |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-07-04 against ADR-098 (Rust OPA-subprocess module removal, PR-C), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                           |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-08-23 against ADR-040 D-5 (YAML-tier pin now ADR-130; runtime and testing path unchanged), ADR-098 (Rust OPA-subprocess module removal, PR-C), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
 
 | Upstream                                                                                                                                                                                                                                                   | Downstream                                                                                       |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
