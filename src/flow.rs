@@ -157,7 +157,7 @@ pub fn container_flow<T: Theme + ?Sized>(
     const GAP: f64 = 2.0;
 
     let mut nodes: Vec<Node<TextContent>> = Vec::new();
-    let mut present: Vec<&str> = Vec::new();
+    let mut present: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     let mut y_cursor = 0.0;
     for group in groups {
         if group.members.is_empty() {
@@ -186,7 +186,7 @@ pub fn container_flow<T: Theme + ?Sized>(
             .with_selectable(false),
         );
         for (i, member) in group.members.iter().enumerate() {
-            present.push(member.as_str());
+            present.insert(member.as_str());
             let (row, col) = (i / cols_u, i % cols_u);
             nodes.push(
                 Node::new(
