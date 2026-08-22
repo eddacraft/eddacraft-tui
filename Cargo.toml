@@ -42,6 +42,14 @@ image = { version = "0.25", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 lexopt = { version = "0.3", optional = true }
+# `flow` engine dep (TUIN-014). Pinned to an exact version because the crate
+# is 0.x with a small maintainer pool — bumps go through `cargo audit` and a
+# manual review, the `animate-core` precedent. MSRV note: rataflow's floor is
+# 1.88, equal to the core library floor, so `flow` does not raise MSRV.
+rataflow = { version = "=0.1.0", default-features = false, features = [
+  "sugiyama",
+  "crossterm",
+], optional = true }
 
 [features]
 test-utils = []
@@ -63,6 +71,12 @@ big-text = ["dep:tui-big-text"]
 # by default — the dependent product surface opts in to keep the core library
 # serde-free.
 json-render = ["dep:serde", "dep:serde_json"]
+# Interactive flow-graph rendering (TUIN-014): themed wrapper over the
+# rataflow node-graph engine — Sugiyama dependency graphs, layered
+# container-box boundary views, zoom-to-read, mouse-capture guard. Off by
+# default; consumers of graph surfaces (anvil impact view, APS tooling)
+# opt in.
+flow = ["dep:rataflow"]
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml"] }
