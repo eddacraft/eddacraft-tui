@@ -120,7 +120,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-001: ADR — always-on cheap catalogue, rare full gate
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-22 via PR #4084
 - **Intent:** Record the product split so later items cannot revive a per-save
   full gate or put tree-sitter in the daemon.
 - **Expected Outcome:** An ADR (next free number) is Proposed, indexed in
@@ -151,7 +151,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-002: MCP `anvil_check` and planless `anvil_gate` merge the AST tier
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-22 via PR #4084
 - **Intent:** Agents that already call the MCP check/gate tools see the same
   AST findings CLI `anvil check` already emits.
 - **Expected Outcome:** MCP `anvil_check` and planless `anvil_gate`
@@ -290,7 +290,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-008: Python language dispatch + PY-010 except-block swallow
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-22 via PR #4084
 - **Intent:** Make `anvil-checks-ast` language-general and prove it with the
   one Python shape PY-004 already documents as regex-blind.
 - **Expected Outcome:** `anvil-checks-ast` selects tree-sitter language from
@@ -369,8 +369,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ---
 
-GTAO-001, GTAO-002, and GTAO-008 are Ready by in-session operator approval.
-Remaining items stay Draft until the ADR lands (GTAO-003) or the Python
-dispatch proof (GTAO-008) is green (GTAO-009/-010). Do not start GTAO-003 on a
-feature branch before GTAO-001 is Accepted. Do not convert PY-008 to
-`detection: ast`.
+GTAO-001, GTAO-002, and GTAO-008 are Merged 2026-08-22 via PR #4084.
+Remaining items stay Draft: GTAO-003..007 depend on the now-Accepted ADR-127;
+GTAO-009/-010 wait on promotion after the Python dispatch proof. Do not
+convert PY-008 to `detection: ast`.
