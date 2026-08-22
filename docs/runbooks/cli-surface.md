@@ -1236,6 +1236,40 @@ $ anvil dashboard suppressions
 
 ---
 
+## anvil impact
+
+**Class:** User-explicit **Purpose:** Open an interactive boundary/impact graph
+of the current repository — the crate-level used-import graph derived from the
+warm graph snapshot, with drill-down into a crate's direct neighbourhood or its
+internal module graph. **When to use:** To read the repository's real dependency
+structure (imports actually used, not Cargo declarations), scope the blast
+radius of a change, or orient in an unfamiliar codebase.
+
+**Synopsis:** `anvil impact`
+
+**Flags:** none beyond the global set. `--json` prints the crate-level graph as
+one JSON document; `--no-tui` (or a non-interactive stdout) prints a text
+summary. Keyboard: arrows select, `enter` drills into a neighbourhood, `i` into
+a crate's internals, `z` zooms to read a dense graph, `+`/`-`/`0`/`f` zoom,
+`esc` backs out, `q` quits.
+
+The view is read-only and needs a warm graph snapshot, which appears after the
+anvil daemon has scanned the repository; without one (or with a graph too large
+to lay out) the surface names the state on screen instead of rendering an empty
+canvas.
+
+**Exit codes:** 0 (success), 1 (error)
+
+**Examples:**
+
+```
+$ anvil impact
+$ anvil impact --json
+$ anvil impact --no-tui
+```
+
+---
+
 ## anvil new
 
 **Class:** Setup **Purpose:** Scaffold a new project from a template. **When to

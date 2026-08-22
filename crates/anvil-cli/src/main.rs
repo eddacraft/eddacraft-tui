@@ -266,6 +266,8 @@ enum Commands {
     Welcome(commands::welcome::WelcomeArgs),
     /// Initialise anvil configuration for a project.
     Init(commands::init::InitArgs),
+    /// Open an interactive boundary/impact graph of this repository (crate-level used imports from the warm graph snapshot, with drill-down into a crate's neighbourhood or internals).
+    Impact(commands::impact::ImpactArgs),
     /// Show local-only weekly activity insights.
     Insights(commands::insights::InsightsArgs),
     /// Query the local command-invocation usage log (dev-investment views).
@@ -406,6 +408,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
+        Commands::Impact(_) => "impact",
         Commands::Insights(_) => "insights",
         Commands::Kindling(_) => "kindling",
         Commands::Telemetry(_) => "telemetry",
@@ -1436,6 +1439,7 @@ fn main() -> ExitCode {
         Some(Commands::Tutorial(args)) => commands::tutorial::run(args, &cli.global),
         Some(Commands::Welcome(args)) => commands::welcome::run(args, &cli.global),
         Some(Commands::Init(args)) => commands::init::run(args, &cli.global),
+        Some(Commands::Impact(args)) => commands::impact::run(args, &cli.global),
         Some(Commands::Insights(args)) => commands::insights::run(args, &cli.global),
         Some(Commands::Kindling(args)) => commands::kindling::run(args, &cli.global),
         Some(Commands::Telemetry(args)) => commands::telemetry::run(args, &cli.global),

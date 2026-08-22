@@ -14,8 +14,12 @@ animate-core = { workspace = true }
 # json-render: anvil-tui hosts the Anvil-domain catalogue, the .anvil/ data
 # context, and the spec-rendering dashboard surface (ADR-054, TUIDASH).
 # big-text: the JOURNEY-008 first-success celebration banner (BigBanner).
-eddacraft-tui = { workspace = true, features = ["big-text", "json-render"] }
+# flow: the IMPV-001 impact view's graph rendering (TUIN-014).
+eddacraft-tui = { workspace = true, features = ["big-text", "json-render", "flow"] }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+# impact view (IMPV-001): decode the warm ADR-069 graph snapshot for the
+# crate-level used-import graph and per-crate internals.
+anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 serde_json = { workspace = true }

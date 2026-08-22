@@ -1,0 +1,282 @@
+//! Impact view (IMPV-001): interactive boundary/impact graph of the current
+//! repository, rendered with `eddacraft-tui`'s `flow` feature over the warm
+//! graph-cache snapshot.
+//!
+//! Read lenses only in this first pass: crate-level used-import graph, a
+//! crate's direct neighbourhood, and a crate's internal module graph. The
+//! surface is keyboard-driven (the shared surface loop is key-only today);
+//! intent capture and the policy boundaries view are later IMPV items.
+
+pub mod data;
+pub mod render;
+
+use std::cell::RefCell;
+
+use eddacraft_tui::flow::{self, Flow, raw};
+use eddacraft_tui::keyboard::Action;
+use eddacraft_tui::theme::EddaCraftTheme;
+
+pub use data::{ImpactDataError, ImpactGraph};
+
+/// One level of the drill-down stack.
+#[derive(Clone, PartialEq, Eq)]
+pub enum ImpactView {
+    /// Every crate-level edge.
+    All,
+    /// Direct neighbourhood of one crate.
+    Focus(String),
+    /// Internal module graph of one crate.
+    Internals(String),
+}
+
+impl ImpactView {
+    fn name(&self) -> String {
+        match self {
+            Self::All => "all".into(),
+            Self::Focus(n) => n.clone(),
+            Self::Internals(n) => format!("{n} internals"),
+        }
+    }
+}
+
+/// Impact surface state: either a loaded graph with a drill-down stack, or a
+/// named degraded state.
+pub struct ImpactState {
+    body: ImpactBody,
+    status: String,
+    should_quit: bool,
+    wants_back: bool,
+}
+
+enum ImpactBody {
+    Loaded(Box<LoadedImpact>),
+    /// The graph could not be loaded or rendered; the reason is shown on
+    /// screen (IMPV-001: absent, cold, or unrenderable state is named, never
+    /// an empty canvas).
+    Degraded(ImpactDataError),
+}
+
+struct LoadedImpact {
+    graph: ImpactGraph,
+    stack: Vec<ImpactView>,
+    /// The rendered widget; interior-mutable because `Surface::render`
+    /// takes `&self` while rataflow renders through `&mut Flow`.
+    flow: RefCell<Flow>,
+}
+
+impl ImpactState {
+    /// Load the impact graph for `root`; failures become a degraded surface
+    /// rather than an error, so the TUI always opens and always says why.
+    #[must_use]
+    pub fn load(root: &std::path::Path) -> Self {
+        match ImpactGraph::load(root) {
+            Ok(graph) => Self::from_graph(graph),
+            Err(err) => Self {
+                body: ImpactBody::Degraded(err),
+                status: String::new(),
+                should_quit: false,
+                wants_back: false,
+            },
+        }
+    }
+
+    /// Build from an already-loaded graph (fixtures, tests).
+    #[must_use]
+    pub fn from_graph(graph: ImpactGraph) -> Self {
+        let flow = build_flow(&graph.crate_edges);
+        Self {
+            body: ImpactBody::Loaded(Box::new(LoadedImpact {
+                graph,
+                stack: vec![ImpactView::All],
+                flow: RefCell::new(flow),
+            })),
+            status: String::new(),
+            should_quit: false,
+            wants_back: false,
+        }
+    }
+
+    /// Breadcrumb naming the current drill position.
+    #[must_use]
+    pub fn breadcrumb(&self) -> String {
+        match &self.body {
+            ImpactBody::Loaded(loaded) => loaded
+                .stack
+                .iter()
+                .map(ImpactView::name)
+                .collect::<Vec<_>>()
+                .join(" › "),
+            ImpactBody::Degraded(_) => "impact".into(),
+        }
+    }
+
+    /// Edges for the current view.
+    #[must_use]
+    pub fn current_edges(&self) -> Vec<(String, String)> {
+        match &self.body {
+            ImpactBody::Loaded(loaded) => match loaded.stack.last() {
+                Some(ImpactView::Focus(f)) => loaded.graph.neighbourhood(f),
+                Some(ImpactView::Internals(k)) => loaded.graph.internals(k),
+                _ => loaded.graph.crate_edges.clone(),
+            },
+            ImpactBody::Degraded(_) => Vec::new(),
+        }
+    }
+
+    pub(crate) fn degraded(&self) -> Option<&ImpactDataError> {
+        match &self.body {
+            ImpactBody::Degraded(e) => Some(e),
+            ImpactBody::Loaded(_) => None,
+        }
+    }
+
+    pub(crate) fn flow(&self) -> Option<&RefCell<Flow>> {
+        match &self.body {
+            ImpactBody::Loaded(loaded) => Some(&loaded.flow),
+            ImpactBody::Degraded(_) => None,
+        }
+    }
+
+    pub(crate) fn status(&self) -> &str {
+        &self.status
+    }
+
+    fn selected(&self) -> Option<String> {
+        match &self.body {
+            ImpactBody::Loaded(loaded) => loaded.flow.borrow().first_selected_node_id(),
+            ImpactBody::Degraded(_) => None,
+        }
+    }
+
+    fn push_view(&mut self, view: ImpactView) {
+        let ImpactBody::Loaded(loaded) = &mut self.body else {
+            return;
+        };
+        if loaded.stack.last() == Some(&view) {
+            return;
+        }
+        let edges = match &view {
+            ImpactView::Focus(f) => loaded.graph.neighbourhood(f),
+            ImpactView::Internals(k) => loaded.graph.internals(k),
+            ImpactView::All => loaded.graph.crate_edges.clone(),
+        };
+        if edges.is_empty() {
+            self.status = format!("{} has nothing to show", view.name());
+            return;
+        }
+        self.status = format!("→ {}", view.name());
+        loaded.stack.push(view);
+        *loaded.flow.borrow_mut() = build_flow(&edges);
+    }
+
+    fn pop_view(&mut self) -> bool {
+        let ImpactBody::Loaded(loaded) = &mut self.body else {
+            return false;
+        };
+        if loaded.stack.len() <= 1 {
+            return false;
+        }
+        loaded.stack.pop();
+        let edges = match loaded.stack.last() {
+            Some(ImpactView::Focus(f)) => loaded.graph.neighbourhood(f),
+            Some(ImpactView::Internals(k)) => loaded.graph.internals(k),
+            _ => loaded.graph.crate_edges.clone(),
+        };
+        *loaded.flow.borrow_mut() = build_flow(&edges);
+        self.status = "back".into();
+        true
+    }
+
+    fn with_flow(&mut self, f: impl FnOnce(&mut Flow)) {
+        if let ImpactBody::Loaded(loaded) = &self.body {
+            f(&mut loaded.flow.borrow_mut());
+        }
+    }
+
+    fn nav(&mut self, direction: raw::Direction) {
+        self.with_flow(|flow| flow.select_node_in_direction(direction));
+        if let Some(sel) = self.selected() {
+            self.status = format!("selected {sel}");
+        }
+    }
+}
+
+fn build_flow(edges: &[(String, String)]) -> Flow {
+    let pairs: Vec<(&str, &str)> = edges
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    // Duplicate-free by construction (BTreeSet-derived); an unexpected
+    // upstream rejection degrades to an empty flow rather than a panic.
+    let mut flow = flow::themed_from_edges(&pairs, &EddaCraftTheme).unwrap_or_else(|_| Flow::new());
+    flow.request_fit_view();
+    flow
+}
+
+impl eddacraft_tui::surface::Surface for ImpactState {
+    fn surface_name(&self) -> &'static str {
+        "Impact"
+    }
+
+    fn help_text(&self) -> &'static str {
+        "↑↓←→ select  enter drill  i internals  z read  +/- zoom  0 1:1  f fit  esc back  q quit"
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        match action {
+            Action::Quit => self.should_quit = true,
+            Action::Up => self.nav(raw::Direction::Up),
+            Action::Down => self.nav(raw::Direction::Down),
+            Action::Left => self.nav(raw::Direction::Left),
+            Action::Right => self.nav(raw::Direction::Right),
+            Action::Select => {
+                if let Some(sel) = self.selected() {
+                    self.push_view(ImpactView::Focus(sel));
+                }
+            }
+            Action::Back | Action::Character('b') => {
+                if !self.pop_view() {
+                    self.wants_back = true;
+                }
+            }
+            Action::Character('i') => {
+                if let Some(sel) = self.selected() {
+                    self.push_view(ImpactView::Internals(sel));
+                }
+            }
+            Action::Character('z') => {
+                if let Some(sel) = self.selected() {
+                    self.with_flow(|flow| flow::zoom_to_read(flow, &sel));
+                    self.status = "zoom 1:1".into();
+                }
+            }
+            Action::Character('+' | '=') => self.with_flow(Flow::zoom_in),
+            Action::Character('-') => self.with_flow(Flow::zoom_out),
+            Action::Character('0') => self.with_flow(Flow::reset_zoom),
+            Action::Character('f') => self.with_flow(Flow::request_fit_view),
+            _ => {}
+        }
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
+    }
+}

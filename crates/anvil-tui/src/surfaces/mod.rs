@@ -7,6 +7,7 @@ pub mod dashboard;
 pub mod doctor;
 pub mod fix_request;
 pub mod gate;
+pub mod impact;
 pub mod init;
 pub mod notifications;
 pub mod onboarding;

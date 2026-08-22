@@ -27,6 +27,7 @@ pub mod gctx;
 pub mod graph_base;
 pub mod hook;
 pub mod hooks;
+pub mod impact;
 pub mod init;
 pub mod insights;
 pub mod intercept;

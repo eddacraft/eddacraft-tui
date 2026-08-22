@@ -93,6 +93,7 @@ const JSON_SURFACES: &[(&str, &str)] = &[
     ("hooks install", "doc"),
     ("hooks status", "doc"),
     ("hooks uninstall", "doc"),
+    ("impact", "doc"),
     ("init", "doc"),
     ("insights", "doc"),
     ("intercept start", "silent"),

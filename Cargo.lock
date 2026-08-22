@@ -1791,6 +1791,7 @@ dependencies = [
  "animate-core",
  "crossterm",
  "dunce",
+ "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-kernel-types",
  "eddacraft-tui",
  "insta",
