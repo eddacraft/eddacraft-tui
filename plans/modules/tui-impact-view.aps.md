@@ -7,9 +7,12 @@
 | ---- | ----- | ------ | -------- |
 | IMPV | —     | Draft  | 0/1      |
 
-**Last reviewed:** 2026-08-21 (created from the `spike-flow` validation spike in
-[PR #4074](https://github.com/eddacraft/anvil-001/pull/4074), branch
-`feat/spike-flow-graph`). No existing module owned this surface: ACTTUI is Done
+**Last reviewed:** 2026-08-22 (created from the `spike-flow` validation spike in
+[PR #4074](https://github.com/eddacraft/anvil-001/pull/4074); findings updated
+from the spike's second pass in
+[PR #4081](https://github.com/eddacraft/anvil-001/pull/4081) — intent layer,
+scriptable CLI surface, and policy boundaries view). No existing module owned
+this surface: ACTTUI is Done
 and scoped to `anvil start` activation, and TUIN explicitly excludes
 "Anvil-internal TUI surface redesign (`crates/anvil-tui/`, `crates/anvil-cli/`)"
 — it owns the shared crate's contract, not its consumers' surfaces. This module
@@ -24,8 +27,9 @@ structure inside a crate, the blast radius of a change — are reachable today o
 through MCP tools, JSON, or prose. This module gives a person the same answers
 interactively, in the terminal they are already in.
 
-The spike (`crates/spike/src/flow.rs`, `spike-flow` bin) settled the two
-questions that would otherwise have to be answered by building:
+The spike (`crates/spike/src/flow.rs`, `spike-flow` bin) settled, across two
+passes (PR #4074, PR #4081), the questions that would otherwise have to be
+answered by building:
 
 1. **Rendering.** `rataflow` 0.1 (node-based flow graphs for ratatui 0.30, MIT,
    `ratatui` + `thiserror` + `rust-sugiyama`; `petgraph`/`indexmap` already
@@ -36,6 +40,35 @@ questions that would otherwise have to be answered by building:
    decoded through `anvil-graph-cache`, is sufficient to derive a crate-level
    graph of **used** imports (not declared Cargo dependencies) plus per-crate
    internal module graphs — with **zero daemon changes**.
+3. **Write-side semantics.** Graph gestures record **intent**, never code
+   mutations: flag-with-note, planned node (renders in the graph before the
+   crate exists), retire-intent (marked, still visible until reality catches
+   up), proposed edge. Intent persists as deterministic JSON (`BTreeMap`
+   serialization; an unparseable file is preserved as `<path>.invalid`, never
+   overwritten) in `.anvil/impact-notes.json` — ADR-073 local runtime state —
+   and is reconciled against the actual graph on every load ("pending" →
+   "now real ✓", "still present" → "gone ✓"). The same store is scriptable
+   (`--flag`/`--unflag`/`--plan`/`--retire`/`--propose` with `--note`;
+   `--report` is deterministic and always exit 0), so agents, CI, and the TUI
+   share one intent surface.
+4. **Boundary lens.** A policy file mirroring anvil-architecture's layer model
+   (member patterns + `depends_on`, most-specific-match precedence: exact
+   beats prefix, longer prefix beats shorter) supports both `⚠` violation
+   reporting over actual used-import edges and a **boundaries view** drawing
+   each layer as a titled rataflow parent-container box — members gridded
+   inside, layers stacked dependents-above-dependencies, violating edges
+   animated. Key layout finding: do **not** compose containers with Sugiyama.
+   The dependency lens (Sugiyama, "what depends on what") and the boundary
+   lens (policy-driven geometry, "is everything where it belongs") are two
+   views one keypress apart, sharing selection and intent state. The
+   productised version reads the real policy engine, not a sidecar file.
+
+Terminal-lifecycle gotchas the productisation inherits: `ratatui::run` does not
+enable mouse capture (the shell layer must own it, with release on every exit
+path); `request_fit_view()` is deferred to the next render, so programmatic
+zoom before the first frame is silently overridden; semantic zoom hides labels
+when zoomed out, which is what makes zoom-to-read necessary; rataflow's default
+zoom clamp (0.5–2.0) caps how far fit-view can zoom out on large graphs.
 
 What remains is productisation: turning a spike binary into a surface in
 `crates/anvil-tui/` that a user can open against their own repository, with the
@@ -61,9 +94,15 @@ surfaces already hold.
 
 ## Out of Scope
 
-- Persisting proposed edges. The spike's session-only edge editing proves the
-  interaction; writing a proposed dependency edge back to architecture rules or
-  the graph is a separate decision with its own authority question.
+- Graduating intent beyond local state. The spike persists flags, planned
+  nodes, retire-intent, and proposed edges to `.anvil/impact-notes.json`
+  (gitignored, ADR-073) and proves the reconcile-against-reality loop; what
+  graduates to a **shared or committed** intent surface — and whether a
+  proposed edge ever feeds architecture rules — is a separate decision with
+  its own authority question.
+- Reading the real policy engine for the boundary lens. The spike's sidecar
+  policy file proves the view; wiring it to the actual policy/architecture
+  engine is part of productisation design, not more spike work.
 - New graph substrate, new daemon RPC surface, or changes to the ADR-069
   snapshot format.
 - Promoting a graph widget into `eddacraft-tui` behind an off-by-default feature
@@ -123,13 +162,16 @@ surfaces already hold.
 - **Files:** `crates/anvil-tui/`, `crates/anvil-cli/`, `Cargo.toml`,
   `ACKNOWLEDGEMENTS.md`
 - **Dependencies:** —
-- **Confidence:** medium — rendering and data source are both spike-proven; the
-  open questions are the entry-point shape (own command vs panel in an existing
-  surface), whether the snapshot is read in-process or over the daemon, and how
-  large a graph the layout stays usable on.
+- **Confidence:** medium-high — rendering, data source, write-side intent
+  semantics, and the two-lens view split (Sugiyama dependency lens vs
+  policy-driven boundary lens) are all spike-proven; the open questions are
+  the entry-point shape (own command vs panel in an existing surface), whether
+  the snapshot is read in-process or over the daemon, and how large a graph
+  the layout stays usable on.
 - **Risks:** A repo whose graph is an order of magnitude larger than anvil's own
-  may exceed what Sugiyama layout renders usefully in a terminal; the degraded
-  state has to be designed, not discovered. `rataflow` is a 0.1 dependency — the
+  may exceed what Sugiyama layout renders usefully in a terminal (the boundary
+  lens is policy-driven geometry and degrades differently); the degraded state
+  has to be designed, not discovered. `rataflow` is a 0.1 dependency — the
   exact pin and a shipped-crate attribution entry are load-bearing, and an
   upstream break is a real maintenance cost this module accepts on the consumer
   side before any `eddacraft-tui` promotion is considered.
