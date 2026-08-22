@@ -109,9 +109,9 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
-DOCRB-008, and DOCRB-011 are Merged. DOCRB-009 is the next readiness candidate
-now that all of its dependencies are Merged, but it remains Draft and is not
-authorised for implementation. DOCRB-010 also remains Draft.
+DOCRB-008, and DOCRB-011 are Merged. DOCRB-009 is In Progress under its
+approved 35-path enforcement plan including thirteen triggered
+freshness/review metadata closeouts. DOCRB-010 remains Draft.
 
 ## Success Criteria
 
@@ -507,7 +507,7 @@ authorised for implementation. DOCRB-010 also remains Draft.
 
 ### DOCRB-009: Activate mandatory diagram review and render/freshness enforcement
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Convert the proven advisory rule into enforceable, change-scoped
   maintenance checks without burdening unrelated changes.
 - **Expected Outcome:** The root agent contract and contributor workflow require
@@ -515,14 +515,52 @@ authorised for implementation. DOCRB-010 also remains Draft.
   Mermaid rendering, Draw.io/SVG parity, declared-upstream freshness, and
   affected-change classification are tested; fixtures prove relevant changes
   fail when diagrams drift and irrelevant changes pass without waiver noise.
-- **Scope:** `AGENTS.md`, documentation governance, docs-check surfaces, CI
-  change classification, fixture tests
+- **Files:** `AGENTS.md`, `CONTRIBUTING.md`,
+  `docs/guides/documentation-governance.md`,
+  `docs/guides/architecture-diagrams.md`, `docs/README.md`,
+  `docs/architecture/README.md`, `docs/architecture/docs-delivery.md`,
+  `docs/architecture/overview.md`,
+  `docs/architecture/trust-and-deployment-boundaries.md`,
+  `docs/governance/tags-catalogue.md`, `docs/guides/README.md`,
+  `docs/guides/adapters/README.md`, `docs/guides/testing.md`,
+  `docs/reviews/README.md`,
+  `docs/reviews/shipped-codebase-review-checklist.md`,
+  `apps/docs-shell/ARCHITECTURE.md`,
+  `plans/specs/2026-08-19-anvil-docs-definition-layer.md`, `package.json`,
+  `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
+  `scripts/docs/check-diagram-impact.mjs`,
+  `scripts/docs/check-diagram-impact.test.mjs`,
+  `scripts/docs/docs-check.mjs`, `scripts/docs/docs-check.test.sh`,
+  `scripts/ci/classify-changes.sh`,
+  `scripts/ci/classify-changes.test.sh`,
+  `scripts/ci/integration-validation.test.sh`,
+  `scripts/validate/local.sh`, `scripts/validate/local.test.sh`,
+  `.github/actions/detect-changes/action.yml`, `.github/workflows/ci.yml`,
+  `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
+  `plans/execution/DOCRB-009.actions.md`, and
+  `plans/reviews/2026-08-21-docrb-009-diagram-enforcement.md`
+- **Scope:** Mandatory agent/contributor disposition contract; one pinned
+  Mermaid CLI 11.16.0 root development dependency and only its required
+  Puppeteer build allowance; one composed diagram-impact docs-check surface;
+  one routing signal through the existing trusted classifier, local validator,
+  and Docs Lint workers; fixture tests; current-item lifecycle; action plan;
+  thirteen triggered freshness/review metadata closeouts; evidence. The
+  approved ceiling is 35 paths.
 - **Non-scope:** Release gating beyond existing documentation checks or
-  administrator/policy bypasses
+  administrator/policy bypasses; DOCRB-010; new or rewritten diagrams; public
+  IA, content, or navigation; Draw.io exporter/checker changes; DOCFRESH
+  mechanics or baseline changes; PR-body parsing; a new CI job or required
+  status; generated indexes without changed output; product runtime code
 - **Dependencies:** DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
   DOCRB-008
 - **Confidence:** medium
-- **Validation:** `pnpm test:docs-check && pnpm docs:check && pnpm aps:active-lint`
+- **Validation:** `node --test scripts/docs/check-diagram-impact.test.mjs &&
+  pnpm test:docs-check && pnpm docs:check && pnpm docs:public:diagrams &&
+  pnpm docs:owed --since <exact-base> --fail-on-owed &&
+  pnpm test:ci-classify && pnpm test:validate-local &&
+  pnpm test:ci-integration && pnpm format:check && pnpm lint:check &&
+  pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json &&
+  git diff --check`
 
 ### DOCRB-010: Independently verify the documentation re-baseline
 

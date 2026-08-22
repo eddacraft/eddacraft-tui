@@ -1,8 +1,8 @@
 # Internal Engineering Documentation
 
-| Type   | Authority | Owner | Status | Freshness                                                                                                                                                                                                           |
-| ------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-21 for DOCRB-008 against ADR-123, `plans/execution/DOCRB-008.actions.md`, `plans/reviews/2026-08-21-docrb-008-public-ia.md`, `docs/guides/documentation-governance.md`, `docs/`, and `plans/` |
+| Type   | Authority | Owner | Status | Freshness                                                                                                                                                                                                                         |
+| ------ | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-23 for DOCRB-008 and DOCRB-009 against ADR-123, `plans/execution/DOCRB-008.actions.md`, `plans/reviews/2026-08-21-docrb-008-public-ia.md`, `docs/guides/documentation-governance.md`, `docs/`, and `plans/` |
 
 | Upstream                                  | Downstream                                    |
 | ----------------------------------------- | --------------------------------------------- |

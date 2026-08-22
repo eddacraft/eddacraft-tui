@@ -160,6 +160,45 @@ mixed=$(run_case mixed docs/guides/testing.md packages/anvil-core/src/index.ts c
 assert_json_contains "${mixed}" '.pathClasses | index("mixed")' 'mixed path class'
 assert_json_contains "${mixed}" '.warnings | index("mixed-change-set")' 'mixed warning emitted'
 
+diagram_source=$(run_case diagram-source crates/anvil-kernel/src/watch.rs)
+assert_json_contains "${diagram_source}" '.requiredChecks | index("diagram-impact")' 'architecture-relevant source requires diagram impact'
+
+diagram_owner=$(run_case diagram-owner crates/anvil-kernel/ARCHITECTURE.md)
+assert_json_contains "${diagram_owner}" '.requiredChecks | index("diagram-impact")' 'diagram owner requires diagram impact'
+
+diagram_tool=$(run_case diagram-tool scripts/docs/check-diagram-impact.mjs)
+assert_json_contains "${diagram_tool}" '.requiredChecks | index("diagram-impact")' 'diagram checker requires its own surface'
+
+council_plan_owner=$(run_case council-plan-owner plans/specs/2026-08-19-anvil-docs-definition-layer.md)
+assert_json_contains "${council_plan_owner}" '.requiredChecks | index("diagram-impact")' 'governed plan-spec owner requires diagram impact'
+
+council_vercel=$(run_case council-vercel tools/scripts/vercel-ignore-build.sh)
+assert_json_contains "${council_vercel}" '.requiredChecks | index("diagram-impact")' 'declared Vercel upstream requires diagram impact'
+
+council_dashboard=$(run_case council-dashboard docs/guides/local-dashboard.md)
+assert_json_contains "${council_dashboard}" '.requiredChecks | index("diagram-impact")' 'declared dashboard upstream requires diagram impact'
+
+council_public=$(run_case council-public docs/public/anvil/overview.md)
+assert_json_contains "${council_public}" '.requiredChecks | index("diagram-impact")' 'declared public-doc upstream requires diagram impact'
+
+council_plan_module=$(run_case council-plan-module plans/modules/open-spec-adapter.aps.md)
+assert_json_contains "${council_plan_module}" '.requiredChecks | index("diagram-impact")' 'declared plan-module upstream requires diagram impact'
+
+council_generator=$(run_case council-generator scripts/docs/generate-anvil-public-reference.mjs)
+assert_json_contains "${council_generator}" '.requiredChecks | index("diagram-impact")' 'declared generator upstream requires diagram impact'
+
+council_cargo=$(run_case council-cargo Cargo.toml)
+assert_json_contains "${council_cargo}" '.requiredChecks | index("diagram-impact")' 'declared Cargo upstream requires diagram impact'
+
+council_adapter=$(run_case council-adapter docs/guides/adapters/README.md)
+assert_json_contains "${council_adapter}" '.requiredChecks | index("diagram-impact")' 'declared adapter-guide upstream requires diagram impact'
+
+deleted_upstream=$(run_case deleted-upstream plans/modules/open-spec-adapter.aps.md)
+assert_json_contains "${deleted_upstream}" '.requiredChecks | index("diagram-impact")' 'deleted declared upstream remains routed to diagram impact'
+
+unrelated_guide=$(run_case unrelated-guide docs/guides/testing.md)
+assert_json_contains "${unrelated_guide}" '.requiredChecks | index("diagram-impact")' 'broad cheap routing defers unrelated-guide relevance to the semantic checker'
+
 unknown=$(run_case unknown nx.json)
 assert_json_contains "${unknown}" '.pathClasses | index("unknown")' 'unknown path class'
 assert_json_contains "${unknown}" '.requiredChecks | index("typecheck")' 'unknown fails closed with typecheck'

@@ -1,19 +1,19 @@
 # Architecture Diagram Maintenance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                   |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-22 against `scripts/docs/lib/public-diagrams.mjs`: the Draw.io embed now lives on `<metadata id="anvil-drawio-source">` so 1KB image-size probes can read width/height. Prior 2026-08-21 for DOCRB-008 against ADR-123, the public-diagram scripts, both production Docusaurus configs, and `docs/guides/documentation-governance.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-23 against `scripts/docs/lib/public-diagrams.mjs`: the Draw.io embed now lives on `<metadata id="anvil-drawio-source">` so 1KB image-size probes can read width/height. Also reviewed for DOCRB-009 against ADR-123, `scripts/docs/check-diagram-impact.mjs`, `scripts/ci/classify-changes.sh`, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs`, `package.json`, both production Docusaurus configs, and `docs/guides/documentation-governance.md` |
 
-| Upstream                                                                                                                                                                                                                                                                                                                                                                                                        | Downstream                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| ADR-123, `docs/guides/documentation-governance.md`, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs`, `scripts/docs/export-public-diagram.mjs`, `scripts/docs/lib/public-diagrams.mjs`, `apps/anvil-docs-private/docusaurus.config.ts`, `apps/docs-public/docusaurus.config.ts` | Architecture diagram reviews and PR hygiene |
+| Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| ADR-123, `docs/guides/documentation-governance.md`, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `scripts/docs/check-diagram-impact.mjs`, `scripts/ci/classify-changes.sh`, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs`, `scripts/docs/export-public-diagram.mjs`, `scripts/docs/lib/public-diagrams.mjs`, `package.json`, `apps/anvil-docs-private/docusaurus.config.ts`, `apps/docs-public/docusaurus.config.ts` | Architecture diagram reviews and PR hygiene |
 
 This guide covers diagram format and maintenance procedure. The durable contract
 is ADR-123. Documentation governance owns the
 [change-impact trigger and exemptions](documentation-governance.md#change-impact-review)
 and the
 [component documentation standard](documentation-governance.md#component-documentation-standard);
-`AGENTS.md` carries only a thin advisory link to that authority.
+`AGENTS.md` carries only a thin mandatory link to that authority.
 
 ## Inventory authority
 
@@ -72,8 +72,10 @@ depicted nodes, edges, boundaries, states, flow, user workflow, or lifecycle
 change. Otherwise, record the diagram as unaffected with a brief reason. A
 documentation update may still be required when the diagram is unaffected.
 
-Until DOCRB-009 this review is **advisory**. Do not fail CI for a missing
-diagram update under ADR-123.
+This review is mandatory. `pnpm validate:changed` runs the diff-scoped
+diagram-impact check for routed changes. A declared upstream change must update
+its owning diagram document; an unaffected disposition still records a brief
+reason in the change evidence.
 
 ## How to update
 
@@ -83,7 +85,8 @@ diagram update under ADR-123.
    for local internals; `docs/architecture/**` for cross-system views).
 2. Name the concern the diagram owns. Link important nodes to source paths in
    the adjacent prose.
-3. Preview locally with a Mermaid-aware editor or `npx @mermaid-js/mermaid-cli`.
+3. Run `pnpm docs:check`. Its `diagram-impact` surface renders live Mermaid
+   fences with the repository-pinned Mermaid CLI 11.16.0.
 4. Commit alongside the code change that prompted the update.
 5. Do not copy a central view into a component doc. Link instead.
 

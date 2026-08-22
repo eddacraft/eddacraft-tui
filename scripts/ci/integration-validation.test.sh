@@ -11,6 +11,7 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 ci_workflow="${repo_root}/.github/workflows/ci.yml"
 security_workflow="${repo_root}/.github/workflows/security.yml"
+detect_action="${repo_root}/.github/actions/detect-changes/action.yml"
 
 assert_contains() {
   local file="$1"
@@ -136,6 +137,26 @@ job_block_excludes() {
   fi
 }
 
+step_block_contains() {
+  local step="$1"
+  local needle="$2"
+  awk -v marker="      - name: ${step}" -v needle="${needle}" '
+    $0 == marker { inside = 1; next }
+    inside && /^      - name:/ { inside = 0 }
+    inside && index($0, needle) { found = 1 }
+    END { exit (found ? 0 : 1) }
+  ' "${ci_workflow}"
+}
+
+step_block_excludes() {
+  local step="$1"
+  local needle="$2"
+  if step_block_contains "${step}" "${needle}"; then
+    echo "expected step '${step}' in ${ci_workflow} not to contain: ${needle}" >&2
+    exit 1
+  fi
+}
+
 for need in detect-changes docs-lint-corpus docs-lint-tooling; do
   job_block_contains docs-lint "- ${need}" || {
     echo "expected docs-lint aggregator to depend on ${need}" >&2
@@ -170,6 +191,25 @@ job_block_contains docs-lint-corpus 'check-docs-owed.mjs' || {
   echo "expected docs-lint-corpus to run the owed-docs gate" >&2
   exit 1
 }
+job_block_contains docs-lint-corpus 'check-diagram-impact.mjs --since "${base}"' || {
+  echo "expected docs-lint-corpus to run the diagram-impact gate" >&2
+  exit 1
+}
+step_block_contains 'Check diagram impact for this change' '! git cat-file -e "${base}^{commit}"' || {
+  echo "expected diagram-impact base validation to reject an invalid commit" >&2
+  exit 1
+}
+step_block_contains 'Check diagram impact for this change' '::error::Cannot determine diagram-impact diff base' || {
+  echo "expected invalid diagram-impact base selection to fail loudly" >&2
+  exit 1
+}
+step_block_contains 'Check diagram impact for this change' 'exit 2' || {
+  echo "expected invalid diagram-impact base selection to fail closed" >&2
+  exit 1
+}
+step_block_excludes 'Check diagram impact for this change' 'HEAD~1'
+assert_contains "${detect_action}" 'diagram-impact-required:'
+assert_contains "${ci_workflow}" 'diagram-impact-required: ${{ steps.changes.outputs.diagram-impact-required }}'
 
 # Pin the required-check name and fail-closed aggregator. A rename or an
 # `if` that drops `always()` / worker failure would skip-satisfy the

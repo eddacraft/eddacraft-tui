@@ -1,8 +1,8 @@
 # Documentation delivery
 
-| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                         |
-| ----- | ------------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-22 against the live docs-shell entitlement path, renderer boundaries, content sources, deployment wiring, and build watches |
+| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                                                                                                                             |
+| ----- | ------------- | --------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-23 against the live docs-shell entitlement path, renderer boundaries, content sources, deployment wiring, and build watches; reviewed after the DOCRB-009 metadata update to `apps/docs-shell/ARCHITECTURE.md`; topology and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                                                                                       | Downstream                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

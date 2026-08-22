@@ -125,10 +125,16 @@ warnings=()
 
 if ((${#paths[@]} == 0)); then
   add_unique warnings 'no-changed-paths'
+else
+  # DOCRB-009: route every trusted non-empty change set through the one cheap
+  # diagram-impact signal. The semantic checker owns declared-upstream
+  # matching, so shell routing cannot drift from documentation metadata.
+  add_unique required_checks 'diagram-impact'
 fi
 
 for path in "${paths[@]}"; do
   matched=false
+
   case "${path}" in
     docs/* | README.md | CONTRIBUTING.md | AGENTS.md | CHANGELOG.md | plans/*.md | plans/**/*.md | *.md)
       add_unique path_classes 'docs'

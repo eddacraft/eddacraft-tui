@@ -20,6 +20,9 @@ outputs:
   required-checks:
     description: 'JSON array of required checks from the shared classifier'
     value: ${{ steps.filter.outputs.required-checks }}
+  diagram-impact-required:
+    description: 'true if diagram impact validation is required'
+    value: ${{ steps.filter.outputs.diagram-impact-required }}
   markdownlint-required:
     description: 'true if markdown lint is required'
     value: ${{ steps.filter.outputs.markdownlint-required }}
@@ -101,7 +104,8 @@ runs:
               echo "source-changed=true" >> "$GITHUB_OUTPUT"
               echo "e2e-changed=true" >> "$GITHUB_OUTPUT"
               echo "rust-changed=true" >> "$GITHUB_OUTPUT"
-              echo 'required-checks=["markdownlint","format","lint","typecheck","unit-tests","workflow-lint","shell-syntax","script-fixtures","dependency-audit","opa-test","regal","infra-static-check","release-dry-run","platform-smoke","cargo-fmt","cargo-clippy","cargo-check","cargo-test"]' >> "$GITHUB_OUTPUT"
+              echo 'required-checks=["diagram-impact","markdownlint","format","lint","typecheck","unit-tests","workflow-lint","shell-syntax","script-fixtures","dependency-audit","opa-test","regal","infra-static-check","release-dry-run","platform-smoke","cargo-fmt","cargo-clippy","cargo-check","cargo-test"]' >> "$GITHUB_OUTPUT"
+              echo "diagram-impact-required=true" >> "$GITHUB_OUTPUT"
               echo "markdownlint-required=true" >> "$GITHUB_OUTPUT"
               echo "format-required=true" >> "$GITHUB_OUTPUT"
               echo "lint-required=true" >> "$GITHUB_OUTPUT"
@@ -128,7 +132,8 @@ runs:
             echo "source-changed=true" >> "$GITHUB_OUTPUT"
             echo "e2e-changed=true" >> "$GITHUB_OUTPUT"
             echo "rust-changed=true" >> "$GITHUB_OUTPUT"
-            echo 'required-checks=["markdownlint","format","lint","typecheck","unit-tests","workflow-lint","shell-syntax","script-fixtures","dependency-audit","opa-test","regal","infra-static-check","release-dry-run","platform-smoke","cargo-fmt","cargo-clippy","cargo-check","cargo-test"]' >> "$GITHUB_OUTPUT"
+            echo 'required-checks=["diagram-impact","markdownlint","format","lint","typecheck","unit-tests","workflow-lint","shell-syntax","script-fixtures","dependency-audit","opa-test","regal","infra-static-check","release-dry-run","platform-smoke","cargo-fmt","cargo-clippy","cargo-check","cargo-test"]' >> "$GITHUB_OUTPUT"
+            echo "diagram-impact-required=true" >> "$GITHUB_OUTPUT"
             echo "markdownlint-required=true" >> "$GITHUB_OUTPUT"
             echo "format-required=true" >> "$GITHUB_OUTPUT"
             echo "lint-required=true" >> "$GITHUB_OUTPUT"
@@ -201,6 +206,7 @@ runs:
         CODE_CHANGED=true
         SOURCE_CHANGED=false
         RUST_CHANGED=false
+        DIAGRAM_IMPACT_REQUIRED=false
         MARKDOWNLINT_REQUIRED=false
         FORMAT_REQUIRED=false
         LINT_REQUIRED=false
@@ -231,6 +237,9 @@ runs:
         # harness instead of deferring the break to the integration push.
         if has_check e2e; then
           E2E_CHANGED=true
+        fi
+        if has_check diagram-impact; then
+          DIAGRAM_IMPACT_REQUIRED=true
         fi
         if has_check markdownlint; then
           MARKDOWNLINT_REQUIRED=true
@@ -288,6 +297,7 @@ runs:
         echo "e2e-changed=$E2E_CHANGED" >> "$GITHUB_OUTPUT"
         echo "rust-changed=$RUST_CHANGED" >> "$GITHUB_OUTPUT"
         echo "required-checks=$(jq -c '.requiredChecks' <<<"${classification}")" >> "$GITHUB_OUTPUT"
+        echo "diagram-impact-required=$DIAGRAM_IMPACT_REQUIRED" >> "$GITHUB_OUTPUT"
         echo "markdownlint-required=$MARKDOWNLINT_REQUIRED" >> "$GITHUB_OUTPUT"
         echo "format-required=$FORMAT_REQUIRED" >> "$GITHUB_OUTPUT"
         echo "lint-required=$LINT_REQUIRED" >> "$GITHUB_OUTPUT"

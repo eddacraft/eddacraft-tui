@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../modules/docs-rebaseline.aps.md) | Accepted | 2026-08-19 — operator-approved after design review |
+| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../modules/docs-rebaseline.aps.md) | Accepted | 2026-08-22 — operator-approved design retained after review against the DOCRB-009 documentation-governance contract; diagrams unchanged |
 
 | Upstream | Downstream |
 | -------- | ---------- |

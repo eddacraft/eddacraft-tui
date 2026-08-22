@@ -1,12 +1,12 @@
 # Contributing to anvil
 
-| Type              | Authority | Owner  | Status | Freshness                                                                               |
-| ----------------- | --------- | ------ | ------ | --------------------------------------------------------------------------------------- |
-| Contributor guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-16 against `docs/policies/release-cadence.md` and worktree policy |
+| Type              | Authority | Owner | Status | Freshness                                                                                                                                                                            |
+| ----------------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Contributor guide | Advisory  | DOCRB | Live   | Last reviewed 2026-08-21 for DOCRB-009 against `AGENTS.md`, `docs/guides/documentation-governance.md`, `scripts/docs/check-diagram-impact.mjs`, and `scripts/ci/classify-changes.sh` |
 
-| Upstream                                                             | Downstream                  |
-| -------------------------------------------------------------------- | --------------------------- |
-| `docs/guides/worktree-policy.md`, `docs/policies/release-cadence.md` | Contributors and PR authors |
+| Upstream                                                                                                                                                                                                | Downstream                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `AGENTS.md`, `docs/guides/documentation-governance.md`, `docs/guides/worktree-policy.md`, `docs/policies/release-cadence.md`, `scripts/docs/check-diagram-impact.mjs`, `scripts/ci/classify-changes.sh` | Contributors and PR authors |
 
 Thank you for your interest in contributing to anvil! This guide will help you
 get started.
@@ -195,6 +195,15 @@ testing guidelines, including:
 5. **Offer or perform local cleanup** once the PR is opened, merged, abandoned,
    or paused with no near-term next action.
 
+### Documentation and diagram impact
+
+Before submitting, apply the mandatory
+[change-impact review](docs/guides/documentation-governance.md#change-impact-review).
+A triggered change updates the authoritative document or diagram, or records a
+brief reason why that concern is unaffected. Run `pnpm validate:changed`; the
+shared classifier selects the diff-scoped diagram check only for relevant
+source, owner, governance, and enforcement paths.
+
 ## Branching and Worktrees
 
 This repository uses a main-first model with Worktrunk-managed worktrees for
@@ -237,6 +246,7 @@ See the detailed guides for the full policy:
 - [ ] No lint errors (`pnpm lint`)
 - [ ] TypeScript compiles (`pnpm typecheck`)
 - [ ] Changes are documented if needed
+- [ ] Documentation and diagram impact has an update-or-unaffected disposition
 - [ ] Commit messages are clear and descriptive
 
 ## Project Structure

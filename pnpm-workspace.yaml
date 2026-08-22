@@ -172,6 +172,7 @@ allowBuilds:
   node-pty: true
   nx: true
   protobufjs: true
+  puppeteer: true
   sharp: true
   unrs-resolver: false
 

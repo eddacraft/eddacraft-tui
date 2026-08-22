@@ -89,7 +89,7 @@ trap cleanup EXIT
 detect_paths() {
   case "${mode}" in
     staged)
-      git diff --cached --name-only --diff-filter=ACMR >"${path_file}"
+      git diff --cached --name-only --diff-filter=ACDMR >"${path_file}"
       ;;
     changed)
       local base_ref="${VALIDATE_BASE_REF:-origin/main}"
@@ -99,7 +99,7 @@ detect_paths() {
         echo "could not determine merge-base for ${base_ref}" >&2
         exit 2
       fi
-      git diff --name-only --diff-filter=ACMR "${merge_base}" HEAD >"${path_file}"
+      git diff --name-only --diff-filter=ACDMR "${merge_base}" HEAD >"${path_file}"
       ;;
     full)
       : >"${path_file}"
@@ -170,6 +170,10 @@ else
     case "${check}" in
       markdownlint)
         add_command 'pnpm lint:md'
+        ;;
+      diagram-impact)
+        add_command 'pnpm -s -F @eddacraft/anvil-docs-meta build'
+        add_command "node scripts/docs/check-diagram-impact.mjs --paths-file $(printf '%q' "${path_file}")"
         ;;
       format | cargo-fmt)
         add_command 'pnpm format:check'

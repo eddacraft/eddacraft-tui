@@ -2,7 +2,7 @@
 
 | Type  | Authority | Owner | Status | Freshness                                                                                                                                                         |
 | ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-22 against the architecture overview after the docs-shell entitlement-boundary update; the optional web/docs review scope remains accurate. |
+| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-23 against the architecture overview after the docs-shell entitlement-boundary update; the optional web/docs review scope remains accurate. |
 
 | Upstream                                                                                                                                                                                                                                                                                                 | Downstream                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |

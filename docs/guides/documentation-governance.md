@@ -1,12 +1,12 @@
 # Documentation Governance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                          |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCRB | Live   | Reviewed 2026-08-21 for DOCRB-008 against ADR-123, the source-pinned corpus disposition, component-local successors, and retained central cross-system authorities |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                              |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Reviewed 2026-08-23 for DOCRB-009 against ADR-123, `scripts/docs/check-diagram-impact.mjs`, `scripts/ci/classify-changes.sh`, and the source-pinned corpus disposition |
 
-| Upstream                                                                                                                                                                       | Downstream                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| ADR-123, ADR-119, ADR-122, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `plans/project-context.md`, `plans/aps-rules.md` | `docs/README.md`, `docs/guides/README.md`, `docs/guides/architecture-diagrams.md`, `AGENTS.md` |
+| Upstream                                                                                                                                                                                                                                                  | Downstream                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| ADR-123, ADR-119, ADR-122, `plans/specs/2026-08-16-docs-rebaseline.md`, `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `plans/project-context.md`, `plans/aps-rules.md`, `scripts/docs/check-diagram-impact.mjs`, `scripts/ci/classify-changes.sh` | `docs/README.md`, `docs/guides/README.md`, `docs/guides/architecture-diagrams.md`, `AGENTS.md` |
 
 Documentation is operational knowledge for humans and agents. It exists to make
 engineering behaviour deterministic: what to read, what to trust, what to
@@ -165,10 +165,12 @@ other behaviour change. For generated output, review the upstream contract and
 rendered result; for formatting-only changes, confirm that semantics and diagram
 meaning are unchanged.
 
-This review is **advisory** until DOCRB-009. Do not add a mandatory CI gate or
-fail CI for a missing diagram update under ADR-123 before that item. Reviewers
-may still request an update when a trigger exposes inaccurate authoritative
-documentation.
+This review is mandatory. The shared classifier routes relevant changed paths to
+the diagram-impact check. When a declared upstream changes, the owning diagram
+document must be updated and its affected Mermaid fences must render. When the
+depicted concern is unaffected, record a brief reason in the change evidence;
+the checker does not parse PR prose, so reviewers own the rationale. Public
+Draw.io/SVG source-export parity remains part of `pnpm docs:check`.
 
 ## Diagram policy
 

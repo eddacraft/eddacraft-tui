@@ -42,6 +42,7 @@ jobs:
       e2e-changed: ${{ steps.changes.outputs.e2e-changed }}
       rust-changed: ${{ steps.changes.outputs.rust-changed }}
       required-checks: ${{ steps.changes.outputs.required-checks }}
+      diagram-impact-required: ${{ steps.changes.outputs.diagram-impact-required }}
       markdownlint-required: ${{ steps.changes.outputs.markdownlint-required }}
       format-required: ${{ steps.changes.outputs.format-required }}
       lint-required: ${{ steps.changes.outputs.lint-required }}
@@ -132,6 +133,7 @@ jobs:
     if: |
       always() && (
         needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.diagram-impact-required == 'true' ||
         needs.detect-changes.outputs.markdownlint-required == 'true' ||
         (github.event_name == 'pull_request' && (
           needs.detect-changes.outputs.source-changed == 'true' ||
@@ -169,6 +171,7 @@ jobs:
       - name: Build docs-meta package for docs:check
         if:
           needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.diagram-impact-required == 'true' ||
           needs.detect-changes.outputs.markdownlint-required == 'true' ||
           needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm -F @eddacraft/anvil-docs-meta build
@@ -210,6 +213,24 @@ jobs:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run docs:check
+
+      - name: Check diagram impact for this change
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.diagram-impact-required == 'true'
+        env:
+          DIAGRAM_IMPACT_PR_BASE: ${{ github.event.pull_request.base.sha }}
+          DIAGRAM_IMPACT_PUSH_BASE: ${{ github.event.before }}
+        run: |
+          base="${DIAGRAM_IMPACT_PR_BASE:-${DIAGRAM_IMPACT_PUSH_BASE:-}}"
+          if [ -z "${base}" ] ||
+             [ "${base}" = "0000000000000000000000000000000000000000" ] ||
+             ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "::error::Cannot determine diagram-impact diff base: '${base:-<unset>}' is not a usable commit."
+            exit 2
+          fi
+          echo "Checking diagram impact against ${base}"
+          node scripts/docs/check-diagram-impact.mjs --since "${base}"
 
       # ADR-119 / ADR-117: documentation owed by THIS change. `code-changed`
       # (not `source-changed`) so a Rust-only or workflow-only PR that moves a
@@ -335,6 +356,7 @@ jobs:
     if: |
       always() && (
         needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.diagram-impact-required == 'true' ||
         needs.detect-changes.outputs.markdownlint-required == 'true' ||
         github.event_name == 'pull_request'
       )
