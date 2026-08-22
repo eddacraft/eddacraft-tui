@@ -198,7 +198,8 @@ small, deterministic pack before Anvil makes broader compliance claims.
   `policies/eval/anvil_baseline_*.rego` emit v1 Finding objects so the
   harness diffs `findings` rather than the pack's `warning` string set.
 - **Files:** `ci/eval/suites.json`, `ci/eval/baseline/history.jsonl`,
-  `ci/eval/README.md`, `policies/eval/anvil_baseline_change_scope.rego`,
+  `ci/eval/README.md`, `ci/eval/inputs/`,
+  `policies/eval/anvil_baseline_change_scope.rego`,
   `policies/eval/anvil_baseline_sensitive_paths.rego`,
   `crates/anvil-policy/src/eval/port.rs`,
   `crates/anvil-cli/src/commands/policy/starter_proof.rs`

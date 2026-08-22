@@ -10,7 +10,8 @@ check (EVALCI-005 / EVALCI-006).
   loads via `--suites`. Suites: the first-wave arch-boundary policy plus
   CPACKS-006 projections of the shipped `anvil-baseline` pack members
   (`change_scope` and `sensitive_paths`) with hermetic inputs under
-  `policies/eval/`.
+  `ci/eval/inputs/` (not `policies/eval/`, so `opa test` does not merge
+  PolicyInput JSON as data documents).
 - `baseline/history.jsonl` — the committed one-record-per-suite baseline the CI
   check diffs each run against (`--store ci/eval/baseline`). Append-only NDJSON
   in Anvil's canonical eval-record schema.

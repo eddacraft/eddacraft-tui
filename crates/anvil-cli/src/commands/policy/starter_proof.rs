@@ -580,9 +580,76 @@ fn starter_policy_pack_eval_wrappers_lockstep_messages() {
 
     assert_eq!(
         pack_msgs, wrap_msgs,
-        "eval wrapper messages must match the shipped pack warnings"
+        "change_scope eval wrapper messages must match the shipped pack warnings"
     );
     assert!(!pack_msgs.is_empty(), "soft-threshold fixture must fire");
+
+    let mut sensitive_input = PolicyInput::default();
+    sensitive_input.diff.changed_files = vec![".github/workflows/ci.yml".into()];
+    let pack_src = std::fs::read_to_string(root.join(
+        "crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/sensitive_paths.rego",
+    ))
+    .expect("read pack sensitive_paths");
+    let wrap_src = std::fs::read_to_string(
+        root.join("policies/eval/anvil_baseline_sensitive_paths.rego"),
+    )
+    .expect("read sensitive_paths eval wrapper");
+
+    let mut pack_engine = Engine::new(EngineConfig::default()).expect("engine");
+    anvil_policy_engine::builtins::register_all(&mut pack_engine).expect("builtins");
+    pack_engine
+        .add_policy("sensitive_paths.rego", pack_src)
+        .expect("compile pack");
+    let pack_raw = pack_engine
+        .eval(
+            &sensitive_input,
+            "data.anvil.policies.sensitive_paths.warning",
+        )
+        .expect("eval pack")
+        .value
+        .unwrap_or(serde_json::Value::Null);
+    let mut pack_msgs: Vec<String> = pack_raw
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    pack_msgs.sort();
+
+    let mut wrap_engine = Engine::new(EngineConfig::default()).expect("engine");
+    anvil_policy_engine::builtins::register_all(&mut wrap_engine).expect("builtins");
+    wrap_engine
+        .add_policy("wrapper.rego", wrap_src)
+        .expect("compile wrapper");
+    let wrap_raw = wrap_engine
+        .eval(
+            &sensitive_input,
+            "data.anvil.policies.eval.anvil_baseline_sensitive_paths.findings",
+        )
+        .expect("eval wrapper")
+        .value
+        .unwrap_or(serde_json::Value::Null);
+    let mut wrap_msgs: Vec<String> = wrap_raw
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| {
+                    v.get("message")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    wrap_msgs.sort();
+
+    assert_eq!(
+        pack_msgs, wrap_msgs,
+        "sensitive_paths eval wrapper messages must match the shipped pack warnings"
+    );
+    assert!(!pack_msgs.is_empty(), "workflow fixture must fire");
 }
 
 // ── git helper ──────────────────────────────────────────────────────

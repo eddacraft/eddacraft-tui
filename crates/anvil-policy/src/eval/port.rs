@@ -487,7 +487,7 @@ mod tests {
         assert_eq!(
             change_scope.input.as_deref(),
             Some(std::path::Path::new(
-                "policies/eval/anvil_baseline_change_scope.input.json"
+                "ci/eval/inputs/anvil_baseline_change_scope.json"
             ))
         );
 
@@ -506,9 +506,38 @@ mod tests {
         assert_eq!(
             sensitive_paths.input.as_deref(),
             Some(std::path::Path::new(
-                "policies/eval/anvil_baseline_sensitive_paths.input.json"
+                "ci/eval/inputs/anvil_baseline_sensitive_paths.json"
             ))
         );
+
+        let history = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("ci/eval/baseline/history.jsonl");
+        let hist_raw = std::fs::read_to_string(&history).unwrap_or_else(|e| {
+            panic!("reading committed eval baseline `{}`: {e}", history.display())
+        });
+        let records: Vec<serde_json::Value> = hist_raw
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| serde_json::from_str(l).expect("history.jsonl line parses"))
+            .collect();
+        for suite in &suites {
+            let matches: Vec<_> = records
+                .iter()
+                .filter(|r| r["suite"] == suite.name)
+                .collect();
+            assert_eq!(
+                matches.len(),
+                1,
+                "exactly one baseline record for suite `{}`",
+                suite.name
+            );
+            assert_eq!(
+                matches[0]["policy"],
+                suite.policy.to_string_lossy().as_ref()
+            );
+            assert_eq!(matches[0]["query"], suite.query);
+        }
     }
 
     #[test]

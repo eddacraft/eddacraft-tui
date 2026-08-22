@@ -9,12 +9,12 @@
     "name": "anvil_baseline_change_scope",
     "policy": "policies/eval/anvil_baseline_change_scope.rego",
     "query": "data.anvil.policies.eval.anvil_baseline_change_scope.findings",
-    "input": "policies/eval/anvil_baseline_change_scope.input.json"
+    "input": "ci/eval/inputs/anvil_baseline_change_scope.json"
   },
   {
     "name": "anvil_baseline_sensitive_paths",
     "policy": "policies/eval/anvil_baseline_sensitive_paths.rego",
     "query": "data.anvil.policies.eval.anvil_baseline_sensitive_paths.findings",
-    "input": "policies/eval/anvil_baseline_sensitive_paths.input.json"
+    "input": "ci/eval/inputs/anvil_baseline_sensitive_paths.json"
   }
 ]
