@@ -5,7 +5,7 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| IMPV | —     | Draft  | 0/1      |
+| IMPV | —     | Ready  | 0/1      |
 
 **Last reviewed:** 2026-08-22 (created from the `spike-flow` validation spike in
 [PR #4074](https://github.com/eddacraft/anvil-001/pull/4074); findings updated
@@ -144,7 +144,7 @@ only after the graduation question in Out of Scope is decided.
 
 ### IMPV-001: Interactive impact view in the anvil TUI
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** A person can open an interactive boundary/impact graph of the
   repository they are working in, from the anvil TUI, and navigate from
   crate-level structure down to the internals of one crate.
@@ -182,5 +182,6 @@ only after the graduation question in Out of Scope is decided.
 
 ---
 
-Promoting IMPV-001 to Ready is an operator decision. The spike in PR #4074 is
-validation evidence, not execution authority.
+IMPV-001 was promoted to Ready by the operator on 2026-08-22, with the spike
+(PRs #4074/#4081) as validation evidence and the scope line drawn above: read
+lenses first, intent capture and the boundaries view as later items.
