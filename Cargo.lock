@@ -1827,6 +1827,7 @@ dependencies = [
  "image",
  "insta",
  "lexopt",
+ "rataflow",
  "ratatui",
  "ratatui-image",
  "serde",
