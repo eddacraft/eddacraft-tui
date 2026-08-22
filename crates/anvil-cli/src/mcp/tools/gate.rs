@@ -4,11 +4,13 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use anvil_checks::antipattern::{AntipatternCheckConfig, WarningSeverity, run_antipattern_check};
+use anvil_checks::antipattern::{
+    AntipatternCheckConfig, WarningSeverity, count_by_severity, run_antipattern_check,
+};
 
 use crate::mcp::tools::shared::{
-    build_warnings_array, collect_relative_files, redact_workspace_root, resolve_workspace_files,
-    validate_workspace_root,
+    build_warnings_array, collect_relative_files, merge_regex_and_ast_warnings,
+    redact_workspace_root, resolve_workspace_files, validate_workspace_root,
 };
 use crate::mcp::validation::DaemonStatus;
 
@@ -122,9 +124,16 @@ fn run_planless_gate(
 
     let started = Instant::now();
     let result = run_antipattern_check(&file_refs, &config, Some(&workspace_str));
+    let ast = anvil_checks_ast::scan_paths(
+        &file_refs,
+        Some(&workspace_str),
+        &anvil_checks_ast::AstScanOptions::default(),
+    );
     let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
 
-    let warnings = build_warnings_array(&result.warnings.warnings);
+    let merged = merge_regex_and_ast_warnings(&result.warnings.warnings, &ast.warnings);
+    let warnings = build_warnings_array(&merged);
+    let summary = count_by_severity(&merged);
 
     Ok(json!({
         "mode": "planless",
@@ -132,7 +141,7 @@ fn run_planless_gate(
         "hasBlockingWarnings": !result.passed,
         "executionTimeMs": elapsed,
         "warnings": warnings,
-        "summary": result.warnings.summary,
+        "summary": summary,
         "workspaceRoot": redact_workspace_root(workspace_path, server_root),
         "backend": "local",
         "daemonStatus": DaemonStatus::NotWired.as_str()

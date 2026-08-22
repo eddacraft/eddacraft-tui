@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-08-18T03:21:54.016Z",
+  "compiled_at": "2026-08-22T03:37:10.635Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -695,7 +695,7 @@
         "**/explain/**"
       ],
       "nudge": "A bare `except:` (or `except ...: pass`) catches `KeyboardInterrupt`,\n`SystemExit`, and ordinary bugs alike, then discards them — the program runs on\nin an unknown state and the real fault is invisible. Catch the narrowest\nexception you can handle and re-raise or log the rest:\n`except ValueError as e: raise ConfigError(...) from e`. If swallowing really is\ncorrect (a top-level daemon guard that logs), suppress with that reason:\n`# @anvil-ignore PY-004 -- top-level guard, logs and continues`.\n\nDetection is line-oriented: a bare `except:` and an inline `except ...: pass`\nare caught, but a named handler whose `pass` sits on the *next* line\n(`except Exception:` then an indented `pass`) is not — that needs block\ncontext this regex tier does not have.",
-      "related": ["PY-006"],
+      "related": ["PY-006", "PY-010"],
       "enabled": true,
       "opt_in": false,
       "family_name": "Python Reliability",
@@ -862,6 +862,39 @@
       ],
       "nudge": "These Python surfaces turn a string (or a byte stream) into process or object\nexecution. Prefer:\n\n- `subprocess.run([...], check=True)` with an argument list (no shell)\n- `yaml.safe_load` (preferred) rather than `yaml.load`\n- a typed serializer (pydantic, msgspec) instead of `pickle` for untrusted input\n\nDetection is lexical: any `yaml.load(` call is flagged, including calls that\npass a safe loader on the same line — the regex tier does not distinguish\nloader arguments. Prefer `yaml.safe_load` and suppress with a reason only when\na reviewed explicit-loader form is intentional.\n\n`shell=True` is flagged even when the command is a static list today, because\nthe flag is the hazard — it reopens command injection as soon as the command is\nbuilt by concatenation. Suppress with a reason if the call is genuinely\nhard-coded and reviewed.",
       "related": ["PY-008", "AP-008"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Python Reliability",
+      "category": "error-handling",
+      "explanation": "- A blanket `# type: ignore` (no error code) silences *every* type error on the\n  line forever, including ones introduced by a later edit — the code that was\n  wrong stays hidden. `# type: ignore[assignment]` silences only the named\n  failure and lets new ones surface.\n- A bare `# noqa` disables all lint rules on the line; a typo or a genuine new\n  defect on that line will never be reported again.\n- `# pylint: disable` turns the linter off for a rule (or all rules) with no\n  inline justification of why the warning is wrong here.\n- A bare `except:` (or `except Exception: pass`) catches `KeyboardInterrupt`,\n  `SystemExit`, `MemoryError`, and ordinary bugs alike, then discards them —\n  the program limps on in an unknown state and the real fault is invisible.\n- `from module import *` pulls an unknown set of names into the namespace,\n  shadowing locals unpredictably and defeating static analysis of what is used.\n- A shipped `print()` is unstructured output with no level, timestamp, or sink\n  control; in a service it pollutes stdout and is invisible to the log pipeline.\n- `Any` switches off type checking for the value it annotates and everything\n  derived from it, so the type checker can no longer catch misuse downstream.",
+      "suggestion": "Add the specific code to the suppression so it silences only the real failure\n(`# type: ignore[arg-type]`, `# noqa: E501`, `# pylint: disable=broad-except`);\ncatch the narrowest exception you can handle and re-raise or log the rest\n(`except ValueError:` over bare `except:`); import the names you use explicitly\ninstead of `*`; use the `logging` module instead of `print()`; give the value a\nreal type instead of `Any`. When a pattern is genuinely correct, suppress the\nfinding with a reason: `# @anvil-ignore PY-004 -- top-level daemon guard, logs\nand re-raises`.",
+      "definition_ref": "patterns/python-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": ["deferred-debt", "guardrail-suppression"]
+    },
+    {
+      "id": "PY-010",
+      "family": "python-reliability",
+      "title": "named except handler whose body is only pass",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 5,
+      "targets": ["source"],
+      "detection": {
+        "type": "ast",
+        "ast_query": "(except_clause) @target"
+      },
+      "file_extensions": [".py"],
+      "allowlist": [
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/tests/**",
+        "**/conftest.py",
+        "**/explain/**"
+      ],
+      "nudge": "A named `except` handler whose suite is only `pass` swallows the error on the\nnext line — the shape regex PY-004 cannot see. Catch the narrowest exception\nyou can handle and re-raise or log the rest. If swallowing really is correct,\nsuppress with that reason: `# @anvil-ignore PY-010 -- top-level guard, logs\nand continues`.\n\nBare `except:` and inline `except Exception: pass` stay PY-004 (save-time\nregex). This rule is the gate-time companion for the indented-`pass` form.",
+      "related": ["PY-004"],
       "enabled": true,
       "opt_in": false,
       "family_name": "Python Reliability",
@@ -1601,7 +1634,8 @@
         "PY-006",
         "PY-007",
         "PY-008",
-        "PY-009"
+        "PY-009",
+        "PY-010"
       ],
       "related": ["deferred-debt", "guardrail-suppression"],
       "tensions": []

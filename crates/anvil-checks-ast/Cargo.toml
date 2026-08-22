@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "Anvil AST-aware anti-pattern detection (gate-time only) — tree-sitter Rust catalogue. ADR-071: a terminal command-path crate the resident intercept daemon does NOT link, keeping tree-sitter off the save-time hot path (ADR-064)."
+description = "Anvil AST-aware anti-pattern detection (gate-time only) — tree-sitter Rust and Python catalogues. ADR-071/ADR-127: a terminal command-path crate the resident intercept daemon does NOT link, keeping tree-sitter off the save-time hot path (ADR-064)."
 
 [lib]
 name = "anvil_checks_ast"
@@ -21,6 +21,9 @@ anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 # grammar-version source of truth shared with the kernel.
 tree-sitter = { workspace = true }
 tree-sitter-rust = { workspace = true }
+# ADR-127 / GTAO-008: Python dispatch uses the same workspace pin the kernel
+# already carries. Direct dep — not anvil-kernel (watcher stack).
+tree-sitter-python = { workspace = true }
 # Per-rule allowlist glob matching (same `glob` crate anvil-architecture uses).
 glob = "0.3"
 serde = { workspace = true }

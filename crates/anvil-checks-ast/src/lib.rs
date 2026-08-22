@@ -1,4 +1,4 @@
-//! AST-aware anti-pattern detection for Rust, run at gate-time only.
+//! AST-aware anti-pattern detection for Rust and Python, run at gate-time only.
 //!
 //! ADR-071: the resident intercept daemon links `anvil-checks` (regex,
 //! parser-free) on the save-time hot path and must not link tree-sitter
@@ -60,14 +60,48 @@ pub struct AstScanOutput {
     pub init_errors: Vec<String>,
 }
 
-fn rust_language() -> tree_sitter::Language {
-    tree_sitter_rust::LANGUAGE.into()
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScanLanguage {
+    Rust,
+    Python,
+}
+
+impl ScanLanguage {
+    fn from_path(path: &str) -> Option<Self> {
+        let ext = std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())?;
+        match ext.to_ascii_lowercase().as_str() {
+            "rs" => Some(Self::Rust),
+            "py" | "pyi" => Some(Self::Python),
+            _ => None,
+        }
+    }
+
+    fn from_pattern(cp: &CompiledPattern) -> Option<Self> {
+        let exts = cp.file_extensions.as_deref().unwrap_or(&[]);
+        if exts.iter().any(|e| e == ".py" || e == ".pyi") {
+            Some(Self::Python)
+        } else if exts.iter().any(|e| e == ".rs") || exts.is_empty() {
+            Some(Self::Rust)
+        } else {
+            None
+        }
+    }
+
+    fn ts(self) -> tree_sitter::Language {
+        match self {
+            Self::Rust => tree_sitter_rust::LANGUAGE.into(),
+            Self::Python => tree_sitter_python::LANGUAGE.into(),
+        }
+    }
 }
 
 struct LoadedRule {
     cp: CompiledPattern,
     query: Query,
     kind: AstRuleKind,
+    language: ScanLanguage,
     /// Allowlist globs compiled once at load (not per file × rule).
     allowlist: Vec<glob::Pattern>,
 }
@@ -98,7 +132,6 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
         };
     };
 
-    let language = rust_language();
     let mut rules = Vec::new();
     // Same surfacing for a registry that loaded with warnings (e.g. a
     // configured registry path that does not exist, falling back to the
@@ -124,7 +157,14 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
             ));
             continue;
         };
-        match Query::new(&language, ast_query) {
+        let Some(language) = ScanLanguage::from_pattern(cp) else {
+            init_errors.push(format!(
+                "AST rule {} has no recognised file_extensions for language dispatch",
+                cp.id
+            ));
+            continue;
+        };
+        match Query::new(&language.ts(), ast_query) {
             Ok(query) => {
                 if query.capture_index_for_name("target").is_none() {
                     init_errors.push(format!("AST rule {} query has no `@target` capture", cp.id));
@@ -139,6 +179,7 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
                     cp: cp.clone(),
                     query,
                     kind,
+                    language,
                     allowlist,
                 });
             }
@@ -153,8 +194,8 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
 }
 
 /// Scan already-read file bytes (gate-time core). `files` pairs each path with
-/// its UTF-8 source bytes; non-`.rs` files and files a rule's allowlist covers
-/// are skipped.
+/// its UTF-8 source bytes; files without a supported AST language and files a
+/// rule's allowlist covers are skipped.
 #[must_use]
 pub fn scan_bytes(
     files: &[(&str, &[u8])],
@@ -178,24 +219,28 @@ pub fn scan_bytes(
 
     // One parser for the whole pass — `Parser::parse` is reusable across files
     // (council perf finding); a fresh allocation per file is wasted work.
+    // Language is switched when the extension changes (ADR-127 dispatch).
     let mut parser = tree_sitter::Parser::new();
-    if parser.set_language(&rust_language()).is_err() {
-        return AstScanOutput {
-            init_errors,
-            ..AstScanOutput::default()
-        };
-    }
+    let mut current_language: Option<ScanLanguage> = None;
 
     for (path, bytes) in files {
-        if !path_has_rust_extension(path) {
+        let Some(language) = ScanLanguage::from_path(path) else {
             continue;
+        };
+        if current_language != Some(language) {
+            if parser.set_language(&language.ts()).is_err() {
+                continue;
+            }
+            current_language = Some(language);
         }
         let Ok(content) = std::str::from_utf8(bytes) else {
             continue;
         };
         let relative = normalise_path(path, workspace_root);
         files_scanned += 1;
-        scan_one(&mut parser, &relative, content, &rules, &mut warnings);
+        let file_rules: Vec<&LoadedRule> =
+            rules.iter().filter(|r| r.language == language).collect();
+        scan_one(&mut parser, &relative, content, &file_rules, &mut warnings);
     }
 
     sort_warnings(&mut warnings);
@@ -217,7 +262,7 @@ pub fn scan_paths(
 ) -> AstScanOutput {
     let owned: Vec<(String, Vec<u8>)> = files
         .iter()
-        .filter(|p| path_has_rust_extension(p))
+        .filter(|p| ScanLanguage::from_path(p).is_some())
         .filter_map(|p| std::fs::read(p).ok().map(|b| ((*p).to_string(), b)))
         .collect();
     let refs: Vec<(&str, &[u8])> = owned
@@ -231,7 +276,7 @@ fn scan_one(
     parser: &mut tree_sitter::Parser,
     path: &str,
     content: &str,
-    rules: &[LoadedRule],
+    rules: &[&LoadedRule],
     out: &mut Vec<Warning>,
 ) {
     let Some(tree) = parser.parse(content, None) else {
@@ -355,6 +400,10 @@ fn eval(kind: AstRuleKind, ctx: &PredCtx) -> bool {
                 && !predicates::path_is_test_target(ctx.path)
                 && !predicates::in_cfg_test(ctx.target, ctx.src)
         }
+        AstRuleKind::ExceptBlockPass => {
+            predicates::except_block_is_only_pass(ctx.target)
+                && !predicates::path_is_test_target(ctx.path)
+        }
         AstRuleKind::TodoMacro => {
             // Shares RS-002's `macro_invocation` query; dispatch on the macro
             // name and exclude test scaffolding the same way. Moving RS-005 off
@@ -427,11 +476,12 @@ fn parse_skip_warning(path: &str, reason: &str) -> Warning {
         severity: WarningSeverity::Info,
         confidence: Confidence::Low,
         title: "AST rules skipped (parse error)".to_string(),
-        message: format!("Skipped Rust AST anti-pattern rules for {path}: {reason}"),
+        message: format!("Skipped AST anti-pattern rules for {path}: {reason}"),
         explanation: "The AST tier could not build a clean parse tree for this \
                       file, so its AST rules were skipped to avoid false findings."
             .to_string(),
-        suggestion: "Check the file parses with the pinned tree-sitter-rust grammar.".to_string(),
+        suggestion: "Check the file parses with the pinned tree-sitter grammar for its language."
+            .to_string(),
         nudge: None,
         location: Location {
             file: path.to_string(),
@@ -484,12 +534,6 @@ fn rule_is_allowlisted(path: &str, rule: &LoadedRule) -> bool {
     rule.allowlist
         .iter()
         .any(|g| g.matches(path) || g.matches(basename))
-}
-
-fn path_has_rust_extension(path: &str) -> bool {
-    std::path::Path::new(path)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
 }
 
 fn normalise_path(path: &str, workspace_root: Option<&str>) -> String {

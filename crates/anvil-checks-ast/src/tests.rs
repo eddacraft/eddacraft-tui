@@ -652,6 +652,30 @@ fn non_rust_files_are_skipped() {
 }
 
 #[test]
+fn py010_fires_on_named_except_pass_block() {
+    let src = "try:\n    f()\nexcept Exception:\n    pass\n";
+    assert!(fires("src/app.py", src, "PY-010"));
+}
+
+#[test]
+fn py010_silent_on_bare_except() {
+    let src = "try:\n    f()\nexcept:\n    pass\n";
+    assert!(!fires("src/app.py", src, "PY-010"));
+}
+
+#[test]
+fn py010_silent_when_handler_logs() {
+    let src = "try:\n    f()\nexcept Exception:\n    logging.exception('x')\n";
+    assert!(!fires("src/app.py", src, "PY-010"));
+}
+
+#[test]
+fn py010_silent_on_test_path() {
+    let src = "try:\n    f()\nexcept Exception:\n    pass\n";
+    assert!(!fires("tests/test_app.py", src, "PY-010"));
+}
+
+#[test]
 fn parse_error_emits_skip_diagnostic_not_findings() {
     let src = "fn run( { let n = parse().unwrap(); \n"; // unbalanced
     let out = scan("src/lib.rs", src);

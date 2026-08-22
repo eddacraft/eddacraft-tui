@@ -1061,6 +1061,67 @@ fn mcp_serve_stdio_tools_call_check_returns_clean_payload_for_clean_files() {
 }
 
 #[test]
+fn mcp_serve_stdio_tools_call_check_includes_ast_rs001_on_unwrap() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let src = workspace.path().join("src");
+    std::fs::create_dir_all(&src).expect("src dir exists");
+    std::fs::write(
+        src.join("lib.rs"),
+        "pub fn run() { let n = parse().unwrap(); }\n",
+    )
+    .expect("unwrap fixture is writable");
+
+    let mut child = spawn_mcp_server_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_check",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "files": ["src/lib.rs"]
+                    }
+                }
+            })
+        )
+        .expect("failed to send check tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after check tool call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("check tool response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    let payload = parse_tool_payload(&parsed);
+    let ids: Vec<&str> = payload["warnings"]
+        .as_array()
+        .expect("warnings array")
+        .iter()
+        .filter_map(|w| w["id"].as_str())
+        .collect();
+    assert!(
+        ids.contains(&"RS-001"),
+        "MCP anvil_check must merge AST findings; got {ids:?}"
+    );
+}
+
+#[test]
 fn mcp_serve_stdio_tools_call_check_rejects_workspace_outside_server_root() {
     let server_root = tempfile::tempdir().expect("server root exists");
     let foreign_workspace = tempfile::tempdir().expect("foreign workspace exists");

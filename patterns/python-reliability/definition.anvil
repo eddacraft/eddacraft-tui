@@ -6,7 +6,7 @@ category: error-handling
 targets: [source]
 related: [deferred-debt, guardrail-suppression]
 tensions: []
-rules: [PY-001, PY-002, PY-003, PY-004, PY-005, PY-006, PY-007, PY-008, PY-009]
+rules: [PY-001, PY-002, PY-003, PY-004, PY-005, PY-006, PY-007, PY-008, PY-009, PY-010]
 ---
 
 ## What It Is

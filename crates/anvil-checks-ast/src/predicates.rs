@@ -29,6 +29,8 @@ pub enum AstRuleKind {
     SecretDeserialize,
     /// RS-008 — `.clone()` inside a syntactic loop.
     CloneInLoop,
+    /// PY-010 — named `except` handler whose block body is only `pass`.
+    ExceptBlockPass,
 }
 
 /// Predicate table (ADR-071 §3/§4): rule id → (kind, expected `ast_query`).
@@ -66,6 +68,7 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
             AstRuleKind::CloneInLoop,
             "(call_expression function: (field_expression field: (field_identifier) @method)) @target",
         )),
+        "PY-010" => Some((AstRuleKind::ExceptBlockPass, "(except_clause) @target")),
         _ => None,
     }
 }
@@ -74,8 +77,39 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
 #[must_use]
 pub fn known_rule_ids() -> &'static [&'static str] {
     &[
-        "RS-001", "RS-002", "RS-003", "RS-004", "RS-005", "RS-006", "RS-007", "RS-008",
+        "RS-001", "RS-002", "RS-003", "RS-004", "RS-005", "RS-006", "RS-007", "RS-008", "PY-010",
     ]
+}
+
+/// True when `node` is a Python `except_clause` that names an exception type
+/// and whose suite contains only `pass` (the PY-004 regex-blind shape).
+///
+/// Bare `except:` has no type child and is left to regex PY-004. A handler
+/// whose body logs, re-raises, or does more than `pass` is clean.
+#[must_use]
+pub(crate) fn except_block_is_only_pass(node: Node<'_>) -> bool {
+    if node.kind() != "except_clause" {
+        return false;
+    }
+    let mut saw_type = false;
+    let mut block: Option<Node<'_>> = None;
+    let mut walk = node.walk();
+    for child in node.children(&mut walk) {
+        match child.kind() {
+            "block" => block = Some(child),
+            "except" | ":" | "as" | "comment" => {}
+            _ => saw_type = true,
+        }
+    }
+    if !saw_type {
+        return false;
+    }
+    let Some(block) = block else {
+        return false;
+    };
+    let mut named = block.walk();
+    let kinds: Vec<&str> = block.named_children(&mut named).map(|n| n.kind()).collect();
+    kinds.len() == 1 && kinds[0] == "pass_statement"
 }
 
 #[must_use]
@@ -98,12 +132,21 @@ pub(crate) fn node_text<'a>(node: Node, src: &'a [u8]) -> &'a str {
 #[must_use]
 pub(crate) fn path_is_test_target(path: &str) -> bool {
     let norm = path.replace('\\', "/");
+    let file = norm.rsplit('/').next().unwrap_or(&norm);
+    let is_py = std::path::Path::new(file)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("py"));
+    let stem = std::path::Path::new(file)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
     norm.split('/')
         .any(|seg| matches!(seg, "tests" | "benches" | "examples"))
         || matches!(
-            norm.rsplit('/').next(),
-            Some("tests.rs" | "test.rs" | "bench.rs" | "build.rs")
+            file,
+            "tests.rs" | "test.rs" | "bench.rs" | "build.rs" | "conftest.py"
         )
+        || (is_py && (stem.starts_with("test_") || stem.ends_with("_test")))
 }
 
 /// True when `node` (or any ancestor) is gated by a `#[cfg(test)]`-style

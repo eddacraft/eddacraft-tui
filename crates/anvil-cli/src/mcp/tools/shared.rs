@@ -505,6 +505,25 @@ fn handle_real_path(_handle: &File) -> Option<PathBuf> {
     None
 }
 
+/// Merge regex-tier and AST-tier findings into one deterministic order
+/// (ADR-071 §7 / ADR-127). Same `(file, line, column, id)` sort the CLI
+/// check/gate merge uses.
+#[must_use]
+pub fn merge_regex_and_ast_warnings(regex: &[Warning], ast: &[Warning]) -> Vec<Warning> {
+    let mut merged = Vec::with_capacity(regex.len() + ast.len());
+    merged.extend(regex.iter().cloned());
+    merged.extend(ast.iter().cloned());
+    merged.sort_by(|a, b| {
+        a.location
+            .file
+            .cmp(&b.location.file)
+            .then_with(|| a.location.line.cmp(&b.location.line))
+            .then_with(|| a.location.column.cmp(&b.location.column))
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    merged
+}
+
 /// Build the `warnings` array shared by `anvil_check` and `anvil_gate`.
 pub fn build_warnings_array(warnings: &[Warning]) -> Vec<Value> {
     warnings

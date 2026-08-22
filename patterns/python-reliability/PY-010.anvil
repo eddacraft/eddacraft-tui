@@ -1,0 +1,32 @@
+---
+id: PY-010
+type: rule
+family: python-reliability
+title: 'named except handler whose body is only pass'
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 5
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: ast
+  ast_query: '(except_clause) @target'
+
+related: [PY-004]
+enabled: true
+opt_in: false
+---
+
+A named `except` handler whose suite is only `pass` swallows the error on the
+next line — the shape regex PY-004 cannot see. Catch the narrowest exception
+you can handle and re-raise or log the rest. If swallowing really is correct,
+suppress with that reason: `# @anvil-ignore PY-010 -- top-level guard, logs
+and continues`.
+
+Bare `except:` and inline `except Exception: pass` stay PY-004 (save-time
+regex). This rule is the gate-time companion for the indented-`pass` form.

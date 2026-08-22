@@ -1409,6 +1409,7 @@ dependencies = [
  "tempfile",
  "tracing",
  "tree-sitter",
+ "tree-sitter-python",
  "tree-sitter-rust",
  "workspace-hack",
 ]

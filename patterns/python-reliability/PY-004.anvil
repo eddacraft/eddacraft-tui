@@ -17,7 +17,7 @@ detection:
   type: regex
   pattern: '\bexcept\s*:|\bexcept[^:]*:\s*pass\b'
 
-related: [PY-006]
+related: [PY-006, PY-010]
 enabled: true
 opt_in: false
 ---
