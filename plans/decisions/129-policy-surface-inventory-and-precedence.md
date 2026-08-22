@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted 2026-08-23 (operator, PR #4103)
 
 ## Date
 

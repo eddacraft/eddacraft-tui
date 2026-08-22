@@ -133,9 +133,9 @@ They still gate the items below them.
 
 ### POLFIT-001: Policy surface inventory and precedence decision
 
-- **Status:** In Progress — 2026-08-23. Decision record ADR-129 in flight.
-  This remains the blocking gate for POLFIT-003, -004, -005, -006, and -008,
-  which stay Draft until it lands.
+- **Status:** Merged 2026-08-23 via PR #4103. Ancestor of `origin/main`
+  (`b9bde3976`). ADR-129 is the decision record. POLFIT-003, -004, -005, -006,
+  and -008 remain Draft until separately promoted.
 - **Intent:** Decide, in one record, every surface from which a user can change
   policy behaviour, which are supported product surfaces, and what wins when
   two disagree.
