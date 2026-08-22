@@ -5,11 +5,12 @@
 
 | ID     | Owner      | Status      |
 | ------ | ---------- | ----------- |
-| ATTRIB | joshuaboys | In Progress |
+| ATTRIB | joshuaboys | Done |
 
-**Last reviewed:** 2026-08-22 — ATTRIB-025 Merged via PR #4080. Kit pin remains
-`v1.2.2` until the operator cut. ATTRIB-027..-038 remain Released/Shipped via
-that tag.
+**Last reviewed:** 2026-08-22 — kit `v1.3.0` published. ATTRIB-025
+Released/Shipped via that tag (PR #4080, source tag
+`acknowledgements-starter-v1.3.0` → `8782fb256`). ATTRIB-027..-038 remain
+Released/Shipped via `v1.2.2`.
 
 **Last reviewed (history):** 2026-08-14 — Node cold-adopt of shipped `v1.2.0`
 against `@eddacraft/nxrust` confirmed the generator core and failed the
@@ -41,8 +42,8 @@ the items whose deliverable is inside the released kit — ATTRIB-018, -019, -02
 and -022 — read **Released/Shipped via kit `v1.1.0`**. ATTRIB-021 (a CI matrix
 change) and ATTRIB-023 (recorded decisions, no kit code) stay **Merged**,
 because nothing of theirs is in the subtree the release publishes. ATTRIB-027..-038
-read **Released/Shipped via kit `v1.2.2`**. Module stays **In Progress** until
-ATTRIB-025 is Released/Shipped with the next kit tag.
+read **Released/Shipped via kit `v1.2.2`**. ATTRIB-025 reads **Released/Shipped
+via kit `v1.3.0`**. Module is **Done**.
 
 Design contracts:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md),
@@ -454,7 +455,11 @@ every defect above reproduced.
 
 ### ATTRIB-025: Dispatcher reports its own kit version
 
-- **Status:** Merged 2026-08-22 via PR #4080
+- **Status:** Released/Shipped via kit `v1.3.0` (2026-08-22) — merged via PR
+  #4080; source tag `acknowledgements-starter-v1.3.0` → `8782fb256`; mirror tag
+  `v1.3.0` → `1430a70d`; GitHub Release published, not draft, not pre-release,
+  `releases/latest` resolves to it. Release run 32547346610 succeeded including
+  the mirror tag push.
 - **Intent:** A vendored or symlinked copy of the kit can say which version it
   is, without the reader resolving the symlink by hand.
 - **Expected Outcome:** `generate-acknowledgements.sh --version` prints the
@@ -467,7 +472,11 @@ every defect above reproduced.
   covered by a case in the kit self-tests.
 - **Files:** `tools/starters/acknowledgements/generate-acknowledgements.sh`,
   `tools/starters/acknowledgements/tests/version-changelog-consistency.sh`,
-  `tools/starters/acknowledgements/README.md`.
+  `tools/starters/acknowledgements/README.md`,
+  `tools/starters/acknowledgements/VERSION`,
+  `tools/starters/acknowledgements/CHANGELOG.md`,
+  `tools/starters/acknowledgements/MIRROR-README.md`,
+  `tools/starters/acknowledgements/AGENTS.md`.
 - **Confidence:** high — the symlink resolution it depends on already exists.
 
 ### ATTRIB-024: Cut the release that publishes the hardening
