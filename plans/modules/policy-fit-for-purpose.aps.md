@@ -157,9 +157,11 @@ They still gate the items below them.
 
 ### POLFIT-002: Policy authoring on-ramp decision
 
-- **Status:** In Progress — 2026-08-23 on `docs/polfit-002-authoring-on-ramp`.
-  Deliverable is ADR-130 (Proposed). Ready authorised the decision record, not
+- **Status:** Merged 2026-08-23 via PR #4104 — ADR-130 Proposed on
+  `origin/main` @ `b977d7f8e`. Deliverable is the decision record, not
   implementing what it decides.
+- **Evidence:** `pnpm adr:check` exit 0; `pnpm aps:active-lint` exit 0;
+  `pnpm docs:check` exit 0. Ancestor of `origin/main`.
 - **Intent:** Decide how a team creates a working policy without hand-writing
   Rego, and sequence the competing candidates so only one is promoted first.
 - **Expected Outcome:** A decision record picks an ordering across the ACTAX
@@ -172,7 +174,8 @@ They still gate the items below them.
 - **Files:** `plans/decisions/130-policy-authoring-on-ramp.md`,
   `plans/decisions/DECISION-LOG.md`,
   `plans/decisions/040-rust-policy-engine-regorus.md`,
-  `plans/decisions/108-policy-authoring-lint-and-agent-guidance.md`
+  `plans/decisions/108-policy-authoring-lint-and-agent-guidance.md`,
+  `docs/guides/opa-policy-testing.md`
 - **Validation:** `pnpm adr:check && pnpm aps:active-lint`
 - **Dependencies:** ADR-108 (Accepted 2026-07-16)
 - **Coordinates with:** POLFIT-001 (non-blocking — see Notes), ACTAX-010..014,
