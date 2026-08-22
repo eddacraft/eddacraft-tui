@@ -66,6 +66,13 @@ ADR-106's agent-client registry. Installed content is readable by the customer;
 it is not secret, but it is not part of the public docs-site build or
 navigation.
 
+## Amendment (2026-08-23, ADR-130)
+
+This contract is the Rego power-user toolchain. It is not the supported
+answer to "how do I write a policy?". The on-ramp is YAML pack source
+([ADR-130](130-policy-authoring-on-ramp.md)). Implementation of this
+contract still begins at OPAE-012.
+
 ## Consequences
 
 - Customers and agents get a supported policy-authoring route without adding

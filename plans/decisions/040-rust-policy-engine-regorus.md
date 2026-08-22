@@ -110,8 +110,11 @@ on both engines. CPACKS's `NOTE(post-rust)` is resolved by this ADR.
 
 Explicit non-decisions, to keep this ADR reviewable:
 
-- **Tier model (OOB / YAML / Rego).** A separate ADR will pin
-  configurative-vs-additive YAML scope. POLENG-Y blocks on it.
+- **Tier model (OOB / YAML / Rego).** Configurative-vs-additive YAML scope
+  for the authoring on-ramp is pinned by [ADR-130](130-policy-authoring-on-ramp.md)
+  (POLFIT-002): v1 YAML is configurative pack source compiling to Rego.
+  POLENG-Y was archived; ACTAX owns the implementation. The
+  intercept/taxonomy DSL remains a later ACTAX slice.
 - **OOB rule catalogue v1.** Owned by POLENG-O work items.
 - **Bundle distribution and signing.** Lives in POLFED; the former OPAE bundle
   references are historical and unaffected by engine choice.

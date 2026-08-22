@@ -120,6 +120,7 @@ These define how Anvil behaves by default. All features must align.
 
 | ADR | Decision | Status |
 |-----|----------|--------|
+| [130](130-policy-authoring-on-ramp.md) | Policy authoring on-ramp: the supported answer to "how do I write a policy?" is configurative YAML that compiles to a pack under `.anvil/policies/` (ADR-040 D-5 pin). Hand-written Rego is the power-user escape hatch (ADR-108). v1 YAML reuses CPOL closed conditions over shipped `PolicyInput` (path globs, change counts); not intercept `on: domain.verb` DSL, not a second pack glob, not a second runtime. First promotable item is ACTAX-010 after that dialect alignment. Interim door is `anvil policy install anvil-baseline` copy. ACTAX-001 and OPAE-013..017 are not the on-ramp. POLFIT-001 pack-surface falsifier still applies | Proposed |
 | [108](108-policy-authoring-lint-and-agent-guidance.md) | Customer agents may cognitively author Rego through a small shipped skill, while Anvil owns deterministic target-aware lint, validation, tests, evaluation, and enforcement; comprehensive agent guidance is generated, embedded, routed on demand through CLI/MCP, and excluded from ambient context and the public docs build | Accepted 2026-07-16 (owner) |
 | [019](019-flags-observability-alignment.md) | Align feature flag telemetry with OBS/Kindling before FLAGS work | Proposed |
 | [022](022-opa-agent-orchestration.md) | OPA Agent orchestration for continuous policy intent translation and explainable guidance | Proposed |
