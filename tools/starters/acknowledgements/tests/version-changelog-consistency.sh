@@ -25,6 +25,10 @@
 #       (`acknowledgements-starter-vX.Y.Z`) is accepted and compared on
 #       its `X.Y.Z` component → exit 0.
 #   7.  A malformed double-prefixed tag (`…-vvX.Y.Z`) → exit 1.
+#   8.  Dispatcher `--version` through a symlink on PATH prints the kit
+#       VERSION (ATTRIB-025).
+#   8b. A copy of the dispatcher with VERSION removed prints `unknown`
+#       at exit 0 (ATTRIB-025).
 #
 # Local invocation:
 #   tools/starters/acknowledgements/tests/version-changelog-consistency.sh
@@ -185,6 +189,49 @@ if [ "$exit7" -eq 0 ]; then
   exit 1
 fi
 echo "ok scenario 7: malformed double-prefixed tag rejected (exit $exit7)"
+
+# ── Scenario 8: dispatcher --version through a symlink on PATH ───────
+DISPATCHER="$SCRIPT_DIR/../generate-acknowledgements.sh"
+if [ ! -x "$DISPATCHER" ]; then
+  echo "error: dispatcher not found or not executable at $DISPATCHER" >&2
+  exit 1
+fi
+path_dir="$fixture_root/bin"
+mkdir -p "$path_dir"
+ln -s "$DISPATCHER" "$path_dir/generate-acknowledgements.sh"
+exit8=0
+out8="$(PATH="$path_dir:$PATH" generate-acknowledgements.sh --version 2>&1)" || exit8=$?
+if [ "$exit8" -ne 0 ]; then
+  echo "fail scenario 8: --version through a PATH symlink exited $exit8: $out8" >&2
+  exit 1
+fi
+if [ "$out8" != "$real_ver" ]; then
+  echo "fail scenario 8: --version printed '$out8', expected kit VERSION '$real_ver'" >&2
+  exit 1
+fi
+echo "ok scenario 8: --version through a PATH symlink prints kit VERSION"
+
+# ── Scenario 8b: dispatcher copy with VERSION removed → unknown ──────
+no_ver_dir="$fixture_root/no-version"
+mkdir -p "$no_ver_dir" "$fixture_root/no-version-bin"
+cp "$DISPATCHER" "$no_ver_dir/generate-acknowledgements.sh"
+chmod +x "$no_ver_dir/generate-acknowledgements.sh"
+ln -s "$no_ver_dir/generate-acknowledgements.sh" \
+  "$fixture_root/no-version-bin/generate-acknowledgements.sh"
+exit8b=0
+out8b="$(
+  PATH="$fixture_root/no-version-bin:$PATH" \
+    generate-acknowledgements.sh --version 2>&1
+)" || exit8b=$?
+if [ "$exit8b" -ne 0 ]; then
+  echo "fail scenario 8b: --version with VERSION absent exited $exit8b: $out8b" >&2
+  exit 1
+fi
+if [ "$out8b" != "unknown" ]; then
+  echo "fail scenario 8b: --version printed '$out8b', expected 'unknown'" >&2
+  exit 1
+fi
+echo "ok scenario 8b: --version with VERSION absent prints unknown (exit 0)"
 
 echo
 echo "version/changelog consistency tests passed: all scenarios green."

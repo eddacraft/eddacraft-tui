@@ -391,6 +391,13 @@ a unified diff so the CI log makes the missing update obvious; the trailing
 message points contributors at the `fixit_command` configured in
 `attribution.toml`.
 
+### `--version`
+
+`generate-acknowledgements.sh --version` prints the kit `VERSION` found beside
+the script after resolving symlinks, so a vendored or `PATH` copy can say which
+release it is. If `VERSION` is missing, it prints `unknown` and still exits 0.
+`expand-licences.sh` and `check-version.sh` do not take this flag.
+
 ### Hand-curated content
 
 Everything above the BEGIN marker and below the END marker is permanent,

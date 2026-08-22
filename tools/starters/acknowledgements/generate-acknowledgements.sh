@@ -31,6 +31,7 @@
 #   generate-acknowledgements.sh --check             # verify without writing; exit 1 on drift
 #   generate-acknowledgements.sh --output <path>     # write to <path> instead of in place
 #   generate-acknowledgements.sh --config <path>     # explicit attribution.toml location
+#   generate-acknowledgements.sh --version            # print kit VERSION (or "unknown")
 #
 # `--check` and `--output` are mutually exclusive.
 #
@@ -45,6 +46,48 @@
 #   2  CLI argument error
 
 set -euo pipefail
+
+# Resolve $0 through symlinks. A consumer may expose the dispatcher via
+# a symlink (e.g. ~/.local/bin/), and a bare `dirname "$0"` would then
+# point at the link's directory, where `drivers/` and `VERSION` do not
+# exist. Plain `readlink` (no -f) keeps this portable to macOS, which
+# lacked `readlink -f` before 12.3.
+resolve_script_path() {
+  local script_path="$0"
+  local link_hops=0
+  local link_target
+  while [ -L "$script_path" ]; do
+    link_hops=$((link_hops + 1))
+    if [ "$link_hops" -gt 40 ]; then
+      echo "error: too many symlink levels resolving $0 (circular symlink?)" >&2
+      exit 1
+    fi
+    link_target="$(readlink "$script_path")"
+    case "$link_target" in
+      /*) script_path="$link_target" ;;
+      *)  script_path="$(dirname "$script_path")/$link_target" ;;
+    esac
+  done
+  printf '%s\n' "$script_path"
+}
+
+# Print VERSION beside the resolved script, or "unknown" if absent.
+# ATTRIB-025: --version must not require attribution.toml or jq.
+print_kit_version() {
+  local script_path script_dir version_file version
+  script_path="$(resolve_script_path)"
+  script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+  version_file="$script_dir/VERSION"
+  version=""
+  if [ -f "$version_file" ]; then
+    version="$(grep -m1 -v '^[[:space:]]*$' "$version_file" | tr -d '[:space:]' || true)"
+  fi
+  if [ -n "$version" ]; then
+    printf '%s\n' "$version"
+  else
+    printf '%s\n' "unknown"
+  fi
+}
 
 # ── CLI parsing ──────────────────────────────────────────────────────
 
@@ -80,8 +123,12 @@ while [ $# -gt 0 ]; do
       esac
       shift 2
       ;;
+    --version)
+      print_kit_version
+      exit 0
+      ;;
     -h|--help)
-      sed -n '2,45p' "$0"
+      sed -n '2,46p' "$0"
       exit 0
       ;;
     *)
@@ -130,25 +177,7 @@ fi
 
 project_root="$(cd "$(dirname "$config_path")" && pwd)"
 
-# Resolve $0 through symlinks before taking dirname: a consumer may
-# expose the dispatcher via a symlink (e.g. ~/.local/bin/), and a bare
-# `dirname "$0"` would then point at the link's directory, where
-# `drivers/` does not exist. Plain `readlink` (no -f) keeps this
-# portable to macOS, which lacked `readlink -f` before 12.3.
-script_path="$0"
-link_hops=0
-while [ -L "$script_path" ]; do
-  link_hops=$((link_hops + 1))
-  if [ "$link_hops" -gt 40 ]; then
-    echo "error: too many symlink levels resolving $0 (circular symlink?)" >&2
-    exit 1
-  fi
-  link_target="$(readlink "$script_path")"
-  case "$link_target" in
-    /*) script_path="$link_target" ;;
-    *)  script_path="$(dirname "$script_path")/$link_target" ;;
-  esac
-done
+script_path="$(resolve_script_path)"
 script_dir="$(cd "$(dirname "$script_path")" && pwd)"
 drivers_dir="${ATTRIB_DRIVERS_DIR:-$script_dir/drivers}"
 

@@ -454,7 +454,7 @@ every defect above reproduced.
 
 ### ATTRIB-025: Dispatcher reports its own kit version
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** A vendored or symlinked copy of the kit can say which version it
   is, without the reader resolving the symlink by hand.
 - **Expected Outcome:** `generate-acknowledgements.sh --version` prints the
