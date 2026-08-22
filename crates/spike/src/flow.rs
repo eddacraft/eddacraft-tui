@@ -5,6 +5,37 @@
 //! an interactive boundary/impact view in the anvil TUI, and proves the warm
 //! graph-cache snapshot can serve as its data source without daemon changes.
 //!
+//! Beyond rendering, this iteration explores the *write side* of an impact
+//! view: what editing the graph should actually mean. Gestures never touch
+//! code — they record **intent**, persisted to `.anvil/impact-notes.json`
+//! (local runtime state per ADR-073), and the view reconciles intent against
+//! reality on every load:
+//!
+//! ```text
+//! gesture            records                reconciliation over time
+//! ─────────────────  ─────────────────────  ─────────────────────────────────
+//! ! flag + note      "why is this here?"    resurfaces until unflagged
+//! n planned node     architecture-to-be     "pending" → "now real ✓"
+//! x retire node      should go away         "still present" → "gone ✓"
+//! drag edge          intended dependency    "pending" → "landed ✓"
+//! ```
+//!
+//! The same store is scriptable for agents and CI:
+//! ```text
+//! spike-flow --flag anvil-spike --note "why is this in the prod graph?"
+//! spike-flow --plan anvil-impact-view --note "IMPV-001"
+//! spike-flow --propose anvil-tui:anvil-impact-view
+//! spike-flow --retire some-crate
+//! spike-flow --report        # deterministic drift report, always exit 0
+//! ```
+//!
+//! `--policy <file>` overlays boundary rules — a crate-level mirror of
+//! anvil-architecture's layer model (member patterns + `depends_on`).
+//! Actual edges that cross layers illegally are reported as `⚠` lines and
+//! counted in the status bar; unassigned crates are never judged. The
+//! productised version would read the real policy engine, and draw each
+//! layer as a rataflow parent-container box (see the Policy section below).
+//!
 //! Usage:
 //! ```text
 //! cargo run -p anvil-spike --bin spike-flow                 # current repo
@@ -23,30 +54,33 @@
 //! click / ↑↓←→ select a node (arrows navigate spatially, Tab cycles)
 //! z            zoom-to-read: centre the selection and snap to 1:1
 //! + / - / 0    zoom in / out / reset to 1:1   (scroll wheel also zooms)
-//! hjkl         pan
-//! Enter        drill into the selected crate's neighbourhood
-//! i            drill into the selected crate's internal module graph
-//! Esc / b      back up one drill level
-//! drag on ●    create a new (proposed) edge between nodes
-//! Delete       remove selected nodes (and their edges) from the model
-//! f            fit view    q  quit
+//! Enter drill · i internals · Esc/b back · hjkl pan · f fit
+//! !            flag the selected node (type a note, Enter; empty = unflag)
+//! n            add a planned node (type a name, Enter)
+//! x / Delete   toggle retire-intent on the selection (un-plans planned nodes)
+//! t            toggle the intent/drift report overlay
+//! drag on ●    propose a dependency edge · q quit
 //! ```
+//!
+//! Node markers: `⚑` flagged · `◌` planned (not yet real) · `✕` retire intent.
+//! Report symbols: `⇢` proposed edge · `⊘` retired edge · `⚠` policy violation.
 //!
 //! `--snapshot [WxH]` renders one frame to a headless buffer and prints it;
 //! `--zoom-read <node>` does the same after centring that node at 1:1.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io;
+use std::path::PathBuf;
 
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event as CrosstermEvent, KeyCode,
 };
-use rataflow::{Background, Flow, FlowEvent, StepEdge, Sugiyama};
-use ratatui::layout::{Constraint, Layout};
+use rataflow::{Background, Flow, FlowEvent, Sugiyama};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Style, Stylize};
 use ratatui::text::Line;
-use ratatui::widgets::Paragraph;
-use serde::Deserialize;
+use ratatui::widgets::{Block, Clear, Paragraph};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 struct GraphFile {
@@ -60,6 +94,14 @@ struct Args {
     fit: bool,
     anvil_snap: Option<String>,
     zoom_read: Option<String>,
+    notes: Option<String>,
+    policy: Option<String>,
+    note: Option<String>,
+    flag: Option<String>,
+    plan: Option<String>,
+    retire: Option<String>,
+    propose: Option<String>,
+    report: bool,
     path: Option<String>,
 }
 
@@ -71,6 +113,14 @@ fn parse_args() -> Args {
         fit: true,
         anvil_snap: None,
         zoom_read: None,
+        notes: None,
+        policy: None,
+        note: None,
+        flag: None,
+        plan: None,
+        retire: None,
+        propose: None,
+        report: false,
         path: None,
     };
     let mut it = std::env::args().skip(1).peekable();
@@ -81,6 +131,14 @@ fn parse_args() -> Args {
             "--no-fit" => args.fit = false,
             "--anvil-snap" => args.anvil_snap = it.next(),
             "--zoom-read" => args.zoom_read = it.next(),
+            "--notes" => args.notes = it.next(),
+            "--policy" => args.policy = it.next(),
+            "--note" => args.note = it.next(),
+            "--flag" => args.flag = it.next(),
+            "--plan" => args.plan = it.next(),
+            "--retire" => args.retire = it.next(),
+            "--propose" => args.propose = it.next(),
+            "--report" => args.report = true,
             "--snapshot" => {
                 // dimensions are optional — only consume the next argument
                 // when it actually parses as WxH, so `--snapshot --zoom-read x`
@@ -100,6 +158,212 @@ fn parse_args() -> Args {
 fn parse_dims(s: &str) -> Option<(u16, u16)> {
     let (w, h) = s.split_once('x')?;
     Some((w.parse().ok()?, h.parse().ok()?))
+}
+
+// ---------------------------------------------------------------------------
+// Intent store: what graph edits *mean* — never code changes, always durable
+// annotations reconciled against the real graph on the next load.
+// ---------------------------------------------------------------------------
+
+/// Edge key helpers: stored as `"from -> to"` so the JSON is greppable.
+fn edge_key(from: &str, to: &str) -> String {
+    format!("{from} -> {to}")
+}
+
+fn split_edge_key(key: &str) -> Option<(&str, &str)> {
+    key.split_once(" -> ")
+}
+
+/// Persistent annotations. `BTreeMap` keeps serialization deterministic:
+/// same intent, same bytes — diffs of the notes file stay reviewable.
+#[derive(Serialize, Deserialize)]
+#[serde(default)]
+struct Intent {
+    version: u32,
+    /// node → note: "why is this here?" questions that should not evaporate.
+    #[serde(default)]
+    flags: BTreeMap<String, String>,
+    /// node → note: architecture that does not exist yet.
+    #[serde(default)]
+    planned: BTreeMap<String, String>,
+    /// node → note: things that should go away.
+    #[serde(default)]
+    retired: BTreeMap<String, String>,
+    /// "from -> to" → note: dependencies that are intended to exist.
+    #[serde(default)]
+    proposed_edges: BTreeMap<String, String>,
+    /// "from -> to" → note: dependencies that should be removed.
+    #[serde(default)]
+    retired_edges: BTreeMap<String, String>,
+}
+
+impl Default for Intent {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            flags: BTreeMap::new(),
+            planned: BTreeMap::new(),
+            retired: BTreeMap::new(),
+            proposed_edges: BTreeMap::new(),
+            retired_edges: BTreeMap::new(),
+        }
+    }
+}
+
+impl Intent {
+    fn load(path: &PathBuf) -> Self {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default()
+    }
+
+    fn save(&self, path: &PathBuf) -> io::Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let mut out = serde_json::to_string_pretty(self).map_err(io::Error::other)?;
+        out.push('\n');
+        std::fs::write(path, out)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.flags.is_empty()
+            && self.planned.is_empty()
+            && self.retired.is_empty()
+            && self.proposed_edges.is_empty()
+            && self.retired_edges.is_empty()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Policy overlay: a crate-level mirror of anvil-architecture's layer model
+// (`Layers`: patterns + depends_on). Loaded from `--policy <file>`:
+//
+// ```json
+// { "layers": {
+//     "engine":  { "members": ["anvil-kernel*", "anvil-graph-cache"],
+//                  "depends_on": ["types"] },
+//     "types":   { "members": ["anvil-kernel-types"], "depends_on": [] }
+// } }
+// ```
+//
+// An edge a → b violates the policy when both endpoints are assigned to
+// layers, the layers differ, and b's layer is not in a's `depends_on`.
+// Unassigned crates are never judged (warnings over blocks, no guessing).
+// The productised version reads the real policy engine instead of a sidecar
+// file; drawing layers as rataflow parent-container boxes is the identified
+// next visual step (needs post-Sugiyama hierarchy positioning).
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, Default)]
+struct Policy {
+    #[serde(default)]
+    layers: BTreeMap<String, PolicyLayer>,
+}
+
+#[derive(Deserialize, Default)]
+struct PolicyLayer {
+    #[serde(default)]
+    members: Vec<String>,
+    #[serde(default)]
+    depends_on: Vec<String>,
+}
+
+impl Policy {
+    fn load(path: &str) -> io::Result<Self> {
+        let raw = std::fs::read_to_string(path)?;
+        serde_json::from_str(&raw).map_err(io::Error::other)
+    }
+
+    /// First layer whose member pattern matches the crate name. Patterns are
+    /// exact names or a trailing-`*` prefix (`anvil-kernel*`).
+    fn layer_of(&self, name: &str) -> Option<&str> {
+        self.layers.iter().find_map(|(layer, def)| {
+            def.members
+                .iter()
+                .any(|p| match p.strip_suffix('*') {
+                    Some(prefix) => name.starts_with(prefix),
+                    None => name == p,
+                })
+                .then_some(layer.as_str())
+        })
+    }
+
+    /// Boundary violations among the given edges, deterministic order.
+    fn violations(&self, edges: &[(String, String)]) -> Vec<String> {
+        let mut out = BTreeSet::new();
+        for (a, b) in edges {
+            let (Some(la), Some(lb)) = (self.layer_of(a), self.layer_of(b)) else {
+                continue;
+            };
+            if la != lb
+                && let Some(def) = self.layers.get(la)
+                && !def.depends_on.iter().any(|d| d == lb)
+            {
+                out.insert(format!("⚠ {la} → {lb}: {a} -> {b} (not allowed by policy)"));
+            }
+        }
+        out.into_iter().collect()
+    }
+}
+
+/// Deterministic drift report: intent vs the actual graph. Always
+/// warnings-over-blocks — this prints, it never fails a build.
+fn reconcile(
+    actual_nodes: &BTreeSet<String>,
+    actual_edges: &[(String, String)],
+    intent: &Intent,
+) -> Vec<String> {
+    let has_edge = |k: &str| {
+        split_edge_key(k).is_some_and(|(f, t)| actual_edges.iter().any(|(a, b)| a == f && b == t))
+    };
+    let mut lines = Vec::new();
+    for (node, note) in &intent.flags {
+        let gone = if actual_nodes.contains(node) {
+            ""
+        } else {
+            " (node no longer in graph)"
+        };
+        lines.push(format!("⚑ {node} — {note}{gone}"));
+    }
+    for (node, note) in &intent.planned {
+        let state = if actual_nodes.contains(node) {
+            "now real ✓"
+        } else {
+            "pending"
+        };
+        lines.push(format!("◌ {node} — {state}  {note}"));
+    }
+    for (node, note) in &intent.retired {
+        let state = if actual_nodes.contains(node) {
+            "still present"
+        } else {
+            "gone ✓"
+        };
+        lines.push(format!("✕ {node} — {state}  {note}"));
+    }
+    for (key, note) in &intent.proposed_edges {
+        let state = if has_edge(key) {
+            "landed ✓"
+        } else {
+            "pending"
+        };
+        lines.push(format!("⇢ {key} — {state}  {note}"));
+    }
+    for (key, note) in &intent.retired_edges {
+        let state = if has_edge(key) {
+            "still present"
+        } else {
+            "gone ✓"
+        };
+        lines.push(format!("⊘ {key} — {state}  {note}"));
+    }
+    if lines.is_empty() {
+        lines
+            .push("no intent recorded — flag (!), plan (n), retire (x), or propose an edge".into());
+    }
+    lines
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +518,7 @@ fn internals_of(raw: &RawGraph, krate: &str) -> Vec<(String, String)> {
 }
 
 // ---------------------------------------------------------------------------
-// App model: drill-down stack over a mutable edge set
+// App model: drill-down stack over the actual graph plus the intent layer
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, PartialEq)]
@@ -274,21 +538,42 @@ impl View {
     }
 }
 
+/// What the status-bar prompt is currently collecting.
+enum Prompt {
+    FlagNote { node: String },
+    PlanName,
+}
+
 struct App {
-    /// Crate-level edge set — source of truth for All/Focus views.
+    /// Crate-level *actual* edge set — what the kernel observed.
     model: Vec<(String, String)>,
     /// Raw file-level import data (snapshot mode only) for Internals views.
     raw: Option<RawGraph>,
     stack: Vec<View>,
     selected: Option<String>,
-    /// Edges added interactively this session (proposed dependencies).
-    added: Vec<(String, String)>,
+    intent: Intent,
+    notes_path: PathBuf,
+    policy: Option<Policy>,
+    prompt: Option<(Prompt, String)>,
+    show_report: bool,
     status: String,
 }
 
 impl App {
+    /// Actual node set (undecorated), from the real edges only.
+    fn actual_nodes(&self) -> BTreeSet<String> {
+        let mut set = BTreeSet::new();
+        for (a, b) in &self.model {
+            set.insert(a.clone());
+            set.insert(b.clone());
+        }
+        set
+    }
+
+    /// Edges for the current view: actual edges plus intended (proposed)
+    /// edges, so planned architecture renders alongside reality.
     fn current_edges(&self) -> Vec<(String, String)> {
-        match self.stack.last().unwrap_or(&View::All) {
+        let mut edges = match self.stack.last().unwrap_or(&View::All) {
             View::All => self.model.clone(),
             View::Focus(focus) => self
                 .model
@@ -297,9 +582,36 @@ impl App {
                 .cloned()
                 .collect(),
             View::Internals(krate) => match &self.raw {
-                Some(raw) => internals_of(raw, krate),
+                Some(raw) => return internals_of(raw, krate),
                 None => Vec::new(),
             },
+        };
+        let in_view = |n: &str| match self.stack.last().unwrap_or(&View::All) {
+            View::Focus(focus) => n == focus,
+            _ => true,
+        };
+        for key in self.intent.proposed_edges.keys() {
+            if let Some((from, to)) = split_edge_key(key)
+                && (in_view(from) || in_view(to))
+                && !edges.iter().any(|(a, b)| a == from && b == to)
+            {
+                edges.push((from.to_string(), to.to_string()));
+            }
+        }
+        edges
+    }
+
+    /// Marker prefix communicating intent state on the node label.
+    /// Retire-intent outranks planned outranks flagged.
+    fn decorate(&self, name: &str) -> String {
+        if self.intent.retired.contains_key(name) {
+            format!("✕ {name}")
+        } else if self.intent.planned.contains_key(name) {
+            format!("◌ {name}")
+        } else if self.intent.flags.contains_key(name) {
+            format!("⚑ {name}")
+        } else {
+            name.to_string()
         }
     }
 
@@ -316,7 +628,11 @@ impl App {
         if edges.is_empty() {
             return Err(io::Error::other("current view has no edges"));
         }
-        let pairs: Vec<(&str, &str)> = edges
+        let decorated: Vec<(String, String)> = edges
+            .iter()
+            .map(|(a, b)| (self.decorate(a), self.decorate(b)))
+            .collect();
+        let pairs: Vec<(&str, &str)> = decorated
             .iter()
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect();
@@ -342,24 +658,79 @@ impl App {
         }
     }
 
-    fn add_edge(&mut self, from: String, to: String) {
-        if !self.model.iter().any(|(a, b)| *a == from && *b == to) {
-            self.status = format!("proposed edge {from} → {to}");
-            self.added.push((from.clone(), to.clone()));
-            self.model.push((from, to));
+    fn persist(&mut self) {
+        if let Err(e) = self.intent.save(&self.notes_path) {
+            self.status = format!("could not save notes: {e}");
         }
     }
 
-    fn remove_nodes(&mut self, nodes: &[String]) {
-        let before = self.model.len();
-        self.model
-            .retain(|(a, b)| !nodes.contains(a) && !nodes.contains(b));
-        self.status = format!(
-            "removed {} node(s), {} edge(s)",
-            nodes.len(),
-            before - self.model.len()
-        );
+    /// Drag gesture: record an intended dependency. Reality is untouched —
+    /// the edge shows up as intent and the report tracks whether it lands.
+    fn propose_edge(&mut self, from: &str, to: &str) {
+        if self.model.iter().any(|(a, b)| a == from && b == to) {
+            self.status = format!("{from} → {to} already exists");
+            return;
+        }
+        self.intent
+            .proposed_edges
+            .insert(edge_key(from, to), String::new());
+        self.status = format!("proposed {from} → {to}");
+        self.persist();
     }
+
+    /// Delete gesture: intent, not destruction. A planned node is un-planned
+    /// (deleting intent deletes the intent); a real node gets retire-intent
+    /// toggled and stays visible with a ✕ marker until reality catches up.
+    fn toggle_retire(&mut self, name: &str) {
+        if self.intent.planned.remove(name).is_some() {
+            self.intent
+                .proposed_edges
+                .retain(|k, _| split_edge_key(k).is_none_or(|(f, t)| f != name && t != name));
+            self.status = format!("un-planned {name}");
+        } else if self.intent.retired.remove(name).is_some() {
+            self.status = format!("cleared retire-intent on {name}");
+        } else {
+            self.intent.retired.insert(name.to_string(), String::new());
+            self.status = format!("marked {name} for retirement");
+        }
+        self.persist();
+    }
+
+    fn set_flag(&mut self, node: &str, text: String) {
+        if text.is_empty() {
+            self.intent.flags.remove(node);
+            self.status = format!("unflagged {node}");
+        } else {
+            self.intent.flags.insert(node.to_string(), text);
+            self.status = format!("flagged {node}");
+        }
+        self.persist();
+    }
+
+    fn add_planned(&mut self, name: String, text: String) {
+        self.status = format!("planned {name} — connect it by dragging an edge");
+        self.intent.planned.insert(name.clone(), text);
+        self.selected = Some(name);
+        self.persist();
+    }
+
+    /// Status-bar summary of the note attached to a node, if any.
+    fn note_for(&self, node: &str) -> Option<&String> {
+        self.intent
+            .flags
+            .get(node)
+            .or_else(|| self.intent.planned.get(node))
+            .or_else(|| self.intent.retired.get(node))
+    }
+}
+
+/// Strip a `⚑ ` / `◌ ` / `✕ ` marker from a rataflow node id, recovering the
+/// real node name intent is keyed by.
+fn strip_marker(id: &str) -> &str {
+    ["⚑ ", "◌ ", "✕ "]
+        .iter()
+        .find_map(|m| id.strip_prefix(m))
+        .unwrap_or(id)
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +750,20 @@ fn main() -> io::Result<()> {
         }
     };
 
+    // The notes file lives with the project the graph describes: local anvil
+    // runtime state, deliberately gitignored (ADR-073). Productisation would
+    // decide what graduates to a shared, committed intent surface.
+    let root = args.anvil_snap.clone().unwrap_or_else(|| ".".to_string());
+    let notes_path = args.notes.clone().map_or_else(
+        || PathBuf::from(root).join(".anvil/impact-notes.json"),
+        PathBuf::from,
+    );
+    let intent = Intent::load(&notes_path);
+    let policy = match &args.policy {
+        Some(p) => Some(Policy::load(p)?),
+        None => None,
+    };
+
     let mut stack = vec![View::All];
     if let Some(f) = args.focus.clone() {
         stack.push(View::Focus(f));
@@ -391,16 +776,67 @@ fn main() -> io::Result<()> {
         raw,
         stack,
         selected: None,
-        added: Vec::new(),
+        intent,
+        notes_path,
+        policy,
+        prompt: None,
+        show_report: false,
         status: String::new(),
     };
+
+    // Scripted intent ops (agent/CI surface): apply, save, report, exit.
+    let scripted = args.flag.is_some()
+        || args.plan.is_some()
+        || args.retire.is_some()
+        || args.propose.is_some();
+    if scripted {
+        let note = args.note.clone().unwrap_or_default();
+        if let Some(node) = &args.flag {
+            app.set_flag(
+                node,
+                if note.is_empty() {
+                    "flagged".into()
+                } else {
+                    note.clone()
+                },
+            );
+        }
+        if let Some(node) = &args.plan {
+            app.add_planned(node.clone(), note.clone());
+        }
+        if let Some(node) = &args.retire {
+            app.toggle_retire(node);
+        }
+        if let Some(spec) = &args.propose {
+            match spec.split_once(':') {
+                Some((from, to)) => app.propose_edge(from, to),
+                None => app.status = format!("--propose wants from:to, got {spec}"),
+            }
+        }
+        println!("{}", app.status);
+    }
+    if args.report || scripted {
+        if args.report {
+            for line in reconcile(&app.actual_nodes(), &app.model, &app.intent) {
+                println!("{line}");
+            }
+            if let Some(policy) = &app.policy {
+                for line in policy.violations(&app.model) {
+                    println!("{line}");
+                }
+            }
+        }
+        return Ok(());
+    }
+
     let mut flow = app.build_flow()?;
     if args.fit {
         flow.request_fit_view();
     }
 
     if let Some((w, h)) = args.snapshot {
-        headless_snapshot(&app, &mut flow, w, h, args.zoom_read.as_deref());
+        let zoom_read = args.zoom_read.as_deref().map(|n| app.decorate(n));
+        headless_snapshot(&app, &mut flow, w, h, zoom_read.as_deref());
         return Ok(());
     }
 
@@ -434,22 +870,96 @@ fn draw(frame: &mut ratatui::Frame, app: &App, flow: &mut Flow) {
     frame.render_widget(Background::new(flow), graph_area);
     frame.render_widget(&mut *flow, graph_area);
 
-    let edges = app.current_edges();
-    let status = Line::from(vec![
-        format!(" {} ", app.breadcrumb()).bold(),
-        format!("│ {} nodes {} edges ", node_count(&edges), edges.len()).into(),
-        if app.added.is_empty() {
-            "".into()
+    if app.show_report {
+        draw_report(frame, app, graph_area);
+    }
+
+    let status = if let Some((prompt, input)) = &app.prompt {
+        let label = match prompt {
+            Prompt::FlagNote { node } => format!(" note for {node}: "),
+            Prompt::PlanName => " planned node name: ".to_string(),
+        };
+        Line::from(vec![
+            label.bold().yellow(),
+            input.clone().into(),
+            "▏".rapid_blink(),
+            "  (Enter save · Esc cancel)".dim(),
+        ])
+    } else {
+        let edges = app.current_edges();
+        let intent_summary = if app.intent.is_empty() {
+            String::new()
         } else {
-            format!("│ +{} proposed ", app.added.len()).yellow()
-        },
-        format!("│ {} ", app.status).dim(),
-        "│ ↑↓←→ select · z read · +/- zoom · 0 1:1 · Enter drill · i internals · Esc back · f fit · q quit"
-            .dim(),
-    ]);
+            format!(
+                "│ ⚑{} ◌{} ✕{} ⇢{} ",
+                app.intent.flags.len(),
+                app.intent.planned.len(),
+                app.intent.retired.len(),
+                app.intent.proposed_edges.len()
+            )
+        };
+        let note = app
+            .selected
+            .as_deref()
+            .and_then(|n| app.note_for(n))
+            .map(|n| format!("│ ✎ {n} "))
+            .unwrap_or_default();
+        let violations = app
+            .policy
+            .as_ref()
+            .map(|p| p.violations(&app.model).len())
+            .filter(|n| *n > 0)
+            .map(|n| format!("│ ⚠{n} boundary "))
+            .unwrap_or_default();
+        Line::from(vec![
+            format!(" {} ", app.breadcrumb()).bold(),
+            format!("│ {} nodes {} edges ", node_count(&edges), edges.len()).into(),
+            intent_summary.yellow(),
+            violations.red(),
+            note.italic(),
+            format!("│ {} ", app.status).dim(),
+            "│ ! flag · n plan · x retire · t report · Enter drill · i internals · z read · q quit"
+                .dim(),
+        ])
+    };
     frame.render_widget(
         Paragraph::new(status).style(Style::new().on_black()),
         status_area,
+    );
+}
+
+/// Intent/drift overlay: the same reconciliation `--report` prints,
+/// rendered over the graph.
+fn draw_report(frame: &mut ratatui::Frame, app: &App, area: Rect) {
+    let mut lines = reconcile(&app.actual_nodes(), &app.model, &app.intent);
+    if let Some(policy) = &app.policy {
+        lines.extend(policy.violations(&app.model));
+    }
+    let height = (u16::try_from(lines.len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(2))
+    .min(area.height.saturating_sub(2));
+    let width = lines
+        .iter()
+        .map(|l| {
+            u16::try_from(l.chars().count())
+                .unwrap_or(u16::MAX)
+                .saturating_add(4)
+        })
+        .max()
+        .unwrap_or(20)
+        .min(area.width.saturating_sub(2));
+    let popup = Rect {
+        x: area.x + (area.width.saturating_sub(width)) / 2,
+        y: area.y + 1,
+        width,
+        height,
+    };
+    frame.render_widget(Clear, popup);
+    frame.render_widget(
+        Paragraph::new(lines.into_iter().map(Line::from).collect::<Vec<_>>())
+            .block(Block::bordered().title(" intent vs reality (t to close) ")),
+        popup,
     );
 }
 
@@ -473,6 +983,10 @@ fn run_app(
 
         let mut rebuild = false;
         match event::read()? {
+            // Prompt mode captures the keyboard until Enter/Esc.
+            CrosstermEvent::Key(key) if app.prompt.is_some() => {
+                rebuild = handle_prompt_key(app, key.code);
+            }
             CrosstermEvent::Key(key) => match key.code {
                 KeyCode::Char('q') => return Ok(()),
                 KeyCode::Char('z') => {
@@ -482,6 +996,24 @@ fn run_app(
                     flow.zoom_to(1.0);
                     app.status = "zoom 1:1".into();
                 }
+                KeyCode::Char('!') => {
+                    if let Some(node) = app.selected.clone() {
+                        let seed = app.intent.flags.get(&node).cloned().unwrap_or_default();
+                        app.prompt = Some((Prompt::FlagNote { node }, seed));
+                    } else {
+                        app.status = "select a node to flag".into();
+                    }
+                }
+                KeyCode::Char('n') => app.prompt = Some((Prompt::PlanName, String::new())),
+                KeyCode::Char('x') => {
+                    if let Some(node) = app.selected.clone() {
+                        app.toggle_retire(&node);
+                        rebuild = true;
+                    } else {
+                        app.status = "select a node to retire".into();
+                    }
+                }
+                KeyCode::Char('t') => app.show_report = !app.show_report,
                 KeyCode::Enter => {
                     if let Some(node) = app.selected.clone() {
                         rebuild = app.push_view(View::Focus(node));
@@ -508,13 +1040,13 @@ fn run_app(
                         resp
                     };
                     for ev in resp.into_events() {
-                        rebuild |= apply_event(app, flow, ev);
+                        rebuild |= apply_event(app, ev);
                     }
                 }
             },
             CrosstermEvent::Mouse(mouse) => {
                 for ev in flow.handle_mouse_event(mouse).into_events() {
-                    rebuild |= apply_event(app, flow, ev);
+                    rebuild |= apply_event(app, ev);
                 }
             }
             CrosstermEvent::Resize(_, _) if fit => flow.request_fit_view(),
@@ -539,35 +1071,76 @@ fn run_app(
     }
 }
 
+/// Status-bar prompt editing: type, Backspace, Enter to commit, Esc to
+/// cancel. Returns true when the flow widget must be rebuilt.
+fn handle_prompt_key(app: &mut App, code: KeyCode) -> bool {
+    match code {
+        KeyCode::Char(c) => {
+            if let Some((_, input)) = &mut app.prompt {
+                input.push(c);
+            }
+            false
+        }
+        KeyCode::Backspace => {
+            if let Some((_, input)) = &mut app.prompt {
+                input.pop();
+            }
+            false
+        }
+        KeyCode::Enter => {
+            if let Some((prompt, input)) = app.prompt.take() {
+                let input = input.trim().to_string();
+                match prompt {
+                    Prompt::FlagNote { node } => app.set_flag(&node, input),
+                    Prompt::PlanName if !input.is_empty() => {
+                        app.add_planned(input, String::new());
+                    }
+                    Prompt::PlanName => app.status = "cancelled".into(),
+                }
+                true
+            } else {
+                false
+            }
+        }
+        KeyCode::Esc => {
+            app.prompt = None;
+            app.status = "cancelled".into();
+            false
+        }
+        _ => false,
+    }
+}
+
 /// Apply a semantic flow event to the app model. Returns true when the flow
 /// widget must be rebuilt from the model.
-fn apply_event(app: &mut App, flow: &mut Flow, ev: FlowEvent) -> bool {
+fn apply_event(app: &mut App, ev: FlowEvent) -> bool {
     match ev {
         FlowEvent::NodeClicked { node_id } => {
-            app.status = format!("selected {node_id}");
-            app.selected = Some(node_id);
+            let name = strip_marker(&node_id).to_string();
+            app.status = format!("selected {name}");
+            app.selected = Some(name);
             false
         }
         FlowEvent::SelectionChanged { node_ids, .. } => {
             if let Some(id) = node_ids.first() {
-                app.selected = Some(id.clone());
+                app.selected = Some(strip_marker(id).to_string());
             }
             false
         }
         FlowEvent::ConnectionCompleted(conn) => {
-            let (from, to) = (conn.source.clone(), conn.target.clone());
-            flow.add_edge_from_connection(conn, StepEdge::default());
-            app.add_edge(from, to);
-            false
+            let from = strip_marker(&conn.source).to_string();
+            let to = strip_marker(&conn.target).to_string();
+            app.propose_edge(&from, &to);
+            // rebuild rather than add in place so the intent layer re-renders
+            true
         }
         FlowEvent::Deleted { node_ids, .. } => {
-            let nodes: Vec<String> = node_ids.iter().map(ToString::to_string).collect();
-            if nodes.is_empty() {
-                false
-            } else {
-                app.remove_nodes(&nodes);
-                true
+            let mut changed = false;
+            for id in &node_ids {
+                app.toggle_retire(strip_marker(id));
+                changed = true;
             }
+            changed
         }
         _ => false,
     }
