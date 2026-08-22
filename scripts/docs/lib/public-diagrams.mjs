@@ -18,6 +18,10 @@ import { unified } from 'unified';
 
 const CONTRACT_PATH = 'scripts/docs/public-diagrams.json';
 const PROVENANCE_ID = 'anvil-drawio-provenance';
+const DRAWIO_SOURCE_ID = 'anvil-drawio-source';
+// Astro's vendored image-size probes the first 1KB for a complete <svg ...> tag.
+const IMAGE_SIZE_PROBE_BYTES = 1000;
+const IMAGE_SIZE_SVG_ROOT = /<svg\s([^>"']|"[^"]*"|'[^']*')*>/;
 const LOWER_KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RASTER_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
@@ -198,8 +202,8 @@ export function annotateSvg({
   if (sourcePageCount(source) !== 1) {
     throw new Error('Draw.io source must contain exactly one diagram page');
   }
-  const normalisedSvg = normaliseOfficialDrawioSvgProlog(svg);
-  const embedded = embeddedDrawioSource(normalisedSvg);
+  const normalisedSvg = stripDrawioContentAttribute(normaliseOfficialDrawioSvgProlog(svg));
+  const embedded = embeddedDrawioSource(svg) ?? embeddedDrawioSource(normalisedSvg);
   if (!embedded) {
     throw new Error('Draw.io SVG export must contain an embedded source content attribute');
   }
@@ -213,13 +217,14 @@ export function annotateSvg({
   const idBase = sourceName.replace(/\.drawio$/, '');
   const titleId = `${idBase}-title`;
   const descriptionId = `${idBase}-description`;
+  const sourceMetadata = `<metadata id="${DRAWIO_SOURCE_ID}" content="${xmlEscape(embedded)}"/>`;
   let accessible = normalisedSvg.replace(
     /<svg\b/,
     `<svg role="img" aria-labelledby="${titleId} ${descriptionId}"`
   );
   accessible = accessible.replace(
     /(<svg\b[^>]*>)/,
-    `$1<title id="${titleId}">${xmlEscape(title)}</title><desc id="${descriptionId}">${xmlEscape(description)}</desc>`
+    `$1<title id="${titleId}">${xmlEscape(title)}</title><desc id="${descriptionId}">${xmlEscape(description)}</desc>${sourceMetadata}`
   );
 
   const provenance = [
@@ -565,10 +570,21 @@ function hasUnsafeSvg(svg) {
   }
 }
 
+function stripDrawioContentAttribute(svg) {
+  const svgOpen = svg.match(/<svg\b[^>]*>/)?.[0];
+  if (!svgOpen || attr(svgOpen, 'content') === undefined) return svg;
+  return svg.replace(svgOpen, svgOpen.replace(/\scontent="[^"]*"/, ''));
+}
+
 function embeddedDrawioSource(svg) {
   const svgOpen = svg.match(/<svg\b[^>]*>/)?.[0] ?? '';
-  const content = attr(svgOpen, 'content');
-  return content?.trim().startsWith('<mxfile') ? content : undefined;
+  const fromSvg = attr(svgOpen, 'content');
+  if (fromSvg?.trim().startsWith('<mxfile')) return fromSvg;
+  const sourceMeta = svg.match(
+    new RegExp(`<metadata\\b[^>]*\\sid="${DRAWIO_SOURCE_ID}"[^>]*/?>`)
+  )?.[0];
+  const fromMeta = sourceMeta ? attr(sourceMeta, 'content') : undefined;
+  return fromMeta?.trim().startsWith('<mxfile') ? fromMeta : undefined;
 }
 
 function hasAccessibleSvg(svg, expected) {
@@ -813,6 +829,15 @@ export async function validatePublicDiagrams(repoRoot, contract) {
         );
       }
       const embedded = embeddedDrawioSource(svg);
+      if (!IMAGE_SIZE_SVG_ROOT.test(svg.slice(0, IMAGE_SIZE_PROBE_BYTES))) {
+        findings.push(
+          finding(
+            'svg-open-tag-exceeds-image-probe',
+            relativeSvg,
+            'SVG opening tag must fit in the first 1KB so image metadata probes can read width/height'
+          )
+        );
+      }
       if (!embedded) {
         findings.push(
           finding('source-not-embedded', relativeSvg, 'SVG lacks embedded Draw.io source')

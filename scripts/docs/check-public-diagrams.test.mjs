@@ -150,6 +150,31 @@ test('valid mounted, paired, referenced and provenanced diagram passes', async (
   assert.deepEqual(await findingsFor(), []);
 });
 
+test('annotateSvg relocates Draw.io content off the svg opening tag', async () => {
+  const source = await readFile(join(FIXTURE_ROOT, 'sample-flow.drawio'), 'utf8');
+  const svg = annotateSvg({
+    svg: rawSvg(source),
+    source,
+    sourceName: 'sample-flow.drawio',
+    contract: CONTRACT,
+  });
+  const open = svg.match(/<svg\b[^>]*>/)?.[0] ?? '';
+  assert.equal(/\scontent="/.test(open), false);
+  assert.match(svg, /<metadata\b[^>]*id="anvil-drawio-source"/);
+  assert.match(svg.slice(0, 1000), /<svg\s([^>"']|"[^"]*"|'[^']*')*>/);
+});
+
+test('svg opening tag that exceeds the image-size probe fails', async () => {
+  const findings = await findingsFor(async ({ familyRoot }) => {
+    const path = join(familyRoot, 'sample-flow.svg');
+    const svg = await readFile(path, 'utf8');
+    const open = svg.match(/<svg\b[^>]*>/)?.[0];
+    const padded = open.replace('<svg', `<svg data-pad="${'x'.repeat(1200)}"`);
+    await writeFile(path, svg.replace(open, padded), 'utf8');
+  });
+  assert.ok(findings.some(({ code }) => code === 'svg-open-tag-exceeds-image-probe'));
+});
+
 test('checker validates committed provenance without invoking Draw.io', async () => {
   const state = await fixture();
   try {
@@ -220,7 +245,7 @@ test('changed SVG content fails deterministic provenance', async () => {
 test('missing embedded source fails', async () => {
   const findings = await findingsFor(async ({ familyRoot }) => {
     const path = join(familyRoot, 'sample-flow.svg');
-    await writeFile(path, (await readFile(path, 'utf8')).replace(/ content="[^"]*"/, ''), 'utf8');
+    await writeFile(path, (await readFile(path, 'utf8')).replace(/\scontent="[^"]*"/, ''), 'utf8');
   });
   assert.ok(findings.some(({ code }) => code === 'source-not-embedded'));
 });
