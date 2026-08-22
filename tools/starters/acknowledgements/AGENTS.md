@@ -110,6 +110,8 @@ one END line, on lines of their own, BEGIN before END.
 ## Verify
 
 - `KIT/generate-acknowledgements.sh --check` → 0
+- `KIT/generate-acknowledgements.sh --version` prints the kit VERSION (or
+  `unknown`)
 - `KIT/expand-licences.sh --check` → 0 (when the consumer has `licences.toml`)
 - After kit-source edits: `bash KIT/tests/run-all.sh`. A new file under `tests/`
   must also be named in the runner's `TESTS` array.

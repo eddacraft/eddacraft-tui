@@ -21,6 +21,25 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 - **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
+## [1.3.0] - 2026-08-22
+
+A vendored copy can report which kit it is. Agent instructions ship in the
+directory so coding assistants adopt and regenerate without inventing a
+procedure.
+
+### Added
+
+- **`generate-acknowledgements.sh --version`.** Prints the kit `VERSION` found
+  beside the script after resolving symlinks. Missing `VERSION` prints `unknown`
+  and still exits 0. Does not require `attribution.toml` or `jq`.
+  `expand-licences.sh` and `check-version.sh` do not take this flag.
+- **Agent instructions.** `AGENTS.md` is the short do/don't list for coding
+  agents. README and the public-mirror preface link to it.
+
+### Documentation
+
+- The public pin example is `v1.3.0`.
+
 ## [1.2.2] - 2026-08-14
 
 The 1.2.1 Node path was not the whole adoption contract. Marker and allow-list
