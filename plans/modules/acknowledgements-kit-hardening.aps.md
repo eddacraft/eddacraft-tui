@@ -7,9 +7,9 @@
 | ------ | ---------- | ----------- |
 | ATTRIB | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-08-16 — kit `v1.2.2` published. ATTRIB-027..-038
-Released/Shipped via that tag. Node and Rust cold-adopt were re-run against
-the published artifact, not `main`. ATTRIB-025 (`--version`) stays Proposed.
+**Last reviewed:** 2026-08-22 — ATTRIB-025 Merged via PR #4080. Kit pin remains
+`v1.2.2` until the operator cut. ATTRIB-027..-038 remain Released/Shipped via
+that tag.
 
 **Last reviewed (history):** 2026-08-14 — Node cold-adopt of shipped `v1.2.0`
 against `@eddacraft/nxrust` confirmed the generator core and failed the
@@ -41,8 +41,8 @@ the items whose deliverable is inside the released kit — ATTRIB-018, -019, -02
 and -022 — read **Released/Shipped via kit `v1.1.0`**. ATTRIB-021 (a CI matrix
 change) and ATTRIB-023 (recorded decisions, no kit code) stay **Merged**,
 because nothing of theirs is in the subtree the release publishes. ATTRIB-027..-038
-read **Released/Shipped via kit `v1.2.2`**. Module stays **In Progress** for
-ATTRIB-025 (`--version`), still Proposed.
+read **Released/Shipped via kit `v1.2.2`**. Module stays **In Progress** until
+ATTRIB-025 is Released/Shipped with the next kit tag.
 
 Design contracts:
 [`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md),
