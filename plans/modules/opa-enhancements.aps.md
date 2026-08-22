@@ -2,9 +2,14 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| OPAE | —     | high     | In Progress | 8/20      |
+| OPAE | —     | high     | In Progress | 8/22      |
 
-**Last reviewed:** 2026-07-17 (ADR-108 remains accepted; POLRESET topology
+**Last reviewed:** 2026-08-22 — the policy-capability audit filed two defects
+against this module (OPAE-021 public authoring door, OPAE-022 gate/pre-write
+admission divergence) and confirmed OPAE-009..020 all remain Proposed with
+nothing Ready, so no authoring-ease work has advanced since July. Sequencing is
+now coordinated by [POLFIT](./policy-fit-for-purpose.aps.md). Prior review
+2026-07-17 (ADR-108 remains accepted; POLRESET topology
 flow-down confirmed OPAE-012..020 target only `anvil-policy-engine`, the Rust
 CLI, and bounded agent surfaces; readiness still begins at OPAE-012).
 
@@ -555,6 +560,40 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Validation:** `cargo test -p eddacraft-anvil --test guidance_cli materialise`
 - **Dependencies:** OPAE-016, ADR-108 (Accepted 2026-07-16)
 - **Confidence:** low
+
+### OPAE-021: Public authoring door resolves to a shipped surface
+
+- **Status:** Proposed
+- **Intent:** Stop the public policy-model page instructing users to install an
+  authoring skill that does not exist yet.
+- **Expected Outcome:** The `authoring-anvil-policy` instruction in
+  `docs/public/anvil/concepts/policy-model.md` either describes a path that
+  ships today or is removed until OPAE-017 lands. The page still refuses to
+  become a pack-writing workshop; it simply stops naming an unshipped door.
+- **Files:** `docs/public/anvil/concepts/policy-model.md`
+- **Validation:** `pnpm docs:check && pnpm docs:public:check`
+- **Dependencies:** OPAE-017 (Proposed), POLFIT-002
+- **Confidence:** high
+
+### OPAE-022: Gate and pre-write share one pack-admission contract
+
+- **Status:** Proposed
+- **Intent:** Remove the admission divergence between the two shipped policy
+  evaluators, discovered during the 2026-08-22 policy-capability audit.
+- **Expected Outcome:** `anvil gate --only-checks policy` and the MCP pre-write
+  pass agree on which policies are admitted. The gate currently flat-walks every
+  `*.rego` under `.anvil/policies/` and ignores `pack.yaml` entirely, while
+  pre-write loads only manifest-declared members via `discover_and_load` — so a
+  loose `.rego` fires at the gate but is invisible pre-write, and pack metadata
+  buys nothing at the gate. Either both honour the manifest, or the difference
+  is documented as intended with its user-visible consequence stated.
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-cli/src/mcp/policy_prewrite.rs`,
+  `crates/anvil-policy-engine/src/pack/discovery.rs`
+- **Validation:** `cargo test -p eddacraft-anvil -- policy_prewrite_routing` and
+  `cargo test -p eddacraft-anvil -- run_check_policy`
+- **Dependencies:** OPAE-002, OPAE-007, POLFIT-001
+- **Confidence:** medium
 
 ## Designs
 

@@ -5,9 +5,13 @@
 
 | ID     | Owner | Priority | Status | Progress |
 | ------ | ----- | -------- | ------ | -------- |
-| DOCDEF | —     | high     | Done   | 6/6      |
+| DOCDEF | —     | high     | In Progress | 6/7      |
 
-**Last reviewed:** 2026-08-20 against `origin/main` after all six work items
+**Last reviewed:** 2026-08-22 — reopened from Done by the policy-capability
+audit, which found two shipped `enforcement.*` keys missing from the field
+catalogue this module owns (DOCDEF-007, tracked by
+[POLFIT-006](./policy-fit-for-purpose.aps.md)). Prior review 2026-08-20 against
+`origin/main` after the original six work items
 Merged (#4028, #4030, #4034, #4037, #4035, #4036). Design:
 [definition-layer design](../specs/2026-08-19-anvil-docs-definition-layer.md).
 Live IA/nav remains DOCRB. Stored `N/M` is reconciled on this bookkeeping
@@ -215,6 +219,25 @@ edit; it does not move ownership.
 - **Dependencies:** DOCDEF-001
 - **Confidence:** high
 - **Validation:** `pnpm docs:public:check && pnpm docs:check && pnpm --filter @eddacraft/anvil-docs-private build`
+
+### DOCDEF-007: Config catalogue covers the shipped `enforcement.*` keys
+
+- **Status:** Proposed
+- **Intent:** Close the gap between the field catalogue's claimed completeness
+  and the `enforcement.*` keys the binary actually reads, found by the
+  2026-08-22 policy-capability audit.
+- **Expected Outcome:** `enforcement.mode` (parsed by
+  `crates/anvil-cli/src/mcp/enforcement.rs:67-81` into the shared
+  `off`/`warn`/`fence`/`interrupt` posture, with `block` aliasing to
+  `interrupt`) and `enforcement.intercept-rules` (parsed by
+  `crates/anvil-intercept-rules/src/config.rs:93-110` — `secret-detection`,
+  `antipattern`, `path-deny` globs, `regex-content` regexes) each get a
+  source-cited catalogue entry, or are named in **Not in this catalogue** with a
+  reason. The page stops implying it covers every key a command reads.
+- **Files:** `docs/public/anvil/reference/config.md`
+- **Validation:** `pnpm docs:check && pnpm docs:public:check`
+- **Dependencies:** DOCDEF-003, POLFIT-001
+- **Confidence:** high
 
 ## Release Posture
 
