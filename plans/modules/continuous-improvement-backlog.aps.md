@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 285/353  |
+| CIB | —     | In Progress | 285/354  |
 
 ## Purpose
 
@@ -11196,3 +11196,62 @@ already parked teaching as editorial).
   enumeration fails intake with the discrepancy named.
 - **Identified From:** ci-log 2026-08-12 (codex), `promote: CIB`.
 - **Confidence:** high — mechanical check over data already present.
+
+## Pack-10 intake (Dave 0.9.7 first run + deep sweep, 2026-08-22)
+
+Source: Dave pack-10 drop. The 2026-08-21 `anvil-097-retest-result` notes
+were titled a retest but were their **first run of 0.9.7** (prior IDs
+walked against the new binary, 0.9.6 kept live). The same-day
+`anvil-097-deep-findings` zip is the second 0.9.7 pass: first firing of
+new surfaces, plus the promised B31 reproducer. Official
+`v0.9.7-beta` `x86_64-pc-windows-msvc` archive, sha256-verified, driven
+by full path, exit codes unpiped. Second-seat verified.
+
+**Cutline:** file the crash. Keep designed silent, auth, and disclosure
+contracts. Do not merge three exit-0 surfaces into one ticket.
+
+### Pack-10 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| B26 menu-align | Confirmed fixed on 0.9.7 | Closed. No CIB |
+| DOC-3 `--web` help | Confirmed fixed on 0.9.7 | Closed. No CIB |
+| HOMEBREW-1 | Notes only. Install was not broken; live 0.9.7 notes say `anvil` | Closed. No CIB |
+| B31 UTF-8 panic | Real crash in `ends_with_regex_keyword` (`rfind` + `i + 1`) | **CIB-359** Ready P1 |
+| B33 gate secrets skip `.py`/`.tsx`/`.go`/`.sh` | Documented domain. Pack-02 GATE-1. CIB-255 chose disclosure over parity | **Won't file.** **CIB-255** |
+| B28 `l4-validate` silent / `--json` empty | Designed silent CI admit (`json_surface_audit` class `silent`). Already replied | **Won't file.** |
+| B28 garbage policy still exit 0 | Source parse errors propagate. Not reproduced; likely no project-id or still-valid body | **Won't file** until reproduced |
+| B32 `status` authRequired exit 0 | Read-only state surface. Action commands exit 3 | **Won't file.** **CIB-169** |
+| EXIT-0-ON-NOT-READY | Three contracts, not one ticket | **Won't file.** **CIB-324** / **CIB-169** / silent L4 |
+| B29 exception not honoured at `check`/`gate` | L4-only store. Already replied | **Won't file.** |
+| WRITE-GATE-LIVE / DOMAIN-NOTES | Credits. Keep in the reply | no CIB |
+| LOCAL-GEMS | `insights` already nudges from welcome (INSIGHTS-005) | no CIB |
+
+### CIB-359: Antipattern masker must not panic on a multibyte char boundary
+
+- **Status:** Ready — operator-authorised 2026-08-22 after pack-10
+  disposition.
+- **Priority:** P1 — `init` / `baseline` / `check <file>` panic exit 101
+- **Intent:** `ends_with_regex_keyword` in
+  `crates/anvil-checks/src/antipattern/mask.rs` takes `str::rfind`'s byte
+  index and adds 1, then slices. A 2-byte glyph at that index (`§` at
+  byte 61) makes `word_start` 62, which is inside the character. Dave's
+  synthetic line panics at `mask.rs:138:24` on verified 0.9.7.
+  `init` prints "initialised successfully" and writes `.anvil.yaml`
+  before the panic, so the repo is left half-initialised.
+- **Expected Outcome:** Dave's fixture (and any multibyte char straddling
+  that index) does not panic on `init`, `baseline`, `check <file>`, or
+  `check --all`. Slice at a char boundary (`char_indices` / `len_utf8`,
+  not `i + 1`). `init` does not claim success if the scan then crashes.
+- **Non-scope / do not:** do not change regex-vs-division rules; do not
+  treat this as a secrets or L4 issue; do not wait on a Windows retest
+  once a unit test on the fixture is green.
+- **Files:** `crates/anvil-checks/src/antipattern/mask.rs`
+- **Validation:** unit test with Dave's one-line fixture (box-drawing
+  prefix + `§` at byte 61) and a 3-byte glyph at the same offset;
+  `mask_non_code_lines` returns without panic; `cargo test -p
+  eddacraft-anvil-checks --lib antipattern::mask`.
+- **Identified From:** Dave 0.9.7 first run + deep sweep B31, 2026-08-21,
+  official Windows `v0.9.7-beta` archive.
+- **Coordinates with:** CIB-083
+- **Confidence:** high — panic site and `i + 1` are the same line.
