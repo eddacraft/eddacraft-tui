@@ -5,7 +5,12 @@
 
 | ID     | Type      | Owner | Priority | Status | Progress |
 | ------ | --------- | ----- | -------- | ------ | -------- |
-| POLFIT | Conductor | —     | high     | Draft  | 0/9      |
+| POLFIT | Conductor | —     | high     | Ready  | 0/9      |
+
+**Promoted:** 2026-08-22 — POLFIT-001 and POLFIT-002 advanced Draft -> Ready on
+operator instruction; module status follows its items to **Ready**. Both are
+decision-record items: Ready authorises producing the ADR, not implementing
+what the ADR decides. POLFIT-003..-009 stay Draft behind them.
 
 **Last reviewed:** 2026-08-22 (created from a policy-capability audit against
 `origin/main` @ `7524a599b`, binary version 0.9.7-beta. The audit read the
@@ -90,13 +95,17 @@ Policy is fit for purpose when:
 
 ## Design Gates
 
+Both gates are **Ready as of 2026-08-22** — they are being worked, not parked.
+They still gate the items below them.
+
 1. **Policy surface precedence (POLFIT-001).** No item that changes behaviour
    across more than one surface may start until precedence is decided. ADR-120
    consolidated the config surface but explicitly placed "policy merge
-   semantics" out of scope, so this is currently unowned.
+   semantics" out of scope, so this picks up an unowned carve-out.
 2. **Authoring on-ramp sequencing (POLFIT-002).** ACTAX Phase A and the
    OPAE-013..017 chain both claim the authoring-ease outcome. One product
-   decision must sequence them before either is promoted to Ready.
+   decision must sequence them before *either of those* is promoted to Ready;
+   the decision itself runs in parallel with POLFIT-001.
 
 ## Coordinated Modules
 
@@ -118,7 +127,9 @@ Policy is fit for purpose when:
 
 ### POLFIT-001: Policy surface inventory and precedence decision
 
-- **Status:** Draft — needs design. Blocking gate for -003, -006, and -008.
+- **Status:** Ready — promoted 2026-08-22 by operator instruction. The
+  deliverable is the decision record itself; this remains the blocking gate for
+  POLFIT-003, -004, -005, -006, and -008, which stay Draft until it lands.
 - **Intent:** Decide, in one record, every surface from which a user can change
   policy behaviour, which are supported product surfaces, and what wins when
   two disagree.
@@ -140,7 +151,8 @@ Policy is fit for purpose when:
 
 ### POLFIT-002: Policy authoring on-ramp decision
 
-- **Status:** Draft — needs design. Blocking gate for any authoring-ease work.
+- **Status:** Ready — promoted 2026-08-22 by operator instruction, in parallel
+  with POLFIT-001 (see the dependency note below).
 - **Intent:** Decide how a team creates a working policy without hand-writing
   Rego, and sequence the competing candidates so only one is promoted first.
 - **Expected Outcome:** A decision record picks an ordering across the ACTAX
@@ -152,7 +164,13 @@ Policy is fit for purpose when:
   others are for. Names the first promotable item.
 - **Files:** `plans/decisions/` (new ADR)
 - **Validation:** `pnpm adr:check && pnpm aps:active-lint`
-- **Dependencies:** ADR-108 (Accepted 2026-07-16), POLFIT-001
+- **Dependencies:** ADR-108 (Accepted 2026-07-16). **POLFIT-001 is
+  informational, not blocking** (reclassified 2026-08-22 when both were
+  promoted): every on-ramp candidate — the ACTAX YAML tier, the OPAE lint and
+  guidance chain, and pack scaffolding — targets the same `.anvil/policies/`
+  pack surface, so the ordering question is answerable regardless of how
+  precedence between *different* surfaces resolves. If POLFIT-001 concludes the
+  pack surface is not the supported authoring target, this item must be re-run.
 - **Coordinates with:** ACTAX Phase A, OPAE-013..017, CPACKS
 - **Confidence:** medium
 
