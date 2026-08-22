@@ -54,8 +54,21 @@ set -euo pipefail
 # lacked `readlink -f` before 12.3.
 resolve_script_path() {
   local script_path="$0"
+  local found
   local link_hops=0
   local link_target
+  # A PATH lookup with no slash in argv[0] leaves $0 as the basename on
+  # some shells. Resolve it before treating it as a filesystem path so
+  # `-L` and dirname point at the kit, not CWD.
+  case "$script_path" in
+    */*) ;;
+    *)
+      found="$(command -v "$script_path" 2>/dev/null || true)"
+      if [ -n "$found" ]; then
+        script_path="$found"
+      fi
+      ;;
+  esac
   while [ -L "$script_path" ]; do
     link_hops=$((link_hops + 1))
     if [ "$link_hops" -gt 40 ]; then
