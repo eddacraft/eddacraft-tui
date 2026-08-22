@@ -1,8 +1,8 @@
 # Architecture Diagram Maintenance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                  |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-21 for DOCRB-008 against ADR-123, `scripts/docs/public-diagrams.json`, `scripts/docs/check-public-diagrams.mjs`, `scripts/docs/export-public-diagram.mjs`, `scripts/docs/lib/public-diagrams.mjs`, both production Docusaurus configs, and `docs/guides/documentation-governance.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                   |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-22 against `scripts/docs/lib/public-diagrams.mjs`: the Draw.io embed now lives on `<metadata id="anvil-drawio-source">` so 1KB image-size probes can read width/height. Prior 2026-08-21 for DOCRB-008 against ADR-123, the public-diagram scripts, both production Docusaurus configs, and `docs/guides/documentation-governance.md` |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                        | Downstream                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
@@ -114,13 +114,16 @@ enforcement are outside this pipeline.
    The wrapper verifies Desktop 31.1.8 and invokes
    `--export --format svg --embed-diagram --crop --border 0`. It writes the
    same-name sibling `.svg`, adds `role="img"`, `<title>`, and `<desc>`, and
-   verifies that the canonical embedded Draw.io XML equals the sibling source,
-   records raw-source and canonical-embedded hashes, the final export hash,
-   exact observed version output, version, and flags, then creates the
-   destination through a same-directory exclusive temporary file and atomic
-   rename. Do not hand-edit the SVG. Before annotation and hashing, the exporter
-   normalises only Draw.io Desktop 31.1.8's exact official three-line prolog;
-   altered or other processing instructions and doctypes remain rejected.
+   moves the embedded mxfile off the `<svg>` opening tag onto
+   `<metadata id="anvil-drawio-source">` so dimension probes that only scan the
+   first 1KB still see `width`/`height`. It then verifies that the canonical
+   embedded Draw.io XML equals the sibling source, records raw-source and
+   canonical-embedded hashes, the final export hash, exact observed version
+   output, version, and flags, then creates the destination through a
+   same-directory exclusive temporary file and atomic rename. Do not hand-edit
+   the SVG. Before annotation and hashing, the exporter normalises only Draw.io
+   Desktop 31.1.8's exact official three-line prolog; altered or other
+   processing instructions and doctypes remain rejected.
 4. Reference the SVG from Markdown in the same family using meaningful,
    non-empty alt text. For intentionally empty alt text, bind the adjacent
    explanation explicitly:
@@ -138,20 +141,21 @@ enforcement are outside this pipeline.
 
 5. Run `pnpm docs:public:diagrams`. It rejects unpaired or non-lower-kebab
    assets, governed raster candidates without a reviewed exception, stale or
-   missing provenance, embedded-source mismatch, symlink traversal, inaccessible
-   SVG, and unreferenced exports. Namespace-aware XML DOM inspection fails
-   closed on declarations, processing instructions, custom entities, active or
-   namespaced elements/attributes, external/non-fragment references, and CSS
-   imports or external URLs after entity, percent, and CSS-escape decoding.
-   Draw.io sibling and embedded XML are parsed structurally with one
-   non-namespaced `mxfile` root and exactly one valid diagram page. The checker
-   verifies the recorded source, embedded-source, export, exact version-output,
-   version, and flag provenance; it does not invoke Draw.io. Markdown and MDX
-   raw HTML fragments are parsed as DOM, so commented, hidden, code, and
-   attribute-text image decoys do not count. The manifest enumerates only the
-   five governed `assets/diagrams` directories. Both production documentation
-   builds prove renderer integration. `pnpm docs:check` runs the same validator
-   as its `public-diagrams` surface.
+   missing provenance, embedded-source mismatch, an `<svg>` opening tag that
+   exceeds the 1KB image-size probe, symlink traversal, inaccessible SVG, and
+   unreferenced exports. Namespace-aware XML DOM inspection fails closed on
+   declarations, processing instructions, custom entities, active or namespaced
+   elements/attributes, external/non-fragment references, and CSS imports or
+   external URLs after entity, percent, and CSS-escape decoding. Draw.io sibling
+   and embedded XML are parsed structurally with one non-namespaced `mxfile`
+   root and exactly one valid diagram page. The checker verifies the recorded
+   source, embedded-source, export, exact version-output, version, and flag
+   provenance; it does not invoke Draw.io. Markdown and MDX raw HTML fragments
+   are parsed as DOM, so commented, hidden, code, and attribute-text image
+   decoys do not count. The manifest enumerates only the five governed
+   `assets/diagrams` directories. Both production documentation builds prove
+   renderer integration. `pnpm docs:check` runs the same validator as its
+   `public-diagrams` surface.
 
 ## Review checklist
 
