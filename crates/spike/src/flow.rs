@@ -32,9 +32,12 @@
 //! `--policy <file>` overlays boundary rules — a crate-level mirror of
 //! anvil-architecture's layer model (member patterns + `depends_on`).
 //! Actual edges that cross layers illegally are reported as `⚠` lines and
-//! counted in the status bar; unassigned crates are never judged. The
-//! productised version would read the real policy engine, and draw each
-//! layer as a rataflow parent-container box (see the Policy section below).
+//! counted in the status bar; unassigned crates are never judged. With a
+//! policy loaded, `p` (or `--boundaries`) switches to the **boundaries
+//! view**: each layer drawn as a titled container box (rataflow parent
+//! nodes), members gridded inside, layers stacked dependents-above-
+//! dependencies, and violating edges animated. The productised version
+//! would read the real policy engine instead of a sidecar file.
 //!
 //! Usage:
 //! ```text
@@ -59,6 +62,7 @@
 //! n            add a planned node (type a name, Enter)
 //! x / Delete   toggle retire-intent on the selection (un-plans planned nodes)
 //! t            toggle the intent/drift report overlay
+//! p            boundaries view: policy layers as container boxes
 //! drag on ●    propose a dependency edge · q quit
 //! ```
 //!
@@ -102,6 +106,7 @@ struct Args {
     retire: Option<String>,
     propose: Option<String>,
     report: bool,
+    boundaries: bool,
     path: Option<String>,
 }
 
@@ -121,6 +126,7 @@ fn parse_args() -> Args {
         retire: None,
         propose: None,
         report: false,
+        boundaries: false,
         path: None,
     };
     let mut it = std::env::args().skip(1).peekable();
@@ -139,6 +145,7 @@ fn parse_args() -> Args {
             "--retire" => args.retire = it.next(),
             "--propose" => args.propose = it.next(),
             "--report" => args.report = true,
+            "--boundaries" => args.boundaries = true,
             "--snapshot" => {
                 // dimensions are optional — only consume the next argument
                 // when it actually parses as WxH, so `--snapshot --zoom-read x`
@@ -290,8 +297,8 @@ impl Policy {
         })
     }
 
-    /// Boundary violations among the given edges, deterministic order.
-    fn violations(&self, edges: &[(String, String)]) -> Vec<String> {
+    /// Edges that cross a boundary illegally, deterministic order.
+    fn violating_pairs(&self, edges: &[(String, String)]) -> Vec<(String, String)> {
         let mut out = BTreeSet::new();
         for (a, b) in edges {
             let (Some(la), Some(lb)) = (self.layer_of(a), self.layer_of(b)) else {
@@ -301,10 +308,58 @@ impl Policy {
                 && let Some(def) = self.layers.get(la)
                 && !def.depends_on.iter().any(|d| d == lb)
             {
-                out.insert(format!("⚠ {la} → {lb}: {a} -> {b} (not allowed by policy)"));
+                out.insert((a.clone(), b.clone()));
             }
         }
         out.into_iter().collect()
+    }
+
+    /// Boundary violations among the given edges as report lines.
+    fn violations(&self, edges: &[(String, String)]) -> Vec<String> {
+        self.violating_pairs(edges)
+            .into_iter()
+            .map(|(a, b)| {
+                let la = self.layer_of(&a).unwrap_or("?");
+                let lb = self.layer_of(&b).unwrap_or("?");
+                format!("⚠ {la} → {lb}: {a} -> {b} (not allowed by policy)")
+            })
+            .collect()
+    }
+
+    /// Layer stacking order for the boundaries view: layers that depend on
+    /// others render above what they depend on (longest-chain depth).
+    fn layer_order(&self) -> Vec<String> {
+        fn depth(
+            policy: &Policy,
+            layer: &str,
+            seen: &mut Vec<String>,
+            memo: &mut BTreeMap<String, usize>,
+        ) -> usize {
+            if let Some(d) = memo.get(layer) {
+                return *d;
+            }
+            if seen.iter().any(|s| s == layer) {
+                return 0; // cycle guard: policy files are user input
+            }
+            seen.push(layer.to_string());
+            let d = policy.layers.get(layer).map_or(0, |def| {
+                def.depends_on
+                    .iter()
+                    .map(|dep| depth(policy, dep, seen, memo) + 1)
+                    .max()
+                    .unwrap_or(0)
+            });
+            seen.pop();
+            memo.insert(layer.to_string(), d);
+            d
+        }
+        let mut memo = BTreeMap::new();
+        let mut order: Vec<String> = self.layers.keys().cloned().collect();
+        order.sort_by_key(|l| {
+            let d = depth(self, l, &mut Vec::new(), &mut memo);
+            (std::cmp::Reverse(d), l.clone())
+        });
+        order
     }
 }
 
@@ -526,6 +581,8 @@ enum View {
     All,
     Focus(String),
     Internals(String),
+    /// Policy layers drawn as literal container boxes (needs `--policy`).
+    Boundaries,
 }
 
 impl View {
@@ -534,6 +591,7 @@ impl View {
             View::All => "all".into(),
             View::Focus(n) => n.clone(),
             View::Internals(n) => format!("{n} internals"),
+            View::Boundaries => "boundaries".into(),
         }
     }
 }
@@ -574,7 +632,7 @@ impl App {
     /// edges, so planned architecture renders alongside reality.
     fn current_edges(&self) -> Vec<(String, String)> {
         let mut edges = match self.stack.last().unwrap_or(&View::All) {
-            View::All => self.model.clone(),
+            View::All | View::Boundaries => self.model.clone(),
             View::Focus(focus) => self
                 .model
                 .iter()
@@ -624,6 +682,9 @@ impl App {
     }
 
     fn build_flow(&self) -> io::Result<Flow> {
+        if self.stack.last() == Some(&View::Boundaries) {
+            return self.build_boundaries_flow();
+        }
         let edges = self.current_edges();
         if edges.is_empty() {
             return Err(io::Error::other("current view has no edges"));
@@ -637,6 +698,107 @@ impl App {
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect();
         Flow::from_edges(&pairs, Sugiyama::vertical()).map_err(io::Error::other)
+    }
+
+    /// Boundaries view: each policy layer becomes a rataflow parent-container
+    /// box (border-titled, non-selectable), its member crates laid out in a
+    /// grid inside it — child positions are parent-relative. Layers stack by
+    /// dependency depth (dependents above dependencies), unassigned crates in
+    /// a trailing container. Edges route between children across containers;
+    /// boundary-violating edges are animated so they stand out.
+    // grid geometry works in terminal cells: counts are tiny, casts are safe
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
+    fn build_boundaries_flow(&self) -> io::Result<Flow> {
+        use rataflow::{Edge, Node, StepEdge, TextContent};
+
+        const CELL_H: f64 = 5.0;
+        const GAP: f64 = 2.0;
+
+        let policy = self
+            .policy
+            .as_ref()
+            .ok_or_else(|| io::Error::other("boundaries view needs --policy"))?;
+        let edges = self.current_edges();
+        let mut names: BTreeSet<String> = BTreeSet::new();
+        for (a, b) in &edges {
+            names.insert(a.clone());
+            names.insert(b.clone());
+        }
+
+        let mut groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for name in &names {
+            let layer = policy.layer_of(name).unwrap_or("(unassigned)");
+            groups
+                .entry(layer.to_string())
+                .or_default()
+                .push(name.clone());
+        }
+        let mut order: Vec<String> = policy
+            .layer_order()
+            .into_iter()
+            .filter(|l| groups.contains_key(l))
+            .collect();
+        if groups.contains_key("(unassigned)") {
+            order.push("(unassigned)".into());
+        }
+
+        let mut nodes: Vec<Node<TextContent>> = Vec::new();
+        let mut y_cursor = 0.0;
+        for layer in &order {
+            let members = &groups[layer];
+            let cols = (members.len() as f64).sqrt().ceil().max(1.0);
+            let cell_w = members
+                .iter()
+                .map(|m| self.decorate(m).chars().count())
+                .max()
+                .unwrap_or(8) as f64
+                + 6.0;
+            let cols_u = cols as usize;
+            let rows = members.len().div_ceil(cols_u) as f64;
+            let width = cols * (cell_w + GAP) + GAP + 2.0;
+            let height = rows * (CELL_H + 1.0) + GAP + 3.0;
+            let container_id = format!("▣ {layer}");
+            nodes.push(
+                Node::new(
+                    container_id.clone(),
+                    (0.0, y_cursor),
+                    (width, height),
+                    TextContent::new("").with_title(format!(" {layer} ")),
+                )
+                .with_selectable(false),
+            );
+            for (i, member) in members.iter().enumerate() {
+                let (row, col) = (i / cols_u, i % cols_u);
+                nodes.push(
+                    Node::new(
+                        self.decorate(member),
+                        (
+                            GAP + 1.0 + col as f64 * (cell_w + GAP),
+                            GAP + 1.0 + row as f64 * (CELL_H + 1.0),
+                        ),
+                        (cell_w, CELL_H),
+                        TextContent::from(member.as_str()),
+                    )
+                    .with_parent(container_id.clone()),
+                );
+            }
+            y_cursor += height + 4.0;
+        }
+
+        let flow_edges: Vec<Edge<StepEdge>> = edges
+            .iter()
+            .map(|(a, b)| Edge::new(edge_key(a, b), self.decorate(a), self.decorate(b)))
+            .collect();
+        let mut flow = Flow::with_graph(nodes, flow_edges)
+            .map_err(|e| io::Error::other(format!("boundaries graph: {e:?}")))?;
+        for (a, b) in policy.violating_pairs(&edges) {
+            flow.set_edge_animated(&edge_key(&a, &b), true);
+        }
+        Ok(flow)
     }
 
     fn push_view(&mut self, view: View) -> bool {
@@ -724,10 +886,10 @@ impl App {
     }
 }
 
-/// Strip a `⚑ ` / `◌ ` / `✕ ` marker from a rataflow node id, recovering the
-/// real node name intent is keyed by.
+/// Strip a `⚑ ` / `◌ ` / `✕ ` / `▣ ` marker from a rataflow node id,
+/// recovering the real node name intent is keyed by.
 fn strip_marker(id: &str) -> &str {
-    ["⚑ ", "◌ ", "✕ "]
+    ["⚑ ", "◌ ", "✕ ", "▣ "]
         .iter()
         .find_map(|m| id.strip_prefix(m))
         .unwrap_or(id)
@@ -770,6 +932,9 @@ fn main() -> io::Result<()> {
     }
     if let Some(i) = args.internals.clone() {
         stack.push(View::Internals(i));
+    }
+    if args.boundaries {
+        stack.push(View::Boundaries);
     }
     let mut app = App {
         model,
@@ -1014,6 +1179,13 @@ fn run_app(
                     }
                 }
                 KeyCode::Char('t') => app.show_report = !app.show_report,
+                KeyCode::Char('p') => {
+                    if app.policy.is_some() {
+                        rebuild = app.push_view(View::Boundaries);
+                    } else {
+                        app.status = "boundaries view needs --policy <file>".into();
+                    }
+                }
                 KeyCode::Enter => {
                     if let Some(node) = app.selected.clone() {
                         rebuild = app.push_view(View::Focus(node));
