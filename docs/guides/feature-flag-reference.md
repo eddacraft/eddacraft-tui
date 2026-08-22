@@ -1,8 +1,8 @@
 # Feature Flag Reference
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                    |
-| ----- | ------------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-13 against `packages/anvil/contracts/src/schemas/feature-flags.schema.ts` and `docs/guides/feature-flag-governance.md` |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                          |
+| ----- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-22 against the canonical schemas, catalogue, shared TypeScript resolver, and the live `docs.access` consumer |
 
 | Upstream                                                                                                                                                                                             | Downstream                                                               |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -44,7 +44,7 @@ migration of existing controls, see `feature-flag-inventory.md`.
             {
               "attribute": "accountTier",
               "operator": "in_set",
-              "value": ["beta", "pro", "enterprise"],
+              "value": ["plan-beta", "plan-pro", "plan-enterprise"],
             },
           ],
           "variant": "enabled",
@@ -78,6 +78,7 @@ const snapshot = createSnapshot(manifest);
 ### 4. Resolve at runtime
 
 ```typescript
+import { canonicalAccountTier } from '@eddacraft/anvil-flags-catalogue';
 import {
   resolveFlag,
   loadSnapshot,
@@ -88,7 +89,7 @@ const flag = snapshot.flags.find((f) => f.key === 'docs.access');
 const result = resolveFlag(flag, {
   targetingKey: 'session-abc',
   environment: { environment: 'production' },
-  audience: { accountTier: 'beta' },
+  audience: { accountTier: canonicalAccountTier('beta') },
 });
 
 if (result.value === true) {

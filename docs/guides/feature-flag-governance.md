@@ -1,8 +1,8 @@
 # Feature Flag Governance
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                           |
-| ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-05-25 against `plans/modules/feature-flag-catalogue.aps.md` and `crates/anvil-kernel-types/src/feature_flags.rs` |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                    |
+| ----- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-22 against the FLAGCAT plan, canonical manifest, shared resolvers, and the live `docs.access` consumer |
 
 | Upstream                                                                                                                                                        | Downstream                                                                                                                      |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |

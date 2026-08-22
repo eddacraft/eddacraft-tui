@@ -1,19 +1,19 @@
 # Shipped Codebase Review Checklist
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                             |
-| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-21 at `97899b00a`: DOCRB-006 architecture-pointer sweep; CIB-324 Windows update/version honesty reviewed 2026-08-14. Rechecked after the `v0.9.7-beta` overview freshness bump. |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                         |
+| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-22 against the architecture overview after the docs-shell entitlement-boundary update; the optional web/docs review scope remains accurate. |
 
 | Upstream                                                                                                                                                                                                                                                                                                 | Downstream                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 | `CONTEXT.md`, [docs/architecture/overview.md](../architecture/overview.md), [docs/architecture/rust-architecture-overview.md](../architecture/rust-architecture-overview.md), [docs/architecture/quality-model.md](../architecture/quality-model.md), `docs/architecture/*-as-built.md`, Cargo workspace | Council / adversarial review sessions, follow-up APS |
 
-This checklist maps the **shipped Anvil product** into reviewable chunks. Use it
+This checklist maps the **shipped anvil product** into reviewable chunks. Use it
 as a living tracker: mark sessions, record findings, and link follow-up work. It
 is advisory — code, as-builts, ADRs, and tests remain authoritative.
 
 **Product boundary:** the shipped product is the pure-Rust `anvil` binary
-(`crates/`, version `0.9.3-beta` in the workspace). TypeScript under `packages/`
+(`crates/`, version `0.9.7-beta` in the workspace). TypeScript under `packages/`
 and most of `apps/` is docs, API, or residual tooling — review those only when
 the scope is whole-product, not engine-only.
 

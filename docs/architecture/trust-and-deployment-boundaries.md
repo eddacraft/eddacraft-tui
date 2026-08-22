@@ -1,8 +1,8 @@
 # Trust and deployment boundaries
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                       |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 at `97899b00a` against native and TypeScript IPC clients, intercept registration/cross-check source, API route source, docs-shell/renderers, and `infra/src/vercel.ts` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-22 against local IPC clients and attribution, hosted API routes, canonical docs entitlement evaluation, renderer boundaries, and deployment wiring |
 
 | Upstream                                                                                                                                                                                                                                                                                                           | Downstream                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
@@ -128,11 +128,12 @@ renderer routes.
   `routes/admin.ts`, and `routes/cron.ts`. APGOV owns internal routing and BAUTH
   owns identity and licence semantics.
 - **Hosted documentation:** `apps/docs-shell/proxy.ts` gates `/anvil` and
-  `/anvil/*` on a valid licence, then injects `X-Docs-Upstream-Secret`. Both
-  renderer middleware files reject missing or unequal secrets on matched routes;
-  their matcher excludes `/favicon.ico`. `infra/src/vercel.ts` owns the deployed
-  projects, domains, and secret wiring. The shell's request-level auth and proxy
-  internals remain in `apps/docs-shell/ARCHITECTURE.md`.
+  `/anvil/*` on a valid licence whose verified plan resolves the canonical
+  `docs.access` entitlement to enabled, then injects `X-Docs-Upstream-Secret`.
+  Both renderer middleware files reject missing or unequal secrets on matched
+  routes; their matcher excludes `/favicon.ico`. `infra/src/vercel.ts` owns the
+  deployed projects, domains, and secret wiring. The shell's request-level auth
+  and proxy internals remain in `apps/docs-shell/ARCHITECTURE.md`.
 
 Degraded local graph or attribution evidence must be described as degraded; it
 does not become fresh assurance merely because the transport accepted a

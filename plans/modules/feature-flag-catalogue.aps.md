@@ -19,6 +19,9 @@ group, delivery surface, feature flag). FLAGCAT-010 Merged 2026-08-20 via PR
 migration, and rollback design. FLAGCAT-012..015 then sequence the drift gates,
 flag linkage, generated views, and tier mapping.
 
+FLAGCAT-016 was promoted to Ready and started on 2026-08-22 to adopt the
+orphaned `docs.access` catalogue flag in the live documentation shell.
+
 **Earlier — 2026-06-01** — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
 `welcome`) is deliberate beta access control, deferred to GA — not a
@@ -852,3 +855,56 @@ Status promoted Draft → **Ready** 2026-05-28.
   `pnpm typecheck`.
 - **Risk:** high — commercial entitlement semantics; remains Draft until the
   product-plan boundary is approved.
+
+### FLAGCAT-016: Adopt `docs.access` in the live documentation shell
+
+- **Status:** In Progress
+- **Authorisation:** Promoted to Ready and implementation authorised by the
+  operator on 2026-08-22; started in the same session.
+- **Intent:** Remove the live documentation shell's duplicated entitled-plan
+  set and evaluate the existing `docs.access` flag from the canonical
+  catalogue at the authenticated request boundary.
+- **Expected Outcome:**
+  - `apps/docs-shell` consumes `DOCS_ACCESS_FLAG`,
+    `canonicalAccountTier`, and the shared resolver instead of maintaining a
+    second entitlement list.
+  - The evaluation context derives `accountTier` from the trusted licence
+    plan, uses the non-PII `docs-shell` targeting key, and maps deployment
+    environment values onto the canonical inventory.
+  - Access is granted only when the resolved variant is `enabled` and its
+    value is exactly `true`; missing, unknown, invalid, or unmatched plans
+    continue to fail closed.
+  - SEC-012's claim rule is unchanged: `plan` wins, the exact legacy
+    `tier: 'pro'` shape de-escalates to `beta`, and all other claimless
+    shapes are denied until the compatibility branch retires around
+    2026-11-11.
+  - Focused tests and a production build prove the catalogue path remains
+    usable in the Next.js edge bundle.
+- **Files:** `apps/docs-shell/lib/feature-flags.ts`,
+  `apps/docs-shell/lib/feature-flags.test.ts`,
+  `apps/docs-shell/lib/jwt.ts`, `apps/docs-shell/next.config.ts`,
+  `apps/docs-shell/project.json`, `apps/docs-shell/tsconfig.json`,
+  `apps/docs-shell/scripts/smoke-built-proxy.mjs`,
+  `apps/docs-shell/package.json`, `pnpm-lock.yaml`,
+  `apps/docs-shell/AGENTS.md`, `apps/docs-shell/README.md`,
+  `apps/docs-shell/ARCHITECTURE.md`,
+  `docs/architecture/auth-as-built.md`,
+  `docs/guides/feature-flag-inventory.md`.
+- **Dependencies:** FLAGCAT-006 Released/Shipped; SEC-012 Released/Shipped.
+- **Non-scope:** Changing `flags/manifest.json`, flag schemas or plan
+  vocabulary; removing the legacy `tier` alias; redesigning the resolver or
+  introducing a remote flag provider.
+- **Validation:** `pnpm --filter @eddacraft/docs-shell test`;
+  `pnpm --filter @eddacraft/docs-shell typecheck`;
+  `pnpm --filter @eddacraft/docs-shell build`;
+  `pnpm exec nx test flags-catalogue`; `pnpm docs:check`;
+  `pnpm aps:active-lint`; `pnpm aps:index:check`;
+  `pnpm format:check`; `pnpm validate:changed`.
+- **Risk:** standard — behaviour-preserving entitlement-source migration at a
+  live edge boundary, with focused access-control and bundle validation.
+- **changeType:** fix
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+- **releaseNote:** developer / fixed — private-docs entitlement checks now
+  consume the canonical feature-flag catalogue instead of a duplicated plan
+  list.

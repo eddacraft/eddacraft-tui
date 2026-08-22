@@ -11,7 +11,7 @@
       }
     },
     "build": {
-      "command": "next build",
+      "command": "next build && node scripts/smoke-built-proxy.mjs",
       "options": {
         "cwd": "apps/docs-shell"
       }

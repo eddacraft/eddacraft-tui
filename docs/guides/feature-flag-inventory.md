@@ -1,8 +1,8 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                              |
-| ----- | --------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-20 against ADR-076, `plans/modules/feature-flag-catalogue.aps.md`, and the live flag inventories |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                          |
+| ----- | --------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-22 against FLAGCAT-016, `apps/docs-shell/lib/{jwt,feature-flags}.ts`, ADR-076, and the live flag inventories |
 
 | Upstream                                                                                                                                                                                           | Downstream                                                 |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -81,7 +81,7 @@ To add a flag:
 | Control                          | Location                                      | Classification | Flag class    | Mechanism         |
 | -------------------------------- | --------------------------------------------- | -------------- | ------------- | ----------------- |
 | CLI licence-gated actions        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | default/target    |
-| Docs access gating               | _no runtime consumer_ (see note)              | orphaned       | `entitlement` | targeting         |
+| Docs access gating               | `apps/docs-shell/lib/feature-flags.ts`        | migrated       | `entitlement` | targeting         |
 | `ANVIL_DEV=1` auth bypass        | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `entitlement` | local override    |
 | `ADMIN_KEY` admin gating         | `apps/anvil-api/src/middleware/admin-auth.ts` | defer          | `entitlement` | —                 |
 | API access scopes                | `apps/anvil-api/src/lib/feature-flags.ts`     | migrated       | `entitlement` | default           |
@@ -130,24 +130,20 @@ is now the sole source of truth.
 - **Featureboard swap impact:** Provider replacement only — the evaluation
   context and flag key stay the same.
 
-### Docs access gating — Migrated (FLAGM-004, closed FLAGM-006)
+### Docs access gating — Migrated (FLAGM-004, adopted by FLAGCAT-016)
 
-- **Resolver location:** none. The only catalogue-based resolver lived in
-  `apps/docs-site/lib/feature-flags.ts`, deleted with that retired app. The live
-  gate is `apps/docs-shell/lib/jwt.ts`, which matches this flag's targeting with
-  a local constant rather than resolving the flag. **`docs.access` therefore has
-  no runtime consumer** — either docs-shell adopts the catalogue or the flag
-  should be retired. Nothing gates this today; the catalogue tests pass on an
-  unused flag. Previously described as: `evaluateDocsAccess()` is called from
-  the Docusaurus middleware.
+- **Resolver location:** `apps/docs-shell/lib/feature-flags.ts` —
+  `evaluateDocsAccess()`; called by `verifyLicense()` in
+  `apps/docs-shell/lib/jwt.ts` after signature, issuer, audience, subject, and
+  trusted plan-claim validation.
 - **Flag key:** `docs.access` (class: `entitlement`).
-- **Current state:** After JWT validation, the middleware resolves `docs.access`
-  directly via `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags`.
-  Gating decisions are driven by `accountTier` targeting (beta, pro, enterprise)
-  rather than just authentication presence. The runtime exemplar parity block
-  that cross-checked an inline legacy evaluator was retired in FLAGM-006.
-- **Evaluation context:** `accountTier` from the authenticated docs session
-  claim.
+- **Current state:** The live docs shell resolves `DOCS_ACCESS_FLAG` via
+  `resolveFlag` from `@eddacraft/anvil-runtime/feature-flags`. It grants only
+  the boolean `enabled` result, so missing or unknown plans and evaluation
+  failures deny access. The former local entitled-plan set has been deleted.
+- **Evaluation context:** Canonical `accountTier` from the authenticated,
+  SEC-012-resolved plan claim; deployment environment from
+  `VERCEL_ENV`/`NODE_ENV`; constant non-PII targeting key `docs-shell`.
 - **Featureboard swap impact:** Provider replacement only — middleware still
   resolves via the same evaluation context.
 

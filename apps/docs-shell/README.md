@@ -1,18 +1,19 @@
 # anvil documentation shell
 
-| Type   | Authority     | Owner           | Status | Freshness                                                                                           |
-| ------ | ------------- | --------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| README | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `apps/docs-shell/proxy.ts`, and `infra/src/vercel.ts` |
+| Type   | Authority     | Owner           | Status | Freshness                                                                                                            |
+| ------ | ------------- | --------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-22 against `apps/docs-shell/lib/{jwt,feature-flags}.ts`, `proxy.ts`, and `infra/src/vercel.ts` |
 
 | Upstream                                                                                                                                          | Downstream                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `apps/docs-shell/**`, `infra/src/vercel.ts`, ADR-123, BAUTH's `docs/architecture/auth-as-built.md`, and `docs/guides/documentation-governance.md` | Production docs requests and `apps/docs-shell/ARCHITECTURE.md` |
 
 This Next.js application is the live public entrypoint at `docs.eddacraft.ai`.
-It authenticates `/anvil/*` and proxies those requests to
+It authenticates `/anvil/*`, resolves the `docs.access` entitlement from the
+canonical flag catalogue, and proxies allowed requests to
 `apps/anvil-docs-private`; public APS, kindling, edda-stack, and blog paths are
-proxied to `apps/docs-public`. `apps/docs-site` is rollback-only and is not the
-live renderer.
+proxied to `apps/docs-public`. The former rollback host `apps/docs-site` was
+retired and deleted after its rollback window closed.
 
 The ownership field is intentionally a gap, not a joint assignment. DOCRB owns
 this documentation pilot; DSITE still owns recorded legacy host work and has not
@@ -28,6 +29,8 @@ unresolved boundary without changing DSITE status.
 - [`app/auth/callback/route.ts`](app/auth/callback/route.ts) exchanges the
   callback through the BAUTH API and establishes the docs session.
 - [`lib/jwt.ts`](lib/jwt.ts) verifies the ES256 licence and access tier.
+- [`lib/feature-flags.ts`](lib/feature-flags.ts) maps the trusted plan claim
+  into canonical audience context and resolves `docs.access` fail closed.
 - [`lib/bauth.ts`](lib/bauth.ts) calls the hosted authentication authority.
 
 ## Local validation
@@ -37,6 +40,9 @@ pnpm --filter @eddacraft/docs-shell test
 pnpm --filter @eddacraft/docs-shell typecheck
 pnpm --filter @eddacraft/docs-shell build
 ```
+
+The production build finishes by exercising the emitted proxy bundle with signed
+entitled, denied, and legacy-tier licences.
 
 ## Architecture and authorities
 

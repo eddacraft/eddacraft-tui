@@ -481,6 +481,12 @@ importers:
 
   apps/docs-shell:
     dependencies:
+      '@eddacraft/anvil-flags-catalogue':
+        specifier: workspace:*
+        version: link:../../packages/anvil/flags-catalogue
+      '@eddacraft/anvil-runtime':
+        specifier: workspace:*
+        version: link:../../packages/anvil/runtime
       jose:
         specifier: ^6.2.3
         version: 6.2.3

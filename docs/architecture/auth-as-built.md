@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                          |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-20 at `97899b00a` against auth routes/session source, `lib/token.ts`, `lib/github-device-crypto.ts`, docs-shell callback/BAUTH source, and targeted neighbouring auth claims |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-22 against auth routes/session source, `apps/docs-shell/lib/{jwt,feature-flags}.ts`, the `docs.access` catalogue definition, and targeted neighbouring auth claims |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -411,6 +411,12 @@ the one legacy shape ever minted — resolves to `beta`; anything else resolves 
 verify side and `signLicence` rejects a null plan. The alias and its `'pro'`
 branch retire once the last pre-BACT-013 licence expires (90-day TTL, so
 ~2026-11-11).
+
+At the live documentation edge, the resolved plan is canonicalised to the
+catalogue's `plan-*` audience and evaluated against the active `docs.access`
+entitlement definition. `apps/docs-shell` grants only the boolean `enabled`
+result and otherwise fails closed. This removes the former duplicated plan set
+without changing the compatibility rule above.
 
 **Risk:** Low for beta. High if external systems start consuming `org` or
 `seats`, which remain hardcoded. **Fix:** Derive from `beta_users` or a separate

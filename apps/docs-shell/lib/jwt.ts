@@ -1,15 +1,8 @@
 import { jwtVerify, importSPKI, type CryptoKey } from 'jose';
 
-let cachedKey: CryptoKey | null = null;
-/**
- * Plans entitled to private `/anvil` docs. Mirrors the `docs.access` targeting
- * in `flags/manifest.json` (`accountTier in_set [plan-beta, plan-pro,
- * plan-enterprise]`), expressed as bare plan names because this verifier reads
- * the raw JWT at the edge with no catalogue import. Keep the two in step; see
- * SEC-012's residual note about sourcing this from the catalogue directly.
- */
-const DOCS_ACCESS_PLANS = new Set(['beta', 'pro', 'enterprise']);
+import { evaluateDocsAccess } from './feature-flags';
 
+let cachedKey: CryptoKey | null = null;
 /**
  * SEC-012: the one legacy `tier` value ever minted, and the plan it
  * de-escalates to. Pre-BACT-013 `signLicence` hardcoded `tier: 'pro'` for
@@ -75,7 +68,7 @@ export async function verifyLicense(token: string): Promise<VerifyResult> {
       return { valid: false };
     }
     const plan = resolvePlanClaim(payload as Record<string, unknown>);
-    if (plan === null || !DOCS_ACCESS_PLANS.has(plan)) {
+    if (plan === null || !evaluateDocsAccess(plan)) {
       return { valid: false, plan };
     }
     return { valid: true, plan };

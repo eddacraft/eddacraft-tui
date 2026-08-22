@@ -1,8 +1,8 @@
 # Documentation delivery
 
-| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                                                                |
-| ----- | ------------- | --------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-20 at `97899b00a` against `docs/public/**`, both renderer configs and middleware matchers, `apps/docs-shell/**`, `infra/src/vercel.ts`, and `tools/scripts/vercel-ignore-build.sh` |
+| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                         |
+| ----- | ------------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-22 against the live docs-shell entitlement path, renderer boundaries, content sources, deployment wiring, and build watches |
 
 | Upstream                                                                                                                                                                                                                                                       | Downstream                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -57,12 +57,13 @@ inputs, or declared content paths change; preview deployments are disabled for
 these projects.
 
 Every reader request enters the shell. `/anvil` and `/anvil/*` require a valid
-entitled licence before the private renderer is selected. Other matched
-documentation routes use the public renderer. The shell injects
-`DOCS_UPSTREAM_SECRET` as `X-Docs-Upstream-Secret`; both renderer middleware
-boundaries reject matched direct requests that do not carry the matching secret.
-Their matcher excludes `/favicon.ico`, so the shared-secret statement is
-deliberately not universal to every renderer path.
+licence whose verified plan resolves the canonical `docs.access` entitlement to
+enabled before the private renderer is selected. Other matched documentation
+routes use the public renderer. The shell injects `DOCS_UPSTREAM_SECRET` as
+`X-Docs-Upstream-Secret`; both renderer middleware boundaries reject matched
+direct requests that do not carry the matching secret. Their matcher excludes
+`/favicon.ico`, so the shared-secret statement is deliberately not universal to
+every renderer path.
 
 `apps/docs-site` was the rollback artefact: no production domain, ignore command
 `--always-skip`, no live request edge. It was retired on 2026-07-08
@@ -83,8 +84,9 @@ the same date.
   renderer hosts, and environment wiring trace to `infra/src/vercel.ts`,
   `infra/src/components/vercel-app.ts`, each app's `vercel.json`, and
   `tools/scripts/vercel-ignore-build.sh`.
-- The `/anvil` entitlement branch, public routing branch, and injected
-  upstream-secret header trace to `apps/docs-shell/proxy.ts` and
+- The `/anvil` entitlement branch, canonical flag evaluation, public routing
+  branch, and injected upstream-secret header trace to
+  `apps/docs-shell/proxy.ts`, `apps/docs-shell/lib/feature-flags.ts`, and
   `apps/docs-shell/lib/jwt.ts`.
 - Renderer protection and the explicit `/favicon.ico` matcher exclusion trace to
   `apps/anvil-docs-private/middleware.ts` and `apps/docs-public/middleware.ts`.
