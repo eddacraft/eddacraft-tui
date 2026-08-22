@@ -23,6 +23,7 @@ examples/pretext_demos/streaming.rs
 examples/runner_shell.rs
 src/animation.rs
 src/compat.rs
+src/flow.rs
 src/json_render/binding.rs
 src/json_render/catalog_sync.rs
 src/json_render/component.rs
@@ -62,6 +63,7 @@ src/pretext/segment.rs
 src/pretext/types.rs
 src/runner.rs
 src/shell.rs
+src/snapshots/eddacraft_tui__flow__tests__snapshot_container_flow.snap
 src/snapshots/eddacraft_tui__shell__tests__snapshot_shell_chrome.snap
 src/surface.rs
 src/test_utils.rs

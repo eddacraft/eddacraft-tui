@@ -17,6 +17,7 @@
 | `json-render` JSON → terminal renderer   |     —     | ✓ (`json-render`) |
 | Themed spinners, progress & status       |     —     |         ✓         |
 | Image pane (Kitty / Sixel / iTerm2)      |     —     |    ✓ (`image`)    |
+| Interactive flow graphs                  |     —     |    ✓ (`flow`)     |
 | Big-text branded splashes                |     —     |  ✓ (`big-text`)   |
 
 Theming and shell branding are optional. `ShellBranding::Plain` (the default)
@@ -211,6 +212,7 @@ The `widgets/` module ships a curated component set. Highlights:
 | `lifecycle`   | `TerminalGuard` raw-mode / alternate-screen RAII guard + panic restore                      |
 | `runner`      | Small fallback CLI shell — global flags + first-level commands (enables `lifecycle`)        |
 | `json-render` | Parser + registry for the `@json-render/core` declarative spec format                       |
+| `flow`        | Themed `rataflow` graphs — Sugiyama layout, container boxes, zoom-to-read                   |
 | `test-utils`  | Snapshot testing helpers re-exported for downstream crates                                  |
 
 ```toml
