@@ -7,7 +7,11 @@
 | ------ | ----- | -------- | ------ | -------- |
 | CPACKS | —     | high     | In Progress  | 5/8      |
 
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+**Last reviewed:** 2026-08-23 — CPACKS-007 promoted Proposed -> Ready by
+operator instruction, alongside POLFIT-007 which coordinates the two remaining
+live items. No scope change; the module's live residue is unchanged
+(CPACKS-006 + CPACKS-007), both now Ready, with CPACKS-008 still behind the
+expansion gate. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
 previous revision was last reviewed 2026-07-02, two days **before** the
 starter pack it plans shipped, and still framed it as future work.)
@@ -200,10 +204,13 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-007: Starter pack docs — known-gaps residual
 
-- **Status:** Proposed (re-scoped 2026-07-11: the bulk is delivered —
+- **Status:** Ready — promoted 2026-08-23 by operator instruction alongside
+  POLFIT-007, which coordinates this item. Dependencies CPACKS-004/-005 were
+  already Done and the scope below was already settled; the item had simply
+  never been advanced. (Re-scoped 2026-07-11: the bulk is delivered —
   anvil-baseline is documented across `docs/public/anvil/tutorials/policies.md`
   and `docs/public/anvil/beta-testing-guide.md`; the residual is an audit that
-  the known-gaps and non-compliance-posture copy is explicit and complete)
+  the known-gaps and non-compliance-posture copy is explicit and complete.)
 - **Intent:** Audit and complete the known-gaps and non-compliance-posture
   documentation for the shipped starter pack.
 - **Expected Outcome:** Users can adopt the starter pack without confusing it for

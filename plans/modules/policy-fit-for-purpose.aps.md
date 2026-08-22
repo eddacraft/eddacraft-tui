@@ -7,10 +7,16 @@
 | ------ | --------- | ----- | -------- | ------ | -------- |
 | POLFIT | Conductor | —     | high     | Ready  | 0/9      |
 
-**Promoted:** 2026-08-22 — POLFIT-001 and POLFIT-002 advanced Draft -> Ready on
+**Promoted:** 2026-08-23 — POLFIT-007 and POLFIT-009 advanced Draft -> Ready on
+operator instruction. Neither depends on the two design gates: -007 drives the
+already-filed CPACKS residue, and -009 is a posture-and-stamp pass the
+conductor owns outright. CPACKS-007 was promoted Proposed -> Ready in the same
+change so -007's delegated work is fully authorised.
+
+2026-08-22 — POLFIT-001 and POLFIT-002 advanced Draft -> Ready on
 operator instruction; module status follows its items to **Ready**. Both are
 decision-record items: Ready authorises producing the ADR, not implementing
-what the ADR decides. POLFIT-003..-009 stay Draft behind them.
+what the ADR decides. POLFIT-003..-006 and -008 stay Draft behind them.
 
 **Last reviewed:** 2026-08-22 (created from a policy-capability audit against
 `origin/main` @ `7524a599b`, binary version 0.9.7-beta. The audit read the
@@ -240,7 +246,10 @@ They still gate the items below them.
 
 ### POLFIT-007: Starter-pack residue closed
 
-- **Status:** Draft
+- **Status:** Ready — promoted 2026-08-23 by operator instruction. Both
+  delegated items are now Ready: CPACKS-006 since 2026-07-11, and CPACKS-007
+  promoted alongside this one (its dependencies CPACKS-004/-005 were already
+  Done; it had simply never been advanced).
 - **Intent:** Finish the two small items POLRESET's first slice left open so
   CPACKS reaches a terminal state.
 - **Expected Outcome:** The `anvil-baseline` fixtures are wired into the CI eval
@@ -273,7 +282,9 @@ They still gate the items below them.
 
 ### POLFIT-009: Enterprise policy modules carry an honest posture
 
-- **Status:** Draft
+- **Status:** Ready — promoted 2026-08-23 by operator instruction. Conductor
+  owns this outright: the deliverable is a posture and review stamp on each
+  named module, not a delegated work item.
 - **Intent:** Stop four Draft modules reading as an active roadmap when no
   organisational policy capability ships and none is scheduled.
 - **Expected Outcome:** ORGHIER, POLLC, POLFED, and COMPLY each carry a current
