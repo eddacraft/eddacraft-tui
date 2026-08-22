@@ -28,5 +28,7 @@ echo ""
 type log_debug >/dev/null 2>&1 && log_debug "calling Vercel API: /v9/projects"
 curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" \
   https://api.vercel.com/v9/projects \
-  | jq -r '.projects[] | select(.name == "website" or .name == "docs-site") |
+  | jq -r '.projects[] | select(.name == "website" or .name == "anvil-api" or
+      .name == "eddacraft-docs-shell" or .name == "eddacraft-docs-public" or
+      .name == "eddacraft-anvil-docs-private") |
     "# \(.name) (id: \(.id))\npulumi import vercel:index/project:Project \(.name) \(.id)\n"'

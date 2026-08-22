@@ -200,28 +200,6 @@ export const docsShell = prodOnly(
     })
 );
 
-// IAC-004: Docs Site (Docusaurus) — RETIRED. Domain moved to docsShell.
-// Kept temporarily for rollback; remove once docs-shell is stable.
-export const docsSite = prodOnly(
-  () =>
-    new VercelApp('docs-site', {
-      name: 'docs-site',
-      framework: 'docusaurus-2',
-      rootDirectory: 'apps/docs-site',
-      gitRepo,
-      domains: [],
-      skipPreviewDeploys: true,
-      ignoreCommand:
-        'cd "$(git rev-parse --show-toplevel)" && bash tools/scripts/vercel-ignore-build.sh --always-skip',
-      envVars: {
-        // DOCSAUTH: ES256 public key for edge JWT verification
-        LICENSE_PUBLIC_KEY: licensePublicKey,
-        // DOCSAUTH: secret for encrypting OAuth state parameter (CSRF nonce)
-        STATE_SECRET: docsStateSecret,
-        // DOCSAUTH: BAUTH API URL for the callback function
-        BAUTH_API_URL: 'https://api.eddacraft.ai',
-        // DOCSAUTH: GitHub OAuth client ID (needed by login function for redirect)
-        GITHUB_CLIENT_ID: githubClientId,
-      },
-    })
-);
+// IAC-004 originally managed apps/docs-site. That host is gone; leaving the
+// Vercel project connected made every main push fail against a missing
+// rootDirectory. Do not re-add it.

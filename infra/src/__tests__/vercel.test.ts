@@ -64,9 +64,8 @@ describe('Vercel resources', () => {
   it('creates Vercel Project resources for all apps', () => {
     const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
 
-    expect(projects.length).toBe(6);
+    expect(projects.length).toBe(5);
     expect(projects.map((p) => p.name)).toContain('website');
-    expect(projects.map((p) => p.name)).toContain('docs-site');
     expect(projects.map((p) => p.name)).toContain('anvil-api');
     expect(projects.map((p) => p.name)).toContain('anvil-docs-private');
     expect(projects.map((p) => p.name)).toContain('docs-public');
@@ -94,13 +93,23 @@ describe('Vercel resources', () => {
   it('limits managed Vercel Git deployments to the main branch', () => {
     const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
 
-    expect(projects).toHaveLength(6);
+    expect(projects).toHaveLength(5);
     for (const project of projects) {
       expect(project.inputs.previewDeploymentsDisabled, project.name).toBe(true);
       expect(project.inputs.gitRepository, project.name).toMatchObject({
         productionBranch: 'main',
       });
     }
+  });
+
+  it('does not create a Vercel project for the retired docs-site host', () => {
+    const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
+
+    expect(projects.map((p) => p.name)).not.toContain('docs-site');
+    expect(projects.map((p) => p.inputs.rootDirectory)).not.toContain('apps/docs-site');
+    expect(
+      projects.every((p) => !String(p.inputs.ignoreCommand ?? '').includes('--always-skip'))
+    ).toBe(true);
   });
 
   it('assigns docs.eddacraft.ai to docs-shell, not docs-site', () => {

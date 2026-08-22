@@ -67,7 +67,6 @@ describe('untrusted stack gating (CIB-119)', () => {
     expect(mod.anvilDocsPrivate).toBeUndefined();
     expect(mod.docsPublic).toBeUndefined();
     expect(mod.docsShell).toBeUndefined();
-    expect(mod.docsSite).toBeUndefined();
 
     const vercelResources = resources.filter((r) => r.type.startsWith('vercel:'));
     expect(vercelResources).toHaveLength(0);

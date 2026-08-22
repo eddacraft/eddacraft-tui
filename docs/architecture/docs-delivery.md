@@ -67,13 +67,15 @@ every renderer path.
 
 `apps/docs-site` was the rollback artefact: no production domain, ignore command
 `--always-skip`, no live request edge. It was retired on 2026-07-08
-(`847436623`) and **deleted** once the rollback window closed — the shell had
-been live for six weeks without a rollback being needed. Its navigation
-authority moved to the live hosts (`apps/anvil-docs-private/sidebars/anvil.ts`
-and `apps/docs-public/sidebars/aps.ts`), which is what
+(`847436623`) and **deleted** once the rollback window closed. The leftover
+Vercel project stayed Git-connected in Pulumi, so every `main` push still tried
+to deploy the missing `apps/docs-site` root directory and failed. That project
+is no longer defined in `infra/src/vercel.ts`. Navigation authority moved to the
+live hosts (`apps/anvil-docs-private/sidebars/anvil.ts` and
+`apps/docs-public/sidebars/aps.ts`), which is what
 `scripts/docs/check-public-docs.mjs` now reads. `docs/public/start-here` went
-with it: only docs-site rendered that section, so it had been unpublished since
-the same date.
+with the host: only docs-site rendered that section, so it had been unpublished
+since the same date.
 
 ## Source trace and ownership gap
 

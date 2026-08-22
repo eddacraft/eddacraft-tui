@@ -9,7 +9,8 @@ This is the public-facing marketing and landing page for anvil at
 **React 19**, **Tailwind CSS 4**, and **Radix UI** primitives. The design
 follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corners.
 
-This is _not_ the documentation site (that lives in `apps/docs-site`).
+This is _not_ the documentation site (that lives at `docs.eddacraft.ai` via
+`apps/docs-shell`).
 
 For waitlist email operations and resend testing, see:
 `docs/guides/waitlist-email-operations.md`.

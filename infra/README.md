@@ -104,11 +104,11 @@ Vercel token from Key Vault, and uses Azure Blob Storage for state.
 
 ## What's managed
 
-| Resource                             | Provider               | File                      |
-| ------------------------------------ | ---------------------- | ------------------------- |
-| Vercel projects (website, docs-site) | `@pulumiverse/vercel`  | `src/vercel.ts`           |
-| Vercel domains and env vars          | `@pulumiverse/vercel`  | `src/vercel.ts`           |
-| Azure DNS records (eddacraft.ai)     | `@pulumi/azure-native` | `src/dns/eddacraft-ai.ts` |
+| Resource                                                                          | Provider               | File                      |
+| --------------------------------------------------------------------------------- | ---------------------- | ------------------------- |
+| Vercel projects (website, anvil-api, docs-shell, docs-public, anvil-docs-private) | `@pulumiverse/vercel`  | `src/vercel.ts`           |
+| Vercel domains and env vars                                                       | `@pulumiverse/vercel`  | `src/vercel.ts`           |
+| Azure DNS records (eddacraft.ai)                                                  | `@pulumi/azure-native` | `src/dns/eddacraft-ai.ts` |
 
 GitHub secrets and branch protection are managed via the GitHub UI, not Pulumi.
 

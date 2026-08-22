@@ -73,8 +73,8 @@ Check, finding, gate, and surface concepts are documented in the
   are grouping directories, not single packages.
 - **`apps/`** — deployables and doc surfaces: `anvil-api` (Hono REST API),
   `admin-cli`, the Docusaurus/Next docs apps (`docs-public`, `docs-shell`,
-  `docs-site`, `anvil-docs-private`), the marketing `website`, and the `e2e`
-  Vitest harness. See [`apps/README.md`](apps/README.md).
+  `anvil-docs-private`), the marketing `website`, and the `e2e` Vitest harness.
+  See [`apps/README.md`](apps/README.md).
 
 ### Planning & decisions — `plans/`
 
@@ -124,7 +124,6 @@ This repo keeps **per-area detail in `AGENTS.md` files**, not in nested
 conventions, read the nearest `AGENTS.md`. Current spokes:
 
 - [`apps/docs-shell/AGENTS.md`](apps/docs-shell/AGENTS.md)
-- [`apps/docs-site/AGENTS.md`](apps/docs-site/AGENTS.md)
 - [`apps/website/AGENTS.md`](apps/website/AGENTS.md)
 - [`packages/adapters/AGENTS.md`](packages/adapters/AGENTS.md)
 - [`packages/aps/AGENTS.md`](packages/aps/AGENTS.md)

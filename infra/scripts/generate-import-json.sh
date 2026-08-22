@@ -35,12 +35,6 @@ website_prj=$(curl -fsS -H "Authorization: Bearer $VERCEL_API_TOKEN" \
 echo "  website: $website_prj"
 type log_debug >/dev/null 2>&1 && log_debug "website_prj=${website_prj}"
 
-type log_debug >/dev/null 2>&1 && log_debug "fetching docs-site project ID..."
-docs_prj=$(curl -fsS -H "Authorization: Bearer $VERCEL_API_TOKEN" \
-  "https://api.vercel.com/v9/projects/docs-site" | jq -r '.id')
-echo "  docs-site: $docs_prj"
-type log_debug >/dev/null 2>&1 && log_debug "docs_prj=${docs_prj}"
-
 echo "Fetching Vercel env var IDs for website..."
 type log_debug >/dev/null 2>&1 && log_debug "fetching env vars for website..."
 
@@ -95,13 +89,6 @@ cat > "$OUTPUT" <<ENDJSON
       "component": true
     },
     {
-      "type": "anvil:vercel:App",
-      "name": "docs-site-app",
-      "logicalName": "docs-site",
-      "component": true
-    },
-
-    {
       "type": "vercel:index/project:Project",
       "name": "website-project",
       "logicalName": "website",
@@ -131,21 +118,6 @@ cat > "$OUTPUT" <<ENDJSON
     },
 
     {
-      "type": "vercel:index/project:Project",
-      "name": "docs-project",
-      "logicalName": "docs-site",
-      "id": "$docs_prj",
-      "parent": "docs-site-app"
-    },
-    {
-      "type": "vercel:index/projectDomain:ProjectDomain",
-      "name": "docs-domain",
-      "logicalName": "docs-site-docs-eddacraft-ai",
-      "id": "$docs_prj/docs.eddacraft.ai",
-      "parent": "docs-site-app"
-    },
-
-    {
       "type": "azure-native:dns:RecordSet",
       "name": "root-txt-eddacraft-ai",
       "id": "$DNS_BASE/TXT/@"
@@ -157,6 +129,6 @@ ENDJSON
 type log_info >/dev/null 2>&1 && log_info "import.json generated at ${OUTPUT}"
 echo ""
 echo "Generated $OUTPUT with $(jq '.resources | length' "$OUTPUT") resources"
-echo "  - 2 VercelApp components"
-echo "  - 6 Vercel child resources (2 projects, 2 domains, 2 env vars)"
+echo "  - 1 VercelApp component"
+echo "  - 4 Vercel child resources (1 project, 1 domain, 2 env vars)"
 echo "  - 1 Azure DNS RecordSet (4 Resend records already in state)"
