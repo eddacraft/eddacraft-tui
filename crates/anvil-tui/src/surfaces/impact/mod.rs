@@ -80,9 +80,20 @@ impl ImpactState {
         }
     }
 
-    /// Build from an already-loaded graph (fixtures, tests).
+    /// Build from an already-loaded graph (fixtures, tests). The TUI render
+    /// budget applies here — an over-budget graph degrades on screen while
+    /// the data stays fully available to `--json`/`--no-tui` callers.
     #[must_use]
     pub fn from_graph(graph: ImpactGraph) -> Self {
+        let nodes = graph.crate_count();
+        if nodes > data::MAX_RENDERABLE_NODES {
+            return Self {
+                body: ImpactBody::Degraded(ImpactDataError::TooLarge { nodes }),
+                status: String::new(),
+                should_quit: false,
+                wants_back: false,
+            };
+        }
         let flow = build_flow(&graph.crate_edges);
         Self {
             body: ImpactBody::Loaded(Box::new(LoadedImpact {
@@ -193,6 +204,16 @@ impl ImpactState {
         }
     }
 
+    /// Whether the current view's node ids are crate names (drillable).
+    fn in_crate_view(&self) -> bool {
+        match &self.body {
+            ImpactBody::Loaded(loaded) => {
+                !matches!(loaded.stack.last(), Some(ImpactView::Internals(_)))
+            }
+            ImpactBody::Degraded(_) => false,
+        }
+    }
+
     fn nav(&mut self, direction: raw::Direction) {
         self.with_flow(|flow| flow.select_node_in_direction(direction));
         if let Some(sel) = self.selected() {
@@ -229,8 +250,12 @@ impl eddacraft_tui::surface::Surface for ImpactState {
             Action::Down => self.nav(raw::Direction::Down),
             Action::Left => self.nav(raw::Direction::Left),
             Action::Right => self.nav(raw::Direction::Right),
+            // Drill actions only make sense at crate level — in an internals
+            // view the selection is a file label, not a crate name.
             Action::Select => {
-                if let Some(sel) = self.selected() {
+                if self.in_crate_view()
+                    && let Some(sel) = self.selected()
+                {
                     self.push_view(ImpactView::Focus(sel));
                 }
             }
@@ -240,7 +265,9 @@ impl eddacraft_tui::surface::Surface for ImpactState {
                 }
             }
             Action::Character('i') => {
-                if let Some(sel) = self.selected() {
+                if self.in_crate_view()
+                    && let Some(sel) = self.selected()
+                {
                     self.push_view(ImpactView::Internals(sel));
                 }
             }

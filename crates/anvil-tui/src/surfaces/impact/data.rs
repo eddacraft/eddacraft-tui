@@ -56,6 +56,9 @@ impl ImpactGraph {
     ///
     /// Every failure mode maps to a named [`ImpactDataError`] the surface
     /// renders as a degraded state.
+    /// The node-count render budget is *not* applied here — a graph too
+    /// large for the TUI layout is still perfectly good data for `--json`
+    /// and `--no-tui`; the surface layer degrades on [`MAX_RENDERABLE_NODES`].
     pub fn load(root: &Path) -> Result<Self, ImpactDataError> {
         let root = dunce::canonicalize(root)?;
         let raw = load_snapshot(&root)?;
@@ -63,15 +66,17 @@ impl ImpactGraph {
         if crate_edges.is_empty() {
             return Err(ImpactDataError::EmptyGraph);
         }
-        let nodes = node_count(&crate_edges);
-        if nodes > MAX_RENDERABLE_NODES {
-            return Err(ImpactDataError::TooLarge { nodes });
-        }
         Ok(Self {
             root,
             crate_edges,
             raw,
         })
+    }
+
+    /// Distinct crate count in the crate-level graph.
+    #[must_use]
+    pub fn crate_count(&self) -> usize {
+        node_count(&self.crate_edges)
     }
 
     /// Fixture constructor for tests and the `--json` path: no snapshot IO.
@@ -110,15 +115,46 @@ fn node_count(edges: &[(String, String)]) -> usize {
     set.len()
 }
 
+/// A `.root` sidecar holds one workspace path; anything bigger is not ours.
+const MAX_ROOT_SIDECAR_BYTES: u64 = 4096;
+
+/// The persistent graph-cache directory, mirroring the daemon's resolver
+/// (`anvil-intercept/src/snapshot_io.rs`, ADR-060/ADR-069): `ANVIL_HOME` →
+/// `<prefix>/graph-cache`; else `$XDG_STATE_HOME/anvil/graph-cache`; else
+/// `$HOME`/`%USERPROFILE%` `.local/state/anvil/graph-cache`.
+fn graph_cache_dir() -> Option<PathBuf> {
+    let non_empty = |name: &str| std::env::var_os(name).filter(|v| !v.is_empty());
+    if let Some(prefix) = non_empty("ANVIL_HOME") {
+        return Some(PathBuf::from(prefix).join("graph-cache"));
+    }
+    if let Some(state) = non_empty("XDG_STATE_HOME") {
+        return Some(PathBuf::from(state).join("anvil").join("graph-cache"));
+    }
+    non_empty("HOME")
+        .or_else(|| non_empty("USERPROFILE"))
+        .map(|h| {
+            PathBuf::from(h)
+                .join(".local")
+                .join("state")
+                .join("anvil")
+                .join("graph-cache")
+        })
+}
+
+/// Read a `.root` sidecar, refusing anything over the size bound.
+fn read_root_sidecar(path: &Path) -> Option<String> {
+    let meta = std::fs::metadata(path).ok()?;
+    if meta.len() > MAX_ROOT_SIDECAR_BYTES {
+        return None;
+    }
+    std::fs::read_to_string(path).ok()
+}
+
 /// Locate and decode the warm graph-cache snapshot for `root`.
 fn load_snapshot(root: &Path) -> Result<RawGraph, ImpactDataError> {
     use anvil_graph_cache::snapshot::SnapshotPayload;
 
-    let state = std::env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))
-        .map(|p| p.join("anvil/graph-cache"));
-    let Some(state) = state else {
+    let Some(state) = graph_cache_dir() else {
         return Err(ImpactDataError::NoSnapshot {
             root: root.to_path_buf(),
         });
@@ -129,7 +165,7 @@ fn load_snapshot(root: &Path) -> Result<RawGraph, ImpactDataError> {
         for entry in entries.flatten() {
             let p = entry.path();
             if p.extension().is_some_and(|e| e == "root")
-                && std::fs::read_to_string(&p).is_ok_and(|c| Path::new(c.trim()) == root)
+                && read_root_sidecar(&p).is_some_and(|c| Path::new(c.trim()) == root)
             {
                 snap_path = Some(p.with_extension("snap"));
                 break;
