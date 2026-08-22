@@ -58,10 +58,11 @@ We treat dependencies in two trust tiers:
 - **Mature, broadly-vetted ecosystem crates** — `ratatui`, `crossterm`,
   `unicode-width`, `textwrap`, `image`, `ratatui-image`, `tui-big-text`. Tracked
   via `cargo audit` and updated on release.
-- **Lower-bus-factor crates** — currently `animate-core` (`=0.4.1`). Pinned to
-  an exact version because the crate has a small public footprint. Bumps go
-  through manual review and `cargo audit`. The animation API surface is shimmed
-  via [`crate::animation`] so the underlying engine can be swapped without
+- **Lower-bus-factor crates** — currently `animate-core` (`=0.4.1`) and
+  `rataflow` (`=0.1.0`, behind the `flow` feature). Pinned to exact versions
+  because both have a small public footprint. Bumps go through manual review
+  and `cargo audit`. The animation API surface is shimmed via
+  [`crate::animation`] so the underlying engine can be swapped without
   breaking downstream callers.
 
 ## Fix routing

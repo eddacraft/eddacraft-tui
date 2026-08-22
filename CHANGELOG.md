@@ -9,6 +9,30 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-23
+
+### Added
+
+- **`flow` feature** (off by default, TUIN-014): themed interactive flow-graph
+  rendering over `rataflow` `=0.1.0`. Curated helpers for Sugiyama construction
+  from edge lists, zoom-to-read, layered container-box boundary views, and a
+  mouse-capture RAII guard. The full upstream API remains reachable through
+  `flow::raw`. Every public item is graded **experimental**. See
+  [ADR-128](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/128-eddacraft-tui-flow-feature.md).
+
+### Changed
+
+- Depend on `animate-core` `=0.4.1` directly (was `animate` `=0.3.0` with the
+  `ratatui` feature). Drops the unused `animate-macros` proc-macro from the
+  graph; the public `animation` shim is unchanged.
+- README feature table and optional-features list now document the `flow` row.
+
+### Fixed
+
+- `Select` descriptions now share a single column across variable-width labels.
+- `StatusBadge` uses the shared `BadgeStatus::severity_style` palette, so Info
+  badges match other severity-styled chrome.
+
 ## [0.5.0] - 2026-08-01
 
 ### Breaking
@@ -419,7 +443,8 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.0...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.1...HEAD
+[0.5.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.0...eddacraft-tui-v0.5.1
 [0.5.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.1...eddacraft-tui-v0.5.0
 [0.4.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.0...eddacraft-tui-v0.4.1
 [0.4.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.3.0...eddacraft-tui-v0.4.0
