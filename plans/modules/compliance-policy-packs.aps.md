@@ -7,9 +7,11 @@
 | ------ | ----- | -------- | ------ | -------- |
 | CPACKS | —     | high     | In Progress  | 5/8      |
 
-**Last reviewed:** 2026-08-23 — CPACKS-007 promoted Proposed -> Ready by
-operator instruction, alongside POLFIT-007 which coordinates the two remaining
-live items. No scope change; the module's live residue is unchanged
+**Last reviewed:** 2026-08-23 — CPACKS-007 promoted Proposed -> Ready as an
+**enabling change** under PR #4100, not by a direct instruction naming this
+item. The operator promoted POLFIT-007, which coordinates CPACKS-006 and
+CPACKS-007; its stated outcome is not deliverable while this item sits Draft,
+so it was advanced with it. No scope change; the module's live residue is unchanged
 (CPACKS-006 + CPACKS-007), both now Ready, with CPACKS-008 still behind the
 expansion gate. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
@@ -204,10 +206,13 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-007: Starter pack docs — known-gaps residual
 
-- **Status:** Ready — promoted 2026-08-23 by operator instruction alongside
-  POLFIT-007, which coordinates this item. Dependencies CPACKS-004/-005 were
-  already Done and the scope below was already settled; the item had simply
-  never been advanced. (Re-scoped 2026-07-11: the bulk is delivered —
+- **Status:** Ready — promoted 2026-08-23 as an **enabling change** under
+  PR #4100, not by a direct instruction naming this item. The operator promoted
+  POLFIT-007, which coordinates CPACKS-006 and this item; POLFIT-007's stated
+  outcome is not deliverable while this one sits Draft. Grounds for advancing
+  it rather than re-scoping POLFIT-007: dependencies CPACKS-004/-005 are Done,
+  scope was settled by the 2026-07-11 re-scope, and Intent, Expected Outcome,
+  and Validation were already present — it had simply never been advanced. (Re-scoped 2026-07-11: the bulk is delivered —
   anvil-baseline is documented across `docs/public/anvil/tutorials/policies.md`
   and `docs/public/anvil/beta-testing-guide.md`; the residual is an audit that
   the known-gaps and non-compliance-posture copy is explicit and complete.)
