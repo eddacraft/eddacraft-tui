@@ -23,9 +23,10 @@
 //! The same store is scriptable for agents and CI:
 //! ```text
 //! spike-flow --flag anvil-spike --note "why is this in the prod graph?"
+//! spike-flow --unflag anvil-spike
 //! spike-flow --plan anvil-impact-view --note "IMPV-001"
-//! spike-flow --propose anvil-tui:anvil-impact-view
-//! spike-flow --retire some-crate
+//! spike-flow --propose anvil-tui:anvil-impact-view [--note "..."]
+//! spike-flow --retire some-crate [--note "..."]
 //! spike-flow --report        # deterministic drift report, always exit 0
 //! ```
 //!
@@ -102,6 +103,7 @@ struct Args {
     policy: Option<String>,
     note: Option<String>,
     flag: Option<String>,
+    unflag: Option<String>,
     plan: Option<String>,
     retire: Option<String>,
     propose: Option<String>,
@@ -122,6 +124,7 @@ fn parse_args() -> Args {
         policy: None,
         note: None,
         flag: None,
+        unflag: None,
         plan: None,
         retire: None,
         propose: None,
@@ -141,6 +144,7 @@ fn parse_args() -> Args {
             "--policy" => args.policy = it.next(),
             "--note" => args.note = it.next(),
             "--flag" => args.flag = it.next(),
+            "--unflag" => args.unflag = it.next(),
             "--plan" => args.plan = it.next(),
             "--retire" => args.retire = it.next(),
             "--propose" => args.propose = it.next(),
@@ -218,11 +222,32 @@ impl Default for Intent {
 }
 
 impl Intent {
-    fn load(path: &PathBuf) -> Self {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|raw| serde_json::from_str(&raw).ok())
-            .unwrap_or_default()
+    /// Load the store. A missing file is a fresh start; an unparseable file
+    /// is preserved as `<path>.invalid` (a later save would otherwise
+    /// overwrite it and silently destroy durable intent) and reported.
+    fn load(path: &PathBuf) -> (Self, Option<String>) {
+        let Ok(raw) = std::fs::read_to_string(path) else {
+            return (Self::default(), None);
+        };
+        match serde_json::from_str(&raw) {
+            Ok(intent) => (intent, None),
+            Err(e) => {
+                let backup = path.with_extension("json.invalid");
+                let saved = std::fs::copy(path, &backup).is_ok();
+                let kept = if saved {
+                    format!("original kept at {}", backup.display())
+                } else {
+                    "original could NOT be backed up".to_string()
+                };
+                (
+                    Self::default(),
+                    Some(format!(
+                        "notes file {} is not valid JSON ({e}); starting empty — {kept}",
+                        path.display()
+                    )),
+                )
+            }
+        }
     }
 
     fn save(&self, path: &PathBuf) -> io::Result<()> {
@@ -283,18 +308,26 @@ impl Policy {
         serde_json::from_str(&raw).map_err(io::Error::other)
     }
 
-    /// First layer whose member pattern matches the crate name. Patterns are
-    /// exact names or a trailing-`*` prefix (`anvil-kernel*`).
+    /// The layer whose member pattern most specifically matches the crate
+    /// name: an exact name always beats a trailing-`*` prefix, and a longer
+    /// prefix beats a shorter one. Ties fall to the lexicographically first
+    /// layer (`BTreeMap` order), keeping assignment deterministic.
     fn layer_of(&self, name: &str) -> Option<&str> {
-        self.layers.iter().find_map(|(layer, def)| {
-            def.members
-                .iter()
-                .any(|p| match p.strip_suffix('*') {
-                    Some(prefix) => name.starts_with(prefix),
-                    None => name == p,
-                })
-                .then_some(layer.as_str())
-        })
+        let mut best: Option<(usize, &str)> = None;
+        for (layer, def) in &self.layers {
+            for p in &def.members {
+                let score = match p.strip_suffix('*') {
+                    Some(prefix) => name.starts_with(prefix).then_some(prefix.len()),
+                    None => (name == p).then_some(usize::MAX),
+                };
+                if let Some(s) = score
+                    && best.is_none_or(|(b, _)| s > b)
+                {
+                    best = Some((s, layer.as_str()));
+                }
+            }
+        }
+        best.map(|(_, layer)| layer)
     }
 
     /// Edges that cross a boundary illegally, deterministic order.
@@ -828,14 +861,14 @@ impl App {
 
     /// Drag gesture: record an intended dependency. Reality is untouched —
     /// the edge shows up as intent and the report tracks whether it lands.
-    fn propose_edge(&mut self, from: &str, to: &str) {
+    fn propose_edge(&mut self, from: &str, to: &str, note: &str) {
         if self.model.iter().any(|(a, b)| a == from && b == to) {
             self.status = format!("{from} → {to} already exists");
             return;
         }
         self.intent
             .proposed_edges
-            .insert(edge_key(from, to), String::new());
+            .insert(edge_key(from, to), note.to_string());
         self.status = format!("proposed {from} → {to}");
         self.persist();
     }
@@ -843,7 +876,7 @@ impl App {
     /// Delete gesture: intent, not destruction. A planned node is un-planned
     /// (deleting intent deletes the intent); a real node gets retire-intent
     /// toggled and stays visible with a ✕ marker until reality catches up.
-    fn toggle_retire(&mut self, name: &str) {
+    fn toggle_retire(&mut self, name: &str, note: &str) {
         if self.intent.planned.remove(name).is_some() {
             self.intent
                 .proposed_edges
@@ -852,7 +885,9 @@ impl App {
         } else if self.intent.retired.remove(name).is_some() {
             self.status = format!("cleared retire-intent on {name}");
         } else {
-            self.intent.retired.insert(name.to_string(), String::new());
+            self.intent
+                .retired
+                .insert(name.to_string(), note.to_string());
             self.status = format!("marked {name} for retirement");
         }
         self.persist();
@@ -920,7 +955,10 @@ fn main() -> io::Result<()> {
         || PathBuf::from(root).join(".anvil/impact-notes.json"),
         PathBuf::from,
     );
-    let intent = Intent::load(&notes_path);
+    let (intent, load_warning) = Intent::load(&notes_path);
+    if let Some(warning) = &load_warning {
+        eprintln!("{warning}");
+    }
     let policy = match &args.policy {
         Some(p) => Some(Policy::load(p)?),
         None => None,
@@ -950,36 +988,7 @@ fn main() -> io::Result<()> {
     };
 
     // Scripted intent ops (agent/CI surface): apply, save, report, exit.
-    let scripted = args.flag.is_some()
-        || args.plan.is_some()
-        || args.retire.is_some()
-        || args.propose.is_some();
-    if scripted {
-        let note = args.note.clone().unwrap_or_default();
-        if let Some(node) = &args.flag {
-            app.set_flag(
-                node,
-                if note.is_empty() {
-                    "flagged".into()
-                } else {
-                    note.clone()
-                },
-            );
-        }
-        if let Some(node) = &args.plan {
-            app.add_planned(node.clone(), note.clone());
-        }
-        if let Some(node) = &args.retire {
-            app.toggle_retire(node);
-        }
-        if let Some(spec) = &args.propose {
-            match spec.split_once(':') {
-                Some((from, to)) => app.propose_edge(from, to),
-                None => app.status = format!("--propose wants from:to, got {spec}"),
-            }
-        }
-        println!("{}", app.status);
-    }
+    let scripted = run_scripted_ops(&mut app, &args);
     if args.report || scripted {
         if args.report {
             for line in reconcile(&app.actual_nodes(), &app.model, &app.intent) {
@@ -1010,6 +1019,48 @@ fn main() -> io::Result<()> {
     // (looks like "mouse doesn't work", especially over tmux/ssh).
     let _mouse = MouseCaptureGuard::enable();
     ratatui::run(|terminal| run_app(terminal, &mut app, &mut flow, args.fit))
+}
+
+/// Apply any scripted intent operations (`--flag`/`--unflag`/`--plan`/
+/// `--retire`/`--propose`, each honouring `--note`) and print the outcome.
+/// Returns whether any op ran — scripted invocations never open the TUI.
+fn run_scripted_ops(app: &mut App, args: &Args) -> bool {
+    let scripted = args.flag.is_some()
+        || args.unflag.is_some()
+        || args.plan.is_some()
+        || args.retire.is_some()
+        || args.propose.is_some();
+    if !scripted {
+        return false;
+    }
+    let note = args.note.clone().unwrap_or_default();
+    if let Some(node) = &args.flag {
+        app.set_flag(
+            node,
+            if note.is_empty() {
+                "flagged".into()
+            } else {
+                note.clone()
+            },
+        );
+    }
+    if let Some(node) = &args.unflag {
+        app.set_flag(node, String::new());
+    }
+    if let Some(node) = &args.plan {
+        app.add_planned(node.clone(), note.clone());
+    }
+    if let Some(node) = &args.retire {
+        app.toggle_retire(node, &note);
+    }
+    if let Some(spec) = &args.propose {
+        match spec.split_once(':') {
+            Some((from, to)) => app.propose_edge(from, to, &note),
+            None => app.status = format!("--propose wants from:to, got {spec}"),
+        }
+    }
+    println!("{}", app.status);
+    true
 }
 
 /// Turns mouse reporting on for the lifetime of the interactive session and
@@ -1172,7 +1223,7 @@ fn run_app(
                 KeyCode::Char('n') => app.prompt = Some((Prompt::PlanName, String::new())),
                 KeyCode::Char('x') => {
                     if let Some(node) = app.selected.clone() {
-                        app.toggle_retire(&node);
+                        app.toggle_retire(&node, "");
                         rebuild = true;
                     } else {
                         app.status = "select a node to retire".into();
@@ -1302,14 +1353,14 @@ fn apply_event(app: &mut App, ev: FlowEvent) -> bool {
         FlowEvent::ConnectionCompleted(conn) => {
             let from = strip_marker(&conn.source).to_string();
             let to = strip_marker(&conn.target).to_string();
-            app.propose_edge(&from, &to);
+            app.propose_edge(&from, &to, "");
             // rebuild rather than add in place so the intent layer re-renders
             true
         }
         FlowEvent::Deleted { node_ids, .. } => {
             let mut changed = false;
             for id in &node_ids {
-                app.toggle_retire(strip_marker(id));
+                app.toggle_retire(strip_marker(id), "");
                 changed = true;
             }
             changed
