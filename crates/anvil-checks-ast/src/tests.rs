@@ -664,6 +664,20 @@ fn py010_silent_on_bare_except() {
 }
 
 #[test]
+fn py010_silent_on_inline_except_pass() {
+    // GTAO-008: inline form stays PY-004 (regex); tree-sitter still wraps the
+    // suite as a `block`, so the predicate must require a later-row `pass`.
+    let src = "try:\n    f()\nexcept Exception: pass\n";
+    assert!(!fires("src/app.py", src, "PY-010"));
+}
+
+#[test]
+fn py010_silent_when_handler_reraise() {
+    let src = "try:\n    f()\nexcept Exception:\n    raise\n";
+    assert!(!fires("src/app.py", src, "PY-010"));
+}
+
+#[test]
 fn py010_silent_when_handler_logs() {
     let src = "try:\n    f()\nexcept Exception:\n    logging.exception('x')\n";
     assert!(!fires("src/app.py", src, "PY-010"));

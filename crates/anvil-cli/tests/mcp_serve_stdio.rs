@@ -1122,6 +1122,68 @@ fn mcp_serve_stdio_tools_call_check_includes_ast_rs001_on_unwrap() {
 }
 
 #[test]
+fn mcp_serve_stdio_tools_call_gate_planless_includes_ast_rs001_on_unwrap() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let src = workspace.path().join("src");
+    std::fs::create_dir_all(&src).expect("src dir exists");
+    std::fs::write(
+        src.join("lib.rs"),
+        "pub fn run() { let n = parse().unwrap(); }\n",
+    )
+    .expect("unwrap fixture is writable");
+
+    let mut child = spawn_mcp_server_with_dev_bypass_in(workspace.path());
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 23,
+                "method": "tools/call",
+                "params": {
+                    "name": "anvil_gate",
+                    "arguments": {
+                        "workspaceRoot": workspace.path(),
+                        "targetFiles": ["src/lib.rs"]
+                    }
+                }
+            })
+        )
+        .expect("failed to send gate planless tool call frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly after gate planless call and EOF; status: {status:?}",
+    );
+
+    let parsed: Value = serde_json::from_str(&line).unwrap_or_else(|err| {
+        panic!("gate planless response must be JSON-RPC JSON, got {line:?}\nerror: {err}")
+    });
+    let payload = parse_tool_payload(&parsed);
+    assert_eq!(payload["mode"], "planless");
+    let ids: Vec<&str> = payload["warnings"]
+        .as_array()
+        .expect("warnings array")
+        .iter()
+        .filter_map(|w| w["id"].as_str())
+        .collect();
+    assert!(
+        ids.contains(&"RS-001"),
+        "planless anvil_gate must merge AST findings; got {ids:?}"
+    );
+}
+
+#[test]
 fn mcp_serve_stdio_tools_call_check_rejects_workspace_outside_server_root() {
     let server_root = tempfile::tempdir().expect("server root exists");
     let foreign_workspace = tempfile::tempdir().expect("foreign workspace exists");

@@ -82,10 +82,14 @@ pub fn known_rule_ids() -> &'static [&'static str] {
 }
 
 /// True when `node` is a Python `except_clause` that names an exception type
-/// and whose suite contains only `pass` (the PY-004 regex-blind shape).
+/// and whose **indented** suite contains only `pass` (the PY-004 regex-blind
+/// shape).
 ///
-/// Bare `except:` has no type child and is left to regex PY-004. A handler
-/// whose body logs, re-raises, or does more than `pass` is clean.
+/// Bare `except:` has no type child and is left to regex PY-004. Inline
+/// `except Exception: pass` is the same line as the colon, so tree-sitter
+/// still wraps it as a `block` — require `pass` on a later row so PY-010
+/// does not duplicate PY-004. A handler that logs, re-raises, or does more
+/// than `pass` is clean.
 #[must_use]
 pub(crate) fn except_block_is_only_pass(node: Node<'_>) -> bool {
     if node.kind() != "except_clause" {
@@ -97,7 +101,8 @@ pub(crate) fn except_block_is_only_pass(node: Node<'_>) -> bool {
     for child in node.children(&mut walk) {
         match child.kind() {
             "block" => block = Some(child),
-            "except" | ":" | "as" | "comment" => {}
+            // `*` is `except*` (PEP 654); it is not an exception type.
+            "except" | ":" | "as" | "comment" | "*" => {}
             _ => saw_type = true,
         }
     }
@@ -108,8 +113,22 @@ pub(crate) fn except_block_is_only_pass(node: Node<'_>) -> bool {
         return false;
     };
     let mut named = block.walk();
-    let kinds: Vec<&str> = block.named_children(&mut named).map(|n| n.kind()).collect();
-    kinds.len() == 1 && kinds[0] == "pass_statement"
+    let mut pass: Option<Node<'_>> = None;
+    let mut extra = false;
+    for child in block.named_children(&mut named) {
+        if child.kind() == "pass_statement" && pass.is_none() {
+            pass = Some(child);
+        } else {
+            extra = true;
+        }
+    }
+    if extra {
+        return false;
+    }
+    let Some(pass) = pass else {
+        return false;
+    };
+    pass.start_position().row > node.start_position().row
 }
 
 #[must_use]
