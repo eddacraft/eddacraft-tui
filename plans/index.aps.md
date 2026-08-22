@@ -462,10 +462,10 @@ post-first-slice expansion modules.
 
 Fitness for purpose (2026-08-22): POLRESET proved policy produces value; a
 capability audit against `origin/main` @ `7524a599b` (0.9.7-beta) then found
-that value is not yet adoptable — six user-modifiable policy surfaces with no
-stated precedence (two of them undocumented), a public authoring instruction
-pointing at an unshipped skill, and different pack-admission behaviour at the
-gate than at pre-write. The live policy coordinator is now
+that value is not yet adoptable — seven user-modifiable policy surfaces with no
+stated precedence (only three have a public reference page), a public authoring
+instruction pointing at an unshipped skill, and different pack-admission
+behaviour at the gate than at pre-write. The live policy coordinator is now
 [`policy-fit-for-purpose`](./modules/policy-fit-for-purpose.aps.md) (`POLFIT`,
 conductor), which owns the two design gates — surface precedence and the
 authoring on-ramp — and delegates the rest to OPAE, CPACKS, and DOCDEF.

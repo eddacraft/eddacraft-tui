@@ -9,9 +9,10 @@
 
 **Last reviewed:** 2026-08-22 (created from a policy-capability audit against
 `origin/main` @ `7524a599b`, binary version 0.9.7-beta. The audit read the
-shipped code — not the plans — and found six user-modifiable policy surfaces,
-two of them undocumented, plus three untracked defects. Every item below is
-either a delegation to an existing module or a gap that had no home.)
+shipped code — not the plans — and found seven user-modifiable policy
+surfaces, only three of which have a public reference page, plus three
+untracked defects. Every item below is either a delegation to an existing
+module or a gap that had no home.)
 
 > **Conductor module.** POLFIT coordinates existing policy modules; it does not
 > take their execution authority. Implementation lands in the module named by
@@ -28,11 +29,19 @@ either a delegation to an existing module or a gap that had no home.)
 ## Purpose
 
 Make Anvil's shipped policy capability adoptable by a team that did not build
-it. Today a user who wants to change policy behaviour must discover six
-different modification surfaces with no stated precedence between them, two of
-which appear in no public documentation; must follow a public instruction to
-install an authoring skill that does not exist; and gets different admission
-behaviour from the gate than from pre-write validation for the same pack.
+it. Today a user who wants to change policy behaviour must discover seven
+different modification surfaces with no stated precedence between them, four of
+which have no public reference page — `anvil/policy.*` L4 branch policy appears
+only in a changelog line, `enforcement.mode` and `enforcement.intercept-rules`
+appear nowhere, and the anti-pattern registry override is stated only inside
+ADR-026. The same user must follow a public instruction to install an authoring
+skill that does not exist, and gets different admission behaviour from the gate
+than from pre-write validation for the same pack.
+
+The seventh surface — the registry override — is **policy-adjacent rather than
+policy-engine**: it changes what anvil flags without going through regorus at
+all. POLFIT-001 counts it because a user cannot be told "here is every place
+policy lives" while it is omitted; POLFIT-008 exists to classify it.
 
 A large part of "fit for purpose" is **ease of authoring**. The audit found no
 supported path from "I want a rule" to "a rule that fires" that does not
@@ -113,7 +122,8 @@ Policy is fit for purpose when:
 - **Intent:** Decide, in one record, every surface from which a user can change
   policy behaviour, which are supported product surfaces, and what wins when
   two disagree.
-- **Expected Outcome:** A decision record enumerates the shipped surfaces —
+- **Expected Outcome:** A decision record enumerates the seven shipped
+  surfaces —
   `.anvil.yaml` `enforcement.rules` rule modes, `.anvil/policies/**.rego`
   packs, the `architecture` section or `.anvil/architecture.yaml`,
   `anvil/policy.*` L4 branch policy, `.anvil.yaml`
@@ -222,8 +232,10 @@ Policy is fit for purpose when:
 ### POLFIT-008: The anti-pattern registry override is a stated surface or a closed one
 
 - **Status:** Draft
-- **Intent:** Decide whether a repository-local compiled registry is a supported
-  way to change what anvil flags, given that nothing outside ADR-026 says so.
+- **Intent:** Decide whether a repository-local compiled registry — the seventh
+  surface in POLFIT-001's enumeration, and the only one that changes what anvil
+  flags without going through regorus — is a supported way to change policy
+  behaviour, given that nothing outside ADR-026 says so.
 - **Expected Outcome:** The ADR-026 four-tier resolution order — explicit path,
   then `ANVIL_REGISTRY_PATH`, then a cwd upward walk, then an executable-directory
   upward walk, then the embedded fallback — is either documented as a supported
@@ -259,7 +271,7 @@ The findings below were read from `origin/main` @ `7524a599b` (0.9.7-beta) on
 
 | Finding                                                | Source                                                                                       | Item       |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ---------- |
-| Six user-modifiable policy surfaces, no stated precedence | `anvil-config/src/rule_modes.rs`, `anvil-l4/src/policy.rs`, `anvil-intercept-rules/src/config.rs`, `anvil-kernel-types/src/enforcement.rs` | POLFIT-001 |
+| Seven user-modifiable policy surfaces, no stated precedence | `anvil-config/src/rule_modes.rs`, `anvil-l4/src/policy.rs`, `anvil-intercept-rules/src/config.rs`, `anvil-kernel-types/src/enforcement.rs`, `anvil-checks/src/antipattern/registry_loader.rs` | POLFIT-001 |
 | `enforcement.mode` read but absent from the catalogue  | `crates/anvil-cli/src/mcp/enforcement.rs:67-81` vs `docs/public/anvil/reference/config.md`    | POLFIT-006 |
 | `enforcement.intercept-rules` read but undocumented    | `crates/anvil-intercept-rules/src/config.rs:93-110`                                           | POLFIT-006 |
 | Public docs direct users at an unshipped skill         | `docs/public/anvil/concepts/policy-model.md` vs OPAE-017 (Proposed)                            | POLFIT-003 |
