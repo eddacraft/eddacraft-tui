@@ -162,7 +162,7 @@ named in the crate source linked from the inventory table.
 
 ## Licence summary
 
-- **MIT License** — 356 crates
+- **MIT License** — 358 crates
 - **Unicode License v3** — 19 crates
 - **Apache License 2.0** — 17 crates
 - **ISC License** — 7 crates
@@ -2417,6 +2417,43 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
 IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.Apache License
+
+```
+
+</details>
+
+### MIT License
+
+Used by:
+
+- `rataflow` 0.1.0
+
+<details>
+<summary>Licence text</summary>
+
+```
+
+The MIT License (MIT)
+
+Copyright (c) 2026 Furkan Kalaycioglu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ```
 
@@ -7261,6 +7298,42 @@ SOFTWARE.
 
 Used by:
 
+- `rust-sugiyama` 0.4.0
+
+<details>
+<summary>Licence text</summary>
+
+```
+MIT License
+
+Copyright (c) 2024 paddison
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+</details>
+
+### MIT License
+
+Used by:
+
 - `convert_case` 0.10.0
 
 <details>
@@ -9432,6 +9505,7 @@ the following restrictions:
 | `aws-lc-rs` | 1.18.0 | ISC License | https://github.com/aws/aws-lc-rs |
 | `aws-lc-sys` | 0.44.0 | ISC License | https://github.com/aws/aws-lc-rs |
 | `is_ci` | 1.2.0 | ISC License | https://github.com/zkat/is_ci |
+| `rataflow` | 0.1.0 | MIT License | https://github.com/furkankly/rataflow |
 | `msvc_spectre_libs` | 0.1.3 | MIT License | https://github.com/microsoft/rust_msvc_spectre_libs |
 | `instability` | 0.3.13 | MIT License | https://github.com/ratatui/instability |
 | `lazy_static` | 1.5.0 | MIT License | https://github.com/rust-lang-nursery/lazy-static.rs |
@@ -9646,6 +9720,7 @@ the following restrictions:
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
 | `line-clipping` | 0.3.8 | MIT License | https://github.com/ratatui/line-clipping |
 | `fluent-uri` | 0.4.1 | MIT License | https://github.com/yescallop/fluent-uri-rs |
+| `rust-sugiyama` | 0.4.0 | MIT License | https://github.com/paddison/rust-sugiyama |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
 | `animate-core` | 0.4.1 | MIT License | https://github.com/vyfor/animate |
