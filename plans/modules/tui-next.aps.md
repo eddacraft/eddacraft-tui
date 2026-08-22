@@ -5,7 +5,7 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 7/13     |
+| TUIN | joshuaboys | In Progress | 7/14     |
 
 **Last reviewed:** 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
 convention is live — extension surface (`Theme`/`Surface`) graded `stable`,
@@ -89,6 +89,14 @@ spike; TUIN-009/010 added); 2026-05-23 (ADR-050 design pass).
 > seven consecutive green runs. The override does not waive the runner boundary:
 > `runner` remains opt-in, parser-light, `clap`-free, and consumer-owned for
 > command semantics; no default `[[bin]]` is introduced.
+>
+> **Operator authorisation (2026-08-22):** TUIN-014 (flow-graph widget behind
+> an off-by-default `flow` feature) is authorised for implementation. The
+> IMPV Out-of-Scope reuse gate ("a second consumer or a demonstrated reuse
+> case") is satisfied by the operator's declared plan to use the widget in
+> APS tooling alongside the anvil impact view (IMPV-001) as first consumer.
+> The feature ships opt-in with an exact `rataflow` pin and its own decision
+> record per the ADR-050 new-feature-flag precedent.
 >
 > **Relationship to TUIR:** TUIR moves the source of truth without
 > behaviour change. TUIN is the first batch of design work that becomes
@@ -758,6 +766,42 @@ a subcommand and `--config` path handoff.
 **changeType:** docs
 **releaseIntent:** never
 **releaseScope:** none
+
+### TUIN-014: Promote flow-graph widget behind an off-by-default `flow` feature
+
+- **Status:** Ready
+- **Intent:** Give `eddacraft-tui` a curated, themed flow-graph module wrapping
+  `rataflow` (node-based flow graphs for ratatui 0.30, MIT), so consumers get
+  interactive dependency/boundary graphs without taking a direct `rataflow`
+  dependency. Reuse gate satisfied 2026-08-22: the anvil impact view
+  ([IMPV-001](./tui-impact-view.aps.md)) is the first consumer, and the
+  operator has declared a second — planned use of the widget in APS tooling.
+  Validation evidence: the `spike-flow` spike (PRs #4074/#4081) proved
+  rendering, interaction, container-boundary layout, and theming feasibility
+  against the exact ratatui 0.30 / crossterm 0.29 pins.
+- **Expected Outcome:** A `flow` Cargo feature following the `image` template
+  exactly (optional dep `rataflow = "=0.1.0"` pinned exact per the `animate`
+  precedent, `flow = ["dep:rataflow"]`, paired `#[cfg(feature)]` /
+  `#[cfg_attr(docsrs, doc(cfg(...)))]` attributes, modules-table row, gated
+  prelude re-export, MSRV note — rataflow's 1.88 floor matches the core
+  floor). The module exposes curated re-exports plus helpers proven in the
+  spike: Sugiyama construction from edge lists, zoom-to-read, a layered
+  container-box builder (groups + stacking order → parent-container nodes),
+  and a mouse-capture RAII guard (crossterm mouse reporting is not enabled by
+  `ratatui::run` or by `lifecycle` — the guard releases on every exit path).
+  Widget styling resolves through `Theme::role_style`. Every public item
+  carries a `# Stability` section (experimental). A new-feature-flag decision
+  record lands per the ADR-050 precedent, and `ACKNOWLEDGEMENTS.md` carries
+  the `rataflow` attribution because this ships.
+- **Validation:** `cargo test -p eddacraft-tui --features flow` (including an
+  insta snapshot of a small flow render); `cargo doc --no-deps -p
+  eddacraft-tui --all-features` with `RUSTDOCFLAGS='-D warnings'`;
+  `scripts/check-stability-markers.mjs` stays green; acknowledgements
+  regeneration includes rataflow.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** minor
 
 ## Ready Checklist
 

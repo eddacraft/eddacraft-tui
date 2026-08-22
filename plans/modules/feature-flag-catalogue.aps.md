@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | high     | In Progress | 9/15     |
+| FLAGCAT | —     | high     | In Progress | 9/16     |
 
 **Last reviewed:** 2026-08-21 — Live catalogue audit found the flag-definition
 layer maintained (17 flags), but the product-feature layer incomplete and
