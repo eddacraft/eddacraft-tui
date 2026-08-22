@@ -524,6 +524,25 @@ pub fn merge_regex_and_ast_warnings(regex: &[Warning], ast: &[Warning]) -> Vec<W
     merged
 }
 
+/// Unsuppressed findings at or above `threshold` block, matching
+/// `anvil_checks::antipattern::check` (suppressed rows never fail the
+/// payload). MCP check/gate hard-pin `Error`.
+#[must_use]
+pub fn has_blocking_warnings(warnings: &[Warning], threshold: WarningSeverity) -> bool {
+    let floor = severity_rank(threshold);
+    warnings
+        .iter()
+        .any(|w| w.suppressed.is_none() && severity_rank(w.severity) >= floor)
+}
+
+fn severity_rank(severity: WarningSeverity) -> u8 {
+    match severity {
+        WarningSeverity::Info => 0,
+        WarningSeverity::Warning => 1,
+        WarningSeverity::Error => 2,
+    }
+}
+
 /// Build the `warnings` array shared by `anvil_check` and `anvil_gate`.
 pub fn build_warnings_array(warnings: &[Warning]) -> Vec<Value> {
     warnings
@@ -571,6 +590,60 @@ pub fn category_str(category: WarningCategory) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_checks::antipattern::{Confidence, Location, Suppression, SuppressionScope};
+
+    fn sample_warning(severity: WarningSeverity, suppressed: bool) -> Warning {
+        Warning {
+            id: "X-001".to_string(),
+            fingerprint: None,
+            category: WarningCategory::AntiPattern,
+            severity,
+            confidence: Confidence::High,
+            title: "t".to_string(),
+            message: "m".to_string(),
+            explanation: String::new(),
+            suggestion: String::new(),
+            nudge: None,
+            location: Location {
+                file: "src/lib.rs".to_string(),
+                line: 1,
+                column: Some(0),
+                end_line: None,
+                end_column: None,
+            },
+            pattern: None,
+            suppressed: suppressed.then(|| Suppression {
+                reason: "reviewed".to_string(),
+                author: None,
+                timestamp: None,
+                scope: SuppressionScope::Line,
+            }),
+            family: None,
+            definition_ref: None,
+            spectrum_position: None,
+        }
+    }
+
+    #[test]
+    fn ast_error_blocks_even_when_regex_tier_is_clean() {
+        let merged = vec![sample_warning(WarningSeverity::Error, false)];
+        assert!(has_blocking_warnings(&merged, WarningSeverity::Error));
+    }
+
+    #[test]
+    fn suppressed_ast_error_does_not_block() {
+        let merged = vec![sample_warning(WarningSeverity::Error, true)];
+        assert!(!has_blocking_warnings(&merged, WarningSeverity::Error));
+    }
+
+    #[test]
+    fn info_and_warning_do_not_block_at_error_threshold() {
+        let merged = vec![
+            sample_warning(WarningSeverity::Info, false),
+            sample_warning(WarningSeverity::Warning, false),
+        ];
+        assert!(!has_blocking_warnings(&merged, WarningSeverity::Error));
+    }
 
     #[test]
     fn normalises_workspace_relative_paths_independently_of_host_os() {

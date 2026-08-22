@@ -8,8 +8,9 @@ use anvil_checks::antipattern::{
 };
 
 use crate::mcp::tools::shared::{
-    build_warnings_array, collect_relative_files, merge_regex_and_ast_warnings,
-    redact_workspace_root, resolve_workspace_files, validate_workspace_root,
+    build_warnings_array, collect_relative_files, has_blocking_warnings,
+    merge_regex_and_ast_warnings, redact_workspace_root, resolve_workspace_files,
+    validate_workspace_root,
 };
 use crate::mcp::validation::DaemonStatus;
 
@@ -104,7 +105,7 @@ fn check_payload(arguments: &Value) -> Result<Value, String> {
         "summary": summary,
         "executionTimeMs": elapsed,
         "checksRun": SUPPORTED_CHECKS,
-        "hasBlockingWarnings": !result.passed,
+        "hasBlockingWarnings": has_blocking_warnings(&merged, config.severity_threshold),
         "workspaceRoot": redact_workspace_root(&workspace_path, &server_root),
         "backend": "local",
         "daemonStatus": DaemonStatus::NotWired.as_str()

@@ -690,6 +690,33 @@ fn py010_silent_on_test_path() {
 }
 
 #[test]
+fn mixed_rust_and_python_files_run_each_language_catalogue() {
+    let rust = "fn run() { let n = parse().unwrap(); }\n";
+    let py = "try:\n    f()\nexcept Exception:\n    pass\n";
+    let out = scan_bytes(
+        &[
+            ("src/lib.rs", rust.as_bytes()),
+            ("src/app.py", py.as_bytes()),
+        ],
+        None,
+        &test_opts(),
+    );
+    assert_eq!(out.files_scanned, 2);
+    assert!(
+        out.warnings
+            .iter()
+            .any(|w| w.id == "RS-001" && w.suppressed.is_none()),
+        "expected RS-001 on the Rust file"
+    );
+    assert!(
+        out.warnings
+            .iter()
+            .any(|w| w.id == "PY-010" && w.suppressed.is_none()),
+        "expected PY-010 on the Python file"
+    );
+}
+
+#[test]
 fn parse_error_emits_skip_diagnostic_not_findings() {
     let src = "fn run( { let n = parse().unwrap(); \n"; // unbalanced
     let out = scan("src/lib.rs", src);

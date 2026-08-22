@@ -222,6 +222,14 @@ pub fn scan_bytes(
     // Language is switched when the extension changes (ADR-127 dispatch).
     let mut parser = tree_sitter::Parser::new();
     let mut current_language: Option<ScanLanguage> = None;
+    let rust_rules: Vec<&LoadedRule> = rules
+        .iter()
+        .filter(|r| r.language == ScanLanguage::Rust)
+        .collect();
+    let python_rules: Vec<&LoadedRule> = rules
+        .iter()
+        .filter(|r| r.language == ScanLanguage::Python)
+        .collect();
 
     for (path, bytes) in files {
         let Some(language) = ScanLanguage::from_path(path) else {
@@ -238,9 +246,11 @@ pub fn scan_bytes(
         };
         let relative = normalise_path(path, workspace_root);
         files_scanned += 1;
-        let file_rules: Vec<&LoadedRule> =
-            rules.iter().filter(|r| r.language == language).collect();
-        scan_one(&mut parser, &relative, content, &file_rules, &mut warnings);
+        let file_rules: &[&LoadedRule] = match language {
+            ScanLanguage::Rust => &rust_rules,
+            ScanLanguage::Python => &python_rules,
+        };
+        scan_one(&mut parser, &relative, content, file_rules, &mut warnings);
     }
 
     sort_warnings(&mut warnings);
