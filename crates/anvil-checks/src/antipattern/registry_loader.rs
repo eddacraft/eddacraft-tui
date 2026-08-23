@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::antipattern::types::{AntiPattern, AntiPatternCategory, Confidence, WarningSeverity};
 
+#[cfg(test)]
 const REGISTRY_RELATIVE_PATH: &str = "patterns/compiled/registry.json";
 const SUPPORTED_SCHEMA_VERSION: u32 = 1;
 
@@ -105,7 +106,9 @@ pub struct CompiledRegistry {
 
 #[derive(Debug, Clone, Default)]
 pub struct LoadRegistryOptions {
-    /// Absolute path to a `registry.json` — overrides discovery.
+    /// Absolute path to a `registry.json` — unsigned override of the
+    /// embedded catalogue (POLFIT-008 / ADR-131). Tests and operator
+    /// tooling; not implicit project discovery.
     pub registry_path: Option<PathBuf>,
 }
 
@@ -122,31 +125,14 @@ pub struct LoadRegistryResult {
 // Path resolution
 // =============================================================================
 
-fn walk_upwards(start: &Path) -> Option<PathBuf> {
-    let mut current = start.to_path_buf();
-    loop {
-        let candidate = current.join(REGISTRY_RELATIVE_PATH);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-        match current.parent() {
-            Some(parent) if parent != current => current = parent.to_path_buf(),
-            _ => return None,
-        }
-    }
-}
-
-fn exe_start_dir() -> Option<PathBuf> {
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(Path::to_path_buf))
-}
-
 /// Outcome of path resolution. Distinguishes "a path was supplied / set
-/// but does not exist" (`OverrideMissing`) from "no override and no
-/// upward walk matched" (`NoneFound`) so the loader can decide whether
-/// to warn the operator or silently fall through to the embedded
-/// fallback.
+/// but does not exist" (`OverrideMissing`) from "no explicit override"
+/// (`NoneFound`) so the loader can decide whether to warn the operator
+/// or silently fall through to the embedded fallback.
+///
+/// Implicit cwd and executable-directory walks are closed (POLFIT-008 /
+/// ADR-131). A cloned `patterns/compiled/registry.json` does not replace
+/// the compile-time catalogue.
 enum ResolvedPath {
     Found(PathBuf),
     OverrideMissing { source: &'static str, value: String },
@@ -175,16 +161,6 @@ fn resolve_registry_path(opts: &LoadRegistryOptions) -> ResolvedPath {
                 value: env_path,
             }
         };
-    }
-
-    if let Ok(cwd) = std::env::current_dir()
-        && let Some(found) = walk_upwards(&cwd)
-    {
-        return ResolvedPath::Found(found);
-    }
-
-    if let Some(found) = exe_start_dir().and_then(|d| walk_upwards(&d)) {
-        return ResolvedPath::Found(found);
     }
 
     ResolvedPath::NoneFound
@@ -297,10 +273,10 @@ fn embedded_registry_result() -> LoadRegistryResult {
 
 /// Load and validate the compiled registry.
 ///
-/// Caches the result per resolved path. Pass `registry_path` in tests to
-/// target a fixture; omit in production to let discovery find the
-/// workspace registry, with a final fallback to the compile-time
-/// embedded copy.
+/// Caches the result per resolved path. Production default is the
+/// compile-time embedded catalogue. Pass `registry_path` or set
+/// `ANVIL_REGISTRY_PATH` to load an unsigned on-disk override. There is
+/// no cwd or executable-directory walk (POLFIT-008 / ADR-131).
 #[must_use]
 pub fn load_compiled_registry(opts: &LoadRegistryOptions) -> LoadRegistryResult {
     let resolved = resolve_registry_path(opts);
@@ -599,6 +575,32 @@ mod tests {
     }
 
     #[test]
+    fn default_load_uses_embedded_even_when_workspace_registry_exists() {
+        // POLFIT-008: a clone that contains `patterns/compiled/registry.json`
+        // (this workspace does) must not silently replace the compile-time
+        // catalogue. Default resolution is embedded unless an explicit path
+        // or ANVIL_REGISTRY_PATH is set.
+        reset_registry_cache();
+        assert!(
+            workspace_registry_path().is_file(),
+            "this test needs the workspace registry to exist as the silent-walk bait"
+        );
+        assert!(
+            std::env::var_os("ANVIL_REGISTRY_PATH").is_none(),
+            "ANVIL_REGISTRY_PATH is set; cannot assert implicit resolution"
+        );
+        let result = load_compiled_registry(&LoadRegistryOptions::default());
+        assert_eq!(
+            result.source_path.as_deref(),
+            Some(Path::new(EMBEDDED_REGISTRY_SOURCE_LABEL)),
+            "default load must use the embedded catalogue, not cwd/exe discovery; warnings={:?}",
+            result.warnings
+        );
+        assert!(result.registry.is_some());
+        assert!(result.warnings.is_empty());
+    }
+
+    #[test]
     fn returns_warning_when_file_is_malformed_json() {
         reset_registry_cache();
         let tmp = tempdir_for("malformed");
@@ -877,13 +879,12 @@ mod tests {
         assert!(!registry.patterns.is_empty());
     }
 
-    // Integration coverage for the "stock install / no resolved path"
-    // branch lives in the install smoke test rather than here — exercising
-    // it as a unit test would mean mutating process-global CWD or
-    // `ANVIL_REGISTRY_PATH` and interfering with parallel test threads.
-    // The two unit tests above pin the embedded fallback's invariants
-    // (parses, non-empty) and the override-missing warning path, which
-    // together cover every behaviour the production resolver can reach.
+    // Default resolution (no explicit path, no ANVIL_REGISTRY_PATH) is
+    // covered by `default_load_uses_embedded_even_when_workspace_registry_exists`.
+    // `ANVIL_REGISTRY_PATH` uses the same OverrideMissing / Found arms as
+    // `registry_path`; those arms are tested via explicit `LoadRegistryOptions`.
+    // Process-environment mutation is forbidden here (edition 2024 `set_var`
+    // is unsafe; this crate forbids `unsafe_code`).
 
     #[test]
     fn patterns_from_registry_maps_loaded_instance_without_reload() {

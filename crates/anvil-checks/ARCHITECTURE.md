@@ -1,12 +1,12 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                            |
-| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/lib.rs`, `src/antipattern/**`, `src/secret/**`, `src/reasoning/**`, `src/surface/**`, and `src/command_safety/**` |
+| Type         | Authority     | Owner | Status | Freshness                                                                         |
+| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------- |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-23 against `src/antipattern/registry_loader.rs` and ADR-131 |
 
-| Upstream                                                                               | Downstream                                                                |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `crates/anvil-checks/src/**`, compiled pattern registry, ADR-029, ADR-087, and ADR-123 | CLI checks, intercept rules, activation, MCP validation, and contributors |
+| Upstream                                                                                        | Downstream                                                                |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `crates/anvil-checks/src/**`, compiled pattern registry, ADR-029, ADR-087, ADR-123, and ADR-131 | CLI checks, intercept rules, activation, MCP validation, and contributors |
 
 This document is the live component authority. The former central
 [checks as-built](../../docs/architecture/checks-as-built.md) is retained as a
@@ -25,7 +25,10 @@ decisions.
 
 The compiled [pattern registry](../../patterns/compiled/registry.json) is the
 single source of truth for registry-backed antipattern rules. The Rust loader
-does not maintain a second handwritten catalogue.
+does not maintain a second handwritten catalogue. Default load is the
+compile-time embedded copy of that file. `ANVIL_REGISTRY_PATH` or an API
+`registry_path` is an unsigned explicit override; a cloned on-disk
+`patterns/compiled/registry.json` does not replace the catalogue (ADR-131).
 
 ## Evaluation flow
 

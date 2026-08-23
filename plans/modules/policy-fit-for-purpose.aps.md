@@ -23,10 +23,14 @@ already-filed CPACKS residue, and -009 is a posture-and-stamp pass the
 conductor owns outright. CPACKS-007 was promoted Proposed -> Ready in the same
 change so -007's delegated work is fully authorised.
 
+2026-08-23 — POLFIT-008 advanced Draft -> Ready on operator instruction
+("complete POLFIT-008") and is In Progress. POLFIT-001 (Merged, ADR-129)
+is the closed dependency.
+
 2026-08-22 — POLFIT-001 and POLFIT-002 advanced Draft -> Ready on
 operator instruction; module status follows its items to **Ready**. Both are
 decision-record items: Ready authorises producing the ADR, not implementing
-what the ADR decides. POLFIT-003..-006 and -008 stay Draft behind them.
+what the ADR decides. POLFIT-003..-006 stay Draft behind them.
 
 **Last reviewed:** 2026-08-22 (created from a policy-capability audit against
 `origin/main` @ `7524a599b`, binary version 0.9.7-beta. The audit read the
@@ -144,8 +148,9 @@ They still gate the items below them.
 ### POLFIT-001: Policy surface inventory and precedence decision
 
 - **Status:** Merged 2026-08-23 via PR #4103. Ancestor of `origin/main`
-  (`b9bde3976`). ADR-129 is the decision record. POLFIT-003, -004, -005, -006,
-  and -008 remain Draft until separately promoted.
+  (`b9bde3976`). ADR-129 is the decision record. POLFIT-003, -004, -005, and
+  -006 remain Draft until separately promoted. POLFIT-008 is classified by
+  ADR-131.
 - **Intent:** Decide, in one record, every surface from which a user can change
   policy behaviour, which are supported product surfaces, and what wins when
   two disagree.
@@ -288,7 +293,7 @@ They still gate the items below them.
 
 ### POLFIT-008: The anti-pattern registry override is a stated surface or a closed one
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Decide whether a repository-local compiled registry — the seventh
   surface in POLFIT-001's enumeration, and the only one that changes what anvil
   flags without going through regorus — is a supported way to change policy
@@ -300,11 +305,23 @@ They still gate the items below them.
   cannot silently replace the anti-pattern catalogue in an adopting project.
   POLFIT owns this item because the loader is cross-family infrastructure that
   no vertical module claims; INSEC owns the families, not the resolution order.
-- **Files:** `crates/anvil-checks/src/antipattern/registry_loader.rs`
-- **Validation:** `cargo test -p eddacraft-anvil-checks -- registry_loader`
+  **Decision (ADR-131):** bound the implicit walks; keep explicit
+  `registry_path` / `ANVIL_REGISTRY_PATH` as the supported unsigned override.
+  Default load is the compile-time embedded catalogue. A cloned
+  `patterns/compiled/registry.json` does not replace it.
+- **Files:** `crates/anvil-checks/src/antipattern/registry_loader.rs`,
+  `plans/decisions/131-registry-override-explicit-only.md`,
+  `plans/decisions/026-rust-scanner-authoritative.md`,
+  `plans/decisions/129-policy-surface-inventory-and-precedence.md`,
+  `plans/decisions/DECISION-LOG.md`,
+  `docs/public/anvil/concepts/policy-model.md`,
+  `docs/guides/anvil-rule-authoring.md`,
+  `crates/anvil-checks/ARCHITECTURE.md`
+- **Validation:** `cargo test -p eddacraft-anvil-checks -- registry_loader` and
+  `pnpm adr:check && pnpm aps:active-lint && pnpm docs:check`
 - **Dependencies:** POLFIT-001, ADR-026
 - **Coordinates with:** INSEC, DOCDEF
-- **Confidence:** low
+- **Confidence:** high
 
 ### POLFIT-009: Enterprise policy modules carry an honest posture
 

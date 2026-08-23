@@ -1,8 +1,8 @@
 # Authoring `.anvil` Rules
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                  |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | SCAN  | Live   | Last reviewed 2026-08-15 against `patterns/`, `crates/anvil-checks/src/`, and `crates/anvil-checks/tests/` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                             |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | SCAN  | Live   | Last reviewed 2026-08-23 against `crates/anvil-checks/src/antipattern/registry_loader.rs` and ADR-131 |
 
 | Upstream                                                                               | Downstream                                  |
 | -------------------------------------------------------------------------------------- | ------------------------------------------- |
@@ -257,12 +257,18 @@ the positive and negative cases.
 
 The compiled registry (`patterns/compiled/registry.json`) is a trust boundary.
 The Rust loader resolves it in this order (see
-`crates/anvil-checks/src/antipattern/registry_loader.rs::resolve_registry_path`):
+`crates/anvil-checks/src/antipattern/registry_loader.rs::resolve_registry_path`,
+ADR-131):
 
-1. `LoadRegistryOptions.registry_path` (explicit override, tests only).
+1. `LoadRegistryOptions.registry_path` (explicit override, tests and API).
 2. The `ANVIL_REGISTRY_PATH` environment variable.
-3. Upward walk from the current working directory.
-4. Upward walk from the executable's directory (installed binaries).
+3. The compile-time embedded catalogue.
+
+There is no cwd or executable-directory walk. A cloned
+`patterns/compiled/registry.json` does not replace the scanner catalogue. Rule
+authors who need an unrebuild catalogue must set `ANVIL_REGISTRY_PATH` to the
+compiled file, then rebuild (or keep the env var) so the binary matches the
+source.
 
 **`ANVIL_REGISTRY_PATH` is a trust boundary.** If it is set, the scanner will
 load whatever JSON lives at that path with no integrity check on the payload. A

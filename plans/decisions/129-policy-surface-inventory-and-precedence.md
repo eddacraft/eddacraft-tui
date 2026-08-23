@@ -56,7 +56,7 @@ files are *found*.
 | 4 | Acceptance policy | `anvil/policy.*` | Whether a commit/push is accepted (witness / L4) | `anvil-l4` (ADR-037) |
 | 5 | Intercept-rule registration | `.anvil.<ext>` `enforcement.intercept-rules` | Which save-time intercept rules run. Boolean keys register wrappers; `path-deny` / `regex-content` author glob/regex bodies | `anvil-intercept-rules` |
 | 6 | Enforcement posture | `.anvil.<ext>` `enforcement.mode` | How strictly a block-worthy finding is acted on | kernel-types `EnforcementMode` (ADR-098 AD-3) |
-| 7 | Anti-pattern registry resolution | shipped lookup chain (ADR-026 §1) | Which compiled catalogue the scanner loads. **Not** a supported user override until POLFIT-008 | `anvil-checks` `registry_loader` |
+| 7 | Anti-pattern registry resolution | explicit override (ADR-131) | Which compiled catalogue the scanner loads. Default is the compile-time embedded pack. `ANVIL_REGISTRY_PATH` or API `registry_path` replaces it unsigned. A cloned `patterns/compiled/registry.json` does not | `anvil-checks` `registry_loader` |
 
 Related keys that are **not** extra inventory items:
 
@@ -104,7 +104,7 @@ same commit for different reasons.
 | (4) Acceptance policy | **Supported** | ADR-037; changelog note only on the public site |
 | (5) Intercept-rule registration | **Supported** (field catalogue is POLFIT-006) | none yet |
 | (6) Enforcement posture | **Supported** (field catalogue is POLFIT-006) | none yet |
-| (7) Registry resolution | **Internal** until POLFIT-008 classifies it. Not a supported override | ADR-026 §1 only |
+| (7) Registry resolution | **Supported** as an explicit operator override (ADR-131). Not an implicit project file | ADR-131; authoring guide |
 
 None of the seven is deprecated. Legacy **filenames** (`.anvilrc`, a
 standalone `.anvil/architecture.yaml` without `architecture.source`) are
@@ -168,16 +168,14 @@ to one repository.
    yaml-first. Multiple `.anvil.<ext>` or `anvil/policy.<ext>` variants:
    one winner, `anvil doctor` warns. That is lookup, not merge.
 
-8. **Registry lookup is Internal implementation, not a supported
-   override.** Today's first-found chain (explicit path,
-   `ANVIL_REGISTRY_PATH`, cwd walk, executable walk, embedded
-   catalogue; set-but-missing is `OverrideMissing`) is ADR-026 §1
-   behaviour: unsigned, no hash or signature, a found path silently
-   replaces the embedded catalogue. Stricter-wins (D-4.4) does **not**
-   apply to catalogue lookup. This ADR describes the loader; it does
-   **not** freeze it as a product merge rule. POLFIT-008 decides
-   whether it becomes a stated surface with a trust boundary or a
-   closed one; closing it will amend this record.
+8. **Registry lookup is an explicit operator override, not an implicit
+   project file (ADR-131).** Resolution is explicit path,
+   `ANVIL_REGISTRY_PATH`, then the compile-time embedded catalogue.
+   Set-but-missing is `OverrideMissing` and falls back to embedded with
+   a warning. Implicit cwd and executable-directory walks are closed:
+   a cloned `patterns/compiled/registry.json` does not replace the
+   catalogue. The override is unsigned (no hash or signature).
+   Stricter-wins (D-4.4) does **not** apply to catalogue lookup.
 
 9. **Intercept wrappers do not replace `anvil check` / `anvil gate`.**
    `secret-detection` defaults on; `antipattern` defaults off.
@@ -209,8 +207,8 @@ to one repository.
   a merge function for modules that do not ship.
 - Authoring on-ramp (ACTAX vs OPAE-013..017 vs pack scaffolding) —
   POLFIT-002.
-- Whether the registry override becomes a public surface or a closed
-  one — POLFIT-008.
+- Registry lookup integrity (hash / signature of an override). ADR-131
+  bounds discovery; it does not add payload verification.
 - Field-catalogue entries for `enforcement.mode` and
   `enforcement.intercept-rules` — POLFIT-006 / DOCDEF-007.
 - The public pointer at the unshipped `authoring-anvil-policy` skill —
@@ -228,10 +226,12 @@ to one repository.
 
 `docs/public/anvil/concepts/policy-model.md` is the one public page that
 enumerates the seven surfaces and states that they are complementary
-layers. The Internal registry row names the surface without publishing
-the lookup recipe. Per-key catalogue stays `reference/config.md`.
+layers. The registry row names the explicit override and states that a
+cloned registry file does not win; it does not publish a drop-a-file
+recipe. Per-key catalogue stays `reference/config.md`.
 Architecture definition stays `concepts/boundaries.md`. Pack commands
-stay `reference/policy.md`. This ADR is the precedence authority.
+stay `reference/policy.md`. This ADR is the precedence authority;
+ADR-131 is the registry-resolution authority.
 
 ## Rationale
 
@@ -242,9 +242,10 @@ the three axes (catalogue / posture / lifecycle) stops agents and docs
 from treating `enforcement.mode: off` as "policy is disabled" or treating
 L4 `on_block: reject` as an enforcement-mode synonym.
 
-Classifying the registry chain as Internal, and keeping the lookup
-recipe out of the public page, avoids documenting an override that
-POLFIT-008 may close. Classifying architecture as a supported
+Classifying the registry chain as Internal in the original text
+deferred the lookup recipe until POLFIT-008. ADR-131 closed the
+implicit walks and classified the remaining explicit override as
+Supported. Classifying architecture as a supported
 structural-constraint surface, while saying it is not a regorus policy,
 matches the public `boundaries.md` distinction already shipped.
 Calling rule modes Supported-as-writer without claiming they steer
@@ -259,7 +260,7 @@ that is not yet an evaluator control.
 | Single numbered precedence stack (1 beats 2 beats …) | Simple slogan | Almost every pair is orthogonal; a stack would be a fiction and would mis-order L4 vs packs vs intercept |
 | Treat only packs as "policy"; omit the other six | Smaller page | The audit's adoption failure is that users *will* find the other six; omitting them recreates the problem |
 | Invent org/pack overlay now | Future-proof | No shipped ORGHIER/POLLC; would decide a dormant programme in the wrong ADR |
-| Classify registry override as supported today | Documents what the loader already does | POLFIT-008 exists specifically to choose supported vs closed; promoting it here pre-empts that item |
+| Classify registry override as supported in this record | Documents what the loader already did | POLFIT-008 / ADR-131 owns that choice; this record deferred it |
 
 ## Consequences
 
@@ -269,8 +270,7 @@ that is not yet an evaluator control.
   intra-repo (this ADR) and org/pack (still dormant).
 - **Negative:** the public concept page grows beyond packs; L4 remains
   thinly documented on the public site (changelog + this inventory, not a
-  tutorial); Internal classification of (7) will look like a gap until
-  POLFIT-008 lands.
+  tutorial); surface (7) is classified by ADR-131.
 - **Risks:** readers treat D-4 as implemented merge code and expect
   org overlay; MCP's `.anvil.yaml`-only probe is mistaken for the
   decided discovery rule; POLFIT-002 proceeds on the pack surface and
@@ -283,14 +283,15 @@ that is not yet an evaluator control.
 ## References
 
 - Related ADRs: ADR-002 (warnings-first default), ADR-026 §1 (registry
-  lookup chain), ADR-037 (L4 acceptance policy), ADR-040 (regorus packs),
+  contract; lookup amended by ADR-131), ADR-037 (L4 acceptance policy), ADR-040 (regorus packs),
   ADR-073 / ADR-100 (committed authority vs local config), ADR-098
   (two-axis posture; AD-7 acceptance vs code policy; AD-5 kill switch),
   ADR-120 (config file consolidation; this ADR picks up the intra-repo
-  half of its policy-merge carve-out)
+  half of its policy-merge carve-out), ADR-131 (explicit registry
+  override; closes implicit walks)
 - APS modules: POLFIT-001 (this record), POLFIT-002 (authoring on-ramp;
-  pack surface remains the supported authoring target), POLFIT-003..006
-  and POLFIT-008 (Draft, unblocked to start once this lands), POLFIT-009
+  pack surface remains the supported authoring target), POLFIT-003..006,
+  POLFIT-008 / ADR-131 (registry resolution), POLFIT-009
   (org-module posture), OPAE, ARCHCFG, DOCDEF, INSEC
 - Evidence: POLFIT audit against `origin/main` @ `7524a599b` (0.9.7-beta);
   `crates/anvil-config/src/rule_modes.rs`;

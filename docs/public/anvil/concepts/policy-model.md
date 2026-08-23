@@ -14,6 +14,7 @@ upstream:
   - crates/anvil-cli/src/commands/check_catalog.rs
   - plans/decisions/108-policy-authoring-lint-and-agent-guidance.md
   - plans/decisions/129-policy-surface-inventory-and-precedence.md
+  - plans/decisions/131-registry-override-explicit-only.md
 verified_against: 0.9.7-beta
 ---
 
@@ -54,7 +55,11 @@ This page is the model. The happy path is the
 | Acceptance policy                | `anvil/policy.*`                                     | Whether a commit or push is accepted                                                   |
 | Intercept-rule registration      | `.anvil.yaml` `enforcement.intercept-rules`          | Which save-time intercept rules run                                                    |
 | Enforcement posture              | `.anvil.yaml` `enforcement.mode`                     | How strictly a block-worthy finding is acted on                                        |
-| Anti-pattern registry resolution | Internal                                             | Scanner catalogue source. Not a supported override                                     |
+| Anti-pattern registry resolution | `ANVIL_REGISTRY_PATH` (or API path)                  | Scanner catalogue. Default is the binary's embedded pack                               |
+
+The anti-pattern catalogue is the pack baked into the binary. Setting
+`ANVIL_REGISTRY_PATH` replaces it unsigned. A cloned
+`patterns/compiled/registry.json` does not.
 
 `.anvil.yaml` stands for the canonical project config (`.anvil.yaml` / `.yml` /
 `.json` / `.toml`). Discovery is yaml-first. Three names that are not synonyms:

@@ -11,6 +11,14 @@ Accepted
 > under ADR-033; the in-process surfaces are archived under
 > `archive/anvil-vscode-extension/` and `archive/anvil-mcp-server/`.
 > The authoritative-Rust decision in this ADR is unaffected.
+>
+> **Amended (2026-08-23) by [ADR-131](./131-registry-override-explicit-only.md).**
+> Decision §1's four-tier lookup (explicit path → `ANVIL_REGISTRY_PATH` →
+> cwd upward walk → executable-directory upward walk) is superseded.
+> Resolution is explicit path → `ANVIL_REGISTRY_PATH` → compile-time
+> embedded catalogue. Implicit walks are closed so a cloned
+> `patterns/compiled/registry.json` cannot replace the scanner catalogue.
+> The compiled registry remains the authoring contract.
 
 ## Date
 
@@ -66,10 +74,11 @@ the scanner is the compiled registry at
 Concretely:
 
 1. Rust reads `registry.json` at startup via a new `registry_loader`
-   module in `anvil-checks`. Same four-tier resolution order as the TS
-   loader: explicit path → `ANVIL_REGISTRY_PATH` env → cwd upward walk →
-   executable-directory upward walk. Validates with `serde_json` and
-   a schema type that mirrors `CompiledRegistrySchema` from TS.
+   module in `anvil-checks`. **Amended by ADR-131:** resolution is
+   explicit path → `ANVIL_REGISTRY_PATH` env → compile-time embedded
+   catalogue. There is no cwd or executable-directory walk. Validates
+   with `serde_json` and a schema type that mirrors
+   `CompiledRegistrySchema` from TS.
 2. The hardcoded `PATTERN_DEFS` array in `anvil-checks/patterns.rs` is
    deleted. `PATTERNS` becomes a `LazyLock<Vec<AntiPattern>>` built from
    the loaded registry. AP-008..AP-013 drop out automatically because
