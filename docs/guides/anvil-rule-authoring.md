@@ -352,10 +352,10 @@ against and watch it fail. For detection rules the mechanism is a patched
 registry copy: copy `patterns/compiled/registry.json` somewhere disposable, edit
 the rule's `detection.pattern` to the narrowed form (for a regression guard, the
 historical bad pattern from git), point `ANVIL_REGISTRY_PATH` at the copy, and
-rerun the suite — the loader honours the override before any upward walk (see
-[Registry integrity](#registry-integrity); this is the sanctioned test-fixture
-use of that env var). The assertions you just wrote must fail; record which
-mutation turned which assertion red in the PR description.
+rerun the suite — the loader honours `ANVIL_REGISTRY_PATH` over the embedded
+catalogue (see [Registry integrity](#registry-integrity); this is the sanctioned
+test-fixture use of that env var). The assertions you just wrote must fail;
+record which mutation turned which assertion red in the PR description.
 
 ### Worked example: the #3880 regression
 
