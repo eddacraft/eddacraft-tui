@@ -5,13 +5,13 @@
 
 | ID     | Type      | Owner | Priority | Status | Progress |
 | ------ | --------- | ----- | -------- | ------ | -------- |
-| POLFIT | Conductor | —     | high     | Ready  | 0/9      |
+| POLFIT | Conductor | —     | high     | Ready  | 3/9      |
 
 **Current state (2026-08-23):** POLFIT-001 and POLFIT-002 **Merged** via
 #4103 and #4104 — ADR-129 (intra-repo surface precedence) and ADR-130
 (authoring on-ramp). Both design gates are closed, so POLFIT-003..-006 and
--008 are no longer blocked by them. POLFIT-009 is **In Progress**;
-POLFIT-007 is Ready. The dated entries below are history, not current
+-008 are no longer blocked by them. POLFIT-009 is **Merged** (#4108);
+POLFIT-007 is Ready — the only open item not behind a closed gate. The dated entries below are history, not current
 status — per-item `Status:` lines are authoritative.
 
 **Promoted:** 2026-08-23 — POLFIT-007 and POLFIT-009 advanced Draft -> Ready on
@@ -298,7 +298,9 @@ They still gate the items below them.
 
 ### POLFIT-009: Enterprise policy modules carry an honest posture
 
-- **Status:** In Progress — started 2026-08-23. Conductor owns this outright:
+- **Status:** Merged 2026-08-23 via PR #4108. Ancestor of `origin/main`
+  (`abe6be8b6`); all six posture blocks verified present on the merged tree.
+  Conductor owns this outright:
   the deliverable is a posture and review stamp on each named module, not a
   delegated work item. Scope confirmed on execution: all six coordinated
   modules were stale (four at 2026-07-11, two at 2026-07-17) and five of the

@@ -5,7 +5,7 @@
 
 | ID   | Owner  | Status   | Progress |
 | ---- | ------ | -------- | -------- |
-| GTAO | @aneki | Proposed | 0/10     |
+| GTAO | @aneki | Proposed | 3/10     |
 
 **Last reviewed:** 2026-08-22 — created from operator direction after the
 regex/AST and “when do gates fire” discussion. Agreed shape: do not auto-run
