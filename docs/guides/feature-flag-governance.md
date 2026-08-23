@@ -1,15 +1,16 @@
 # Feature Flag Governance
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                    |
-| ----- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-22 against the FLAGCAT plan, canonical manifest, shared resolvers, and the live `docs.access` consumer |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                          |
+| ----- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-23 against FLAGCAT-011, ADR-076, the product-catalogue schemas and loader, and the operational flag resolver |
 
-| Upstream                                                                                                                                                        | Downstream                                                                                                                      |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `plans/modules/feature-flag-catalogue.aps.md`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `crates/anvil-kernel-types/src/feature_flags.rs` | `AGENTS.md`, `docs/guides/feature-flag-reference.md`, `docs/guides/feature-flag-inventory.md`, account plan/entitlements (BACT) |
+| Upstream                                                                                                                                                                                        | Downstream                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `plans/modules/feature-flag-catalogue.aps.md`, ADR-076, `flags/surfaces.json`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `crates/anvil-kernel-types/src/feature_flags.rs` | `AGENTS.md`, `docs/guides/feature-flag-reference.md`, `docs/guides/feature-flag-inventory.md`, account plan/entitlements (BACT) |
 
 This guide defines the operational rules for creating, rolling out, promoting,
-disabling, and retiring feature flags in Anvil.
+disabling, and retiring feature flags in anvil, and the maintenance rules for
+the separate product catalogue.
 
 **Account entitlements:** commercial / cohort access is modelled as catalogue
 flags of class `entitlement` targeted via plan-axis audiences (`plan-beta`, …).
@@ -18,6 +19,66 @@ Account rows carry a durable `plan` name that evaluation context uses — see
 and
 [account plan, activity, and entitlements](./account-plan-activity-and-entitlements.md).
 Do not invent free-form feature lists on the user row.
+
+## Product Catalogue Governance
+
+`flags/surfaces.json` is the canonical strict v2 product catalogue under
+[ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md).
+Operational flags remain authoritative in `flags/manifest.json`; a product
+feature may have no flag, and a flag is not a product feature.
+
+The catalogue has four noun collections plus a delivery-identity migration
+ledger:
+
+| Collection                  | Owns                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| `productFeatureGroups`      | Stable grouping key, display name, default delivery posture, and lifecycle            |
+| `productFeatures`           | Stable feature key, group, APS-module owner, lifecycle, and hard `requires` edges     |
+| `deliverySurfaces`          | Immutable host-prefixed key, typed locator, feature reference, posture, and lifecycle |
+| `excludedDeliverySurfaces`  | Reviewed internal plumbing with an owner, reason, review reference, and lifecycle     |
+| `deliverySurfaceMigrations` | Explicit retired-source to active-target split and merge history                      |
+
+Apply these rules when maintaining the catalogue:
+
+- Keys are stable identities. Display names, groups, owners, locators, and
+  documentation may change without renaming a key; retired keys remain reserved.
+- Each retired delivery key appears exactly once as a migration source.
+  Migration sides are non-empty and unique; sources exist and are retired,
+  targets exist and are active, and a source key cannot be reused by another
+  migration.
+- Product-feature and exclusion owners are existing APS module identifiers.
+- Effective access is the delivery-surface override when present, otherwise the
+  product-feature-group default. Audience references are valid only for `staff`
+  or `admin-key` access.
+- A recovery-critical `mustAlwaysBeOpen` delivery surface must resolve to
+  `open`. The pinned floor covers the CLI credential bootstrap and canonical
+  login/refresh paths, public API login issuance and refresh paths, and the
+  documentation shell's login/callback routes. This prevents only
+  catalogue-derived refusal; it does not bypass host-owned authentication,
+  authorisation, credential validation, or issuance checks.
+- Catalogue lifecycle is deliberately `active | retired`. Product features own
+  hard dependencies; validation requires their targets to exist and the graph to
+  remain acyclic.
+- An exclusion must be classified as `internal-plumbing`. User-visible delivery
+  surfaces belong in the catalogue rather than an exclusion list.
+
+The current catalogue covers CLI, MCP, API, daemon, dashboard, documentation,
+hook, and integration delivery hosts. Use `productCatalogue()` as the
+authoritative accessor. The deprecated `flagSurfaces()` accessor is a
+deterministic but explicitly incomplete projection of the legacy 46 CLI
+features; it must not drive completeness, entitlement, or runtime enforcement.
+During the compatibility window, the frozen v1 fixture is authoritative only for
+the exact payload returned by `flagSurfaces()`. It is not authority for v2
+product, completeness, or enforcement truth; `flags/surfaces.json` through
+`productCatalogue()` remains canonical for those concerns.
+
+The dedicated product catalogue schema version is `2`, independent of
+operational flag schema version `1`. FLAGCAT-012..015 own host completeness
+gates, operational-flag linkage, generated views, and any approved product-tier
+mapping. Runtime cascade-off and catalogue-derived host enforcement remain out
+of scope. See the
+[v2 physical schema](../../plans/specs/2026-08-23-product-catalogue-v2-schema.md)
+for the complete field and migration contract.
 
 ## Flag Lifecycle
 

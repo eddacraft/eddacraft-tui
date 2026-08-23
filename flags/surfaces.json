@@ -1,217 +1,2236 @@
 {
-  "schemaVersion": 1,
-  "categories": [
+  "schemaVersion": 2,
+  "deliverySurfaceMigrations": [],
+  "productFeatureGroups": [
     {
-      "id": "governance",
+      "key": "governance",
       "name": "Governance engine",
-      "defaultAccess": "licence",
-      "defaultStatus": "active"
+      "defaultSurfacePosture": { "access": "licence" },
+      "status": "active"
     },
     {
-      "id": "mcp",
+      "key": "mcp",
       "name": "MCP integration",
-      "defaultAccess": "licence",
-      "defaultStatus": "active"
+      "defaultSurfacePosture": { "access": "licence" },
+      "status": "active"
     },
     {
-      "id": "dashboard",
+      "key": "dashboard",
       "name": "Terminal dashboards",
-      "defaultAccess": "open",
-      "defaultStatus": "active"
+      "defaultSurfacePosture": { "access": "open" },
+      "status": "active"
     },
     {
-      "id": "save-time",
+      "key": "save-time",
       "name": "Save-time validation",
-      "defaultAccess": "open",
-      "defaultStatus": "active"
+      "defaultSurfacePosture": { "access": "open" },
+      "status": "active"
     },
-    { "id": "hooks", "name": "Git hooks", "defaultAccess": "open", "defaultStatus": "active" },
     {
-      "id": "admin",
+      "key": "hooks",
+      "name": "Git hooks",
+      "defaultSurfacePosture": { "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "admin",
       "name": "Admin operations",
-      "defaultAccess": "admin-key",
-      "defaultStatus": "active"
+      "defaultSurfacePosture": { "access": "admin-key" },
+      "status": "active"
     },
-    { "id": "tools", "name": "Local tools", "defaultAccess": "open", "defaultStatus": "active" },
     {
-      "id": "setup",
+      "key": "tools",
+      "name": "Local tools",
+      "defaultSurfacePosture": { "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "setup",
       "name": "Setup and onboarding",
-      "defaultAccess": "licence",
-      "defaultStatus": "active"
+      "defaultSurfacePosture": { "access": "licence" },
+      "status": "active"
     },
     {
-      "id": "foundational",
+      "key": "foundational",
       "name": "Foundational plumbing",
-      "defaultAccess": "open",
-      "defaultStatus": "active"
+      "defaultSurfacePosture": { "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "documentation",
+      "name": "Documentation",
+      "defaultSurfacePosture": { "access": "open" },
+      "status": "active"
     }
   ],
-  "surfaces": [
-    { "key": "check", "name": "anvil check", "category": "governance" },
-    { "key": "audit", "name": "anvil audit", "category": "governance" },
-    { "key": "gate", "name": "anvil gate", "category": "governance" },
+  "productFeatures": [
+    {
+      "key": "check",
+      "name": "anvil check",
+      "groupKey": "governance",
+      "owner": "RCLI2",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "audit",
+      "name": "anvil audit",
+      "groupKey": "governance",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gate",
+      "name": "anvil gate",
+      "groupKey": "governance",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "gate-config",
       "name": "anvil gate-config",
-      "category": "governance",
+      "groupKey": "governance",
+      "owner": "RCLI2",
+      "status": "active",
       "requires": ["gate"]
     },
-    { "key": "drift", "name": "anvil drift", "category": "governance" },
-    { "key": "architecture", "name": "anvil architecture", "category": "governance" },
-    { "key": "policy", "name": "anvil policy", "category": "governance" },
-    { "key": "export", "name": "anvil export", "category": "governance" },
+    {
+      "key": "drift",
+      "name": "anvil drift",
+      "groupKey": "governance",
+      "owner": "DRIFT",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "architecture",
+      "name": "anvil architecture",
+      "groupKey": "governance",
+      "owner": "ARCH",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "policy",
+      "name": "anvil policy",
+      "groupKey": "governance",
+      "owner": "POLENG",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "export",
+      "name": "anvil export",
+      "groupKey": "governance",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "baseline",
       "name": "anvil baseline",
-      "category": "governance",
-      "access": "open",
-      "notes": "local project state; ungated"
+      "groupKey": "governance",
+      "owner": "MLP2",
+      "status": "active",
+      "requires": []
     },
     {
       "key": "audit-chain",
       "name": "anvil audit-chain",
-      "category": "governance",
-      "access": "open",
-      "notes": "witness-chain audit; CI/local lane"
+      "groupKey": "governance",
+      "owner": "MLP",
+      "status": "active",
+      "requires": []
     },
     {
       "key": "l4-validate",
       "name": "anvil l4-validate",
-      "category": "governance",
-      "access": "open",
-      "notes": "CI lane"
+      "groupKey": "governance",
+      "owner": "MLP2",
+      "status": "active",
+      "requires": []
     },
     {
       "key": "validate",
       "name": "anvil validate",
-      "category": "governance",
-      "access": "open",
-      "notes": "validate a plan file; local"
+      "groupKey": "governance",
+      "owner": "RCLI3",
+      "status": "active",
+      "requires": []
     },
-
-    { "key": "mcp.install", "name": "anvil mcp install", "category": "mcp" },
+    {
+      "key": "mcp.install",
+      "name": "anvil mcp install",
+      "groupKey": "mcp",
+      "owner": "MCPX",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "mcp.serve",
       "name": "anvil mcp serve",
-      "category": "mcp",
-      "access": "open",
-      "notes": "local MCP server; ungated (split stands on current divergence, not an edition)"
+      "groupKey": "mcp",
+      "owner": "RMCPF",
+      "status": "active",
+      "requires": []
     },
-    { "key": "mcp.config", "name": "anvil mcp-config", "category": "mcp" },
-
+    {
+      "key": "mcp.config",
+      "name": "anvil mcp-config",
+      "groupKey": "mcp",
+      "owner": "MCPX",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "dashboard.aps",
       "name": "anvil plan dashboard",
-      "category": "dashboard",
-      "access": "staff",
-      "audiences": ["staff-internal-developer"],
-      "notes": "CIB-046; maps to manifest flag tui-dashboard.aps-dashboard"
+      "groupKey": "dashboard",
+      "owner": "CIB",
+      "status": "active",
+      "requires": []
     },
     {
       "key": "dashboard.architecture",
       "name": "anvil dashboard architecture",
-      "category": "dashboard",
+      "groupKey": "dashboard",
+      "owner": "TDASH",
+      "status": "active",
       "requires": ["architecture"]
     },
     {
       "key": "dashboard.drift",
       "name": "anvil dashboard drift",
-      "category": "dashboard",
+      "groupKey": "dashboard",
+      "owner": "TDASH",
+      "status": "active",
       "requires": ["drift"]
     },
     {
       "key": "dashboard.suppressions",
       "name": "anvil dashboard suppressions",
-      "category": "dashboard",
+      "groupKey": "dashboard",
+      "owner": "TDASH",
+      "status": "active",
       "requires": ["policy"]
     },
     {
       "key": "dashboard.saved",
-      "name": "anvil dashboard (saved specs)",
-      "category": "dashboard",
-      "notes": ".dashboard.json picker incl. gate-summary"
+      "name": "anvil dashboard saved specifications",
+      "groupKey": "dashboard",
+      "owner": "TDASH",
+      "status": "active",
+      "requires": []
     },
-
     {
       "key": "watch",
       "name": "anvil watch",
-      "category": "save-time",
-      "access": "licence",
-      "notes": "daemon routing is a rollout sub-behaviour (ANVIL_WATCH_DAEMON)"
+      "groupKey": "save-time",
+      "owner": "DSV",
+      "status": "active",
+      "requires": []
     },
-    { "key": "intercept", "name": "anvil intercept", "category": "save-time" },
-
+    {
+      "key": "intercept",
+      "name": "anvil intercept",
+      "groupKey": "save-time",
+      "owner": "INTD",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "hook",
-      "name": "anvil hook (git-invoked runners)",
-      "category": "hooks",
-      "invocation": "system",
-      "notes": "git-invoked; exempt from kill-switch refusal — a non-zero exit breaks commits"
+      "name": "anvil hook",
+      "groupKey": "hooks",
+      "owner": "GHOOK",
+      "status": "active",
+      "requires": []
     },
-    { "key": "hooks", "name": "anvil hooks (manage)", "category": "hooks" },
-
+    {
+      "key": "hooks",
+      "name": "anvil hooks",
+      "groupKey": "hooks",
+      "owner": "GHOOK",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "admin.operations",
-      "name": "anvil admin (operations)",
-      "category": "admin",
-      "audiences": ["staff-anvil-internal"],
-      "notes": "admin-key gated (ANVIL_ADMIN_KEY)"
+      "name": "anvil admin operations",
+      "groupKey": "admin",
+      "owner": "ADMINCLI",
+      "status": "active",
+      "requires": []
     },
-
-    { "key": "edda", "name": "anvil edda", "category": "tools" },
-    { "key": "capsule", "name": "anvil capsule", "category": "tools" },
-    { "key": "insights", "name": "anvil insights", "category": "tools" },
-    { "key": "kindling", "name": "anvil kindling", "category": "tools" },
-
-    { "key": "init", "name": "anvil init", "category": "setup" },
-    { "key": "ensure", "name": "anvil (bare ensure)", "category": "setup" },
-    { "key": "start", "name": "anvil start", "category": "setup" },
-    { "key": "welcome", "name": "anvil welcome", "category": "setup" },
-    { "key": "new", "name": "anvil new", "category": "setup" },
-    { "key": "wizard", "name": "anvil wizard", "category": "setup" },
-
+    {
+      "key": "edda",
+      "name": "anvil edda",
+      "groupKey": "tools",
+      "owner": "EDDA",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "capsule",
+      "name": "anvil capsule",
+      "groupKey": "tools",
+      "owner": "GITGOV",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "insights",
+      "name": "anvil insights",
+      "groupKey": "tools",
+      "owner": "INSIGHTS",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "kindling",
+      "name": "anvil kindling",
+      "groupKey": "tools",
+      "owner": "KFIT",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "init",
+      "name": "anvil init",
+      "groupKey": "setup",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "ensure",
+      "name": "anvil bare ensure",
+      "groupKey": "setup",
+      "owner": "ONSW",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "start",
+      "name": "anvil start",
+      "groupKey": "setup",
+      "owner": "LAUNCH",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "welcome",
+      "name": "anvil welcome",
+      "groupKey": "setup",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "new",
+      "name": "anvil new",
+      "groupKey": "setup",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "wizard",
+      "name": "anvil wizard",
+      "groupKey": "setup",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "admin.credential",
-      "name": "anvil admin auth (credential config)",
-      "category": "foundational",
-      "mustAlwaysBeOpen": true,
-      "notes": "recovery-critical; configures the admin key — cannot require the key to set the key"
+      "name": "anvil admin credential configuration",
+      "groupKey": "foundational",
+      "owner": "ADMINCLI",
+      "status": "active",
+      "requires": []
     },
     {
       "key": "auth",
-      "name": "anvil auth (login/logout/whoami/refresh)",
-      "category": "foundational",
-      "mustAlwaysBeOpen": true,
-      "notes": "recovery-critical; cannot refuse the thing that re-authenticates"
+      "name": "anvil authentication",
+      "groupKey": "foundational",
+      "owner": "GHCLIAUTH",
+      "status": "active",
+      "requires": []
     },
-    { "key": "config", "name": "anvil config", "category": "foundational", "catalogued": false },
-    { "key": "migrate", "name": "anvil migrate", "category": "foundational", "catalogued": false },
-    { "key": "update", "name": "anvil update", "category": "foundational", "catalogued": false },
+    {
+      "key": "config",
+      "name": "anvil config",
+      "groupKey": "foundational",
+      "owner": "WATCHUX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "migrate",
+      "name": "anvil migrate",
+      "groupKey": "foundational",
+      "owner": "UCFG",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "update",
+      "name": "anvil update",
+      "groupKey": "foundational",
+      "owner": "DISTRIB",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "uninstall",
       "name": "anvil uninstall",
-      "category": "foundational",
-      "catalogued": false
+      "groupKey": "foundational",
+      "owner": "ADOPT",
+      "status": "active",
+      "requires": []
     },
-    { "key": "doctor", "name": "anvil doctor", "category": "foundational", "catalogued": false },
-    { "key": "version", "name": "anvil version", "category": "foundational", "catalogued": false },
+    {
+      "key": "doctor",
+      "name": "anvil doctor",
+      "groupKey": "foundational",
+      "owner": "RCLI",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "version",
+      "name": "anvil version",
+      "groupKey": "foundational",
+      "owner": "DISTRIB",
+      "status": "active",
+      "requires": []
+    },
     {
       "key": "licenses",
-      "name": "anvil licenses",
-      "category": "foundational",
-      "catalogued": false
+      "name": "anvil licences",
+      "groupKey": "foundational",
+      "owner": "RUSTNX",
+      "status": "active",
+      "requires": []
     },
     {
       "key": "tutorial",
       "name": "anvil tutorial",
-      "category": "foundational",
-      "catalogued": false
+      "groupKey": "foundational",
+      "owner": "TUTOR",
+      "status": "active",
+      "requires": []
     },
     {
       "key": "workspace",
       "name": "anvil workspace",
-      "category": "foundational",
-      "catalogued": false
+      "groupKey": "foundational",
+      "owner": "INTD",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "report-fp",
+      "name": "False-positive reporting",
+      "groupKey": "governance",
+      "owner": "OPSUP",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "ember",
+      "name": "Ember memory tools",
+      "groupKey": "tools",
+      "owner": "EDDA",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "exception",
+      "name": "Policy exceptions",
+      "groupKey": "governance",
+      "owner": "POLENG",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "status",
+      "name": "Project and service status",
+      "groupKey": "foundational",
+      "owner": "ADTRUST",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "impact",
+      "name": "Change impact",
+      "groupKey": "governance",
+      "owner": "IMPV",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "telemetry",
+      "name": "Telemetry ingestion",
+      "groupKey": "foundational",
+      "owner": "FLEET",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "lsp",
+      "name": "Language server",
+      "groupKey": "save-time",
+      "owner": "RTAI",
+      "status": "active",
+      "requires": ["watch"]
+    },
+    {
+      "key": "skill",
+      "name": "Agent skill installation",
+      "groupKey": "setup",
+      "owner": "SKPKG",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx-control",
+      "name": "Graph-context egress control",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "mcp.pin",
+      "name": "MCP configuration pinning",
+      "groupKey": "mcp",
+      "owner": "MCPLH",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "dashboard.web",
+      "name": "Web dashboard host",
+      "groupKey": "dashboard",
+      "owner": "DASH",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "waitlist",
+      "name": "Waitlist registration",
+      "groupKey": "setup",
+      "owner": "BAUTH",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "account-activity",
+      "name": "Account activity reporting",
+      "groupKey": "foundational",
+      "owner": "BACT",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "mcp.apply-patch",
+      "name": "MCP validated patch application",
+      "groupKey": "governance",
+      "owner": "RMCPF",
+      "status": "active",
+      "requires": ["check"]
+    },
+    {
+      "key": "mcp.fix",
+      "name": "MCP finding repair",
+      "groupKey": "governance",
+      "owner": "RMCPF",
+      "status": "active",
+      "requires": ["check"]
+    },
+    {
+      "key": "gctx.search-symbols",
+      "name": "Graph symbol search",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.find-dependents",
+      "name": "Graph dependent discovery",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.find-callers",
+      "name": "Graph caller discovery",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.impact-of-change",
+      "name": "Graph change-impact analysis",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.affected-tests",
+      "name": "Graph affected-test analysis",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.symbol-context",
+      "name": "Bounded symbol context",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.graph-edges",
+      "name": "Graph edge inventory",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.graph-stats",
+      "name": "Graph statistics",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "gctx.snippets",
+      "name": "Graph source snippets",
+      "groupKey": "mcp",
+      "owner": "GCTX",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "anvil-docs",
+      "name": "anvil product documentation",
+      "groupKey": "documentation",
+      "owner": "DOCSAUTH",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "docs-shell",
+      "name": "Documentation shell",
+      "groupKey": "documentation",
+      "owner": "DOCSAUTH",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "aps-docs",
+      "name": "APS documentation",
+      "groupKey": "documentation",
+      "owner": "DOCS",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "blog",
+      "name": "Product blog",
+      "groupKey": "documentation",
+      "owner": "DOCS",
+      "status": "active",
+      "requires": []
+    },
+    {
+      "key": "dashboard.protection",
+      "name": "Protection dashboard",
+      "groupKey": "dashboard",
+      "owner": "DASH",
+      "status": "active",
+      "requires": ["dashboard.web"]
+    },
+    {
+      "key": "dashboard.gates",
+      "name": "Gate dashboard",
+      "groupKey": "dashboard",
+      "owner": "DASH",
+      "status": "active",
+      "requires": ["dashboard.web"]
+    },
+    {
+      "key": "dashboard.warnings",
+      "name": "Warning dashboard",
+      "groupKey": "dashboard",
+      "owner": "DASH",
+      "status": "active",
+      "requires": ["dashboard.web"]
+    },
+    {
+      "key": "dashboard.plans",
+      "name": "Plan dashboard",
+      "groupKey": "dashboard",
+      "owner": "DASH",
+      "status": "active",
+      "requires": ["dashboard.web"]
+    },
+    {
+      "key": "dashboard.api-contract",
+      "name": "Dashboard API contract",
+      "groupKey": "dashboard",
+      "owner": "DASH",
+      "status": "active",
+      "requires": ["dashboard.web"]
+    }
+  ],
+  "deliverySurfaces": [
+    {
+      "key": "cli.check",
+      "featureKey": "check",
+      "locator": { "kind": "cli", "commandPath": ["check"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.check",
+      "featureKey": "check",
+      "locator": { "kind": "mcp-tool", "name": "anvil_check" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.validate-write",
+      "featureKey": "check",
+      "locator": { "kind": "mcp-tool", "name": "anvil_validate_write" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.patterns",
+      "featureKey": "check",
+      "locator": { "kind": "mcp-resource", "uri": "anvil://patterns" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.audit",
+      "featureKey": "audit",
+      "locator": { "kind": "cli", "commandPath": ["audit"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.gate",
+      "featureKey": "gate",
+      "locator": { "kind": "cli", "commandPath": ["gate"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.gate",
+      "featureKey": "gate",
+      "locator": { "kind": "mcp-tool", "name": "anvil_gate" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.gate-config",
+      "featureKey": "gate-config",
+      "locator": { "kind": "cli", "commandPath": ["gate-config"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.drift",
+      "featureKey": "drift",
+      "locator": { "kind": "cli", "commandPath": ["drift"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.drift",
+      "featureKey": "drift",
+      "locator": { "kind": "mcp-resource", "uri": "anvil://drift" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.architecture",
+      "featureKey": "architecture",
+      "locator": { "kind": "cli", "commandPath": ["architecture"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.query-boundary",
+      "featureKey": "architecture",
+      "locator": { "kind": "mcp-tool", "name": "anvil_query_boundary" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.boundaries",
+      "featureKey": "architecture",
+      "locator": { "kind": "mcp-resource", "uri": "anvil://boundaries" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.policy",
+      "featureKey": "policy",
+      "locator": { "kind": "cli", "commandPath": ["policy"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.suppress",
+      "featureKey": "policy",
+      "locator": { "kind": "mcp-tool", "name": "anvil_suppress" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.suppressions",
+      "featureKey": "policy",
+      "locator": { "kind": "mcp-resource", "uri": "anvil://suppressions" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.export",
+      "featureKey": "export",
+      "locator": { "kind": "cli", "commandPath": ["export"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.constraints",
+      "featureKey": "export",
+      "locator": { "kind": "mcp-resource", "uri": "anvil://constraints" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.baseline",
+      "featureKey": "baseline",
+      "locator": { "kind": "cli", "commandPath": ["baseline"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.baseline",
+      "featureKey": "baseline",
+      "locator": { "kind": "mcp-resource", "uri": "anvil://baseline" },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.audit-chain",
+      "featureKey": "audit-chain",
+      "locator": { "kind": "cli", "commandPath": ["audit-chain"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.l4-validate",
+      "featureKey": "l4-validate",
+      "locator": { "kind": "cli", "commandPath": ["l4-validate"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.validate",
+      "featureKey": "validate",
+      "locator": { "kind": "cli", "commandPath": ["validate"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.mcp-install",
+      "featureKey": "mcp.install",
+      "locator": { "kind": "cli", "commandPath": ["mcp", "install"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.mcp-refresh",
+      "featureKey": "mcp.install",
+      "locator": { "kind": "cli", "commandPath": ["mcp", "refresh"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.mcp-serve",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "cli", "commandPath": ["mcp", "serve"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.mcp-config",
+      "featureKey": "mcp.config",
+      "locator": { "kind": "cli", "commandPath": ["mcp-config"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.plan-dashboard",
+      "featureKey": "dashboard.aps",
+      "locator": { "kind": "cli", "commandPath": ["plan", "dashboard"] },
+      "posture": {
+        "access": "staff",
+        "audiences": ["staff-internal-developer"],
+        "invocation": "user",
+        "mustAlwaysBeOpen": false
+      },
+      "status": "active"
+    },
+    {
+      "key": "cli.dashboard-architecture",
+      "featureKey": "dashboard.architecture",
+      "locator": { "kind": "cli", "commandPath": ["dashboard", "architecture"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.dashboard-drift",
+      "featureKey": "dashboard.drift",
+      "locator": { "kind": "cli", "commandPath": ["dashboard", "drift"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.dashboard-suppressions",
+      "featureKey": "dashboard.suppressions",
+      "locator": { "kind": "cli", "commandPath": ["dashboard", "suppressions"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.dashboard-saved",
+      "featureKey": "dashboard.saved",
+      "locator": { "kind": "cli", "commandPath": ["dashboard"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.watch",
+      "featureKey": "watch",
+      "locator": { "kind": "cli", "commandPath": ["watch"] },
+      "posture": { "access": "licence", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "daemon.scan-buffer",
+      "featureKey": "watch",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/scan_buffer" },
+      "posture": { "access": "licence", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "daemon.validate-paths",
+      "featureKey": "watch",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/validate_paths" },
+      "posture": { "access": "licence", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "daemon.request-full-scan",
+      "featureKey": "watch",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/request_full_scan" },
+      "posture": { "access": "licence", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.intercept",
+      "featureKey": "intercept",
+      "locator": { "kind": "cli", "commandPath": ["intercept"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "daemon.unblock-cascade",
+      "featureKey": "intercept",
+      "locator": { "kind": "daemon-rpc", "method": "fence.unblock-cascade" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "daemon.unblock-worktree",
+      "featureKey": "intercept",
+      "locator": { "kind": "daemon-rpc", "method": "fence.unblock-worktree" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.hook",
+      "featureKey": "hook",
+      "locator": { "kind": "cli", "commandPath": ["hook"] },
+      "posture": { "invocation": "system", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "daemon.witness-append",
+      "featureKey": "hook",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/witness/append" },
+      "posture": { "invocation": "system", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "hook.pre-commit",
+      "featureKey": "hook",
+      "locator": { "kind": "hook", "hook": "pre-commit" },
+      "posture": { "invocation": "system", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "hook.post-commit",
+      "featureKey": "hook",
+      "locator": { "kind": "hook", "hook": "post-commit" },
+      "posture": { "invocation": "system", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "hook.pre-push",
+      "featureKey": "hook",
+      "locator": { "kind": "hook", "hook": "pre-push" },
+      "posture": { "invocation": "system", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "hook.post-merge",
+      "featureKey": "hook",
+      "locator": { "kind": "hook", "hook": "post-merge" },
+      "posture": { "invocation": "system", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "hook.post-rewrite",
+      "featureKey": "hook",
+      "locator": { "kind": "hook", "hook": "post-rewrite" },
+      "posture": { "invocation": "system", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.hooks",
+      "featureKey": "hooks",
+      "locator": { "kind": "cli", "commandPath": ["hooks"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.admin-operations",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "cli", "commandPath": ["admin"] },
+      "posture": {
+        "audiences": ["staff-anvil-internal"],
+        "invocation": "user",
+        "mustAlwaysBeOpen": false
+      },
+      "status": "active"
+    },
+    {
+      "key": "cli.edda",
+      "featureKey": "edda",
+      "locator": { "kind": "cli", "commandPath": ["edda"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "docs.edda-stack",
+      "featureKey": "edda",
+      "locator": { "kind": "docs-route", "pathPrefix": "/edda-stack" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.capsule",
+      "featureKey": "capsule",
+      "locator": { "kind": "cli", "commandPath": ["capsule"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.insights",
+      "featureKey": "insights",
+      "locator": { "kind": "cli", "commandPath": ["insights"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.kindling",
+      "featureKey": "kindling",
+      "locator": { "kind": "cli", "commandPath": ["kindling"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "docs.kindling",
+      "featureKey": "kindling",
+      "locator": { "kind": "docs-route", "pathPrefix": "/kindling" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.init",
+      "featureKey": "init",
+      "locator": { "kind": "cli", "commandPath": ["init"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.start",
+      "featureKey": "start",
+      "locator": { "kind": "cli", "commandPath": ["start"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.new",
+      "featureKey": "new",
+      "locator": { "kind": "cli", "commandPath": ["new"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.wizard",
+      "featureKey": "wizard",
+      "locator": { "kind": "cli", "commandPath": ["wizard"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.ensure",
+      "featureKey": "ensure",
+      "locator": { "kind": "cli", "commandPath": [] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.welcome",
+      "featureKey": "welcome",
+      "locator": { "kind": "cli", "commandPath": ["welcome"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.admin-credential",
+      "featureKey": "admin.credential",
+      "locator": { "kind": "cli", "commandPath": ["admin", "auth"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "cli.auth",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["auth"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.auth-login",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["auth", "login"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "cli.login-alias",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["login"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "cli.auth-logout",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["auth", "logout"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.logout-alias",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["logout"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.auth-whoami",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["auth", "whoami"] },
+      "posture": { "access": "licence", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.whoami-alias",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["whoami"] },
+      "posture": { "access": "licence", "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.auth-refresh",
+      "featureKey": "auth",
+      "locator": { "kind": "cli", "commandPath": ["auth", "refresh"] },
+      "posture": { "access": "open", "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "cli.config",
+      "featureKey": "config",
+      "locator": { "kind": "cli", "commandPath": ["config"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.config",
+      "featureKey": "config",
+      "locator": { "kind": "mcp-resource", "uri": "anvil://config" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.migrate",
+      "featureKey": "migrate",
+      "locator": { "kind": "cli", "commandPath": ["migrate"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.update",
+      "featureKey": "update",
+      "locator": { "kind": "cli", "commandPath": ["update"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.uninstall",
+      "featureKey": "uninstall",
+      "locator": { "kind": "cli", "commandPath": ["uninstall"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.doctor",
+      "featureKey": "doctor",
+      "locator": { "kind": "cli", "commandPath": ["doctor"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.version",
+      "featureKey": "version",
+      "locator": { "kind": "cli", "commandPath": ["version"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.licenses",
+      "featureKey": "licenses",
+      "locator": { "kind": "cli", "commandPath": ["licenses"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.tutorial",
+      "featureKey": "tutorial",
+      "locator": { "kind": "cli", "commandPath": ["tutorial"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.workspace",
+      "featureKey": "workspace",
+      "locator": { "kind": "cli", "commandPath": ["workspace"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.report-fp",
+      "featureKey": "report-fp",
+      "locator": { "kind": "cli", "commandPath": ["report-fp"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "cli.ember",
+      "featureKey": "ember",
+      "locator": { "kind": "cli", "commandPath": ["ember"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.exception",
+      "featureKey": "exception",
+      "locator": { "kind": "cli", "commandPath": ["exception"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "cli.status",
+      "featureKey": "status",
+      "locator": { "kind": "cli", "commandPath": ["status"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.status",
+      "featureKey": "status",
+      "locator": { "kind": "mcp-tool", "name": "anvil_status" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "api.health",
+      "featureKey": "status",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/health" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.status-query",
+      "featureKey": "status",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/status/query" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.workspace-status",
+      "featureKey": "status",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/workspace_status" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.list-sessions",
+      "featureKey": "status",
+      "locator": { "kind": "daemon-rpc", "method": "session.list" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.healthz",
+      "featureKey": "status",
+      "locator": { "kind": "dashboard-route", "path": "/healthz" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
+      "status": "active"
+    },
+    {
+      "key": "cli.impact",
+      "featureKey": "impact",
+      "locator": { "kind": "cli", "commandPath": ["impact"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "cli.telemetry",
+      "featureKey": "telemetry",
+      "locator": { "kind": "cli", "commandPath": ["telemetry"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "api.telemetry-ingest",
+      "featureKey": "telemetry",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/telemetry/" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.lsp",
+      "featureKey": "lsp",
+      "locator": { "kind": "cli", "commandPath": ["lsp"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.skill-install",
+      "featureKey": "skill",
+      "locator": { "kind": "cli", "commandPath": ["skill", "install"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.gctx-egress",
+      "featureKey": "gctx-control",
+      "locator": { "kind": "cli", "commandPath": ["gctx", "egress"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "cli.mcp-pin",
+      "featureKey": "mcp.pin",
+      "locator": { "kind": "cli", "commandPath": ["mcp", "pin"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.mcp-unpin",
+      "featureKey": "mcp.pin",
+      "locator": { "kind": "cli", "commandPath": ["mcp", "unpin"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.dashboard-web",
+      "featureKey": "dashboard.web",
+      "locator": { "kind": "cli", "commandPath": ["dashboard", "--web"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "api.waitlist-submit",
+      "featureKey": "waitlist",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/waitlist/" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "api.waitlist-resend",
+      "featureKey": "waitlist",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/waitlist/resend" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "api.account-activity",
+      "featureKey": "account-activity",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/account/activity/" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.apply-patch",
+      "featureKey": "mcp.apply-patch",
+      "locator": { "kind": "mcp-tool", "name": "anvil_apply_patch" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.fix",
+      "featureKey": "mcp.fix",
+      "locator": { "kind": "mcp-tool", "name": "anvil_fix" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.search-symbols",
+      "featureKey": "gctx.search-symbols",
+      "locator": { "kind": "mcp-tool", "name": "anvil_search_symbols" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-search-symbols",
+      "featureKey": "gctx.search-symbols",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/search_symbols" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.find-dependents",
+      "featureKey": "gctx.find-dependents",
+      "locator": { "kind": "mcp-tool", "name": "anvil_find_dependents" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-find-dependents",
+      "featureKey": "gctx.find-dependents",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/find_dependents" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.find-callers",
+      "featureKey": "gctx.find-callers",
+      "locator": { "kind": "mcp-tool", "name": "anvil_find_callers" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-find-callers",
+      "featureKey": "gctx.find-callers",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/find_callers" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.impact-of-change",
+      "featureKey": "gctx.impact-of-change",
+      "locator": { "kind": "mcp-tool", "name": "anvil_impact_of_change" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-impact-of-change",
+      "featureKey": "gctx.impact-of-change",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/impact_of_change" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.affected-tests",
+      "featureKey": "gctx.affected-tests",
+      "locator": { "kind": "mcp-tool", "name": "anvil_affected_tests" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-affected-tests",
+      "featureKey": "gctx.affected-tests",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/affected_tests" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.symbol-context",
+      "featureKey": "gctx.symbol-context",
+      "locator": { "kind": "mcp-tool", "name": "anvil_symbol_context" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-symbol-context",
+      "featureKey": "gctx.symbol-context",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/symbol_context" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.graph-symbols",
+      "featureKey": "gctx.search-symbols",
+      "locator": { "kind": "mcp-resource", "uri": "graph://symbols" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.graph-edges",
+      "featureKey": "gctx.graph-edges",
+      "locator": { "kind": "mcp-resource", "uri": "graph://edges" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-graph-edges",
+      "featureKey": "gctx.graph-edges",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/graph_edges" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-resource.graph-stats",
+      "featureKey": "gctx.graph-stats",
+      "locator": { "kind": "mcp-resource", "uri": "graph://stats" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-graph-stats",
+      "featureKey": "gctx.graph-stats",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/graph_stats" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "daemon.gctx-get-snippet",
+      "featureKey": "gctx.snippets",
+      "locator": { "kind": "daemon-rpc", "method": "anvil/gctx/get_snippet" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.anvil",
+      "featureKey": "anvil-docs",
+      "locator": { "kind": "docs-route", "pathPrefix": "/anvil" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
+      "status": "active"
+    },
+    {
+      "key": "docs.aps",
+      "featureKey": "aps-docs",
+      "locator": { "kind": "docs-route", "pathPrefix": "/aps" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "docs.blog",
+      "featureKey": "blog",
+      "locator": { "kind": "docs-route", "pathPrefix": "/blog" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "docs.shell-landing",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.auth-login",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/auth/login" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.auth-callback",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/auth/callback" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.auth-logout",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/auth/logout" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.auth-pending",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/auth/pending" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.auth-error",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/auth/error" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.robots",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/robots.txt" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "docs.llms",
+      "featureKey": "docs-shell",
+      "locator": { "kind": "docs-route", "pathPrefix": "/llms.txt" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.protection-overview",
+      "featureKey": "dashboard.protection",
+      "locator": { "kind": "dashboard-route", "path": "/" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.api-protection",
+      "featureKey": "dashboard.protection",
+      "locator": { "kind": "dashboard-route", "path": "/api/v1/protection" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.api-protection-history",
+      "featureKey": "dashboard.protection",
+      "locator": { "kind": "dashboard-route", "path": "/api/v1/protection/history" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.gates",
+      "featureKey": "dashboard.gates",
+      "locator": { "kind": "dashboard-route", "path": "/gates" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.gate-detail",
+      "featureKey": "dashboard.gates",
+      "locator": { "kind": "dashboard-route", "path": "/gates/$id" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.warnings",
+      "featureKey": "dashboard.warnings",
+      "locator": { "kind": "dashboard-route", "path": "/warnings" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.warning-breakdown",
+      "featureKey": "dashboard.warnings",
+      "locator": { "kind": "dashboard-route", "path": "/warnings/breakdown" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.warning-patterns",
+      "featureKey": "dashboard.warnings",
+      "locator": { "kind": "dashboard-route", "path": "/warnings/patterns" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.api-patterns",
+      "featureKey": "dashboard.warnings",
+      "locator": { "kind": "dashboard-route", "path": "/api/v1/patterns" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.plans",
+      "featureKey": "dashboard.plans",
+      "locator": { "kind": "dashboard-route", "path": "/plans" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "access": "staff",
+        "audiences": ["staff-internal-developer"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.plan-detail",
+      "featureKey": "dashboard.plans",
+      "locator": { "kind": "dashboard-route", "path": "/plans/$id" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "access": "staff",
+        "audiences": ["staff-internal-developer"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.api-plans",
+      "featureKey": "dashboard.plans",
+      "locator": { "kind": "dashboard-route", "path": "/api/v1/plans" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "access": "staff",
+        "audiences": ["staff-internal-developer"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.api-plan-detail",
+      "featureKey": "dashboard.plans",
+      "locator": { "kind": "dashboard-route", "path": "/api/v1/plans/{id}" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "access": "staff",
+        "audiences": ["staff-internal-developer"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "dashboard.openapi",
+      "featureKey": "dashboard.api-contract",
+      "locator": { "kind": "dashboard-route", "path": "/openapi.json" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-verify",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/verify" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-license-refresh",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/license/refresh" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-device-start",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/device/start" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-device-poll",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/device/poll" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-otp-request",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/otp/request" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-otp-verify",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/otp/verify" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-session-refresh",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/session/refresh" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-github-callback",
+      "featureKey": "auth",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/auth/github/callback" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-github-device-start",
+      "featureKey": "auth",
+      "locator": {
+        "kind": "api-route",
+        "method": "POST",
+        "path": "/api/v1/auth/github-device/start"
+      },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "api.auth-github-device-poll",
+      "featureKey": "auth",
+      "locator": {
+        "kind": "api-route",
+        "method": "POST",
+        "path": "/api/v1/auth/github-device/poll"
+      },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": true },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-fleet",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/admin/fleet" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-activity",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/admin/activity" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-waitlist",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/admin/waitlist" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-audit",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/admin/audit" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-user-by-email",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/admin/user/:email" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-users",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/admin/users" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-invite",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/admin/invite" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-revoke",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/admin/revoke" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-approve",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/admin/approve" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-send-migration",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/admin/send-migration" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-user-email-update",
+      "featureKey": "admin.operations",
+      "locator": {
+        "kind": "api-route",
+        "method": "POST",
+        "path": "/api/v1/admin/user/email-update"
+      },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-user-name-update",
+      "featureKey": "admin.operations",
+      "locator": {
+        "kind": "api-route",
+        "method": "POST",
+        "path": "/api/v1/admin/user/name-update"
+      },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-email-send",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/admin/email-send" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "api.admin-broadcast",
+      "featureKey": "admin.operations",
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/admin/broadcast" },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false,
+        "audiences": ["staff-anvil-internal"]
+      },
+      "status": "active"
+    },
+    {
+      "key": "integration.claude-code.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "claude-code", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.cursor.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "cursor", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.codex.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "codex", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.opencode.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "opencode", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.gemini-cli.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "gemini-cli", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.antigravity.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "antigravity", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.openclaw.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "openclaw", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.vscode.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "vscode", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.copilot-cli.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "copilot-cli", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.grok.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "grok", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.warp.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "warp", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.zed.mcp",
+      "featureKey": "mcp.serve",
+      "locator": { "kind": "integration", "integrationId": "zed", "capability": "mcp" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "integration.claude-code.skill",
+      "featureKey": "skill",
+      "locator": { "kind": "integration", "integrationId": "claude-code", "capability": "skill" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "integration.cursor.skill",
+      "featureKey": "skill",
+      "locator": { "kind": "integration", "integrationId": "cursor", "capability": "skill" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "integration.codex.skill",
+      "featureKey": "skill",
+      "locator": { "kind": "integration", "integrationId": "codex", "capability": "skill" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "integration.opencode.skill",
+      "featureKey": "skill",
+      "locator": { "kind": "integration", "integrationId": "opencode", "capability": "skill" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "integration.gemini-cli.skill",
+      "featureKey": "skill",
+      "locator": { "kind": "integration", "integrationId": "gemini-cli", "capability": "skill" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "integration.openclaw.skill",
+      "featureKey": "skill",
+      "locator": { "kind": "integration", "integrationId": "openclaw", "capability": "skill" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "integration.copilot-cli.skill",
+      "featureKey": "skill",
+      "locator": { "kind": "integration", "integrationId": "copilot-cli", "capability": "skill" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    }
+  ],
+  "excludedDeliverySurfaces": [
+    {
+      "key": "cli.graph-base",
+      "locator": { "kind": "cli", "commandPath": ["graph-base"] },
+      "owner": "GBASE",
+      "classification": "internal-plumbing",
+      "reason": "Hidden shared-base graph builder with no independently invocable product capability.",
+      "reviewReference": "GBASE-010 / ADR-105",
+      "status": "active"
+    },
+    {
+      "key": "api.cron-cleanup",
+      "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/cron/cleanup" },
+      "owner": "BACT",
+      "classification": "internal-plumbing",
+      "reason": "Scheduled retention and roll-up maintenance, not an independently usable API capability.",
+      "reviewReference": "FLEET-005; BACT-011; ADR-107; ADR-121",
+      "status": "active"
+    },
+    {
+      "key": "daemon.session-register",
+      "locator": { "kind": "daemon-rpc", "method": "session.register" },
+      "owner": "INTD",
+      "classification": "internal-plumbing",
+      "reason": "Session bookkeeping transport for registering an internal daemon session.",
+      "reviewReference": "INTD-003; MLP2-025b",
+      "status": "active"
+    },
+    {
+      "key": "daemon.session-heartbeat",
+      "locator": { "kind": "daemon-rpc", "method": "session.heartbeat" },
+      "owner": "INTD",
+      "classification": "internal-plumbing",
+      "reason": "Session liveness bookkeeping transport.",
+      "reviewReference": "INTD-003",
+      "status": "active"
+    },
+    {
+      "key": "daemon.session-unregister",
+      "locator": { "kind": "daemon-rpc", "method": "session.unregister" },
+      "owner": "INTD",
+      "classification": "internal-plumbing",
+      "reason": "Session teardown bookkeeping transport.",
+      "reviewReference": "INTD-003",
+      "status": "active"
+    },
+    {
+      "key": "daemon.session-report-process",
+      "locator": { "kind": "daemon-rpc", "method": "session.report-process" },
+      "owner": "MLP2",
+      "classification": "internal-plumbing",
+      "reason": "Internal process lineage-anchor narrowing transport.",
+      "reviewReference": "MLP2-074",
+      "status": "active"
+    },
+    {
+      "key": "daemon.telemetry-subscribe",
+      "locator": { "kind": "daemon-rpc", "method": "telemetry.subscribe" },
+      "owner": "MLP2",
+      "classification": "internal-plumbing",
+      "reason": "Internal event fan-out connection transport.",
+      "reviewReference": "MLP2-071",
+      "status": "active"
+    },
+    {
+      "key": "daemon.telemetry-unsubscribe",
+      "locator": { "kind": "daemon-rpc", "method": "telemetry.unsubscribe" },
+      "owner": "MLP2",
+      "classification": "internal-plumbing",
+      "reason": "Internal event fan-out connection teardown transport.",
+      "reviewReference": "MLP2-071",
+      "status": "active"
+    },
+    {
+      "key": "docs.assets",
+      "locator": { "kind": "docs-route", "pathPrefix": "/assets" },
+      "owner": "DOCSAUTH",
+      "classification": "internal-plumbing",
+      "reason": "Static asset transport that is not independently usable.",
+      "reviewReference": "FLAGCAT-011",
+      "status": "active"
+    },
+    {
+      "key": "docs.next-internal",
+      "locator": { "kind": "docs-route", "pathPrefix": "/_next" },
+      "owner": "DOCSAUTH",
+      "classification": "internal-plumbing",
+      "reason": "Framework-generated Next.js asset and runtime transport, not an independently usable documentation capability.",
+      "reviewReference": "FLAGCAT-011; DOCSAUTH",
+      "status": "active"
+    },
+    {
+      "key": "docs.images",
+      "locator": { "kind": "docs-route", "pathPrefix": "/img" },
+      "owner": "DOCSAUTH",
+      "classification": "internal-plumbing",
+      "reason": "Static image transport that is not independently usable.",
+      "reviewReference": "FLAGCAT-011",
+      "status": "active"
+    },
+    {
+      "key": "docs.pagefind",
+      "locator": { "kind": "docs-route", "pathPrefix": "/pagefind" },
+      "owner": "DOCSAUTH",
+      "classification": "internal-plumbing",
+      "reason": "Static search-index transport that is not independently usable.",
+      "reviewReference": "FLAGCAT-011",
+      "status": "active"
     }
   ]
 }

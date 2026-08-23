@@ -1,18 +1,68 @@
 # Feature Flag Reference
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                          |
-| ----- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-22 against the canonical schemas, catalogue, shared TypeScript resolver, and the live `docs.access` consumer |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                 |
+| ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-23 against the v2 product catalogue, canonical flag schemas, loader, and shared TypeScript resolver |
 
-| Upstream                                                                                                                                                                                             | Downstream                                                               |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `docs/guides/feature-flag-governance.md`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/runtime/src/feature-flags/`, `plans/modules/feature-flag-catalogue.aps.md` | Feature-flag authors, resolver integrations, `feature-flag-inventory.md` |
+| Upstream                                                                                                                                                                                                                       | Downstream                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `docs/guides/feature-flag-governance.md`, `flags/surfaces.json`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/runtime/src/feature-flags/` | Feature-flag authors, resolver integrations, `feature-flag-inventory.md` |
 
-Quick reference for defining, resolving, and operating feature flags in Anvil.
-Covers the shared flagging contract used across TypeScript and Rust surfaces.
+Quick reference for defining, resolving, and operating feature flags in anvil,
+and for reading the separate product catalogue.
 
 For lifecycle policy and retirement rules, see `feature-flag-governance.md`. For
 migration of existing controls, see `feature-flag-inventory.md`.
+
+## Product Catalogue v2
+
+`flags/surfaces.json` is the canonical product catalogue. It is strict: unknown
+fields, duplicate keys, unresolved references, invalid posture, and cyclic
+feature dependencies fail validation.
+
+| Collection                    | Entry responsibility                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| `productFeatureGroups[]`      | `key`, name, `defaultSurfacePosture.access`, and `active \| retired` lifecycle        |
+| `productFeatures[]`           | `key`, group reference, APS-module `owner`, lifecycle, and hard `requires` references |
+| `deliverySurfaces[]`          | Host-prefixed `key`, feature reference, typed `locator`, posture, and lifecycle       |
+| `excludedDeliverySurfaces[]`  | Reviewed `internal-plumbing` identity, locator, owner, reason, and review reference   |
+| `deliverySurfaceMigrations[]` | Non-empty unique `fromKeys` and `toKeys` for reviewed delivery splits and merges      |
+
+Delivery keys start with `cli.`, `mcp-tool.`, `mcp-resource.`, `api.`,
+`daemon.`, `dashboard.`, `docs.`, `hook.`, or `integration.`. A key is the
+immutable identity; its typed locator is current discovery data and may change
+without renaming the key.
+
+Delivery posture records optional access and audience overrides, invocation
+context, and the recovery-floor marker. Effective access is the delivery
+override or, when absent, the product-feature-group default. A
+`mustAlwaysBeOpen` surface must resolve to `open`. The exact floor is pinned by
+delivery identity in the catalogue tests across CLI credential bootstrap and
+login/refresh, API login issuance and refresh, and documentation-shell
+login/callback. It does not bypass host authentication, authorisation, or
+credential validation.
+
+Every retired delivery key is reserved and represented exactly once in
+`deliverySurfaceMigrations[]`. Each source must exist and be `retired`; each
+target must exist and be `active`; neither side may be empty or contain
+duplicates.
+
+| API                       | Contract                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `productCatalogue()`      | Authoritative validated `ProductCatalogueManifest` v2                                        |
+| `flagSurfaces()`          | Deprecated, read-only exact frozen-v1 compatibility payload; intentionally incomplete for v2 |
+| Product catalogue version | `PRODUCT_CATALOGUE_SCHEMA_VERSION = 2`                                                       |
+| Operational flag version  | `FEATURE_FLAG_SCHEMA_VERSION = 1`; unchanged by the product-catalogue migration              |
+
+Do not use `flagSurfaces()` for completeness, entitlement, or enforcement. Host
+completeness gates, flag linkage, generated views, tier mapping, and runtime
+enforcement are not part of FLAGCAT-011. The `productCatalogue()` accessor and
+`flags/surfaces.json` remain canonical v2 truth. The frozen v1 fixture is
+authoritative only for the exact deprecated `flagSurfaces()` response during the
+compatibility window. The
+[v2 schema design](../../plans/specs/2026-08-23-product-catalogue-v2-schema.md)
+and [ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md)
+own the complete physical and logical contracts.
 
 ## Add a Flag (Step by Step)
 
@@ -504,17 +554,19 @@ Flag keys must match: `^[a-z][a-z0-9]*([._-][a-z0-9]+)*$`
 
 ## Source Files
 
-| What             | Path                                                           |
-| ---------------- | -------------------------------------------------------------- |
-| Schema (Zod)     | `packages/anvil/contracts/src/schemas/feature-flags.schema.ts` |
-| Resolver (TS)    | `packages/anvil/runtime/src/feature-flags/resolver.ts`         |
-| Snapshot (TS)    | `packages/anvil/runtime/src/feature-flags/snapshot.ts`         |
-| Telemetry (TS)   | `packages/anvil/runtime/src/feature-flags/telemetry.ts`        |
-| Exemplar tests   | `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`   |
-| Barrel exports   | `packages/anvil/runtime/src/feature-flags/index.ts`            |
-| Types (Rust)     | `crates/anvil-kernel-types/src/feature_flags.rs`               |
-| Resolver (Rust)  | `crates/anvil-kernel/src/feature_flags/resolver.rs`            |
-| Snapshot (Rust)  | `crates/anvil-kernel/src/feature_flags/snapshot.rs`            |
-| Telemetry (Rust) | `crates/anvil-kernel/src/feature_flags/telemetry.rs`           |
-| Governance       | `docs/guides/feature-flag-governance.md`                       |
-| Inventory        | `docs/guides/feature-flag-inventory.md`                        |
+| What                   | Path                                                           |
+| ---------------------- | -------------------------------------------------------------- |
+| Canonical product data | `flags/surfaces.json`                                          |
+| Catalogue loader       | `packages/anvil/flags-catalogue/src/manifest.ts`               |
+| Schema (Zod)           | `packages/anvil/contracts/src/schemas/feature-flags.schema.ts` |
+| Resolver (TS)          | `packages/anvil/runtime/src/feature-flags/resolver.ts`         |
+| Snapshot (TS)          | `packages/anvil/runtime/src/feature-flags/snapshot.ts`         |
+| Telemetry (TS)         | `packages/anvil/runtime/src/feature-flags/telemetry.ts`        |
+| Exemplar tests         | `packages/anvil/runtime/src/feature-flags/exemplars.test.ts`   |
+| Barrel exports         | `packages/anvil/runtime/src/feature-flags/index.ts`            |
+| Types (Rust)           | `crates/anvil-kernel-types/src/feature_flags.rs`               |
+| Resolver (Rust)        | `crates/anvil-kernel/src/feature_flags/resolver.rs`            |
+| Snapshot (Rust)        | `crates/anvil-kernel/src/feature_flags/snapshot.rs`            |
+| Telemetry (Rust)       | `crates/anvil-kernel/src/feature_flags/telemetry.rs`           |
+| Governance             | `docs/guides/feature-flag-governance.md`                       |
+| Inventory              | `docs/guides/feature-flag-inventory.md`                        |

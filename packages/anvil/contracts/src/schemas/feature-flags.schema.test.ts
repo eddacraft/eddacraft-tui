@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   FEATURE_FLAG_SCHEMA_VERSION,
+  PRODUCT_CATALOGUE_SCHEMA_VERSION,
+  ProductCatalogueManifestSchema,
+  ProductCatalogueV1Schema,
+  DeliverySurfaceLocatorSchema,
+  FlagSurfaceManifestSchema,
+  normaliseProductCatalogueV1,
   FlagClassSchema,
   FlagStatusSchema,
   FlagValueTypeSchema,
@@ -50,6 +56,442 @@ function validManifest(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+function validProductCatalogue(overrides: Record<string, unknown> = {}) {
+  return {
+    schemaVersion: PRODUCT_CATALOGUE_SCHEMA_VERSION,
+    productFeatureGroups: [
+      {
+        key: 'governance',
+        name: 'Governance engine',
+        defaultSurfacePosture: { access: 'licence' },
+        status: 'active',
+      },
+    ],
+    productFeatures: [
+      {
+        key: 'check',
+        name: 'Project checks',
+        groupKey: 'governance',
+        owner: 'CLI',
+        status: 'active',
+        requires: [],
+      },
+    ],
+    deliverySurfaces: [
+      {
+        key: 'cli.check',
+        featureKey: 'check',
+        locator: { kind: 'cli', commandPath: ['check'] },
+        posture: {
+          invocation: 'user',
+          mustAlwaysBeOpen: false,
+        },
+        status: 'active',
+      },
+    ],
+    excludedDeliverySurfaces: [],
+    deliverySurfaceMigrations: [],
+    ...overrides,
+  };
+}
+
+describe('ProductCatalogueManifestSchema', () => {
+  it('uses its own strict v2 schema independently of operational flags', () => {
+    expect(PRODUCT_CATALOGUE_SCHEMA_VERSION).toBe(2);
+    expect(FEATURE_FLAG_SCHEMA_VERSION).toBe(1);
+    expect(ProductCatalogueManifestSchema.safeParse(validProductCatalogue()).success).toBe(true);
+    expect(
+      ProductCatalogueManifestSchema.safeParse({
+        ...validProductCatalogue(),
+        schemaVersion: FEATURE_FLAG_SCHEMA_VERSION,
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejects invalid references, duplicate identities, posture violations, and cycles', () => {
+    const invalidCatalogues: unknown[] = [];
+
+    const unknownGroup = validProductCatalogue();
+    unknownGroup.productFeatures[0]!.groupKey = 'missing';
+    invalidCatalogues.push(unknownGroup);
+
+    const duplicateFeature = validProductCatalogue();
+    duplicateFeature.productFeatures.push({ ...duplicateFeature.productFeatures[0]! });
+    invalidCatalogues.push(duplicateFeature);
+
+    const unknownFeature = validProductCatalogue();
+    unknownFeature.deliverySurfaces[0]!.featureKey = 'missing';
+    invalidCatalogues.push(unknownFeature);
+
+    const duplicateDeliveryIdentity = validProductCatalogue();
+    duplicateDeliveryIdentity.excludedDeliverySurfaces.push({
+      key: 'cli.check',
+      locator: { kind: 'cli', commandPath: ['internal-check'] },
+      owner: 'CLI',
+      classification: 'internal-plumbing',
+      reason: 'Internal command dispatcher',
+      reviewReference: 'FLAGCAT-011',
+      status: 'active',
+    });
+    invalidCatalogues.push(duplicateDeliveryIdentity);
+
+    const mismatchedDeliveryHost = validProductCatalogue();
+    mismatchedDeliveryHost.deliverySurfaces[0]!.locator = {
+      kind: 'api-route',
+      method: 'GET',
+      path: '/check',
+    };
+    invalidCatalogues.push(mismatchedDeliveryHost);
+
+    const missingRequirement = validProductCatalogue();
+    missingRequirement.productFeatures[0]!.requires = ['missing'];
+    invalidCatalogues.push(missingRequirement);
+
+    const cycle = validProductCatalogue();
+    cycle.productFeatures.push({
+      key: 'gate',
+      name: 'Project gate',
+      groupKey: 'governance',
+      owner: 'CLI',
+      status: 'active',
+      requires: ['check'],
+    });
+    cycle.productFeatures[0]!.requires = ['gate'];
+    invalidCatalogues.push(cycle);
+
+    const closedRecoveryFloor = validProductCatalogue();
+    closedRecoveryFloor.deliverySurfaces[0]!.posture.mustAlwaysBeOpen = true;
+    invalidCatalogues.push(closedRecoveryFloor);
+
+    const audienceOnOpenSurface = validProductCatalogue();
+    audienceOnOpenSurface.productFeatureGroups[0]!.defaultSurfacePosture.access = 'open';
+    audienceOnOpenSurface.deliverySurfaces[0]!.posture.audiences = ['staff'];
+    invalidCatalogues.push(audienceOnOpenSurface);
+
+    for (const catalogue of invalidCatalogues) {
+      expect(ProductCatalogueManifestSchema.safeParse(catalogue).success).toBe(false);
+    }
+  });
+
+  it('accepts every approved strict locator, including the bare CLI path', () => {
+    const locators = [
+      { kind: 'cli', commandPath: [] },
+      { kind: 'mcp-tool', name: 'anvil_status' },
+      { kind: 'mcp-resource', uri: 'graph://stats' },
+      { kind: 'api-route', method: 'GET', path: '/v1/status' },
+      { kind: 'daemon-rpc', method: 'status' },
+      { kind: 'dashboard-route', path: '/architecture' },
+      { kind: 'docs-route', pathPrefix: '/docs' },
+      { kind: 'hook', hook: 'pre-commit' },
+      {
+        kind: 'integration',
+        integrationId: 'github',
+        capability: 'checks',
+      },
+    ];
+
+    for (const locator of locators) {
+      expect(DeliverySurfaceLocatorSchema.safeParse(locator).success).toBe(true);
+    }
+    expect(DeliverySurfaceLocatorSchema.safeParse({ kind: 'cli', commandPath: [''] }).success).toBe(
+      false
+    );
+    expect(
+      DeliverySurfaceLocatorSchema.safeParse({ kind: 'cli', commandPath: [], extra: true }).success
+    ).toBe(false);
+  });
+
+  it('records split and merge history while reserving every retired delivery identity', () => {
+    const catalogue = validProductCatalogue({
+      deliverySurfaces: [
+        {
+          key: 'cli.legacy-check',
+          featureKey: 'check',
+          locator: { kind: 'cli', commandPath: ['legacy-check'] },
+          posture: { invocation: 'user', mustAlwaysBeOpen: false },
+          status: 'retired',
+        },
+        {
+          key: 'cli.legacy-lint',
+          featureKey: 'check',
+          locator: { kind: 'cli', commandPath: ['legacy-lint'] },
+          posture: { invocation: 'user', mustAlwaysBeOpen: false },
+          status: 'retired',
+        },
+        {
+          key: 'cli.legacy-gate',
+          featureKey: 'check',
+          locator: { kind: 'cli', commandPath: ['legacy-gate'] },
+          posture: { invocation: 'user', mustAlwaysBeOpen: false },
+          status: 'retired',
+        },
+        {
+          key: 'cli.check',
+          featureKey: 'check',
+          locator: { kind: 'cli', commandPath: ['check'] },
+          posture: { invocation: 'user', mustAlwaysBeOpen: false },
+          status: 'active',
+        },
+        {
+          key: 'cli.check-report',
+          featureKey: 'check',
+          locator: { kind: 'cli', commandPath: ['check', 'report'] },
+          posture: { invocation: 'user', mustAlwaysBeOpen: false },
+          status: 'active',
+        },
+        {
+          key: 'cli.validate',
+          featureKey: 'check',
+          locator: { kind: 'cli', commandPath: ['validate'] },
+          posture: { invocation: 'user', mustAlwaysBeOpen: false },
+          status: 'active',
+        },
+      ],
+      deliverySurfaceMigrations: [
+        {
+          fromKeys: ['cli.legacy-check'],
+          toKeys: ['cli.check', 'cli.check-report'],
+        },
+        {
+          fromKeys: ['cli.legacy-lint', 'cli.legacy-gate'],
+          toKeys: ['cli.validate'],
+        },
+      ],
+    });
+
+    expect(ProductCatalogueManifestSchema.safeParse(catalogue).success).toBe(true);
+
+    const missingHistory = validProductCatalogue() as Record<string, unknown>;
+    delete missingHistory.deliverySurfaceMigrations;
+    expect(ProductCatalogueManifestSchema.safeParse(missingHistory).success).toBe(false);
+
+    const missingSource = structuredClone(catalogue);
+    missingSource.deliverySurfaceMigrations[0]!.fromKeys = ['cli.missing'];
+    expect(ProductCatalogueManifestSchema.safeParse(missingSource).success).toBe(false);
+
+    const missingTarget = structuredClone(catalogue);
+    missingTarget.deliverySurfaceMigrations[0]!.toKeys = ['cli.missing'];
+    expect(ProductCatalogueManifestSchema.safeParse(missingTarget).success).toBe(false);
+
+    const reusedRetiredKey = structuredClone(catalogue);
+    reusedRetiredKey.deliverySurfaces[0]!.status = 'active';
+    expect(ProductCatalogueManifestSchema.safeParse(reusedRetiredKey).success).toBe(false);
+
+    const retiredTarget = structuredClone(catalogue);
+    retiredTarget.deliverySurfaces[3]!.status = 'retired';
+    expect(ProductCatalogueManifestSchema.safeParse(retiredTarget).success).toBe(false);
+
+    const duplicateHistory = structuredClone(catalogue);
+    duplicateHistory.deliverySurfaceMigrations[1]!.fromKeys.push('cli.legacy-check');
+    expect(ProductCatalogueManifestSchema.safeParse(duplicateHistory).success).toBe(false);
+
+    const duplicateSource = structuredClone(catalogue);
+    duplicateSource.deliverySurfaceMigrations[0]!.fromKeys.push('cli.legacy-check');
+    expect(ProductCatalogueManifestSchema.safeParse(duplicateSource).success).toBe(false);
+
+    const duplicateTarget = structuredClone(catalogue);
+    duplicateTarget.deliverySurfaceMigrations[0]!.toKeys.push('cli.check');
+    expect(ProductCatalogueManifestSchema.safeParse(duplicateTarget).success).toBe(false);
+  });
+
+  it('rejects a retired delivery identity without migration history', () => {
+    const catalogue = validProductCatalogue();
+    catalogue.deliverySurfaces[0]!.status = 'retired';
+
+    expect(ProductCatalogueManifestSchema.safeParse(catalogue).success).toBe(false);
+  });
+
+  it('rejects a retired excluded identity without migration history', () => {
+    const catalogue = validProductCatalogue({
+      excludedDeliverySurfaces: [
+        {
+          key: 'cli.internal-check',
+          locator: { kind: 'cli', commandPath: ['internal-check'] },
+          owner: 'CLI',
+          classification: 'internal-plumbing',
+          reason: 'Retired internal dispatcher',
+          reviewReference: 'FLAGCAT-011',
+          status: 'retired',
+        },
+      ],
+    });
+
+    expect(ProductCatalogueManifestSchema.safeParse(catalogue).success).toBe(false);
+  });
+});
+
+describe('ProductCatalogueV1Schema', () => {
+  const legacyCatalogue = {
+    schemaVersion: 1,
+    categories: [
+      {
+        id: 'foundational',
+        name: 'Foundational plumbing',
+        defaultAccess: 'open',
+        defaultStatus: 'active',
+      },
+    ],
+    surfaces: [
+      {
+        key: 'config',
+        name: 'anvil config',
+        category: 'foundational',
+        catalogued: false,
+      },
+    ],
+  };
+
+  it('is the frozen strict v1 parser and legacy schema alias', () => {
+    expect(ProductCatalogueV1Schema.parse(legacyCatalogue)).toEqual(
+      FlagSurfaceManifestSchema.parse(legacyCatalogue)
+    );
+    expect(
+      ProductCatalogueV1Schema.safeParse({ ...legacyCatalogue, unexpected: true }).success
+    ).toBe(false);
+    expect(
+      ProductCatalogueV1Schema.safeParse({
+        ...legacyCatalogue,
+        surfaces: [{ ...legacyCatalogue.surfaces[0], unexpected: true }],
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe('normaliseProductCatalogueV1', () => {
+  const legacyCatalogue = {
+    schemaVersion: 1 as const,
+    categories: [
+      {
+        id: 'governance',
+        name: 'Governance engine',
+        defaultAccess: 'licence' as const,
+        defaultStatus: 'active' as const,
+      },
+      {
+        id: 'foundational',
+        name: 'Foundational plumbing',
+        defaultAccess: 'open' as const,
+        defaultStatus: 'active' as const,
+      },
+    ],
+    surfaces: [
+      {
+        key: 'check',
+        name: 'anvil check',
+        category: 'governance',
+        access: 'staff' as const,
+        audiences: ['staff-internal-developer'],
+        invocation: 'system' as const,
+        mustAlwaysBeOpen: false,
+        requires: ['config'],
+        notes: 'Legacy note',
+      },
+      {
+        key: 'config',
+        name: 'anvil config',
+        category: 'foundational',
+        catalogued: false,
+        mustAlwaysBeOpen: true,
+      },
+    ],
+  };
+
+  const migrationByFeatureKey = {
+    check: {
+      owner: 'CLI',
+      deliveryKey: 'cli.project-check',
+      locator: { kind: 'cli' as const, commandPath: ['renamed', 'check'] },
+    },
+    config: {
+      owner: 'CLI',
+      deliveryKey: 'cli.configuration',
+      locator: { kind: 'cli' as const, commandPath: ['config'] },
+    },
+  };
+
+  it('preserves v1 semantics using only explicit curated delivery identities', () => {
+    const normalised = normaliseProductCatalogueV1(legacyCatalogue, migrationByFeatureKey);
+
+    expect(normalised.schemaVersion).toBe(PRODUCT_CATALOGUE_SCHEMA_VERSION);
+    expect(normalised.productFeatureGroups.map((group) => group.key)).toEqual([
+      'governance',
+      'foundational',
+    ]);
+    expect(normalised.productFeatures).toEqual([
+      {
+        key: 'check',
+        name: 'anvil check',
+        groupKey: 'governance',
+        owner: 'CLI',
+        status: 'active',
+        requires: ['config'],
+        notes: 'Legacy note',
+      },
+      {
+        key: 'config',
+        name: 'anvil config',
+        groupKey: 'foundational',
+        owner: 'CLI',
+        status: 'active',
+        requires: [],
+      },
+    ]);
+    expect(normalised.deliverySurfaces[0]).toEqual({
+      key: 'cli.project-check',
+      featureKey: 'check',
+      locator: { kind: 'cli', commandPath: ['renamed', 'check'] },
+      posture: {
+        access: 'staff',
+        audiences: ['staff-internal-developer'],
+        invocation: 'system',
+        mustAlwaysBeOpen: false,
+      },
+      status: 'active',
+    });
+    expect(normalised.excludedDeliverySurfaces).toEqual([]);
+    expect(normalised.productFeatures.some((feature) => feature.key === 'config')).toBe(true);
+  });
+
+  it('fails closed for a retired v1 delivery identity without replacement history', () => {
+    const retiredCatalogue = {
+      ...legacyCatalogue,
+      surfaces: [
+        {
+          ...legacyCatalogue.surfaces[0]!,
+          status: 'retired' as const,
+        },
+        legacyCatalogue.surfaces[1]!,
+      ],
+    };
+
+    expect(() => normaliseProductCatalogueV1(retiredCatalogue, migrationByFeatureKey)).toThrow(
+      'requires migration history'
+    );
+  });
+
+  it('fails closed when migration curation is missing, extra, blank, or duplicated', () => {
+    expect(() => normaliseProductCatalogueV1(legacyCatalogue, {})).toThrow();
+    expect(() =>
+      normaliseProductCatalogueV1(legacyCatalogue, {
+        ...migrationByFeatureKey,
+        unexpected: migrationByFeatureKey.check,
+      })
+    ).toThrow();
+    expect(() =>
+      normaliseProductCatalogueV1(legacyCatalogue, {
+        ...migrationByFeatureKey,
+        check: { ...migrationByFeatureKey.check, owner: '' },
+      })
+    ).toThrow();
+    expect(() =>
+      normaliseProductCatalogueV1(legacyCatalogue, {
+        ...migrationByFeatureKey,
+        config: { ...migrationByFeatureKey.config, deliveryKey: 'cli.project-check' },
+      })
+    ).toThrow();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Flag Class

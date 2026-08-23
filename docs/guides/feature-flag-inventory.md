@@ -1,12 +1,12 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                          |
-| ----- | --------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-22 against FLAGCAT-016, `apps/docs-shell/lib/{jwt,feature-flags}.ts`, ADR-076, and the live flag inventories |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                        |
+| ----- | --------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-23 against FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
 
-| Upstream                                                                                                                                                                                           | Downstream                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `plans/archive/modules/feature-flagging.aps.md`, `plans/archive/modules/feature-flag-migration.aps.md`, `plans/modules/feature-flag-catalogue.aps.md`, source flag definitions listed in the table | Feature-flag migration audits, `feature-flag-reference.md` |
+| Upstream                                                                                                                                                                                                                  | Downstream                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `plans/archive/modules/feature-flagging.aps.md`, `plans/archive/modules/feature-flag-migration.aps.md`, `plans/modules/feature-flag-catalogue.aps.md`, `flags/surfaces.json`, source flag definitions listed in the table | Feature-flag migration audits, `feature-flag-reference.md` |
 
 This document classifies existing feature-flag-like controls in anvil and maps
 them onto the shared flagging model defined in `FLAGS`. It is a migration and
@@ -17,20 +17,47 @@ Created for: `FLAGS-009`
 
 ## Catalogue Boundaries
 
-| Concern                                                         | Authority                            |
-| --------------------------------------------------------------- | ------------------------------------ |
-| Product features, product feature groups, and delivery surfaces | `flags/surfaces.json` under ADR-076  |
-| Operational rollout, entitlement, and kill-switch controls      | `flags/manifest.json`                |
-| Technical defaults shared by flags                              | `flags/groups.json`                  |
-| Evaluation audiences                                            | `flags/audiences.json`               |
-| Deployment environments                                         | `flags/environments.json`            |
-| Comprehensive human-readable feature views                      | Generated from `flags/surfaces.json` |
+| Concern                                                                                                   | Authority                            |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Product feature groups, product features, delivery surfaces, reviewed exclusions, delivery-key migrations | `flags/surfaces.json` under ADR-076  |
+| Operational rollout, entitlement, and kill-switch controls                                                | `flags/manifest.json`                |
+| Technical defaults shared by flags                                                                        | `flags/groups.json`                  |
+| Evaluation audiences                                                                                      | `flags/audiences.json`               |
+| Deployment environments                                                                                   | `flags/environments.json`            |
+| Comprehensive human-readable feature views                                                                | Generated from `flags/surfaces.json` |
 
 The legacy `surfaces.json` filename does not narrow its authority to UI or CLI
 entry points. A product feature may be available through several delivery
-surfaces, and it may be intentionally unflagged. FLAGCAT-011..014 complete the
-registry, add host drift gates and flag references, and generate its prose
-views.
+surfaces, and it may be intentionally unflagged. The strict v2 catalogue
+separates product feature groups, product features, delivery surfaces, reviewed
+`internal-plumbing` exclusions, and explicit retired-source to active-target
+delivery-key migrations. Its schema version `2` is independent from operational
+flag schema version `1`.
+
+The current catalogue covers CLI, MCP, API, daemon, dashboard, documentation,
+hook, and integration delivery hosts. `productCatalogue()` is the authoritative
+accessor. The deprecated `flagSurfaces()` accessor projects only the legacy 46
+CLI features and is explicitly incomplete; it must not drive completeness,
+entitlement, or runtime enforcement. Its frozen v1 fixture is the exact
+compatibility payload authority for that deprecated accessor during the
+compatibility window, but it is not v2 product, completeness, or enforcement
+authority. Those concerns remain canonical in `flags/surfaces.json` through
+`productCatalogue()`.
+
+FLAGCAT-012..015 remain responsible for host completeness checks,
+operational-flag linkage, generated human-readable views, and any approved
+product-tier mapping. FLAGCAT-011 does not add runtime cascade-off or
+catalogue-derived host enforcement. See
+[ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md) and
+the
+[v2 physical schema](../../plans/specs/2026-08-23-product-catalogue-v2-schema.md)
+instead of maintaining a second full feature list here.
+
+Recovery identities are delivery surfaces, not a coarse feature-wide exception.
+The pinned floor includes the CLI credential/login/refresh paths, the usable API
+login issuance and refresh routes, and documentation-shell login/callback. It
+protects those routes only from future catalogue-derived refusal; each host
+still applies its own authentication and credential checks.
 
 **Migration status:** All **migrated** controls below are **retired** — the
 `FLAGM` module closed under FLAGM-006. Each migrated entry now routes through
@@ -319,6 +346,11 @@ the start when they are built.
   edges, content hashes) — never source text; machine-local `0600` under `0700`.
 
 ## Excluded from Inventory
+
+This section excludes controls from the _operational flag_ inventory. It is
+distinct from the canonical product catalogue's `excludedDeliverySurfaces[]`,
+which is limited to reviewed internal plumbing with a stable delivery identity,
+APS-module owner, reason, and review reference.
 
 The following environment variables and controls were reviewed but are **not
 feature flags**. They are operational configuration, debug tooling, or

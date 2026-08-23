@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "categories": [
+    {
+      "id": "governance",
+      "name": "Governance engine",
+      "defaultAccess": "licence",
+      "defaultStatus": "active"
+    },
+    {
+      "id": "mcp",
+      "name": "MCP integration",
+      "defaultAccess": "licence",
+      "defaultStatus": "active"
+    },
+    {
+      "id": "dashboard",
+      "name": "Terminal dashboards",
+      "defaultAccess": "open",
+      "defaultStatus": "active"
+    },
+    {
+      "id": "save-time",
+      "name": "Save-time validation",
+      "defaultAccess": "open",
+      "defaultStatus": "active"
+    },
+    { "id": "hooks", "name": "Git hooks", "defaultAccess": "open", "defaultStatus": "active" },
+    {
+      "id": "admin",
+      "name": "Admin operations",
+      "defaultAccess": "admin-key",
+      "defaultStatus": "active"
+    },
+    { "id": "tools", "name": "Local tools", "defaultAccess": "open", "defaultStatus": "active" },
+    {
+      "id": "setup",
+      "name": "Setup and onboarding",
+      "defaultAccess": "licence",
+      "defaultStatus": "active"
+    },
+    {
+      "id": "foundational",
+      "name": "Foundational plumbing",
+      "defaultAccess": "open",
+      "defaultStatus": "active"
+    }
+  ],
+  "surfaces": [
+    { "key": "check", "name": "anvil check", "category": "governance" },
+    { "key": "audit", "name": "anvil audit", "category": "governance" },
+    { "key": "gate", "name": "anvil gate", "category": "governance" },
+    {
+      "key": "gate-config",
+      "name": "anvil gate-config",
+      "category": "governance",
+      "requires": ["gate"]
+    },
+    { "key": "drift", "name": "anvil drift", "category": "governance" },
+    { "key": "architecture", "name": "anvil architecture", "category": "governance" },
+    { "key": "policy", "name": "anvil policy", "category": "governance" },
+    { "key": "export", "name": "anvil export", "category": "governance" },
+    {
+      "key": "baseline",
+      "name": "anvil baseline",
+      "category": "governance",
+      "access": "open",
+      "notes": "local project state; ungated"
+    },
+    {
+      "key": "audit-chain",
+      "name": "anvil audit-chain",
+      "category": "governance",
+      "access": "open",
+      "notes": "witness-chain audit; CI/local lane"
+    },
+    {
+      "key": "l4-validate",
+      "name": "anvil l4-validate",
+      "category": "governance",
+      "access": "open",
+      "notes": "CI lane"
+    },
+    {
+      "key": "validate",
+      "name": "anvil validate",
+      "category": "governance",
+      "access": "open",
+      "notes": "validate a plan file; local"
+    },
+
+    { "key": "mcp.install", "name": "anvil mcp install", "category": "mcp" },
+    {
+      "key": "mcp.serve",
+      "name": "anvil mcp serve",
+      "category": "mcp",
+      "access": "open",
+      "notes": "local MCP server; ungated (split stands on current divergence, not an edition)"
+    },
+    { "key": "mcp.config", "name": "anvil mcp-config", "category": "mcp" },
+
+    {
+      "key": "dashboard.aps",
+      "name": "anvil plan dashboard",
+      "category": "dashboard",
+      "access": "staff",
+      "audiences": ["staff-internal-developer"],
+      "notes": "CIB-046; maps to manifest flag tui-dashboard.aps-dashboard"
+    },
+    {
+      "key": "dashboard.architecture",
+      "name": "anvil dashboard architecture",
+      "category": "dashboard",
+      "requires": ["architecture"]
+    },
+    {
+      "key": "dashboard.drift",
+      "name": "anvil dashboard drift",
+      "category": "dashboard",
+      "requires": ["drift"]
+    },
+    {
+      "key": "dashboard.suppressions",
+      "name": "anvil dashboard suppressions",
+      "category": "dashboard",
+      "requires": ["policy"]
+    },
+    {
+      "key": "dashboard.saved",
+      "name": "anvil dashboard (saved specs)",
+      "category": "dashboard",
+      "notes": ".dashboard.json picker incl. gate-summary"
+    },
+
+    {
+      "key": "watch",
+      "name": "anvil watch",
+      "category": "save-time",
+      "access": "licence",
+      "notes": "daemon routing is a rollout sub-behaviour (ANVIL_WATCH_DAEMON)"
+    },
+    { "key": "intercept", "name": "anvil intercept", "category": "save-time" },
+
+    {
+      "key": "hook",
+      "name": "anvil hook (git-invoked runners)",
+      "category": "hooks",
+      "invocation": "system",
+      "notes": "git-invoked; exempt from kill-switch refusal — a non-zero exit breaks commits"
+    },
+    { "key": "hooks", "name": "anvil hooks (manage)", "category": "hooks" },
+
+    {
+      "key": "admin.operations",
+      "name": "anvil admin (operations)",
+      "category": "admin",
+      "audiences": ["staff-anvil-internal"],
+      "notes": "admin-key gated (ANVIL_ADMIN_KEY)"
+    },
+
+    { "key": "edda", "name": "anvil edda", "category": "tools" },
+    { "key": "capsule", "name": "anvil capsule", "category": "tools" },
+    { "key": "insights", "name": "anvil insights", "category": "tools" },
+    { "key": "kindling", "name": "anvil kindling", "category": "tools" },
+
+    { "key": "init", "name": "anvil init", "category": "setup" },
+    { "key": "ensure", "name": "anvil (bare ensure)", "category": "setup" },
+    { "key": "start", "name": "anvil start", "category": "setup" },
+    { "key": "welcome", "name": "anvil welcome", "category": "setup" },
+    { "key": "new", "name": "anvil new", "category": "setup" },
+    { "key": "wizard", "name": "anvil wizard", "category": "setup" },
+
+    {
+      "key": "admin.credential",
+      "name": "anvil admin auth (credential config)",
+      "category": "foundational",
+      "mustAlwaysBeOpen": true,
+      "notes": "recovery-critical; configures the admin key — cannot require the key to set the key"
+    },
+    {
+      "key": "auth",
+      "name": "anvil auth (login/logout/whoami/refresh)",
+      "category": "foundational",
+      "mustAlwaysBeOpen": true,
+      "notes": "recovery-critical; cannot refuse the thing that re-authenticates"
+    },
+    { "key": "config", "name": "anvil config", "category": "foundational", "catalogued": false },
+    { "key": "migrate", "name": "anvil migrate", "category": "foundational", "catalogued": false },
+    { "key": "update", "name": "anvil update", "category": "foundational", "catalogued": false },
+    {
+      "key": "uninstall",
+      "name": "anvil uninstall",
+      "category": "foundational",
+      "catalogued": false
+    },
+    { "key": "doctor", "name": "anvil doctor", "category": "foundational", "catalogued": false },
+    { "key": "version", "name": "anvil version", "category": "foundational", "catalogued": false },
+    {
+      "key": "licenses",
+      "name": "anvil licenses",
+      "category": "foundational",
+      "catalogued": false
+    },
+    {
+      "key": "tutorial",
+      "name": "anvil tutorial",
+      "category": "foundational",
+      "catalogued": false
+    },
+    {
+      "key": "workspace",
+      "name": "anvil workspace",
+      "category": "foundational",
+      "catalogued": false
+    }
+  ]
+}

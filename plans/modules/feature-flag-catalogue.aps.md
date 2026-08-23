@@ -7,17 +7,24 @@
 | ------- | ----- | -------- | ------ | -------- |
 | FLAGCAT | —     | high     | In Progress | 10/16    |
 
-**Last reviewed:** 2026-08-22 — Live catalogue audit found the flag-definition
-layer maintained (17 flags), but the product-feature layer incomplete and
-weakly drift-gated. `flags/surfaces.json` remains a CLI-first seed: nine
-current visible commands are absent, non-CLI delivery surfaces are not
-represented consistently, feature flags do not reference catalogue features,
-and the count-floor test cannot detect omissions. ADR-076 is now
-operator-accepted with a four-noun contract (product feature, product feature
-group, delivery surface, feature flag). FLAGCAT-010 Merged 2026-08-20 via PR
-#4054; FLAGCAT-011 remains Draft pending an approved physical-schema,
-migration, and rollback design. FLAGCAT-012..015 then sequence the drift gates,
-flag linkage, generated views, and tier mapping.
+**Last reviewed:** 2026-08-23 — FLAGCAT-011 implementation now carries the
+strict product-catalogue v2 shape, immutable delivery identities, an explicit
+delivery-surface migration ledger, and the deprecated v1 compatibility
+projection specified in
+[`2026-08-23-product-catalogue-v2-schema.md`](../specs/2026-08-23-product-catalogue-v2-schema.md).
+The frozen v1 fixture is authoritative for the exact deprecated
+`flagSurfaces()` compatibility payload during its window, but never for v2
+product, completeness, or enforcement truth; `flags/surfaces.json` through
+`productCatalogue()` remains canonical there.
+The in-progress inventory covers CLI, MCP, API, daemon, dashboard,
+documentation, hook, and integration hosts. Feature and exclusion owners
+resolve to active or archived APS module identifiers, and public tests pin the
+granular CLI, API, and documentation-shell recovery floor. ADR-076 remains the
+accepted four-noun logical contract (product feature, product feature group,
+delivery surface, feature flag). FLAGCAT-010 Merged 2026-08-20 via PR #4054;
+FLAGCAT-011 remains In Progress pending full validation and landing.
+FLAGCAT-012..015 then sequence the drift gates, flag linkage, generated views,
+and tier mapping.
 
 FLAGCAT-016 Merged 2026-08-22 via PR #4086, adopting the formerly orphaned
 `docs.access` catalogue flag in the live documentation shell through the
@@ -742,7 +749,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-011: Back-capture the current product feature inventory
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Replace the incomplete CLI-only snapshot with an honest current
   inventory before assigning product tiers.
 - **Expected Outcome:** Before inventory expansion, the schema pins stable
@@ -754,24 +761,43 @@ Status promoted Draft → **Ready** 2026-05-28.
   plus its delivery surfaces, lifecycle, ownership, and hard dependencies.
   Current missing CLI entries are reconciled. User-visible foundational
   capabilities are catalogued; only internal plumbing may use a narrow,
-  reviewed exclusion with a classification and reason.
+  reviewed exclusion with a classification and reason. Retired delivery
+  identities remain reserved and each split or merge is represented exactly
+  once in the delivery-surface migration ledger.
 - **Files:** `flags/surfaces.json`,
   `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`,
+  `packages/anvil/contracts/src/schemas/feature-flags.schema.test.ts`,
   `packages/anvil/flags-catalogue/src/manifest.ts`,
-  `packages/anvil/flags-catalogue/tests/surfaces.test.ts`
+  `packages/anvil/flags-catalogue/src/index.ts`,
+  `packages/anvil/flags-catalogue/tests/surfaces.test.ts`,
+  `packages/anvil/flags-catalogue/README.md`,
+  `plans/specs/2026-08-23-product-catalogue-v2-schema.md`,
+  `docs/guides/feature-flag-governance.md`,
+  `docs/guides/feature-flag-reference.md`,
+  `docs/guides/feature-flag-inventory.md`
 - **Dependencies:** FLAGCAT-010.
 - **Design Source:** ADR-076 (Accepted 2026-08-20) pins the four-noun logical
-  authority and assigns the physical schema to FLAGCAT-011, but deliberately
-  does not pre-design that representation.
-- **Readiness Gate:** Pin and approve the physical feature,
-  product-feature-group, and delivery-surface schema; v1 migration and
-  stable-key rules; and rollback procedure before promotion.
-- **Validation:** `pnpm exec nx test flags-catalogue`;
-  `pnpm typecheck`; `pnpm format:check`.
+  authority. The operator-approved physical representation, stable identities,
+  strict exclusions, v1 compatibility window, and rollback boundary are pinned
+  in
+  [`2026-08-23-product-catalogue-v2-schema.md`](../specs/2026-08-23-product-catalogue-v2-schema.md).
+- **Readiness Gate:** Satisfied 2026-08-23 — the operator approved the physical
+  feature, product-feature-group, delivery-surface, and exclusion schema;
+  preservation of all v1 keys as product-feature keys; immutable host-prefixed
+  delivery identities; APS-module ownership; `active | retired` lifecycle;
+  one-release dual-read/deprecated-projection compatibility; and the
+  atomic-revert-before-consumers / repair-forward-after-consumers rollback
+  boundary.
+- **Validation:** `pnpm exec nx test contracts`;
+  `pnpm exec nx test flags-catalogue`;
+  `pnpm exec nx build flags-catalogue`; `pnpm typecheck`;
+  `pnpm format:check`; `pnpm docs:check`;
+  `pnpm aps:active-lint`; `pnpm aps:index:check`.
 - **Risk:** high — cross-surface product taxonomy with no runtime behaviour
   change.
-- **Confidence:** medium — current files and validation commands are
-  executable, but the physical schema and migration contract remain unapproved.
+- **Confidence:** medium — the physical design is approved and the current
+  validation commands are executable; host-by-host inventory parity remains
+  the implementation risk.
 
 ### FLAGCAT-012: Gate catalogue completeness against shipping hosts
 

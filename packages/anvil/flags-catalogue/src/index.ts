@@ -15,7 +15,12 @@ export {
   flagAudiences,
   flagEnvironments,
   flagSurfaces,
+  productCatalogue,
+  mustAlwaysBeOpenDeliverySurfaces,
   mustAlwaysBeOpenSurfaces,
+  type DeepReadonly,
+  type ReadonlyProductCatalogue,
+  type ReadonlyProductCatalogueV1,
 } from './manifest.js';
 
 export {

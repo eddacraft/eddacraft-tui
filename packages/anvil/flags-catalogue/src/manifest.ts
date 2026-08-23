@@ -3,13 +3,28 @@ import {
   FlagAudienceManifestSchema,
   FlagEnvironmentManifestSchema,
   FlagGroupManifestSchema,
-  FlagSurfaceManifestSchema,
+  ProductCatalogueManifestSchema,
+  ProductCatalogueV1Schema,
+  normaliseProductCatalogueV1,
   type FeatureFlagManifest,
   type FlagAudienceManifest,
   type FlagEnvironmentManifest,
   type FlagGroupManifest,
-  type FlagSurfaceManifest,
+  type ProductCatalogueManifest,
+  type ProductCatalogueV1,
 } from '@eddacraft/anvil-contracts';
+import { productCatalogueV1Migration } from './compatibility/product-catalogue-v1-migration.js';
+import productCatalogueV1Json from './compatibility/product-catalogue-v1.json' with { type: 'json' };
+
+export type DeepReadonly<T> =
+  T extends ReadonlyArray<infer Item>
+    ? ReadonlyArray<DeepReadonly<Item>>
+    : T extends object
+      ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+      : T;
+
+export type ReadonlyProductCatalogue = DeepReadonly<ProductCatalogueManifest>;
+export type ReadonlyProductCatalogueV1 = DeepReadonly<ProductCatalogueV1>;
 
 // Canonical sources of truth at the repo root (OpenFeature-adjacent layout).
 // These are imported as JSON modules so the catalogue stays edge-bundle safe:
@@ -58,11 +73,36 @@ const ENVIRONMENTS: FlagEnvironmentManifest = parseOrThrow(
   FlagEnvironmentManifestSchema,
   environmentsJson
 );
-const SURFACES: FlagSurfaceManifest = parseOrThrow(
-  'flags/surfaces.json',
-  FlagSurfaceManifestSchema,
-  surfacesJson
-);
+/**
+ * Internal structural normalisation for supported catalogue documents.
+ *
+ * This validates document-local v1/v2 shape and references only. It does not
+ * apply repository-backed owner or audience checks and must not be exposed as
+ * an authoritative package-root loader.
+ */
+export function normaliseProductCatalogueDocument(input: unknown): ReadonlyProductCatalogue {
+  const schemaVersion =
+    input !== null && typeof input === 'object' && 'schemaVersion' in input
+      ? (input as { schemaVersion?: unknown }).schemaVersion
+      : undefined;
+
+  if (schemaVersion === 1) {
+    return deepFreeze(
+      normaliseProductCatalogueV1(
+        ProductCatalogueV1Schema.parse(input),
+        productCatalogueV1Migration
+      )
+    );
+  }
+  if (schemaVersion === 2) {
+    return deepFreeze(ProductCatalogueManifestSchema.parse(input));
+  }
+  throw new Error(
+    `[anvil-flags-catalogue] unsupported product catalogue schemaVersion: ${String(schemaVersion)}`
+  );
+}
+
+const PRODUCT_CATALOGUE = normaliseProductCatalogueDocument(surfacesJson);
 
 // Cross-inventory integrity, enforced fail-loud at module load. The base
 // FeatureFlagDefinitionSchema keeps `primaryGroup` optional so un-migrated
@@ -97,14 +137,14 @@ function assertCrossInventoryIntegrity(): void {
     }
   }
 
-  // ADR-076: every gating audience a surface names must exist in the audience
+  // ADR-076: every gating audience a delivery surface names must exist in the audience
   // inventory. (Structural surface checks — keys/categories/requires/acyclicity
-  // /mustAlwaysBeOpen — are enforced by FlagSurfaceManifestSchema itself.)
-  for (const surface of SURFACES.surfaces) {
-    for (const audience of surface.audiences ?? []) {
+  // /mustAlwaysBeOpen — are enforced by ProductCatalogueManifestSchema itself.)
+  for (const surface of PRODUCT_CATALOGUE.deliverySurfaces) {
+    for (const audience of surface.posture.audiences ?? []) {
       if (!audienceIds.has(audience)) {
         throw new Error(
-          `[anvil-flags-catalogue] surface "${surface.key}" references unknown audience "${audience}"`
+          `[anvil-flags-catalogue] delivery surface "${surface.key}" references unknown audience "${audience}"`
         );
       }
     }
@@ -133,19 +173,50 @@ export function flagEnvironments(): FlagEnvironmentManifest {
   return ENVIRONMENTS;
 }
 
+/** The authoritative validated product catalogue v2. */
+export function productCatalogue(): ReadonlyProductCatalogue {
+  return PRODUCT_CATALOGUE;
+}
+
+function deepFreeze<T>(value: T): DeepReadonly<T> {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const nested of Object.values(value as Record<string, unknown>)) {
+      deepFreeze(nested);
+    }
+    Object.freeze(value);
+  }
+  return value as DeepReadonly<T>;
+}
+
+const LEGACY_SURFACES = deepFreeze(ProductCatalogueV1Schema.parse(productCatalogueV1Json));
+const MUST_ALWAYS_BE_OPEN_FEATURE_KEYS = deepFreeze(
+  LEGACY_SURFACES.surfaces
+    .filter((surface) => surface.mustAlwaysBeOpen)
+    .map((surface) => surface.key)
+);
+const MUST_ALWAYS_BE_OPEN_DELIVERY_KEYS = deepFreeze(
+  PRODUCT_CATALOGUE.deliverySurfaces
+    .filter((surface) => surface.posture.mustAlwaysBeOpen)
+    .map((surface) => surface.key)
+);
+
 /**
- * The validated surface registry (ADR-076). Declared inventory + static checks
- * only; runtime cascade-off and auth-list derivation are deferred.
+ * @deprecated Compatibility-only v1 projection of the frozen 46-feature CLI
+ * subset. It is incomplete and must not drive completeness or enforcement.
  */
-export function flagSurfaces(): FlagSurfaceManifest {
-  return SURFACES;
+export function flagSurfaces(): ReadonlyProductCatalogueV1 {
+  return LEGACY_SURFACES;
+}
+
+/** @deprecated Recovery-critical legacy v1 feature keys. */
+export function mustAlwaysBeOpenSurfaces(): readonly string[] {
+  return MUST_ALWAYS_BE_OPEN_FEATURE_KEYS;
 }
 
 /**
- * Recovery-critical surfaces that a registry edit can never gate — the
- * `MUST_ALWAYS_BE_OPEN` floor (ADR-076 §6). Derived from the registry so the
- * floor and the data cannot drift.
+ * Recovery-critical v2 delivery identities that a registry edit can never
+ * gate — the `MUST_ALWAYS_BE_OPEN` floor (ADR-076 §6).
  */
-export function mustAlwaysBeOpenSurfaces(): readonly string[] {
-  return SURFACES.surfaces.filter((s) => s.mustAlwaysBeOpen).map((s) => s.key);
+export function mustAlwaysBeOpenDeliverySurfaces(): readonly string[] {
+  return MUST_ALWAYS_BE_OPEN_DELIVERY_KEYS;
 }
