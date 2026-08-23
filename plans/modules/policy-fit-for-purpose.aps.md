@@ -293,7 +293,7 @@ They still gate the items below them.
 
 ### POLFIT-008: The anti-pattern registry override is a stated surface or a closed one
 
-- **Status:** In Progress
+- **Status:** In Progress — PR [#4110](https://github.com/eddacraft/anvil-001/pull/4110)
 - **Intent:** Decide whether a repository-local compiled registry — the seventh
   surface in POLFIT-001's enumeration, and the only one that changes what anvil
   flags without going through regorus — is a supported way to change policy
@@ -321,6 +321,7 @@ They still gate the items below them.
   `pnpm adr:check && pnpm aps:active-lint && pnpm docs:check`
 - **Dependencies:** POLFIT-001, ADR-026
 - **Coordinates with:** INSEC, DOCDEF
+- **Evidence:** `cargo test -p eddacraft-anvil-checks --no-fail-fast -- registry_loader` 20 passed; `pnpm adr:check` exit 0 (132 files, next 132); `pnpm aps:active-lint` exit 0; `pnpm docs:check` 13/13 pass. Independent verify pass-with-advisories (leftover walk phrasing repaired).
 - **Confidence:** high
 
 ### POLFIT-009: Enterprise policy modules carry an honest posture
