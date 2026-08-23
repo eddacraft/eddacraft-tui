@@ -188,8 +188,18 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-006: Eval-regression fixture integration
 
-- **Status:** Ready (promoted 2026-07-11 — both dependencies shipped; this is
-  the module's live item)
+- **Status:** Blocked 2026-08-23 — **attempted and proven not deliverable as
+  specified.** The eval-regression harness diffs on the frozen v1 `findings`
+  array; the shipped `anvil-baseline` policies emit `warning` as a set of plain
+  strings, which the harness records as `findings: []`. Wiring the pack's
+  suites in therefore produces coverage that cannot fail. Proven, not assumed:
+  three suites were added, the baseline regenerated with a real binary
+  (0.9.7-beta), and then re-run against an input crafted so the policy emits
+  **zero** warnings — the run still reported `no regressions`. `anvil policy
+  eval` confirms the mechanism directly: the warning text lands in `value`
+  while `findings` stays `[]`. The attempt was reverted rather than landed,
+  because unfalsifiable CI coverage is worse than none — it reads as
+  protection. See the Unblock paths below.
 - **Intent:** Add anvil-baseline fixtures to the report-only eval-regression
   path: `ci/eval/suites.json` currently carries only the `arch_boundary`
   suite, so the starter pack has no CI regression coverage despite being
@@ -204,9 +214,37 @@ small, deterministic pack before Anvil makes broader compliance claims.
 - **Dependencies:** CPACKS-003 (Done), EVALCI-005 (Merged via #3170)
 - **Confidence:** medium
 
+- **Unblock paths (each needs an owner decision, none is CPACKS's to take):**
+  1. **Teach the harness the warning family.** Record `value` when `findings`
+     is empty, or map the `warn`/`warnings` families into the eval record.
+     Changes the eval-record schema, so it is EVALCI's call, not CPACKS's.
+  2. **Add a v1-shaped `findings` rule to the pack.** Inert for the gate, which
+     reads the violation/warning families, but it duplicates each rule's logic
+     and would silently become a requirement for every future pack author.
+  3. **Accept string-set suites as smoke-only** and say so — the suite proves
+     the policy still compiles and the query still resolves, nothing more.
+     Cheapest, but the name "regression coverage" would be a lie.
+- **Reproduction:** the falsification run is the fixture worth keeping —
+  any input below `soft_limit` makes `change_scope` silent, and the suite must
+  fail for this item to be done.
+
 ### CPACKS-007: Starter pack docs — known-gaps residual
 
-- **Status:** Ready — promoted 2026-08-23 as an **enabling change** under
+- **Status:** In Progress 2026-08-23 — audit done, copy written. The audit
+  found the residual was **not** an audit: the non-compliance-posture copy did
+  not exist. This item's own status claimed anvil-baseline was documented
+  "across `docs/public/anvil/tutorials/policies.md` and
+  `docs/public/anvil/beta-testing-guide.md`" — the beta guide contains **zero**
+  occurrences of `anvil-baseline`, and neither the tutorial nor the policy
+  command reference carried a single compliance, limitation, or known-gap
+  statement. Added a "What this pack does not do" section to the CPACKS-owned
+  tutorial: advisory-only, no OWASP/SOC 2/ISO 27001/GDPR mapping and no
+  compliance claim, exactly what the two policies inspect, what they do not
+  (file contents, anything outside the diff, data flow), the deliberate
+  name-heuristic false positives, and the fixed thresholds. `verified_against`
+  advanced 0.9.0-beta -> 0.9.7-beta after running all four tutorial commands
+  against a locally built binary (9 policy tests pass). Promoted Ready
+  2026-08-23 as an **enabling change** under
   PR #4100, not by a direct instruction naming this item. The operator promoted
   POLFIT-007, which coordinates CPACKS-006 and this item; POLFIT-007's stated
   outcome is not deliverable while this one sits Draft. Grounds for advancing

@@ -10,8 +10,9 @@
 **Current state (2026-08-23):** POLFIT-001 and POLFIT-002 **Merged** via
 #4103 and #4104 — ADR-129 (intra-repo surface precedence) and ADR-130
 (authoring on-ramp). Both design gates are closed, so POLFIT-003..-006 and
--008 are no longer blocked by them. POLFIT-009 is **Merged** (#4108), and
-POLFIT-007 is Ready — the only open item not behind a closed gate.
+-008 are no longer blocked by them. POLFIT-009 is **Merged** (#4108).
+POLFIT-007 is **Blocked** — CPACKS-007 delivered, CPACKS-006 proven
+undeliverable as specified and awaiting an owner decision.
 
 The dated entries below are history, not current status. Per-item `Status:`
 lines are authoritative.
@@ -264,10 +265,17 @@ They still gate the items below them.
 
 ### POLFIT-007: Starter-pack residue closed
 
-- **Status:** Ready — promoted 2026-08-23 by operator instruction. Both
-  delegated items are now Ready: CPACKS-006 since 2026-07-11, and CPACKS-007
-  promoted alongside this one (its dependencies CPACKS-004/-005 were already
-  Done; it had simply never been advanced).
+- **Status:** Blocked 2026-08-23 — **half delivered, and the other half is
+  proven not deliverable as specified.** CPACKS-007 is done (known-gaps and
+  non-compliance-posture copy written; the audit found the copy did not exist
+  at all, contrary to that item's own status). CPACKS-006 is **Blocked**: the
+  eval-regression harness diffs on the frozen v1 `findings` array while the
+  shipped pack emits `warning` string sets, so wiring its suites in yields
+  coverage that cannot fail — demonstrated by a falsification run, not
+  assumed. This item's Expected Outcome ("CPACKS carries no live item outside
+  the CPACKS-008 expansion gate") therefore cannot be met until an owner picks
+  one of the three unblock paths recorded on CPACKS-006, two of which are
+  EVALCI's or a pack-contract decision rather than CPACKS's.
 - **Intent:** Finish the two small items POLRESET's first slice left open so
   CPACKS reaches a terminal state.
 - **Expected Outcome:** The `anvil-baseline` fixtures are wired into the CI eval

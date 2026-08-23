@@ -8,7 +8,7 @@ upstream:
   - crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline
   - crates/anvil-cli/src/commands/policy/validate.rs
   - crates/anvil-cli/src/commands/policy/test_run.rs
-verified_against: 0.9.0-beta
+verified_against: 0.9.7-beta
 ---
 
 # Policy tutorial
@@ -89,6 +89,45 @@ Remove-Item -Recurse .\.anvil\policies\anvil-baseline
 
 Do not delete the whole `.anvil` directory; it can contain unrelated project
 configuration and evidence.
+
+## What this pack does not do
+
+`anvil-baseline` is a **starter pack**, not compliance coverage. Read this
+before you rely on it.
+
+**It is advisory only.** Every finding is a warning. The pack never fails a
+gate, whatever severity its manifest declares — blocking comes from anvil's
+enforcement posture, not from Rego severity.
+
+**It is not a compliance control set.** There is no OWASP, SOC 2, ISO 27001, or
+GDPR mapping in this pack, and installing it is not evidence for any of them.
+anvil makes no compliance claim.
+
+**What it actually inspects** is the working-tree diff, and only two things:
+
+| Policy            | Flags                                                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `change-scope`    | Change sets past 10 files, and again past 25.                                                                                                                                                       |
+| `sensitive-paths` | GitHub Actions workflow and action definitions, files ending `.env` or containing `.env.`, and paths whose _name_ contains `secret`, `credential`, `token`, `password`, `apikey`, or ends `id_rsa`. |
+
+**What it does not inspect:**
+
+- **File contents.** `sensitive-paths` matches path names only. It cannot tell
+  whether a file holds a credential. Credential _detection_ is the separate
+  `secret` check — see the [check catalogue](../reference/checks.md).
+- **Anything outside the diff.** A pre-existing problem in an unchanged file is
+  invisible to this pack.
+- **Data flow.** No taint tracking, no reachability, no cross-file analysis.
+
+**Known false positives.** The `sensitive-paths` name heuristics fire on
+ordinary files — `token_store.rs`, `password_field.tsx`, `secrets.example.md`.
+That is deliberate: the softer wording tells you to confirm rather than act, and
+a heuristic match is never blocking. If one is noisy in your repository, record
+it with [`anvil exception`](../reference/policy.md#exceptions) rather than
+editing the pack in place.
+
+**Thresholds are fixed.** The 10- and 25-file limits are constants in the pack's
+Rego. They are not configurable per project today.
 
 ## Next step
 
