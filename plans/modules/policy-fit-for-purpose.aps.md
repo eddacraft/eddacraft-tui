@@ -10,9 +10,11 @@
 **Current state (2026-08-23):** POLFIT-001 and POLFIT-002 **Merged** via
 #4103 and #4104 — ADR-129 (intra-repo surface precedence) and ADR-130
 (authoring on-ramp). Both design gates are closed, so POLFIT-003..-006 and
--008 are no longer blocked by them. POLFIT-009 is **Merged** (#4108);
-POLFIT-007 is Ready — the only open item not behind a closed gate. The dated entries below are history, not current
-status — per-item `Status:` lines are authoritative.
+-008 are no longer blocked by them. POLFIT-009 is **Merged** (#4108), and
+POLFIT-007 is Ready — the only open item not behind a closed gate.
+
+The dated entries below are history, not current status. Per-item `Status:`
+lines are authoritative.
 
 **Promoted:** 2026-08-23 — POLFIT-007 and POLFIT-009 advanced Draft -> Ready on
 operator instruction. Neither depends on the two design gates: -007 drives the
