@@ -5,9 +5,9 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | high     | In Progress | 10/16    |
+| FLAGCAT | —     | high     | In Progress | 11/16    |
 
-**Last reviewed:** 2026-08-23 — FLAGCAT-011 implementation now carries the
+**Last reviewed:** 2026-08-23 — FLAGCAT-011 Merged via PR #4111 with the
 strict product-catalogue v2 shape, immutable delivery identities, an explicit
 delivery-surface migration ledger, and the deprecated v1 compatibility
 projection specified in
@@ -16,13 +16,14 @@ The frozen v1 fixture is authoritative for the exact deprecated
 `flagSurfaces()` compatibility payload during its window, but never for v2
 product, completeness, or enforcement truth; `flags/surfaces.json` through
 `productCatalogue()` remains canonical there.
-The in-progress inventory covers CLI, MCP, API, daemon, dashboard,
+The canonical inventory covers CLI, MCP, API, daemon, dashboard,
 documentation, hook, and integration hosts. Feature and exclusion owners
 resolve to active or archived APS module identifiers, and public tests pin the
 granular CLI, API, and documentation-shell recovery floor. ADR-076 remains the
 accepted four-noun logical contract (product feature, product feature group,
 delivery surface, feature flag). FLAGCAT-010 Merged 2026-08-20 via PR #4054;
-FLAGCAT-011 remains In Progress pending full validation and landing.
+FLAGCAT-011 passed Council convergence, independent verification, local
+validation, and hosted CI before its normal rebase merge.
 FLAGCAT-012..015 then sequence the drift gates, flag linkage, generated views,
 and tier mapping.
 
@@ -749,7 +750,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-011: Back-capture the current product feature inventory
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-23 via PR #4111
 - **Intent:** Replace the incomplete CLI-only snapshot with an honest current
   inventory before assigning product tiers.
 - **Expected Outcome:** Before inventory expansion, the schema pins stable
@@ -795,9 +796,8 @@ Status promoted Draft → **Ready** 2026-05-28.
   `pnpm aps:active-lint`; `pnpm aps:index:check`.
 - **Risk:** high — cross-surface product taxonomy with no runtime behaviour
   change.
-- **Confidence:** medium — the physical design is approved and the current
-  validation commands are executable; host-by-host inventory parity remains
-  the implementation risk.
+- **Confidence:** high — Council convergence, independent verification, local
+  validation, hosted CI, and integration ancestry all passed.
 
 ### FLAGCAT-012: Gate catalogue completeness against shipping hosts
 
