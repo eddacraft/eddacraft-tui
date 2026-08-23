@@ -4,7 +4,9 @@
 | ----- | ------ | ------- |
 | TRUST | @aneki | Blocked |
 
-**Last reviewed:** 2026-07-17 (POLRESET topology flow-down; Blocked posture
+**Last reviewed:** 2026-08-23 — POLFIT-009 posture pass: the module carries an
+explicit **Posture** block below stating that nothing here is scheduled and
+what promoting it would take. No scope change. Prior review 2026-07-17 (POLRESET topology flow-down; Blocked posture
 retained and future implementation homes reconciled with ADR-098 AD-2).
 
 > **Status correction (2026-07-04):** Demoted Ready → Blocked. TRUST's
@@ -22,6 +24,17 @@ retained and future implementation homes reconciled with ADR-098 AD-2).
 > own policy evaluation. Future publishing and freshness work belongs in the
 > Rust CLI over COMPLY/CEWS contracts, not in the deletion-slated
 > `anvil-policy` support crate. This correction does not unblock the module.
+
+> **Posture (2026-08-23, POLFIT-009): Blocked — retained, and confirmed still accurate.**
+> All three work items are `Blocked`, which is honest: CEWS and COMPLY are
+> both dormant. This module is the **only** one of the six whose recorded
+> status already matched reality before POLFIT-009.
+> **What ships today:** organisational policy means hand-copying a pack
+> directory into each repository. There is no distribution, no inheritance,
+> no versioning, and no lifecycle. See
+> [`policy-fit-for-purpose`](./policy-fit-for-purpose.aps.md) (POLFIT-009).
+> **To promote:** CEWS and COMPLY first. Rescoping to policy+eval-only
+> output remains an explicit alternative that would bypass both.
 
 ## Purpose
 

@@ -7,7 +7,9 @@
 | ------ | ----- | -------- | ------ |
 | COMPLY | —     | medium   | Draft  |
 
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+**Last reviewed:** 2026-08-23 — POLFIT-009 posture pass: the module carries an
+explicit **Posture** block below stating that nothing here is scheduled and
+what promoting it would take. No scope change. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: activation gate
 restated, TS-era task paths rewritten to Rust crates per ADR-098 AD-2,
 dependency block rewritten to shipped surfaces).
@@ -40,6 +42,20 @@ dependency block rewritten to shipped surfaces).
 > the EXCEPT store (ADR-100 committed authority — evidence must be read from
 > committed/pushed trees, never worktree state; home moves to
 > `anvil-exceptions` when EXCEPT-012 lands).
+
+> **Posture (2026-08-23, POLFIT-009): Dormant — two independent gates.**
+> Nothing in this module is scheduled and no work item carries a `Status:`
+> field. It is held by **two** gates, not one: the evidence-semantics design
+> has not been started, *and* ORGHIER/POLLC do not exist. Clearing either
+> alone does not unblock it.
+> **What ships today:** organisational policy means hand-copying a pack
+> directory into each repository. There is no distribution, no inheritance,
+> no versioning, and no lifecycle. See
+> [`policy-fit-for-purpose`](./policy-fit-for-purpose.aps.md) (POLFIT-009).
+> **To promote:** the evidence-semantics design, then ORGHIER and POLLC.
+> Priority `medium` describes importance if the enterprise tier is promoted;
+> it does not indicate scheduled work. Anvil makes **no compliance claim**
+> today — see CPACKS-008 for the matching pack-side gate.
 
 ## Purpose
 

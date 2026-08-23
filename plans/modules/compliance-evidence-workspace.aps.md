@@ -4,7 +4,9 @@
 | ---- | ------ | ------ |
 | CEWS | @aneki | Draft  |
 
-**Last reviewed:** 2026-07-17 (POLRESET topology flow-down: dependencies and
+**Last reviewed:** 2026-08-23 — POLFIT-009 posture pass: the module carries an
+explicit **Posture** block below stating that nothing here is scheduled and
+what promoting it would take. No scope change. Prior review 2026-07-17 (POLRESET topology flow-down: dependencies and
 future implementation homes reconciled with ADR-098 and current Rust truth).
 
 > **Status correction 2026-04-26:** Demoted Ready → Draft per Council C
@@ -23,6 +25,16 @@ future implementation homes reconciled with ADR-098 and current Rust truth).
 > removes the compliance-framework coupling. New work must use
 > `anvil-policy-engine`, `anvil-kernel-types`, and the Rust CLI; the
 > deletion-slated `anvil-policy` support crate is not an implementation home.
+
+> **Posture (2026-08-23, POLFIT-009): Dormant — blocked behind COMPLY.**
+> Nothing in this module is scheduled and no work item carries a `Status:`
+> field. Its real prerequisites are COMPLY-001..004 and the Draft POLLC
+> lifecycle contracts, both of which are themselves dormant.
+> **What ships today:** organisational policy means hand-copying a pack
+> directory into each repository. There is no distribution, no inheritance,
+> no versioning, and no lifecycle. See
+> [`policy-fit-for-purpose`](./policy-fit-for-purpose.aps.md) (POLFIT-009).
+> **To promote:** COMPLY first, which is itself behind two gates.
 
 ## Purpose
 

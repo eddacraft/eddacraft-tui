@@ -291,9 +291,17 @@ They still gate the items below them.
 
 ### POLFIT-009: Enterprise policy modules carry an honest posture
 
-- **Status:** Ready — promoted 2026-08-23 by operator instruction. Conductor
-  owns this outright: the deliverable is a posture and review stamp on each
-  named module, not a delegated work item.
+- **Status:** In Progress — started 2026-08-23. Conductor owns this outright:
+  the deliverable is a posture and review stamp on each named module, not a
+  delegated work item. Scope confirmed on execution: all six coordinated
+  modules were stale (four at 2026-07-11, two at 2026-07-17) and five of the
+  six carry **zero work items with a `Status:` field**, so no progress counter
+  could ever have reflected reality. TRUST was the only one whose recorded
+  status already matched. **ADR-129 §D-5 (merged after this item was filed)
+  routes the org/federated overlay question here**; the honest answer is
+  that it stays open by design — there is no merge function to specify for
+  modules that do not ship — and each of ORGHIER/POLLC/POLFED now records
+  that. Promoted Ready 2026-08-23 by operator instruction.
 - **Intent:** Stop four Draft modules reading as an active roadmap when no
   organisational policy capability ships and none is scheduled.
 - **Expected Outcome:** ORGHIER, POLLC, POLFED, and COMPLY each carry a current

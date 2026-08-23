@@ -7,7 +7,9 @@
 | ------- | ----- | -------- | ------ |
 | ORGHIER | —     | low      | Draft  |
 
-**Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
+**Last reviewed:** 2026-08-23 — POLFIT-009 posture pass: the module carries an
+explicit **Posture** block below stating that nothing here is scheduled and
+what promoting it would take. No scope change. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: activation gate
 restated, work items retargeted off the AD-2 deletion-slated crate, exemption
 semantics bound to the EXCEPT store).
@@ -27,6 +29,24 @@ semantics bound to the EXCEPT store).
 > `crates/anvil-policy`, corrected 2026-07-11 per ADR-098 AD-2); "OPA"
 > wording in older notes means Rego policy evaluation, not a Go OPA production
 > runtime.
+
+> **Posture (2026-08-23, POLFIT-009): Dormant — demand-gated.**
+> Nothing in this module is scheduled and no work item carries a `Status:`
+> field. ORGHIER is the **root** of the ORGHIER -> POLLC -> COMPLY/POLFED
+> chain, so promoting it is the enterprise-tier trigger for all of them.
+> **What ships today:** organisational policy means hand-copying a pack
+> directory into each repository. There is no distribution, no inheritance,
+> no versioning, and no lifecycle. See
+> [`policy-fit-for-purpose`](./policy-fit-for-purpose.aps.md) (POLFIT-009).
+> **To promote:** a concrete multi-repo/org customer signal, or an explicit
+> planning-council decision. Priority `low` reflects that gate, not the
+> module's importance if the gate ever clears.
+> **Deferred here by ADR-129 §D-5:** the org/federated/lifecycle **overlay**
+> question — how policy composes *across* repositories — was deliberately
+> left unanswered by the precedence ADR, which scoped itself to intra-repo
+> only. It stays open by design: there is no merge function to specify for
+> modules that do not ship. Answering it is part of promoting this chain,
+> not a prerequisite to it.
 
 ## Purpose
 
