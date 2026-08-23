@@ -7,6 +7,13 @@
 | ------ | --------- | ----- | -------- | ------ | -------- |
 | POLFIT | Conductor | —     | high     | Ready  | 0/9      |
 
+**Current state (2026-08-23):** POLFIT-001 and POLFIT-002 **Merged** via
+#4103 and #4104 — ADR-129 (intra-repo surface precedence) and ADR-130
+(authoring on-ramp). Both design gates are closed, so POLFIT-003..-006 and
+-008 are no longer blocked by them. POLFIT-009 is **In Progress**;
+POLFIT-007 is Ready. The dated entries below are history, not current
+status — per-item `Status:` lines are authoritative.
+
 **Promoted:** 2026-08-23 — POLFIT-007 and POLFIT-009 advanced Draft -> Ready on
 operator instruction. Neither depends on the two design gates: -007 drives the
 already-filed CPACKS residue, and -009 is a posture-and-stamp pass the
@@ -302,13 +309,18 @@ They still gate the items below them.
   that it stays open by design — there is no merge function to specify for
   modules that do not ship — and each of ORGHIER/POLLC/POLFED now records
   that. Promoted Ready 2026-08-23 by operator instruction.
-- **Intent:** Stop four Draft modules reading as an active roadmap when no
-  organisational policy capability ships and none is scheduled.
-- **Expected Outcome:** ORGHIER, POLLC, POLFED, and COMPLY each carry a current
-  review stamp and an explicit posture — dormant, demand-gated, or promoted —
-  so an adopter or a planning session can tell at a glance that organisational
-  policy today means hand-copying a pack directory into each repository. No
-  index row implies scheduled work that does not exist.
+- **Intent:** Stop the enterprise policy modules reading as an active roadmap
+  when no organisational policy capability ships and none is scheduled.
+- **Scope:** All six coordinated modules — ORGHIER, POLLC, POLFED, COMPLY,
+  CEWS, and TRUST. Widened from the original four on execution (2026-08-23):
+  CEWS and TRUST sit on the same dependency chain and were already named under
+  `Coordinates with`, so leaving them unstamped would have left two of the six
+  still reading as scheduled.
+- **Expected Outcome:** Each of the six carries a current review stamp and an
+  explicit posture — dormant, blocked, demand-gated, or promoted — so an
+  adopter or a planning session can tell at a glance that organisational policy
+  today means hand-copying a pack directory into each repository. No index row
+  implies scheduled work that does not exist.
 - **Validation:** `pnpm aps:active-lint && pnpm aps:index:check`
 - **Dependencies:** none
 - **Coordinates with:** ORGHIER, POLLC, POLFED, COMPLY, CEWS, TRUST

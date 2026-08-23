@@ -46,8 +46,9 @@ dependency block rewritten to shipped surfaces).
 > **Posture (2026-08-23, POLFIT-009): Dormant — two independent gates.**
 > Nothing in this module is scheduled and no work item carries a `Status:`
 > field. It is held by **two** gates, not one: the evidence-semantics design
-> has not been started, *and* ORGHIER/POLLC do not exist. Clearing either
-> alone does not unblock it.
+> has not been started, *and* ORGHIER/POLLC ship no capability (both modules
+> exist and are planned; neither has delivered anything). Clearing either gate
+> alone does not unblock this module.
 > **What ships today:** organisational policy means hand-copying a pack
 > directory into each repository. There is no distribution, no inheritance,
 > no versioning, and no lifecycle. See
