@@ -110,9 +110,9 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
 DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
-DOCRB-008, DOCRB-009, and DOCRB-011 are Merged. DOCRB-010 is the next
-readiness candidate, but remains Draft and is not authorised for implementation
-by this reconciliation.
+DOCRB-008, DOCRB-009, and DOCRB-011 are Merged. DOCRB-010 is In Progress under
+the operator-approved four-path clean-room verification plan. The stored 10/11
+progress remains unchanged until post-merge reconciliation.
 
 ## Success Criteria
 
@@ -572,7 +572,7 @@ by this reconciliation.
 
 ### DOCRB-010: Independently verify the documentation re-baseline
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Prove the new system is navigable, accurate, accessible, and
   maintainable from a clean checkout before calling the programme complete.
 - **Expected Outcome:** A clean-room report tests representative maintainer,
@@ -581,9 +581,29 @@ by this reconciliation.
   accessibility; exercises both relevant-change failure and unaffected-change
   pass paths; records residual gaps as new APS or GitHub work rather than
   silently accepting them.
-- **Scope:** Whole documentation system and representative code/contract
-  upstreams
-- **Non-scope:** A release claim or implicit closure of sibling-module work
+- **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
+  `plans/execution/DOCRB-010.actions.md`, and
+  `plans/reviews/2026-08-23-docrb-010-clean-room-verification.md`
+- **Scope:** Read-only clean-room verification of the whole documentation
+  system and representative code/contract upstreams, recorded in exactly four
+  repository paths
+- **Non-scope:** Repairing discovered gaps; product, documentation, diagram,
+  checker, build, or workflow changes; a release claim; implicit closure of
+  sibling-module work; automatic tracker writes; administrator/policy bypass
 - **Dependencies:** DOCRB-009
 - **Confidence:** medium
-- **Validation:** `pnpm format:check && pnpm docs:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json`
+- **Validation:** `pnpm install --frozen-lockfile && pnpm exec mmdc --version &&
+  node --test scripts/docs/check-diagram-impact.test.mjs &&
+  node scripts/docs/check-diagram-impact.mjs --json &&
+  pnpm test:docs-check && pnpm docs:check && pnpm docs:public:check &&
+  pnpm docs:public:diagrams &&
+  pnpm docs:owed --since <exact-base> --fail-on-owed &&
+  pnpm docs:index:check && pnpm test:ci-classify &&
+  pnpm test:validate-local && pnpm test:ci-integration &&
+  pnpm --filter @eddacraft/docs-shell test &&
+  pnpm --filter @eddacraft/anvil-docs-private build &&
+  pnpm --filter @eddacraft/docs-public build &&
+  pnpm --filter @eddacraft/docs-shell build &&
+  pnpm validate:changed && pnpm format:check && pnpm lint:check &&
+  pnpm aps:active-lint && pnpm aps:index:check &&
+  pnpm aps:drift --json && git diff --check`
