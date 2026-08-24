@@ -106,9 +106,10 @@ pub struct CompiledRegistry {
 
 #[derive(Debug, Clone, Default)]
 pub struct LoadRegistryOptions {
-    /// Absolute path to a `registry.json` — unsigned override of the
-    /// embedded catalogue (POLFIT-008 / ADR-131). Tests and operator
-    /// tooling; not implicit project discovery.
+    /// Path to a `registry.json` — unsigned override of the embedded
+    /// catalogue (POLFIT-008 / ADR-131). Relative paths resolve against
+    /// the process working directory. Tests and operator tooling; not
+    /// implicit project discovery.
     pub registry_path: Option<PathBuf>,
 }
 
@@ -585,10 +586,10 @@ mod tests {
             workspace_registry_path().is_file(),
             "this test needs the workspace registry to exist as the silent-walk bait"
         );
-        assert!(
-            std::env::var_os("ANVIL_REGISTRY_PATH").is_none(),
-            "ANVIL_REGISTRY_PATH is set; cannot assert implicit resolution"
-        );
+        if std::env::var_os("ANVIL_REGISTRY_PATH").is_some() {
+            eprintln!("skipping: ANVIL_REGISTRY_PATH is set; cannot assert default resolution");
+            return;
+        }
         let result = load_compiled_registry(&LoadRegistryOptions::default());
         assert_eq!(
             result.source_path.as_deref(),
