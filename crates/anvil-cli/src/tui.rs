@@ -160,10 +160,13 @@ impl TerminalGuard {
         if !self.active {
             return Ok(());
         }
-        // Disarm only AFTER both restore calls succeed. If either errors,
+        // Disarm only AFTER all restore calls succeed. If any errors,
         // `active` stays true so `Drop` still runs a best-effort restore —
-        // otherwise an early `?` would leak raw mode / alt-screen, which is
-        // exactly the failure mode this guard exists to prevent.
+        // otherwise an early `?` would leak raw mode / alt-screen / mouse
+        // reporting, which is exactly the failure mode this guard exists to
+        // prevent. DisableMouseCapture is a harmless no-op for surfaces that
+        // never enabled capture.
+        execute!(io::stdout(), DisableMouseCapture)?;
         execute!(io::stdout(), LeaveAlternateScreen)?;
         terminal::disable_raw_mode()?;
         self.active = false;
@@ -284,7 +287,8 @@ pub fn run_pointer_surface_with_exit<S: PointerSurface>(
         Some(&mut |s: &mut S, m| s.handle_mouse(m)),
     );
 
-    let _ = execute!(io::stdout(), DisableMouseCapture);
+    // Capture release rides the guard's fail-safe restore chain
+    // (disarm_and_restore + the panic path both send DisableMouseCapture).
     guard.leave()?;
 
     result.map(|exit| (state, exit))

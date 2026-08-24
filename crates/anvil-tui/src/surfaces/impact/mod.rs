@@ -3,9 +3,12 @@
 //! graph-cache snapshot.
 //!
 //! Read lenses only in this first pass: crate-level used-import graph, a
-//! crate's direct neighbourhood, and a crate's internal module graph. The
-//! surface is keyboard-driven (the shared surface loop is key-only today);
-//! intent capture and the policy boundaries view are later IMPV items.
+//! crate's direct neighbourhood, and a crate's internal module graph.
+//! Keyboard and mouse are both first-class: the surface opts into the
+//! anvil pointer loop via [`crate::surface::PointerSurface`] (click select,
+//! drag pan / node move, wheel zoom), while every action remains reachable
+//! from the keyboard. Intent capture and the policy boundaries view are
+//! later IMPV items.
 
 pub mod data;
 pub mod render;
@@ -260,7 +263,7 @@ impl eddacraft_tui::surface::Surface for ImpactState {
     }
 
     fn help_text(&self) -> &'static str {
-        "click/↑↓←→ select  wheel zoom  drag pan  enter drill  i internals  z read  0 1:1  f fit  esc back  q quit"
+        "click/↑↓←→ select  wheel/+/- zoom  drag pan/move node  enter drill  i internals  z read  0 1:1  f fit  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
