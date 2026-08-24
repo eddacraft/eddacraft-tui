@@ -1707,7 +1707,7 @@ else
   fail "advisory-only corpus must not fail the gate; got ${d2_status}"
 fi
 
-# Case I: a later restamp with the same committer second as the upstream edit
+# Case F2: a later restamp with the same committer second as the upstream edit
 # is `review`, not `owed`. `git rebase` commonly stamps every rewritten commit
 # with one `%ct`; comparing timestamps with `>` then gates a document that was
 # actually updated later in history.

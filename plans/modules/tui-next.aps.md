@@ -10,8 +10,8 @@
 **Last reviewed:** 2026-08-24 (flow-extension wave filed): TUIN-015..021
 Proposed against
 [`plans/specs/2026-08-24-eddacraft-tui-flow-extensions.md`](../specs/2026-08-24-eddacraft-tui-flow-extensions.md)
-after the `eddacraft-tui` 0.5.1 cut. Items stay Proposed (membrane). No
-done/total change (8/14). Prior: 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
+after the `eddacraft-tui` 0.5.1 cut. Items stay Proposed (membrane). Header
+count 8/21 after bookkeeping `pnpm aps:index` (was 8/14 at intake). Prior: 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
 convention is live — extension surface (`Theme`/`Surface`) graded `stable`,
 `test_utils` + `mode` probes `experimental`, rest default `unstable`; a
 warn-only baselined CI check (`scripts/check-stability-markers.mjs`, 397-item
