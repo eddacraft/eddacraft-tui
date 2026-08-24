@@ -15,7 +15,7 @@ pub mod render;
 
 use std::cell::RefCell;
 
-use eddacraft_tui::flow::{self, Flow, raw};
+use eddacraft_tui::flow::{self, Flow, ViewState, capture_view, raw, restore_view};
 use eddacraft_tui::keyboard::Action;
 use eddacraft_tui::theme::EddaCraftTheme;
 
@@ -62,6 +62,11 @@ enum ImpactBody {
 struct LoadedImpact {
     graph: ImpactGraph,
     stack: Vec<ImpactView>,
+    /// Camera + selection of each *parent* view, captured on drill so that
+    /// backing out restores exactly where the user was (TUIN-016 wiring):
+    /// `saved[i]` belongs to `stack[i]`, captured when `stack[i+1]` was
+    /// pushed. Always `stack.len() - 1` entries.
+    saved: Vec<ViewState>,
     /// The rendered widget; interior-mutable because `Surface::render`
     /// takes `&self` while rataflow renders through `&mut Flow`.
     flow: RefCell<Flow>,
@@ -97,11 +102,12 @@ impl ImpactState {
                 wants_back: false,
             };
         }
-        let flow = build_flow(&graph.crate_edges);
+        let flow = build_flow(&graph.crate_edges, true);
         Self {
             body: ImpactBody::Loaded(Box::new(LoadedImpact {
                 graph,
                 stack: vec![ImpactView::All],
+                saved: Vec::new(),
                 flow: RefCell::new(flow),
             })),
             status: String::new(),
@@ -179,8 +185,16 @@ impl ImpactState {
             return;
         }
         self.status = format!("→ {}", view.name());
+        // Remember the parent's camera + selection so `esc` restores it.
+        loaded.saved.push(capture_view(&loaded.flow.borrow()));
+        // A drilled view gets a fresh layout, so fit is right here — but the
+        // drilled node stays selected, carrying context into the new view.
+        let mut next = build_flow(&edges, true);
+        if let ImpactView::Focus(f) = &view {
+            next.select_node(f);
+        }
         loaded.stack.push(view);
-        *loaded.flow.borrow_mut() = build_flow(&edges);
+        *loaded.flow.borrow_mut() = next;
     }
 
     fn pop_view(&mut self) -> bool {
@@ -196,7 +210,16 @@ impl ImpactState {
             Some(ImpactView::Internals(k)) => loaded.graph.internals(k),
             _ => loaded.graph.crate_edges.clone(),
         };
-        *loaded.flow.borrow_mut() = build_flow(&edges);
+        // Rebuild the parent WITHOUT a fit request and restore the camera and
+        // selection captured when it was left (TUIN-016): back means "back to
+        // exactly where I was", not "back to a refitted overview".
+        let mut previous = build_flow(&edges, false);
+        if let Some(state) = loaded.saved.pop() {
+            restore_view(&mut previous, &state);
+        } else {
+            previous.request_fit_view();
+        }
+        *loaded.flow.borrow_mut() = previous;
         self.status = "back".into();
         true
     }
@@ -225,7 +248,7 @@ impl ImpactState {
     }
 }
 
-fn build_flow(edges: &[(String, String)]) -> Flow {
+fn build_flow(edges: &[(String, String)], fit: bool) -> Flow {
     let pairs: Vec<(&str, &str)> = edges
         .iter()
         .map(|(a, b)| (a.as_str(), b.as_str()))
@@ -233,7 +256,9 @@ fn build_flow(edges: &[(String, String)]) -> Flow {
     // Duplicate-free by construction (BTreeSet-derived); an unexpected
     // upstream rejection degrades to an empty flow rather than a panic.
     let mut flow = flow::themed_from_edges(&pairs, &EddaCraftTheme).unwrap_or_else(|_| Flow::new());
-    flow.request_fit_view();
+    if fit {
+        flow.request_fit_view();
+    }
     flow
 }
 

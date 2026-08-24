@@ -164,6 +164,39 @@ mod tests {
     }
 
     #[test]
+    fn drill_and_back_restores_camera_and_selection() {
+        use eddacraft_tui::flow::capture_view;
+
+        let mut state = fixture_state();
+        {
+            let flow = state.flow().expect("loaded");
+            let mut f = flow.borrow_mut();
+            f.select_node("cli");
+            f.zoom_to(1.5);
+        }
+        let before = capture_view(&state.flow().expect("loaded").borrow());
+
+        state.push_view(ImpactView::Focus("kernel".into()));
+        assert_eq!(
+            state
+                .flow()
+                .expect("loaded")
+                .borrow()
+                .first_selected_node_id()
+                .as_deref(),
+            Some("kernel"),
+            "drilled view should carry the drilled node as selection"
+        );
+
+        state.handle_key(Action::Back);
+        let after = capture_view(&state.flow().expect("loaded").borrow());
+        assert_eq!(
+            after, before,
+            "backing out should restore the parent's camera and selection"
+        );
+    }
+
+    #[test]
     fn back_at_root_requests_exit() {
         let mut state = fixture_state();
         state.handle_key(Action::Back);
