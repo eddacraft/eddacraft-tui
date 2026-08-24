@@ -101,6 +101,43 @@ function validProductCatalogue(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ProductCatalogueManifestSchema', () => {
+  it('rejects missing or malformed flag linkage', () => {
+    const missingLinkage = validProductCatalogue();
+    delete missingLinkage.productFeatures[0]!.flagLinkage;
+    expect(ProductCatalogueManifestSchema.safeParse(missingLinkage).success).toBe(false);
+
+    const emptyLinkedKeys = validProductCatalogue();
+    emptyLinkedKeys.productFeatures[0]!.flagLinkage = {
+      disposition: 'linked',
+      flagKeys: [],
+    };
+    expect(ProductCatalogueManifestSchema.safeParse(emptyLinkedKeys).success).toBe(false);
+
+    const duplicateLinkedKeys = validProductCatalogue();
+    duplicateLinkedKeys.productFeatures[0]!.flagLinkage = {
+      disposition: 'linked',
+      flagKeys: ['cli.licence-gate', 'cli.licence-gate'],
+    };
+    expect(ProductCatalogueManifestSchema.safeParse(duplicateLinkedKeys).success).toBe(false);
+
+    const emptyUnflaggedReason = validProductCatalogue();
+    emptyUnflaggedReason.productFeatures[0]!.flagLinkage = {
+      disposition: 'unflagged',
+      reason: '',
+    };
+    expect(ProductCatalogueManifestSchema.safeParse(emptyUnflaggedReason).success).toBe(false);
+  });
+
+  it('rejects duplicate controlsProductFeatures keys', () => {
+    expect(
+      FeatureFlagDefinitionSchema.safeParse(
+        validFlag({
+          controlsProductFeatures: ['check', 'check'],
+        })
+      ).success
+    ).toBe(false);
+  });
+
   it('uses its own strict v2 schema independently of operational flags', () => {
     expect(PRODUCT_CATALOGUE_SCHEMA_VERSION).toBe(2);
     expect(FEATURE_FLAG_SCHEMA_VERSION).toBe(1);

@@ -16,6 +16,7 @@ on:
     paths:
       - 'crates/**'
       - 'flags/surfaces.json'
+      - 'flags/manifest.json'
       - 'packages/anvil-checks-native/native/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -86,6 +87,7 @@ jobs:
             rust:
               - 'crates/**'
               - 'flags/surfaces.json'
+              - 'flags/manifest.json'
               - 'packages/anvil-checks-native/native/**'
               - 'Cargo.toml'
               - 'Cargo.lock'

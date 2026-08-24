@@ -6,7 +6,12 @@
   "tags": ["scope:core", "layer:1"],
   "targets": {
     "test": {
-      "inputs": ["default", "^production", "{workspaceRoot}/flags/surfaces.json"]
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/flags/surfaces.json",
+        "{workspaceRoot}/flags/manifest.json"
+      ]
     }
   }
 }

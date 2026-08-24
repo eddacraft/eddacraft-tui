@@ -143,6 +143,7 @@ assert_contains "${ci_workflow}" "needs.detect-changes.outputs.lint-required != 
 assert_contains "${ci_workflow}" 'pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
 assert_contains "${ci_workflow}" 'pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
 assert_count_at_least "${rust_test_workflow}" "- 'flags/surfaces.json'" 2
+assert_count_at_least "${rust_test_workflow}" "- 'flags/manifest.json'" 2
 assert_contains "${api_project}" '"{workspaceRoot}/flags/surfaces.json"'
 assert_contains "${docs_shell_project}" '"{workspaceRoot}/flags/surfaces.json"'
 assert_contains "${flags_catalogue_project}" '"{workspaceRoot}/flags/surfaces.json"'

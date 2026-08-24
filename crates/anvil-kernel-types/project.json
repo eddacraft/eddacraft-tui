@@ -1,0 +1,23 @@
+{
+  "name": "eddacraft-anvil-kernel-types",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "crates/anvil-kernel-types/src",
+  "targets": {
+    "test": {
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/flags/manifest.json",
+        "{workspaceRoot}/flags/surfaces.json"
+      ]
+    },
+    "check": {
+      "inputs": [
+        "default",
+        "^default",
+        "{workspaceRoot}/flags/manifest.json",
+        "{workspaceRoot}/flags/surfaces.json"
+      ]
+    }
+  }
+}

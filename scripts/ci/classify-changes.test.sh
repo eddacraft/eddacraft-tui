@@ -74,6 +74,11 @@ assert_json_contains "${catalogue}" '.requiredChecks | index("unit-tests")' 'cat
 assert_json_contains "${catalogue}" '.requiredChecks | index("cargo-test")' 'catalogue data requires Rust host tests'
 assert_json_contains "${catalogue}" '.warnings | index("unclassified-paths") == null' 'catalogue data is not unknown'
 
+manifest=$(run_case catalogue-manifest flags/manifest.json)
+assert_json_contains "${manifest}" '.pathClasses | index("catalogue")' 'operational flag manifest is catalogue data'
+assert_json_contains "${manifest}" '.requiredChecks | index("unit-tests")' 'flag manifest requires Node host tests'
+assert_json_contains "${manifest}" '.requiredChecks | index("cargo-test")' 'flag manifest requires Rust host tests'
+
 other_flag_data=$(run_case other-flag-data flags/notes.json)
 assert_json_contains "${other_flag_data}" '.pathClasses | index("catalogue") == null' 'only the canonical catalogue gets the catalogue path class'
 assert_json_contains "${other_flag_data}" '.pathClasses | index("unknown")' 'unrecognised flag data remains conservatively classified'

@@ -242,11 +242,12 @@
 
 ## FLAGCAT
 
-| Document                                                                | Path                                     | Type  | Authority     | Owner   | Status |
-| ----------------------------------------------------------------------- | ---------------------------------------- | ----- | ------------- | ------- | ------ |
-| [Feature Flag Governance](../../docs/guides/feature-flag-governance.md) | `docs/guides/feature-flag-governance.md` | Guide | Authoritative | FLAGCAT | Live   |
-| [Feature Flag Inventory](../../docs/guides/feature-flag-inventory.md)   | `docs/guides/feature-flag-inventory.md`  | Guide | Derived       | FLAGCAT | Live   |
-| [Feature Flag Reference](../../docs/guides/feature-flag-reference.md)   | `docs/guides/feature-flag-reference.md`  | Guide | Authoritative | FLAGCAT | Live   |
+| Document                                                                    | Path                                       | Type  | Authority     | Owner   | Status |
+| --------------------------------------------------------------------------- | ------------------------------------------ | ----- | ------------- | ------- | ------ |
+| [Feature Flag Governance](../../docs/guides/feature-flag-governance.md)     | `docs/guides/feature-flag-governance.md`   | Guide | Authoritative | FLAGCAT | Live   |
+| [Feature Flag Inventory](../../docs/guides/feature-flag-inventory.md)       | `docs/guides/feature-flag-inventory.md`    | Guide | Derived       | FLAGCAT | Live   |
+| [Feature Flag Reference](../../docs/guides/feature-flag-reference.md)       | `docs/guides/feature-flag-reference.md`    | Guide | Authoritative | FLAGCAT | Live   |
+| [Product feature catalogue](../../docs/guides/product-feature-catalogue.md) | `docs/guides/product-feature-catalogue.md` | Guide | Derived       | FLAGCAT | Live   |
 
 ## GCTX
 

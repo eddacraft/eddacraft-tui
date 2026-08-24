@@ -162,7 +162,7 @@ for path in "${paths[@]}"; do
   # by TypeScript and Rust hosts. Keep it out of the unknown fallback so a
   # catalogue-only PR runs both host projection suites.
   case "${path}" in
-    flags/surfaces.json)
+    flags/surfaces.json | flags/manifest.json)
       add_unique path_classes 'catalogue'
       add_unique risk_classes 'source'
       matched=true
