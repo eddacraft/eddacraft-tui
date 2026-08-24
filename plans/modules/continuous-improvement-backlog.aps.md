@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 285/354  |
+| CIB | —     | In Progress | 285/357  |
 
 ## Purpose
 
@@ -11220,7 +11220,7 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
 | B31 UTF-8 panic | Real crash in `ends_with_regex_keyword` (`rfind` + `i + 1`) | **CIB-359** Ready P1 |
 | B33 gate secrets skip `.py`/`.tsx`/`.go`/`.sh` | Documented domain. Pack-02 GATE-1. CIB-255 chose disclosure over parity | **Won't file.** **CIB-255** |
 | B28 `l4-validate` silent / `--json` empty | Designed silent CI admit (`json_surface_audit` class `silent`). Already replied | **Won't file.** |
-| B28 garbage policy still exit 0 | Source parse errors propagate. Not reproduced; likely no project-id or still-valid body | **Won't file** until reproduced |
+| B28 garbage policy still exit 0 | **Retracted by Dave 2026-08-22** (empty-`ANVIL_HOME` harness artifact). Under resolved identity, malformed policy exits 1 with a YAML parse error and a `--json` error document. Remaining silent no-op (no rule commits) is the designed silent class | **Retracted.** No CIB |
 | B32 `status` authRequired exit 0 | Read-only state surface. Action commands exit 3 | **Won't file.** **CIB-169** |
 | EXIT-0-ON-NOT-READY | Three contracts, not one ticket | **Won't file.** **CIB-324** / **CIB-169** / silent L4 |
 | B29 exception not honoured at `check`/`gate` | L4-only store. Already replied | **Won't file.** |
@@ -11251,7 +11251,147 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
   prefix + `§` at byte 61) and a 3-byte glyph at the same offset;
   `mask_non_code_lines` returns without panic; `cargo test -p
   eddacraft-anvil-checks --lib antipattern::mask`.
+  Pack-11 B31 fix-aid: a naive "any multibyte covering line-bytes 61-62"
+  sweep over-predicts (23 flagged vs 1 panic on one 0.9.6 tree). Keep
+  Dave's fixture as the regression case; do not treat every window hit
+  as a panic.
 - **Identified From:** Dave 0.9.7 first run + deep sweep B31, 2026-08-21,
   official Windows `v0.9.7-beta` archive.
 - **Coordinates with:** CIB-083
 - **Confidence:** high — panic site and `i + 1` are the same line.
+
+## Pack-11 intake (Dave Windows operational + 0.9.7 reply, 2026-08-24)
+
+Source: Dave drop zip `drive-download-20260824T055737Z-1-001`. Nested
+parcels: 2026-08-21 deep findings (already pack-10), 2026-08-22 0.9.7
+reply (B28 retraction + accepted dispositions), 2026-08-22 agent-harness
+hardening (H-*, Dave's own wrapper — no anvil findings), 2026-08-23
+Windows operational (B34-B37). Official `v0.9.7-beta`
+`x86_64-pc-windows-msvc` archive for B35-B37; B34 observed on 0.9.6 only.
+Second-seat verified. Exit codes unpiped. No anvil source read on their
+side; dispositions below are against current `main`.
+
+**Cutline:** file the three Windows operational defects that still
+reproduce on 0.9.7. Do not re-file pack-10 designed contracts. Do not
+file Dave's own harness. Ask for a 0.9.7 retest of the large-tree gate
+hang before opening a supervisor ticket.
+
+### Pack-11 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| B28-malformed retraction | Confirmed: empty-`ANVIL_HOME` harness artifact. Pack-10 map updated | **Retracted.** No CIB |
+| B31 will-fix accepted | Already **CIB-359**. Pack-11 notes the byte-window over-predicts | **CIB-359** |
+| B32 / B33 / EXIT-0-ON-NOT-READY | Dave accepts pack-10 dispositions | Closed. No new CIB |
+| B34 gate hang on worker panic | Observed on 0.9.6 large tree; **not re-fired on 0.9.7**. Matches the shipped `git check-attr` deadlock (`linguist-generated` hang, 0.9.7 changelog / CIB-199). Dave inferred supervisor/IPC without reading source | **Won't file** until re-fired on 0.9.7 |
+| B35 Git Bash `workspace allow` | `std::path::absolute` stores drive-relative `D:path` as `{cwd}\basename`; daemon drops it; `workspace list` still shows admitted | **CIB-360** Ready P2 |
+| B36 `mcp refresh` sharing violation | `create_dir_all_nofollow` / `DIR_ACCESS_FULL` on existing `%LOCALAPPDATA%\anvil` with lock handles held. Doctor still Passes over `generation poke failed` | **CIB-361** Ready P1 |
+| B37 no clean Windows self-update | CIB-324 made the decline honest; recipe still says close the editor, not `anvil intercept stop`. Installer cannot overwrite `anvil.exe` while the daemon holds it | **CIB-362** Ready P2 |
+| H-1..H-5 harness | Dave's own verifier-seat wrapper. Explicitly no anvil findings | **Won't file.** |
+| PATTERN-POSITIVE-ASSERTION | Process credit (fail closed on typed safe state). Does not consume roadmap | no CIB |
+| UX-3 heading correction | Pack-06 heading overstated; body was right. No action | no CIB |
+| STATUS-RESTART-PENDING-UNSAID | Operational note: `wired (restart pending)` never names a client restart | no CIB |
+| HANG-RECOVERY-HAZARD | Operational note: MCP stdio child looks like a wedged worker | no CIB |
+| MCP-INSTALL / INTERCEPT-STOP / CHECK-FAST / DAEMON-LOG | Credits. Keep in the reply | no CIB |
+
+### CIB-360: `workspace allow` must refuse Git Bash drive-relative paths
+
+- **Status:** Ready — operator-authorised 2026-08-24 after pack-11
+  disposition.
+- **Priority:** P2 — operator believes the workspace is admitted when
+  save-time is refused
+- **Intent:** From Git Bash, MSYS eats the backslash after the drive
+  letter (`D:\path` becomes `D:path`). `run_allow` calls
+  `std::path::absolute`, which treats that as drive-relative and stores
+  `{cwd}\basename`. The daemon `canonicalize`s the stored path, logs
+  `confinement: dropping unresolvable prefix allow entry`, and refuses
+  save-time, while `anvil workspace list` still shows the entry as
+  admitted. The identical literal from PowerShell records correctly.
+- **Expected Outcome:** `anvil workspace allow` refuses (or canonicalises
+  to a real absolute directory) when the argument is Windows
+  drive-relative (`X:foo` with no separator after the colon).
+  `workspace list` flags entries the daemon is dropping. PowerShell
+  `D:\path` still records correctly.
+- **Non-scope / do not:** do not change Git Bash quoting; do not reopen
+  **CIB-339** (entropy `/c/` path-shape).
+- **Files:** `crates/anvil-cli/src/commands/workspace.rs` (`absolutise`,
+  `run_allow`, `run_list`); `crates/anvil-intercept/src/confinement.rs`
+  (`to_admitted_roots_with_budget` drop log)
+- **Validation:** allowing `D:foo` (or `C:foo`) from a cwd on that drive
+  does not record `{cwd}\foo`; Git-Bash-shaped input either errors or
+  records the canonical directory; `workspace list` discloses dropped
+  entries.
+- **Identified From:** Dave pack-11 B35, 2026-08-23, 0.9.7 Windows Git
+  Bash vs PowerShell contrast, re-fired with a throwaway path.
+- **Coordinates with:** CIB-339, ADR-068, `anvil suppress` drive-relative
+  reject
+- **Confidence:** high — `absolutise` + daemon drop log match the
+  evidence.
+
+### CIB-361: `mcp refresh` must not fail creating an existing Windows state dir
+
+- **Status:** Ready — operator-authorised 2026-08-24 after pack-11
+  disposition.
+- **Priority:** P1 — emergency refresh hard-fails whenever anvil is in
+  use on Windows
+- **Intent:** `write_generation_sidecar` → `atomic_write_nofollow` →
+  `create_dir_all_nofollow` opens `%LOCALAPPDATA%\anvil` with
+  `DIR_ACCESS_FULL` (includes `DELETE`). When `intercept.*.lock` handles
+  are held, `NtCreateFile` returns `STATUS_SHARING_VIOLATION`
+  (`0xc0000043`). Observed on 0.9.6 and 0.9.7, including with the daemon
+  stopped (other session processes still hold the directory).
+  `anvil mcp install` is unaffected. Daily `anvil doctor` still **Pass**es
+  `mcp-heal` (`MCP configs current`) while details include
+  `generation poke failed: ...`.
+- **Expected Outcome:** `anvil mcp refresh` succeeds when the state
+  directory already exists and lock files are held. Open existing dirs
+  (tolerate the lock-file sharing mode) rather than creating over them.
+  Keep no-reparse. `anvil doctor` does not tick Pass over a failed
+  generation poke — poke failure is Fail or a named degraded status.
+- **Non-scope / do not:** do not change `mcp install`; do not require
+  stopping the daemon to refresh; do not weaken `OBJ_DONT_REPARSE`.
+- **Files:** `crates/anvil-intercept-win32/src/path_nofollow.rs`
+  (`create_dir_all_nofollow`, `open_or_mkdir_at`);
+  `crates/anvil-cli/src/commands/mcp_generation.rs`
+  (`write_generation_sidecar`); `crates/anvil-cli/src/commands/doctor.rs`
+  (`apply_mcp_heal_poke`)
+- **Validation:** existing anvil state dir + an open lock file: `anvil mcp
+  refresh` writes `mcp-refresh.generation` and exits 0. Doctor with a
+  poke failure is not Pass.
+- **Identified From:** Dave pack-11 B36, 2026-08-23, 0.9.6 and 0.9.7
+  Windows, three runs including daemon-stopped.
+- **Coordinates with:** MCPLH-003
+- **Confidence:** high — error string matches `atomic_write_nofollow`
+  wrapping `create_dir_all_nofollow`.
+
+### CIB-362: Windows upgrade must complete when only the daemon holds the binary
+
+- **Status:** Ready — operator-authorised 2026-08-24 after pack-11
+  disposition.
+- **Priority:** P2 — no unaided self-update path on Windows
+- **Intent:** **CIB-324** made the Windows decline honest (non-zero exit,
+  method-filtered recipe, file-lock note). The printed recipe still says
+  "close any editor running the anvil MCP server" and does not name
+  `anvil intercept stop`. Dave's only working sequence is stop daemon →
+  install → restart. The official installer fails with "The process
+  cannot access the file … anvil.exe" because the daemon holds it.
+  `update --check` reports an update is available.
+- **Expected Outcome:** On Windows, a needed update can complete without
+  a hand-rolled wrapper: `anvil update` (or the printed installer recipe)
+  stops the intercept daemon, swaps the binary, and restarts. Minimum
+  honesty slice: the file-lock recipe names `anvil intercept stop` first
+  and does not require closing the editor if daemon stop is sufficient.
+- **Non-scope / do not:** do not reopen **CIB-324** exit-code /
+  already-current / winget-vs-cargo-dist honesty; do not add a new
+  updater library.
+- **Files:** `crates/anvil-cli/src/commands/update.rs`
+  (`windows_unsupported_message`); Windows installer if it must stop the
+  daemon before overwrite
+- **Validation:** the printed Windows upgrade recipe includes
+  `anvil intercept stop`; after stop, the installer or `anvil update` can
+  replace `anvil.exe`.
+- **Identified From:** Dave pack-11 B37, 2026-08-23, 0.9.7 Windows.
+- **Coordinates with:** CIB-324, CIB-229
+- **Confidence:** high on the lock and incomplete recipe; medium on
+  implementing in-process stop-swap-restart versus the honesty-only first
+  slice.
