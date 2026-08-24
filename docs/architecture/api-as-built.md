@@ -1,8 +1,8 @@
 # anvil-api service compatibility record
 
-| Type     | Authority  | Owner | Status     | Freshness                                                                                                                |
-| -------- | ---------- | ----- | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Historical | APGOV | Deprecated | Superseded 2026-08-20 by `apps/anvil-api/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
+| Type     | Authority  | Owner | Status     | Freshness                                                                                                                                                                          |
+| -------- | ---------- | ----- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | APGOV | Deprecated | Reviewed 2026-08-25 after FLAGCAT-012 completeness tests; superseded 2026-08-20 by `apps/anvil-api/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
 
 | Upstream                                                  | Downstream                                                                                                                                 |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |

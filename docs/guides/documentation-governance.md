@@ -1,8 +1,8 @@
 # Documentation Governance
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                              |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Reviewed 2026-08-23 for DOCRB-009 against ADR-123, `scripts/docs/check-diagram-impact.mjs`, `scripts/ci/classify-changes.sh`, and the source-pinned corpus disposition |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Reviewed 2026-08-25 for FLAGCAT-012 catalogue change classification against ADR-123, `scripts/docs/check-diagram-impact.mjs`, `scripts/ci/classify-changes.sh`, and the source-pinned corpus disposition |
 
 | Upstream                                                                                                                                                                                                                                                  | Downstream                                                                                     |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |

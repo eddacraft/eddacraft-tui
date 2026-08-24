@@ -1,8 +1,8 @@
 # anvil-kernel compatibility record
 
-| Type     | Authority  | Owner | Status     | Freshness                                                                                                                     |
-| -------- | ---------- | ----- | ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Historical | KERN  | Deprecated | Superseded 2026-08-20 by `crates/anvil-kernel/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
+| Type     | Authority  | Owner | Status     | Freshness                                                                                                                                                                           |
+| -------- | ---------- | ----- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | KERN  | Deprecated | Reviewed 2026-08-25 after FLAGCAT-013 linkage fields; superseded 2026-08-20 by `crates/anvil-kernel/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
 
 | Upstream                                                    | Downstream                                                                               |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |

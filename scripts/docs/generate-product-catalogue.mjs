@@ -80,7 +80,7 @@ function render() {
     '',
     '| Type  | Authority | Owner   | Status | Freshness |',
     '| ----- | --------- | ------- | ------ | --------- |',
-    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-24 against `flags/surfaces.json` and `flags/manifest.json` |',
+    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-25 against `flags/surfaces.json` and `flags/manifest.json` |',
     '',
     '| Upstream | Downstream |',
     '| -------- | ---------- |',

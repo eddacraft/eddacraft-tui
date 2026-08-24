@@ -1,8 +1,8 @@
 # Shipped Codebase Review Checklist
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                         |
-| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-23 against the architecture overview after the docs-shell entitlement-boundary update; the optional web/docs review scope remains accurate. |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                            |
+| ----- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | AICON | Live   | Last reviewed 2026-08-25 against the architecture overview after FLAGCAT-012 host completeness; the optional web/docs review scope remains accurate. |
 
 | Upstream                                                                                                                                                                                                                                                                                                 | Downstream                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
