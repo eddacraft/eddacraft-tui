@@ -823,6 +823,7 @@ mod tests {
         let lock_path = dir.join("intercept.test.lock");
         let _lock = std::fs::OpenOptions::new()
             .create(true)
+            .truncate(false)
             .read(true)
             .write(true)
             .share_mode(0)
