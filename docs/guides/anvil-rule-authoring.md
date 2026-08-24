@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                                                                                             |
 | ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | SCAN  | Live   | Last reviewed 2026-08-23 against `crates/anvil-checks/src/antipattern/registry_loader.rs` and ADR-131 |
+| Guide | Authoritative | SCAN  | Live   | Last reviewed 2026-08-24 against `crates/anvil-checks/src/antipattern/registry_loader.rs` and ADR-131 |
 
 | Upstream                                                                               | Downstream                                  |
 | -------------------------------------------------------------------------------------- | ------------------------------------------- |
