@@ -67,8 +67,28 @@ ANVIL_DEV=1 target/debug/anvil policy eval-regression \
   --update-baseline
 ```
 
-`--update-baseline` appends a run to the history only when its gate did not
-regress (the EVALCI-001 ratchet), so a failing run cannot poison the baseline.
+`--update-baseline` appends a run only when the EVALCI-001 ratchet allows it.
+The rule has three parts, and they are the _whole_ rule — the bootstrap note
+above is one of them, not an exception to this paragraph:
+
+1. **A regressed run is refused.** A failing run cannot poison the baseline.
+2. **A first run may bootstrap, if advisory-only.** It reports as regressed
+   (there is no baseline to compare against) but has to be recordable or the
+   suite could never gain a baseline. A first run carrying an `error`-severity
+   finding is still refused.
+3. **An exit-code-only change is allowed through.** If the exit code moved but
+   no finding appeared or vanished, policy behaviour is identical and only the
+   representation changed — this is what migrates a store written before
+   `--fail-on-warnings` was wired. A real escalation brings a new finding with
+   it and stays refused.
+
+Additionally, **nothing is persisted when the invocation itself would reject the
+run**: `--update-baseline` combined with `--fail-on-regression` records nothing
+if the outcome blocks. Without that, a fixture that went silent would be
+appended first and rejected second, making the silence the accepted baseline. A
+bare `--update-baseline` still records a changed fixture — that is the
+deliberate refresh this section describes.
+
 Review and commit the resulting `baseline/history.jsonl` change on its own.
 `ANVIL_DEV=1` skips the local licence pre-check so `anvil policy eval` runs
 ungated.
