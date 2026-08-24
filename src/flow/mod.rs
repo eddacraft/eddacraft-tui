@@ -290,6 +290,9 @@ mod tests {
         zoom_to_read_after_layout(&mut flow, "gamma", 60, 30);
         assert_eq!(flow.first_selected_node_id().as_deref(), Some("gamma"));
         assert!((flow.viewport.zoom - 1.0).abs() < 0.05);
+        // A later same-size frame must not re-apply the consumed fit request.
+        let _ = draw_plain(&mut flow, 60, 30);
+        assert!((flow.viewport.zoom - 1.0).abs() < 0.05);
     }
 
     #[test]
@@ -357,7 +360,7 @@ mod tests {
         let mut flow = elided.flow;
         let rendered = draw_plain(&mut flow, 80, 30);
         assert!(
-            rendered.contains('…') || rendered.contains("more"),
+            rendered.contains('…') || rendered.contains("crates"),
             "portal label missing:\n{rendered}"
         );
     }
