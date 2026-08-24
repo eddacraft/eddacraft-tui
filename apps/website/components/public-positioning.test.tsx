@@ -13,6 +13,7 @@ import { HeroSection } from './hero-section';
 import { ProductStages } from './product-stages';
 import { ShippingProof } from './shipping-proof';
 import { TrustGap } from './trust-gap';
+import { WriteConsequence } from './write-consequence';
 
 function textOf(element: ReactNode): string {
   return renderToStaticMarkup(element)
@@ -30,11 +31,13 @@ describe('rendered website positioning', () => {
       '12 MCP CLIENTS',
       'PROTECTION IS THE ENTRY POINT.',
       'DECISION INTEGRITY FLYWHEEL',
-      '// FOUR_STAGE_CONTROL_PLANE',
+      '// PARTS',
       'THE CONTROL POINT SHIPS TODAY.',
       'THE SYSTEM THAT CREATES WORK SHOULD NOT JUDGE IT ALONE.',
       'TRUST INFRASTRUCTURE FOR AI-ASSISTED WORK.',
       'BUILD WITH SPEED. SHIP WITH INTEGRITY.',
+      'REVIEW_CAPACITY',
+      'THE WRITE EITHER HAS A JUDGE,',
     ]) {
       expect(rendered).toContain(claim);
     }
@@ -45,8 +48,10 @@ describe('rendered website positioning', () => {
     expect(textOf(<ShippingProof />)).toContain('12 MCP CLIENTS');
     expect(textOf(<TrustGap />)).toContain('PROTECTION IS THE ENTRY POINT.');
     expect(textOf(<TrustGap />)).toContain('DECISION INTEGRITY IS THE SYSTEM AROUND IT.');
+    expect(textOf(<WriteConsequence />)).toContain('THE WRITE EITHER HAS A JUDGE,');
     expect(textOf(<DecisionIntegrityFlywheel />)).toContain('DECISION INTEGRITY FLYWHEEL');
-    expect(textOf(<ProductStages />)).toContain('// FOUR_STAGE_CONTROL_PLANE');
+    expect(textOf(<ProductStages />)).toContain('// PARTS');
+    expect(textOf(<ProductStages />)).toContain('POLICY ENGINE');
     expect(textOf(<DeliveryBoundary />)).toContain('THE CONTROL POINT SHIPS TODAY.');
     expect(textOf(<DecisionModel />)).toContain(
       'THE SYSTEM THAT CREATES WORK SHOULD NOT JUDGE IT ALONE.'

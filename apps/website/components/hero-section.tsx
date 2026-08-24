@@ -46,6 +46,7 @@ export function HeroSection() {
   const [status, setStatus] = useState<AccessStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [installCommand, setInstallCommand] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const installUnlocked = Boolean(installCommand);
 
@@ -110,6 +111,10 @@ export function HeroSection() {
             engineering.
           </p>
           <p className="mt-5 max-w-xl font-sans text-base leading-7 text-ghost-grey">
+            The agent proposes. anvil judges the write against deterministic policy — before it
+            reaches the diff. You can let it run without treating the agent as the auditor.
+          </p>
+          <p className="mt-5 max-w-xl font-sans text-base leading-7 text-ghost-grey">
             Understand the change. Apply your standards. Stop unsafe work before it reaches review.
           </p>
 
@@ -130,17 +135,36 @@ export function HeroSection() {
           </div>
 
           <Dialog.Root open={open} onOpenChange={setOpen}>
-            <Dialog.Trigger asChild>
+            <div className="mt-4 flex max-w-xl border border-structure bg-surface">
+              <Dialog.Trigger asChild>
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 px-4 py-3 text-left font-mono text-xs transition-colors hover:bg-void"
+                >
+                  <span className="text-anvil">$ {installCommand ?? REDACTED_INSTALL_COMMAND}</span>
+                  <span className="ml-3 text-ghost-grey">
+                    # {installUnlocked ? 'unlocked' : 'auth-required'}
+                  </span>
+                </button>
+              </Dialog.Trigger>
               <button
                 type="button"
-                className="mt-4 block w-full max-w-xl border border-structure bg-surface px-4 py-3 text-left font-mono text-xs transition-colors hover:border-border-strong"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      installCommand ?? REDACTED_INSTALL_COMMAND
+                    );
+                    setCopied(true);
+                    window.setTimeout(() => setCopied(false), 1600);
+                  } catch {
+                    setOpen(true);
+                  }
+                }}
+                className="shrink-0 border-l border-structure px-3 py-3 font-mono text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:text-off-white"
               >
-                <span className="text-anvil">$ {installCommand ?? REDACTED_INSTALL_COMMAND}</span>
-                <span className="ml-3 text-ghost-grey">
-                  # {installUnlocked ? 'unlocked' : 'auth-required'}
-                </span>
+                {copied ? '[ COPIED ]' : '[ COPY ]'}
               </button>
-            </Dialog.Trigger>
+            </div>
             <Dialog.Portal>
               <Dialog.Overlay className="fixed inset-0 z-50 bg-void/90" />
               <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">

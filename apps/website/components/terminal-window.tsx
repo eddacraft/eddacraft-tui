@@ -57,7 +57,7 @@ export function TerminalWindow() {
     <div className="w-full border border-structure bg-surface font-mono text-[11px] leading-relaxed sm:text-xs">
       <div className="flex items-center justify-between border-b border-structure px-4 py-2 text-ghost-grey">
         <span>anvil :: pre-write</span>
-        <span>~/project</span>
+        <span className="text-anvil">agent → anvil → diff</span>
       </div>
 
       <div className="space-y-4 p-4 sm:p-5 md:min-h-[28rem]">

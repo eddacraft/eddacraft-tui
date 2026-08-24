@@ -1,8 +1,13 @@
-const TRUST_TERMS = [
-  ['LOGS', 'what happened'],
-  ['EVIDENCE', 'what was demonstrably true'],
-  ['POLICY', 'what was required'],
-  ['RECEIPTS', 'why an action was trusted'],
+const IMPACTS = [
+  ['REVIEW_CAPACITY', 'output outruns the people responsible for the system'],
+  ['SELF_REPORT', 'the system that created the work cannot judge it'],
+  ['SILENT_HOUR', 'non-conforming writes land before anyone looks'],
+] as const;
+
+const AUTONOMY = [
+  ['BABYSIT', 'you keep up. the agent does not.'],
+  ['UNSUPERVISED', 'the agent keeps up. you do not.'],
+  ['ANVIL', 'the agent runs. the write still has an independent judge.'],
 ] as const;
 
 export function TrustGap() {
@@ -25,17 +30,40 @@ export function TrustGap() {
               behalf.
             </p>
             <p>
-              None of the systems teams use today establishes, on its own, whether a particular
-              AI-assisted change deserved to be trusted.
+              After an unsupervised hour you cannot reconstruct what happened from the agent’s
+              account. Asking the agent is not an audit: the model is biased toward its own work,
+              compaction already dropped the rules file, and re-analysing raw logs is a tax.
             </p>
-            <dl className="grid gap-px border border-structure bg-structure sm:grid-cols-2">
-              {TRUST_TERMS.map(([term, meaning]) => (
+            <p>
+              Logs, monitoring, governance programmes and model-provider explanations can each show
+              something. None of the systems teams use today establishes, on its own, whether a
+              particular AI-assisted change deserved to be trusted.
+            </p>
+            <dl className="grid gap-px border border-structure bg-structure sm:grid-cols-3">
+              {IMPACTS.map(([term, meaning]) => (
                 <div key={term} className="bg-void p-4">
-                  <dt className="font-mono text-xs text-off-white">{term}</dt>
+                  <dt className="font-mono text-xs text-anvil">{term}</dt>
                   <dd className="mt-2 text-sm text-ghost-grey">{meaning}</dd>
                 </div>
               ))}
             </dl>
+            <div className="grid gap-px bg-structure md:grid-cols-3">
+              {AUTONOMY.map(([label, text], index) => (
+                <div
+                  key={label}
+                  className={`bg-void p-4 ${index === 2 ? 'border-l border-anvil' : ''}`}
+                >
+                  <p
+                    className={`font-mono text-xs uppercase tracking-wider ${
+                      index === 2 ? 'text-anvil' : 'text-ghost-grey'
+                    }`}
+                  >
+                    {label}
+                  </p>
+                  <p className="mt-2 text-sm text-off-white">{text}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
