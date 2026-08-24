@@ -659,6 +659,8 @@ mod tests {
         assert!(!two.contains("any!"), "2-byte separator: {two}");
         let three = mask_one("€return /any!/;");
         assert!(!three.contains("any!"), "3-byte separator: {three}");
+        let four = mask_one("😀return /any!/;");
+        assert!(!four.contains("any!"), "4-byte separator: {four}");
     }
 
     #[test]
