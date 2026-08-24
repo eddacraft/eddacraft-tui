@@ -533,3 +533,51 @@ fn setting_open_mode_discloses_the_posture_it_restores() {
         "switching back to open discloses what it turns off: {stdout}"
     );
 }
+
+#[test]
+fn allow_refuses_windows_drive_relative_git_bash_shape() {
+    let home = tempdir().expect("temp home");
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("workspace")
+        .args(["allow", "D:some-repo"])
+        .arg("--no-tui")
+        .current_dir(home.path())
+        .env("ANVIL_HOME", home.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    let out = cmd.output().expect("spawn anvil workspace allow");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !out.status.success(),
+        "drive-relative allow must fail: stdout={stdout} stderr={stderr}"
+    );
+    let combined = format!("{stdout}{stderr}");
+    assert!(
+        combined.contains("drive-relative"),
+        "refusal must name drive-relative: {combined}"
+    );
+}
+
+#[test]
+fn list_flags_unresolvable_allow_entries() {
+    let home = tempdir().expect("temp home");
+    let missing = home.path().join("no-such-workspace-root");
+    let (ok, stdout) = run_workspace(
+        home.path(),
+        &["allow", missing.to_str().expect("utf-8 path")],
+    );
+    assert!(
+        ok,
+        "allow of a missing path still stores the entry: {stdout}"
+    );
+
+    let (ok, stdout) = run_workspace(home.path(), &["list"]);
+    assert!(ok, "list succeeds: {stdout}");
+    assert!(
+        stdout.contains("unresolvable"),
+        "list must flag daemon-dropped entries: {stdout}"
+    );
+}

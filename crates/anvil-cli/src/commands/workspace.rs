@@ -368,6 +368,22 @@ fn run_unregister(args: &UnregisterArgs, json_mode: bool) -> Result<()> {
     Ok(())
 }
 
+/// True when `path` is a Windows drive-relative argument (`D:foo` / `D:`),
+/// including the Git Bash form where MSYS ate the slash after the colon.
+/// Rooted `D:\foo` / `D:/foo` are not drive-relative.
+fn is_windows_drive_relative(path: &std::path::Path) -> bool {
+    let raw = path.as_os_str().to_string_lossy();
+    let bytes = raw.as_bytes();
+    if bytes.len() < 2 || !bytes[0].is_ascii_alphabetic() || bytes[1] != b':' {
+        return false;
+    }
+    !matches!(bytes.get(2), Some(b'\\' | b'/'))
+}
+
+fn allow_entry_resolves(path: &std::path::Path) -> bool {
+    dunce::canonicalize(path).is_ok()
+}
+
 /// Absolutise a CLI path so the stored entry is stable regardless of the
 /// invoking cwd, without requiring it to exist yet (a `--prefix` root may be
 /// created later). Canonicalisation to a real path happens daemon-side.
@@ -423,6 +439,12 @@ fn run_mode(args: &ModeArgs, json_mode: bool) -> Result<()> {
 }
 
 fn run_allow(args: &AllowArgs, json_mode: bool) -> Result<()> {
+    if is_windows_drive_relative(&args.path) {
+        anyhow::bail!(
+            "refusing drive-relative path {} — Git Bash eats the slash after the drive letter. Use a rooted path (D:\\repo) from PowerShell, or `anvil workspace allow .` from the repo.",
+            args.path.display()
+        );
+    }
     let path = absolutise(&args.path)?;
     let kind = if args.prefix {
         MatchKind::Prefix
@@ -496,6 +518,7 @@ struct WorkspaceAllowEntry {
     path: String,
     kind: &'static str,
     live_registered: Option<bool>,
+    resolves: bool,
 }
 
 #[derive(Serialize)]
@@ -539,6 +562,7 @@ fn print_json_list(
                 RegisteredSet::Known(set) => Some(is_registered(&entry.path, set)),
                 RegisteredSet::Unavailable => None,
             },
+            resolves: allow_entry_resolves(&entry.path),
         })
         .collect();
     let registered_worktrees = match registered {
@@ -609,12 +633,17 @@ fn run_list(json: bool) -> Result<()> {
     } else {
         println!("Allow entries:");
         for entry in &file.allow {
-            let mark = match &registered {
+            let registered_mark = match &registered {
                 RegisteredSet::Known(set) if is_registered(&entry.path, set) => " [registered]",
                 _ => "",
             };
+            let dropped_mark = if allow_entry_resolves(&entry.path) {
+                ""
+            } else {
+                " [unresolvable — daemon will drop]"
+            };
             println!(
-                "  {} ({}){mark}",
+                "  {} ({}){registered_mark}{dropped_mark}",
                 entry.path.display(),
                 kind_label(entry.kind)
             );
@@ -1187,6 +1216,34 @@ mod tests {
         #[cfg(windows)]
         let already = std::path::PathBuf::from(r"C:\srv\proj");
         assert_eq!(absolutise(&already).expect("absolutise"), already);
+    }
+
+    #[test]
+    fn drive_relative_git_bash_shape_is_detected() {
+        assert!(
+            is_windows_drive_relative(std::path::Path::new("D:foo")),
+            "Git Bash D:foo must be refused"
+        );
+        assert!(
+            is_windows_drive_relative(std::path::Path::new("D:")),
+            "bare D: is drive-relative"
+        );
+        assert!(
+            !is_windows_drive_relative(std::path::Path::new(r"D:\foo")),
+            "rooted D:\\foo is not drive-relative"
+        );
+        assert!(
+            !is_windows_drive_relative(std::path::Path::new("D:/foo")),
+            "rooted D:/foo is not drive-relative"
+        );
+        assert!(
+            !is_windows_drive_relative(std::path::Path::new("/d/foo")),
+            "POSIX /d/foo is not this class"
+        );
+        assert!(
+            !is_windows_drive_relative(std::path::Path::new("relative/dir")),
+            "ordinary relative paths are not drive-relative"
+        );
     }
 
     // ----------------------------------------------------------------
