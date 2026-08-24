@@ -1692,7 +1692,7 @@ fn check_mcp_heal_with(
     let summary = ensure_existing_mcp_entries(workspace, home, &AnvilEntry::preferred_stdio());
     let (rewritten, failed, mut details) = tally_mcp_heal_outcomes(&summary.report);
     let poked = apply_mcp_heal_poke(poke_live, rewritten > 0, &mut details);
-    finish_mcp_heal(rewritten, failed, summary.managed, poked, details)
+    finish_mcp_heal(rewritten, failed, summary.managed, poked, &details)
 }
 
 fn finish_mcp_heal(
@@ -1700,7 +1700,7 @@ fn finish_mcp_heal(
     failed: usize,
     managed: usize,
     poked: Option<bool>,
-    details: Vec<String>,
+    details: &[String],
 ) -> DiagnosticCheck {
     if failed > 0 {
         return mcp_heal_check(
@@ -4591,13 +4591,8 @@ mod tests {
 
     #[test]
     fn mcp_heal_fails_when_generation_poke_fails() {
-        let check = super::finish_mcp_heal(
-            0,
-            0,
-            1,
-            None,
-            vec!["generation poke failed: NtCreateFile failed: NTSTATUS 0xc0000043".into()],
-        );
+        let details = ["generation poke failed: NtCreateFile failed: NTSTATUS 0xc0000043".into()];
+        let check = super::finish_mcp_heal(0, 0, 1, None, &details);
         assert_eq!(check.status, CheckStatus::Fail);
         assert!(
             check.message.contains("poke failed"),
@@ -4621,13 +4616,8 @@ mod tests {
 
     #[test]
     fn mcp_heal_poke_fail_names_rewrite_when_configs_changed() {
-        let check = super::finish_mcp_heal(
-            2,
-            0,
-            2,
-            None,
-            vec!["generation poke failed: sharing violation".into()],
-        );
+        let details = ["generation poke failed: sharing violation".into()];
+        let check = super::finish_mcp_heal(2, 0, 2, None, &details);
         assert_eq!(check.status, CheckStatus::Fail);
         assert!(
             check.message.contains("rewrote 2") && check.message.contains("poke failed"),
