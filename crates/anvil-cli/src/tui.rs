@@ -8,10 +8,12 @@ use std::time::{Duration, Instant};
 use animate_core::is_animating;
 use anvil_kernel_types::{EngineEvent, EventType};
 use anvil_tui::shell::render_shell;
-use anvil_tui::surface::Surface;
+use anvil_tui::surface::{PointerSurface, Surface};
 use anvil_tui::surfaces::watch::WatchState;
 use anvil_tui::surfaces::watch::event_adapter::WatchEventAdapter;
-use crossterm::event::{self, Event, KeyEventKind};
+use crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind, MouseEventKind,
+};
 use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use eddacraft_tui::keyboard::KeyHandler;
@@ -22,6 +24,9 @@ use ratatui::backend::CrosstermBackend;
 /// Best-effort restore: leave the alternate screen and disable raw mode. Safe
 /// to call when those modes are not active — crossterm treats both as no-ops.
 fn restore_terminal() {
+    // Harmless when capture was never enabled; guarantees a pointer surface
+    // can never leak mouse reporting into the parent shell, even on panic.
+    let _ = execute!(io::stdout(), DisableMouseCapture);
     let _ = execute!(io::stdout(), LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
 }
@@ -258,6 +263,33 @@ pub fn run_surface_with_exit<S: Surface>(mut state: S) -> anyhow::Result<(S, Sur
     result.map(|exit| (state, exit))
 }
 
+/// Like [`run_surface_with_exit`], for surfaces that also consume raw mouse
+/// events ([`anvil_tui::surface::PointerSurface`]). Enables terminal mouse
+/// reporting for the duration of the loop; the panic-restore path and
+/// [`TerminalGuard`] teardown both release it, so a crash cannot leave the
+/// parent shell with a haunted mouse.
+pub fn run_pointer_surface_with_exit<S: PointerSurface>(
+    mut state: S,
+) -> anyhow::Result<(S, SurfaceExit)> {
+    let guard = TerminalGuard::enter()?;
+    let _ = execute!(io::stdout(), EnableMouseCapture);
+    let backend = CrosstermBackend::new(io::stdout());
+    let mut terminal = Terminal::new(backend)?;
+    let theme = EddaCraftTheme;
+
+    let result = surface_loop_inner(
+        &mut terminal,
+        &mut state,
+        &theme,
+        Some(&mut |s: &mut S, m| s.handle_mouse(m)),
+    );
+
+    let _ = execute!(io::stdout(), DisableMouseCapture);
+    guard.leave()?;
+
+    result.map(|exit| (state, exit))
+}
+
 /// Run a surface within an already-initialised terminal session.
 /// Used by the welcome hub to launch sub-surfaces without teardown.
 pub fn run_surface_in<S: Surface>(
@@ -316,6 +348,22 @@ fn surface_loop<S: Surface>(
     state: &mut S,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<SurfaceExit> {
+    surface_loop_inner(terminal, state, theme, None)
+}
+
+/// Mouse dispatch for [`surface_loop_inner`]: `Some` only for pointer
+/// surfaces launched via [`run_pointer_surface_with_exit`].
+type MouseDispatch<'a, S> = Option<&'a mut dyn FnMut(&mut S, crossterm::event::MouseEvent)>;
+
+/// The shared event loop. `on_mouse` is `Some` only for pointer surfaces
+/// launched via [`run_pointer_surface_with_exit`]; key-only surfaces never
+/// see mouse events (capture is not even enabled for them).
+fn surface_loop_inner<S: Surface>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut S,
+    theme: &EddaCraftTheme,
+    mut on_mouse: MouseDispatch<'_, S>,
+) -> anyhow::Result<SurfaceExit> {
     // Track whether state has changed since the last draw.
     // Starts true so the first frame always renders.
     let mut dirty = true;
@@ -368,6 +416,14 @@ fn surface_loop<S: Surface>(
                             return Ok(SurfaceExit::Quit);
                         }
                         return Ok(SurfaceExit::Back);
+                    }
+                }
+                Event::Mouse(mouse) => {
+                    if let Some(handler) = on_mouse.as_deref_mut() {
+                        handler(state, mouse);
+                        // Pure hover motion doesn't change a read-only view;
+                        // skipping the redraw keeps idle CPU flat.
+                        dirty = !matches!(mouse.kind, MouseEventKind::Moved);
                     }
                 }
                 Event::Resize(_, _) => {

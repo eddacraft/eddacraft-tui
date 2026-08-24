@@ -234,13 +234,33 @@ fn build_flow(edges: &[(String, String)]) -> Flow {
     flow
 }
 
+impl crate::surface::PointerSurface for ImpactState {
+    /// Mouse goes straight to the flow widget: click selects, drag pans or
+    /// moves nodes, the wheel zooms at the cursor. The surface stays
+    /// read-only — connection and deletion events from gestures are
+    /// deliberately not applied to the model.
+    fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) {
+        let mut selected = None;
+        self.with_flow(|flow| {
+            for ev in flow.handle_mouse_event(mouse).into_events() {
+                if let flow::FlowEvent::NodeClicked { node_id } = ev {
+                    selected = Some(node_id);
+                }
+            }
+        });
+        if let Some(sel) = selected {
+            self.status = format!("selected {sel}");
+        }
+    }
+}
+
 impl eddacraft_tui::surface::Surface for ImpactState {
     fn surface_name(&self) -> &'static str {
         "Impact"
     }
 
     fn help_text(&self) -> &'static str {
-        "↑↓←→ select  enter drill  i internals  z read  +/- zoom  0 1:1  f fit  esc back  q quit"
+        "click/↑↓←→ select  wheel zoom  drag pan  enter drill  i internals  z read  0 1:1  f fit  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {

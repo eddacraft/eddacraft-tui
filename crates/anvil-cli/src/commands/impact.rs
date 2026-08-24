@@ -89,7 +89,9 @@ pub fn run(_args: &ImpactArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         Err(_) => ImpactState::load(&root),
     };
     // Back and Quit are equivalent for a standalone top-level surface.
-    let (_, _exit) = tui::run_surface_with_exit(state)?;
+    // Pointer variant: the flow graph supports click-select, drag-pan, and
+    // wheel-zoom, so this surface opts into mouse capture.
+    let (_, _exit) = tui::run_pointer_surface_with_exit(state)?;
     Ok(())
 }
 
