@@ -195,6 +195,53 @@ for the deferred wiring step this module picks up.
   2026-07-05 via PR #3181); CI-blocking-posture ADR (POLRESET design gate 3,
   not yet authored)
 
+### EVALCI-010: The regression verdict is blind to advisory-tier findings
+
+- **Status:** Proposed — filed 2026-08-24 from the CPACKS-006 planning council
+  (session `council-9021df43`). Raised by the adversarial reviewer and
+  independently verified in code before filing.
+- **Intent:** Make `eval-regression`'s verdict respond to a findings delta, or
+  state explicitly that it structurally cannot — because today it cannot, for
+  **every** suite currently wired.
+- **Evidence (read from source, not inferred):**
+  - `EvalRegressionReport::regressed()`
+    (`crates/anvil-policy/src/eval/port.rs:210-215`) is
+    `current_exit_code != 0 && baseline differs`. It never reads
+    `new_findings` or `resolved_findings`, even though both are computed at
+    lines 169-191 and rendered.
+  - `exit_code()` (`crates/anvil-policy-engine/src/result.rs:149-155`) returns
+    non-zero only for `Severity::Error`, or `Warning` with `fail_on_warnings`.
+  - `SubprocessRunner` (`crates/anvil-policy/src/eval/adapter.rs`) never passes
+    `--fail-on-warnings` — zero occurrences in the file.
+  - `should_block()`
+    (`crates/anvil-cli/src/commands/policy/eval_regression.rs:253-255`) gates on
+    `outcome.regressed`, so `--fail-on-regression` inherits the same blindness;
+    only a runner error can block.
+  - Every rule in `anvil-baseline` **and** in `policies/eval/arch_boundary.rego`
+    emits `severity: "warning"` only. So all three wired suites sit at
+    `exit_code = 0` permanently and `regressed()` can never be true.
+- **Expected Outcome:** Either the verdict consults the findings delta for
+  advisory-tier suites, or the limitation is documented at the surface that
+  claims regression coverage (`ci/eval/README.md`, the CI step name) so nobody
+  reads a green report-only step as evidence a policy still fires.
+- **Why this matters for EVALCI-008:** EVALCI-008 plans to make the check a
+  required hard-fail. As built that would add a required check which cannot
+  fail on the thing it exists to detect. EVALCI-008's recorded design question
+  covers the 1→1 absorbed-violation case; this is the distinct 0→0 case, which
+  is the state every current suite is actually in.
+- **Relationship to CPACKS-006:** CPACKS-006 (Merged via #4107) correctly fixed
+  the *shape* — the wrappers make `findings` and the rendered `new:/resolved:`
+  delta real. It did not, and could not, fix the *verdict*. Both were needed;
+  only one has landed.
+- **Files:** `crates/anvil-policy/src/eval/port.rs`,
+  `crates/anvil-cli/src/commands/policy/eval_regression.rs`,
+  `crates/anvil-policy/src/eval/adapter.rs`, `ci/eval/README.md`
+- **Validation:** `cargo test -p eddacraft-anvil -- eval_regression`
+- **Dependencies:** none blocking; EVALCI-008 should not proceed before this
+  is decided. Note ADR-098 AD-2 slates `crates/anvil-policy` for deletion, so
+  land this where the harness ends up rather than deepening that crate.
+- **Confidence:** high
+
 ### EVALCI-009: Complete the ADR-098 policy-support crate disposition
 
 - **Status:** Proposed

@@ -51,4 +51,5 @@ ungated.
 The `anvil-baseline` eval suites are projections, not pack members. Keep their
 thresholds and advisory copy in lockstep with
 `crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/`.
-`starter_policy_pack_eval_wrappers_lockstep_messages` fails if they drift.
+`starter_policy_pack_change_scope_eval_wrapper_lockstep` and
+`starter_policy_pack_sensitive_paths_eval_wrapper_lockstep` fail if they drift.

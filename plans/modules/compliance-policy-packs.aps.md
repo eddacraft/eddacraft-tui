@@ -5,7 +5,7 @@
 
 | ID     | Owner | Priority | Status | Progress |
 | ------ | ----- | -------- | ------ | -------- |
-| CPACKS | —     | high     | In Progress  | 7/8      |
+| CPACKS | —     | high     | In Progress  | 7/10      |
 
 **Last reviewed:** 2026-08-23 — CPACKS-007 promoted Proposed -> Ready as an
 **enabling change** under PR #4100, not by a direct instruction naming this
@@ -13,11 +13,11 @@ item. The operator promoted POLFIT-007, which coordinates CPACKS-006 and
 CPACKS-007; its stated outcome is not deliverable while this item sits Draft,
 so it was advanced with it.
 
-**Superseded 2026-08-24 by the POLFIT-007 execution:** CPACKS-007 is Merged via
-#4113 and **CPACKS-006 is Merged** via #4107 (eval wrappers, unblock path 2).
-Do not select either as available work. The module has no selectable live
-item, and CPACKS-008
-remains behind the expansion gate. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
+**Both live items closed 2026-08-24.** CPACKS-007 Merged via #4113 (known-gaps
+copy — the audit found it did not exist). CPACKS-006 Merged via #4107 (eval
+wrappers). An earlier revision of this paragraph recorded CPACKS-006 as Blocked
+and not selectable; #4107 landed the same day and superseded that. Only the
+CPACKS-008 expansion gate remains. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
 previous revision was last reviewed 2026-07-02, two days **before** the
 starter pack it plans shipped, and still framed it as future work.)
@@ -110,10 +110,13 @@ small, deterministic pack before Anvil makes broader compliance claims.
 - [x] Failure output includes remediation-first guidance and exception
       guidance (proof stage 3: review + `anvil exception grant`
       sensitive-paths copy).
-- [ ] Eval-regression can run the pack in report-only mode — **partially met**:
-      proven exercisable through the frozen `anvil policy eval --json` v1
-      harness (proof stage 5), but the pack's fixtures are not yet in
-      `ci/eval/suites.json` (CPACKS-006, the live item).
+- [x] Eval-regression runs the pack in report-only mode — **met 2026-08-24**
+      (CPACKS-006, PR #4107): `ci/eval/suites.json` carries
+      `anvil_baseline_change_scope` and `anvil_baseline_sensitive_paths`, fed by
+      wrappers under `policies/eval/` that re-express each pack rule's `warning`
+      string set as v1 `findings`. The committed baseline records
+      `warning_count: 1` for both, so the suites diff real output rather than an
+      empty array.
 - [x] Documentation avoids legal compliance over-claims (anvil-baseline is
       documented as an engineering-control pack across the policies tutorial
       and beta-testing guide; residual known-gaps audit = CPACKS-007).
@@ -210,25 +213,27 @@ small, deterministic pack before Anvil makes broader compliance claims.
 - **Expected Outcome:** Policy regressions in the starter pack are visible in
   CI without becoming a required hard-fail; the committed baseline gains
   one-record-per-suite entries for the pack's suites.
-- **Validation:** `cargo test -p eddacraft-anvil -- eval_regression_command`
-  plus the new suite entries in `ci/eval/suites.json` evaluated by the
-  report-only step
+- **Validation:** `cargo test -p eddacraft-anvil -- starter_policy_pack` (the
+  `..._change_scope_eval_wrapper_lockstep` and
+  `..._sensitive_paths_eval_wrapper_lockstep` parity tests in
+  `starter_proof.rs`) plus `opa test --verbose policies/fixtures/ policies/eval/`.
+  Corrected 2026-08-24: the previous line cited
+  `cargo test -p eddacraft-anvil -- eval_regression_command`, copied from
+  EVALCI-006. That filter matches only the ten synthetic
+  `eval_regression_command_*` unit tests, which never reference
+  `anvil-baseline`, `ci/eval/suites.json`, or the wrappers — it could not have
+  proven this item's outcome.
 - **Dependencies:** CPACKS-003 (Done), EVALCI-005 (Merged via #3170)
 - **Confidence:** medium
 
-- **Unblock paths (each needs an owner decision, none is CPACKS's to take):**
-  1. **Teach the harness the warning family.** Record `value` when `findings`
-     is empty, or map the `warn`/`warnings` families into the eval record.
-     Changes the eval-record schema, so it is EVALCI's call, not CPACKS's.
-  2. **Add a v1-shaped `findings` rule to the pack.** Inert for the gate, which
-     reads the violation/warning families, but it duplicates each rule's logic
-     and would silently become a requirement for every future pack author.
-  3. **Accept string-set suites as smoke-only** and say so — the suite proves
-     the policy still compiles and the query still resolves, nothing more.
-     Cheapest, but the name "regression coverage" would be a lie.
-- **Reproduction:** the falsification run is the fixture worth keeping —
-  any input below `soft_limit` makes `change_scope` silent, and the suite must
-  fail for this item to be done.
+- **Decision (2026-08-24):** path 2, in the form that keeps the duplication
+  out of the shipped pack. Wrappers live under `policies/eval/`, never in
+  `starter_packs/`, so no future pack author inherits a requirement to write
+  one; lockstep tests fail if a wrapper and its pack rule drift. Paths 1
+  (extend the eval record) and 3 (smoke-only, renamed) were not taken —
+  path 1 would have reworked a crate ADR-098 AD-2 slates for deletion, and
+  path 3 discarded coverage that turned out to be cheap to get.
+  The pre-decision options list that stood here is removed as superseded.
 
 ### CPACKS-007: Starter pack docs — known-gaps residual
 
@@ -265,6 +270,59 @@ small, deterministic pack before Anvil makes broader compliance claims.
 - **Validation:** `pnpm docs:check`
 - **Dependencies:** CPACKS-004 (Done), CPACKS-005 (Done)
 - **Confidence:** high
+
+### CPACKS-009: Eval-wrapper coverage cannot silently regress
+
+- **Status:** Proposed — filed 2026-08-24 from the CPACKS-006 planning council
+  (session `council-9021df43`), raised independently by two reviewers.
+- **Intent:** Stop the CPACKS-006 blind spot from reopening for a pack member
+  or a rule branch that nobody wrote a wrapper for.
+- **Mutation evidence (2026-08-24, reproduced during the council):** deleting
+  the `password` matcher from the shipped `sensitive_paths.rego` leaves
+  `opa test` at **9/9 PASS**. The council reviewer reported the same for
+  `credential`, `apikey`, `id_rsa`, `secret`, and `.github/actions/` — **6 of
+  the rule's 10 matchers are silently deletable**. Only `token` and
+  `.github/workflows/` are actually guarded. Both lockstep tests use a single
+  fixture, so a pack-only deletion the fixture does not hit produces identical
+  output on both sides and passes.
+- **Expected Outcome:** Three gaps close. (a) The pack tests and both lockstep
+  guards are table-driven over a `(path, expected_message)` table covering all
+  ten `sensitive-paths` matchers, so deleting any one fails. (b) A structural
+  test iterates `pack.yaml`'s `policies:` list against `ci/eval/suites.json` and
+  fails when a member has no registered eval suite — today's two are covered by
+  hand, so a third policy would ship with zero eval coverage silently.
+  (c) `change_scope`'s hard band (>25 files) gains a lockstep fixture; only the
+  soft band (12 files) is exercised today.
+- **Why this matters despite the pack being advisory:** ADR-040 pins regorus as
+  the sole engine, and a regorus upgrade that shifts `contains` / `lower` /
+  set-comprehension semantics is exactly the silent-breakage class these suites
+  exist to catch. A release reviewer seeing a green report-only step approves
+  the bump without hand-checking the pack. Blast radius is capped — this rule is
+  a review prompt, not a credential control; content detection is the separately
+  tested `secret` check — but the nudge disappearing unnoticed is the failure.
+- **Files:** `crates/anvil-cli/src/commands/policy/starter_proof.rs`,
+  `ci/eval/suites.json`
+- **Validation:** `cargo test -p eddacraft-anvil -- starter_policy_pack`
+- **Dependencies:** CPACKS-006 (Merged via #4107)
+- **Confidence:** high
+
+### CPACKS-010: Re-run the falsification against the landed suites
+
+- **Status:** Proposed — filed 2026-08-24 from the CPACKS-006 planning council
+  (session `council-9021df43`).
+- **Intent:** Close the loop on the specific proof that motivated CPACKS-006,
+  rather than inferring it from the parity and diff-engine tests.
+- **Expected Outcome:** A committed test asserts `anvil policy eval-regression`
+  reports a regression when a wrapper's finding count is forced to zero against
+  the committed baseline. CPACKS-006 was opened because a suite reported "no
+  regressions" while its policy emitted nothing; the landed wrappers are
+  believed to fix that, but no test proves the suite now *fails* in that
+  scenario — which is the only assertion that distinguishes real coverage from
+  the original defect.
+- **Files:** `crates/anvil-cli/src/commands/policy/`, `ci/eval/`
+- **Validation:** `cargo test -p eddacraft-anvil -- eval_regression`
+- **Dependencies:** CPACKS-006 (Merged via #4107)
+- **Confidence:** medium
 
 ### CPACKS-008: Compliance-pack expansion gate
 
