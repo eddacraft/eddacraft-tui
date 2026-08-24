@@ -1,8 +1,8 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                       |
-| ----- | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-24 against FLAGCAT-012 host completeness, FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                            |
+| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 host completeness, FLAGCAT-013 linkage, FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
 
 | Upstream                                                                                                                                                                                                                  | Downstream                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -85,17 +85,19 @@ To add a flag:
    (an id from `flags/groups.json`, which is a flag default group carrying
    default `class` and audiences); audience targeting using canonical
    `flags/audiences.json` ids; behaviour (`variants` + `defaultVariant`); and,
-   for a `rollout`, the `flags/environments.json` ids it is enabled in.
-   FLAGCAT-013 will add the separate, bidirectional product-feature linkage.
+   for a `rollout`, the `flags/environments.json` ids it is enabled in. Declare
+   `controlsProductFeatures` (product-feature keys the flag controls; `[]` if
+   none). Matching `flagLinkage` on `flags/surfaces.json` must agree.
 2. **Regenerate (no hand-syncing)** — TS accessors load the manifest at module
    load via `@eddacraft/anvil-flags-catalogue`; the Rust constants regenerate
    from the same file via the `eddacraft-anvil-kernel-types` `build.rs` on the
    next build.
 3. **CI checks it** — `pnpm nx test flags-catalogue` validates the manifest
-   against the `groups` / `audiences` / `environments` inventories and the
-   JSON-key → Rust/TS naming map; `cargo test -p eddacraft-anvil-kernel-types`
-   confirms the generated Rust constants are byte-equal to the manifest. Between
-   them, manifest ↔ TS ↔ Rust can't drift.
+   against the `groups` / `audiences` / `environments` inventories, the JSON-key
+   → Rust/TS naming map, and bidirectional FLAGCAT-013 linkage;
+   `cargo test -p eddacraft-anvil-kernel-types` confirms the generated Rust
+   constants are byte-equal to the manifest. Between them, manifest ↔ TS ↔ Rust
+   can't drift.
 
 ## Classification Key
 

@@ -10,7 +10,9 @@
         "default",
         "^production",
         "{workspaceRoot}/flags/surfaces.json",
-        "{workspaceRoot}/flags/manifest.json"
+        "{workspaceRoot}/flags/manifest.json",
+        "{workspaceRoot}/scripts/docs/generate-product-catalogue.mjs",
+        "{workspaceRoot}/docs/guides/product-feature-catalogue.md"
       ]
     }
   }

@@ -4,20 +4,10 @@
   "sourceRoot": "crates/anvil-kernel-types/src",
   "targets": {
     "test": {
-      "inputs": [
-        "default",
-        "^default",
-        "{workspaceRoot}/flags/manifest.json",
-        "{workspaceRoot}/flags/surfaces.json"
-      ]
+      "inputs": ["default", "^default", "{workspaceRoot}/flags/manifest.json"]
     },
     "check": {
-      "inputs": [
-        "default",
-        "^default",
-        "{workspaceRoot}/flags/manifest.json",
-        "{workspaceRoot}/flags/surfaces.json"
-      ]
+      "inputs": ["default", "^default", "{workspaceRoot}/flags/manifest.json"]
     }
   }
 }

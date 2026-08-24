@@ -3232,6 +3232,20 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     let trace_context = traceparent.and_then(|raw| TraceContext::parse(raw).ok());
     let dispatch_span = jsonrpc_dispatch_span(method, is_notification, trace_context.as_ref());
 
+    // FLAGCAT-012: the governed registry is the daemon admission authority.
+    // Aliases keep their original spelling so parameter and error behaviour
+    // stay unchanged. Unknown methods never reach a handler arm.
+    if resolve_governed_method(method).is_none() {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            is_notification,
+            -32601,
+            "Method not found",
+            json!({"method": method}),
+        );
+    }
+
     // Mid-edit scan: dual-routed under DRVR-002.
     //
     // - `midedit::SCAN_BUFFER_METHOD` (`"scan_buffer"`): the legacy
@@ -5847,6 +5861,161 @@ mod tests {
             );
         }
         assert_eq!(resolve_governed_method("future.unregistered"), None);
+    }
+
+    #[test]
+    fn governed_registry_is_the_live_client_to_daemon_admission_set() {
+        let source = include_str!("ipc.rs");
+        let handle = slice_between(
+            source,
+            "async fn handle_jsonrpc_request",
+            "dispatch_session_jsonrpc(",
+        );
+        assert!(
+            handle.contains("resolve_governed_method(method).is_none()"),
+            "handle_jsonrpc_request must admit via the governed registry"
+        );
+        let subscribe = slice_between(
+            source,
+            "fn is_subscribe_telemetry_method",
+            "fn is_unsubscribe_telemetry_method",
+        );
+        let unsubscribe = slice_between(
+            source,
+            "fn is_unsubscribe_telemetry_method",
+            "pub const COMMAND_INVOKED_ALLOWLIST",
+        );
+        assert!(
+            subscribe.contains("resolve_governed_method")
+                && unsubscribe.contains("resolve_governed_method"),
+            "telemetry intercept must classify through the governed registry"
+        );
+
+        let command_arms =
+            slice_between(source, "fn command_from_jsonrpc", "_ => Err(JsonRpcFailure");
+        let consts = method_const_values();
+        let mut live = std::collections::BTreeSet::new();
+        live.extend(quoted_method_names(command_arms));
+        live.extend(resolved_const_names(command_arms, &consts));
+        live.extend(quoted_method_names(handle));
+        live.extend(resolved_const_names(handle, &consts));
+        live.extend(resolved_const_names(subscribe, &consts));
+        live.extend(resolved_const_names(unsubscribe, &consts));
+
+        let mut admitted = std::collections::BTreeSet::new();
+        for entry in CANONICAL_GOVERNED_METHODS {
+            admitted.insert(entry.method.to_owned());
+        }
+        for (alias, _) in DAEMON_METHOD_ALIASES {
+            admitted.insert((*alias).to_owned());
+        }
+
+        let extra: Vec<_> = live.difference(&admitted).cloned().collect();
+        assert!(
+            extra.is_empty(),
+            "dispatch mentions ungoverned client methods: {extra:?}"
+        );
+        for entry in CANONICAL_GOVERNED_METHODS {
+            assert!(
+                live.contains(entry.method),
+                "canonical method {} is not dispatched",
+                entry.method
+            );
+        }
+    }
+
+    fn slice_between<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
+        let from = source
+            .find(start)
+            .unwrap_or_else(|| panic!("missing {start}"));
+        let region = &source[from..];
+        let until = region
+            .find(end)
+            .unwrap_or_else(|| panic!("missing {end} after {start}"));
+        &region[..until]
+    }
+
+    fn quoted_method_names(source: &str) -> std::collections::BTreeSet<String> {
+        let mut names = std::collections::BTreeSet::new();
+        let bytes = source.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'"' {
+                i += 1;
+                let start = i;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    if bytes[i] == b'\\' {
+                        i = i.saturating_add(2);
+                        continue;
+                    }
+                    i += 1;
+                }
+                if i >= bytes.len() {
+                    break;
+                }
+                let literal = &source[start..i];
+                i += 1;
+                let rest = source[i..].trim_start();
+                if (rest.starts_with('|') || rest.starts_with("=>"))
+                    && !literal.is_empty()
+                    && !literal.contains(' ')
+                {
+                    names.insert(literal.to_owned());
+                }
+            } else {
+                i += 1;
+            }
+        }
+        names
+    }
+
+    fn method_const_values() -> std::collections::BTreeMap<&'static str, &'static str> {
+        use anvil_intercept_proto::protocol::*;
+        [
+            ("SESSION_LIST_METHOD", SESSION_LIST_METHOD),
+            ("SESSION_REGISTER_METHOD", SESSION_REGISTER_METHOD),
+            ("SESSION_HEARTBEAT_METHOD", SESSION_HEARTBEAT_METHOD),
+            ("SESSION_UNREGISTER_METHOD", SESSION_UNREGISTER_METHOD),
+            (
+                "SESSION_REPORT_PROCESS_METHOD",
+                SESSION_REPORT_PROCESS_METHOD,
+            ),
+            ("UNBLOCK_CASCADE_METHOD", UNBLOCK_CASCADE_METHOD),
+            ("UNBLOCK_WORKTREE_METHOD", UNBLOCK_WORKTREE_METHOD),
+            ("TELEMETRY_SUBSCRIBE_METHOD", TELEMETRY_SUBSCRIBE_METHOD),
+            ("TELEMETRY_UNSUBSCRIBE_METHOD", TELEMETRY_UNSUBSCRIBE_METHOD),
+            ("LEGACY_QUERY_STATUS_METHOD", LEGACY_QUERY_STATUS_METHOD),
+            ("QUERY_STATUS_METHOD", QUERY_STATUS_METHOD),
+            ("SCAN_BUFFER_METHOD", crate::midedit::SCAN_BUFFER_METHOD),
+            ("ANVIL_SCAN_BUFFER", ANVIL_SCAN_BUFFER),
+            ("ANVIL_STATUS_QUERY", ANVIL_STATUS_QUERY),
+            ("ANVIL_VALIDATE_PATHS", ANVIL_VALIDATE_PATHS),
+            ("ANVIL_WORKSPACE_STATUS", ANVIL_WORKSPACE_STATUS),
+            ("ANVIL_REQUEST_FULL_SCAN", ANVIL_REQUEST_FULL_SCAN),
+            ("ANVIL_WITNESS_APPEND", ANVIL_WITNESS_APPEND),
+            ("ANVIL_GCTX_SEARCH_SYMBOLS", ANVIL_GCTX_SEARCH_SYMBOLS),
+            ("ANVIL_GCTX_FIND_DEPENDENTS", ANVIL_GCTX_FIND_DEPENDENTS),
+            ("ANVIL_GCTX_FIND_CALLERS", ANVIL_GCTX_FIND_CALLERS),
+            ("ANVIL_GCTX_IMPACT_OF_CHANGE", ANVIL_GCTX_IMPACT_OF_CHANGE),
+            ("ANVIL_GCTX_AFFECTED_TESTS", ANVIL_GCTX_AFFECTED_TESTS),
+            ("ANVIL_GCTX_GRAPH_STATS", ANVIL_GCTX_GRAPH_STATS),
+            ("ANVIL_GCTX_GRAPH_EDGES", ANVIL_GCTX_GRAPH_EDGES),
+            ("ANVIL_GCTX_GET_SNIPPET", ANVIL_GCTX_GET_SNIPPET),
+            ("ANVIL_GCTX_SYMBOL_CONTEXT", ANVIL_GCTX_SYMBOL_CONTEXT),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    fn resolved_const_names(
+        source: &str,
+        consts: &std::collections::BTreeMap<&str, &str>,
+    ) -> std::collections::BTreeSet<String> {
+        consts
+            .iter()
+            .filter(|(ident, _)| source.contains(*ident))
+            .map(|(_, value)| (*value).to_owned())
+            .collect()
     }
 
     /// CLAWP-065 review regression: the oversized fast-path validator

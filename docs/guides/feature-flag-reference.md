@@ -1,8 +1,8 @@
 # Feature Flag Reference
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                      |
-| ----- | ------------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-24 against the v2 product catalogue, FLAGCAT-012 host completeness gates, canonical flag schemas, loader, and shared TypeScript resolver |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                           |
+| ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-25 against the v2 product catalogue, FLAGCAT-012 host completeness gates, FLAGCAT-013 linkage, canonical flag schemas, loader, and shared TypeScript resolver |
 
 | Upstream                                                                                                                                                                                                                       | Downstream                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
@@ -91,6 +91,7 @@ own the complete physical and logical contracts.
       "status": "draft", // start as draft
       "createdFor": "FLAGS-008", // APS work item ID
       "expiryOrReviewDate": "2026-07-01T00:00:00Z", // required for rollout class
+      "controlsProductFeatures": ["anvil-docs", "docs-shell"], // required; [] if none
       "targeting": [
         // optional — rules evaluated in order
         {
@@ -108,6 +109,10 @@ own the complete physical and logical contracts.
   ],
 }
 ```
+
+Linked catalogue features must list the same flag keys under `flagLinkage`. Omit
+no field: an empty `controlsProductFeatures` array is required when the flag
+does not control a product feature.
 
 ### 2. Validate
 
