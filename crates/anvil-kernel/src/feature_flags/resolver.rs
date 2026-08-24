@@ -413,6 +413,7 @@ mod tests {
             targeting: None,
             primary_group: None,
             tags: None,
+            controls_product_features: Vec::new(),
         }
     }
 

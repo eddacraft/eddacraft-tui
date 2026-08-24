@@ -65,6 +65,10 @@ describe('product catalogue compatibility reader', () => {
         owner: productCatalogueV1Migration[surface.key]?.owner,
         status: surface.status,
         requires: surface.requires,
+        flagLinkage: {
+          disposition: 'unflagged',
+          reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
+        },
         ...(surface.notes === undefined ? {} : { notes: surface.notes }),
       });
       expect(delivery, surface.key).toEqual({

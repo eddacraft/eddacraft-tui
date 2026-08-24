@@ -200,8 +200,30 @@ fn definition_expr(flag: &Value) -> String {
         }
     };
 
+    let controls_product_features = match flag
+        .get("controlsProductFeatures")
+        .and_then(|features| features.as_array())
+    {
+        None => "vec![]".to_owned(),
+        Some(items) => {
+            let parts: Vec<String> = items
+                .iter()
+                .map(|item| {
+                    format!(
+                        "{}.to_owned()",
+                        str_lit(
+                            item.as_str()
+                                .expect("controlsProductFeatures entry must be a string")
+                        )
+                    )
+                })
+                .collect();
+            format!("vec![{}]", parts.join(", "))
+        }
+    };
+
     format!(
-        "crate::FeatureFlagDefinition {{\n        key: {key}.to_owned(),\n        owner: {owner}.to_owned(),\n        intent: {intent}.to_owned(),\n        class: crate::FlagClass::{class},\n        value_type: crate::FlagValueType::{value_type},\n        variants: vec![{variants}],\n        default_variant: {default_variant}.to_owned(),\n        status: crate::FlagStatus::{status},\n        created_for: {created_for}.to_owned(),\n        expiry_or_review_date: {expiry},\n        description: {description},\n        targeting: {targeting},\n        primary_group: {primary_group},\n        tags: {tags},\n    }}",
+        "crate::FeatureFlagDefinition {{\n        key: {key}.to_owned(),\n        owner: {owner}.to_owned(),\n        intent: {intent}.to_owned(),\n        class: crate::FlagClass::{class},\n        value_type: crate::FlagValueType::{value_type},\n        variants: vec![{variants}],\n        default_variant: {default_variant}.to_owned(),\n        status: crate::FlagStatus::{status},\n        created_for: {created_for}.to_owned(),\n        expiry_or_review_date: {expiry},\n        description: {description},\n        targeting: {targeting},\n        primary_group: {primary_group},\n        tags: {tags},\n        controls_product_features: {controls_product_features},\n    }}",
         key = str_lit(get_str("key")),
         owner = str_lit(get_str("owner")),
         intent = str_lit(get_str("intent")),
@@ -216,6 +238,7 @@ fn definition_expr(flag: &Value) -> String {
         targeting = targeting,
         primary_group = opt_string_lit(flag.get("primaryGroup")),
         tags = tags,
+        controls_product_features = controls_product_features,
     )
 }
 

@@ -178,6 +178,10 @@ export const FeatureFlagDefinitionSchema = z
     // load; the full TS<->Rust<->JSON drift check is FLAGCAT-006.
     primaryGroup: z.string().min(1).optional(),
     tags: z.array(z.string().min(1)).optional(),
+    // FLAGCAT-013: product-feature keys this operational flag controls.
+    // Optional on the base definition so un-migrated literals still type-check;
+    // the flags-catalogue loader requires it on every manifest flag.
+    controlsProductFeatures: z.array(z.string().regex(FLAG_KEY_PATTERN)).optional(),
   })
   .check((ctx) => {
     const { class: flagClass, variants, defaultVariant, expiryOrReviewDate } = ctx.value;
@@ -207,6 +211,15 @@ export const FeatureFlagDefinitionSchema = z
         input: variants,
         message: 'Variant keys must be unique within a flag',
         path: ['variants'],
+      });
+    }
+    const controlledFeatures = ctx.value.controlsProductFeatures ?? [];
+    if (new Set(controlledFeatures).size !== controlledFeatures.length) {
+      ctx.issues.push({
+        code: 'custom',
+        input: controlledFeatures,
+        message: 'controlsProductFeatures keys must be unique within a flag',
+        path: ['controlsProductFeatures'],
       });
     }
     // Variant values must match the declared valueType
@@ -581,6 +594,33 @@ export const ProductFeatureGroupSchema = z
   .strict();
 export type ProductFeatureGroup = z.infer<typeof ProductFeatureGroupSchema>;
 
+export const ProductFeatureFlagLinkageSchema = z.discriminatedUnion('disposition', [
+  z
+    .object({
+      disposition: z.literal('linked'),
+      flagKeys: z.array(z.string().regex(FLAG_KEY_PATTERN)).min(1),
+    })
+    .strict()
+    .check((ctx) => {
+      const { flagKeys } = ctx.value;
+      if (new Set(flagKeys).size !== flagKeys.length) {
+        ctx.issues.push({
+          code: 'custom',
+          input: flagKeys,
+          message: 'Linked flag keys must be unique',
+          path: ['flagKeys'],
+        });
+      }
+    }),
+  z
+    .object({
+      disposition: z.literal('unflagged'),
+      reason: z.string().min(1),
+    })
+    .strict(),
+]);
+export type ProductFeatureFlagLinkage = z.infer<typeof ProductFeatureFlagLinkageSchema>;
+
 export const ProductFeatureSchema = z
   .object({
     key: z.string().regex(PRODUCT_KEY_PATTERN),
@@ -589,6 +629,7 @@ export const ProductFeatureSchema = z
     owner: z.string().regex(APS_MODULE_OWNER_PATTERN),
     status: ProductCatalogueLifecycleSchema,
     requires: z.array(z.string().regex(PRODUCT_KEY_PATTERN)),
+    flagLinkage: ProductFeatureFlagLinkageSchema,
     notes: z.string().min(1).optional(),
   })
   .strict();
@@ -1048,6 +1089,10 @@ export function normaliseProductCatalogueV1(
         owner: migration.owner,
         status: surface.status,
         requires: surface.requires,
+        flagLinkage: {
+          disposition: 'unflagged',
+          reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
+        },
         ...(surface.notes === undefined ? {} : { notes: surface.notes }),
       };
     }),

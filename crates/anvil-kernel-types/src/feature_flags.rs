@@ -179,6 +179,9 @@ pub struct FeatureFlagDefinition {
     pub primary_group: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
+    /// FLAGCAT-013: catalogue product-feature keys this operational flag controls.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub controls_product_features: Vec<String>,
 }
 
 // OPSUP-005: per-track feature-flag taxonomy (Track 3 governance surfaces and
@@ -361,10 +364,11 @@ mod tests {
             targeting: None,
             primary_group: None,
             tags: None,
+            controls_product_features: Vec::new(),
         }
     }
 
-    // OPSUP-005: a conformant per-track surface flag — opt-in (default
+    // OPSUP-005: a conformant per-track surface flag — opt-in (default)
     // disabled), sunset date set, resolves through the `track-surface` umbrella.
     fn valid_track_flag() -> FeatureFlagDefinition {
         FeatureFlagDefinition {
@@ -391,6 +395,7 @@ mod tests {
             targeting: None,
             primary_group: Some(TRACK_SURFACE_GROUP.into()),
             tags: None,
+            controls_product_features: Vec::new(),
         }
     }
 

@@ -837,7 +837,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-013: Link operational flags to catalogue features
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Make entitlement and rollout policy traceable to the product
   capability it controls.
 - **Expected Outcome:** Each operational flag declares the catalogue feature
@@ -848,6 +848,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **Files:** `flags/manifest.json`, `flags/surfaces.json`,
   `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`,
   `packages/anvil/flags-catalogue/`,
+  `crates/anvil-kernel-types/src/feature_flags.rs`,
   `crates/anvil-kernel-types/build.rs`
 - **Dependencies:** FLAGCAT-011.
 - **Validation:** `pnpm exec nx test flags-catalogue`;
@@ -856,7 +857,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-014: Generate human-readable feature catalogue views
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Give product and engineering readers a definitive feature and
   product-feature-group view without creating a shadow source of truth.
 - **Expected Outcome:** Repository tooling generates stable feature,
@@ -865,8 +866,9 @@ Status promoted Draft → **Ready** 2026-05-28.
   no separately maintained comprehensive list. ADR-076's dated seed appendix is
   replaced by, or links to, the generated view without becoming another
   maintained inventory.
-- **Files:** generator and generated documentation paths selected during
-  FLAGCAT-011; `docs/guides/feature-flag-inventory.md`;
+- **Files:** `scripts/docs/generate-product-catalogue.mjs`,
+  `docs/guides/product-feature-catalogue.md`,
+  `docs/guides/feature-flag-inventory.md`,
   `plans/decisions/076-feature-catalogue-surface-registry.md`
 - **Dependencies:** FLAGCAT-011, FLAGCAT-013.
 - **Validation:** `pnpm docs:check`; generator check mode exits zero with no

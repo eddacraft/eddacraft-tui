@@ -65,8 +65,9 @@ pnpm exec nx test flags-catalogue --skip-nx-cache
 
 The package exposes declared catalogue data; it does not derive host
 enforcement. FLAGCAT-012 ships host completeness checks in the owning host
-packages. FLAGCAT-013..015 own operational-flag linkage, generated
-human-readable views, and any approved product-tier mapping. Runtime cascade-off
+packages. FLAGCAT-013 records bidirectional operational-flag linkage.
+FLAGCAT-014 generates `docs/guides/product-feature-catalogue.md`. FLAGCAT-015
+remains responsible for any approved product-tier mapping. Runtime cascade-off
 and catalogue-derived availability enforcement remain out of scope.
 
 See

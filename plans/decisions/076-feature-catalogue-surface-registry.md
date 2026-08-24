@@ -358,44 +358,18 @@ enforcement until its projection is verified against the live resolver.
 
 This dated June 2026 first-draft granularity pass records the evidence and
 reasoning that shaped the decision. It is not a current or authoritative
-product-feature inventory; `flags/surfaces.json` owns that data. FLAGCAT-014
-must replace this comprehensive table with, or reduce it to a link to, the
-generated catalogue view.
+product-feature inventory; `flags/surfaces.json` owns that data. The current
+generated view is
+[`docs/guides/product-feature-catalogue.md`](../../docs/guides/product-feature-catalogue.md).
 
 The seed applied the granularity rule across the then-known 38 commands and
 subcommands. "Now" meant posture at that audit; "Class" meant the proposed
 *why-you-flag*. Most entries inherited their category default; only divergent
-entries declared an override.
+entries declared an override. Git history of this appendix retains the dated
+table; do not copy it forward as inventory.
 
-| Category | Feature | Now | Class / axis | Granularity note |
-|----------|---------|-----|--------------|------------------|
-| `governance` | `check`, `audit`, `gate`, `export` | licence-gated | Entitlement | one each |
-| `governance` | `drift` | licence-gated | Entitlement | merge snapshot/compare/report/list |
-| `governance` | `architecture` | licence-gated | Entitlement | merge validate/show |
-| `governance` | `policy` | licence-gated | Entitlement | one |
-| `governance` | `gate-config` | licence-gated (Admin) | Entitlement | split from `gate` (config vs run) |
-| `governance` | `baseline` | ungated | env | local state |
-| `governance` | `audit-chain`, `l4-validate`, `validate` | ungated | env | CI/local lanes |
-| `mcp` | `mcp.install` | licence-gated | Entitlement | — |
-| `mcp` | `mcp.serve` | **ungated** | capability + env | split stands on current divergence (ungated vs gated `install`), not a hypothetical edition |
-| `mcp` | `mcp.config` | licence-gated | Entitlement | — |
-| `dashboard` | `dashboard.aps` (`plan dashboard`) | **staff-gated** (CIB-046, catalogued) | Entitlement/staff | already a feature |
-| `dashboard` | `dashboard.architecture` / `dashboard.drift` / `dashboard.suppressions` | ungated | env | per-view; each `requires` its engine feature (RQ4) |
-| `dashboard` | `dashboard.saved` (`.dashboard.json` picker, incl. `gate-summary`) | ungated | env | saved-spec capability, separate from native views |
-| `save-time` | `watch` | licence-gated | Entitlement | daemon routing is a Rollout sub-behaviour |
-| `save-time` | `intercept` | ungated | env | merge start/status/unblock |
-| `hooks` | `hook` (git-invoked runners) | ungated | env | **system-invoked** — exempt from kill-switch refusal (refusal = broken commits) |
-| `hooks` | `hooks` (manage: install/uninstall/status) | ungated | env | merge subcommands |
-| `admin` | `admin.operations` | admin-key gated | Entitlement (admin) | — |
-| `foundational` | `admin.credential` (`admin auth`) | **ungated** | foundational | **recovery-critical** — `MUST_ALWAYS_BE_OPEN`; configures the key (RQ5) |
-| `tools` | `edda`, `capsule`, `insights` | ungated | env / Entitlement (later) | one each, user's own data |
-| `setup` | `init`, `start`, `welcome`, `new`, `wizard` | licence-gated | Entitlement | onboarding |
-| `foundational` | `auth` (login/logout/whoami/refresh) | ungated | env | **recovery-critical** — `MUST_ALWAYS_BE_OPEN` (can't refuse the thing that re-authenticates) |
-| `foundational` | `config`, `migrate`, `update`, `uninstall`, `doctor`, `version`, `licenses`, `tutorial`, `workspace` | ungated | env-only | base layer; `catalogued: false` candidate (open) |
-
-≈ 43 features across 9 categories (the per-view dashboard split adds a few) —
-roughly command-count, the signal that the granularity is honest. `requires`
-edges (e.g. each `dashboard.*` view → its engine feature) are **declared** in
+≈ 43 features across 9 categories was the honesty check at the time:
+command-count, not a second catalogue. `requires` edges remain declared in
 `flags/surfaces.json` and drive the static blast-radius/acyclicity check;
 runtime cascade-off is deferred. `MUST_ALWAYS_BE_OPEN` surfaces (`auth`,
 `admin.credential`) and `system`-invoked surfaces (`hook`) are categorical

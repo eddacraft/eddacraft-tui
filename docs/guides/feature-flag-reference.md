@@ -56,11 +56,13 @@ duplicates.
 
 Do not use `flagSurfaces()` for completeness, entitlement, or enforcement. Host
 completeness is FLAGCAT-012: live host projections must match the catalogue as
-two exact sets (product deliveries vs reviewed internal plumbing). Flag linkage,
-generated views, tier mapping, and runtime enforcement remain later FLAGCAT
-work. The `productCatalogue()` accessor and `flags/surfaces.json` remain
-canonical v2 truth. The frozen v1 fixture is authoritative only for the exact
-deprecated `flagSurfaces()` response during the compatibility window. The
+two exact sets (product deliveries vs reviewed internal plumbing). Flag linkage
+is FLAGCAT-013. Generated views live at
+[product-feature-catalogue.md](./product-feature-catalogue.md). Tier mapping and
+runtime enforcement remain later FLAGCAT work. The `productCatalogue()` accessor
+and `flags/surfaces.json` remain canonical v2 truth. The frozen v1 fixture is
+authoritative only for the exact deprecated `flagSurfaces()` response during the
+compatibility window. The
 [host-completeness contract](../../plans/specs/2026-08-23-product-catalogue-host-completeness.md),
 [v2 schema design](../../plans/specs/2026-08-23-product-catalogue-v2-schema.md)
 and [ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md)

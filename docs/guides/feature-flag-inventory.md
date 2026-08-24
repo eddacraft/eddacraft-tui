@@ -45,10 +45,11 @@ authority. Those concerns remain canonical in `flags/surfaces.json` through
 `productCatalogue()`.
 
 FLAGCAT-012 ships host completeness checks against live CLI, MCP, API, daemon,
-dashboard, docs, hook, and integration registries. FLAGCAT-013..015 remain
-responsible for operational-flag linkage, generated human-readable views, and
-any approved product-tier mapping. FLAGCAT-011 does not add runtime cascade-off
-or catalogue-derived host enforcement. See
+dashboard, docs, hook, and integration registries. FLAGCAT-013 links operational
+flags to product features. The generated feature view is
+[product-feature-catalogue.md](./product-feature-catalogue.md). FLAGCAT-015
+remains responsible for any approved product-tier mapping. FLAGCAT-011 does not
+add runtime cascade-off or catalogue-derived host enforcement. See
 [ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md), the
 [host-completeness contract](../../plans/specs/2026-08-23-product-catalogue-host-completeness.md),
 and the

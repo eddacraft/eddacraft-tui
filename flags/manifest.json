@@ -8,13 +8,20 @@
       "class": "entitlement",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "FLAGM-005",
-      "primaryGroup": "api"
+      "primaryGroup": "api",
+      "controlsProductFeatures": []
     },
     {
       "key": "api.scope.internal",
@@ -23,13 +30,20 @@
       "class": "entitlement",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "FLAGM-005",
-      "primaryGroup": "api"
+      "primaryGroup": "api",
+      "controlsProductFeatures": []
     },
     {
       "key": "api.scope.preview",
@@ -38,13 +52,20 @@
       "class": "entitlement",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "FLAGM-005",
-      "primaryGroup": "api"
+      "primaryGroup": "api",
+      "controlsProductFeatures": []
     },
     {
       "key": "cli.licence-gate",
@@ -53,14 +74,42 @@
       "class": "entitlement",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "FLAGS-008",
       "description": "Controls access to licence-gated CLI commands",
-      "primaryGroup": "cli"
+      "primaryGroup": "cli",
+      "controlsProductFeatures": [
+        "architecture",
+        "audit",
+        "auth",
+        "check",
+        "drift",
+        "ensure",
+        "export",
+        "gate",
+        "gate-config",
+        "init",
+        "mcp.config",
+        "mcp.install",
+        "mcp.pin",
+        "new",
+        "policy",
+        "skill",
+        "start",
+        "status",
+        "watch",
+        "wizard"
+      ]
     },
     {
       "key": "daemon.persist-graph",
@@ -69,15 +118,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "GV2-030",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
-      "description": "Default-on (graduated by GBASE-010 after the ADR-105 §11 shared-base graduation gate; see plans/audits/2026-07-12-gbase-graduation-gate.md). Absence of the variable means enabled; explicit opt-out (rollback) via ANVIL_PERSIST_GRAPH=0. The shared write-once base + overlay layout (ADR-105) replaced the O(worktrees) layout that had blocked default-on.",
-      "primaryGroup": "daemon"
+      "description": "Default-on (graduated by GBASE-010 after the ADR-105 \u00a711 shared-base graduation gate; see plans/audits/2026-07-12-gbase-graduation-gate.md). Absence of the variable means enabled; explicit opt-out (rollback) via ANVIL_PERSIST_GRAPH=0. The shared write-once base + overlay layout (ADR-105) replaced the O(worktrees) layout that had blocked default-on.",
+      "primaryGroup": "daemon",
+      "controlsProductFeatures": ["intercept"]
     },
     {
       "key": "dashboard.web",
@@ -86,15 +142,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "disabled",
       "status": "active",
       "createdFor": "DASH-012",
       "expiryOrReviewDate": "2026-10-31T00:00:00Z",
       "description": "Default-off for the v0.10.0-beta cut after live UX review found the surface foundations-ready but not release-default. Opt in with ANVIL_DASHBOARD_WEB=1 (or ANVIL_DEV=1). Terminal `anvil dashboard` TUI surfaces stay independent of this flag.",
-      "primaryGroup": "dashboard"
+      "primaryGroup": "dashboard",
+      "controlsProductFeatures": ["dashboard.web"]
     },
     {
       "key": "docs.access",
@@ -103,8 +166,14 @@
       "class": "entitlement",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "disabled",
       "status": "active",
@@ -121,7 +190,8 @@
           "variant": "enabled"
         }
       ],
-      "primaryGroup": "docs"
+      "primaryGroup": "docs",
+      "controlsProductFeatures": ["anvil-docs", "docs-shell"]
     },
     {
       "key": "gctx.egress",
@@ -130,31 +200,45 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "disabled",
       "status": "active",
       "createdFor": "GCTX-001",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Default-off (PV-9 CE-1): identity-only graph context is always on; source-text snippets ride only when this flag is enabled AND the request asserts include_source. Operator opt-in via ANVIL_GCTX_EGRESS=1; ANVIL_GCTX_EGRESS=0 is the kill-switch that disables all GCTX egress.",
-      "primaryGroup": "daemon"
+      "primaryGroup": "daemon",
+      "controlsProductFeatures": ["gctx.snippets", "gctx-control"]
     },
     {
       "key": "gv2.reverse-impact-depth",
       "owner": "GV2",
-      "intent": "Save-time reverse-impact closure hop depth (env ANVIL_REVERSE_IMPACT_DEPTH): 1 hop by default, hard-capped at 2; an over-cap setting is clamped, not honoured (ADR-063 §3)",
+      "intent": "Save-time reverse-impact closure hop depth (env ANVIL_REVERSE_IMPACT_DEPTH): 1 hop by default, hard-capped at 2; an over-cap setting is clamped, not honoured (ADR-063 \u00a73)",
       "class": "entitlement",
       "valueType": "number",
       "variants": [
-        { "key": "one-hop", "value": 1 },
-        { "key": "two-hop", "value": 2 }
+        {
+          "key": "one-hop",
+          "value": 1
+        },
+        {
+          "key": "two-hop",
+          "value": 2
+        }
       ],
       "defaultVariant": "one-hop",
       "status": "active",
       "createdFor": "GV2-026",
-      "description": "Runtime lever for the daemon save-time certify reverse-impact depth. Default 1 hop (the ADR-061 §6 certifiability closure); the latency-coverage trade can move 1 to 2 hops without re-coding via the ANVIL_REVERSE_IMPACT_DEPTH env var. Hard-capped at MAX_REVERSE_IMPACT_DEPTH (2): an over-cap value is clamped, not honoured.",
-      "primaryGroup": "gv2"
+      "description": "Runtime lever for the daemon save-time certify reverse-impact depth. Default 1 hop (the ADR-061 \u00a76 certifiability closure); the latency-coverage trade can move 1 to 2 hops without re-coding via the ANVIL_REVERSE_IMPACT_DEPTH env var. Hard-capped at MAX_REVERSE_IMPACT_DEPTH (2): an over-cap value is clamped, not honoured.",
+      "primaryGroup": "gv2",
+      "controlsProductFeatures": ["impact"]
     },
     {
       "key": "kindling.embedded-runtime",
@@ -163,15 +247,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "disabled",
       "status": "active",
       "createdFor": "KFIT-006",
       "expiryOrReviewDate": "2026-10-31T00:00:00Z",
       "description": "Default-off precursor for KFIT-006. The normal release build excludes the optional kindling-runtime dependency; feature-enabled development builds still require the explicit ANVIL_KINDLING_EMBEDDED_RUNTIME=1 opt-in. Promote only after KFIT-005 publishes the approved runtime version and clean-host lifecycle validation passes.",
-      "primaryGroup": "daemon"
+      "primaryGroup": "daemon",
+      "controlsProductFeatures": ["kindling"]
     },
     {
       "key": "track.pack",
@@ -180,15 +271,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "disabled",
       "status": "active",
       "createdFor": "OPSUP-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Per-track flag taxonomy (OPSUP-005). Disables noisy Track 4 packs without rolling back the release. Ships opt-in for one release, then the default flips on; per-pack leaf overrides (e.g. track.pack.pulumi) are added by the owning pack module and inherit this umbrella.",
-      "primaryGroup": "track-pack"
+      "primaryGroup": "track-pack",
+      "controlsProductFeatures": []
     },
     {
       "key": "track.surface",
@@ -197,15 +295,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "OPSUP-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Per-track flag taxonomy (OPSUP-005). Gates Track 3 governance surfaces; per-surface leaf overrides (e.g. track.surface.sql) inherit this umbrella. Graduated to default-on after the v0.8.1-beta clean release, now that all Track 3 surfaces (SQL/GHA/Dockerfile/shell) validate at <1% FP (plans/reviews/2026-06-18-surface-validation.md).",
-      "primaryGroup": "track-surface"
+      "primaryGroup": "track-surface",
+      "controlsProductFeatures": []
     },
     {
       "key": "track.surface.dock",
@@ -214,15 +319,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFDOCK-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFDOCK-006 validation PASS on a real external Dockerfile corpus). ANVIL_TRACK_SURFACE_DOCK=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
-      "primaryGroup": "track-surface"
+      "primaryGroup": "track-surface",
+      "controlsProductFeatures": []
     },
     {
       "key": "track.surface.gha",
@@ -231,15 +343,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFGHA-006",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFGHA-007 validation PASS, 0% FP with external true positives). ANVIL_TRACK_SURFACE_GHA=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
-      "primaryGroup": "track-surface"
+      "primaryGroup": "track-surface",
+      "controlsProductFeatures": []
     },
     {
       "key": "track.surface.sh",
@@ -248,15 +367,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFSH-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFSH-006 validation PASS, 0% FP). ANVIL_TRACK_SURFACE_SH=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
-      "primaryGroup": "track-surface"
+      "primaryGroup": "track-surface",
+      "controlsProductFeatures": []
     },
     {
       "key": "track.surface.sql",
@@ -265,15 +391,22 @@
       "class": "rollout",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFSQL-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFSQL-007 validation PASS after SURFSQL-008 schema-dump scoping + SURFSQL-006 drift baseline). ANVIL_TRACK_SURFACE_SQL=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
-      "primaryGroup": "track-surface"
+      "primaryGroup": "track-surface",
+      "controlsProductFeatures": []
     },
     {
       "key": "tui-dashboard.aps-dashboard",
@@ -282,14 +415,21 @@
       "class": "entitlement",
       "valueType": "boolean",
       "variants": [
-        { "key": "enabled", "value": true },
-        { "key": "disabled", "value": false }
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
       ],
       "defaultVariant": "disabled",
       "status": "active",
       "createdFor": "CIB-046",
       "description": "Internal-developer access to the terminal APS dashboard; default-disabled, opened via ANVIL_DEV local override or ANVIL_ADMIN_KEY",
-      "primaryGroup": "tui-dashboard"
+      "primaryGroup": "tui-dashboard",
+      "controlsProductFeatures": ["dashboard.aps"]
     }
   ]
 }

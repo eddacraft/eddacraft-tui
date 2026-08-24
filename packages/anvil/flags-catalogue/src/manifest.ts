@@ -114,6 +114,11 @@ function assertCrossInventoryIntegrity(): void {
   const groupIds = new Set(GROUPS.groups.map((g) => g.id));
   const audienceIds = new Set(AUDIENCES.audiences.map((a) => a.id));
 
+  const featureByKey = new Map(
+    PRODUCT_CATALOGUE.productFeatures.map((feature) => [feature.key, feature])
+  );
+  const flagsByFeature = new Map<string, string[]>();
+
   for (const flag of MANIFEST.flags) {
     if (flag.primaryGroup === undefined) {
       throw new Error(
@@ -125,6 +130,21 @@ function assertCrossInventoryIntegrity(): void {
         `[anvil-flags-catalogue] flag "${flag.key}" references unknown primaryGroup "${flag.primaryGroup}"`
       );
     }
+    if (flag.controlsProductFeatures === undefined) {
+      throw new Error(
+        `[anvil-flags-catalogue] flag "${flag.key}" is missing required controlsProductFeatures`
+      );
+    }
+    for (const featureKey of flag.controlsProductFeatures) {
+      if (!featureByKey.has(featureKey)) {
+        throw new Error(
+          `[anvil-flags-catalogue] flag "${flag.key}" controls unknown product feature "${featureKey}"`
+        );
+      }
+      const owners = flagsByFeature.get(featureKey) ?? [];
+      owners.push(flag.key);
+      flagsByFeature.set(featureKey, owners);
+    }
   }
 
   for (const group of GROUPS.groups) {
@@ -134,6 +154,23 @@ function assertCrossInventoryIntegrity(): void {
           `[anvil-flags-catalogue] group "${group.id}" references unknown defaultAudience "${audience}"`
         );
       }
+    }
+  }
+
+  for (const feature of PRODUCT_CATALOGUE.productFeatures) {
+    const linkedFlagKeys = flagsByFeature.get(feature.key) ?? [];
+    if (feature.flagLinkage.disposition === 'linked') {
+      const declared = [...feature.flagLinkage.flagKeys].sort();
+      const actual = [...linkedFlagKeys].sort();
+      if (declared.join('\0') !== actual.join('\0')) {
+        throw new Error(
+          `[anvil-flags-catalogue] product feature "${feature.key}" linked flags [${declared.join(', ')}] must match operational flags that control it [${actual.join(', ')}]`
+        );
+      }
+    } else if (linkedFlagKeys.length > 0) {
+      throw new Error(
+        `[anvil-flags-catalogue] product feature "${feature.key}" is unflagged but controlled by ${linkedFlagKeys.join(', ')}`
+      );
     }
   }
 

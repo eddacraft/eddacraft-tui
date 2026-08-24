@@ -78,9 +78,10 @@ each shipping host exposes a deterministic projection, and CI compares product
 deliveries and reviewed internal plumbing as separate exact sets against
 `flags/surfaces.json`. See the
 [host-completeness contract](../../plans/specs/2026-08-23-product-catalogue-host-completeness.md).
-FLAGCAT-013..015 own operational-flag linkage, generated views, and any approved
-product-tier mapping. Runtime cascade-off and catalogue-derived host enforcement
-remain out of scope. See the
+FLAGCAT-013 records bidirectional operational-flag linkage. FLAGCAT-014
+generates [product-feature-catalogue.md](./product-feature-catalogue.md).
+FLAGCAT-015 remains responsible for any approved product-tier mapping. Runtime
+cascade-off and catalogue-derived host enforcement remain out of scope. See the
 [v2 physical schema](../../plans/specs/2026-08-23-product-catalogue-v2-schema.md)
 for the complete field and migration contract.
 

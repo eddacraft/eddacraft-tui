@@ -76,6 +76,10 @@ function validProductCatalogue(overrides: Record<string, unknown> = {}) {
         owner: 'CLI',
         status: 'active',
         requires: [],
+        flagLinkage: {
+          disposition: 'unflagged',
+          reason: 'Fixture has no operational flag',
+        },
       },
     ],
     deliverySurfaces: [
@@ -426,6 +430,10 @@ describe('normaliseProductCatalogueV1', () => {
         owner: 'CLI',
         status: 'active',
         requires: ['config'],
+        flagLinkage: {
+          disposition: 'unflagged',
+          reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
+        },
         notes: 'Legacy note',
       },
       {
@@ -435,6 +443,10 @@ describe('normaliseProductCatalogueV1', () => {
         owner: 'CLI',
         status: 'active',
         requires: [],
+        flagLinkage: {
+          disposition: 'unflagged',
+          reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
+        },
       },
     ]);
     expect(normalised.deliverySurfaces[0]).toEqual({

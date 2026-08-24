@@ -39,17 +39,17 @@ failures=0
 pass() { printf '  ok: %s\n' "$1"; }
 fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
 
-# Case 1: orchestrator surfaces the thirteen expected labels in summary order.
-echo "case 1: orchestrator emits all thirteen surface labels"
+# Case 1: orchestrator surfaces the fourteen expected labels in summary order.
+echo "case 1: orchestrator emits all fourteen surface labels"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-for surface in metadata tags links public-docs public-diagrams diagram-impact aps adr index-freshness asbuilt-paths docs-owed release-plan retired-claims; do
+for surface in metadata tags links public-docs public-diagrams diagram-impact aps adr index-freshness asbuilt-paths docs-owed release-plan retired-claims product-catalogue; do
   if ! grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+${surface}$" <<<"${out}"; then
     fail "summary missing surface: ${surface}"
     break
   fi
 done
-if grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+retired-claims$" <<<"${out}"; then
-  pass "all thirteen surfaces present in summary"
+if grep -qE "^  (pass|FAIL|ERROR \(tooling\))[[:space:]]+product-catalogue$" <<<"${out}"; then
+  pass "all fourteen surfaces present in summary"
 fi
 
 # Case 2: index-freshness and asbuilt-paths real surfaces both run cleanly.
@@ -80,7 +80,7 @@ fi
 echo "case 3: baseline file absorbs current errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
 if echo "${out}" | grep -qE "^\[docs-check\] 13/13 surfaces passed"; then
-  pass "live repo passes all thirteen surfaces under baseline"
+  pass "live repo passes all fourteen surfaces under baseline"
 else
   fail "live repo expected 13/13 passed; got tail: $(echo "${out}" | tail -3)"
 fi

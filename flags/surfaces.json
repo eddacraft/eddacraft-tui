@@ -70,7 +70,11 @@
       "groupKey": "governance",
       "owner": "RCLI2",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "audit",
@@ -78,7 +82,11 @@
       "groupKey": "governance",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "gate",
@@ -86,7 +94,11 @@
       "groupKey": "governance",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "gate-config",
@@ -94,7 +106,11 @@
       "groupKey": "governance",
       "owner": "RCLI2",
       "status": "active",
-      "requires": ["gate"]
+      "requires": ["gate"],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "drift",
@@ -102,7 +118,11 @@
       "groupKey": "governance",
       "owner": "DRIFT",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "architecture",
@@ -110,7 +130,11 @@
       "groupKey": "governance",
       "owner": "ARCH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "policy",
@@ -118,7 +142,11 @@
       "groupKey": "governance",
       "owner": "POLENG",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "export",
@@ -126,7 +154,11 @@
       "groupKey": "governance",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "baseline",
@@ -134,7 +166,11 @@
       "groupKey": "governance",
       "owner": "MLP2",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "audit-chain",
@@ -142,7 +178,11 @@
       "groupKey": "governance",
       "owner": "MLP",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "l4-validate",
@@ -150,7 +190,11 @@
       "groupKey": "governance",
       "owner": "MLP2",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "validate",
@@ -158,7 +202,11 @@
       "groupKey": "governance",
       "owner": "RCLI3",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "mcp.install",
@@ -166,7 +214,11 @@
       "groupKey": "mcp",
       "owner": "MCPX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "mcp.serve",
@@ -174,7 +226,11 @@
       "groupKey": "mcp",
       "owner": "RMCPF",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "mcp.config",
@@ -182,7 +238,11 @@
       "groupKey": "mcp",
       "owner": "MCPX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "dashboard.aps",
@@ -190,7 +250,11 @@
       "groupKey": "dashboard",
       "owner": "CIB",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["tui-dashboard.aps-dashboard"]
+      }
     },
     {
       "key": "dashboard.architecture",
@@ -198,7 +262,11 @@
       "groupKey": "dashboard",
       "owner": "TDASH",
       "status": "active",
-      "requires": ["architecture"]
+      "requires": ["architecture"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.drift",
@@ -206,7 +274,11 @@
       "groupKey": "dashboard",
       "owner": "TDASH",
       "status": "active",
-      "requires": ["drift"]
+      "requires": ["drift"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.suppressions",
@@ -214,7 +286,11 @@
       "groupKey": "dashboard",
       "owner": "TDASH",
       "status": "active",
-      "requires": ["policy"]
+      "requires": ["policy"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.saved",
@@ -222,7 +298,11 @@
       "groupKey": "dashboard",
       "owner": "TDASH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "watch",
@@ -230,7 +310,11 @@
       "groupKey": "save-time",
       "owner": "DSV",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "intercept",
@@ -238,7 +322,11 @@
       "groupKey": "save-time",
       "owner": "INTD",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["daemon.persist-graph"]
+      }
     },
     {
       "key": "hook",
@@ -246,7 +334,11 @@
       "groupKey": "hooks",
       "owner": "GHOOK",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "hooks",
@@ -254,7 +346,11 @@
       "groupKey": "hooks",
       "owner": "GHOOK",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "admin.operations",
@@ -262,7 +358,11 @@
       "groupKey": "admin",
       "owner": "ADMINCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "edda",
@@ -270,7 +370,11 @@
       "groupKey": "tools",
       "owner": "EDDA",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "capsule",
@@ -278,7 +382,11 @@
       "groupKey": "tools",
       "owner": "GITGOV",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "insights",
@@ -286,7 +394,11 @@
       "groupKey": "tools",
       "owner": "INSIGHTS",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "kindling",
@@ -294,7 +406,11 @@
       "groupKey": "tools",
       "owner": "KFIT",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["kindling.embedded-runtime"]
+      }
     },
     {
       "key": "init",
@@ -302,7 +418,11 @@
       "groupKey": "setup",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "ensure",
@@ -310,7 +430,11 @@
       "groupKey": "setup",
       "owner": "ONSW",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "start",
@@ -318,7 +442,11 @@
       "groupKey": "setup",
       "owner": "LAUNCH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "welcome",
@@ -326,7 +454,11 @@
       "groupKey": "setup",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "new",
@@ -334,7 +466,11 @@
       "groupKey": "setup",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "wizard",
@@ -342,7 +478,11 @@
       "groupKey": "setup",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "admin.credential",
@@ -350,7 +490,11 @@
       "groupKey": "foundational",
       "owner": "ADMINCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "auth",
@@ -358,7 +502,11 @@
       "groupKey": "foundational",
       "owner": "GHCLIAUTH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "config",
@@ -366,7 +514,11 @@
       "groupKey": "foundational",
       "owner": "WATCHUX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "migrate",
@@ -374,7 +526,11 @@
       "groupKey": "foundational",
       "owner": "UCFG",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "update",
@@ -382,7 +538,11 @@
       "groupKey": "foundational",
       "owner": "DISTRIB",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "uninstall",
@@ -390,7 +550,11 @@
       "groupKey": "foundational",
       "owner": "ADOPT",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "doctor",
@@ -398,7 +562,11 @@
       "groupKey": "foundational",
       "owner": "RCLI",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "version",
@@ -406,7 +574,11 @@
       "groupKey": "foundational",
       "owner": "DISTRIB",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "licenses",
@@ -414,7 +586,11 @@
       "groupKey": "foundational",
       "owner": "RUSTNX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "tutorial",
@@ -422,7 +598,11 @@
       "groupKey": "foundational",
       "owner": "TUTOR",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "workspace",
@@ -430,7 +610,11 @@
       "groupKey": "foundational",
       "owner": "INTD",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "report-fp",
@@ -438,7 +622,11 @@
       "groupKey": "governance",
       "owner": "OPSUP",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "ember",
@@ -446,7 +634,11 @@
       "groupKey": "tools",
       "owner": "EDDA",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "exception",
@@ -454,7 +646,11 @@
       "groupKey": "governance",
       "owner": "POLENG",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "status",
@@ -462,7 +658,11 @@
       "groupKey": "foundational",
       "owner": "ADTRUST",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "impact",
@@ -470,7 +670,11 @@
       "groupKey": "governance",
       "owner": "IMPV",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["gv2.reverse-impact-depth"]
+      }
     },
     {
       "key": "telemetry",
@@ -478,7 +682,11 @@
       "groupKey": "foundational",
       "owner": "FLEET",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "lsp",
@@ -486,7 +694,11 @@
       "groupKey": "save-time",
       "owner": "RTAI",
       "status": "active",
-      "requires": ["watch"]
+      "requires": ["watch"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "skill",
@@ -494,7 +706,11 @@
       "groupKey": "setup",
       "owner": "SKPKG",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "gctx-control",
@@ -502,7 +718,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["gctx.egress"]
+      }
     },
     {
       "key": "mcp.pin",
@@ -510,7 +730,11 @@
       "groupKey": "mcp",
       "owner": "MCPLH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      }
     },
     {
       "key": "dashboard.web",
@@ -518,7 +742,11 @@
       "groupKey": "dashboard",
       "owner": "DASH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["dashboard.web"]
+      }
     },
     {
       "key": "waitlist",
@@ -526,7 +754,11 @@
       "groupKey": "setup",
       "owner": "BAUTH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "account-activity",
@@ -534,7 +766,11 @@
       "groupKey": "foundational",
       "owner": "BACT",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "mcp.apply-patch",
@@ -542,7 +778,11 @@
       "groupKey": "governance",
       "owner": "RMCPF",
       "status": "active",
-      "requires": ["check"]
+      "requires": ["check"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "mcp.fix",
@@ -550,7 +790,11 @@
       "groupKey": "governance",
       "owner": "RMCPF",
       "status": "active",
-      "requires": ["check"]
+      "requires": ["check"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.search-symbols",
@@ -558,7 +802,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.find-dependents",
@@ -566,7 +814,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.find-callers",
@@ -574,7 +826,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.impact-of-change",
@@ -582,7 +838,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.affected-tests",
@@ -590,7 +850,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.symbol-context",
@@ -598,7 +862,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.graph-edges",
@@ -606,7 +874,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.graph-stats",
@@ -614,7 +886,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "gctx.snippets",
@@ -622,7 +898,11 @@
       "groupKey": "mcp",
       "owner": "GCTX",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["gctx.egress"]
+      }
     },
     {
       "key": "anvil-docs",
@@ -630,7 +910,11 @@
       "groupKey": "documentation",
       "owner": "DOCSAUTH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["docs.access"]
+      }
     },
     {
       "key": "docs-shell",
@@ -638,7 +922,11 @@
       "groupKey": "documentation",
       "owner": "DOCSAUTH",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["docs.access"]
+      }
     },
     {
       "key": "aps-docs",
@@ -646,7 +934,11 @@
       "groupKey": "documentation",
       "owner": "DOCS",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "blog",
@@ -654,7 +946,11 @@
       "groupKey": "documentation",
       "owner": "DOCS",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.protection",
@@ -662,7 +958,11 @@
       "groupKey": "dashboard",
       "owner": "DASH",
       "status": "active",
-      "requires": ["dashboard.web"]
+      "requires": ["dashboard.web"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.gates",
@@ -670,7 +970,11 @@
       "groupKey": "dashboard",
       "owner": "DASH",
       "status": "active",
-      "requires": ["dashboard.web"]
+      "requires": ["dashboard.web"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.warnings",
@@ -678,7 +982,11 @@
       "groupKey": "dashboard",
       "owner": "DASH",
       "status": "active",
-      "requires": ["dashboard.web"]
+      "requires": ["dashboard.web"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.plans",
@@ -686,7 +994,11 @@
       "groupKey": "dashboard",
       "owner": "DASH",
       "status": "active",
-      "requires": ["dashboard.web"]
+      "requires": ["dashboard.web"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     },
     {
       "key": "dashboard.api-contract",
@@ -694,7 +1006,11 @@
       "groupKey": "dashboard",
       "owner": "DASH",
       "status": "active",
-      "requires": ["dashboard.web"]
+      "requires": ["dashboard.web"],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      }
     }
   ],
   "deliverySurfaces": [
