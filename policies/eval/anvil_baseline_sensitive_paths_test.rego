@@ -11,3 +11,15 @@ test_workflow_change_warns if {
 test_ordinary_change_is_clean if {
 	count(p.findings) == 0 with input as {"diff": {"changed_files": ["src/app.rs"]}}
 }
+
+test_env_file_warns if {
+	count(p.findings) == 1 with input as {"diff": {"changed_files": [".env"]}}
+}
+
+test_heuristic_token_warns if {
+	count(p.findings) == 1 with input as {"diff": {"changed_files": ["src/api-token.rs"]}}
+}
+
+test_precise_match_is_not_double_counted if {
+	count(p.findings) == 1 with input as {"diff": {"changed_files": [".github/workflows/secret.yml"]}}
+}
