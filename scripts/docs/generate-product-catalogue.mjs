@@ -3,8 +3,10 @@
 // flags/surfaces.json and flags/manifest.json. The generated markdown is a
 // view, never a second source of truth.
 
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
@@ -161,7 +163,24 @@ function render() {
   return `${lines.join('\n')}\n`;
 }
 
-const generated = render();
+function formatMarkdown(content) {
+  const directory = mkdtempSync(join(tmpdir(), 'product-catalogue-'));
+  const file = join(directory, 'product-feature-catalogue.md');
+  writeFileSync(file, content);
+  const result = spawnSync('pnpm', ['exec', 'oxfmt', '--write', file], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    rmSync(directory, { recursive: true, force: true });
+    throw new Error((result.stderr || result.stdout || 'oxfmt failed').trim());
+  }
+  const formatted = readFileSync(file, 'utf8');
+  rmSync(directory, { recursive: true, force: true });
+  return formatted;
+}
+
+const generated = formatMarkdown(render());
 if (CHECK) {
   let current = '';
   try {
