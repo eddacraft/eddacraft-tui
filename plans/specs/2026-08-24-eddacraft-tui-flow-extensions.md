@@ -59,9 +59,10 @@ Wave 3:             TUIN-020 elision portals (needs 016)
 
 ### Spotlight cone (TUIN-015)
 
-`flow::spotlight(&mut Flow, node_id, Spotlight::{Upstream, Downstream, Both})`
-walks edges, mutes the complement, and animates the remaining edges. Tests
-cover a small DAG snapshot and an unknown-id no-op.
+`flow::spotlight(&mut Flow, node_id, Spotlight::{Upstream, Downstream, Both}, theme)`
+walks edges, mutes the complement, and animates the remaining edges using
+the caller’s `Theme`. Tests cover a small DAG snapshot and an unknown-id
+no-op.
 
 ### Preserve view + fit-then-read (TUIN-016)
 

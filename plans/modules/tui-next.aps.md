@@ -841,9 +841,10 @@ a subcommand and `--config` path handoff.
 - **Intent:** Give consumers a one-call “what does this node touch?” lens
   inside the `flow` wrapper so impact and APS do not each walk edges and
   restyle by hand.
-- **Expected Outcome:** `flow::spotlight(&mut Flow, node_id, Spotlight::{Upstream, Downstream, Both})`
-  mutes the complement, accents the cone, and animates remaining edges.
-  Unknown ids are a no-op. Graded experimental. No new Cargo feature.
+- **Expected Outcome:** `flow::spotlight(&mut Flow, node_id, Spotlight::{Upstream, Downstream, Both}, theme)`
+  mutes the complement, accents the cone, and animates remaining edges
+  using the caller’s `Theme`. Unknown ids are a no-op. Graded experimental.
+  No new Cargo feature.
 - **Files:** `crates/eddacraft-tui/src/flow/`
 - **Dependencies:** TUIN-014 (Done)
 - **Validation:** `cargo test -p eddacraft-tui --features flow` (DAG snapshot
@@ -940,9 +941,10 @@ a subcommand and `--config` path handoff.
   consumer degrading the whole surface past its own node budget.
 - **Expected Outcome:** Caller supplies `max_visible` (library-owned; not
   Anvil impact's `MAX_RENDERABLE_NODES`). Over-budget clusters collapse to
-  a portal (`… N crates`). `ElidedGraph` retains `portal_id` and collapsed
-  members; `elide_from_edges_keeping` expands them in place. Camera via
-  TUIN-016.
+  a portal whose display label is `… N crates` and whose id is a reserved
+  `\u{241F}flow-portal:…` namespace. Unknown `always_keep` ids are ignored.
+  `ElidedGraph` retains `portal_id` and collapsed members;
+  `elide_from_edges_keeping` expands them in place. Camera via TUIN-016.
 - **Files:** `crates/eddacraft-tui/src/flow/`
 - **Dependencies:** TUIN-016
 - **Validation:** `cargo test -p eddacraft-tui --features flow` (collapse
