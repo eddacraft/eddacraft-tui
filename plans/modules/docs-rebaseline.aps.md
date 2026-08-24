@@ -5,11 +5,11 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | In Progress | 10/11 |
+| DOCRB | — | high | Done | 11/11 |
 
-**Last reviewed:** 2026-08-23 against DOCRB-009 rebase-merge receipt
-`93f543e671b0ddcf4ec0481eaf1539a3006a9f82`, DOCRB-008 rebase-merge
-receipt `182d77b6329f460f4635e3e946b329ff9af84445`, the repository
+**Last reviewed:** 2026-08-24 against DOCRB-010 rebase-merge receipt
+`3c5ff8fe761c36d72773417a223cea0a7233a9e0` via PR #4117, DOCRB-009
+rebase-merge receipt `93f543e671b0ddcf4ec0481eaf1539a3006a9f82`, the repository
 component/documentation inventory at `0a0f00c20`, current
 DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the operator-approved
 [documentation re-baseline design](../specs/2026-08-16-docs-rebaseline.md),
@@ -109,25 +109,25 @@ Coordination does not absorb, close, or alter the status of sibling-module work.
 | Migration and public pipeline | DOCRB-005..008 | Duplicate authorities are retired, cross-system views rebuilt, and public source/export parity works |
 | Enforcement and verification | DOCRB-009, DOCRB-010 | Mandatory checks are low-noise and an independent clean-room review passes |
 
-DOCRB-001, DOCRB-002, DOCRB-003, DOCRB-004, DOCRB-005, DOCRB-006, DOCRB-007,
-DOCRB-008, DOCRB-009, and DOCRB-011 are Merged. DOCRB-010 is In Progress under
-the operator-approved four-path clean-room verification plan. The stored 10/11
-progress remains unchanged until post-merge reconciliation.
+DOCRB-001 through DOCRB-011 are Merged. DOCRB is Done at 11/11 after
+DOCRB-010's independent clean-room verification merged via PR #4117. The
+separately authorised residuals remain tracked in #4114, #4115, and #4116;
+they do not reopen or transfer ownership into this programme.
 
 ## Success Criteria
 
-- [ ] Every material component root has a documented disposition and owner.
-- [ ] Component-internal truth is beside code and central architecture is
+- [x] Every material component root has a documented disposition and owner.
+- [x] Component-internal truth is beside code and central architecture is
       cross-system only.
-- [ ] Retained diagrams have one authority, declared upstreams, and a tested
+- [x] Retained diagrams have one authority, declared upstreams, and a tested
       render path.
-- [ ] Public diagrams commit Draw.io source, accessible SVG, adjacent textual
+- [x] Public diagrams commit Draw.io source, accessible SVG, adjacent textual
       meaning, and parity evidence.
-- [ ] Public documentation follows a consistent reader-needs structure without
+- [x] Public documentation follows a consistent reader-needs structure without
       duplicating internal authority.
-- [ ] Relevant code/contract changes review diagram impact in the same change;
+- [x] Relevant code/contract changes review diagram impact in the same change;
       unaffected changes are not burdened with false-positive work.
-- [ ] Clean-room navigation, accuracy, accessibility, and maintenance checks
+- [x] Clean-room navigation, accuracy, accessibility, and maintenance checks
       pass.
 
 ## Work Items
@@ -572,7 +572,8 @@ progress remains unchanged until post-merge reconciliation.
 
 ### DOCRB-010: Independently verify the documentation re-baseline
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-24 via PR #4117 (rebase-merge receipt
+  `3c5ff8fe761c36d72773417a223cea0a7233a9e0`)
 - **Intent:** Prove the new system is navigable, accurate, accessible, and
   maintainable from a clean checkout before calling the programme complete.
 - **Expected Outcome:** A clean-room report tests representative maintainer,
