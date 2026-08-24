@@ -42,6 +42,8 @@ memchr = { version = "2" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 once_cell = { version = "1" }
 percent-encoding = { version = "2" }
+proc-macro2 = { version = "1" }
+quote = { version = "1" }
 rand = { version = "0.10" }
 rataflow = { version = "0.1" }
 ratatui = { version = "0.30" }
@@ -57,6 +59,7 @@ serde_json = { version = "1", features = ["alloc", "float_roundtrip", "preserve_
 slab = { version = "0.4" }
 smallvec = { version = "1", default-features = false, features = ["const_new"] }
 strum = { version = "0.28", features = ["derive"] }
+syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
 sync_wrapper = { version = "1", default-features = false, features = ["futures"] }
 textwrap = { version = "0.16" }
 thiserror = { version = "2" }

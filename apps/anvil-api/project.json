@@ -1,0 +1,11 @@
+{
+  "name": "@eddacraft/anvil-api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/anvil-api/src",
+  "tags": ["npm:public"],
+  "targets": {
+    "test": {
+      "inputs": ["default", "^production", "{workspaceRoot}/flags/surfaces.json"]
+    }
+  }
+}

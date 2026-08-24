@@ -1,8 +1,8 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                        |
-| ----- | --------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-23 against FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                       |
+| ----- | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-24 against FLAGCAT-012 host completeness, FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
 
 | Upstream                                                                                                                                                                                                                  | Downstream                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -44,12 +44,14 @@ compatibility window, but it is not v2 product, completeness, or enforcement
 authority. Those concerns remain canonical in `flags/surfaces.json` through
 `productCatalogue()`.
 
-FLAGCAT-012..015 remain responsible for host completeness checks,
-operational-flag linkage, generated human-readable views, and any approved
-product-tier mapping. FLAGCAT-011 does not add runtime cascade-off or
-catalogue-derived host enforcement. See
-[ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md) and
-the
+FLAGCAT-012 ships host completeness checks against live CLI, MCP, API, daemon,
+dashboard, docs, hook, and integration registries. FLAGCAT-013..015 remain
+responsible for operational-flag linkage, generated human-readable views, and
+any approved product-tier mapping. FLAGCAT-011 does not add runtime cascade-off
+or catalogue-derived host enforcement. See
+[ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md), the
+[host-completeness contract](../../plans/specs/2026-08-23-product-catalogue-host-completeness.md),
+and the
 [v2 physical schema](../../plans/specs/2026-08-23-product-catalogue-v2-schema.md)
 instead of maintaining a second full feature list here.
 

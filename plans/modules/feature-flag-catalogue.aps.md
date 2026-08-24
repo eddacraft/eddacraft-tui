@@ -801,22 +801,37 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-012: Gate catalogue completeness against shipping hosts
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Make catalogue maintenance executable rather than relying on a
   minimum-count assertion.
-- **Expected Outcome:** Host-owned projections compare the registry with the
-  authoritative CLI command tree, MCP tool registrations, API routes,
-  dashboard routes, and other selected delivery registries. A new or renamed
-  governed surface fails CI until catalogued or explicitly excluded with a
-  reviewed internal-plumbing classification and reason. User-visible features
-  cannot be excluded. The `surfaces.length >= 40` completeness claim is
-  retired.
+- **Expected Outcome:** All nine current host locator kinds expose host-owned,
+  deterministic projections. Product deliveries and reviewed internal
+  plumbing compare as separate exact sets with the canonical catalogue, so a
+  new, renamed, orphaned, or reclassified surface fails CI. User-visible
+  features cannot pass as exclusions. The `surfaces.length >= 40`
+  completeness claim is retired.
 - **Files:** `packages/anvil/flags-catalogue/tests/`,
-  `crates/anvil-cli/src/main.rs`, host registries selected by FLAGCAT-011,
-  CI/change-classification wiring if required
+  `crates/anvil-cli/src/main.rs`, the API, daemon, dashboard, docs, hook,
+  integration, and MCP registries selected by FLAGCAT-011, plus targeted
+  CI/change-classification wiring.
 - **Dependencies:** FLAGCAT-011.
+- **Design Source:**
+  [`2026-08-23-product-catalogue-host-completeness.md`](../specs/2026-08-23-product-catalogue-host-completeness.md)
+  pins the two-set equality contract, all nine host authorities, locator
+  normalisation, targeted CI behaviour, rollback, and non-goals.
+- **Readiness Gate:** Satisfied 2026-08-23 — ADR-076 already selects
+  host-owned projections; the accepted v2 catalogue fixes the nine locator
+  kinds; and the operator authorised the FLAGCAT execution wave. Live source
+  discovery resolved the remaining projection and CI mechanics without a
+  product-policy choice.
 - **Validation:** `pnpm exec nx test flags-catalogue`;
+  `pnpm exec nx test @eddacraft/anvil-api`; `pnpm exec nx test dashboard`;
+  `pnpm exec nx test docs-shell`;
   `cargo test -p eddacraft-anvil --no-fail-fast`;
+  `cargo test -p eddacraft-anvil-dashboard-server`;
+  `cargo test -p eddacraft-anvil-hook`;
+  `cargo test -p eddacraft-anvil-intercept --lib`;
+  `pnpm test:ci-classify`;
   `pnpm validate:changed`.
 - **Risk:** high — cross-language CI contract.
 

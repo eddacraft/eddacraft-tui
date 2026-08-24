@@ -15,6 +15,7 @@ on:
     branches: [main, 'rust-*', 'release/*']
     paths:
       - 'crates/**'
+      - 'flags/surfaces.json'
       - 'packages/anvil-checks-native/native/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -84,6 +85,7 @@ jobs:
           filters: |
             rust:
               - 'crates/**'
+              - 'flags/surfaces.json'
               - 'packages/anvil-checks-native/native/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
@@ -131,8 +133,17 @@ jobs:
         id: rust-projects
         shell: bash
         run: |
-          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
-          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          all_json=$(pnpm exec nx show projects --withTarget=check --json)
+          affected_json=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json)
+          all=$(jq -er 'if type == "array" and length > 0 then join(",") else error("no Rust projects expose the check target") end' <<< "$all_json")
+          affected=$(jq -er 'if type == "array" then join(",") else error("affected Rust projects were not returned as an array") end' <<< "$affected_json")
+          if [ -z "$affected" ]; then
+            echo "::warning::No affected Rust projects detected; running all Rust projects"
+            affected="${all}"
+          fi
+          echo "all=${all}" >> "$GITHUB_OUTPUT"
+          echo "affected=${affected}" >> "$GITHUB_OUTPUT"
 
       # Run the pin guard before any expensive setup so a stray version
       # reference fails fast without burning toolchain install time. Invoke via
@@ -187,8 +198,8 @@ jobs:
           AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
         run: |
           if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
-            echo "No affected Rust projects detected"
-            exit 0
+            echo "::error::Rust project detection produced an empty test selection"
+            exit 1
           fi
           # `stream` (not `static`): static buffers each task's output and
           # flushes it in one burst as the step exits, and the runner's log

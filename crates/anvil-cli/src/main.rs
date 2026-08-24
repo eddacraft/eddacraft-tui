@@ -13,6 +13,8 @@ mod feature_flags;
 #[cfg(unix)]
 mod graph_base_producer;
 mod help_layout;
+#[cfg(test)]
+mod host_completeness;
 mod insights;
 mod install_root;
 #[cfg(unix)]

@@ -38,6 +38,8 @@ anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraf
 
 [dev-dependencies]
 jsonschema = { workspace = true }
+proc-macro2 = "1"
+syn = { version = "2", features = ["full", "visit"] }
 tempfile = { workspace = true }
 tower = { workspace = true, features = ["util"] }
 

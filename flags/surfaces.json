@@ -965,14 +965,14 @@
     {
       "key": "daemon.unblock-cascade",
       "featureKey": "intercept",
-      "locator": { "kind": "daemon-rpc", "method": "fence.unblock-cascade" },
+      "locator": { "kind": "daemon-rpc", "method": "unblock-cascade" },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
       "status": "active"
     },
     {
       "key": "daemon.unblock-worktree",
       "featureKey": "intercept",
-      "locator": { "kind": "daemon-rpc", "method": "fence.unblock-worktree" },
+      "locator": { "kind": "daemon-rpc", "method": "unblock-worktree" },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
       "status": "active"
     },
@@ -1347,7 +1347,7 @@
     {
       "key": "api.telemetry-ingest",
       "featureKey": "telemetry",
-      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/telemetry/" },
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/telemetry" },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
       "status": "active"
     },
@@ -1396,7 +1396,7 @@
     {
       "key": "api.waitlist-submit",
       "featureKey": "waitlist",
-      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/waitlist/" },
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/waitlist" },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
       "status": "active"
     },
@@ -1410,7 +1410,7 @@
     {
       "key": "api.account-activity",
       "featureKey": "account-activity",
-      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/account/activity/" },
+      "locator": { "kind": "api-route", "method": "POST", "path": "/api/v1/account/activity" },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "licence" },
       "status": "active"
     },
@@ -2171,7 +2171,7 @@
     },
     {
       "key": "daemon.session-report-process",
-      "locator": { "kind": "daemon-rpc", "method": "session.report-process" },
+      "locator": { "kind": "daemon-rpc", "method": "session.report_process" },
       "owner": "MLP2",
       "classification": "internal-plumbing",
       "reason": "Internal process lineage-anchor narrowing transport.",

@@ -1630,25 +1630,6 @@ impl Drop for Subscription {
     }
 }
 
-/// Does this JSON-RPC method name request a telemetry subscription?
-/// Accepts the kebab-case discriminator, the underscore form the
-/// launcher emits, and the dotted namespace form, mirroring the
-/// multi-spelling convention `command_from_jsonrpc` already uses.
-fn is_subscribe_telemetry_method(method: &str) -> bool {
-    matches!(
-        method,
-        "subscribe-telemetry" | "subscribe_telemetry" | "telemetry.subscribe"
-    )
-}
-
-/// Does this JSON-RPC method name tear down a telemetry subscription?
-fn is_unsubscribe_telemetry_method(method: &str) -> bool {
-    matches!(
-        method,
-        "unsubscribe-telemetry" | "unsubscribe_telemetry" | "telemetry.unsubscribe"
-    )
-}
-
 /// Parse the optional `session_ids` narrowing filter from a
 /// `subscribe-telemetry` frame's `params.filter`. A malformed or
 /// absent filter yields `None` (no narrowing) — the daemon's fan-out
@@ -2867,6 +2848,182 @@ fn scan_buffer_batch_error(response_id: Option<Value>, traceparent: Option<&str>
         "Invalid Request",
         json!({"reason": "scan_buffer is not supported in JSON-RPC batches"}),
     )
+}
+
+/// Product-catalogue classification for a canonical daemon method.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeliveryVisibility {
+    Product,
+    Internal,
+}
+
+/// One canonical JSON-RPC method accepted by the daemon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GovernedDaemonMethod {
+    pub method: &'static str,
+    pub visibility: DeliveryVisibility,
+}
+
+pub const SESSION_LIST_METHOD: &str = "session.list";
+pub const SESSION_REGISTER_METHOD: &str = "session.register";
+pub const SESSION_HEARTBEAT_METHOD: &str = "session.heartbeat";
+pub const SESSION_UNREGISTER_METHOD: &str = "session.unregister";
+pub const SESSION_REPORT_PROCESS_METHOD: &str = "session.report_process";
+pub const UNBLOCK_CASCADE_METHOD: &str = "unblock-cascade";
+pub const UNBLOCK_WORKTREE_METHOD: &str = "unblock-worktree";
+pub const TELEMETRY_SUBSCRIBE_METHOD: &str = "telemetry.subscribe";
+pub const TELEMETRY_UNSUBSCRIBE_METHOD: &str = "telemetry.unsubscribe";
+
+/// Every catalogue-governed client-to-daemon method, under its producer
+/// spelling. Compatibility aliases are kept separately below.
+pub const CANONICAL_GOVERNED_METHODS: &[GovernedDaemonMethod] = &[
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_REQUEST_FULL_SCAN,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: UNBLOCK_CASCADE_METHOD,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: UNBLOCK_WORKTREE_METHOD,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_WITNESS_APPEND,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_WORKSPACE_STATUS,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: SESSION_LIST_METHOD,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_SEARCH_SYMBOLS,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_DEPENDENTS,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_EDGES,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_GET_SNIPPET,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_CONTEXT,
+        visibility: DeliveryVisibility::Product,
+    },
+    GovernedDaemonMethod {
+        method: SESSION_REGISTER_METHOD,
+        visibility: DeliveryVisibility::Internal,
+    },
+    GovernedDaemonMethod {
+        method: SESSION_HEARTBEAT_METHOD,
+        visibility: DeliveryVisibility::Internal,
+    },
+    GovernedDaemonMethod {
+        method: SESSION_UNREGISTER_METHOD,
+        visibility: DeliveryVisibility::Internal,
+    },
+    GovernedDaemonMethod {
+        method: SESSION_REPORT_PROCESS_METHOD,
+        visibility: DeliveryVisibility::Internal,
+    },
+    GovernedDaemonMethod {
+        method: TELEMETRY_SUBSCRIBE_METHOD,
+        visibility: DeliveryVisibility::Internal,
+    },
+    GovernedDaemonMethod {
+        method: TELEMETRY_UNSUBSCRIBE_METHOD,
+        visibility: DeliveryVisibility::Internal,
+    },
+];
+
+/// Accepted historical spellings mapped to their canonical producer method.
+pub const DAEMON_METHOD_ALIASES: &[(&str, &str)] = &[
+    (
+        "scan_buffer",
+        anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER,
+    ),
+    (
+        "query_status",
+        anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY,
+    ),
+    ("list-sessions", SESSION_LIST_METHOD),
+    ("heartbeat", SESSION_HEARTBEAT_METHOD),
+    ("register-session", SESSION_REGISTER_METHOD),
+    ("unregister-session", SESSION_UNREGISTER_METHOD),
+    ("session.report-process", SESSION_REPORT_PROCESS_METHOD),
+    ("report-process", SESSION_REPORT_PROCESS_METHOD),
+    ("report_process", SESSION_REPORT_PROCESS_METHOD),
+    ("fence.unblock-cascade", UNBLOCK_CASCADE_METHOD),
+    ("fence.unblock-worktree", UNBLOCK_WORKTREE_METHOD),
+    ("subscribe-telemetry", TELEMETRY_SUBSCRIBE_METHOD),
+    ("subscribe_telemetry", TELEMETRY_SUBSCRIBE_METHOD),
+    ("unsubscribe-telemetry", TELEMETRY_UNSUBSCRIBE_METHOD),
+    ("unsubscribe_telemetry", TELEMETRY_UNSUBSCRIBE_METHOD),
+];
+
+/// Resolve an accepted wire spelling to its canonical governed method.
+///
+/// This classifies admission only: callers continue dispatching the original
+/// spelling so compatibility aliases retain their existing parameter and error
+/// behaviour.
+pub fn resolve_governed_method(method: &str) -> Option<&'static GovernedDaemonMethod> {
+    let canonical = DAEMON_METHOD_ALIASES
+        .iter()
+        .find_map(|(alias, canonical)| (*alias == method).then_some(*canonical))
+        .unwrap_or(method);
+    CANONICAL_GOVERNED_METHODS
+        .iter()
+        .find(|entry| entry.method == canonical)
+}
+
+/// Does this JSON-RPC method name request a telemetry subscription?
+fn is_subscribe_telemetry_method(method: &str) -> bool {
+    resolve_governed_method(method).is_some_and(|entry| entry.method == TELEMETRY_SUBSCRIBE_METHOD)
+}
+
+/// Does this JSON-RPC method name tear down a telemetry subscription?
+fn is_unsubscribe_telemetry_method(method: &str) -> bool {
+    resolve_governed_method(method)
+        .is_some_and(|entry| entry.method == TELEMETRY_UNSUBSCRIBE_METHOD)
 }
 
 /// USAGE-004: the explicit allowlist of JSON-RPC methods that count as
@@ -4152,7 +4309,7 @@ struct JsonRpcFailure {
 #[allow(clippy::too_many_lines)] // MLP2-074 adds the report-process arm; this is a flat per-method dispatch table and is most readable inline.
 fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, JsonRpcFailure> {
     match method {
-        "list-sessions" | "session.list" => {
+        "list-sessions" | SESSION_LIST_METHOD => {
             if matches!(params, Value::Null) {
                 Ok(IpcCommand::ListSessions)
             } else {
@@ -4162,15 +4319,17 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                 ))
             }
         }
-        "heartbeat" | "session.heartbeat" => params_object(params, method).and_then(|params| {
-            let session_id = anvil_intercept_proto::SessionId::new(required_string(
-                params,
-                "session_id",
-                method,
-            )?);
-            Ok(IpcCommand::Heartbeat { session_id })
-        }),
-        "register-session" | "session.register" => {
+        "heartbeat" | SESSION_HEARTBEAT_METHOD => {
+            params_object(params, method).and_then(|params| {
+                let session_id = anvil_intercept_proto::SessionId::new(required_string(
+                    params,
+                    "session_id",
+                    method,
+                )?);
+                Ok(IpcCommand::Heartbeat { session_id })
+            })
+        }
+        "register-session" | SESSION_REGISTER_METHOD => {
             params_object(params, method).and_then(|params| {
                 let session_id = anvil_intercept_proto::SessionId::new(required_string(
                     params,
@@ -4223,7 +4382,7 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                 })
             })
         }
-        "unregister-session" | "session.unregister" => {
+        "unregister-session" | SESSION_UNREGISTER_METHOD => {
             params_object(params, method).and_then(|params| {
                 let session_id = anvil_intercept_proto::SessionId::new(required_string(
                     params,
@@ -4245,7 +4404,7 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
         // (`report-process` / `session.report-process`) so both
         // future-canonical and legacy spellings route to the same
         // handler. See `crates/anvil-run/src/spawn.rs::report_to_daemon`.
-        "session.report_process"
+        SESSION_REPORT_PROCESS_METHOD
         | "session.report-process"
         | "report-process"
         | "report_process" => params_object(params, method).and_then(|params| {
@@ -4265,7 +4424,7 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                 pid_starttime,
             })
         }),
-        "unblock-cascade" | "fence.unblock-cascade" => {
+        UNBLOCK_CASCADE_METHOD | "fence.unblock-cascade" => {
             params_object(params, method).and_then(|params| {
                 let worktree = required_string(params, "worktree", method)?;
                 // MLP2-026: any client-supplied `operator` is silently
@@ -4278,14 +4437,13 @@ fn command_from_jsonrpc(method: &str, params: &Value) -> Result<IpcCommand, Json
                 })
             })
         }
-        "unblock-worktree" | "fence.unblock-worktree" => {
-            params_object(params, method).and_then(|params| {
+        UNBLOCK_WORKTREE_METHOD | "fence.unblock-worktree" => params_object(params, method)
+            .and_then(|params| {
                 let worktree = required_string(params, "worktree", method)?;
                 Ok(IpcCommand::UnblockWorktree {
                     worktree: PathBuf::from(worktree.as_str()),
                 })
-            })
-        }
+            }),
         _ => Err(JsonRpcFailure {
             code: -32601,
             message: "Method not found",
@@ -5637,6 +5795,59 @@ mod tests {
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn governed_daemon_registry_is_unique_resolvable_and_covers_protocol_methods() {
+        use anvil_intercept_proto::protocol::*;
+        const NON_DISPATCHED_PROTOCOL_METHODS: &[&str] = &[
+            ANVIL_PUBLISH_DIAGNOSTICS,
+            ANVIL_ENFORCEMENT_ACK,
+            ANVIL_GATE_REQUEST,
+            ANVIL_SUPPRESSION_APPLY,
+        ];
+
+        let mut canonical = std::collections::BTreeSet::new();
+        for entry in CANONICAL_GOVERNED_METHODS {
+            assert!(
+                canonical.insert(entry.method),
+                "duplicate canonical daemon method {}",
+                entry.method
+            );
+            assert_eq!(resolve_governed_method(entry.method), Some(entry));
+        }
+        let governed_protocol: std::collections::BTreeSet<_> = canonical
+            .iter()
+            .copied()
+            .filter(|method| method.starts_with("anvil/"))
+            .collect();
+        let dispatched_protocol: std::collections::BTreeSet<_> = ALL_ANVIL_METHODS
+            .iter()
+            .copied()
+            .filter(|method| !NON_DISPATCHED_PROTOCOL_METHODS.contains(method))
+            .collect();
+        assert_eq!(
+            governed_protocol, dispatched_protocol,
+            "every dispatched protocol method must have a governed visibility"
+        );
+
+        let mut aliases = std::collections::BTreeSet::new();
+        for (alias, target) in DAEMON_METHOD_ALIASES {
+            assert!(aliases.insert(*alias), "duplicate daemon alias {alias}");
+            assert!(
+                !canonical.contains(alias),
+                "alias {alias} is also canonical"
+            );
+            assert!(
+                canonical.contains(target),
+                "daemon alias {alias} targets ungoverned method {target}"
+            );
+            assert_eq!(
+                resolve_governed_method(alias).map(|entry| entry.method),
+                Some(*target)
+            );
+        }
+        assert_eq!(resolve_governed_method("future.unregistered"), None);
+    }
 
     /// CLAWP-065 review regression: the oversized fast-path validator
     /// must accept `null` for the optional `env_agent_tag` / `session_id`

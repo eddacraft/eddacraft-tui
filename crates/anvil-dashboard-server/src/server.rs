@@ -10,7 +10,7 @@ use axum::http::header::{
 use axum::http::uri::{Authority, Uri};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{MethodRouter, get};
 use axum::{Json, Router};
 use tokio::net::TcpListener;
 
@@ -32,18 +32,58 @@ struct AppState {
     workspace: Arc<Workspace>,
 }
 
+struct DashboardRoute {
+    path: &'static str,
+    method_router: fn() -> MethodRouter<AppState>,
+}
+
+/// The single declarative authority for dashboard HTTP route registration.
+const DASHBOARD_ROUTES: &[DashboardRoute] = &[
+    DashboardRoute {
+        path: "/healthz",
+        method_router: || get(health),
+    },
+    DashboardRoute {
+        path: "/openapi.json",
+        method_router: || get(openapi),
+    },
+    DashboardRoute {
+        path: "/api/v1/protection",
+        method_router: || get(protection),
+    },
+    DashboardRoute {
+        path: "/api/v1/protection/history",
+        method_router: || get(protection_history),
+    },
+    DashboardRoute {
+        path: "/api/v1/patterns",
+        method_router: || get(patterns),
+    },
+    DashboardRoute {
+        path: "/api/v1/plans",
+        method_router: || get(plans),
+    },
+    DashboardRoute {
+        path: "/api/v1/plans/{id}",
+        method_router: || get(plan),
+    },
+];
+
+/// Every concrete HTTP path registered by the dashboard server.
+pub fn dashboard_route_paths() -> impl ExactSizeIterator<Item = &'static str> {
+    DASHBOARD_ROUTES.iter().map(|route| route.path)
+}
+
 fn app(root: impl AsRef<Path>) -> Result<Router, ServerError> {
     let state = AppState {
         workspace: Arc::new(Workspace::new(root)?),
     };
-    Ok(Router::new()
-        .route("/healthz", get(health))
-        .route("/openapi.json", get(openapi))
-        .route("/api/v1/protection", get(protection))
-        .route("/api/v1/protection/history", get(protection_history))
-        .route("/api/v1/patterns", get(patterns))
-        .route("/api/v1/plans", get(plans))
-        .route("/api/v1/plans/{id}", get(plan))
+    let router = DASHBOARD_ROUTES
+        .iter()
+        .fold(Router::new(), |router, route| {
+            router.route(route.path, (route.method_router)())
+        });
+    Ok(router
         // The UI is served from the same origin as the API so the loopback
         // host/origin guard covers both, and the browser needs no CORS grant.
         .fallback(ui)
@@ -282,4 +322,215 @@ async fn patterns(State(state): State<AppState>) -> Result<Json<PatternCatalogue
         .await
         .map_err(|_| ApiError::Worker)?;
     Ok(Json(catalogue))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::path::{Path, PathBuf};
+
+    use super::*;
+    use syn::visit::{self, Visit};
+
+    const ROUTER_COMPOSITION_METHODS: &[&str] =
+        &["route", "nest", "route_service", "nest_service", "merge"];
+
+    #[derive(Default)]
+    struct RouterCompositionVisitor {
+        method_calls: Vec<String>,
+        function_paths: Vec<String>,
+        macro_tokens: Vec<String>,
+        includes: usize,
+    }
+
+    fn collect_macro_composition(tokens: proc_macro2::TokenStream, methods: &mut Vec<String>) {
+        for token in tokens {
+            match token {
+                proc_macro2::TokenTree::Ident(identifier)
+                    if ROUTER_COMPOSITION_METHODS.contains(&identifier.to_string().as_str()) =>
+                {
+                    methods.push(identifier.to_string());
+                }
+                proc_macro2::TokenTree::Group(group) => {
+                    collect_macro_composition(group.stream(), methods);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    impl<'ast> Visit<'ast> for RouterCompositionVisitor {
+        fn visit_expr_method_call(&mut self, expression: &'ast syn::ExprMethodCall) {
+            let method = expression.method.to_string();
+            if ROUTER_COMPOSITION_METHODS.contains(&method.as_str()) {
+                self.method_calls.push(method);
+            }
+            visit::visit_expr_method_call(self, expression);
+        }
+
+        fn visit_expr_path(&mut self, expression: &'ast syn::ExprPath) {
+            if expression.qself.is_some() || expression.path.segments.len() > 1 {
+                let method = expression
+                    .path
+                    .segments
+                    .last()
+                    .expect("qualified expression path has a segment")
+                    .ident
+                    .to_string();
+                if ROUTER_COMPOSITION_METHODS.contains(&method.as_str()) {
+                    self.function_paths.push(method);
+                }
+            }
+            visit::visit_expr_path(self, expression);
+        }
+
+        fn visit_macro(&mut self, expression: &'ast syn::Macro) {
+            if expression.path.is_ident("include") {
+                self.includes += 1;
+            }
+            collect_macro_composition(expression.tokens.clone(), &mut self.macro_tokens);
+            visit::visit_macro(self, expression);
+        }
+    }
+
+    fn router_composition(source: &str) -> RouterCompositionVisitor {
+        let syntax = syn::parse_file(source).expect("dashboard Rust source must parse");
+        let mut visitor = RouterCompositionVisitor::default();
+        visitor.visit_file(&syntax);
+        visitor
+    }
+
+    fn rust_sources(root: &Path) -> Vec<(PathBuf, String)> {
+        fn collect(root: &Path, sources: &mut Vec<(PathBuf, String)>) {
+            for entry in
+                std::fs::read_dir(root).expect("dashboard source directory must be readable")
+            {
+                let path = entry
+                    .expect("dashboard source entry must be readable")
+                    .path();
+                if path.is_dir() {
+                    collect(&path, sources);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    let source = std::fs::read_to_string(&path)
+                        .expect("dashboard Rust source must be UTF-8");
+                    sources.push((path, source));
+                }
+            }
+        }
+
+        let mut sources = Vec::new();
+        collect(root, &mut sources);
+        sources.sort_by(|left, right| left.0.cmp(&right.0));
+        sources
+    }
+
+    #[test]
+    fn runtime_routes_match_openapi_paths_exactly() {
+        let runtime_paths: Vec<_> = dashboard_route_paths().collect();
+        let runtime: BTreeSet<_> = runtime_paths.iter().copied().collect();
+        assert_eq!(
+            runtime.len(),
+            runtime_paths.len(),
+            "dashboard runtime route registry contains duplicates"
+        );
+        let document = openapi_document();
+        let openapi: BTreeSet<_> = document["paths"]
+            .as_object()
+            .expect("OpenAPI paths must be an object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+
+        assert_eq!(runtime, openapi);
+    }
+
+    #[test]
+    fn runtime_has_no_route_registration_outside_the_declarative_authority() {
+        let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut route_registration_sites = Vec::new();
+
+        for (path, source) in rust_sources(&source_root) {
+            let composition = router_composition(&source);
+            assert_eq!(
+                composition.function_paths,
+                Vec::<String>::new(),
+                "dashboard routes must not use function-path registration in {}",
+                path.display()
+            );
+            assert_eq!(
+                composition.macro_tokens,
+                Vec::<String>::new(),
+                "dashboard routes must not be registered inside macro tokens in {}",
+                path.display()
+            );
+            if composition.includes > 0 {
+                assert_eq!(path, source_root.join("assets.rs"));
+                assert_eq!(composition.includes, 1);
+            }
+            assert_eq!(
+                composition
+                    .method_calls
+                    .iter()
+                    .filter(|method| method.as_str() != "route")
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                Vec::<String>::new(),
+                "dashboard router composition must be governed in {}",
+                path.display()
+            );
+            route_registration_sites.extend(
+                composition
+                    .method_calls
+                    .into_iter()
+                    .filter(|method| method == "route")
+                    .map(|_| path.clone()),
+            );
+        }
+        assert_eq!(
+            route_registration_sites.len(),
+            1,
+            "dashboard routes must be registered only by DASHBOARD_ROUTES"
+        );
+        assert_eq!(
+            route_registration_sites[0],
+            source_root.join("server.rs"),
+            "the sole route registration must consume DASHBOARD_ROUTES"
+        );
+    }
+
+    #[test]
+    fn syntax_guard_detects_whitespace_and_comment_composition_bypasses() {
+        for method in ROUTER_COMPOSITION_METHODS {
+            let dot_source =
+                format!("fn f(router: Router) {{ router.{method} /* gap */ (future); }}");
+            assert_eq!(
+                router_composition(&dot_source).method_calls,
+                [method.to_string()]
+            );
+            let function_source =
+                format!("fn f(router: Router) {{ Router::{method}\n(router, future); }}");
+            assert_eq!(
+                router_composition(&function_source).function_paths,
+                [method.to_string()]
+            );
+        }
+    }
+
+    #[test]
+    fn syntax_guard_detects_router_function_pointer_aliases() {
+        let source = "fn f() { let add = Router::route; add(router, path, handler); }";
+        assert_eq!(
+            router_composition(source).function_paths,
+            ["route".to_owned()]
+        );
+    }
+
+    #[test]
+    fn syntax_guard_detects_route_composition_inside_macros() {
+        let source = "macro_rules! add { ($r:expr) => { $r.route(\"/future\", get(future)) }; }";
+        assert_eq!(
+            router_composition(source).macro_tokens,
+            ["route".to_owned()]
+        );
+    }
 }

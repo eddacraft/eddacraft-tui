@@ -33,5 +33,5 @@ pub use capabilities::plans::{
 pub use capabilities::protection::{load_persisted_protection_overview, load_protection_overview};
 pub use error::{ApiError, ServerError};
 pub use openapi::openapi_document;
-pub use server::{ensure_loopback, serve};
+pub use server::{dashboard_route_paths, ensure_loopback, serve};
 pub use workspace::{MAX_ARTEFACT_BYTES, Workspace, WorkspaceReadError};

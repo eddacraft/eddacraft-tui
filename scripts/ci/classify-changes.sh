@@ -158,6 +158,17 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # FLAGCAT-012: the product catalogue is compiled/runtime source truth shared
+  # by TypeScript and Rust hosts. Keep it out of the unknown fallback so a
+  # catalogue-only PR runs both host projection suites.
+  case "${path}" in
+    flags/surfaces.json)
+      add_unique path_classes 'catalogue'
+      add_unique risk_classes 'source'
+      matched=true
+      ;;
+  esac
+
   # DEVENV-007 (ADR-057): the cross-surface E2E harness (apps/e2e) and the
   # Playwright config are the E2E surface itself, so editing them requires the
   # `e2e` check directly. TS *source* anywhere also implies the E2E surface (see
@@ -355,6 +366,13 @@ for path_class in "${path_classes[@]}"; do
       add_unique required_checks 'cargo-fmt'
       add_unique required_checks 'cargo-clippy'
       add_unique required_checks 'cargo-check'
+      add_unique required_checks 'cargo-test'
+      ;;
+    catalogue)
+      add_unique required_checks 'format'
+      add_unique required_checks 'lint'
+      add_unique required_checks 'typecheck'
+      add_unique required_checks 'unit-tests'
       add_unique required_checks 'cargo-test'
       ;;
     policy)

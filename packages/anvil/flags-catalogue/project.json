@@ -4,5 +4,9 @@
   "sourceRoot": "packages/anvil/flags-catalogue/src",
   "projectType": "library",
   "tags": ["scope:core", "layer:1"],
-  "targets": {}
+  "targets": {
+    "test": {
+      "inputs": ["default", "^production", "{workspaceRoot}/flags/surfaces.json"]
+    }
+  }
 }

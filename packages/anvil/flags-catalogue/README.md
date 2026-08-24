@@ -1,8 +1,8 @@
 # @eddacraft/anvil-flags-catalogue
 
-| Type   | Authority | Owner   | Status | Freshness                                                                                         |
-| ------ | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------- |
-| README | Derived   | FLAGCAT | Live   | Reviewed 2026-08-23 against `flags/*.json`, the contracts schemas, and the package implementation |
+| Type   | Authority | Owner   | Status | Freshness                                                                                                                        |
+| ------ | --------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| README | Derived   | FLAGCAT | Live   | Reviewed 2026-08-24 against `flags/*.json`, FLAGCAT-012 host completeness, the contracts schemas, and the package implementation |
 
 | Upstream                                                                                | Downstream                                                   |
 | --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -64,13 +64,15 @@ pnpm exec nx test flags-catalogue --skip-nx-cache
 ## Scope
 
 The package exposes declared catalogue data; it does not derive host
-enforcement. FLAGCAT-012..015 own host completeness checks, operational-flag
-linkage, generated human-readable views, and any approved product-tier mapping.
-Runtime cascade-off and catalogue-derived availability enforcement remain out of
-scope.
+enforcement. FLAGCAT-012 ships host completeness checks in the owning host
+packages. FLAGCAT-013..015 own operational-flag linkage, generated
+human-readable views, and any approved product-tier mapping. Runtime cascade-off
+and catalogue-derived availability enforcement remain out of scope.
 
 See
 [ADR-076](../../../plans/decisions/076-feature-catalogue-surface-registry.md)
-for the product model and the
+for the product model, the
+[host-completeness contract](../../../plans/specs/2026-08-23-product-catalogue-host-completeness.md)
+for the live-registry gate, and the
 [v2 schema design](../../../plans/specs/2026-08-23-product-catalogue-v2-schema.md)
 for the physical contract.

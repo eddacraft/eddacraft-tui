@@ -13,6 +13,18 @@ pub enum HookKind {
 }
 
 impl HookKind {
+    /// Every git hook installed by anvil.
+    ///
+    /// Production installation and host-completeness checks consume this
+    /// registry so adding a hook cannot leave either surface out of sync.
+    pub const ALL: [Self; 5] = [
+        Self::PreCommit,
+        Self::PostCommit,
+        Self::PrePush,
+        Self::PostMerge,
+        Self::PostRewrite,
+    ];
+
     /// The on-disk filename, e.g. `pre-commit`. Matches git's hook
     /// naming convention exactly.
     pub fn filename(self) -> &'static str {

@@ -67,6 +67,18 @@ assert_json_contains "${rust}" '.pathClasses | index("rust")' 'Rust path class'
 assert_json_contains "${rust}" '.requiredChecks | index("cargo-check")' 'Rust requires cargo check'
 assert_json_contains "${rust}" '.requiredChecks | index("cargo-test")' 'Rust requires cargo test'
 
+catalogue=$(run_case catalogue flags/surfaces.json)
+assert_json_contains "${catalogue}" '.pathClasses | index("catalogue")' 'catalogue data has an explicit path class'
+assert_json_contains "${catalogue}" '.riskClasses | index("source")' 'catalogue data is source truth'
+assert_json_contains "${catalogue}" '.requiredChecks | index("unit-tests")' 'catalogue data requires Node host tests'
+assert_json_contains "${catalogue}" '.requiredChecks | index("cargo-test")' 'catalogue data requires Rust host tests'
+assert_json_contains "${catalogue}" '.warnings | index("unclassified-paths") == null' 'catalogue data is not unknown'
+
+other_flag_data=$(run_case other-flag-data flags/notes.json)
+assert_json_contains "${other_flag_data}" '.pathClasses | index("catalogue") == null' 'only the canonical catalogue gets the catalogue path class'
+assert_json_contains "${other_flag_data}" '.pathClasses | index("unknown")' 'unrecognised flag data remains conservatively classified'
+assert_json_contains "${other_flag_data}" '.requiredChecks | index("cargo-test") == null' 'unrecognised flag data does not trigger the catalogue Rust gate'
+
 policy=$(run_case policy policies/fixtures/security.rego)
 assert_json_contains "${policy}" '.pathClasses | index("policy")' 'policy path class'
 assert_json_contains "${policy}" '.requiredChecks | index("opa-test")' 'policy requires OPA tests'

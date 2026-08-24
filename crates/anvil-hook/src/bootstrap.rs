@@ -17,17 +17,6 @@ pub struct HuskyRuntime {
     pub executable: bool,
 }
 
-/// The hook kinds bootstrap covers. Husky entrypoints are generated
-/// for exactly these; keep in lockstep with the
-/// [`BootstrapPlan::InstallPlain`] list in [`build_bootstrap_plan`].
-const BOOTSTRAP_HOOK_KINDS: [HookKind; 5] = [
-    HookKind::PreCommit,
-    HookKind::PostCommit,
-    HookKind::PrePush,
-    HookKind::PostMerge,
-    HookKind::PostRewrite,
-];
-
 /// Generate the minimal Husky v9 runtime under `.husky/_/`.
 ///
 /// Husky v9's runtime layout is:
@@ -67,7 +56,7 @@ pub fn generate_husky_runtime() -> Vec<HuskyRuntime> {
             executable: false,
         },
     ];
-    files.extend(BOOTSTRAP_HOOK_KINDS.into_iter().map(|k| HuskyRuntime {
+    files.extend(HookKind::ALL.into_iter().map(|k| HuskyRuntime {
         relative_path: format!(".husky/_/{}", k.filename()),
         contents: husky_entrypoint(k),
         executable: true,
@@ -144,19 +133,13 @@ pub fn build_bootstrap_plan(framework: HookFramework) -> BootstrapPlan {
             files: generate_husky_runtime(),
         },
         HookFramework::Plain => {
-            let files = [
-                HookKind::PreCommit,
-                HookKind::PostCommit,
-                HookKind::PrePush,
-                HookKind::PostMerge,
-                HookKind::PostRewrite,
-            ]
-            .into_iter()
-            .map(|k| PlainHookFile {
-                filename: k.filename().to_string(),
-                contents: shell_template(k),
-            })
-            .collect();
+            let files = HookKind::ALL
+                .into_iter()
+                .map(|k| PlainHookFile {
+                    filename: k.filename().to_string(),
+                    contents: shell_template(k),
+                })
+                .collect();
             BootstrapPlan::InstallPlain { files }
         }
         other => BootstrapPlan::NothingToDo { framework: other },
@@ -192,7 +175,7 @@ mod tests {
     fn husky_runtime_includes_shared_runtime_files_and_entrypoints() {
         let files = generate_husky_runtime();
         // `h` + `husky.sh` + one entrypoint per hook kind.
-        assert_eq!(files.len(), 2 + BOOTSTRAP_HOOK_KINDS.len());
+        assert_eq!(files.len(), 2 + HookKind::ALL.len());
         assert!(files.iter().any(|f| f.relative_path == ".husky/_/h"));
         assert!(files.iter().any(|f| f.relative_path == ".husky/_/husky.sh"));
     }
@@ -235,7 +218,7 @@ mod tests {
         let plan = build_bootstrap_plan(HookFramework::Husky);
         match plan {
             BootstrapPlan::HuskyRegenerate { files } => {
-                assert_eq!(files.len(), 2 + BOOTSTRAP_HOOK_KINDS.len());
+                assert_eq!(files.len(), 2 + HookKind::ALL.len());
             }
             other => panic!("expected HuskyRegenerate, got {other:?}"),
         }
@@ -395,7 +378,7 @@ mod tests {
         // Git executes `.husky/_/<hook>` (core.hooksPath=.husky/_).
         // Without these, a wiped `.husky/_` leaves every hook dead.
         let files = generate_husky_runtime();
-        for kind in BOOTSTRAP_HOOK_KINDS {
+        for kind in HookKind::ALL {
             let path = format!(".husky/_/{}", kind.filename());
             let entry = files
                 .iter()

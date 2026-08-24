@@ -1,0 +1,10 @@
+{
+  "name": "eddacraft-anvil",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "crates/anvil-cli/src",
+  "targets": {
+    "test": {
+      "inputs": ["default", "^default", "{workspaceRoot}/flags/surfaces.json"]
+    }
+  }
+}

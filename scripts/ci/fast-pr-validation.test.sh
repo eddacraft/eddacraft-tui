@@ -6,6 +6,12 @@ set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 ci_workflow="${repo_root}/.github/workflows/ci.yml"
 detect_action="${repo_root}/.github/actions/detect-changes/action.yml"
+rust_test_workflow="${repo_root}/.github/workflows/rust-tests.yml"
+api_project="${repo_root}/apps/anvil-api/project.json"
+docs_shell_project="${repo_root}/apps/docs-shell/project.json"
+flags_catalogue_project="${repo_root}/packages/anvil/flags-catalogue/project.json"
+dashboard_project="${repo_root}/apps/dashboard/project.json"
+cli_project="${repo_root}/crates/anvil-cli/project.json"
 
 assert_contains() {
   local file="$1"
@@ -21,6 +27,18 @@ assert_not_contains() {
   local unexpected="$2"
   if grep -Fq -- "${unexpected}" "${file}"; then
     echo "expected ${file} not to contain: ${unexpected}" >&2
+    exit 1
+  fi
+}
+
+assert_count_at_least() {
+  local file="$1"
+  local expected="$2"
+  local minimum="$3"
+  local actual
+  actual=$(grep -Fc -- "${expected}" "${file}" || true)
+  if ((actual < minimum)); then
+    echo "expected ${file} to contain at least ${minimum} copies of: ${expected}; got ${actual}" >&2
     exit 1
   fi
 }
@@ -124,6 +142,19 @@ assert_contains "${ci_workflow}" "needs.detect-changes.result != 'success'"
 assert_contains "${ci_workflow}" "needs.detect-changes.outputs.lint-required != 'true'"
 assert_contains "${ci_workflow}" 'pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
 assert_contains "${ci_workflow}" 'pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
+assert_count_at_least "${rust_test_workflow}" "- 'flags/surfaces.json'" 2
+assert_contains "${api_project}" '"{workspaceRoot}/flags/surfaces.json"'
+assert_contains "${docs_shell_project}" '"{workspaceRoot}/flags/surfaces.json"'
+assert_contains "${flags_catalogue_project}" '"{workspaceRoot}/flags/surfaces.json"'
+assert_contains "${dashboard_project}" '"{workspaceRoot}/flags/surfaces.json"'
+assert_contains "${cli_project}" '"{workspaceRoot}/flags/surfaces.json"'
+assert_contains "${rust_test_workflow}" 'all_json=$(pnpm exec nx show projects --withTarget=check --json)'
+assert_contains "${rust_test_workflow}" 'affected_json=$(pnpm exec nx show projects --affected --withTarget=check'
+assert_contains "${rust_test_workflow}" 'affected="${all}"'
+assert_contains "${rust_test_workflow}" 'No affected Rust projects detected; running all Rust projects'
+assert_not_contains "${rust_test_workflow}" 'echo "all=$(pnpm exec nx show projects'
+assert_not_contains "${rust_test_workflow}" 'echo "affected=$(pnpm exec nx show projects'
+assert_not_contains "${rust_test_workflow}" 'No affected Rust projects detected"'
 # CICD-006: PR/integration runs do not invoke coverage flags or upload coverage artefacts.
 assert_not_contains "${ci_workflow}" '--coverage --coverage.reporter=json-summary --coverage.reporter=text'
 assert_not_contains "${ci_workflow}" 'name: coverage-report-22.x'

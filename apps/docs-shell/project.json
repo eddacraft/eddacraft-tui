@@ -36,6 +36,7 @@
     },
     "test": {
       "command": "vitest run",
+      "inputs": ["default", "^production", "{workspaceRoot}/flags/surfaces.json"],
       "options": {
         "cwd": "apps/docs-shell"
       }
