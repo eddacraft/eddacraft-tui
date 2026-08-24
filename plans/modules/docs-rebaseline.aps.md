@@ -5,7 +5,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| DOCRB | — | high | Ready | 10/11 |
+| DOCRB | — | high | In Progress | 10/11 |
 
 **Last reviewed:** 2026-08-23 against DOCRB-009 rebase-merge receipt
 `93f543e671b0ddcf4ec0481eaf1539a3006a9f82`, DOCRB-008 rebase-merge
@@ -600,7 +600,7 @@ progress remains unchanged until post-merge reconciliation.
   pnpm docs:owed --since <exact-base> --fail-on-owed &&
   pnpm docs:index:check && pnpm test:ci-classify &&
   pnpm test:validate-local && pnpm test:ci-integration &&
-  pnpm --filter @eddacraft/docs-shell test &&
+  pnpm exec nx test docs-shell &&
   pnpm --filter @eddacraft/anvil-docs-private build &&
   pnpm --filter @eddacraft/docs-public build &&
   pnpm --filter @eddacraft/docs-shell build &&

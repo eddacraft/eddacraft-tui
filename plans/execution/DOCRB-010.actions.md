@@ -11,13 +11,13 @@
   - Every governed Mermaid fence renders; public Draw.io/SVG source, export, accessibility, mounting, and parity checks pass.
   - Relevant source changes and deletions fail when an owning diagram is untouched; an updated owner and an unrelated change pass without a waiver.
   - All three production documentation applications build, and the two curated public journey diagrams are inspected on their mounted routes in light and dark modes.
-  - Residual gaps are recorded as bounded follow-up proposals rather than repaired or silently accepted inside DOCRB-010.
+  - Residual gaps are recorded as bounded follow-up proposals rather than repaired or silently accepted inside DOCRB-010; the operator separately authorised #4114, #4115, and #4116 on 2026-08-24.
 - **Dependencies:** DOCRB-009 is Merged via PR #4099 and its reconciliation is Merged via PR #4102 on the pinned starting receipt `abe6be8b657b8be68565aace3aada6056323ae61`.
 - **Scope:** Exactly four repository paths: `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`, this action plan, and `plans/reviews/2026-08-23-docrb-010-clean-room-verification.md`.
 - **Capacity exception:** On 2026-08-23 the operator approved one additional DOCRB-010 Worktrunk after the conservative cleanup dry-run found zero eligible removals. No existing worktree may be force-cleaned or removed by this item.
 - **Risk:** High. This verification decides whether the DOCRB programme can be called complete; it requires fresh independent verification and Council review.
 - **Non-scope:** Product, documentation, diagram, checker, build, or workflow repairs; new diagrams; changing DOCFRESH, DOCSYNC, DOCDEF, DSITE, or another module's lifecycle; release claims or release gating; automatic GitHub/APS follow-up creation; administrator or policy bypass. A discovered gap blocks completion until it is reported and separately authorised.
-- **Validation:** `pnpm install --frozen-lockfile && pnpm exec mmdc --version && node --test scripts/docs/check-diagram-impact.test.mjs && node scripts/docs/check-diagram-impact.mjs --json && pnpm test:docs-check && pnpm docs:check && pnpm docs:public:check && pnpm docs:public:diagrams && pnpm docs:owed --since abe6be8b657b8be68565aace3aada6056323ae61 --fail-on-owed && pnpm docs:index:check && pnpm test:ci-classify && pnpm test:validate-local && pnpm test:ci-integration && pnpm --filter @eddacraft/docs-shell test && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build && pnpm --filter @eddacraft/docs-shell build && pnpm validate:changed && pnpm format:check && pnpm lint:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json && git diff --check`
+- **Validation:** `pnpm install --frozen-lockfile && pnpm exec mmdc --version && node --test scripts/docs/check-diagram-impact.test.mjs && node scripts/docs/check-diagram-impact.mjs --json && pnpm test:docs-check && pnpm docs:check && pnpm docs:public:check && pnpm docs:public:diagrams && pnpm docs:owed --since abe6be8b657b8be68565aace3aada6056323ae61 --fail-on-owed && pnpm docs:index:check && pnpm test:ci-classify && pnpm test:validate-local && pnpm test:ci-integration && pnpm exec nx test docs-shell && pnpm --filter @eddacraft/anvil-docs-private build && pnpm --filter @eddacraft/docs-public build && pnpm --filter @eddacraft/docs-shell build && pnpm validate:changed && pnpm format:check && pnpm lint:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json && git diff --check`
 
 ## Actions
 
@@ -47,5 +47,5 @@
 ### 5. Record independent evidence and disposition gaps
 
 - **Depends on:** 1, 2, 3, 4
-- **Checkpoint:** The exact-head report distinguishes passes, inherited baselines, environment limitations, and blocking residual gaps. No gap is repaired or silently accepted in this item.
+- **Checkpoint:** The exact-head report distinguishes passes, inherited baselines, environment limitations, and blocking residual gaps. No gap is repaired or silently accepted in this item; ADR/topology and diagram-enforcement residuals are separately authorised as #4114, #4115, and #4116.
 - **Validate:** `pnpm docs:owed --since abe6be8b657b8be68565aace3aada6056323ae61 --fail-on-owed && pnpm format:check && pnpm lint:check && pnpm aps:active-lint && pnpm aps:index:check && pnpm aps:drift --json && git diff --check`

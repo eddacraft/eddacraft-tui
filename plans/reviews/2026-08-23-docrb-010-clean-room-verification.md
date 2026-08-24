@@ -1,10 +1,10 @@
 # DOCRB-010 clean-room verification evidence
 
-**Date:** 2026-08-23
+**Date:** 2026-08-24
 **Item:** DOCRB-010
 **Pinned starting receipt:** `abe6be8b657b8be68565aace3aada6056323ae61`
-**Exact rebase base:** `930900af4a88d594a173c0c541809ca4752ff050`
-**Decision:** Supported after the clean-room and post-rebase exact-head validation; independent verification and Council remain lifecycle gates.
+**Exact rebase base:** `7383f5c2490836281adc3286b2a267de8b4211e4`
+**Decision:** Supported with three separately authorised residuals after the clean-room replay and post-rebase validation; independent verification and Council re-review remain lifecycle gates.
 
 ## Scope and method
 
@@ -29,6 +29,19 @@ and build state supplied failure-mode evidence; no fixture or source was edited.
 - `pnpm exec mmdc --version` exited 0 with exact stdout `11.16.0`.
 - The isolated Worktrunk contained only the three intended DOCRB-010 planning
   postimages before this report.
+
+The missing literal clean-status receipt was repaired with a bounded replay in
+a disposable local clone at exact post-rebase planning receipt
+`5f4a783cca5a49dae19a651887499bea92f10560`:
+
+- `git status --porcelain=v1` was empty before installation and after the
+  replay;
+- no `packages/anvil/**/dist` directory existed before validation;
+- `pnpm install --frozen-lockfile` exited 0 after an initial sandbox-only
+  `EROFS` project-registration failure was rerun with the required writable
+  pnpm store boundary; and
+- `pnpm exec nx test docs-shell` built policy, contracts, core, runtime, and
+  flags-catalogue before passing 7/7 files and 60/60 tests.
 
 ## Representative journeys
 
@@ -87,6 +100,20 @@ fallback was used for this isolated read-only inspection.
   clipped. Manual readback of all four theme screenshots found legible text,
   complete flows, and no visual obstruction.
 
+The public-diagram semantic trace also matched current contracts:
+
+- The anvil CREATE node is the page's guarded temporary-file creation; DETECT
+  invokes `anvil check` through
+  `crates/anvil-cli/src/commands/check.rs` and the compiled pattern registry;
+  FIX applies the page's typed replacement; VERIFY repeats the same check and
+  requires the explicit clean result. The three arrows are the tutorial's
+  ordered transitions.
+- The APS LINT, NEXT, START, IMPLEMENT, VALIDATE, and COMPLETE nodes match
+  `plans/aps-rules.md`, `docs/public/aps/workflow.md`, and the adjacent
+  getting-started lifecycle prose. The forward arrows match the canonical
+  `Ready -> In Progress -> Complete` sequence, while the return arrow matches
+  the documented continuation with `aps lint` and `aps next`.
+
 Screenshots were retained outside the repository at
 `/tmp/docrb010-{anvil,aps}-{dark,light}.png`.
 
@@ -121,7 +148,7 @@ Screenshots were retained outside the repository at
 | `pnpm test:ci-classify` | 0 | All classifier fixtures passed |
 | `pnpm test:validate-local` | 0 | All local-validation fixtures passed |
 | `pnpm test:ci-integration` | 0 | All integration fixtures passed |
-| `pnpm --filter @eddacraft/docs-shell test` | 0 | 7 files, 60 tests |
+| `pnpm exec nx test docs-shell` | 0 | Built five dependencies; 7 files, 60 tests |
 | `pnpm --filter @eddacraft/anvil-docs-private build` | 0 | Production build completed |
 | `pnpm --filter @eddacraft/docs-public build` | 0 | Production build completed |
 | `pnpm --filter @eddacraft/docs-shell build` | 0 | Production build and proxy entitlement smoke completed |
@@ -135,6 +162,14 @@ Screenshots were retained outside the repository at
 
 ## Inherited and environmental observations
 
+- Fresh `pnpm docs:check` emitted 255 baselined warnings: two malformed tags
+  in an archived APS module and 253 link findings (224 links and 29 anchors).
+  Of those link findings, 117 are route-shaped links under live Kindling or
+  edda-stack public content. A mechanical comparison against the built public
+  site found all 117 corresponding HTML routes; these are repository-file
+  checker false positives, not broken mounted navigation. The remaining
+  baselined findings predate and are unchanged by this four-path range.
+
 - The first `pnpm lint:check` attempt exited 1 only because every Rust clippy
   task could not open the shared cache build lock under
   `/home/aneki/.cache/anvil-targets/`: the filesystem was read-only. Oxlint,
@@ -144,14 +179,20 @@ Screenshots were retained outside the repository at
   retried tasks as flaky because of the earlier environmental failures; it
   emitted no product diagnostic.
 - The private and public Docusaurus builds reported the inherited deprecated
-  `onBrokenMarkdownLinks` option and could not infer one diagram's image
-  dimensions. The private build also reported inherited `/anvil/` shell-route
-  link warnings. Both builds completed, and mounted-route inspection proved the
-  two in-scope pages and diagrams load correctly.
-- The docs-shell build retained its TypeScript project-reference warning; the
-  build and proxy entitlement smoke passed. The docs-shell tests retained the
-  Vite native-config warning. The local-validation fixture retained its
-  deliberate invalid-shell line and isolated profile warnings.
+  `onBrokenMarkdownLinks` option. Docusaurus still accepted the option and
+  both builds completed; this is dependency/configuration maintenance, not a
+  current navigation or output failure. The image-dimension warning is also
+  non-behavioural: both SVGs carry explicit dimensions and mounted Chromium
+  reported the expected natural and responsive sizes. The private `/anvil/`
+  warnings are cross-application shell routes rather than missing private-app
+  files; the mounted shell returned HTTP 200 for the inspected route.
+- The docs-shell TypeScript project-reference warning did not prevent
+  compilation, static generation, or the proxy-entitlement smoke. The Vite
+  warning describes a future native config-loader incompatibility; the current
+  test mode loaded the config and passed 60/60. The local-validation invalid
+  shell line and isolated profile warnings are deliberate fixture evidence.
+  None represents a current DOCRB navigation, accuracy, accessibility, or
+  enforcement failure.
 - APS index checking retained GTAO and POLFIT stored-progress advisories. APS
   drift retained those two progress warnings and the inherited IMPV-001
   validation-evidence warning. None is caused by this four-path verification
@@ -166,10 +207,10 @@ Screenshots were retained outside the repository at
 
 ## Post-rebase exact-head closeout
 
-The single verification commit rebased normally onto exact `origin/main`
-`930900af4a88d594a173c0c541809ca4752ff050`. The resulting range remained
+The verification branch rebased normally onto exact `origin/main`
+`7383f5c2490836281adc3286b2a267de8b4211e4`. The resulting range remained
 exactly the four approved paths, preserved the upstream FLAGCAT index truth,
-and was clean and one commit ahead of its merge base.
+and was clean relative to its merge base.
 
 Fresh post-rebase validation repeated the complete binding matrix. The focused
 diagram tests passed 16/16; corpus rendering passed for 17 documents and 24
@@ -182,24 +223,39 @@ production builds passed; `validate:changed`, format over 1,689 files, the
 full hermetic JS/Nx and Rust lint matrix, APS active/index/drift checks, and
 range diff integrity all passed with only the inherited warnings above.
 
-Immediately after the upstream v2 product-catalogue merge, the first
-docs-shell test attempt loaded the new `flags/surfaces.json` through stale
-pre-rebase `dist` artefacts and failed before three suites. Rebuilding the
-merged `@eddacraft/anvil-contracts` and
-`@eddacraft/anvil-flags-catalogue` packages changed no tracked file; the
-unchanged docs-shell test then passed 7/7 files and 60/60 tests. The shell
-production build performs the catalogue prerequisite itself and passed its
-proxy-entitlement smoke. This was a local build-order boundary, not a DOCRB
-product or documentation defect.
+Immediately after the upstream v2 product-catalogue merge, the first raw
+docs-shell package test loaded the new `flags/surfaces.json` through stale
+pre-rebase `dist` artefacts and failed before three suites. That exposed a
+validation-recipe defect: the raw package script does not build its workspace
+dependencies. The action plan now uses the dependency-aware Nx target. The
+clean-clone replay began with no generated `dist`, built all five
+dependencies, and passed 7/7 files and 60/60 tests. No tracked file changed.
+
+## Separately authorised residuals
+
+The operator agreed on 2026-08-24 that these findings remain outside the
+four-path verification item and authorised their independent follow-up:
+
+- #4114 — reconcile ADR-123 after the deleted `apps/docs-site` rollback host
+  and topology-side ownership closeout;
+- #4115 — retain governed `infra/**` upstreams in documentation metadata and
+  diagram-impact enforcement; and
+- #4116 — preserve both endpoints of a Git rename in checker, local, and CI
+  diagram-impact classification.
+
+Each issue is open with `kind:bug` and `readiness:needs-triage`. DOCRB-010
+does not repair, close, or silently absorb them.
 
 ## Boundary decision
 
-DOCRB-010's clean-room acceptance is supported on the pinned starting receipt.
+DOCRB-010's clean-room acceptance is supported with the three authorised
+residuals above.
 The maintainer, contributor, operator, and public-reader journeys completed; the
 enforcement, rendering, parity, accessibility, routing, tests, builds, and
 declared validation matrix passed after the bounded environment-only lint
-rerun. No residual in-contract documentation gap was found, so this item makes
-no repair and creates no tracker.
+rerun and the clean-clone dependency-aware docs-shell replay. The warning
+baseline is dispositioned above; #4114, #4115, and #4116 preserve the three
+real residuals without expanding this item into repair work.
 
 This is evidence for the pinned receipt, not a merge or completion claim.
 Independent verification and Council remain lifecycle gates before publication
