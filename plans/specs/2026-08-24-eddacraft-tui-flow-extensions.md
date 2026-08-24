@@ -116,3 +116,11 @@ Crate semver stays independent of Anvil (D-TUIR-006). Wave 1+2 are additive
 experimental API: patch bucket while 0.x minor remains the breaking bucket.
 Do not cut a crate release from this spec; the next `eddacraft-tui` cut
 consumes whatever has Merged.
+
+## 7. TUIN-021 spike result
+
+**Decision: no-ship.** Viewport lerp is well-defined (unit test
+`morph_lerp_is_monotonic`) without coupling `flow` to `animate-core`. No
+public morph API and no new Cargo feature. Duration/easing (~250 ms
+quad-out) remains a candidate if revived. An ADR is required only if a
+later item ships that coupling.
