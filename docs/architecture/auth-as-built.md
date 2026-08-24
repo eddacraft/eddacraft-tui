@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-22 against auth routes/session source, `apps/docs-shell/lib/{jwt,feature-flags}.ts`, the `docs.access` catalogue definition, and targeted neighbouring auth claims |
+| Type     | Authority | Owner | Status | Freshness                                                                                                        |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 API catalogue completeness tests; authentication topology unchanged |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |

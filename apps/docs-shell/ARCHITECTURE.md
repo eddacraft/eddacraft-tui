@@ -1,8 +1,8 @@
 # anvil documentation shell architecture
 
-| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                                                                                                    |
-| ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-22 against `apps/docs-shell/proxy.ts`, `apps/docs-shell/app/auth/**`, `apps/docs-shell/lib/**`, `flags/manifest.json`, `infra/src/vercel.ts`, and the DOCRB-009 documentation-governance contract; architecture and diagrams unchanged |
+| Type         | Authority | Owner           | Status | Freshness                                                                                                 |
+| ------------ | --------- | --------------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 host completeness tests; architecture and diagrams unchanged |
 
 | Upstream                                                                                                                                          | Downstream                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |

@@ -1,8 +1,8 @@
 # anvil API architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                           |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/index.ts`, `src/middleware/**`, `src/routes/**`, and `src/db/**` |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                               |
+| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 catalogue completeness tests; HTTP composition, routes, and persistence topology unchanged |
 
 | Upstream                                                                                    | Downstream                                       |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------ |

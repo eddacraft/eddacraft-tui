@@ -1,8 +1,8 @@
 # anvil dashboard server architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                                              |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `crates/anvil-dashboard-server/src/server.rs`, `crates/anvil-dashboard-server/src/workspace.rs`, and `crates/anvil-dashboard-server/src/capabilities/**` |
+| Type         | Authority | Owner | Status | Freshness                                                                                                        |
+| ------------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 dashboard route completeness; server and OpenAPI topology unchanged |
 
 | Upstream                                                                                                                                        | Downstream                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |

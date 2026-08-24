@@ -1,8 +1,8 @@
 # anvil dashboard web application architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                      |
-| ------------ | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-20 against `d6c8b565c`, `apps/dashboard/src/main.tsx`, `apps/dashboard/src/api/client.ts`, and `apps/dashboard/scripts/generate-api.mjs` |
+| Type         | Authority | Owner | Status | Freshness                                                                                        |
+| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------ |
+| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 route completeness tests; client topology unchanged |
 
 | Upstream                                                                                                                        | Downstream                             |
 | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |

@@ -1,8 +1,8 @@
 # anvil kernel architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                            |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | KERN  | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/watch.rs`, `src/embedded.rs`, `src/parser/**`, `src/policy/**`, and `../anvil-graph-cache/src/**` |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                      |
+| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | KERN  | Live   | Last reviewed 2026-08-25 against FLAGCAT-013 flag-linkage fields; watch, parser, and policy topology unchanged |
 
 | Upstream                                                                              | Downstream                                            |
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------- |

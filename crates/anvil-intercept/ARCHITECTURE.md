@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                        |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-20 at `f0f834b39` against `src/ipc.rs`, `src/midedit.rs`, `src/save_time.rs`, `src/fence.rs`, and `crates/anvil-cli/src/mcp/validation.rs` |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                            |
+| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 daemon method registry; save-time and peer-admission topology unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
