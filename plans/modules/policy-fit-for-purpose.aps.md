@@ -7,7 +7,7 @@
 | ------ | --------- | ----- | -------- | ------ | -------- |
 | POLFIT | Conductor | —     | high     | Ready  | 3/9      |
 
-**Current state (2026-08-23):** POLFIT-001 and POLFIT-002 **Merged** via
+**Current state (2026-08-24):** POLFIT-001 and POLFIT-002 **Merged** via
 #4103 and #4104 — ADR-129 (intra-repo surface precedence) and ADR-130
 (authoring on-ramp). Both design gates are closed, so POLFIT-003..-006 and
 -008 are no longer blocked by them. POLFIT-009 is **Merged** (#4108).
