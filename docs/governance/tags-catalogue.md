@@ -1,8 +1,8 @@
 # Documentation Tags Catalogue
 
-| Type  | Authority     | Owner  | Status | Freshness                                                                                                                |
-| ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-08-23 for DOCRB-009 against ADR-123, `docs/guides/documentation-governance.md`, and `pnpm docs:check` |
+| Type  | Authority     | Owner  | Status | Freshness                                                                                                                                                     |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-08-25 for FLAGCAT-012 documentation-governance freshness against ADR-123, `docs/guides/documentation-governance.md`, and `pnpm docs:check` |
 
 | Upstream                                                                                           | Downstream                                                                                               |
 | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |

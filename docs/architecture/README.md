@@ -1,8 +1,8 @@
 # Architecture Documentation
 
-| Type   | Authority | Owner | Status | Freshness                                                                                                                                                     |
-| ------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-23 for DOCRB-009 against ADR-123, DOCRB-003, `infra/src/vercel.ts`, `docs/architecture/`, and `docs/guides/documentation-governance.md` |
+| Type   | Authority | Owner | Status | Freshness                                                                                                 |
+| ------ | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-25 for FLAGCAT-012 documentation-governance freshness; architecture index unchanged |
 
 | Upstream                                                                  | Downstream                      |
 | ------------------------------------------------------------------------- | ------------------------------- |

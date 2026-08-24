@@ -1,8 +1,8 @@
 # Active Reviews
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                            |
-| ------ | --------- | ------ | ------ | ---------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-23 for DOCRB-009 against ADR-123 and `docs/guides/documentation-governance.md` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                 |
+| ------ | --------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-25 for FLAGCAT-012 documentation-governance freshness against ADR-123 and `docs/guides/documentation-governance.md` |
 
 | Upstream                                  | Downstream            |
 | ----------------------------------------- | --------------------- |
