@@ -292,7 +292,8 @@ They still gate the items below them.
 
 ### POLFIT-008: The anti-pattern registry override is a stated surface or a closed one
 
-- **Status:** In Progress — PR [#4110](https://github.com/eddacraft/anvil-001/pull/4110)
+- **Status:** Merged 2026-08-24 via PR #4110. Ancestor of `origin/main`
+  (`c3e38252e`).
 - **Intent:** Decide whether a repository-local compiled registry — the seventh
   surface in POLFIT-001's enumeration, and the only one that changes what anvil
   flags without going through regorus — is a supported way to change policy
