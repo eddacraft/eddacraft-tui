@@ -23,12 +23,18 @@ pub enum Spotlight {
 
 /// Mute the complement of `node_id`'s cone and animate remaining edges.
 ///
-/// Unknown ids are a no-op.
+/// Unknown ids are a no-op. Roles resolve through `theme` so a custom
+/// palette is not overwritten by [`crate::theme::EddaCraftTheme`].
 ///
 /// # Stability
 ///
 /// **experimental** (TUIN-015).
-pub fn spotlight(flow: &mut Flow, node_id: &str, direction: Spotlight) {
+pub fn spotlight<T: Theme + ?Sized>(
+    flow: &mut Flow,
+    node_id: &str,
+    direction: Spotlight,
+    theme: &T,
+) {
     if flow.node(node_id).is_none() {
         return;
     }
@@ -70,14 +76,13 @@ pub fn spotlight(flow: &mut Flow, node_id: &str, direction: Spotlight) {
         }
     }
 
-    let theme = crate::theme::EddaCraftTheme;
     for (id, source, target) in &edges {
         let in_cone = cone.contains(source) && cone.contains(target);
         flow.set_edge_animated(id, in_cone);
         if in_cone {
-            super::build::apply_edge_role(flow, id, Some(Role::Accent), &theme);
+            super::build::apply_edge_role(flow, id, Some(Role::Accent), theme);
         } else {
-            super::build::apply_edge_role(flow, id, Some(Role::Secondary), &theme);
+            super::build::apply_edge_role(flow, id, Some(Role::Secondary), theme);
         }
     }
 
@@ -88,13 +93,6 @@ pub fn spotlight(flow: &mut Flow, node_id: &str, direction: Spotlight) {
         } else {
             Role::Secondary
         };
-        super::build::apply_node_role(flow, &id, Some(role), &theme);
+        super::build::apply_node_role(flow, &id, Some(role), theme);
     }
-}
-
-// Theme bound kept for the public docs; spotlight currently uses the crate
-// default palette so callers need no extra generic.
-impl Spotlight {
-    #[allow(dead_code)]
-    fn _theme_bound<T: Theme + ?Sized>(_: &T) {}
 }

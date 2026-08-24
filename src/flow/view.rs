@@ -94,9 +94,11 @@ pub fn zoom_to_read_after_layout(flow: &mut Flow, node_id: &str, width: u16, hei
 fn flush_pending_fit(flow: &mut Flow, width: u16, height: u16) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("infallible");
     for _ in 0..2 {
-        let _ = terminal.draw(|frame| {
-            frame.render_widget(Background::new(&*flow), frame.area());
-            frame.render_widget(&mut *flow, frame.area());
-        });
+        terminal
+            .draw(|frame| {
+                frame.render_widget(Background::new(&*flow), frame.area());
+                frame.render_widget(&mut *flow, frame.area());
+            })
+            .expect("TestBackend draw is infallible");
     }
 }

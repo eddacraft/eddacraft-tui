@@ -224,7 +224,7 @@ mod tests {
         let theme = EddaCraftTheme;
         let mut flow =
             themed_from_edges(&[("alpha", "beta"), ("beta", "gamma")], &theme).expect("valid");
-        spotlight(&mut flow, "missing", Spotlight::Both);
+        spotlight(&mut flow, "missing", Spotlight::Both, &theme);
         let ab = flow
             .edges()
             .iter()
@@ -238,7 +238,7 @@ mod tests {
         let theme = EddaCraftTheme;
         let mut flow =
             themed_from_edges(&[("alpha", "beta"), ("beta", "gamma")], &theme).expect("valid");
-        spotlight(&mut flow, "alpha", Spotlight::Downstream);
+        spotlight(&mut flow, "alpha", Spotlight::Downstream, &theme);
         let animated = |from: &str, to: &str| {
             flow.edges()
                 .iter()
@@ -255,7 +255,7 @@ mod tests {
         let theme = EddaCraftTheme;
         let mut flow =
             themed_from_edges(&[("alpha", "beta"), ("omega", "beta")], &theme).expect("valid");
-        spotlight(&mut flow, "alpha", Spotlight::Downstream);
+        spotlight(&mut flow, "alpha", Spotlight::Downstream, &theme);
         let animated = |from: &str, to: &str| {
             flow.edges()
                 .iter()
@@ -378,6 +378,34 @@ mod tests {
         assert!(
             rendered.contains('d') || rendered.contains('c'),
             "{rendered}"
+        );
+    }
+
+    #[test]
+    fn elide_unknown_always_keep_does_not_shrink_budget() {
+        let theme = EddaCraftTheme;
+        let edges = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")];
+        let with_ghost = elide_from_edges_keeping(&edges, &theme, 3, &["missing"]).expect("valid");
+        let plain = elide_from_edges(&edges, &theme, 3).expect("valid");
+        assert_eq!(with_ghost.collapsed.len(), plain.collapsed.len());
+    }
+
+    #[test]
+    fn elide_portal_id_is_reserved_and_label_is_crates() {
+        let theme = EddaCraftTheme;
+        let edges = [("a", "b"), ("b", "c"), ("c", "d"), ("… 2 crates", "a")];
+        let elided = elide_from_edges(&edges, &theme, 3).expect("valid");
+        let portal = elided.portal_id.as_deref().expect("portal");
+        assert!(
+            portal.contains("flow-portal"),
+            "expected reserved portal id, got {portal}"
+        );
+        assert_ne!(portal, "… 2 crates");
+        let mut flow = elided.flow;
+        let rendered = draw_plain(&mut flow, 80, 30);
+        assert!(
+            rendered.contains("crates"),
+            "display label missing:\n{rendered}"
         );
     }
 

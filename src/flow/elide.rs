@@ -4,8 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use rataflow::Flow;
 
-use super::themed_from_edges;
+use super::{EdgeSpec, NodeSpec, themed_from_edges, themed_from_specs};
 use crate::theme::Theme;
+
+/// Reserved portal-id prefix. U+241F (unit separator) is not a plausible
+/// crate/node label, so caller ids cannot collide with the portal.
+const PORTAL_ID_PREFIX: &str = "\u{241F}flow-portal";
 
 /// Result of eliding a graph that exceeded the visible-node budget.
 ///
@@ -62,7 +66,11 @@ pub fn elide_from_edges_keeping<T: Theme + ?Sized>(
         });
     }
 
-    let keep_forced: BTreeSet<String> = always_keep.iter().map(|s| (*s).to_string()).collect();
+    let keep_forced: BTreeSet<String> = always_keep
+        .iter()
+        .filter(|id| degree.contains_key(**id))
+        .map(|s| (*s).to_string())
+        .collect();
     let mut ranked: Vec<(usize, String)> =
         degree.iter().map(|(id, deg)| (*deg, id.clone())).collect();
     ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
@@ -75,7 +83,11 @@ pub fn elide_from_edges_keeping<T: Theme + ?Sized>(
         keep.insert(id);
     }
 
-    let collapsed: Vec<String> = all.into_iter().filter(|id| !keep.contains(id)).collect();
+    let collapsed: Vec<String> = all
+        .iter()
+        .filter(|id| !keep.contains(*id))
+        .cloned()
+        .collect();
     if collapsed.is_empty() {
         return Ok(ElidedGraph {
             flow: themed_from_edges(edges, theme)?,
@@ -84,7 +96,9 @@ pub fn elide_from_edges_keeping<T: Theme + ?Sized>(
         });
     }
 
-    let portal_id = format!("… {} crates", collapsed.len());
+    let occupied: BTreeSet<&str> = all.iter().map(String::as_str).collect();
+    let portal_id = reserved_portal_id(&occupied, collapsed.len());
+    let portal_label = format!("… {} crates", collapsed.len());
     let collapsed_set: BTreeSet<&str> = collapsed.iter().map(String::as_str).collect();
     let mut rewritten: Vec<(String, String)> = Vec::new();
     for (a, b) in edges {
@@ -98,13 +112,33 @@ pub fn elide_from_edges_keeping<T: Theme + ?Sized>(
             rewritten.push((portal_id.clone(), (*b).to_string()));
         }
     }
-    let pairs: Vec<(&str, &str)> = rewritten
+    let mut nodes: Vec<NodeSpec> = keep
         .iter()
-        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .map(|id| NodeSpec::new(id.clone(), id.clone()))
+        .collect();
+    nodes.push(NodeSpec::new(portal_id.clone(), portal_label));
+    let specs: Vec<EdgeSpec> = rewritten
+        .iter()
+        .map(|(from, to)| EdgeSpec::new(from.clone(), to.clone()))
         .collect();
     Ok(ElidedGraph {
-        flow: themed_from_edges(&pairs, theme)?,
+        flow: themed_from_specs(&nodes, &specs, theme)?,
         portal_id: Some(portal_id),
         collapsed,
     })
+}
+
+fn reserved_portal_id(occupied: &BTreeSet<&str>, n: usize) -> String {
+    let base = format!("{PORTAL_ID_PREFIX}:{n}");
+    if !occupied.contains(base.as_str()) {
+        return base;
+    }
+    let mut i = 0usize;
+    loop {
+        let candidate = format!("{PORTAL_ID_PREFIX}:{n}:{i}");
+        if !occupied.contains(candidate.as_str()) {
+            return candidate;
+        }
+        i += 1;
+    }
 }
