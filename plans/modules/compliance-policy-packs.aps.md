@@ -5,7 +5,7 @@
 
 | ID     | Owner | Priority | Status | Progress |
 | ------ | ----- | -------- | ------ | -------- |
-| CPACKS | —     | high     | In Progress  | 5/8      |
+| CPACKS | —     | high     | In Progress  | 6/8      |
 
 **Last reviewed:** 2026-08-23 — CPACKS-007 promoted Proposed -> Ready as an
 **enabling change** under PR #4100, not by a direct instruction naming this
@@ -235,7 +235,9 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-007: Starter pack docs — known-gaps residual
 
-- **Status:** In Progress 2026-08-23 — audit done, copy written. The audit
+- **Status:** Merged 2026-08-24 via PR #4113. Ancestor of `origin/main`
+  (`cd852f1e8`); the known-gaps section verified present on the merged tree.
+  Audit done, copy written. The audit
   found the residual was **not** an audit: the non-compliance-posture copy did
   not exist. This item's own status claimed anvil-baseline was documented
   "across `docs/public/anvil/tutorials/policies.md` and
