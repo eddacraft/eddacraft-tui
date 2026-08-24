@@ -5,7 +5,7 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 8/14     |
+| TUIN | joshuaboys | In Progress | 8/21     |
 
 **Last reviewed:** 2026-08-24 (flow-extension wave filed): TUIN-015..021
 Proposed against

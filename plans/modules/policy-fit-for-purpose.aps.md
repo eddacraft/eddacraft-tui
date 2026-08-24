@@ -5,7 +5,7 @@
 
 | ID     | Type      | Owner | Priority | Status | Progress |
 | ------ | --------- | ----- | -------- | ------ | -------- |
-| POLFIT | Conductor | —     | high     | Ready  | 3/9      |
+| POLFIT | Conductor | —     | high     | Ready  | 5/9      |
 
 **Current state (2026-08-24):** POLFIT-001 and POLFIT-002 **Merged** via
 #4103 and #4104 — ADR-129 (intra-repo surface precedence) and ADR-130

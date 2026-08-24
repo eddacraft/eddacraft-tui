@@ -5,7 +5,7 @@
 
 | ID     | Owner | Priority | Status | Progress |
 | ------ | ----- | -------- | ------ | -------- |
-| CPACKS | —     | high     | In Progress  | 6/8      |
+| CPACKS | —     | high     | In Progress  | 7/8      |
 
 **Last reviewed:** 2026-08-23 — CPACKS-007 promoted Proposed -> Ready as an
 **enabling change** under PR #4100, not by a direct instruction naming this
