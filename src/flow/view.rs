@@ -72,18 +72,31 @@ pub fn zoom_to_read(flow: &mut Flow, node_id: &str) {
     flow.zoom_to(1.0);
 }
 
-/// Apply deferred fit-view by rendering into an off-screen buffer, then
-/// [`zoom_to_read`]. Use this instead of calling `zoom_to_read` before the
-/// first real frame.
+/// Consume a pending [`Flow::request_fit_view`] at a known canvas size, then
+/// [`zoom_to_read`].
+///
+/// rataflow applies `pending_fit` on the first render at a canvas size and
+/// only clears it on a *second* render at that same size. One off-screen
+/// draw is not enough: the next real frame would still hold the request and
+/// overwrite the read zoom. This helper draws twice, then zooms.
+///
+/// Pass the area the live surface will use so a later same-size frame
+/// cannot re-fit.
 ///
 /// # Stability
 ///
 /// **experimental** (TUIN-016).
 pub fn zoom_to_read_after_layout(flow: &mut Flow, node_id: &str, width: u16, height: u16) {
-    let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("infallible");
-    let _ = terminal.draw(|frame| {
-        frame.render_widget(Background::new(&*flow), frame.area());
-        frame.render_widget(&mut *flow, frame.area());
-    });
+    flush_pending_fit(flow, width, height);
     zoom_to_read(flow, node_id);
+}
+
+fn flush_pending_fit(flow: &mut Flow, width: u16, height: u16) {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("infallible");
+    for _ in 0..2 {
+        let _ = terminal.draw(|frame| {
+            frame.render_widget(Background::new(&*flow), frame.area());
+            frame.render_widget(&mut *flow, frame.area());
+        });
+    }
 }
