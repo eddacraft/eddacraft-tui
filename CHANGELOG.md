@@ -19,6 +19,27 @@ engineering maintenance are recorded in the
   listed only when it does something on the focused row (unsafe-drift confirm,
   or toggle a verdict section).
 
+### Fixed
+
+- **Antipattern scan no longer panics on a multibyte character at a keyword
+  boundary.** A `§` (or any 2- or 3-byte glyph) sitting where the masker split a
+  word used to crash `anvil init`, `anvil baseline`, and `anvil check <file>`
+  with exit 101.
+
+- **`anvil workspace allow` refuses Git Bash drive-relative paths.** `D:repo`
+  (the form MSYS produces when it eats the slash after the drive letter) is
+  rejected instead of being stored as `{cwd}\repo`. `anvil workspace list` flags
+  entries the daemon cannot resolve.
+
+- **`anvil mcp refresh` no longer fails on Windows while other anvil processes
+  hold lock files in `%LOCALAPPDATA%\anvil`.** Opening the existing state
+  directory no longer requests DELETE. `anvil doctor` fails `mcp-heal` when the
+  generation poke itself errors, instead of ticking Pass over the failure.
+
+- **Windows upgrade recipe names `anvil intercept stop`.** When the installer
+  cannot overwrite `anvil.exe` because the daemon holds it, the printed steps
+  stop the daemon first. Closing the editor is not required.
+
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty
 
 First-session welcome, gate progress, learning path, and Audit Next Steps tell
