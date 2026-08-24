@@ -9,6 +9,16 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+### Added
+
+- **`flow` wrapper helpers** (still off by default, experimental, TUIN-015..020):
+  spotlight cone (`spotlight` / `Spotlight`), view capture/restore
+  (`ViewState`, `rebuild_preserving_view`, `zoom_to_read_after_layout`),
+  role-styled `NodeSpec` / `EdgeSpec` with Unicode display-width geometry,
+  graph diff with ghost nodes (`themed_from_diff`), `FlowSession` RAII, and
+  elision portals (`elide_from_edges`). Layout morph (TUIN-021) is a no-ship
+  spike — no public morph API and no new Cargo feature.
+
 ## [0.5.1] - 2026-08-23
 
 ### Added

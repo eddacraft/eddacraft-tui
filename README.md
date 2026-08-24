@@ -212,7 +212,7 @@ The `widgets/` module ships a curated component set. Highlights:
 | `lifecycle`   | `TerminalGuard` raw-mode / alternate-screen RAII guard + panic restore                      |
 | `runner`      | Small fallback CLI shell — global flags + first-level commands (enables `lifecycle`)        |
 | `json-render` | Parser + registry for the `@json-render/core` declarative spec format                       |
-| `flow`        | Themed `rataflow` graphs — Sugiyama layout, container boxes, zoom-to-read                   |
+| `flow`        | Themed `rataflow` graphs — Sugiyama, containers, spotlight, view-preserve, diff, elision    |
 | `test-utils`  | Snapshot testing helpers re-exported for downstream crates                                  |
 
 ```toml

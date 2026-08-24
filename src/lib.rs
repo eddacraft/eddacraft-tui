@@ -33,7 +33,7 @@
 //! | [`compat`] | Terminal detection and minimum-size validation |
 //! | [`mode`] | TTY / alt-screen / colour-depth probes returning typed enums (zero new deps) |
 //! | `json_render` (feature `json-render`) | Parser, catalogue validation, and the component registry/trait for the `@json-render/core` flat element spec format |
-//! | `flow` (feature `flow`) | Themed interactive flow graphs (rataflow): Sugiyama dependency views, container-box boundary views, zoom-to-read |
+//! | `flow` (feature `flow`) | Themed interactive flow graphs (rataflow): Sugiyama, containers, spotlight, view-preserve, role specs, graph diff, session RAII, elision |
 //! | `test_utils` (feature `test-utils`) | Snapshot testing helpers for style-aware buffer serialisation |
 //!
 //! ## Stability
