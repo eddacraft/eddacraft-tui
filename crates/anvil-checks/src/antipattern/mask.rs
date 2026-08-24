@@ -134,7 +134,11 @@ fn ends_with_regex_keyword(out_so_far: &str) -> bool {
     let trimmed = out_so_far.trim_end();
     let word_start = trimmed
         .rfind(|ch: char| !(ch.is_alphanumeric() || ch == '_' || ch == '$'))
-        .map_or(0, |i| i + 1);
+        .map_or(0, |i| {
+            // rfind returns a byte index at a char boundary. A multibyte
+            // separator (Dave B31 / CIB-359) is 2+ bytes; i+1 is inside it.
+            i + trimmed[i..].chars().next().map(char::len_utf8).unwrap_or(1)
+        });
     let word = &trimmed[word_start..];
     !word.is_empty() && REGEX_PRECEDING_KEYWORDS.contains(&word)
 }
@@ -645,6 +649,32 @@ mod tests {
     fn regex_after_return_keyword_is_masked() {
         let out = mask_one("return /any!/;");
         assert!(!out.contains("any!"), "regex after return must mask: {out}");
+    }
+
+    #[test]
+    fn regex_keyword_after_multibyte_separator_does_not_panic() {
+        // CIB-359 / Dave B31: rfind returns a byte index; i+1 must not land
+        // inside a 2-byte or 3-byte separator.
+        let two = mask_one("§return /any!/;");
+        assert!(!two.contains("any!"), "2-byte separator: {two}");
+        let three = mask_one("€return /any!/;");
+        assert!(!three.contains("any!"), "3-byte separator: {three}");
+    }
+
+    #[test]
+    fn dave_b31_section_glyph_at_byte_61_does_not_panic() {
+        let mut line = format!("    # {} Section heading with box rules ", "─".repeat(2));
+        assert!(line.len() < 61, "prefix too long: {}", line.len());
+        line.push_str(&"x".repeat(61 - line.len()));
+        line.push_str("§C/§D ");
+        line.push_str(&"─".repeat(10));
+        assert_eq!(
+            line.as_bytes().get(61).copied(),
+            Some(0xC2),
+            "§ must start at byte 61"
+        );
+        let out = mask_one(&line);
+        assert_eq!(out.len(), line.len());
     }
 
     #[test]
