@@ -4,7 +4,7 @@
 // view, never a second source of truth.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,9 +65,7 @@ function render() {
   const catalogue = loadJson('flags/surfaces.json');
   const manifest = loadJson('flags/manifest.json');
   const flagByKey = new Map(manifest.flags.map((flag) => [flag.key, flag]));
-  const groupByKey = new Map(
-    catalogue.productFeatureGroups.map((group) => [group.key, group])
-  );
+  const groupByKey = new Map(catalogue.productFeatureGroups.map((group) => [group.key, group]));
 
   const groups = [...catalogue.productFeatureGroups].sort((a, b) => a.key.localeCompare(b.key));
   const features = [...catalogue.productFeatures].sort((a, b) => a.key.localeCompare(b.key));
@@ -110,7 +108,13 @@ function render() {
     );
   }
 
-  lines.push('', '## Product features', '', '| Key | Name | Group | Owner | Status | Flag linkage |', '| --- | ---- | ----- | ----- | ------ | ------------ |');
+  lines.push(
+    '',
+    '## Product features',
+    '',
+    '| Key | Name | Group | Owner | Status | Flag linkage |',
+    '| --- | ---- | ----- | ----- | ------ | ------------ |'
+  );
 
   for (const feature of features) {
     const group = groupByKey.get(feature.groupKey);
@@ -164,10 +168,14 @@ function render() {
 }
 
 function formatMarkdown(content) {
+  const oxfmt = resolve(ROOT, 'node_modules/.bin/oxfmt');
+  if (!existsSync(oxfmt)) {
+    return content;
+  }
   const directory = mkdtempSync(join(tmpdir(), 'product-catalogue-'));
   const file = join(directory, 'product-feature-catalogue.md');
   writeFileSync(file, content);
-  const result = spawnSync('pnpm', ['exec', 'oxfmt', '--write', file], {
+  const result = spawnSync(oxfmt, ['--write', file], {
     cwd: ROOT,
     encoding: 'utf8',
   });

@@ -126,6 +126,22 @@ fn opt_string_lit(v: Option<&Value>) -> String {
     }
 }
 
+fn owned_string_vec_lit(items: &[Value], what: &str) -> String {
+    let parts: Vec<String> = items
+        .iter()
+        .map(|item| {
+            format!(
+                "{}.to_owned()",
+                str_lit(
+                    item.as_str()
+                        .unwrap_or_else(|| panic!("{what} must be a string"))
+                )
+            )
+        })
+        .collect();
+    format!("vec![{}]", parts.join(", "))
+}
+
 /// Emit the body of `pub fn definition() -> crate::FeatureFlagDefinition`.
 fn definition_expr(flag: &Value) -> String {
     let get_str = |k: &str| -> &str {
@@ -186,18 +202,7 @@ fn definition_expr(flag: &Value) -> String {
 
     let tags = match flag.get("tags").and_then(|t| t.as_array()) {
         None => "None".to_owned(),
-        Some(items) => {
-            let parts: Vec<String> = items
-                .iter()
-                .map(|i| {
-                    format!(
-                        "{}.to_owned()",
-                        str_lit(i.as_str().expect("tag must be a string"))
-                    )
-                })
-                .collect();
-            format!("Some(vec![{}])", parts.join(", "))
-        }
+        Some(items) => format!("Some({})", owned_string_vec_lit(items, "tag")),
     };
 
     let controls_product_features = match flag
@@ -205,21 +210,7 @@ fn definition_expr(flag: &Value) -> String {
         .and_then(|features| features.as_array())
     {
         None => "vec![]".to_owned(),
-        Some(items) => {
-            let parts: Vec<String> = items
-                .iter()
-                .map(|item| {
-                    format!(
-                        "{}.to_owned()",
-                        str_lit(
-                            item.as_str()
-                                .expect("controlsProductFeatures entry must be a string")
-                        )
-                    )
-                })
-                .collect();
-            format!("vec![{}]", parts.join(", "))
-        }
+        Some(items) => owned_string_vec_lit(items, "controlsProductFeatures entry"),
     };
 
     format!(
