@@ -142,6 +142,17 @@ impl SubprocessRunner {
             "policy".into(),
             "eval".into(),
             "--json".into(),
+            // EVALCI-010: without this every suite whose policy emits only
+            // `warning`-tier findings reports `exit_code: 0` forever, so
+            // `EvalRegressionReport::regressed` — which reads exit_code — can
+            // never fire for it. That was true of every suite in
+            // `ci/eval/suites.json`, including `arch_boundary`. Passing it makes
+            // the *comparison signal* meaningful; it does not make the CI step
+            // blocking (that step is `continue-on-error` and passes no
+            // `--fail-on-regression`, so ADR-002 warnings-over-blocks holds).
+            // Process exit 1 is an accepted verdict here, not a runner error —
+            // see the EVALCI-003 contract note in `run` below.
+            "--fail-on-warnings".into(),
             suite.policy.display().to_string(),
             "--query".into(),
             suite.query.clone(),
@@ -575,8 +586,23 @@ mod tests {
         assert_eq!(
             args,
             vec![
-                "policy", "eval", "--json", "p.rego", "--query", "data.x", "--input", "in.json"
+                "policy",
+                "eval",
+                "--json",
+                "--fail-on-warnings",
+                "p.rego",
+                "--query",
+                "data.x",
+                "--input",
+                "in.json"
             ]
+        );
+        // EVALCI-010: pinned deliberately. Dropping this flag silently returns
+        // every advisory suite to a permanent `exit_code: 0`, which is the
+        // state that made `regressed()` unable to fire for any wired suite.
+        assert!(
+            args.iter().any(|a| a == "--fail-on-warnings"),
+            "the warning-tier exit-code signal must stay wired"
         );
         // Without an input the `--input` pair is omitted.
         let no_input = suite();

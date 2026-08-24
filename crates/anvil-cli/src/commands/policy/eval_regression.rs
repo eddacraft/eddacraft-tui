@@ -24,8 +24,8 @@ use serde::Serialize;
 
 use anvil_policy::adversarial::is_reserved_suite_name;
 use anvil_policy::eval::{
-    EvalHarnessPort, EvalRegressionReport, EvalResultStore, EvalRunSummary, EvalSuite,
-    GuidedFinding, PolicyEvalAdapter, SubprocessRunner, guidance_for,
+    EvalHarnessPort, EvalRegressionReport, EvalResultStore, EvalRunSummary, EvalSeverity,
+    EvalSuite, GuidedFinding, PolicyEvalAdapter, SubprocessRunner, guidance_for,
 };
 
 use crate::GlobalArgs;
@@ -72,6 +72,11 @@ struct SuiteOutcome {
     baseline_exit_code: Option<i32>,
     new_findings: usize,
     resolved_findings: usize,
+    /// EVALCI-010: whether this suite's output differs from its baseline in
+    /// *either* direction. Distinct from `regressed`, which reads `exit_code`
+    /// and treats a finding disappearing as an improvement — true for a gate
+    /// over changing code, false for a suite over a committed frozen input.
+    output_changed: bool,
     /// Remediation guidance, present only for a failing current run.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     guidance: Vec<GuidedFinding>,
@@ -99,6 +104,11 @@ struct RegressionOutput {
     regressions: usize,
     /// True when any suite regressed — the headline pass/fail.
     regressed: bool,
+    /// EVALCI-010: suites whose fixture output changed in either direction.
+    output_changes: usize,
+    /// True when any suite's fixture output changed. This is what detects a
+    /// policy going silent; `regressed` structurally cannot.
+    output_changed: bool,
 }
 
 /// A suite that produced a verdict, paired with its optional baseline. Boxed
@@ -157,6 +167,7 @@ fn build_outcome(runs: &[SuiteRun]) -> RegressionOutput {
                     baseline_exit_code: report.baseline_exit_code,
                     new_findings: report.new_findings.len(),
                     resolved_findings: report.resolved_findings.len(),
+                    output_changed: report.output_changed(),
                     guidance: guidance_for(&ran.current),
                 });
             }
@@ -165,10 +176,13 @@ fn build_outcome(runs: &[SuiteRun]) -> RegressionOutput {
     }
 
     let regressions = suites.iter().filter(|s| s.regressed).count();
+    let output_changes = suites.iter().filter(|s| s.output_changed).count();
     RegressionOutput {
         suites_run: suites.len(),
         regressions,
         regressed: regressions > 0,
+        output_changes,
+        output_changed: output_changes > 0,
         suites,
         runner_errors,
     }
@@ -251,7 +265,8 @@ pub fn run(args: &EvalRegressionArgs, global: &GlobalArgs) -> Result<()> {
 /// would exit 0 under `--fail-on-regression` — a green gate that checked
 /// nothing, exactly the false-negative EVALCI-004's fail-open must not open.
 fn should_block(outcome: &RegressionOutput, fail_on_regression: bool) -> bool {
-    fail_on_regression && (outcome.regressed || !outcome.runner_errors.is_empty())
+    fail_on_regression
+        && (outcome.regressed || outcome.output_changed || !outcome.runner_errors.is_empty())
 }
 
 /// Append eligible runs to the history. The `run_id`/timestamp come from the
@@ -268,7 +283,27 @@ fn persist_runs(store: &EvalResultStore, runs: &[SuiteRun]) -> Result<()> {
         let SuiteRun::Ran(ran) = run else {
             continue;
         };
-        if EvalRegressionReport::compare(ran.baseline.as_ref(), &ran.current).regressed() {
+        // EVALCI-001 ratchet, narrowed by EVALCI-010.
+        //
+        // Once the runner passes `--fail-on-warnings`, an advisory suite
+        // reports `exit_code: 1`, and on a first run `regressed()` is true
+        // (`baseline_exit_code.is_none_or(..)` short-circuits for `None`).
+        // Under the original blanket skip such a suite could never bootstrap a
+        // baseline — it would be skipped forever and silently check nothing.
+        //
+        // So a first run may establish history, but only when it is
+        // *advisory-only*. A first run carrying an `error`-severity finding is
+        // genuinely broken and still must not become the accepted baseline —
+        // that is EVALCI-001's original case and it stays intact. Once a
+        // baseline exists the ratchet is unconditional.
+        let report = EvalRegressionReport::compare(ran.baseline.as_ref(), &ran.current);
+        let bootstrapping_advisory_suite = ran.baseline.is_none()
+            && !ran
+                .current
+                .findings
+                .iter()
+                .any(|f| f.severity == EvalSeverity::Error);
+        if report.regressed() && !bootstrapping_advisory_suite {
             continue;
         }
         let run_id = format!("{}-{}", ran.current.suite, now.timestamp_millis());
@@ -311,6 +346,11 @@ fn render_plain(outcome: &RegressionOutput) {
     for suite in &outcome.suites {
         let icon = if suite.regressed {
             "\u{2717}" // ✗
+        } else if suite.output_changed {
+            // EVALCI-010: the fixture's output moved even though the gate
+            // verdict did not. A rule going silent lands here, so it must not
+            // render as a clean ✓.
+            "\u{0394}" // Δ
         } else if suite.passed {
             "\u{2713}" // ✓
         } else {
@@ -327,6 +367,12 @@ fn render_plain(outcome: &RegressionOutput) {
         // failing (○) suite is as actionable as a newly regressed (✗) one. The
         // `guidance` list is non-empty exactly when the current run failed
         // (matches the JSON output).
+        if suite.output_changed && !suite.regressed {
+            plain::warn(&format!(
+                "    fixture output changed on a frozen input ({} new, {} gone) — the policy behaved differently, review before accepting",
+                suite.new_findings, suite.resolved_findings
+            ));
+        }
         for guided in &suite.guidance {
             plain::warn(&format!("    {}", guided.guidance.summary));
             for action in &guided.guidance.next_actions {
@@ -349,6 +395,16 @@ fn render_plain(outcome: &RegressionOutput) {
         plain::error(&format!(
             "{} of {} suite(s) regressed",
             outcome.regressions, outcome.suites_run
+        ));
+    } else if outcome.output_changed {
+        // EVALCI-010: never render a green headline when a fixture's output
+        // moved. The gate verdict is unmoved by design (a resolved finding
+        // reads as an improvement), so without this the summary would say
+        // "no regressions" for a rule that stopped firing — the exact
+        // false-green CPACKS-006 was opened for.
+        plain::error(&format!(
+            "{} of {} suite(s) changed output on a frozen input",
+            outcome.output_changes, outcome.suites_run
         ));
     } else {
         plain::success(&format!(
@@ -646,6 +702,85 @@ mod tests {
         let clean = build_outcome(&[ran(summary("arch", 0, vec![]), None)]);
         assert!(!should_block(&clean, true));
         assert!(!should_block(&clean, false));
+    }
+
+    #[test]
+    fn eval_regression_first_run_bootstraps_a_warning_suite_baseline() {
+        // EVALCI-010 guard: with `--fail-on-warnings` wired, a warning-emitting
+        // suite exits 1, so `regressed()` is true on a first run. The ratchet
+        // must still let that first run establish a baseline, or the suite can
+        // never gain one and silently checks nothing forever.
+        let dir = tempfile::TempDir::new().expect("tmp");
+        let store = EvalResultStore::new(dir.path());
+        let current = summary(
+            "warns",
+            1,
+            vec![finding(EvalSeverity::Warning, "fires", Some("a"))],
+        );
+        let report = EvalRegressionReport::compare(None, &current);
+        assert!(
+            report.regressed(),
+            "a first run with a non-zero exit still reports as regressed"
+        );
+
+        persist_runs(&store, &[ran(current.clone(), None)]).expect("persist");
+        let stored = store
+            .latest("warns")
+            .expect("read")
+            .expect("the first run must establish the baseline despite regressed()");
+        assert_eq!(stored.exit_code, 1);
+
+        // The ratchet still holds once a baseline exists: a worse run against
+        // that baseline must not replace it.
+        let worse = summary("warns", 2, vec![]);
+        persist_runs(&store, &[ran(worse, Some(current))]).expect("persist");
+        let after = store.latest("warns").expect("read").expect("record");
+        assert_eq!(after.exit_code, 1, "a regressed run must not poison it");
+    }
+
+    #[test]
+    fn eval_regression_blocks_when_a_rule_goes_silent() {
+        // EVALCI-010 / the CPACKS-006 defect, end to end at the CLI seam.
+        // A warning-tier finding disappears against a committed baseline on a
+        // frozen input. `regressed()` calls that an improvement (gate 1->0), so
+        // before this fix the run reported a clean gate and could not block.
+        let base = summary(
+            "anvil_baseline_sensitive_paths",
+            0,
+            vec![finding(EvalSeverity::Warning, "fires", Some("a"))],
+        );
+        let cur = summary("anvil_baseline_sensitive_paths", 0, vec![]);
+        let outcome = build_outcome(&[ran(cur, Some(base))]);
+
+        assert!(
+            !outcome.regressed,
+            "gate semantics still read this as an improvement — that is why \
+             output_changed exists rather than replacing regressed()"
+        );
+        assert!(outcome.output_changed, "the silent rule must be detected");
+        assert_eq!(outcome.output_changes, 1);
+        assert_eq!(outcome.suites[0].resolved_findings, 1);
+        assert!(
+            should_block(&outcome, true),
+            "under --fail-on-regression a rule going silent must block"
+        );
+        assert!(
+            !should_block(&outcome, false),
+            "report-only posture never blocks (ADR-002)"
+        );
+    }
+
+    #[test]
+    fn eval_regression_stable_fixture_is_not_an_output_change() {
+        // The false-positive guard: an unchanged fixture must stay green, or
+        // the new verdict would fire on every run and be ignored.
+        let f = finding(EvalSeverity::Warning, "steady", Some("a"));
+        let base = summary("s", 1, vec![f.clone()]);
+        let cur = summary("s", 1, vec![f]);
+        let outcome = build_outcome(&[ran(cur, Some(base))]);
+        assert!(!outcome.output_changed);
+        assert!(!outcome.regressed);
+        assert!(!should_block(&outcome, true));
     }
 
     #[test]

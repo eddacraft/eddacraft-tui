@@ -204,56 +204,67 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-010: The regression verdict is blind to advisory-tier findings
 
-- **Status:** Proposed — filed 2026-08-24 from the CPACKS-006 planning council
-  (session `council-9021df43`). Raised by the adversarial reviewer and
-  independently verified in code before filing.
-- **Intent:** Make `eval-regression`'s verdict respond to a findings delta, or
-  state explicitly that it structurally cannot — because today it cannot, for
-  **every** suite currently wired.
-- **Evidence (read from source, not inferred):**
-  - `EvalRegressionReport::regressed()`
-    (`crates/anvil-policy/src/eval/port.rs:210-215`) is
-    `current_exit_code != 0 && baseline differs`. It never reads
-    `new_findings` or `resolved_findings`, even though both are computed at
-    lines 169-191 and rendered.
-  - `exit_code()` (`crates/anvil-policy-engine/src/result.rs:149-155`) returns
-    non-zero only for `Severity::Error`, or `Warning` with `fail_on_warnings`.
-  - `SubprocessRunner` (`crates/anvil-policy/src/eval/adapter.rs`) never passes
-    `--fail-on-warnings` — zero occurrences in the file.
-  - `should_block()`
-    (`crates/anvil-cli/src/commands/policy/eval_regression.rs:253-255`) gates on
-    `outcome.regressed`, so `--fail-on-regression` inherits the same blindness;
-    only a runner error can block.
-  - Every rule in `anvil-baseline` **and** in `policies/eval/arch_boundary.rego`
-    emits `severity: "warning"` only. So all three wired suites sit at
-    `exit_code = 0` permanently and `regressed()` can never be true.
-- **Expected Outcome:** Either the verdict consults the findings delta for
-  advisory-tier suites, or the limitation is documented at the surface that
-  claims regression coverage (`ci/eval/README.md`, the CI step name) so nobody
-  reads a green report-only step as evidence a policy still fires.
-- **Why this matters for EVALCI-008:** EVALCI-008 plans to make the check a
-  required hard-fail. As built that would add a required check which cannot
-  fail on the thing it exists to detect. EVALCI-008's recorded design question
-  covers the 1→1 absorbed-violation case; this is the distinct 0→0 case, which
-  is the state every current suite is actually in.
-- **Relationship to CPACKS-006:** CPACKS-006 (Merged via #4107) correctly fixed
-  the *shape* — the wrappers make `findings` and the rendered `new:/resolved:`
-  delta real. It did not, and could not, fix the *verdict*. Both were needed;
-  only one has landed.
-- **Files:** `crates/anvil-policy/src/eval/port.rs`,
-  `crates/anvil-cli/src/commands/policy/eval_regression.rs`,
-  `crates/anvil-policy/src/eval/adapter.rs`, `ci/eval/README.md`
+- **Status:** In Progress 2026-08-24 — Parts 1 and 2 implemented; see Files.
+- **Intent:** Make the eval-regression verdict respond to a policy behaving
+  differently on a **frozen** input, in either direction.
+- **Why this is a fix and not a documentation task:** every suite in
+  `ci/eval/suites.json` evaluates a *committed* input (`ci/eval/inputs/*.json`,
+  `policies/eval/arch_boundary.input.json`). On a frozen input the findings can
+  only change if the **policy** changed. `regressed()`'s "gate improved 1->0"
+  reading is borrowed from a gate-over-changing-code model and is a category
+  error here: nothing improved, the rule stopped firing. Documenting that would
+  have recorded a defect as a feature.
+
+**Part 1 — wire `--fail-on-warnings` (bugfix, no decision).** The flag already
+existed on `anvil policy eval`; `SubprocessRunner` never passed it, so every
+advisory suite reported `exit_code: 0` forever and `regressed()` could not fire
+for any of them — including `arch_boundary`. Passing it makes the comparison
+signal real. It does **not** make CI blocking: the step stays
+`continue-on-error` with no `--fail-on-regression`, so ADR-002 holds. Process
+exit 1 is an accepted verdict, not a runner error (`adapter.rs` EVALCI-003
+contract note).
+
+**Part 1a — ratchet carve-out, discovered while implementing Part 1.** With the
+flag wired, an advisory suite exits 1, so on a *first* run `regressed()` is true
+(`baseline_exit_code.is_none_or(..)` short-circuits for `None`) and the
+EVALCI-001 ratchet skipped it — such a suite could never bootstrap a baseline
+and would silently check nothing forever. `persist_runs` now lets a first run
+establish history **only when it is advisory-only**. A first run carrying an
+`error`-severity finding is still refused, which is EVALCI-001's original case
+and is still pinned by `eval_regression_ratchet_baseline`.
+
+**Part 2 — `output_changed()`, the fixture verdict (the design decision).**
+Added *alongside* `regressed()`, not replacing it, because
+`adversarial/execution.rs:370` depends on gate semantics: a newly-failing probe
+is a regression and a newly-passing one is genuine improvement, since a probe's
+subject varies and a fixture's does not. The two verdicts answer different
+questions and both are correct for their own consumer. `output_changed` is true
+when `new_findings` or `resolved_findings` is non-empty; `should_block` honours
+it under `--fail-on-regression`, and the renderer shows `Δ` plus an explicit
+callout so a changed fixture can never render as a clean `✓`.
+
+- **Expected Outcome:** a rule going silent is detected, surfaced, and blocks
+  under `--fail-on-regression`, while report-only stays exit 0.
+- **Evidence (end-to-end, 2026-08-24):** baseline regenerated from empty (3
+  records — proving Part 1a), second run clean, then
+  `precise_sensitive(".github/workflows/")` neutered in the eval wrapper:
+  `Δ anvil_baseline_sensitive_paths new:0 resolved:1 exit:0`, headline
+  `✗ 1 of 3 suite(s) changed output on a frozen input`, exit **1** with
+  `--fail-on-regression` and **0** report-only. Before this change the same
+  mutation reported `✓ no regressions`.
+- **Files:** `crates/anvil-policy/src/eval/port.rs` (`output_changed`),
+  `crates/anvil-policy/src/eval/adapter.rs` (`--fail-on-warnings`),
+  `crates/anvil-cli/src/commands/policy/eval_regression.rs` (outcome, ratchet
+  carve-out, `should_block`, renderer), `ci/eval/baseline/history.jsonl`
+  (regenerated), `ci/eval/README.md`
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval` (the crate that
-  owns `port.rs` and `adapter.rs` — 12 and 17 tests respectively, none of which
-  `-p eddacraft-anvil` runs) **and** `cargo test -p eddacraft-anvil -- eval_regression`
-  for the CLI-side `should_block` path. Corrected 2026-08-24 after review: the
-  first draft cited only the `eddacraft-anvil` filter while listing `port.rs`
-  and `adapter.rs` under Files — the same defect this council found in
-  CPACKS-006's validation line, repeated.
-- **Dependencies:** none blocking; EVALCI-008 should not proceed before this
-  is decided. Note ADR-098 AD-2 slates `crates/anvil-policy` for deletion, so
-  land this where the harness ends up rather than deepening that crate.
+  owns `port.rs` and `adapter.rs`) **and**
+  `cargo test -p eddacraft-anvil -- eval_regression` (the CLI-side outcome,
+  ratchet, and `should_block` paths). Both are required — neither filter runs
+  the other's tests.
+- **Dependencies:** none. **Unblocks EVALCI-008**, whose second gate this was.
 - **Confidence:** high
+
 
 ### EVALCI-009: Complete the ADR-098 policy-support crate disposition
 

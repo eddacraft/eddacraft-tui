@@ -16,6 +16,31 @@ check (EVALCI-005 / EVALCI-006).
   check diffs each run against (`--store ci/eval/baseline`). Append-only NDJSON
   in Anvil's canonical eval-record schema.
 
+## What the suites detect (EVALCI-010)
+
+Every suite here evaluates a **committed, frozen** input, so its findings can
+only change if the *policy* changed. Two verdicts are reported, and they are not
+the same question:
+
+| Verdict          | Reads                          | Fires when                                     |
+| ---------------- | ------------------------------- | ---------------------------------------------- |
+| `regressed`      | `exit_code` vs baseline         | The gate got worse. Unmoved by a rule going quiet — a resolved finding reads as an improvement, which is correct for a gate over changing code. |
+| `output_changed` | `new_findings`/`resolved_findings` | The fixture's output moved **either way**, including a rule that stopped firing. Rendered `Δ` with an explicit callout. |
+
+`output_changed` is the one that catches a policy silently breaking, and it is
+why a changed fixture never renders as a clean `✓`. `regressed` keeps gate
+semantics because the adversarial-probe runner depends on them.
+
+The runner passes `--fail-on-warnings` to each `anvil policy eval` subprocess.
+Without it an advisory suite reports `exit_code: 0` forever and `regressed`
+cannot fire for it at all. Process exit 1 is an accepted verdict here, not a
+runner failure.
+
+**Bootstrap:** a first run may establish a baseline even though it reports as
+regressed, but only when it is advisory-only. A first run carrying an
+`error`-severity finding is still refused, so a broken suite cannot seed its own
+baseline (EVALCI-001).
+
 ## CI behaviour
 
 The `Policy eval-regression (report-only)` step in

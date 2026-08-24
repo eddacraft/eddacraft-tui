@@ -192,6 +192,27 @@ impl EvalRegressionReport {
         }
     }
 
+    /// Whether this suite's output differs from its baseline at all — in
+    /// either direction (EVALCI-010).
+    ///
+    /// This is the **fixture** verdict, and it is deliberately not
+    /// [`Self::regressed`]. Every suite in `ci/eval/suites.json` evaluates a
+    /// *committed, frozen* input, so its findings can only change if the
+    /// **policy** changed. On a frozen input a disappearing finding is not an
+    /// improvement — it means the rule stopped firing, which is the exact
+    /// defect CPACKS-006 was opened for and which `regressed()` classifies as
+    /// "gate improved 1->0".
+    ///
+    /// `regressed()` keeps its gate semantics because
+    /// `adversarial/execution.rs` depends on them: a newly-failing probe is a
+    /// regression and a newly-passing one is genuine improvement, because a
+    /// probe's subject varies. A fixture's does not. The two verdicts answer
+    /// different questions and both are correct for their own consumer.
+    #[must_use]
+    pub fn output_changed(&self) -> bool {
+        !self.new_findings.is_empty() || !self.resolved_findings.is_empty()
+    }
+
     /// A regression is a *worsening of the gate*, read from `exit_code` — the
     /// authoritative verdict — not from finding severity.
     ///
@@ -569,5 +590,49 @@ mod tests {
         let report = EvalRegressionReport::compare(Some(&base), &cur);
         assert_eq!(report.new_findings.len(), 1);
         assert_eq!(report.resolved_findings.len(), 1);
+    }
+    #[test]
+    fn output_changed_detects_a_rule_going_silent() {
+        // EVALCI-010, the CPACKS-006 defect in miniature: the input is frozen,
+        // so a finding disappearing means the policy stopped firing.
+        let base = summary(
+            "s",
+            0,
+            vec![finding(EvalSeverity::Warning, "fires", Some("a"))],
+        );
+        let cur = summary("s", 0, vec![]);
+        let report = EvalRegressionReport::compare(Some(&base), &cur);
+        assert!(
+            report.output_changed(),
+            "a finding disappearing on a frozen input must be detected"
+        );
+        assert!(
+            !report.regressed(),
+            "regressed() keeps gate semantics — this is why output_changed exists"
+        );
+    }
+
+    #[test]
+    fn output_changed_detects_a_new_finding() {
+        let base = summary("s", 0, vec![]);
+        let cur = summary(
+            "s",
+            0,
+            vec![finding(EvalSeverity::Warning, "new", Some("a"))],
+        );
+        let report = EvalRegressionReport::compare(Some(&base), &cur);
+        assert!(report.output_changed());
+    }
+
+    #[test]
+    fn output_changed_is_false_when_the_fixture_output_is_stable() {
+        let f = finding(EvalSeverity::Warning, "steady", Some("a"));
+        let base = summary("s", 0, vec![f.clone()]);
+        let cur = summary("s", 0, vec![f]);
+        let report = EvalRegressionReport::compare(Some(&base), &cur);
+        assert!(
+            !report.output_changed(),
+            "an unchanged fixture must not report a change"
+        );
     }
 }
