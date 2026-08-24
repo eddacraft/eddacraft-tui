@@ -514,7 +514,10 @@ mod tests {
             .join("../..")
             .join("ci/eval/baseline/history.jsonl");
         let hist_raw = std::fs::read_to_string(&history).unwrap_or_else(|e| {
-            panic!("reading committed eval baseline `{}`: {e}", history.display())
+            panic!(
+                "reading committed eval baseline `{}`: {e}",
+                history.display()
+            )
         });
         let records: Vec<serde_json::Value> = hist_raw
             .lines()
