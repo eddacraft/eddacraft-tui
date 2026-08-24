@@ -5,14 +5,12 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 8/21     |
+| TUIN | joshuaboys | In Progress | 15/21     |
 
-**Last reviewed:** 2026-08-24 (flow-extension wave implementation): TUIN-015..021
-In Progress under operator override of the Ready membrane
-("complete the wave in a fresh wt via /dev-loop-grok"). Spec:
-[`plans/specs/2026-08-24-eddacraft-tui-flow-extensions.md`](../specs/2026-08-24-eddacraft-tui-flow-extensions.md).
-TUIN-021 spike result: **no-ship** (no public morph API). Header
-count remains 8/21 (ADR-053; no N/M bump in this feature PR). Prior: 2026-08-24
+**Last reviewed:** 2026-08-24 (flow-extension wave merged): TUIN-015..020
+Merged via PR #4121; TUIN-021 spike **Done** (no-ship). Header count
+reconciled by `pnpm aps:index` after the feature PR (ADR-053). Prior: 2026-08-24
+(implementation In Progress under Ready-membrane override). Prior: 2026-08-24
 (wave filed as Proposed; bookkeeping `pnpm aps:index` 8/14 → 8/21). Prior: 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
 convention is live — extension surface (`Theme`/`Surface`) graded `stable`,
 `test_utils` + `mode` probes `experimental`, rest default `unstable`; a
@@ -837,7 +835,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-015: Spotlight cone over a selected node
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-24 via PR #4121
 - **Intent:** Give consumers a one-call “what does this node touch?” lens
   inside the `flow` wrapper so impact and APS do not each walk edges and
   restyle by hand.
@@ -857,7 +855,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-016: Preserve view across rebuild and fix fit-then-read
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-24 via PR #4121
 - **Intent:** Stop throwing away pan, zoom, and selection when the edge list
   changes, and stop `request_fit_view` from silently undoing `zoom_to_read`
   on the first frame.
@@ -878,7 +876,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-017: Role-styled node/edge specs and Unicode width
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-24 via PR #4121
 - **Intent:** Let builders assign `Theme` roles at construction, and size
   container nodes with display width rather than `.chars().count()`.
 - **Expected Outcome:** `NodeSpec` / `EdgeSpec` carry a `Role`.
@@ -897,7 +895,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-018: Diff two graphs with ghost nodes
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-24 via PR #4121
 - **Intent:** Show added, removed, and unchanged structure without the
   Sugiyama layout exploding between `before` and `after`.
 - **Expected Outcome:** `themed_from_diff(before, after, theme)` takes two
@@ -916,7 +914,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-019: FlowSession RAII
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-24 via PR #4121
 - **Intent:** Compose mouse capture, first-frame camera, and optional
   `lifecycle::TerminalGuard` so consumers cannot leak mouse mode into a
   parent shell.
@@ -936,7 +934,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-020: Elision portals for over-budget graphs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-24 via PR #4121
 - **Intent:** Keep large graphs readable in the library instead of a
   consumer degrading the whole surface past its own node budget.
 - **Expected Outcome:** Caller supplies `max_visible` (library-owned; not
@@ -957,7 +955,7 @@ a subcommand and `--config` path handoff.
 
 ### TUIN-021: Spike — layout morph with animate-core
 
-- **Status:** In Progress
+- **Status:** Done 2026-08-24 (spike; no-ship — spec §7; PR #4121)
 - **Intent:** Record a ship/no-ship signal for interpolating node
   positions when the edge list changes, before coupling `flow` to the
   animation runtime.
