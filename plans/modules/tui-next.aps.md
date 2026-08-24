@@ -7,7 +7,11 @@
 | ---- | ---------- | -------- | -------- |
 | TUIN | joshuaboys | In Progress | 8/14     |
 
-**Last reviewed:** 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
+**Last reviewed:** 2026-08-24 (flow-extension wave filed): TUIN-015..021
+Proposed against
+[`plans/specs/2026-08-24-eddacraft-tui-flow-extensions.md`](../specs/2026-08-24-eddacraft-tui-flow-extensions.md)
+after the `eddacraft-tui` 0.5.1 cut. Items stay Proposed (membrane). No
+done/total change (8/14). Prior: 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
 convention is live — extension surface (`Theme`/`Surface`) graded `stable`,
 `test_utils` + `mode` probes `experimental`, rest default `unstable`; a
 warn-only baselined CI check (`scripts/check-stability-markers.mjs`, 397-item
@@ -98,6 +102,11 @@ spike; TUIN-009/010 added); 2026-05-23 (ADR-050 design pass).
 > The feature ships opt-in with an exact `rataflow` pin and its own decision
 > record per the ADR-050 new-feature-flag precedent.
 >
+> **Operator authorisation (2026-08-24):** file TUIN-015..021 as Proposed
+> follow-on to TUIN-014 (spotlight, view-preserve, role specs, graph diff,
+> FlowSession, elision portals, morph spike). No new Cargo feature flag.
+> Do not promote to Ready in this planning change.
+>
 > **Relationship to TUIR:** TUIR moves the source of truth without
 > behaviour change. TUIN is the first batch of design work that becomes
 > *affordable* because the source moved. Every item below is deliberately
@@ -144,6 +153,11 @@ surface.
   affordance window — e.g. terminal-harmonised palette generation
   (TUIN-009 spike) and follow-on opt-in theme helpers that consumers can
   adopt without architectural change.
+- Flow-graph wrapper evolution behind the existing `flow` feature
+  (TUIN-014 follow-on): curated helpers over `rataflow` (spotlight cone,
+  view preservation, role-styled specs, graph diff, session RAII, elision
+  portals, optional morph spike). Not a new feature flag; not an
+  Anvil-internal surface redesign.
 
 ## Out of Scope
 
@@ -307,6 +321,16 @@ surface.
   a decision artefact, not a commitment to bump — refactors require
   their own modules and ADRs.
 - **Status:** Proposed.
+
+**D-TUIN-007:** `flow` wrapper evolution (no new feature flag)
+
+- **Proposed resolution:** Grow the existing experimental `flow` module
+  with curated helpers rather than a second Cargo feature or a direct
+  rataflow dependency for new consumers. Sequence and outcomes live in
+  [`plans/specs/2026-08-24-eddacraft-tui-flow-extensions.md`](../specs/2026-08-24-eddacraft-tui-flow-extensions.md).
+  Layout morph (TUIN-021) is the only item that may later need its own
+  ADR, because it would couple `flow` to `animate-core`.
+- **Status:** Proposed (2026-08-24).
 
 ## Risks
 
@@ -802,6 +826,140 @@ a subcommand and `--config` path handoff.
 **changeType:** feature
 **releaseIntent:** candidate
 **releaseScope:** minor
+
+### TUIN-015: Spotlight cone over a selected node
+
+- **Status:** Proposed
+- **Intent:** Give consumers a one-call “what does this node touch?” lens
+  inside the `flow` wrapper so impact and APS do not each walk edges and
+  restyle by hand.
+- **Expected Outcome:** `flow::spotlight(&mut Flow, node_id, Spotlight::{Upstream, Downstream, Both})`
+  mutes the complement, accents the cone, and animates remaining edges.
+  Unknown ids are a no-op. Graded experimental. No new Cargo feature.
+- **Files:** `crates/eddacraft-tui/src/flow.rs`
+- **Dependencies:** TUIN-014 (Done)
+- **Validation:** `cargo test -p eddacraft-tui --features flow` (DAG snapshot
+  plus unknown-id no-op); `scripts/check-stability-markers.mjs` stays green;
+  `RUSTDOCFLAGS='-D warnings' cargo doc --no-deps -p eddacraft-tui --all-features`.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** patch
+
+### TUIN-016: Preserve view across rebuild and fix fit-then-read
+
+- **Status:** Proposed
+- **Intent:** Stop throwing away pan, zoom, and selection when the edge list
+  changes, and stop `request_fit_view` from silently undoing `zoom_to_read`
+  on the first frame.
+- **Expected Outcome:** `ViewState` plus `rebuild_preserving_view` keep camera
+  and selection across a rebuild. A first-frame helper applies deferred
+  fit-view *after* layout so `zoom_to_read` sticks. The race currently
+  documented in `flow.rs` is gone.
+- **Files:** `crates/eddacraft-tui/src/flow.rs`
+- **Dependencies:** TUIN-014 (Done)
+- **Validation:** `cargo test -p eddacraft-tui --features flow` covering
+  rebuild-preserves-selection and zoom-to-read-after-fit; rustdoc `-D warnings`
+  all-features.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** patch
+
+### TUIN-017: Role-styled node/edge specs and Unicode width
+
+- **Status:** Proposed
+- **Intent:** Let builders assign `Theme` roles at construction, and size
+  container nodes with display width rather than `.chars().count()`.
+- **Expected Outcome:** `NodeSpec` / `EdgeSpec` carry a `Role`.
+  `themed_from_edges` and `container_flow` accept specs as well as bare
+  strings. `warning` is mapped or applied per-node/edge. Container cell
+  width uses `unicode-width`. Existing string APIs keep working.
+- **Files:** `crates/eddacraft-tui/src/flow.rs`
+- **Dependencies:** TUIN-014 (Done)
+- **Validation:** `cargo test -p eddacraft-tui --features flow` (wide-glyph
+  geometry; role-styled snapshot); stability-marker check; rustdoc
+  `-D warnings` all-features.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** patch
+
+### TUIN-018: Diff two graphs with ghost nodes
+
+- **Status:** Proposed
+- **Intent:** Show added, removed, and unchanged structure without the
+  Sugiyama layout exploding between `before` and `after`.
+- **Expected Outcome:** `themed_from_diff(before, after, theme)` paints added
+  edges `Success`, removed edges `Error` as ghosts occupying prior
+  positions, unchanged edges muted. Ghost nodes remain in the layout.
+- **Files:** `crates/eddacraft-tui/src/flow.rs`
+- **Dependencies:** TUIN-017
+- **Validation:** `cargo test -p eddacraft-tui --features flow` (added /
+  removed / unchanged snapshot; ghost still occupies space); rustdoc
+  `-D warnings` all-features.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** patch
+
+### TUIN-019: FlowSession RAII
+
+- **Status:** Proposed
+- **Intent:** Compose mouse capture, first-frame camera, and optional
+  `lifecycle::TerminalGuard` so consumers cannot leak mouse mode into a
+  parent shell.
+- **Expected Outcome:** `FlowSession::enter` / `Drop` restores mouse (and
+  terminal when lifecycle is composed). Keyboard-only consumers may ignore
+  it. Graded experimental. No default `[[bin]]`.
+- **Files:** `crates/eddacraft-tui/src/flow.rs`
+- **Dependencies:** TUIN-016
+- **Validation:** `cargo test -p eddacraft-tui --features flow` (guard drop
+  restores; optional `--features flow,lifecycle` compose test); rustdoc
+  `-D warnings` all-features.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** patch
+
+### TUIN-020: Elision portals for over-budget graphs
+
+- **Status:** Proposed
+- **Intent:** Keep large graphs readable in the library instead of a
+  consumer degrading the whole surface past `MAX_RENDERABLE_NODES`.
+- **Expected Outcome:** Over-budget clusters collapse to a portal node
+  (`… N crates`). Selecting a portal expands in place. Camera preserved
+  via TUIN-016. Parked until a second consumer or impact actually hits
+  the budget in anger.
+- **Files:** `crates/eddacraft-tui/src/flow.rs`
+- **Dependencies:** TUIN-016
+- **Validation:** `cargo test -p eddacraft-tui --features flow` (collapse
+  snapshot; expand-in-place restores members); rustdoc `-D warnings`
+  all-features.
+
+**changeType:** feature
+**releaseIntent:** candidate
+**releaseScope:** patch
+
+### TUIN-021: Spike — layout morph with animate-core
+
+- **Status:** Proposed
+- **Intent:** Record a ship/no-ship signal for interpolating node
+  positions when the edge list changes, before coupling `flow` to the
+  animation runtime.
+- **Expected Outcome:** A spike note (this item or a short spec) with a
+  ship / no-ship decision, duration/easing evidence, and whether a new
+  ADR is required. No production API. A “ship” decision spawns its own
+  implement item.
+- **Files:** `crates/eddacraft-tui/src/flow.rs` (spike-only; must not land
+  on the published surface without a follow-on item)
+- **Dependencies:** TUIN-016
+- **Validation:** spike note records ship/no-ship, a recorded clip or
+  snapshot of before/after snap vs morph, and the ADR question answered.
+
+**changeType:** spike
+**releaseIntent:** never
+**releaseScope:** none
 
 ## Ready Checklist
 
