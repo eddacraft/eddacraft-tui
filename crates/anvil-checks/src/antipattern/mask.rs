@@ -137,7 +137,7 @@ fn ends_with_regex_keyword(out_so_far: &str) -> bool {
         .map_or(0, |i| {
             // rfind returns a byte index at a char boundary. A multibyte
             // separator (Dave B31 / CIB-359) is 2+ bytes; i+1 is inside it.
-            i + trimmed[i..].chars().next().map(char::len_utf8).unwrap_or(1)
+            i + trimmed[i..].chars().next().map_or(1, char::len_utf8)
         });
     let word = &trimmed[word_start..];
     !word.is_empty() && REGEX_PRECEDING_KEYWORDS.contains(&word)

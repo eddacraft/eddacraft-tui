@@ -534,6 +534,7 @@ fn setting_open_mode_discloses_the_posture_it_restores() {
     );
 }
 
+#[cfg(windows)]
 #[test]
 fn allow_refuses_windows_drive_relative_git_bash_shape() {
     let home = tempdir().expect("temp home");

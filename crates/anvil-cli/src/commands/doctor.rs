@@ -1716,9 +1716,19 @@ fn finish_mcp_heal(
         );
     }
     if poked.is_none() {
+        let message = if rewritten > 0 {
+            format!(
+                "rewrote {rewritten} drifted MCP {} but generation poke failed",
+                if rewritten == 1 { "entry" } else { "entries" }
+            )
+        } else if managed > 0 {
+            "MCP configs current but generation poke failed".to_string()
+        } else {
+            "generation poke failed".to_string()
+        };
         return mcp_heal_check(
             CheckStatus::Fail,
-            "MCP configs current but generation poke failed".to_string(),
+            message,
             Some(details.join("\n")),
             Remediation {
                 summary: "Retry the emergency cascade once no other anvil process holds the state directory."
@@ -4606,6 +4616,23 @@ mod tests {
         assert_eq!(
             check.remediation.command.as_deref(),
             Some("anvil mcp refresh")
+        );
+    }
+
+    #[test]
+    fn mcp_heal_poke_fail_names_rewrite_when_configs_changed() {
+        let check = super::finish_mcp_heal(
+            2,
+            0,
+            2,
+            None,
+            vec!["generation poke failed: sharing violation".into()],
+        );
+        assert_eq!(check.status, CheckStatus::Fail);
+        assert!(
+            check.message.contains("rewrote 2") && check.message.contains("poke failed"),
+            "must not claim configs current after a rewrite: {}",
+            check.message
         );
     }
 

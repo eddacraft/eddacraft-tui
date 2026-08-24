@@ -371,6 +371,7 @@ fn run_unregister(args: &UnregisterArgs, json_mode: bool) -> Result<()> {
 /// True when `path` is a Windows drive-relative argument (`D:foo` / `D:`),
 /// including the Git Bash form where MSYS ate the slash after the colon.
 /// Rooted `D:\foo` / `D:/foo` are not drive-relative.
+#[cfg(any(test, windows))]
 fn is_windows_drive_relative(path: &std::path::Path) -> bool {
     let raw = path.as_os_str().to_string_lossy();
     let bytes = raw.as_bytes();
@@ -439,6 +440,9 @@ fn run_mode(args: &ModeArgs, json_mode: bool) -> Result<()> {
 }
 
 fn run_allow(args: &AllowArgs, json_mode: bool) -> Result<()> {
+    // Git Bash on Windows eats `D:\repo` into `D:repo`. Refuse that shape only
+    // where the OS treats it as drive-relative. On Unix `D:repo` is just a name.
+    #[cfg(windows)]
     if is_windows_drive_relative(&args.path) {
         anyhow::bail!(
             "refusing drive-relative path {} — Git Bash eats the slash after the drive letter. Use a rooted path (D:\\repo) from PowerShell, or `anvil workspace allow .` from the repo.",
