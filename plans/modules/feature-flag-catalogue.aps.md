@@ -802,6 +802,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 ### FLAGCAT-012: Gate catalogue completeness against shipping hosts
 
 - **Status:** In Progress
+- **Evidence (dev-loop):** PR #4133 (`feat/flagcat-012-host-completeness`)
 - **Intent:** Make catalogue maintenance executable rather than relying on a
   minimum-count assertion.
 - **Expected Outcome:** All nine current host locator kinds expose host-owned,
@@ -838,6 +839,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 ### FLAGCAT-013: Link operational flags to catalogue features
 
 - **Status:** In Progress
+- **Evidence (dev-loop):** PR #4133 (`feat/flagcat-012-host-completeness`)
 - **Intent:** Make entitlement and rollout policy traceable to the product
   capability it controls.
 - **Expected Outcome:** Each operational flag declares the catalogue feature
@@ -858,6 +860,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 ### FLAGCAT-014: Generate human-readable feature catalogue views
 
 - **Status:** In Progress
+- **Evidence (dev-loop):** PR #4133 (`feat/flagcat-012-host-completeness`)
 - **Intent:** Give product and engineering readers a definitive feature and
   product-feature-group view without creating a shadow source of truth.
 - **Expected Outcome:** Repository tooling generates stable feature,
