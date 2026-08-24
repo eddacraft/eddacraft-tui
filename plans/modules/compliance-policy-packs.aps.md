@@ -13,11 +13,10 @@ item. The operator promoted POLFIT-007, which coordinates CPACKS-006 and
 CPACKS-007; its stated outcome is not deliverable while this item sits Draft,
 so it was advanced with it.
 
-**Superseded 2026-08-24 by the POLFIT-007 execution:** CPACKS-007 is delivered
-(known-gaps copy — the audit found it did not exist) and **CPACKS-006 is
-Blocked**, proven not deliverable as specified. Do not select CPACKS-006 as
-available work; it needs an owner decision on one of the three unblock paths
-recorded against it. The module has no selectable live item, and CPACKS-008
+**Superseded 2026-08-24 by the POLFIT-007 execution:** CPACKS-007 is Merged via
+#4113 and **CPACKS-006 is Merged** via #4107 (eval wrappers, unblock path 2).
+Do not select either as available work. The module has no selectable live
+item, and CPACKS-008
 remains behind the expansion gate. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
 previous revision was last reviewed 2026-07-02, two days **before** the
@@ -193,10 +192,10 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-006: Eval-regression fixture integration
 
-- **Status:** In Progress — 2026-08-24 on `feat/polfit-007-starter-pack-residue`
-  (POLFIT-007 / PR #4107). Unblock path 2 via eval wrappers, not pack members:
-  `policies/eval/anvil_baseline_*.rego` emit v1 Finding objects so the
-  harness diffs `findings` rather than the pack's `warning` string set.
+- **Status:** Merged 2026-08-24 via PR #4107. Ancestor of `origin/main`
+  (`c916da49f`). Unblock path 2: eval wrappers under `policies/eval/` emit v1
+  Finding objects so the harness diffs `findings` rather than the pack's
+  `warning` string set.
 - **Files:** `ci/eval/suites.json`, `ci/eval/baseline/history.jsonl`,
   `ci/eval/README.md`, `ci/eval/inputs/`,
   `policies/eval/anvil_baseline_change_scope.rego`,

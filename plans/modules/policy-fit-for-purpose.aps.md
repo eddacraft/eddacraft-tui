@@ -11,8 +11,8 @@
 #4103 and #4104 — ADR-129 (intra-repo surface precedence) and ADR-130
 (authoring on-ramp). Both design gates are closed, so POLFIT-003..-006 and
 -008 are no longer blocked by them. POLFIT-009 is **Merged** (#4108).
-POLFIT-007 is **Blocked** — CPACKS-007 delivered, CPACKS-006 proven
-undeliverable as specified and awaiting an owner decision.
+POLFIT-007 is **Merged** via #4107 — CPACKS-007 via #4113, CPACKS-006 via
+eval wrappers. POLFIT-008 is **Merged** via #4110 (ADR-131).
 
 The dated entries below are history, not current status. Per-item `Status:`
 lines are authoritative.
@@ -270,11 +270,9 @@ They still gate the items below them.
 
 ### POLFIT-007: Starter-pack residue closed
 
-- **Status:** In Progress — 2026-08-24 on `feat/polfit-007-starter-pack-residue`
-  (PR #4107). CPACKS-007 already Merged via #4113. Remaining work is
-  CPACKS-006: eval wrappers under `policies/eval/` emit v1 Finding objects
-  so the report-only harness can falsify, without changing the pack's
-  `warning` family.
+- **Status:** Merged 2026-08-24 via PR #4107. Ancestor of `origin/main`
+  (`c916da49f`). CPACKS-007 via #4113; CPACKS-006 via eval wrappers that emit
+  v1 Finding objects without changing the pack's `warning` family.
 - **Files:** `ci/eval/suites.json`, `ci/eval/baseline/history.jsonl`,
   `ci/eval/README.md`, `policies/eval/anvil_baseline_change_scope.rego`,
   `policies/eval/anvil_baseline_sensitive_paths.rego`,
