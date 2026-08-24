@@ -14,9 +14,16 @@ support-crate disposition).
 > `Policy eval-regression (report-only)` step). 007/008 remain **Proposed**:
 > 007 waits on a burn-in on main; 008's ATC-003 dependency is satisfied (ATC
 > Done, Merged 2026-07-05 via PR #3181), leaving the CI-blocking-posture ADR
-> (POLRESET design gate 3) as its **sole remaining decision gate** — no work
+> (POLRESET design gate 3) as its remaining *authoring* gate — no work
 > item anywhere tracks authoring that ADR; it is a deliberate operator
-> decision, not queued code work. EVALCI-009 is separate internal topology
+> decision, not queued code work.
+>
+> **Superseded 2026-08-24 (planning council `council-9021df43`):** that ADR is
+> no longer EVALCI-008's *sole* gate. **EVALCI-010** adds a second, and it is
+> the harder one: `regressed()` is exit-code-only and no wired suite can move
+> `exit_code` off 0, so as built EVALCI-008 would make required a check that
+> cannot fail on the thing it exists to detect. Both gates must clear before
+> EVALCI-008 is actionable. EVALCI-009 is separate internal topology
 > closeout: it must land before EVALCI-008 so a future blocking gate does not
 > deepen the deletion-slated `anvil-policy` dependency.
 
@@ -236,7 +243,13 @@ for the deferred wiring step this module picks up.
 - **Files:** `crates/anvil-policy/src/eval/port.rs`,
   `crates/anvil-cli/src/commands/policy/eval_regression.rs`,
   `crates/anvil-policy/src/eval/adapter.rs`, `ci/eval/README.md`
-- **Validation:** `cargo test -p eddacraft-anvil -- eval_regression`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- eval` (the crate that
+  owns `port.rs` and `adapter.rs` — 12 and 17 tests respectively, none of which
+  `-p eddacraft-anvil` runs) **and** `cargo test -p eddacraft-anvil -- eval_regression`
+  for the CLI-side `should_block` path. Corrected 2026-08-24 after review: the
+  first draft cited only the `eddacraft-anvil` filter while listing `port.rs`
+  and `adapter.rs` under Files — the same defect this council found in
+  CPACKS-006's validation line, repeated.
 - **Dependencies:** none blocking; EVALCI-008 should not proceed before this
   is decided. Note ADR-098 AD-2 slates `crates/anvil-policy` for deletion, so
   land this where the harness ends up rather than deepening that crate.

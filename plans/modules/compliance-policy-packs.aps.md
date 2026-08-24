@@ -16,8 +16,12 @@ so it was advanced with it.
 **Both live items closed 2026-08-24.** CPACKS-007 Merged via #4113 (known-gaps
 copy — the audit found it did not exist). CPACKS-006 Merged via #4107 (eval
 wrappers). An earlier revision of this paragraph recorded CPACKS-006 as Blocked
-and not selectable; #4107 landed the same day and superseded that. Only the
-CPACKS-008 expansion gate remains. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
+and not selectable; #4107 landed the same day and superseded that.
+
+**Open after that closure:** CPACKS-008 (expansion gate) plus **CPACKS-009** and
+**CPACKS-010**, both filed 2026-08-24 from planning council `council-9021df43`.
+The first-wave residue is closed; the module is not. Any statement below dated
+before 2026-08-24 that calls CPACKS-006/-007 "the live residue" is historical. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
 previous revision was last reviewed 2026-07-02, two days **before** the
 starter pack it plans shipped, and still framed it as future work.)
@@ -229,7 +233,8 @@ small, deterministic pack before Anvil makes broader compliance claims.
 - **Decision (2026-08-24):** path 2, in the form that keeps the duplication
   out of the shipped pack. Wrappers live under `policies/eval/`, never in
   `starter_packs/`, so no future pack author inherits a requirement to write
-  one; lockstep tests fail if a wrapper and its pack rule drift. Paths 1
+  one; lockstep tests fail on drift within the fixtures they exercise
+  (CPACKS-009 widens them). Paths 1
   (extend the eval record) and 3 (smoke-only, renamed) were not taken —
   path 1 would have reworked a crate ADR-098 AD-2 slates for deletion, and
   path 3 discarded coverage that turned out to be cheap to get.
@@ -312,16 +317,22 @@ small, deterministic pack before Anvil makes broader compliance claims.
   (session `council-9021df43`).
 - **Intent:** Close the loop on the specific proof that motivated CPACKS-006,
   rather than inferring it from the parity and diff-engine tests.
-- **Expected Outcome:** A committed test asserts `anvil policy eval-regression`
-  reports a regression when a wrapper's finding count is forced to zero against
-  the committed baseline. CPACKS-006 was opened because a suite reported "no
-  regressions" while its policy emitted nothing; the landed wrappers are
-  believed to fix that, but no test proves the suite now *fails* in that
-  scenario — which is the only assertion that distinguishes real coverage from
-  the original defect.
+- **Expected Outcome:** A committed invariant proves the landed suites detect a
+  policy going silent. **Reframed 2026-08-24 after review:** the original wording
+  ("assert eval-regression reports a regression when a wrapper's finding count is
+  forced to zero") is not implementable against the current contract. Forcing
+  1→0 produces a *resolved* finding, and
+  `eval_harness_port_regression_tracks_resolved_findings`
+  (`crates/anvil-policy/src/eval/port.rs:358-378`) asserts exactly the opposite —
+  `!report.regressed()`, commented "gate improved 1->0, not a regression".
+  Finding-loss is classified as an improvement **by design**. So this item needs
+  either a distinct loss-of-finding verdict or a separate expected-output
+  invariant (assert the suite's findings equal a committed expectation, so
+  disappearance fails), and the choice depends on EVALCI-010.
 - **Files:** `crates/anvil-cli/src/commands/policy/`, `ci/eval/`
 - **Validation:** `cargo test -p eddacraft-anvil -- eval_regression`
-- **Dependencies:** CPACKS-006 (Merged via #4107)
+- **Dependencies:** CPACKS-006 (Merged via #4107); EVALCI-010 (the verdict
+  decision determines which of the two shapes above is correct)
 - **Confidence:** medium
 
 ### CPACKS-008: Compliance-pack expansion gate

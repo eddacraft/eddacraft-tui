@@ -52,4 +52,8 @@ The `anvil-baseline` eval suites are projections, not pack members. Keep their
 thresholds and advisory copy in lockstep with
 `crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/`.
 `starter_policy_pack_change_scope_eval_wrapper_lockstep` and
-`starter_policy_pack_sensitive_paths_eval_wrapper_lockstep` fail if they drift.
+`starter_policy_pack_sensitive_paths_eval_wrapper_lockstep` fail on drift **for
+the fixtures they exercise** — today one per policy: the 12-file soft threshold
+and one precise workflow-path match. The hard threshold and the name heuristics
+are not covered, so drift confined to those branches passes. CPACKS-009 tracks
+widening this.
