@@ -205,12 +205,15 @@ fn definition_expr(flag: &Value) -> String {
         Some(items) => format!("Some({})", owned_string_vec_lit(items, "tag")),
     };
 
-    let controls_product_features = match flag
-        .get("controlsProductFeatures")
-        .and_then(|features| features.as_array())
-    {
-        None => "vec![]".to_owned(),
-        Some(items) => owned_string_vec_lit(items, "controlsProductFeatures entry"),
+    let controls_product_features = match flag.get("controlsProductFeatures") {
+        Some(Value::Array(items)) => owned_string_vec_lit(items, "controlsProductFeatures entry"),
+        Some(other) => {
+            panic!("FLAGCAT-004 build.rs: controlsProductFeatures must be an array, got {other}")
+        }
+        None => panic!(
+            "FLAGCAT-004 build.rs: flag {} is missing required controlsProductFeatures",
+            get_str("key")
+        ),
     };
 
     format!(
