@@ -913,8 +913,10 @@ pub(crate) fn windows_unsupported_message(method: InstallMethod) -> String {
         message.push('\n');
         message.push_str(
             "\nIf the installer fails with \"file is being used by another process\",\n\
-             close any editor running the anvil MCP server (Cursor, Claude Code)\n\
-             and try again.",
+             stop the intercept daemon first, then re-run the installer:\n\
+                 anvil intercept stop\n\
+             Restart afterwards with `anvil start` (or `anvil intercept start`).\n\
+             Closing the editor is not required once the daemon has released the binary.",
         );
     } else {
         message.push_str("\nTo upgrade, run:\n    ");
@@ -1763,7 +1765,14 @@ mod tests {
     fn windows_unsupported_message_lists_alternatives() {
         let msg = windows_unsupported_message(InstallMethod::CargoDist);
         assert!(msg.contains("eddacraft-anvil-installer.ps1"));
-        assert!(msg.contains("anvil MCP server"));
+        assert!(
+            msg.contains("anvil intercept stop"),
+            "Windows upgrade recipe must name intercept stop: {msg}"
+        );
+        assert!(
+            !msg.contains("anvil MCP server"),
+            "do not require closing the editor when daemon stop is enough: {msg}"
+        );
         assert!(
             !msg.contains("winget upgrade"),
             "cargo-dist must not advertise winget: {msg}"
