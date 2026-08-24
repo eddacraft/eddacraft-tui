@@ -1692,6 +1692,16 @@ fn check_mcp_heal_with(
     let summary = ensure_existing_mcp_entries(workspace, home, &AnvilEntry::preferred_stdio());
     let (rewritten, failed, mut details) = tally_mcp_heal_outcomes(&summary.report);
     let poked = apply_mcp_heal_poke(poke_live, rewritten > 0, &mut details);
+    finish_mcp_heal(rewritten, failed, summary.managed, poked, details)
+}
+
+fn finish_mcp_heal(
+    rewritten: usize,
+    failed: usize,
+    managed: usize,
+    poked: Option<bool>,
+    details: Vec<String>,
+) -> DiagnosticCheck {
     if failed > 0 {
         return mcp_heal_check(
             CheckStatus::Fail,
@@ -1705,10 +1715,23 @@ fn check_mcp_heal_with(
             },
         );
     }
+    if poked.is_none() {
+        return mcp_heal_check(
+            CheckStatus::Fail,
+            "MCP configs current but generation poke failed".to_string(),
+            Some(details.join("\n")),
+            Remediation {
+                summary: "Retry the emergency cascade once no other anvil process holds the state directory."
+                    .to_string(),
+                command: Some("anvil mcp refresh".to_string()),
+                doc_url: None,
+            },
+        );
+    }
 
     mcp_heal_check(
         CheckStatus::Pass,
-        mcp_heal_pass_message(rewritten, poked, summary.managed),
+        mcp_heal_pass_message(rewritten, poked.unwrap_or(false), managed),
         if details.is_empty() {
             None
         } else {
@@ -1763,24 +1786,26 @@ fn tally_mcp_heal_outcomes(
     (rewritten, failed, details)
 }
 
+/// `Some(bumped)` on success; `None` when the generation poke itself failed
+/// (CIB-361: must not Pass over `generation poke failed`).
 fn apply_mcp_heal_poke(
     poke_live: bool,
     configs_rewritten: bool,
     details: &mut Vec<String>,
-) -> bool {
+) -> Option<bool> {
     use crate::commands::mcp_heal::{PokeReason, poke_if_needed};
 
     if !poke_live {
-        return false;
+        return Some(false);
     }
     match poke_if_needed(PokeReason::Changed {
         configs_rewritten,
         daemon_recycled: false,
     }) {
-        Ok(outcome) => outcome.bumped,
+        Ok(outcome) => Some(outcome.bumped),
         Err(error) => {
             details.push(format!("generation poke failed: {error}"));
-            false
+            None
         }
     }
 }
@@ -4552,6 +4577,36 @@ mod tests {
             check.message
         );
         assert_eq!(std::fs::read_to_string(&cursor).unwrap(), before);
+    }
+
+    #[test]
+    fn mcp_heal_fails_when_generation_poke_fails() {
+        let check = super::finish_mcp_heal(
+            0,
+            0,
+            1,
+            None,
+            vec!["generation poke failed: NtCreateFile failed: NTSTATUS 0xc0000043".into()],
+        );
+        assert_eq!(check.status, CheckStatus::Fail);
+        assert!(
+            check.message.contains("poke failed"),
+            "fail copy must name the poke: {}",
+            check.message
+        );
+        assert!(
+            check
+                .details
+                .as_deref()
+                .unwrap_or("")
+                .contains("0xc0000043"),
+            "details must keep the NTSTATUS: {:?}",
+            check.details
+        );
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil mcp refresh")
+        );
     }
 
     #[test]

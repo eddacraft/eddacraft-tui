@@ -49,15 +49,20 @@ const STATUS_OBJECT_PATH_NOT_FOUND: i32 = 0xC000_003A_u32 as i32;
 const STATUS_OBJECT_NAME_COLLISION: i32 = 0xC000_0035_u32 as i32;
 const STATUS_ACCESS_DENIED: i32 = 0xC000_0022_u32 as i32;
 const STATUS_NOT_A_DIRECTORY: i32 = 0xC000_0103_u32 as i32;
+const STATUS_SHARING_VIOLATION: i32 = 0xC000_0043_u32 as i32;
 
 const ERROR_FILE_NOT_FOUND: i32 = 2;
 const ERROR_PATH_NOT_FOUND: i32 = 3;
 const ERROR_ACCESS_DENIED: i32 = 5;
+const ERROR_SHARING_VIOLATION: i32 = 32;
 const ERROR_DIRECTORY: i32 = 267;
 const ERROR_ALREADY_EXISTS: i32 = 183;
 
 /// Access used when we need to create, rename, or delete under a directory.
 const DIR_ACCESS_FULL: u32 = GENERIC_READ | GENERIC_WRITE | DELETE | FILE_TRAVERSE | SYNCHRONIZE;
+/// Create children under an existing directory without DELETE on the dir
+/// itself. DELETE + a held lock file is STATUS_SHARING_VIOLATION (CIB-361).
+const DIR_ACCESS_CREATE: u32 = GENERIC_READ | GENERIC_WRITE | FILE_TRAVERSE | SYNCHRONIZE;
 /// Fallback walk access when the volume root refuses write (typical for `C:\`).
 const DIR_ACCESS_WALK: u32 = GENERIC_READ | FILE_TRAVERSE | SYNCHRONIZE;
 const FILE_ACCESS: u32 = GENERIC_READ | GENERIC_WRITE | DELETE | SYNCHRONIZE;
@@ -326,13 +331,13 @@ fn open_existing_dir(path: &Path, want_write: bool) -> io::Result<OwnedHandle> {
     let mut dir = open_root(&root, want_write)?;
     for name in rest {
         let access = if want_write {
-            DIR_ACCESS_FULL
+            DIR_ACCESS_CREATE
         } else {
             DIR_ACCESS_WALK
         };
         dir = match nt_open_at(dir.raw(), &name, OpenKind::Directory, access, true) {
             Ok(handle) => handle,
-            Err(err) if want_write && err.raw_os_error() == Some(ERROR_ACCESS_DENIED) => {
+            Err(err) if want_write && is_dir_open_fallback(&err) => {
                 nt_open_at(dir.raw(), &name, OpenKind::Directory, DIR_ACCESS_WALK, true)?
             }
             Err(err) => return Err(err),
@@ -343,17 +348,24 @@ fn open_existing_dir(path: &Path, want_write: bool) -> io::Result<OwnedHandle> {
 
 fn open_root(root: &Path, want_write: bool) -> io::Result<OwnedHandle> {
     let preferred = if want_write {
-        DIR_ACCESS_FULL
+        DIR_ACCESS_CREATE
     } else {
         DIR_ACCESS_WALK
     };
     match open_root_with_access(root, preferred) {
         Ok(handle) => Ok(handle),
-        Err(err) if want_write && err.raw_os_error() == Some(ERROR_ACCESS_DENIED) => {
+        Err(err) if want_write && is_dir_open_fallback(&err) => {
             open_root_with_access(root, DIR_ACCESS_WALK)
         }
         Err(err) => Err(err),
     }
+}
+
+fn is_dir_open_fallback(err: &io::Error) -> bool {
+    matches!(
+        err.raw_os_error(),
+        Some(ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION)
+    )
 }
 
 fn open_root_with_access(root: &Path, access: u32) -> io::Result<OwnedHandle> {
@@ -400,7 +412,7 @@ fn is_directory(handle: HANDLE) -> io::Result<bool> {
 }
 
 fn open_or_mkdir_at(parent: HANDLE, name: &OsStr) -> io::Result<OwnedHandle> {
-    match nt_open_at(parent, name, OpenKind::Directory, DIR_ACCESS_FULL, true) {
+    match nt_open_at(parent, name, OpenKind::Directory, DIR_ACCESS_CREATE, true) {
         Ok(handle) => Ok(handle),
         Err(err)
             if err.raw_os_error() == Some(ERROR_FILE_NOT_FOUND)
@@ -409,12 +421,15 @@ fn open_or_mkdir_at(parent: HANDLE, name: &OsStr) -> io::Result<OwnedHandle> {
             match nt_create_dir_at(parent, name) {
                 Ok(handle) => Ok(handle),
                 Err(err) if err.raw_os_error() == Some(ERROR_ALREADY_EXISTS) => {
-                    nt_open_at(parent, name, OpenKind::Directory, DIR_ACCESS_FULL, true)
+                    nt_open_at(parent, name, OpenKind::Directory, DIR_ACCESS_CREATE, true)
+                }
+                Err(err) if is_dir_open_fallback(&err) => {
+                    nt_open_at(parent, name, OpenKind::Directory, DIR_ACCESS_WALK, true)
                 }
                 Err(err) => Err(err),
             }
         }
-        Err(err) if err.raw_os_error() == Some(ERROR_ACCESS_DENIED) => {
+        Err(err) if is_dir_open_fallback(&err) => {
             nt_open_at(parent, name, OpenKind::Directory, DIR_ACCESS_WALK, true)
         }
         Err(err) => Err(err),
@@ -425,7 +440,7 @@ fn nt_create_dir_at(parent: HANDLE, name: &OsStr) -> io::Result<OwnedHandle> {
     nt_create(
         parent,
         name,
-        DIR_ACCESS_FULL,
+        DIR_ACCESS_CREATE,
         FILE_CREATE,
         FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_FOR_BACKUP_INTENT,
         FILE_ATTRIBUTE_DIRECTORY,
@@ -600,6 +615,7 @@ fn nt_create_with_security_descriptor(
         STATUS_OBJECT_PATH_NOT_FOUND => Err(io::Error::from_raw_os_error(ERROR_PATH_NOT_FOUND)),
         STATUS_OBJECT_NAME_COLLISION => Err(io::Error::from_raw_os_error(ERROR_ALREADY_EXISTS)),
         STATUS_ACCESS_DENIED => Err(io::Error::from_raw_os_error(ERROR_ACCESS_DENIED)),
+        STATUS_SHARING_VIOLATION => Err(io::Error::from_raw_os_error(ERROR_SHARING_VIOLATION)),
         STATUS_NOT_A_DIRECTORY => Err(io::Error::from_raw_os_error(ERROR_DIRECTORY)),
         other => Err(io::Error::other(format!(
             "NtCreateFile failed: NTSTATUS {other:#010x}"
@@ -792,6 +808,30 @@ mod tests {
         let target = tmp.path().join("a").join("b").join("c");
         create_dir_all_nofollow(&target).expect("create");
         assert!(target.is_dir());
+    }
+
+    #[test]
+    fn create_dir_all_and_write_succeed_when_a_lock_file_is_held() {
+        // CIB-361: Dave's mcp refresh sharing violation. Exclusive share on a
+        // lock file in the existing state dir must not block opening the dir
+        // (DELETE on the directory handle is what used to fail).
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("anvil");
+        std::fs::create_dir(&dir).expect("state dir");
+        let lock_path = dir.join("intercept.test.lock");
+        let _lock = std::fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(&lock_path)
+            .expect("exclusive lock");
+        create_dir_all_nofollow(&dir).expect("open existing state dir");
+        let generation = dir.join("mcp-refresh.generation");
+        atomic_write_nofollow(&generation, b"1\n").expect("write generation");
+        assert_eq!(std::fs::read(&generation).unwrap(), b"1\n");
     }
 
     #[test]
