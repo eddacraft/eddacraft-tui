@@ -1664,6 +1664,9 @@ DOC
   echo "pub const A: u8 = 1;" >crates/widget/src/thing.rs
   git add -A
   git commit -qm "fixture: docs and source"
+  echo "pub const A: u8 = 2;" >crates/widget/src/thing.rs
+  git add crates/widget/src/thing.rs
+  git commit -qm "fixture: upstream moved after docs"
 ) >/dev/null 2>&1
 
 d2_json="${tmp_root}/d2.json"
@@ -1702,6 +1705,85 @@ if [[ "${d2_status}" -eq 0 ]]; then
   pass "advisory-only corpus exits 0 under --fail-on-owed"
 else
   fail "advisory-only corpus must not fail the gate; got ${d2_status}"
+fi
+
+# Case I: a later restamp with the same committer second as the upstream edit
+# is `review`, not `owed`. `git rebase` commonly stamps every rewritten commit
+# with one `%ct`; comparing timestamps with `>` then gates a document that was
+# actually updated later in history.
+echo "case F2: same-second later restamp is review, not owed"
+eq_root="${tmp_root}/equal-ts"
+mkdir -p "${eq_root}/docs/guides" "${eq_root}/crates/widget/src"
+(
+  cd "${eq_root}"
+  git init -q .
+  git config user.email t@example.com
+  git config user.name t
+  cat >docs/guides/file-level.md <<'DOC'
+# File Level
+
+| Type  | Authority     | Owner | Status | Freshness                                             |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2001-01-01 against `crates/widget/src/thing.rs` |
+
+| Upstream                     | Downstream |
+| ---------------------------- | ---------- |
+| `crates/widget/src/thing.rs` | none       |
+
+Body.
+DOC
+  echo "pub const A: u8 = 1;" >crates/widget/src/thing.rs
+  git add -A
+  git commit -qm "fixture: initial"
+  stamp='2026-08-24T12:00:00 +0000'
+  echo "pub const A: u8 = 2;" >crates/widget/src/thing.rs
+  git add crates/widget/src/thing.rs
+  GIT_AUTHOR_DATE="${stamp}" GIT_COMMITTER_DATE="${stamp}" git commit -qm "upstream moved"
+  printf '\nRestamped in the next commit.\n' >>docs/guides/file-level.md
+  git add docs/guides/file-level.md
+  GIT_AUTHOR_DATE="${stamp}" GIT_COMMITTER_DATE="${stamp}" git commit -qm "later restamp"
+) >/dev/null 2>&1
+
+eq_json="${tmp_root}/equal-ts.json"
+if ! (cd "${repo_root}" && node "${owed_script}" --root "${eq_root}" --no-baseline --json >"${eq_json}" 2>/dev/null); then
+  fail "docs-owed did not run against the equal-timestamp fixture"
+elif ! node -e '
+    const j = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+    const file = j.findings.find((f) => f.file.endsWith("file-level.md"));
+    if (!file) { console.error("equal-timestamp fixture produced no finding"); process.exit(1); }
+    if (file.class !== "review" || file.severity !== "WARN" || file.posture !== "advisory-confidence") {
+      console.error("later restamp at equal %ct must be review; got " + file.class + "/" + file.severity + "/" + file.posture);
+      process.exit(1);
+    }
+  ' "${eq_json}"; then
+  fail "same-second later restamp must be review, not owed"
+else
+  pass "same-second later restamp classified as review (advisory-confidence)"
+fi
+
+echo "case F3: same-second upstream-only edit still gates"
+(
+  cd "${eq_root}"
+  stamp='2026-08-24T12:00:00 +0000'
+  echo "pub const A: u8 = 3;" >crates/widget/src/thing.rs
+  git add crates/widget/src/thing.rs
+  GIT_AUTHOR_DATE="${stamp}" GIT_COMMITTER_DATE="${stamp}" git commit -qm "upstream moved again"
+) >/dev/null 2>&1
+eq2_json="${tmp_root}/equal-ts-2.json"
+if ! (cd "${repo_root}" && node "${owed_script}" --root "${eq_root}" --no-baseline --json >"${eq2_json}" 2>/dev/null); then
+  fail "docs-owed did not run after the second upstream-only edit"
+elif ! node -e '
+    const j = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+    const file = j.findings.find((f) => f.file.endsWith("file-level.md"));
+    if (!file) { console.error("upstream-only equal-ts fixture produced no finding"); process.exit(1); }
+    if (file.class !== "owed" || file.severity !== "ERROR" || file.posture !== "gating") {
+      console.error("upstream-only later commit must gate; got " + file.class + "/" + file.severity + "/" + file.posture);
+      process.exit(1);
+    }
+  ' "${eq2_json}"; then
+  fail "same-second upstream-only edit must remain owed"
+else
+  pass "same-second upstream-only edit still gates"
 fi
 
 # Case G: diff-mode glob matching agrees with git's own pathspec.

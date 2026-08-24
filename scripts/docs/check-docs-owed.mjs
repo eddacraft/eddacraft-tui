@@ -44,10 +44,12 @@
 // in three months would bury the signal. So each finding is classified by
 // whether the document itself was touched after its upstream moved:
 //
-//   owed      — upstream moved, and the document has not been committed since.
-//               Nobody has looked. High confidence.
-//   review    — upstream moved before the document's own last commit. Somebody
-//               may have already reconciled it and left the date behind.
+//   owed      — upstream moved, and the document's last commit is not the same
+//               as or a descendant of that upstream commit. Nobody has looked.
+//   review    — the document's last commit is the upstream commit, or comes
+//               after it in history. Somebody may have already reconciled it
+//               and left the date behind. Rebase often stamps several commits
+//               with the same %ct, so this uses ancestry, not timestamps.
 //
 // Only `owed` is gate-eligible. `review` is a date-hygiene backlog.
 //
@@ -75,7 +77,10 @@
 //     and this UNDER-reports. Chosen deliberately: a false "you must review
 //     this" is far more corrosive to a docs gate's credibility than a missed
 //     one. That rule applies ONLY to the human-written review date. Ordering
-//     one commit against another uses real timestamps — see lastCommit().
+//     one commit against another uses git ancestry — see lastCommit() and
+//     documentCommitCoversUpstream() — because `git rebase` can give several
+//     commits the same committer timestamp, and `ts > ts` then misfiles a
+//     later restamp as untouched.
 //   * Declared, not derived. A document that names no Upstream path is not
 //     checkable — it is invisible here, not clean. `uncheckable` in the summary
 //     is the real coverage denominator, and shrinking it is a corpus problem
@@ -246,25 +251,23 @@ files.sort();
 
 const lastCommitCache = new Map();
 /**
- * Newest commit touching `path` as `{ date, ts }`, or null if git knows none.
+ * Newest commit touching `path` as `{ date, ts, sha }`, or null if git knows none.
  *
- * Both representations are returned because they answer different questions and
- * must not be interchanged. `date` (`%cs`, YYYY-MM-DD) is the only thing
- * comparable to a hand-written `Last reviewed` date, and comparing at day
- * granularity there is the deliberate under-reporting rule. `ts` (`%ct`, unix
- * seconds) is for ordering two *commits* against each other, where real
- * timestamps exist and throwing them away would be a bug: a document committed
- * three hours after its upstream on the same day was plainly touched
- * afterwards, and day-granularity comparison would misfile it as untouched.
+ * `date` (`%cs`, YYYY-MM-DD) is the only thing comparable to a hand-written
+ * `Last reviewed` date; comparing at day granularity there is the deliberate
+ * under-reporting rule. `ts` (`%ct`) still ranks *which* upstream moved most
+ * recently when reporting. Whether the document has been looked at since that
+ * upstream commit is ancestry (`sha`), not `ts`: rebase can stamp several
+ * commits with the same committer second.
  */
 function lastCommit(path) {
   if (lastCommitCache.has(path)) return lastCommitCache.get(path);
   let value = null;
   try {
-    const raw = git(['log', '-1', '--format=%cs %ct', '--', path]).trim();
+    const raw = git(['log', '-1', '--format=%cs %ct %H', '--', path]).trim();
     if (raw) {
-      const [date, ts] = raw.split(' ');
-      value = { date, ts: Number.parseInt(ts, 10) };
+      const [date, ts, sha] = raw.split(' ');
+      value = { date, ts: Number.parseInt(ts, 10), sha };
     }
   } catch {
     // Unreadable or untracked path: asbuilt-paths owns "does it exist", so a
@@ -272,6 +275,23 @@ function lastCommit(path) {
   }
   lastCommitCache.set(path, value);
   return value;
+}
+
+/**
+ * True when the document's last commit is the upstream commit, or a descendant
+ * of it. Equal timestamps are not enough: `git rebase` commonly assigns the
+ * same `%ct` to every rewritten commit, and `ts > ts` then treats a later
+ * restamp as unread.
+ */
+function documentCommitCoversUpstream(docCommit, upstreamCommit) {
+  if (!docCommit?.sha || !upstreamCommit?.sha) return false;
+  if (docCommit.sha === upstreamCommit.sha) return true;
+  try {
+    git(['merge-base', '--is-ancestor', upstreamCommit.sha, docCommit.sha]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -392,9 +412,9 @@ for (const relFile of files) {
 
   const docCommit = lastCommit(relFile);
   const newest = moved[0];
-  // Commit-versus-commit, so compare real timestamps. The day-granularity rule
-  // is specific to `reviewedOn` above, where no clock time exists.
-  const documentTouchedSince = Boolean(docCommit && docCommit.ts > newest.commit.ts);
+  // Commit-versus-commit uses ancestry. The day-granularity rule is specific
+  // to `reviewedOn` above, where no clock time exists.
+  const documentTouchedSince = documentCommitCoversUpstream(docCommit, newest.commit);
 
   // ADR-119 D2. A file-level upstream is a claim precise enough to act on, so
   // it can bind; a directory or glob fires on any commit anywhere beneath it and
