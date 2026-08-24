@@ -84,7 +84,7 @@ pub fn elide_from_edges_keeping<T: Theme + ?Sized>(
         });
     }
 
-    let portal_id = format!("… {} more", collapsed.len());
+    let portal_id = format!("… {} crates", collapsed.len());
     let collapsed_set: BTreeSet<&str> = collapsed.iter().map(String::as_str).collect();
     let mut rewritten: Vec<(String, String)> = Vec::new();
     for (a, b) in edges {

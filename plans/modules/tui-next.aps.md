@@ -861,9 +861,10 @@ a subcommand and `--config` path handoff.
   changes, and stop `request_fit_view` from silently undoing `zoom_to_read`
   on the first frame.
 - **Expected Outcome:** `ViewState` plus `rebuild_preserving_view` keep camera
-  and selection across a rebuild. A first-frame helper applies deferred
-  fit-view *after* layout so `zoom_to_read` sticks. The race currently
-  documented in `flow.rs` is gone.
+  and selection across a rebuild. `zoom_to_read_after_layout` draws twice at
+  a known canvas size (rataflow applies `request_fit_view` on the first
+  same-size frame and clears it on the second) then `zoom_to_read`, so a
+  later same-size frame cannot undo the read zoom.
 - **Files:** `crates/eddacraft-tui/src/flow/`
 - **Dependencies:** TUIN-014 (Done)
 - **Validation:** `cargo test -p eddacraft-tui --features flow` covering
@@ -880,9 +881,9 @@ a subcommand and `--config` path handoff.
 - **Intent:** Let builders assign `Theme` roles at construction, and size
   container nodes with display width rather than `.chars().count()`.
 - **Expected Outcome:** `NodeSpec` / `EdgeSpec` carry a `Role`.
-  `themed_from_edges` and `container_flow` accept specs as well as bare
-  strings. `warning` is mapped or applied per-node/edge. Container cell
-  width uses `unicode-width`. Existing string APIs keep working.
+  String constructors `themed_from_edges` / `container_flow` stay unchanged.
+  Role-styled graphs use the additive `themed_from_specs`. `warning` is
+  applied per-node/edge. Container cell width uses `unicode-width`.
 - **Files:** `crates/eddacraft-tui/src/flow/`
 - **Dependencies:** TUIN-014 (Done)
 - **Validation:** `cargo test -p eddacraft-tui --features flow` (wide-glyph
@@ -898,9 +899,10 @@ a subcommand and `--config` path handoff.
 - **Status:** In Progress
 - **Intent:** Show added, removed, and unchanged structure without the
   Sugiyama layout exploding between `before` and `after`.
-- **Expected Outcome:** `themed_from_diff(before, after, theme)` paints added
-  edges `Success`, removed edges `Error` as ghosts occupying prior
-  positions, unchanged edges muted. Ghost nodes remain in the layout.
+- **Expected Outcome:** `themed_from_diff(before, after, theme)` takes two
+  edge lists (not prior `Flow`s). One Sugiyama pass over the union: added
+  edges `Success`, removed edges `Error` as ghosts occupying a union-layout
+  slot, unchanged edges muted. Occupancy-stable, not coordinate replay.
 - **Files:** `crates/eddacraft-tui/src/flow/`
 - **Dependencies:** TUIN-017
 - **Validation:** `cargo test -p eddacraft-tui --features flow` (added /
@@ -923,8 +925,9 @@ a subcommand and `--config` path handoff.
 - **Files:** `crates/eddacraft-tui/src/flow/`
 - **Dependencies:** TUIN-016
 - **Validation:** `cargo test -p eddacraft-tui --features flow` (guard drop
-  restores; optional `--features flow,lifecycle` compose test); rustdoc
-  `-D warnings` all-features.
+  restores); `cargo test -p eddacraft-tui --features flow,lifecycle --lib
+  flow::` (lifecycle compose path type-checks); rustdoc `-D warnings`
+  all-features.
 
 **changeType:** feature
 **releaseIntent:** candidate
@@ -934,11 +937,12 @@ a subcommand and `--config` path handoff.
 
 - **Status:** In Progress
 - **Intent:** Keep large graphs readable in the library instead of a
-  consumer degrading the whole surface past `MAX_RENDERABLE_NODES`.
-- **Expected Outcome:** Over-budget clusters collapse to a portal node
-  (`… N crates`). Selecting a portal expands in place. Camera preserved
-  via TUIN-016. Parked until a second consumer or impact actually hits
-  the budget in anger.
+  consumer degrading the whole surface past its own node budget.
+- **Expected Outcome:** Caller supplies `max_visible` (library-owned; not
+  Anvil impact's `MAX_RENDERABLE_NODES`). Over-budget clusters collapse to
+  a portal (`… N crates`). `ElidedGraph` retains `portal_id` and collapsed
+  members; `elide_from_edges_keeping` expands them in place. Camera via
+  TUIN-016.
 - **Files:** `crates/eddacraft-tui/src/flow/`
 - **Dependencies:** TUIN-016
 - **Validation:** `cargo test -p eddacraft-tui --features flow` (collapse

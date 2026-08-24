@@ -66,22 +66,32 @@ cover a small DAG snapshot and an unknown-id no-op.
 ### Preserve view + fit-then-read (TUIN-016)
 
 Extract `ViewState { zoom, pan, selected }`. `rebuild_preserving_view` keeps
-camera and selection across an edge-list change. A first-frame helper applies
-pending `request_fit_view` *after* layout so `zoom_to_read` is not silently
-undone. This deletes the footgun documented in `flow.rs` today.
+camera and selection across an edge-list change.
+
+`zoom_to_read_after_layout(flow, node_id, width, height)` is the first-frame
+hook. rataflow applies `request_fit_view` on the first render at a canvas
+size and clears the request only on a second render at that same size. The
+helper draws twice into an off-screen buffer of `(width, height)`, then
+calls `zoom_to_read`. Tests must start from `request_fit_view` and assert
+the read zoom survives a later same-size frame.
 
 ### Role-styled specs (TUIN-017)
 
-`NodeSpec` / `EdgeSpec` carry a `Theme` `Role`. `container_flow` and
-`themed_from_edges` accept specs as well as bare strings. Map `warning` into
-the rataflow palette or an equivalent per-edge/node style. Size nodes with
-`unicode-width`.
+`NodeSpec` / `EdgeSpec` carry a `Theme` `Role`. Existing
+`themed_from_edges` / `container_flow` string signatures stay unchanged
+(Rust has no overloads). Role-styled construction is a distinct additive
+constructor: `themed_from_specs(nodes, edges, theme)`. Map `warning` per
+node/edge (rataflow's palette has no warning slot). Size container cells
+with `unicode-width`.
 
 ### Graph diff (TUIN-018)
 
-`themed_from_diff(before, after, theme)` keeps layout stable: added edges
-`Success`, removed edges `Error` as ghosts occupying the old positions,
-unchanged edges muted. Ghost nodes do not disappear between frames.
+`themed_from_diff(before, after, theme)` takes two edge-list descriptions,
+not prior `Flow`s. Layout is one Sugiyama pass over the **union** of both
+lists so removed nodes stay in the graph as `Error` ghosts occupying a
+slot in that union layout. Added edges are `Success`, unchanged edges
+muted. This is occupancy-stable (ghosts do not vanish), not a replay of
+the previous frame's coordinates.
 
 ### FlowSession (TUIN-019)
 
@@ -92,9 +102,11 @@ mouse mode.
 
 ### Elision portals (TUIN-020)
 
-Over-budget clusters collapse to a portal node (`… N crates`). Selecting a
-portal expands in place. Library-level, not a consumer `if nodes > N` that
-degrades the whole surface.
+Caller supplies the library-owned budget (`max_visible`). The helper does
+not read Anvil's impact `MAX_RENDERABLE_NODES`. Over-budget lowest-degree
+nodes collapse to a portal (`… N crates`). `ElidedGraph` holds `portal_id`
+and `collapsed` member ids; `elide_from_edges_keeping` expands those
+members in place. Camera preservation is TUIN-016's job.
 
 ### Layout morph spike (TUIN-021)
 
