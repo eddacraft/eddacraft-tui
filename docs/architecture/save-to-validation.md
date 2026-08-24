@@ -1,8 +1,8 @@
 # Save to validation
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                        |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 at `97899b00a` against MCP caller-buffer validation, watch routing/fallback, driver supervision, intercept MidEdit/save-time dispatch, and fence source |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                     |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 daemon catalogue registry; save-time dispatch topology unchanged |
 
 | Upstream                                                                                                                                                                                         | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |

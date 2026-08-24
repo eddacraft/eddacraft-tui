@@ -1,8 +1,8 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                         |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-23 against the local product, hosted API, docs-shell entitlement boundary, renderer topology, and deployment wiring; reviewed after the DOCRB-009 metadata update to `apps/docs-shell/ARCHITECTURE.md`; architecture and diagrams unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                  |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 host completeness reviews on component architecture docs; architecture and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                      | Downstream                                                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
