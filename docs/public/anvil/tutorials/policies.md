@@ -122,9 +122,15 @@ anvil makes no compliance claim.
 **Known false positives.** The `sensitive-paths` name heuristics fire on
 ordinary files — `token_store.rs`, `password_field.tsx`, `secrets.example.md`.
 That is deliberate: the softer wording tells you to confirm rather than act, and
-a heuristic match is never blocking. If one is noisy in your repository, record
-it with [`anvil exception`](../reference/policy.md#exceptions) rather than
-editing the pack in place.
+no finding from this pack is blocking.
+
+**There is no way to suppress an individual pack finding at the policy gate
+today.** [`anvil exception`](../reference/policy.md#exceptions) records a
+scoped, attributed exception, but it is applied at the pre-push check — not by
+`anvil gate --only-checks policy`, the gate this tutorial runs. Until that
+changes, treat a heuristic hit as a prompt to confirm. If a pattern is
+persistently wrong for your repository, edit your installed copy under
+`.anvil/policies/anvil-baseline/` and re-run `anvil policy validate`.
 
 **Thresholds are fixed.** The 10- and 25-file limits are constants in the pack's
 Rego. They are not configurable per project today.

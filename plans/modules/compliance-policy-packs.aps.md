@@ -11,9 +11,14 @@
 **enabling change** under PR #4100, not by a direct instruction naming this
 item. The operator promoted POLFIT-007, which coordinates CPACKS-006 and
 CPACKS-007; its stated outcome is not deliverable while this item sits Draft,
-so it was advanced with it. No scope change; the module's live residue is unchanged
-(CPACKS-006 + CPACKS-007), both now Ready, with CPACKS-008 still behind the
-expansion gate. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
+so it was advanced with it.
+
+**Superseded 2026-08-24 by the POLFIT-007 execution:** CPACKS-007 is delivered
+(known-gaps copy — the audit found it did not exist) and **CPACKS-006 is
+Blocked**, proven not deliverable as specified. Do not select CPACKS-006 as
+available work; it needs an owner decision on one of the three unblock paths
+recorded against it. The module has no selectable live item, and CPACKS-008
+remains behind the expansion gate. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
 previous revision was last reviewed 2026-07-02, two days **before** the
 starter pack it plans shipped, and still framed it as future work.)
