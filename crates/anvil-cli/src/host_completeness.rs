@@ -148,6 +148,7 @@ const COLLAPSED_CLI_PREFIXES: &[&str] = &[
     "policy explain",
     "policy install",
     "policy list",
+    "policy members",
     "policy probe-trends",
     "policy show",
     "policy test",

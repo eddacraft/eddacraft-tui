@@ -129,6 +129,7 @@ const JSON_SURFACES: &[(&str, &str)] = &[
     ("policy explain", "doc"),
     ("policy install", "doc"),
     ("policy list", "doc"),
+    ("policy members", "doc"),
     ("policy probe-trends", "doc"),
     ("policy show", "doc"),
     ("policy test", "doc"),

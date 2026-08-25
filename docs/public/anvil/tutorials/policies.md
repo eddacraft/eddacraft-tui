@@ -159,14 +159,15 @@ anvil policy install anvil-control-examples
 ```
 
 Optional: disable members you do not want. The overlay sits beside the pack, so
-a later `install --force` does not clobber it.
+a later `install --force` does not clobber it. These land with this pack; they
+are documented as commands, not as a shipped-binary tutorial step:
 
-```text
-anvil policy install anvil-control-examples --off personal-data-paths
-anvil policy members anvil-control-examples
-anvil policy members anvil-control-examples --off ai-decision-logging
-anvil policy members anvil-control-examples --on ai-decision-logging
-```
+| Command                                                                 | Purpose                     |
+| ----------------------------------------------------------------------- | --------------------------- |
+| `anvil policy install anvil-control-examples --off personal-data-paths` | Install with one member off |
+| `anvil policy members anvil-control-examples`                           | List overlay state          |
+| `anvil policy members anvil-control-examples --off ai-decision-logging` | Disable a member            |
+| `anvil policy members anvil-control-examples --on ai-decision-logging`  | Re-enable a member          |
 
 `crypto-human-signoff` vetoes an MCP pre-write to cryptographic-looking paths
 until a human runs
