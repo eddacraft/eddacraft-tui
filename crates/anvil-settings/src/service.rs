@@ -83,7 +83,7 @@ impl SettingsService {
         };
         let requested = Resolver::resolve(&self.catalogue, request.declarations);
         let resolved = apply_constraints(&requested, request.bundle)?;
-        let revision = model_revision(&resolved, request.attestations, discovered.as_deref());
+        let revision = model_revision(&resolved, discovered.as_deref());
         let mut rows = Vec::new();
         let mut controls = Vec::new();
         for setting in &resolved {
@@ -93,6 +93,7 @@ impl SettingsService {
                 Some(entry) => classify_runtime_state(
                     att,
                     &ClassifyInput {
+                        key: setting.key.as_str(),
                         evidence_mode: entry.evidence_mode,
                         required_owner: entry.activation_owner.as_deref(),
                         required_trust: entry.evidence_trust,
@@ -163,29 +164,20 @@ impl SettingsService {
     }
 }
 
-fn model_revision(
-    resolved: &[ResolvedSetting],
-    attestations: &BTreeMap<String, Attestation>,
-    discovered: Option<&str>,
-) -> String {
+fn model_revision(resolved: &[ResolvedSetting], discovered: Option<&str>) -> String {
     let mut hasher = Sha256::new();
-    if let Ok(bytes) = serde_json::to_vec(&revision_payload(resolved, attestations, discovered)) {
+    if let Ok(bytes) = serde_json::to_vec(&revision_payload(resolved, discovered)) {
         hasher.update(bytes);
     }
     hex::encode(hasher.finalize())
 }
 
-fn revision_payload(
-    resolved: &[ResolvedSetting],
-    attestations: &BTreeMap<String, Attestation>,
-    discovered: Option<&str>,
-) -> Value {
+fn revision_payload(resolved: &[ResolvedSetting], discovered: Option<&str>) -> Value {
     serde_json::json!({
         "resolved": resolved.iter().map(|r| serde_json::json!({
             "key": r.key,
             "value": r.resolved,
         })).collect::<Vec<_>>(),
-        "attestations": attestations,
         "discovered": discovered,
     })
 }

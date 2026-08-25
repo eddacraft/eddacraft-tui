@@ -57,6 +57,7 @@ pub struct Attestation {
 /// Inputs the classifier needs besides the attestation itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassifyInput<'a> {
+    pub key: &'a str,
     pub evidence_mode: EvidenceMode,
     pub required_owner: Option<&'a str>,
     pub required_trust: EvidenceTrust,
@@ -91,13 +92,11 @@ pub fn classify_runtime_state(
     }
     match input.evidence_mode {
         EvidenceMode::None => RuntimeState::Unknown,
-        EvidenceMode::Value => {
-            if values_match(att.active_value.as_ref(), input.resolved_value) {
-                RuntimeState::Active
-            } else {
-                RuntimeState::Drift
-            }
-        }
+        EvidenceMode::Value => match att.active_value.as_ref() {
+            None => RuntimeState::Unknown,
+            Some(active) if Some(active) == input.resolved_value => RuntimeState::Active,
+            Some(_) => RuntimeState::Drift,
+        },
         EvidenceMode::ClassifiedDigest => {
             match (att.classified_digest.as_deref(), input.resolved_value) {
                 (Some(digest), Some(resolved)) if digest == digest_of(resolved) => {
@@ -107,13 +106,10 @@ pub fn classify_runtime_state(
                 _ => RuntimeState::Unknown,
             }
         }
-        EvidenceMode::Conformance => {
-            if att.conformance == Some(true) {
-                RuntimeState::Active
-            } else {
-                RuntimeState::Drift
-            }
-        }
+        EvidenceMode::Conformance => match att.conformance {
+            Some(true) => RuntimeState::Active,
+            _ => RuntimeState::Unknown,
+        },
     }
 }
 
@@ -131,25 +127,30 @@ fn evidence_accepted(att: &Attestation, input: &ClassifyInput<'_>) -> bool {
     {
         return false;
     }
+    if !att.keys.iter().any(|k| k.as_str() == input.key) {
+        return false;
+    }
     true
 }
 
 fn expired(valid_until: Option<&str>, now: &str) -> bool {
-    valid_until.is_some_and(|until| now > until)
+    use chrono::{DateTime, Utc};
+    let Some(until_raw) = valid_until else {
+        return false;
+    };
+    let Ok(until) = DateTime::parse_from_rfc3339(until_raw) else {
+        return true;
+    };
+    let Ok(now) = DateTime::parse_from_rfc3339(now) else {
+        return true;
+    };
+    now.with_timezone(&Utc) >= until.with_timezone(&Utc)
 }
 
 fn digest_of(value: &Value) -> String {
     use sha2::{Digest, Sha256};
     let bytes = serde_json::to_vec(value).unwrap_or_default();
     hex::encode(Sha256::digest(bytes))
-}
-
-fn values_match(active: Option<&Value>, resolved: Option<&Value>) -> bool {
-    match (active, resolved) {
-        (Some(a), Some(r)) => a == r,
-        (None, None) => true,
-        _ => false,
-    }
 }
 
 #[cfg(test)]
@@ -178,6 +179,7 @@ mod runtime_state_tests {
 
     fn input<'a>(revision: &'a str, now: &'a str, resolved: &'a Value) -> ClassifyInput<'a> {
         ClassifyInput {
+            key: "protection.checks",
             evidence_mode: EvidenceMode::Value,
             required_owner: Some("intercept"),
             required_trust: EvidenceTrust::DaemonAttested,

@@ -1791,6 +1791,7 @@ dependencies = [
 name = "eddacraft-anvil-settings"
 version = "0.9.7-beta"
 dependencies = [
+ "chrono",
  "eddacraft-anvil-config",
  "hex",
  "serde",
@@ -6663,6 +6664,7 @@ dependencies = [
  "bitflags 2.13.1",
  "bytemuck",
  "cc",
+ "chrono",
  "clap",
  "clap_builder",
  "console",

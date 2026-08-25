@@ -62,8 +62,11 @@ impl Resolver {
     pub fn resolve(catalogue: &Catalogue, declarations: &[Declaration]) -> Vec<ResolvedSetting> {
         let mut keys = Vec::new();
         for decl in declarations {
-            if !keys.iter().any(|k| k == &decl.key) {
-                keys.push(decl.key.clone());
+            let canonical = catalogue
+                .get(&decl.key)
+                .map_or_else(|| decl.key.clone(), |e| e.key.0.clone());
+            if !keys.iter().any(|k| k == &canonical) {
+                keys.push(canonical);
             }
         }
         for entry in catalogue.iter() {
@@ -78,6 +81,7 @@ impl Resolver {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn resolve_one(catalogue: &Catalogue, declarations: &[Declaration], key: &str) -> ResolvedSetting {
     let entry = catalogue.get(key);
     let precedence = entry
@@ -87,7 +91,18 @@ fn resolve_one(catalogue: &Catalogue, declarations: &[Declaration], key: &str) -
     let merge = entry.map_or(MergeSemantics::Replace, |e| e.merge);
     let default = entry.and_then(|e| e.default.clone());
 
-    let mut ranked: Vec<&Declaration> = declarations.iter().filter(|d| d.key == key).collect();
+    let mut ranked: Vec<&Declaration> = declarations
+        .iter()
+        .filter(|d| {
+            let canonical = catalogue
+                .get(&d.key)
+                .map_or(d.key.as_str(), |e| e.key.as_str());
+            canonical == key
+        })
+        .filter(|d| {
+            entry.is_none_or(|e| e.supported_scopes.contains(&d.scope))
+        })
+        .collect();
     ranked.sort_by_key(|d| {
         precedence
             .iter()

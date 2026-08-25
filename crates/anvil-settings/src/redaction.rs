@@ -50,6 +50,13 @@ pub fn redact_value(catalogue: &Catalogue, value: &Value) -> Result<Value, Redac
             }
             Ok(Value::Object(out))
         }
+        Value::Array(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                out.push(redact_value(catalogue, item)?);
+            }
+            Ok(Value::Array(out))
+        }
         other => Ok(other.clone()),
     }
 }

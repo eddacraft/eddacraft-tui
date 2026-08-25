@@ -1,5 +1,13 @@
 # eddacraft-anvil-settings
 
+| Type  | Authority     | Owner  | Status | Freshness                                                               |
+| ----- | ------------- | ------ | ------ | ----------------------------------------------------------------------- |
+| Crate | Authoritative | SETCON | Live   | Last reviewed 2026-08-25 against ADR-132 and SETCON-001..011 acceptance |
+
+| Upstream                                                                               | Downstream                                  |
+| -------------------------------------------------------------------------------------- | ------------------------------------------- |
+| [ADR-132](../../plans/decisions/132-settings-truth-contract.md), `crates/anvil-config` | SETINS, SETPREF, SETGOV, `crates/anvil-cli` |
+
 Settings truth service for Anvil (SETCON /
 [ADR-132](../../plans/decisions/132-settings-truth-contract.md)).
 
