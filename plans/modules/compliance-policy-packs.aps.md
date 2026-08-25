@@ -20,8 +20,8 @@ wrappers). An earlier revision of this paragraph recorded CPACKS-006 as Blocked
 and not selectable; #4107 landed the same day and superseded that.
 
 **Open after that closure:** CPACKS-008 (expansion gate), **CPACKS-009** and
-**CPACKS-010** (filed 2026-08-24 from planning council `council-9021df43`), and
-**CPACKS-011** (live exclusive item: second starter pack + overlay).
+**CPACKS-010** (filed 2026-08-24 from planning council `council-9021df43`).
+**CPACKS-011** Merged via #4137.
 The first-wave residue is closed; the module is not. Any statement below dated
 before 2026-08-24 that calls CPACKS-006/-007 "the live residue" is historical. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
@@ -352,9 +352,9 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-011: Second starter pack with per-member overlay
 
-- **Status:** In Progress — 2026-08-25 on `feat/cpacks-011-control-examples`.
-  Operator-approved design: one bundled pack, four members, durable overlay,
-  no TUI this slice.
+- **Status:** Merged 2026-08-25 via PR #4137. Ancestor of `origin/main`
+  (`2758a53ab`). Operator-approved design: one bundled pack, four members,
+  durable overlay, no TUI this slice.
 - **Intent:** Ship a second bundled starter pack that evaluates as real pack
   members, so custom policy authoring is a working loop rather than a docs
   recipe, without making GDPR or AI Act certification claims.
