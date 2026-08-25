@@ -1,9 +1,7 @@
 //! Settings semantic outcomes on the global CLI exit-code registry
 //! (SETCON-009 / ADR-132).
 
-pub use anvil_settings::exit_codes::{
-    EXIT_REDACTION_ERROR, SettingsOutcome, code_for,
-};
+pub use anvil_settings::exit_codes::{EXIT_REDACTION_ERROR, SettingsOutcome, code_for};
 
 #[cfg(test)]
 mod exit_codes_tests {
