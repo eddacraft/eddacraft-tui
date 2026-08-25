@@ -32,6 +32,7 @@ mod policy_load;
 mod policy_vocab;
 mod registration;
 mod services;
+#[cfg(test)]
 mod settings_exit;
 mod telemetry;
 #[cfg(test)]

@@ -1,12 +1,12 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                  |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 host completeness reviews on component architecture docs; architecture and diagrams unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                     |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-25 against SETCON `crates/anvil-settings` workspace membership; container diagram now includes the settings truth crate |
 
-| Upstream                                                                                                                                                                                      | Downstream                                                                            |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| ADR-123, `Cargo.toml`, `crates/anvil-cli/README.md`, `crates/anvil-intercept/ARCHITECTURE.md`, `apps/anvil-api/ARCHITECTURE.md`, `apps/docs-shell/ARCHITECTURE.md`, and `infra/src/vercel.ts` | `CONTEXT.md`, `docs/architecture/README.md`, and cross-system architecture navigation |
+| Upstream                                                                                                                                                                                                                         | Downstream                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| ADR-123, `Cargo.toml`, `crates/anvil-cli/README.md`, `crates/anvil-settings/README.md`, `crates/anvil-intercept/ARCHITECTURE.md`, `apps/anvil-api/ARCHITECTURE.md`, `apps/docs-shell/ARCHITECTURE.md`, and `infra/src/vercel.ts` | `CONTEXT.md`, `docs/architecture/README.md`, and cross-system architecture navigation |
 
 This document owns two cross-system concerns: who interacts with anvil, and how
 the live containers and major components relate. Component internals belong in
@@ -66,6 +66,7 @@ flowchart LR
         Daemon[intercept daemon]
         Kernel[kernel and graph]
         Checks[checks and policy]
+        Settings[settings truth]
         TUI[TUI surfaces]
         Dashboard[local dashboard]
         DashboardServer[loopback dashboard server]
@@ -73,6 +74,7 @@ flowchart LR
         CLI --> Kernel
         CLI --> Checks
         CLI --> Daemon
+        CLI --> Settings
         CLI --> TUI
         MCP --> Daemon
         Daemon --> Kernel
@@ -98,17 +100,17 @@ flowchart LR
     CLI -->|authentication| API
 ```
 
-In prose: the CLI composes local kernel, checks, daemon, and TUI capabilities.
-The MCP shim uses the daemon when available. The local dashboard talks to its
-loopback server, which reads bounded kernel and check state. The hosted API is a
-separate service with Neon persistence. The documentation shell is a hosted
-entrypoint that consults the API for login/licence exchange and proxies to
-private and public renderers.
+In prose: the CLI composes local kernel, checks, daemon, settings, and TUI
+capabilities. The MCP shim uses the daemon when available. The local dashboard
+talks to its loopback server, which reads bounded kernel and check state. The
+hosted API is a separate service with Neon persistence. The documentation shell
+is a hosted entrypoint that consults the API for login/licence exchange and
+proxies to private and public renderers.
 
-Local CLI, daemon, kernel, and checks relationships trace to
-`crates/anvil-cli/README.md`, `crates/anvil-kernel/ARCHITECTURE.md`, and
-`crates/anvil-intercept/ARCHITECTURE.md`. The dashboard boundary traces to
-`apps/dashboard/ARCHITECTURE.md` and
+Local CLI, daemon, kernel, checks, and settings relationships trace to
+`crates/anvil-cli/README.md`, `crates/anvil-kernel/ARCHITECTURE.md`,
+`crates/anvil-intercept/ARCHITECTURE.md`, and `crates/anvil-settings/README.md`.
+The dashboard boundary traces to `apps/dashboard/ARCHITECTURE.md` and
 `crates/anvil-dashboard-server/ARCHITECTURE.md`. Hosted API and persistence
 trace to `apps/anvil-api/ARCHITECTURE.md`. Documentation containers trace to
 `apps/docs-shell/ARCHITECTURE.md` and `infra/src/vercel.ts`.
