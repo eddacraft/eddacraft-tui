@@ -462,6 +462,64 @@ mod tests {
         inner: EvalRegressionArgs,
     }
 
+    /// CPACKS-010 support: repo root, so the tests below read the *landed*
+    /// suites, policies, and inputs rather than hand-copied fixtures.
+    fn repo_root() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    /// Evaluate Rego source against a `PolicyInput` document and return the
+    /// findings in the frozen v1 shape, as `EvalRunSummary` would carry them.
+    fn eval_source_to_findings(
+        src: &str,
+        query: &str,
+        input_json: &serde_json::Value,
+    ) -> Vec<EvalFinding> {
+        use anvil_policy_engine::{Engine, EngineConfig, PolicyInput};
+        let input: PolicyInput =
+            serde_json::from_value(input_json.clone()).expect("input parses as PolicyInput v1");
+        let mut engine = Engine::new(EngineConfig::default()).expect("engine");
+        anvil_policy_engine::builtins::register_all(&mut engine).expect("builtins");
+        engine
+            .add_policy("policy.rego", src.to_string())
+            .expect("compile");
+        let raw = engine
+            .eval(&input, query)
+            .expect("eval")
+            .value
+            .unwrap_or(serde_json::Value::Null);
+        let mut out: Vec<EvalFinding> = raw
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| {
+                        let message = v.get("message")?.as_str()?.to_string();
+                        let severity = match v.get("severity").and_then(serde_json::Value::as_str) {
+                            Some("error") => EvalSeverity::Error,
+                            _ => EvalSeverity::Warning,
+                        };
+                        Some(EvalFinding {
+                            severity,
+                            message,
+                            from: None,
+                            to: None,
+                            fingerprint: None,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        out.sort_by(|a, b| a.message.cmp(&b.message));
+        out
+    }
+
+    /// The landed suites, read from `ci/eval/suites.json`.
+    fn landed_suites() -> Vec<EvalSuite> {
+        let raw = std::fs::read_to_string(repo_root().join("ci/eval/suites.json"))
+            .expect("read ci/eval/suites.json");
+        serde_json::from_str(&raw).expect("suites.json parses")
+    }
+
     fn finding(sev: EvalSeverity, msg: &str, fp: Option<&str>) -> EvalFinding {
         EvalFinding {
             severity: sev,
@@ -732,6 +790,140 @@ mod tests {
         let clean = build_outcome(&[ran(summary("arch", 0, vec![]), None)]);
         assert!(!should_block(&clean, true));
         assert!(!should_block(&clean, false));
+    }
+
+    #[test]
+    fn every_landed_eval_suite_is_falsifiable() {
+        // CPACKS-010. CPACKS-006 was opened because a suite reported
+        // "no regressions" while its policy emitted nothing — coverage that
+        // could not fail. This asserts the opposite property for **every**
+        // suite in `ci/eval/suites.json`, driven off that file so a suite added
+        // later is covered without anyone remembering to extend this test.
+        //
+        // Two things must hold per suite: the real policy against the real
+        // committed input actually fires (a vacuous fixture proves nothing),
+        // and losing those findings is detected by the verdict path.
+        let suites = landed_suites();
+        assert!(!suites.is_empty(), "ci/eval/suites.json must not be empty");
+
+        for suite in &suites {
+            let src = std::fs::read_to_string(repo_root().join(&suite.policy))
+                .unwrap_or_else(|e| panic!("read {}: {e}", suite.policy.display()));
+            let input_path = suite
+                .input
+                .as_ref()
+                .unwrap_or_else(|| panic!("suite `{}` has no committed input", suite.name));
+            let input_raw = std::fs::read_to_string(repo_root().join(input_path))
+                .unwrap_or_else(|e| panic!("read {}: {e}", input_path.display()));
+            let input_json: serde_json::Value =
+                serde_json::from_str(&input_raw).expect("input is JSON");
+
+            let findings = eval_source_to_findings(&src, &suite.query, &input_json);
+            assert!(
+                !findings.is_empty(),
+                "suite `{}` produced no findings against its committed input — \
+                 a fixture that fires on nothing cannot detect anything",
+                suite.name
+            );
+
+            // Now lose them, as a silently-broken policy would.
+            let baseline = EvalRunSummary {
+                suite: suite.name.clone(),
+                schema_version: "1.0.0".into(),
+                policy: suite.policy.display().to_string(),
+                query: suite.query.clone(),
+                findings,
+                exit_code: 1,
+            };
+            let silenced = EvalRunSummary {
+                findings: vec![],
+                exit_code: 0,
+                ..baseline.clone()
+            };
+            let outcome = build_outcome(&[ran(silenced, Some(baseline))]);
+            assert!(
+                outcome.output_changed,
+                "suite `{}` must detect its own findings disappearing",
+                suite.name
+            );
+            assert!(
+                should_block(&outcome, true),
+                "suite `{}` must block under --fail-on-regression when silenced",
+                suite.name
+            );
+        }
+    }
+
+    #[test]
+    fn landed_sensitive_paths_suite_detects_a_neutered_matcher() {
+        // CPACKS-010, the specific falsification that was previously only ever
+        // run by hand: mutate the real wrapper Rego so a matcher stops firing,
+        // and drive the result through the real verdict and persistence paths.
+        //
+        // This is the shape that caught the baseline-poisoning bug in #4128,
+        // which nineteen unit tests over synthetic summaries did not.
+        let suite = landed_suites()
+            .into_iter()
+            .find(|s| s.name == "anvil_baseline_sensitive_paths")
+            .expect("the sensitive-paths suite must stay wired");
+
+        let src = std::fs::read_to_string(repo_root().join(&suite.policy)).expect("read wrapper");
+        let input_raw =
+            std::fs::read_to_string(repo_root().join(suite.input.as_ref().expect("input")))
+                .expect("read input");
+        let input_json: serde_json::Value = serde_json::from_str(&input_raw).expect("input JSON");
+
+        let intact = eval_source_to_findings(&src, &suite.query, &input_json);
+        assert!(!intact.is_empty(), "the fixture must fire before mutation");
+
+        // Neuter the precise CI-config matcher the committed fixture exercises.
+        let mutated = src.replace(".github/workflows/", "NEVER_MATCHES_ANYTHING/");
+        assert_ne!(mutated, src, "the mutation must actually change the policy");
+        let after = eval_source_to_findings(&mutated, &suite.query, &input_json);
+        assert!(
+            after.len() < intact.len(),
+            "neutering the matcher must lose at least one finding"
+        );
+
+        let baseline = EvalRunSummary {
+            suite: suite.name.clone(),
+            schema_version: "1.0.0".into(),
+            policy: suite.policy.display().to_string(),
+            query: suite.query.clone(),
+            findings: intact,
+            exit_code: 1,
+        };
+        let current = EvalRunSummary {
+            findings: after,
+            exit_code: 0,
+            ..baseline.clone()
+        };
+        let outcome = build_outcome(&[ran(current.clone(), Some(baseline.clone()))]);
+
+        assert!(
+            !outcome.regressed,
+            "gate semantics read this as an improvement — the original blind spot"
+        );
+        assert!(outcome.output_changed, "the fixture verdict must catch it");
+        assert!(should_block(&outcome, true));
+
+        // And the baseline must survive: the command only persists when it is
+        // not rejecting the run, so the silence can never become the accepted
+        // baseline and quietly clear itself on the next run.
+        let dir = tempfile::TempDir::new().expect("tmp");
+        let store = EvalResultStore::new(dir.path());
+        persist_runs(&store, &[ran(baseline.clone(), None)]).expect("seed baseline");
+        let seeded = store.latest(&suite.name).expect("read").expect("seeded");
+        assert!(!seeded.findings.is_empty());
+
+        if !should_block(&outcome, true) {
+            persist_runs(&store, &[ran(current, Some(baseline))]).expect("persist");
+        }
+        let after_store = store.latest(&suite.name).expect("read").expect("record");
+        assert!(
+            !after_store.findings.is_empty(),
+            "a silenced run must not become the accepted baseline"
+        );
     }
 
     #[test]

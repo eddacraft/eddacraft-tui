@@ -315,11 +315,22 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-010: Re-run the falsification against the landed suites
 
-- **Status:** Ready — promoted 2026-08-25 by operator instruction. Both
-  dependencies are satisfied: CPACKS-006 Merged via #4107, EVALCI-010 Merged
-  via #4128. The shape question below is now **answered** — EVALCI-010 shipped
-  the loss-of-finding verdict, so this item asserts against that rather than
-  choosing between two designs.
+- **Status:** In Progress 2026-08-25 — implemented, awaiting merge. Two tests
+  land in `eval_regression.rs`, both driven off `ci/eval/suites.json` so they
+  cover the **landed** suites rather than hand-copied fixtures:
+  `every_landed_eval_suite_is_falsifiable` (every suite's real policy against
+  its real committed input must produce findings, and losing them must block —
+  so a suite added later is covered without anyone remembering to extend the
+  test) and `landed_sensitive_paths_suite_detects_a_neutered_matcher` (mutates
+  the real wrapper Rego in memory, then drives the result through the real
+  verdict *and* persistence paths, asserting the silence cannot become the
+  accepted baseline).
+- **RED-proven, twice.** Neutering `output_changed()` fails both tests.
+  Pointing a suite's input at a path the policy ignores fails the first with
+  "suite `anvil_baseline_sensitive_paths` produced no findings against its
+  committed input" — which is CPACKS-006's original defect, now caught by name.
+  Promoted Ready 2026-08-25 by operator instruction; dependencies CPACKS-006
+  (#4107) and EVALCI-010 (#4128) both satisfied.
 - **Intent:** Close the loop on the specific proof that motivated CPACKS-006,
   rather than inferring it from the parity and diff-engine tests.
 - **Expected Outcome:** A committed test proves the landed suites detect a
