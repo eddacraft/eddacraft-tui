@@ -13,6 +13,7 @@ import {
   FlagValueTypeSchema,
   FeatureFlagDefinitionSchema,
   FeatureFlagManifestSchema,
+  UNDECIDED_PLAN_AVAILABILITY,
   EnvironmentNameSchema,
   ChannelSchema,
   EnvironmentContextSchema,
@@ -80,6 +81,12 @@ function validProductCatalogue(overrides: Record<string, unknown> = {}) {
           disposition: 'unflagged',
           reason: 'Fixture has no operational flag',
         },
+        planAvailability: {
+          'plan-free': 'undecided',
+          'plan-beta': 'undecided',
+          'plan-pro': 'undecided',
+          'plan-enterprise': 'undecided',
+        },
       },
     ],
     deliverySurfaces: [
@@ -126,6 +133,32 @@ describe('ProductCatalogueManifestSchema', () => {
       reason: '',
     };
     expect(ProductCatalogueManifestSchema.safeParse(emptyUnflaggedReason).success).toBe(false);
+  });
+
+  it('rejects missing or malformed plan availability', () => {
+    const missing = validProductCatalogue();
+    delete missing.productFeatures[0]!.planAvailability;
+    expect(ProductCatalogueManifestSchema.safeParse(missing).success).toBe(false);
+
+    const extraKey = validProductCatalogue();
+    extraKey.productFeatures[0]!.planAvailability = {
+      ...UNDECIDED_PLAN_AVAILABILITY,
+      'plan-teams': 'available',
+    } as typeof UNDECIDED_PLAN_AVAILABILITY;
+    expect(ProductCatalogueManifestSchema.safeParse(extraKey).success).toBe(false);
+
+    const missingPlan = validProductCatalogue();
+    const { 'plan-free': _omit, ...rest } = UNDECIDED_PLAN_AVAILABILITY;
+    missingPlan.productFeatures[0]!.planAvailability = rest as typeof UNDECIDED_PLAN_AVAILABILITY;
+    expect(ProductCatalogueManifestSchema.safeParse(missingPlan).success).toBe(false);
+    expect(_omit).toBe('undecided');
+
+    const badDisposition = validProductCatalogue();
+    badDisposition.productFeatures[0]!.planAvailability = {
+      ...UNDECIDED_PLAN_AVAILABILITY,
+      'plan-beta': 'included',
+    } as typeof UNDECIDED_PLAN_AVAILABILITY;
+    expect(ProductCatalogueManifestSchema.safeParse(badDisposition).success).toBe(false);
   });
 
   it('rejects duplicate controlsProductFeatures keys', () => {
@@ -471,6 +504,12 @@ describe('normaliseProductCatalogueV1', () => {
           disposition: 'unflagged',
           reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
         },
+        planAvailability: {
+          'plan-free': 'undecided',
+          'plan-beta': 'undecided',
+          'plan-pro': 'undecided',
+          'plan-enterprise': 'undecided',
+        },
         notes: 'Legacy note',
       },
       {
@@ -483,6 +522,12 @@ describe('normaliseProductCatalogueV1', () => {
         flagLinkage: {
           disposition: 'unflagged',
           reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
+        },
+        planAvailability: {
+          'plan-free': 'undecided',
+          'plan-beta': 'undecided',
+          'plan-pro': 'undecided',
+          'plan-enterprise': 'undecided',
         },
       },
     ]);

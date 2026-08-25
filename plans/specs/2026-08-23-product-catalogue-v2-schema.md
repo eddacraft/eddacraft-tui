@@ -2,11 +2,11 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for FLAGCAT-011 physical design | [FLAGCAT](../modules/feature-flag-catalogue.aps.md) | Accepted | 2026-08-23 — operator-approved schema, migration, stable-key, compatibility, and rollback contract |
+| Spec | Authoritative for FLAGCAT-011 physical design | [FLAGCAT](../modules/feature-flag-catalogue.aps.md) | Accepted | 2026-08-25 — FLAGCAT-015 adds `planAvailability` on product features; FLAGCAT-011 physical nouns unchanged |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [ADR-076](../decisions/076-feature-catalogue-surface-registry.md); [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md); `flags/surfaces.json`; `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`; `packages/anvil/flags-catalogue/src/manifest.ts` | FLAGCAT-011 implementation; FLAGCAT-012 host completeness gates; FLAGCAT-013 flag linkage; FLAGCAT-014 generated views |
+| [ADR-076](../decisions/076-feature-catalogue-surface-registry.md); [ADR-041](../decisions/041-flag-snapshot-usage-join-contract.md); `flags/surfaces.json`; `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`; `packages/anvil/flags-catalogue/src/manifest.ts` | FLAGCAT-011 implementation; FLAGCAT-012 host completeness gates; FLAGCAT-013 flag linkage; FLAGCAT-014 generated views; [FLAGCAT-015 plan availability](2026-08-25-product-catalogue-plan-availability.md) |
 
 **Execution authority** remains FLAGCAT-011. This specification records the
 operator-approved physical design delegated by ADR-076. It does not authorise
@@ -62,7 +62,13 @@ legacy filename:
       "groupKey": "governance",
       "owner": "RCLI2",
       "status": "active",
-      "requires": []
+      "requires": [],
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
+      }
     }
   ],
   "deliverySurfaces": [

@@ -1,8 +1,8 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                            |
-| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 host completeness, FLAGCAT-013 linkage, FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                                                           |
+| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-25 against FLAGCAT-015 plan availability, FLAGCAT-012 host completeness, FLAGCAT-013 linkage, FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
 
 | Upstream                                                                                                                                                                                                                  | Downstream                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -48,8 +48,8 @@ FLAGCAT-012 ships host completeness checks against live CLI, MCP, API, daemon,
 dashboard, docs, hook, and integration registries. FLAGCAT-013 links operational
 flags to product features. The generated feature view is
 [product-feature-catalogue.md](./product-feature-catalogue.md). FLAGCAT-015
-remains responsible for any approved product-tier mapping. FLAGCAT-011 does not
-add runtime cascade-off or catalogue-derived host enforcement. See
+records plan-audience availability against live `plan-*` ids. FLAGCAT-011 does
+not add runtime cascade-off or catalogue-derived host enforcement. See
 [ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md), the
 [host-completeness contract](../../plans/specs/2026-08-23-product-catalogue-host-completeness.md),
 and the
@@ -284,9 +284,10 @@ the start when they are built.
 
 ### Tier-based product capabilities
 
-- **Current state:** Individual entitlement flags exist, but there is no
-  approved, comprehensive product-feature-to-plan mapping. FLAGCAT-015 remains
-  Draft until that product boundary is approved.
+- **Current state:** FLAGCAT-015 records `planAvailability` on every product
+  feature against `plan-free`, `plan-beta`, `plan-pro`, and `plan-enterprise`.
+  Most features remain `undecided`; entitlement plan targeting is the only SKU
+  evidence. Runtime enforcement is still later FLAGCAT work.
 - **Classification:** **adopt**
 - **Target flags:** Individual `entitlement` class flags per gated capability,
   each with `accountTier`/`licencePlan` targeting.

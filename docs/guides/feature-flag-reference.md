@@ -1,8 +1,8 @@
 # Feature Flag Reference
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                           |
-| ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-25 against the v2 product catalogue, FLAGCAT-012 host completeness gates, FLAGCAT-013 linkage, canonical flag schemas, loader, and shared TypeScript resolver |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                    |
+| ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-25 against FLAGCAT-015 plan availability, the v2 product catalogue, FLAGCAT-012 host completeness, FLAGCAT-013 linkage, canonical flag schemas, loader, and shared TypeScript resolver |
 
 | Upstream                                                                                                                                                                                                                       | Downstream                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
@@ -20,13 +20,13 @@ migration of existing controls, see `feature-flag-inventory.md`.
 fields, duplicate keys, unresolved references, invalid posture, and cyclic
 feature dependencies fail validation.
 
-| Collection                    | Entry responsibility                                                                  |
-| ----------------------------- | ------------------------------------------------------------------------------------- |
-| `productFeatureGroups[]`      | `key`, name, `defaultSurfacePosture.access`, and `active \| retired` lifecycle        |
-| `productFeatures[]`           | `key`, group reference, APS-module `owner`, lifecycle, and hard `requires` references |
-| `deliverySurfaces[]`          | Host-prefixed `key`, feature reference, typed `locator`, posture, and lifecycle       |
-| `excludedDeliverySurfaces[]`  | Reviewed `internal-plumbing` identity, locator, owner, reason, and review reference   |
-| `deliverySurfaceMigrations[]` | Non-empty unique `fromKeys` and `toKeys` for reviewed delivery splits and merges      |
+| Collection                    | Entry responsibility                                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `productFeatureGroups[]`      | `key`, name, `defaultSurfacePosture.access`, and `active \| retired` lifecycle                              |
+| `productFeatures[]`           | `key`, group, owner, lifecycle, `requires`, flag linkage, and `planAvailability` against live plan-axis ids |
+| `deliverySurfaces[]`          | Host-prefixed `key`, feature reference, typed `locator`, posture, and lifecycle                             |
+| `excludedDeliverySurfaces[]`  | Reviewed `internal-plumbing` identity, locator, owner, reason, and review reference                         |
+| `deliverySurfaceMigrations[]` | Non-empty unique `fromKeys` and `toKeys` for reviewed delivery splits and merges                            |
 
 Delivery keys start with `cli.`, `mcp-tool.`, `mcp-resource.`, `api.`,
 `daemon.`, `dashboard.`, `docs.`, `hook.`, or `integration.`. A key is the
@@ -57,10 +57,12 @@ duplicates.
 Do not use `flagSurfaces()` for completeness, entitlement, or enforcement. Host
 completeness is FLAGCAT-012: live host projections must match the catalogue as
 two exact sets (product deliveries vs reviewed internal plumbing). Flag linkage
-is FLAGCAT-013. Generated views live at
-[product-feature-catalogue.md](./product-feature-catalogue.md). Tier mapping and
-runtime enforcement remain later FLAGCAT work. The `productCatalogue()` accessor
-and `flags/surfaces.json` remain canonical v2 truth. The frozen v1 fixture is
+is FLAGCAT-013. Plan-audience availability is FLAGCAT-015 against the live
+`plan-free`, `plan-beta`, `plan-pro`, and `plan-enterprise` ids;
+Individual/Teams/Enterprise names are not catalogue ids. Generated views live at
+[product-feature-catalogue.md](./product-feature-catalogue.md). Runtime
+enforcement remains later FLAGCAT work. The `productCatalogue()` accessor and
+`flags/surfaces.json` remain canonical v2 truth. The frozen v1 fixture is
 authoritative only for the exact deprecated `flagSurfaces()` response during the
 compatibility window. The
 [host-completeness contract](../../plans/specs/2026-08-23-product-catalogue-host-completeness.md),

@@ -69,6 +69,12 @@ describe('product catalogue compatibility reader', () => {
           disposition: 'unflagged',
           reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
         },
+        planAvailability: {
+          'plan-free': 'undecided',
+          'plan-beta': 'undecided',
+          'plan-pro': 'undecided',
+          'plan-enterprise': 'undecided',
+        },
         ...(surface.notes === undefined ? {} : { notes: surface.notes }),
       });
       expect(delivery, surface.key).toEqual({

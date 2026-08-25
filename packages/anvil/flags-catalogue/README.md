@@ -67,8 +67,8 @@ The package exposes declared catalogue data; it does not derive host
 enforcement. FLAGCAT-012 ships host completeness checks in the owning host
 packages. FLAGCAT-013 records bidirectional operational-flag linkage.
 FLAGCAT-014 generates `docs/guides/product-feature-catalogue.md`. FLAGCAT-015
-remains responsible for any approved product-tier mapping. Runtime cascade-off
-and catalogue-derived availability enforcement remain out of scope.
+records plan-audience availability against live `plan-*` ids. Runtime
+cascade-off and catalogue-derived availability enforcement remain out of scope.
 
 See
 [ADR-076](../../../plans/decisions/076-feature-catalogue-surface-registry.md)

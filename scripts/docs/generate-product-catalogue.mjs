@@ -49,6 +49,15 @@ function locatorLabel(locator) {
   }
 }
 
+function planAvailabilityLabel(availability) {
+  if (!availability) {
+    return 'undecided';
+  }
+  return ['plan-free', 'plan-beta', 'plan-pro', 'plan-enterprise']
+    .map((planId) => `${planId.replace('plan-', '')}: ${availability[planId] ?? 'undecided'}`)
+    .join('; ');
+}
+
 function linkageLabel(linkage, flagByKey) {
   if (linkage.disposition === 'unflagged') {
     return `unflagged — ${linkage.reason}`;
@@ -112,14 +121,14 @@ function render() {
     '',
     '## Product features',
     '',
-    '| Key | Name | Group | Owner | Status | Flag linkage |',
-    '| --- | ---- | ----- | ----- | ------ | ------------ |'
+    '| Key | Name | Group | Owner | Status | Flag linkage | Plan availability |',
+    '| --- | ---- | ----- | ----- | ------ | ------------ | ----------------- |'
   );
 
   for (const feature of features) {
     const group = groupByKey.get(feature.groupKey);
     lines.push(
-      `| \`${escapeCell(feature.key)}\` | ${escapeCell(feature.name)} | ${escapeCell(group?.name ?? feature.groupKey)} | ${escapeCell(feature.owner)} | ${escapeCell(feature.status)} | ${escapeCell(linkageLabel(feature.flagLinkage, flagByKey))} |`
+      `| \`${escapeCell(feature.key)}\` | ${escapeCell(feature.name)} | ${escapeCell(group?.name ?? feature.groupKey)} | ${escapeCell(feature.owner)} | ${escapeCell(feature.status)} | ${escapeCell(linkageLabel(feature.flagLinkage, flagByKey))} | ${escapeCell(planAvailabilityLabel(feature.planAvailability))} |`
     );
   }
 

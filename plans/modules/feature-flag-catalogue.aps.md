@@ -886,28 +886,33 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-015: Map product features to plan audiences
 
-- **Status:** Draft
+- **Status:** In Progress
+- **Evidence (dev-loop):** `feat/flagcat-015-plan-availability`
 - **Intent:** Use the current catalogue to design Individual, Teams, and
   Enterprise packaging from evidence rather than dashboard-first assumptions.
 - **Expected Outcome:** Every product feature records a reviewed availability
-  disposition against an approved canonical plan vocabulary, or remains
-  explicitly undecided. That decision must reconcile the live `plan-free`,
-  `plan-beta`, `plan-pro`, and `plan-enterprise` audience ids with any
-  proposed Individual, Teams, or Enterprise names before implementation.
+  disposition against the live `plan-free`, `plan-beta`, `plan-pro`, and
+  `plan-enterprise` audience ids, or remains explicitly undecided. Individual,
+  Teams, and Enterprise remain marketing labels, not catalogue ids.
   Entitlement flags and plan audiences implement only approved boundaries; the
   potential Teams-tier programme consumes this mapping without duplicating it.
   If approved identifiers require account-claim, JWT, or runtime migration,
   that migration is handed to a separately authorised owning item rather than
   being absorbed here.
-- **Files:** canonical catalogue and plan-audience inventories selected after
-  the commercial plan decision; generated catalogue view from FLAGCAT-014.
-- **Dependencies:** FLAGCAT-011, FLAGCAT-012, FLAGCAT-013, FLAGCAT-014, and an
-  approved product-plan boundary. Fresh host-completeness evidence must pass
-  before plan mapping is approved or generated.
-- **Validation:** `pnpm exec nx test flags-catalogue`; `pnpm docs:check`;
+- **Files:** `flags/surfaces.json`, `flags/audiences.json`,
+  `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`,
+  `packages/anvil/flags-catalogue/tests/plan-availability.test.ts`,
+  `scripts/docs/generate-product-catalogue.mjs`,
+  `docs/guides/product-feature-catalogue.md`,
+  [`2026-08-25-product-catalogue-plan-availability.md`](../specs/2026-08-25-product-catalogue-plan-availability.md)
+- **Dependencies:** FLAGCAT-011, FLAGCAT-012, FLAGCAT-013, FLAGCAT-014 Merged.
+  Design source approved as live plan-axis vocabulary (grill declined; ADR-121
+  already names those audience ids).
+- **Validation:** `pnpm exec nx test flags-catalogue`;
+  `pnpm exec nx test contracts`; `pnpm docs:check`;
   `pnpm typecheck`.
-- **Risk:** high — commercial entitlement semantics; remains Draft until the
-  product-plan boundary is approved.
+- **Risk:** high — commercial entitlement semantics; catalogue declaration
+  only, no runtime enforcement.
 
 ### FLAGCAT-016: Adopt `docs.access` in the live documentation shell
 

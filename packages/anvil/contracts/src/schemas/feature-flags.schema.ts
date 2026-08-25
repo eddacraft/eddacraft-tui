@@ -621,6 +621,34 @@ export const ProductFeatureFlagLinkageSchema = z.discriminatedUnion('disposition
 ]);
 export type ProductFeatureFlagLinkage = z.infer<typeof ProductFeatureFlagLinkageSchema>;
 
+export const CANONICAL_PLAN_AXIS_AUDIENCE_IDS = [
+  'plan-free',
+  'plan-beta',
+  'plan-pro',
+  'plan-enterprise',
+] as const;
+export type CanonicalPlanAxisAudienceId = (typeof CANONICAL_PLAN_AXIS_AUDIENCE_IDS)[number];
+
+export const PlanAvailabilityDispositionSchema = z.enum(['available', 'unavailable', 'undecided']);
+export type PlanAvailabilityDisposition = z.infer<typeof PlanAvailabilityDispositionSchema>;
+
+export const UNDECIDED_PLAN_AVAILABILITY = {
+  'plan-free': 'undecided',
+  'plan-beta': 'undecided',
+  'plan-pro': 'undecided',
+  'plan-enterprise': 'undecided',
+} as const satisfies Record<CanonicalPlanAxisAudienceId, 'undecided'>;
+
+export const ProductFeaturePlanAvailabilitySchema = z
+  .object({
+    'plan-free': PlanAvailabilityDispositionSchema,
+    'plan-beta': PlanAvailabilityDispositionSchema,
+    'plan-pro': PlanAvailabilityDispositionSchema,
+    'plan-enterprise': PlanAvailabilityDispositionSchema,
+  })
+  .strict();
+export type ProductFeaturePlanAvailability = z.infer<typeof ProductFeaturePlanAvailabilitySchema>;
+
 export const ProductFeatureSchema = z
   .object({
     key: z.string().regex(PRODUCT_KEY_PATTERN),
@@ -630,6 +658,7 @@ export const ProductFeatureSchema = z
     status: ProductCatalogueLifecycleSchema,
     requires: z.array(z.string().regex(PRODUCT_KEY_PATTERN)),
     flagLinkage: ProductFeatureFlagLinkageSchema,
+    planAvailability: ProductFeaturePlanAvailabilitySchema,
     notes: z.string().min(1).optional(),
   })
   .strict();
@@ -1093,6 +1122,7 @@ export function normaliseProductCatalogueV1(
           disposition: 'unflagged',
           reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
         },
+        planAvailability: { ...UNDECIDED_PLAN_AVAILABILITY },
         ...(surface.notes === undefined ? {} : { notes: surface.notes }),
       };
     }),

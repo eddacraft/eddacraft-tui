@@ -74,6 +74,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -86,6 +92,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -98,6 +110,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -110,6 +128,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -122,6 +146,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -134,6 +164,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -146,6 +182,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -158,6 +200,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -170,6 +218,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -182,6 +236,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -194,6 +254,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -206,6 +272,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -218,6 +290,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -230,6 +308,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -242,6 +326,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -254,6 +344,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["tui-dashboard.aps-dashboard"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -266,6 +362,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -278,6 +380,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -290,6 +398,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -302,6 +416,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -314,6 +434,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -326,6 +452,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["daemon.persist-graph"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -338,6 +470,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -350,6 +488,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -362,6 +506,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -374,6 +524,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -386,6 +542,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -398,6 +560,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -410,6 +578,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["kindling.embedded-runtime"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -422,6 +596,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -434,6 +614,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -446,6 +632,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -458,6 +650,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -470,6 +668,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -482,6 +686,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -494,6 +704,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -506,6 +722,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -518,6 +740,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -530,6 +758,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -542,6 +776,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -554,6 +794,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -566,6 +812,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -578,6 +830,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -590,6 +848,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -602,6 +866,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -614,6 +884,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -626,6 +902,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -638,6 +920,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -650,6 +938,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -662,6 +956,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -674,6 +974,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["gv2.reverse-impact-depth"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -686,6 +992,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -698,6 +1010,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -710,6 +1028,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -722,6 +1046,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["gctx.egress"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -734,6 +1064,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -746,6 +1082,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["dashboard.web"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -758,6 +1100,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -770,6 +1118,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -782,6 +1136,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -794,6 +1154,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -806,6 +1172,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -818,6 +1190,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -830,6 +1208,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -842,6 +1226,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -854,6 +1244,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -866,6 +1262,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -878,6 +1280,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -890,6 +1298,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -902,6 +1316,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["gctx.egress"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -914,6 +1334,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["docs.access"]
+      },
+      "planAvailability": {
+        "plan-free": "unavailable",
+        "plan-beta": "available",
+        "plan-pro": "available",
+        "plan-enterprise": "available"
       }
     },
     {
@@ -926,6 +1352,12 @@
       "flagLinkage": {
         "disposition": "linked",
         "flagKeys": ["docs.access"]
+      },
+      "planAvailability": {
+        "plan-free": "unavailable",
+        "plan-beta": "available",
+        "plan-pro": "available",
+        "plan-enterprise": "available"
       }
     },
     {
@@ -938,6 +1370,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -950,6 +1388,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -962,6 +1406,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -974,6 +1424,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -986,6 +1442,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -998,6 +1460,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     },
     {
@@ -1010,6 +1478,12 @@
       "flagLinkage": {
         "disposition": "unflagged",
         "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
       }
     }
   ],
