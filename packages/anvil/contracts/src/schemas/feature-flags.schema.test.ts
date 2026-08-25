@@ -81,12 +81,7 @@ function validProductCatalogue(overrides: Record<string, unknown> = {}) {
           disposition: 'unflagged',
           reason: 'Fixture has no operational flag',
         },
-        planAvailability: {
-          'plan-free': 'undecided',
-          'plan-beta': 'undecided',
-          'plan-pro': 'undecided',
-          'plan-enterprise': 'undecided',
-        },
+        planAvailability: { ...UNDECIDED_PLAN_AVAILABILITY },
       },
     ],
     deliverySurfaces: [
@@ -504,12 +499,7 @@ describe('normaliseProductCatalogueV1', () => {
           disposition: 'unflagged',
           reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
         },
-        planAvailability: {
-          'plan-free': 'undecided',
-          'plan-beta': 'undecided',
-          'plan-pro': 'undecided',
-          'plan-enterprise': 'undecided',
-        },
+        planAvailability: { ...UNDECIDED_PLAN_AVAILABILITY },
         notes: 'Legacy note',
       },
       {
@@ -523,12 +513,7 @@ describe('normaliseProductCatalogueV1', () => {
           disposition: 'unflagged',
           reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
         },
-        planAvailability: {
-          'plan-free': 'undecided',
-          'plan-beta': 'undecided',
-          'plan-pro': 'undecided',
-          'plan-enterprise': 'undecided',
-        },
+        planAvailability: { ...UNDECIDED_PLAN_AVAILABILITY },
       },
     ]);
     expect(normalised.deliverySurfaces[0]).toEqual({

@@ -50,11 +50,18 @@ function locatorLabel(locator) {
 }
 
 function planAvailabilityLabel(availability) {
-  if (!availability) {
-    return 'undecided';
+  const planIds = ['plan-free', 'plan-beta', 'plan-pro', 'plan-enterprise'];
+  if (!availability || typeof availability !== 'object') {
+    throw new Error('planAvailability is required');
   }
-  return ['plan-free', 'plan-beta', 'plan-pro', 'plan-enterprise']
-    .map((planId) => `${planId}: ${availability[planId] ?? 'undecided'}`)
+  return planIds
+    .map((planId) => {
+      const value = availability[planId];
+      if (value !== 'available' && value !== 'unavailable' && value !== 'undecided') {
+        throw new Error(`planAvailability.${planId} is missing or invalid`);
+      }
+      return `${planId}: ${value}`;
+    })
     .join('; ');
 }
 

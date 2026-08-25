@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ProductCatalogueV1Schema } from '@eddacraft/anvil-contracts';
+import { ProductCatalogueV1Schema, UNDECIDED_PLAN_AVAILABILITY } from '@eddacraft/anvil-contracts';
 import * as packageRoot from '../src/index.js';
 import {
   flagSurfaces,
@@ -69,12 +69,7 @@ describe('product catalogue compatibility reader', () => {
           disposition: 'unflagged',
           reason: 'v1 compatibility projection; operational-flag linkage is canonical v2-only',
         },
-        planAvailability: {
-          'plan-free': 'undecided',
-          'plan-beta': 'undecided',
-          'plan-pro': 'undecided',
-          'plan-enterprise': 'undecided',
-        },
+        planAvailability: { ...UNDECIDED_PLAN_AVAILABILITY },
         ...(surface.notes === undefined ? {} : { notes: surface.notes }),
       });
       expect(delivery, surface.key).toEqual({
