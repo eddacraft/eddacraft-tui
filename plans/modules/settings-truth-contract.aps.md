@@ -5,11 +5,13 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| SETCON | —     | medium   | In Progress | 0/11     |
+| SETCON | —     | medium   | In Progress | 11/11     |
 
-**Last reviewed:** 2026-08-25 — [ADR-132](../decisions/132-settings-truth-contract.md)
-accepted. Catalogue home is `eddacraft-anvil-settings`; attestation transport is
-intercept daemon RPC. Not a v0.9.8-beta product claim; `/settings` remains SETINS.
+**Last reviewed:** 2026-08-25 — SETCON-001..011 Merged via PR
+[#4140](https://github.com/eddacraft/anvil-001/pull/4140) (`07dfb17e2`).
+[ADR-132](../decisions/132-settings-truth-contract.md) accepted. Catalogue home
+is `eddacraft-anvil-settings`; attestation transport is intercept daemon RPC.
+Not a v0.9.8-beta product claim; `/settings` remains SETINS.
 
 > **Activation gate.** SETCON-001 is accepted as ADR-132. Downstream SETINS /
 > SETPREF / SETGOV stay gated on a named release window for the inspect surface,
@@ -151,7 +153,8 @@ Change status to **Ready** when:
 - **Validation:** `pnpm run lint:md`; ADR listed in
   `plans/decisions/DECISION-LOG.md`
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-002: Typed settings catalogue
 
@@ -169,7 +172,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-001
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- catalogue`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-003: Sensitivity classification and redaction invariants
 
@@ -185,7 +189,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-002
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- redaction`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-004: Precedence and composite resolution with provenance
 
@@ -200,7 +205,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-002
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- resolver`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-005: Policy constraint layer
 
@@ -217,7 +223,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-004
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- constraints`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-006: Runtime attestation and evidence trust
 
@@ -236,7 +243,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-001
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- runtime_state`
 - **Confidence:** low
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-007: Health aggregation
 
@@ -253,7 +261,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-006
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- health`
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-008: Versioned JSON envelope
 
@@ -267,7 +276,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-003, SETCON-007
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- envelope`
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-009: Global CLI exit-code registry
 
@@ -282,7 +292,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-001
 - **Validation:** `cargo test -p eddacraft-anvil -- exit_codes`; `pnpm run docs:check`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-010: Settings service and read-model boundary
 
@@ -299,7 +310,8 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-004, SETCON-005, SETCON-006, SETCON-007
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- service`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
 
 ### SETCON-011: Seed catalogue for first-release groups
 
@@ -316,4 +328,5 @@ Change status to **Ready** when:
 - **Dependencies:** SETCON-002, SETCON-006
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- catalogue_seed`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
+  (`07dfb17e2`).
