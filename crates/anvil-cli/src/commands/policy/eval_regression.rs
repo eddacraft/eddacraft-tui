@@ -737,8 +737,11 @@ mod tests {
     #[test]
     fn eval_regression_catches_a_violation_absorbed_by_an_already_failing_gate() {
         // EVALCI-008's second design question: "an already-failing gate absorbs
-        // new violations". With the exit code 1 -> 1, `regressed()` is false
-        // (`baseline == current`), so a brand-new violation lands invisibly.
+        // new violations". The findings here differ — a brand-new violation is
+        // present — but `regressed()` is false because the *exit code* did not
+        // worsen: it reads `current_exit_code != 0 && baseline_exit_code
+        // .is_none_or(|b| b != current)`, and with 1 -> 1 the second clause is
+        // false. So the new violation lands invisibly under gate semantics.
         // EVALCI-010's fixture verdict resolves this as a side effect: the new
         // finding makes `output_changed()` true.
         let base = summary(
