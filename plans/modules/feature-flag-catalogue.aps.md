@@ -7,7 +7,7 @@
 | ------- | ----- | -------- | ------ | -------- |
 | FLAGCAT | —     | high     | In Progress | 11/16    |
 
-**Last reviewed:** 2026-08-23 — FLAGCAT-011 Merged via PR #4111 with the
+**Last reviewed:** 2026-08-25 — FLAGCAT-011 Merged via PR #4111 with the
 strict product-catalogue v2 shape, immutable delivery identities, an explicit
 delivery-surface migration ledger, and the deprecated v1 compatibility
 projection specified in
@@ -25,7 +25,13 @@ delivery surface, feature flag). FLAGCAT-010 Merged 2026-08-20 via PR #4054;
 FLAGCAT-011 passed Council convergence, independent verification, local
 validation, and hosted CI before its normal rebase merge.
 FLAGCAT-012..015 then sequence the drift gates, flag linkage, generated views,
-and tier mapping.
+and approved plan mapping. Operator-approved design direction recorded
+2026-08-25 adds FLAGCAT-017 and FLAGCAT-018 after those foundations: first a
+dedicated daemon session entitlement assertion and shadow capability profile,
+then immutable session enforcement with no request-hot-path evaluation or
+measurable dispatch regression. These additions are planning authority only;
+their architecture and security boundary must be accepted before either item
+becomes Ready.
 
 FLAGCAT-016 Merged 2026-08-22 via PR #4086, adopting the formerly orphaned
 `docs.access` catalogue flag in the live documentation shell through the
@@ -955,3 +961,118 @@ Status promoted Draft → **Ready** 2026-05-28.
 - **releaseNote:** developer / fixed — private-docs entitlement checks now
   consume the canonical feature-flag catalogue instead of a duplicated plan
   list.
+
+### FLAGCAT-017: Mint and verify daemon session entitlement assertions
+
+- **Status:** Draft
+- **Intent:** Establish a dedicated, privacy-minimised assertion and immutable
+  session capability profile without changing daemon dispatch access
+  behaviour.
+- **Expected Outcome:**
+  - The trusted API mints a dedicated ES256 assertion at login or session
+    refresh with audience `anvil-daemon`, short expiry, key id and contract
+    version, opaque subject, canonical plan, scopes, session binding (`sid`),
+    and token id (`jti`). It contains no email address or other direct PII.
+  - CLI and launcher registration transport the assertion additively. The
+    daemon verifies it once at session registration against a startup-loaded
+    public-key ring, binds it to the authenticated OS peer and session, and
+    resolves the local catalogue and flag snapshot into an immutable
+    capability profile.
+  - This item is observe-only: the resolved profile is available for
+    equivalence and telemetry validation, but does not allow or deny dispatch.
+    Verification failures and diagnostics fail safely without logging
+    credentials or assertion contents.
+  - Key rotation uses overlapping `kid`-selected public keys loaded at
+    startup. Registration and verification perform no runtime network lookup.
+- **Recommended Option:** Use a dedicated daemon assertion rather than the
+  broader licence token. Keep plan-to-capability mapping local and
+  catalogue-derived at registration, then prove the shadow profile matches
+  current behaviour before enabling enforcement.
+- **Files:** the anvil API session/licence boundary or a dedicated entitlement
+  assertion library and tests; CLI and launcher session registration;
+  `crates/anvil-intercept-proto`; `crates/anvil-intercept`; the Rust
+  ES256/key-ring boundary selected by the ADR; relevant architecture,
+  authentication, and feature-flag documentation.
+- **Dependencies:** FLAGCAT-012 and FLAGCAT-013. Coordinates with FLAGCAT-015;
+  enforcement remains blocked until the product-plan mapping is approved.
+  Existing ADR-121, BACT-013, and SEC-012 authentication and token contracts
+  must be reconciled rather than duplicated.
+- **Non-scope:** Dispatch enforcement; new plan vocabulary; billing or RBAC;
+  per-request flag or catalogue evaluation; a remote feature-flag provider.
+- **Design Authority:** Operator-approved direction recorded 2026-08-25.
+  Durable implementation authority requires a new Accepted ADR and companion
+  specification covering assertion claims, trust and session binding, key
+  rotation, compatibility, telemetry, privacy, rollback, and threat review.
+- **Readiness Gate:** Remains Draft until that ADR/specification is accepted,
+  security and Council review converge, the exact API-to-daemon transport and
+  key-rotation operations are pinned, and the shadow rollout/rollback boundary
+  is approved.
+- **Validation:** `pnpm exec nx test @eddacraft/anvil-api --skip-nx-cache`;
+  `cargo test -p eddacraft-anvil-intercept-proto`;
+  `cargo test -p eddacraft-anvil-intercept --lib`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`;
+  `pnpm typecheck`; `pnpm docs:check`; `pnpm format:check`;
+  `pnpm validate:changed`.
+- **Risk:** critical — new signed-credential and daemon-session trust boundary,
+  even though this slice is observe-only.
+
+### FLAGCAT-018: Enforce immutable daemon session entitlements without hot-path regression
+
+- **Status:** Draft
+- **Intent:** Enforce capabilities resolved at session registration while
+  keeping entitlement work off every daemon request path.
+- **Expected Outcome:**
+  - Registration is tri-state: no assertion creates an open-only session; a
+    valid assertion creates an entitled session; and a supplied invalid,
+    expired, wrong-audience, wrong-session, or unverifiable assertion rejects
+    registration explicitly.
+  - Each accepted session receives an immutable dispatch view for its lifetime.
+    Assertion expiry and emergency revocation invalidate or disconnect the
+    session out of band; requests do not poll an epoch or generation counter.
+  - The generated canonical method registry becomes the same compiled
+    selection authority used by production dispatch. It selects an entitled
+    dispatch view directly rather than adding a second method or entitlement
+    lookup.
+  - The request hot path performs no catalogue access, flag evaluation, JWT
+    verification, allocation, hashing, locking, atomic generation check, or
+    extra method-resolution pass. Product/internal catalogue classification is
+    never treated as authentication authority.
+  - Methods absent from an entitled session's compiled view select the typed
+    entitlement-denial target through the same dispatch mechanism. Open and
+    recovery-critical methods remain available according to the approved
+    mapping and existing host security boundaries.
+  - A dedicated dispatch microbenchmark proves zero added allocations and no
+    statistically significant p50 or p95 regression. The existing
+    millisecond-scale IPC round-trip SLO remains a broader regression check,
+    not the performance acceptance proof.
+- **Recommended Option:** Precompute immutable per-session dispatch views at
+  registration and swap or disconnect only out of band. Do not add an early
+  catalogue-derived admission check, per-request entitlement evaluation, or
+  atomic revocation polling.
+- **Files:** `crates/anvil-intercept` session registry and dispatch authority;
+  generated kernel/catalogue capability contracts; a dedicated dispatch
+  hot-path benchmark and CI regression gate; relevant architecture,
+  authentication, operations, and feature-flag documentation.
+- **Dependencies:** FLAGCAT-017; approved FLAGCAT-015 plan mapping; FLAGCAT-012,
+  FLAGCAT-013, and FLAGCAT-014 complete; and the dedicated entitlement ADR
+  Accepted.
+- **Non-scope:** Billing, RBAC, new plan vocabulary, remote or per-request
+  catalogue/flag evaluation, runtime dependency cascade, or changing the
+  catalogue into an authentication source.
+- **Design Authority:** Operator-approved direction recorded 2026-08-25.
+  Implementation must remain behaviour- and wire-compatible for currently
+  open methods and aliases while changing only entitlement outcomes explicitly
+  approved by FLAGCAT-015 and the new ADR.
+- **Readiness Gate:** Remains Draft until the ADR and implementation
+  specification are accepted, FLAGCAT-015 is approved, the benchmark baseline
+  and statistical comparison are reproducible in CI, staged rollout and
+  rollback are pinned, and Council/security review converges.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`;
+  `cargo bench -p eddacraft-anvil-intercept --bench dispatch_hot_path --features bench-internals`;
+  `cargo bench -p eddacraft-anvil-intercept --bench ipc_roundtrip --features bench-internals`;
+  `pnpm exec nx test flags-catalogue --skip-nx-cache`;
+  `pnpm test:ci-classify`; `pnpm docs:check`; `pnpm format:check`;
+  `pnpm validate:changed`.
+- **Risk:** critical — daemon entitlement enforcement and dispatch-authority
+  consolidation with a strict zero-hot-path-regression requirement.
