@@ -39,9 +39,10 @@ compatibility projections emit all four keys as `undecided`.
 
 This is a reviewed catalogue declaration, not host enforcement.
 
-1. Linked **entitlement** flags whose targeting lists `accountTier` values in
-   the plan-axis set are evidence. Those plan ids are `available`; the other
-   plan-axis ids are `unavailable` for that feature.
+1. Linked **entitlement** flags with an `enabled` (or omitted-variant) rule
+   whose `accountTier` condition uses `in_set` over plan-axis ids are evidence.
+   Those plan ids are `available`; the other plan-axis ids are `unavailable`
+   for that feature.
 2. Rollout and kill-switch flags are not SKU evidence.
 3. Entitlement flags with no plan-axis targeting leave the feature `undecided`.
 4. Unflagged features are `undecided` on every plan id.

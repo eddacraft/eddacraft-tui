@@ -63,6 +63,10 @@ legacy filename:
       "owner": "RCLI2",
       "status": "active",
       "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "Example fixture; live catalogue records reviewed linkage"
+      },
       "planAvailability": {
         "plan-free": "undecided",
         "plan-beta": "undecided",

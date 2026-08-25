@@ -888,8 +888,8 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 - **Status:** In Progress
 - **Evidence (dev-loop):** `feat/flagcat-015-plan-availability`
-- **Intent:** Use the current catalogue to design Individual, Teams, and
-  Enterprise packaging from evidence rather than dashboard-first assumptions.
+- **Intent:** Record reviewed product-feature availability against the live
+  plan-axis audience ids from evidence rather than dashboard-first assumptions.
 - **Expected Outcome:** Every product feature records a reviewed availability
   disposition against the live `plan-free`, `plan-beta`, `plan-pro`, and
   `plan-enterprise` audience ids, or remains explicitly undecided. Individual,

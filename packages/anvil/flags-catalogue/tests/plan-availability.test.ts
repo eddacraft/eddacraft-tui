@@ -10,12 +10,16 @@ import { featureFlagManifest, flagAudiences, productCatalogue } from '../src/ind
 const PLAN_DISPOSITIONS: PlanAvailabilityDisposition[] = ['available', 'unavailable', 'undecided'];
 
 function planTargets(flag: {
-  targeting?: Array<{ conditions: Array<{ attribute: string; value: unknown }> }>;
+  targeting?: Array<{
+    variant?: string;
+    conditions: Array<{ attribute: string; operator?: string; value: unknown }>;
+  }>;
 }): Set<CanonicalPlanAxisAudienceId> {
   const found = new Set<CanonicalPlanAxisAudienceId>();
   for (const rule of flag.targeting ?? []) {
+    if (rule.variant !== undefined && rule.variant !== 'enabled') continue;
     for (const condition of rule.conditions) {
-      if (condition.attribute !== 'accountTier') continue;
+      if (condition.attribute !== 'accountTier' || condition.operator !== 'in_set') continue;
       const values = Array.isArray(condition.value) ? condition.value : [condition.value];
       for (const value of values) {
         if (

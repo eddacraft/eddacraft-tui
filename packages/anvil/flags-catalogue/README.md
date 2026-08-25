@@ -1,8 +1,8 @@
 # @eddacraft/anvil-flags-catalogue
 
-| Type   | Authority | Owner   | Status | Freshness                                                                                                                        |
-| ------ | --------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| README | Derived   | FLAGCAT | Live   | Reviewed 2026-08-24 against `flags/*.json`, FLAGCAT-012 host completeness, the contracts schemas, and the package implementation |
+| Type   | Authority | Owner   | Status | Freshness                                                                                                                                                       |
+| ------ | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Derived   | FLAGCAT | Live   | Reviewed 2026-08-25 against FLAGCAT-015 plan availability, `flags/*.json`, FLAGCAT-012 host completeness, the contracts schemas, and the package implementation |
 
 | Upstream                                                                                | Downstream                                                   |
 | --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |

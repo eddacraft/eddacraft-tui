@@ -54,7 +54,7 @@ function planAvailabilityLabel(availability) {
     return 'undecided';
   }
   return ['plan-free', 'plan-beta', 'plan-pro', 'plan-enterprise']
-    .map((planId) => `${planId.replace('plan-', '')}: ${availability[planId] ?? 'undecided'}`)
+    .map((planId) => `${planId}: ${availability[planId] ?? 'undecided'}`)
     .join('; ');
 }
 
