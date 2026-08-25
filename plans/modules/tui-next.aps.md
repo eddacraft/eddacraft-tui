@@ -10,8 +10,8 @@
 **Last reviewed:** 2026-08-24 (flow-extension wave merged): TUIN-015..020
 Merged via PR #4121; TUIN-021 spike **Done** (no-ship). Header count
 reconciled by `pnpm aps:index` after the feature PR (ADR-053). Prior: 2026-08-24
-(implementation In Progress under Ready-membrane override). Prior: 2026-08-24
-(wave filed as Proposed; bookkeeping `pnpm aps:index` 8/14 → 8/21). Prior: 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
+(wave filed as Proposed, then implementation proceeded under the Ready-membrane
+override; bookkeeping `pnpm aps:index` 8/14 → 8/21). Prior: 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
 convention is live — extension surface (`Theme`/`Surface`) graded `stable`,
 `test_utils` + `mode` probes `experimental`, rest default `unstable`; a
 warn-only baselined CI check (`scripts/check-stability-markers.mjs`, 397-item
