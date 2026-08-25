@@ -469,13 +469,24 @@ mod tests {
     }
 
     /// Evaluate Rego source against a `PolicyInput` document and return the
-    /// findings in the frozen v1 shape, as `EvalRunSummary` would carry them.
+    /// findings, **through the production normalisation path**.
+    ///
+    /// This deliberately routes the raw engine value through
+    /// `anvil_policy_engine::result::post_process` rather than reading the
+    /// array by hand. `post_process` strictly deserialises the whole findings
+    /// array and rejects a non-array shape, exactly as `anvil policy eval`
+    /// does; a lenient reader here would let a future suite pass the
+    /// falsifiability check below while `eval-regression` failed on it in
+    /// production with a contract error. Any parse failure surfaces as a test
+    /// failure, which is the intent.
     fn eval_source_to_findings(
         src: &str,
         query: &str,
         input_json: &serde_json::Value,
     ) -> Vec<EvalFinding> {
+        use anvil_policy_engine::result::{PostProcessOptions, post_process};
         use anvil_policy_engine::{Engine, EngineConfig, PolicyInput};
+
         let input: PolicyInput =
             serde_json::from_value(input_json.clone()).expect("input parses as PolicyInput v1");
         let mut engine = Engine::new(EngineConfig::default()).expect("engine");
@@ -488,27 +499,24 @@ mod tests {
             .expect("eval")
             .value
             .unwrap_or(serde_json::Value::Null);
-        let mut out: Vec<EvalFinding> = raw
-            .as_array()
-            .map(|a| {
-                a.iter()
-                    .filter_map(|v| {
-                        let message = v.get("message")?.as_str()?.to_string();
-                        let severity = match v.get("severity").and_then(serde_json::Value::as_str) {
-                            Some("error") => EvalSeverity::Error,
-                            _ => EvalSeverity::Warning,
-                        };
-                        Some(EvalFinding {
-                            severity,
-                            message,
-                            from: None,
-                            to: None,
-                            fingerprint: None,
-                        })
-                    })
-                    .collect()
+
+        let report = post_process(&raw, &input, PostProcessOptions::default())
+            .expect("findings must satisfy the frozen v1 contract");
+
+        let mut out: Vec<EvalFinding> = report
+            .findings
+            .into_iter()
+            .map(|f| EvalFinding {
+                severity: match f.severity {
+                    anvil_policy_engine::result::Severity::Error => EvalSeverity::Error,
+                    _ => EvalSeverity::Warning,
+                },
+                message: f.message,
+                from: f.from,
+                to: f.to,
+                fingerprint: f.fingerprint,
             })
-            .unwrap_or_default();
+            .collect();
         out.sort_by(|a, b| a.message.cmp(&b.message));
         out
     }
@@ -790,6 +798,31 @@ mod tests {
         let clean = build_outcome(&[ran(summary("arch", 0, vec![]), None)]);
         assert!(!should_block(&clean, true));
         assert!(!should_block(&clean, false));
+    }
+
+    #[test]
+    #[should_panic(expected = "frozen v1 contract")]
+    fn falsifiability_harness_rejects_a_contract_violating_finding() {
+        // Guards the guard. `eval_source_to_findings` must not be more lenient
+        // than `anvil policy eval`, or a future suite could pass
+        // `every_landed_eval_suite_is_falsifiable` while eval-regression failed
+        // on it in production with a contract error. A finding without the
+        // required `message` is rejected by `post_process`'s strict
+        // deserialisation; a hand-rolled `filter_map` reader would silently
+        // drop it and report the suite as healthy.
+        let src = r#"
+package t
+import rego.v1
+findings contains f if { f := {"severity": "warning"} }
+"#;
+        let input = serde_json::json!({
+            "schema_version": "v1",
+            "repo_state": {"files": [], "edges": []},
+            "plans": [], "decisions": [],
+            "diff": {"changed_files": ["a.rs"], "new_edges": []},
+            "baseline": {"findings": []}
+        });
+        let _ = eval_source_to_findings(src, "data.t.findings", &input);
     }
 
     #[test]
