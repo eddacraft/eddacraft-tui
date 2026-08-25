@@ -18,6 +18,7 @@ members = [
   "crates/anvil-cli",
   "crates/anvil-sarif",
   "crates/anvil-config",
+  "crates/anvil-settings",
   "crates/anvil-intercept",
   "crates/anvil-intercept-proto",
   "crates/anvil-run",

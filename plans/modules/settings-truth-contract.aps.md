@@ -5,19 +5,15 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| SETCON | —     | medium   | Proposed | 0/11     |
+| SETCON | —     | medium   | In Progress | 0/11     |
 
-**Last reviewed:** 2026-08-13 — created 2026-08-06 from the operator-supplied
-`/settings` specification v1.1
-([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
-spec §22 Slice 0). No ADR accepted yet; no release window claimed. Not competing
-with the active release window (named in the index header).
+**Last reviewed:** 2026-08-25 — [ADR-132](../decisions/132-settings-truth-contract.md)
+accepted. Catalogue home is `eddacraft-anvil-settings`; attestation transport is
+intercept daemon RPC. Not a v0.9.8-beta product claim; `/settings` remains SETINS.
 
-> **Activation gate.** SETCON promotes to **Ready** when (a) SETCON-001 is
-> accepted as an ADR fixing the terminology, runtime-state model and service
-> boundary, and (b) the programme is scheduled against a named release window.
-> Until both hold, downstream SETINS / SETPREF / SETGOV stay gated: they consume
-> contracts this module has not yet fixed.
+> **Activation gate.** SETCON-001 is accepted as ADR-132. Downstream SETINS /
+> SETPREF / SETGOV stay gated on a named release window for the inspect surface,
+> not on this contract crate.
 
 ## Purpose
 
@@ -131,10 +127,10 @@ The governing invariant this module encodes (spec §1):
 
 Change status to **Ready** when:
 
-- [ ] SETCON-001 ADR accepted (terminology, runtime-state model, service boundary)
-- [ ] Catalogue home crate decided (extend `anvil-config` vs new crate)
-- [ ] Attestation transport decided (reuse daemon RPC vs new channel)
-- [ ] Programme scheduled against a named release window
+- [x] SETCON-001 ADR accepted (terminology, runtime-state model, service boundary) — [ADR-132](../decisions/132-settings-truth-contract.md)
+- [x] Catalogue home crate decided — new `eddacraft-anvil-settings` (`crates/anvil-settings`), `anvil-config` remains the loader
+- [x] Attestation transport decided — reuse intercept daemon RPC (ADR-132 §5)
+- [ ] Programme scheduled against a named release window — implementation may merge; `/settings` remains SETINS and is not a v0.9.8-beta claim
 
 ## Work Items
 
@@ -155,7 +151,7 @@ Change status to **Ready** when:
 - **Validation:** `pnpm run lint:md`; ADR listed in
   `plans/decisions/DECISION-LOG.md`
 - **Confidence:** high
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-002: Typed settings catalogue
 
@@ -171,9 +167,9 @@ Change status to **Ready** when:
 - **Non-scope:** Populating every existing Anvil setting (SETCON-011 seeds the
   first-release groups); rendering
 - **Dependencies:** SETCON-001
-- **Validation:** `cargo test -p anvil-config catalogue`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- catalogue`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-003: Sensitivity classification and redaction invariants
 
@@ -187,9 +183,9 @@ Change status to **Ready** when:
   explicitly-safe metadata.
 - **Non-scope:** Secret storage or rotation; the secure update path itself
 - **Dependencies:** SETCON-002
-- **Validation:** `cargo test -p anvil-config redaction`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- redaction`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-004: Precedence and composite resolution with provenance
 
@@ -202,9 +198,9 @@ Change status to **Ready** when:
   and deletions/exclusions remain visible as resolution events.
 - **Non-scope:** Policy constraints (SETCON-005); source file parsing (UCFG)
 - **Dependencies:** SETCON-002
-- **Validation:** `cargo test -p anvil-config resolver`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- resolver`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-005: Policy constraint layer
 
@@ -219,9 +215,9 @@ Change status to **Ready** when:
   select its own failure behaviour.
 - **Non-scope:** Policy authoring, distribution or signing-key management
 - **Dependencies:** SETCON-004
-- **Validation:** `cargo test -p anvil-config constraints`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- constraints`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-006: Runtime attestation and evidence trust
 
@@ -238,9 +234,9 @@ Change status to **Ready** when:
 - **Non-scope:** Instrumenting each component (tracked per owning module);
   hardware-backed attestation
 - **Dependencies:** SETCON-001
-- **Validation:** `cargo test -p anvil-config runtime_state`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- runtime_state`
 - **Confidence:** low
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-007: Health aggregation
 
@@ -255,9 +251,9 @@ Change status to **Ready** when:
   being inspectable.
 - **Non-scope:** `--check` exit wiring (SETCON-009); presentation
 - **Dependencies:** SETCON-006
-- **Validation:** `cargo test -p anvil-config health`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- health`
 - **Confidence:** high
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-008: Versioned JSON envelope
 
@@ -269,9 +265,9 @@ Change status to **Ready** when:
   `anvil.settings.v1`, and recursive redaction applied to the whole document.
 - **Non-scope:** The CLI commands that emit it (SETINS)
 - **Dependencies:** SETCON-003, SETCON-007
-- **Validation:** `cargo test -p anvil-config envelope`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- envelope`
 - **Confidence:** high
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-009: Global CLI exit-code registry
 
@@ -284,9 +280,9 @@ Change status to **Ready** when:
   recorded rather than silently renumbered.
 - **Non-scope:** Changing any existing command's observed exit code
 - **Dependencies:** SETCON-001
-- **Validation:** `cargo test -p anvil-cli exit_codes`; `pnpm run docs:check`
+- **Validation:** `cargo test -p eddacraft-anvil -- exit_codes`; `pnpm run docs:check`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-010: Settings service and read-model boundary
 
@@ -301,9 +297,9 @@ Change status to **Ready** when:
 - **Non-scope:** Mutation, approval, persistence and audit responsibilities
   (SETPREF / SETGOV extend the same service later)
 - **Dependencies:** SETCON-004, SETCON-005, SETCON-006, SETCON-007
-- **Validation:** `cargo test -p anvil-config service`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- service`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETCON-011: Seed catalogue for first-release groups
 
@@ -318,6 +314,6 @@ Change status to **Ready** when:
 - **Non-scope:** Adding new configurable behaviour to Anvil; exhaustively
   cataloguing advanced or experimental fields
 - **Dependencies:** SETCON-002, SETCON-006
-- **Validation:** `cargo test -p anvil-config catalogue_seed`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- catalogue_seed`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress

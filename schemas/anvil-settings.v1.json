@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://docs.eddacraft.ai/anvil/schemas/anvil-settings.v1.json",
+  "title": "Anvil Settings v1",
+  "description": "Redacted machine envelope for settings inspection. Emitted by the settings service (SETCON-008 / ADR-132). Additive optional fields may appear; closed enums require a new schema version to change.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "command",
+    "generated_at",
+    "model_revision",
+    "context",
+    "health",
+    "data",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": { "const": "anvil.settings.v1" },
+    "command": {
+      "type": "string",
+      "enum": ["show", "explain", "status", "sources"]
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "model_revision": { "type": "string" },
+    "context": { "type": "object" },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reasons"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["healthy", "unhealthy", "indeterminate"]
+        },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "data": { "type": "object" },
+    "diagnostics": { "type": "array" }
+  }
+}

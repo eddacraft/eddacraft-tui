@@ -69,6 +69,7 @@ anvil-sarif = { path = "../anvil-sarif", package = "eddacraft-anvil-sarif" }
 anvil-hook = { path = "../anvil-hook", package = "eddacraft-anvil-hook" }
 anvil-l4 = { path = "../anvil-l4", package = "eddacraft-anvil-l4" }
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
+anvil-settings = { path = "../anvil-settings", package = "eddacraft-anvil-settings" }
 eddacraft-tui = { workspace = true }
 clap = { workspace = true }
 reqwest = { workspace = true, features = ["stream"] }

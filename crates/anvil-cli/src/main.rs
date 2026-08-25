@@ -32,6 +32,7 @@ mod policy_load;
 mod policy_vocab;
 mod registration;
 mod services;
+mod settings_exit;
 mod telemetry;
 #[cfg(test)]
 mod test_support;
@@ -94,10 +95,12 @@ pub const EXIT_VERSION_MISMATCH: u8 = 7;
 /// Reserved for future emission by `anvil doctor` / `anvil intercept
 /// ensure` / hooks that read the runtime sidecar.
 ///
-/// Note: codes 8 and 9 are intentionally reserved. The CLI surface
-/// spec leaves them for future expansion (e.g., per-platform-specific
-/// errors). Future contributors should not claim 8 or 9 without an
-/// ADR amendment.
+/// Fail-closed settings redaction (ADR-132 / SETCON-009). No settings
+/// payload is emitted. Claims the previously reserved code 8.
+pub const EXIT_REDACTION_ERROR: u8 = 8;
+
+/// Note: code 9 remains reserved for future expansion. Code 8 is claimed
+/// by [`EXIT_REDACTION_ERROR`] (ADR-132).
 pub const EXIT_DISCOVERY_FAILED: u8 = 10;
 
 /// Early-access request channel surfaced on the not-logged-in auth gate
@@ -181,6 +184,7 @@ EXIT CODES:
          when the repo is unactivated
        - post-dispatch on any command (server-rejected token mid-call)
   4  Configuration error (invalid config file or options)
+  8  Redaction failure (settings surfaces; no payload emitted)
 
 With no subcommand, `anvil` runs the daily ensure surface (daemon + existing
 MCP). Use `anvil start` to activate or reconfigure."

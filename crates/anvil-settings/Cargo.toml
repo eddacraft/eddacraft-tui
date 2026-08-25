@@ -1,0 +1,22 @@
+[package]
+name = "eddacraft-anvil-settings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Anvil settings truth service: catalogue, resolver, constraints, attestation, health, envelope (SETCON / ADR-132)"
+
+[lib]
+name = "anvil_settings"
+
+[dependencies]
+anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["preserve_order"] }
+thiserror = { workspace = true }
+sha2 = "0.11"
+hex = "0.4"
+workspace-hack.workspace = true
+
+[lints]
+workspace = true
