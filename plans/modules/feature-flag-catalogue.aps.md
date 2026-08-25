@@ -886,8 +886,8 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-015: Map product features to plan audiences
 
-- **Status:** In Progress
-- **Evidence (dev-loop):** `feat/flagcat-015-plan-availability`
+- **Status:** Merged 2026-08-25 via PR #4143
+- **Evidence (dev-loop):** PR #4143 (`feat/flagcat-015-plan-availability`)
 - **Intent:** Record reviewed product-feature availability against the live
   plan-axis audience ids from evidence rather than dashboard-first assumptions.
 - **Expected Outcome:** Every product feature records a reviewed availability
