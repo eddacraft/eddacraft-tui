@@ -315,26 +315,29 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-010: Re-run the falsification against the landed suites
 
-- **Status:** Proposed — filed 2026-08-24 from the CPACKS-006 planning council
-  (session `council-9021df43`).
+- **Status:** Ready — promoted 2026-08-25 by operator instruction. Both
+  dependencies are satisfied: CPACKS-006 Merged via #4107, EVALCI-010 Merged
+  via #4128. The shape question below is now **answered** — EVALCI-010 shipped
+  the loss-of-finding verdict, so this item asserts against that rather than
+  choosing between two designs.
 - **Intent:** Close the loop on the specific proof that motivated CPACKS-006,
   rather than inferring it from the parity and diff-engine tests.
-- **Expected Outcome:** A committed invariant proves the landed suites detect a
-  policy going silent. **Reframed 2026-08-24 after review:** the original wording
-  ("assert eval-regression reports a regression when a wrapper's finding count is
-  forced to zero") is not implementable against the current contract. Forcing
-  1→0 produces a *resolved* finding, and
-  `eval_harness_port_regression_tracks_resolved_findings`
-  (`crates/anvil-policy/src/eval/port.rs:358-378`) asserts exactly the opposite —
-  `!report.regressed()`, commented "gate improved 1->0, not a regression".
-  Finding-loss is classified as an improvement **by design**. So this item needs
-  either a distinct loss-of-finding verdict or a separate expected-output
-  invariant (assert the suite's findings equal a committed expectation, so
-  disappearance fails), and the choice depends on EVALCI-010.
+- **Expected Outcome:** A committed test proves the landed suites detect a
+  policy going silent, closing the loop on the falsification that opened
+  CPACKS-006. The procedure is known and was run by hand while implementing
+  EVALCI-010 — neuter a matcher in an eval wrapper, confirm the run reports
+  `Δ … resolved:1` and exits non-zero under `--fail-on-regression`, confirm
+  `history.jsonl` is unchanged, then confirm the re-run still detects. It is
+  that hand-run which caught the baseline-poisoning bug in #4128 that 19 unit
+  tests missed, so committing it is the point: the unit tests passed either
+  way.
+- **Shape (resolved 2026-08-24):** EVALCI-010 delivered `output_changed()`,
+  the distinct loss-of-finding verdict. The alternative — an expected-output
+  invariant — is no longer needed.
 - **Files:** `crates/anvil-cli/src/commands/policy/`, `ci/eval/`
 - **Validation:** `cargo test -p eddacraft-anvil -- eval_regression`
-- **Dependencies:** CPACKS-006 (Merged via #4107); EVALCI-010 (the verdict
-  decision determines which of the two shapes above is correct)
+- **Dependencies:** CPACKS-006 (Merged via #4107), EVALCI-010 (Merged via
+  #4128) — both satisfied
 - **Confidence:** medium
 
 ### CPACKS-008: Compliance-pack expansion gate

@@ -198,13 +198,31 @@ for the deferred wiring step this module picks up.
 - **Expected Outcome:** A new trust regression blocks the PR.
 - **Validation:** workflow lint plus
   `cargo test -p eddacraft-anvil -- eval_regression_absorbs_new_violations_guard`
-- **Dependencies:** EVALCI-007, EVALCI-009; ATC-003 (satisfied — Merged
-  2026-07-05 via PR #3181); CI-blocking-posture ADR (POLRESET design gate 3,
-  not yet authored)
+- **Dependencies:** EVALCI-007 (Proposed), EVALCI-009 (Proposed); ATC-003
+  (satisfied — Merged 2026-07-05 via PR #3181); CI-blocking-posture ADR
+  (POLRESET design gate 3, **not yet authored** — no work item tracks it; it is
+  a deliberate operator decision)
+- **Gate closed 2026-08-24 by EVALCI-010 (#4128):** the "already-failing gate
+  absorbs new violations" design question in the Intent above is **resolved**,
+  as a side effect rather than by design. With the exit code 1 -> 1
+  `regressed()` is false, so a brand-new violation used to land invisibly;
+  `output_changed()` catches it because the new finding makes the fixture
+  output differ. Pinned by
+  `eval_regression_catches_a_violation_absorbed_by_an_already_failing_gate`.
+  One of this item's two design questions is therefore closed.
+- **Still blocked, and not promotable:** three gates remain — EVALCI-007 (Phase
+  2 must precede Phase 3), EVALCI-009, and the unauthored CI-blocking-posture
+  ADR. Making this check *required* before that ADR exists would decide
+  ADR-002's blocking posture by implementation instead of by decision.
 
 ### EVALCI-010: The regression verdict is blind to advisory-tier findings
 
-- **Status:** In Progress 2026-08-24 — Parts 1 and 2 implemented; see Files.
+- **Status:** Merged 2026-08-24 via PR #4128. Ancestor of `origin/main`
+  (`419e5a4b8`); `output_changed`, `--fail-on-warnings`, and the migration
+  carve-out all verified present on the merged tree. Parts 1, 1a and 2 shipped,
+  plus two review fixes: a baseline-poisoning path this PR opened
+  (`persist_runs` ran before `should_block` and gated on `regressed()` alone),
+  and an unmigratable-store gap for pre-flag baselines.
 - **Intent:** Make the eval-regression verdict respond to a policy behaving
   differently on a **frozen** input, in either direction.
 - **Why this is a fix and not a documentation task:** every suite in

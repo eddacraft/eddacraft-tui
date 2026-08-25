@@ -735,6 +735,40 @@ mod tests {
     }
 
     #[test]
+    fn eval_regression_catches_a_violation_absorbed_by_an_already_failing_gate() {
+        // EVALCI-008's second design question: "an already-failing gate absorbs
+        // new violations". With the exit code 1 -> 1, `regressed()` is false
+        // (`baseline == current`), so a brand-new violation lands invisibly.
+        // EVALCI-010's fixture verdict resolves this as a side effect: the new
+        // finding makes `output_changed()` true.
+        let base = summary(
+            "arch",
+            1,
+            vec![finding(EvalSeverity::Error, "existing", Some("a"))],
+        );
+        let cur = summary(
+            "arch",
+            1,
+            vec![
+                finding(EvalSeverity::Error, "existing", Some("a")),
+                finding(EvalSeverity::Error, "brand new", Some("b")),
+            ],
+        );
+        let outcome = build_outcome(&[ran(cur, Some(base))]);
+
+        assert!(
+            !outcome.regressed,
+            "1 -> 1 is exactly the absorbed-violation blind spot"
+        );
+        assert!(
+            outcome.output_changed,
+            "the new violation must still be caught"
+        );
+        assert_eq!(outcome.suites[0].new_findings, 1);
+        assert!(should_block(&outcome, true));
+    }
+
+    #[test]
     fn eval_regression_blocking_mode_does_not_persist_a_silenced_fixture() {
         // EVALCI-010 baseline-poisoning guard. A rule going silent is
         // `regressed() == false` (1->0 reads as an improvement) but
