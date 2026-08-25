@@ -21,9 +21,55 @@ test_env_file_warns if {
 	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["config/.env.production"]}}
 }
 
-# Positive (heuristic): a secret-adjacent name raises an advisory.
+# One case per matcher (CPACKS-009). Before these, six of the rule's ten
+# matchers could be deleted with the suite still green — a mutation run proved
+# it. Named individually rather than table-driven in one case so `opa test
+# --verbose` reports *which* matcher stopped firing.
+
+# Precise: a composite action definition.
+test_action_definition_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": [".github/actions/setup/action.yml"]}}
+}
+
+# Precise: a bare `.env` suffix, distinct from the `.env.` infix above.
+test_env_suffix_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["config/production.env"]}}
+}
+
+# Heuristic: `secret`.
+test_secret_name_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["src/secret_loader.rs"]}}
+}
+
+# Heuristic: `credential`.
+test_credential_name_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["infra/credential_store.ts"]}}
+}
+
+# Heuristic: `id_rsa` suffix.
+test_id_rsa_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["keys/id_rsa"]}}
+}
+
+# Heuristic: `token`.
 test_token_file_warns if {
 	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["src/token_store.rs"]}}
+}
+
+# Heuristic: `password`.
+test_password_name_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["src/password_field.tsx"]}}
+}
+
+# Heuristic: `apikey`.
+test_apikey_name_warns if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["src/apikey_util.go"]}}
+}
+
+# The heuristics are case-insensitive (`lower(path)`); a capitalised name must
+# still fire, or the `lower` call could be dropped unnoticed.
+test_heuristic_is_case_insensitive if {
+	count(sensitive_paths.warning) > 0 with input as {"diff": {"changed_files": ["src/Password_Field.tsx"]}}
 }
 
 # Negative: an ordinary source change raises no advisory.

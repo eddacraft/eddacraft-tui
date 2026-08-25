@@ -568,41 +568,143 @@ fn eval_finding_messages(policy_rel: &str, query: &str, input: &PolicyInput) -> 
 
 #[test]
 fn starter_policy_pack_change_scope_eval_wrapper_lockstep() {
-    let mut input = PolicyInput::default();
-    input.diff.changed_files = (1..=12).map(|n| format!("f{n}.rs")).collect();
-    let pack = eval_string_set(
-        "crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/change_scope.rego",
-        "data.anvil.policies.change_scope.warning",
-        &input,
+    // CPACKS-009: the hard band was unexercised, so a threshold edit on one
+    // side of the pack/wrapper pair could drift undetected above 25 files.
+    // Boundary values included: the rule is `> soft` and `> hard`, so 10 and 25
+    // must stay clean and 11 and 26 must fire.
+    let cases: &[(usize, bool, &str)] = &[
+        (3, false, "well below the soft threshold"),
+        (10, false, "exactly the soft threshold, exclusive"),
+        (11, true, "one past the soft threshold"),
+        (12, true, "soft band"),
+        (25, true, "exactly the hard threshold, still soft-band"),
+        (26, true, "one past the hard threshold"),
+        (40, true, "hard band"),
+    ];
+
+    for (count, should_fire, label) in cases {
+        let mut input = PolicyInput::default();
+        input.diff.changed_files = (1..=*count).map(|n| format!("f{n}.rs")).collect();
+        let pack = eval_string_set(
+            "crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/change_scope.rego",
+            "data.anvil.policies.change_scope.warning",
+            &input,
+        );
+        let wrap = eval_finding_messages(
+            "policies/eval/anvil_baseline_change_scope.rego",
+            "data.anvil.policies.eval.anvil_baseline_change_scope.findings",
+            &input,
+        );
+        assert_eq!(
+            pack, wrap,
+            "change_scope wrapper must match pack warnings at {count} files ({label})"
+        );
+        assert_eq!(
+            !pack.is_empty(),
+            *should_fire,
+            "{count} files ({label}) fired={} expected={should_fire}",
+            !pack.is_empty()
+        );
+    }
+}
+
+#[test]
+fn every_pack_member_has_a_registered_eval_suite() {
+    // CPACKS-009 (b). The two members are wired by hand today, so a third
+    // policy added to `pack.yaml` would ship with zero eval coverage and
+    // nothing would say so — the CPACKS-006 blind spot reopening for a new
+    // member rather than a new branch.
+    //
+    // The convention is one wrapper per member at
+    // `policies/eval/anvil_baseline_<stem>.rego`, registered in
+    // `ci/eval/suites.json`. This asserts the mapping is total.
+    let pack_dir =
+        repo_root().join("crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline");
+    let manifest = load_manifest(&pack_dir.join("pack.yaml")).expect("manifest loads");
+
+    let suites_raw = std::fs::read_to_string(repo_root().join("ci/eval/suites.json"))
+        .expect("read ci/eval/suites.json");
+    let suites: serde_json::Value = serde_json::from_str(&suites_raw).expect("suites.json parses");
+    let registered: Vec<String> = suites
+        .as_array()
+        .expect("suites.json is an array")
+        .iter()
+        .filter_map(|s| s.get("policy")?.as_str().map(str::to_string))
+        .collect();
+
+    assert!(
+        !manifest.policies.is_empty(),
+        "the pack must declare at least one member"
     );
-    let wrap = eval_finding_messages(
-        "policies/eval/anvil_baseline_change_scope.rego",
-        "data.anvil.policies.eval.anvil_baseline_change_scope.findings",
-        &input,
-    );
-    assert_eq!(pack, wrap, "change_scope wrapper must match pack warnings");
-    assert!(!pack.is_empty(), "soft-threshold fixture must fire");
+
+    for member in &manifest.policies {
+        let stem = member
+            .path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_else(|| panic!("member {} has no file stem", member.path.display()));
+        let expected = format!("policies/eval/anvil_baseline_{stem}.rego");
+        assert!(
+            registered.iter().any(|p| p == &expected),
+            "pack member `{}` has no registered eval suite — expected `{expected}` in \
+             ci/eval/suites.json, found: {registered:?}. A member without a wrapper has \
+             no eval-regression coverage at all.",
+            member.path.display()
+        );
+        assert!(
+            repo_root().join(&expected).is_file(),
+            "suite registers `{expected}` but the wrapper file does not exist"
+        );
+    }
 }
 
 #[test]
 fn starter_policy_pack_sensitive_paths_eval_wrapper_lockstep() {
-    let mut input = PolicyInput::default();
-    input.diff.changed_files = vec![".github/workflows/ci.yml".into()];
-    let pack = eval_string_set(
-        "crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/sensitive_paths.rego",
-        "data.anvil.policies.sensitive_paths.warning",
-        &input,
-    );
-    let wrap = eval_finding_messages(
-        "policies/eval/anvil_baseline_sensitive_paths.rego",
-        "data.anvil.policies.eval.anvil_baseline_sensitive_paths.findings",
-        &input,
-    );
-    assert_eq!(
-        pack, wrap,
-        "sensitive_paths wrapper must match pack warnings"
-    );
-    assert!(!pack.is_empty(), "workflow fixture must fire");
+    // CPACKS-009: one case per matcher. With a single fixture this guard could
+    // not see a pack-only deletion the fixture did not hit — pack and wrapper
+    // produced identical output and agreed, while the rule had lost a matcher.
+    // A mutation run proved six of the ten were silently deletable.
+    let cases: &[(&str, &str)] = &[
+        (".github/workflows/ci.yml", "precise: workflow"),
+        (
+            ".github/actions/setup/action.yml",
+            "precise: composite action",
+        ),
+        ("config/production.env", "precise: .env suffix"),
+        ("config/.env.production", "precise: .env. infix"),
+        ("src/secret_loader.rs", "heuristic: secret"),
+        ("infra/credential_store.ts", "heuristic: credential"),
+        ("keys/id_rsa", "heuristic: id_rsa"),
+        ("src/token_store.rs", "heuristic: token"),
+        ("src/password_field.tsx", "heuristic: password"),
+        ("src/apikey_util.go", "heuristic: apikey"),
+        ("src/Password_Field.tsx", "heuristic: case-insensitive"),
+        ("src/ordinary.rs", "negative: must not fire"),
+    ];
+
+    for (path, label) in cases {
+        let mut input = PolicyInput::default();
+        input.diff.changed_files = vec![(*path).to_string()];
+        let pack = eval_string_set(
+            "crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline/policies/sensitive_paths.rego",
+            "data.anvil.policies.sensitive_paths.warning",
+            &input,
+        );
+        let wrap = eval_finding_messages(
+            "policies/eval/anvil_baseline_sensitive_paths.rego",
+            "data.anvil.policies.eval.anvil_baseline_sensitive_paths.findings",
+            &input,
+        );
+        assert_eq!(
+            pack, wrap,
+            "sensitive_paths wrapper must match pack warnings for {label} ({path})"
+        );
+        if label.starts_with("negative") {
+            assert!(pack.is_empty(), "{label} ({path}) must stay clean");
+        } else {
+            assert!(!pack.is_empty(), "{label} ({path}) must fire");
+        }
+    }
 }
 
 // ── git helper ──────────────────────────────────────────────────────

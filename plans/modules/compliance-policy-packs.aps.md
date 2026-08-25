@@ -280,8 +280,21 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-009: Eval-wrapper coverage cannot silently regress
 
-- **Status:** Proposed — filed 2026-08-24 from the CPACKS-006 planning council
-  (session `council-9021df43`), raised independently by two reviewers.
+- **Status:** In Progress 2026-08-26 — all three gaps closed, awaiting merge.
+  Filed 2026-08-24 from the CPACKS-006 planning council (session
+  `council-9021df43`), raised independently by two reviewers.
+- **Result, mutation-verified in both directions:** deleting **any** of the ten
+  `sensitive-paths` matchers now fails — 10/10 caught in the shipped pack (was
+  4/10) and 10/10 caught in the eval wrapper via the lockstep guard, so drift on
+  either side of the pair is detected. (a) The pack tests gain one named case
+  per matcher plus a case-insensitivity case, so `opa test --verbose` reports
+  *which* matcher stopped firing; both lockstep guards are table-driven over the
+  same cases. (b) `every_pack_member_has_a_registered_eval_suite` iterates
+  `pack.yaml` against `ci/eval/suites.json` and names the missing wrapper —
+  RED-proven by adding an unwired member. (c) `change_scope`'s lockstep covers
+  both bands and their exclusive boundaries (10/11 and 25/26) — RED-proven by
+  moving the wrapper's `hard_limit` to 999, which fails at exactly 26 files and
+  would have passed under the old single 12-file fixture.
 - **Intent:** Stop the CPACKS-006 blind spot from reopening for a pack member
   or a rule branch that nobody wrote a wrapper for.
 - **Mutation evidence (2026-08-24, reproduced during the council):** deleting
