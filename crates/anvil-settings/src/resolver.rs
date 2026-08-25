@@ -99,9 +99,7 @@ fn resolve_one(catalogue: &Catalogue, declarations: &[Declaration], key: &str) -
                 .map_or(d.key.as_str(), |e| e.key.as_str());
             canonical == key
         })
-        .filter(|d| {
-            entry.is_none_or(|e| e.supported_scopes.contains(&d.scope))
-        })
+        .filter(|d| entry.is_none_or(|e| e.supported_scopes.contains(&d.scope)))
         .collect();
     ranked.sort_by_key(|d| {
         precedence
