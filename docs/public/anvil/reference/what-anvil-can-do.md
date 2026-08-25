@@ -8,7 +8,7 @@ upstream:
   - crates/anvil-cli/src/commands/check.rs
   - crates/anvil-cli/src/commands/gate.rs
   - crates/anvil-cli/src/commands/check_catalog.rs
-verified_against: 0.9.6-beta
+verified_against: 0.9.7-beta
 ---
 
 # What anvil can do

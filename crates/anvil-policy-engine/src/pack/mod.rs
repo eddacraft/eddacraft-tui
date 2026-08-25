@@ -22,8 +22,8 @@ pub use discovery::{
 pub use manifest::{ManifestError, PackManifest, PolicyEntry, load_manifest};
 pub use metadata::{MetadataError, PolicyMetadata, PolicySeverity, ensure_unique_ids};
 pub use overlay::{
-    OverlayError, PackOverlay, enabled_entries, load_overlay, load_overlay_fail_open, overlay_path,
-    policy_file_is_enabled, resolve_member_id, save_overlay,
+    OverlayError, PackOverlay, enabled_entries, is_safe_pack_id, load_overlay,
+    load_overlay_fail_open, overlay_path, policy_file_is_enabled, resolve_member_id, save_overlay,
 };
 pub use test_runner::{
     MemberTestResult, TestOutcome, TestRunError, TestRunReport, enforce_tests, run_pack_tests,

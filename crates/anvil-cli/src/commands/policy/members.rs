@@ -6,7 +6,9 @@ use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::Serialize;
 
-use anvil_policy_engine::pack::{load_manifest, load_overlay, save_overlay};
+use anvil_policy_engine::pack::{
+    is_safe_pack_id, load_manifest, load_overlay, overlay_path, save_overlay,
+};
 
 use crate::GlobalArgs;
 use crate::output;
@@ -36,6 +38,12 @@ struct MemberView {
 }
 
 pub fn run(args: &MembersArgs, global: &GlobalArgs) -> Result<()> {
+    if !is_safe_pack_id(&args.pack_id) {
+        bail!(
+            "pack id `{}` is not a safe directory name; use a single path component with no `/` or `..`",
+            args.pack_id
+        );
+    }
     let workspace = resolve_workspace(args.workspace.as_deref())?;
     let pack_dir = workspace.join(".anvil/policies").join(&args.pack_id);
     let manifest_path = pack_dir.join("pack.yaml");
@@ -106,7 +114,7 @@ pub fn run(args: &MembersArgs, global: &GlobalArgs) -> Result<()> {
         output::plain::blank();
         println!(
             "Overlay: {}",
-            anvil_policy_engine::pack::overlay_path(&policies_dir, &args.pack_id).display()
+            overlay_path(&policies_dir, &args.pack_id)?.display()
         );
     }
     Ok(())

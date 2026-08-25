@@ -11,7 +11,7 @@
 //! malformed overlay cannot take the policy pass down.
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -58,18 +58,48 @@ pub enum OverlayError {
         /// Parser message.
         message: String,
     },
+    /// `pack_id` is not a single directory name (path separators, `..`, or
+    /// absolute). Overlay files must stay beside `.anvil/policies/<id>/`.
+    #[error(
+        "pack id `{pack_id}` is not a safe directory name; use a single path component with no `/` or `..`"
+    )]
+    InvalidPackId {
+        /// The rejected pack id.
+        pack_id: String,
+    },
+}
+
+/// Whether `pack_id` is a single, non-escaping directory name.
+#[must_use]
+pub fn is_safe_pack_id(pack_id: &str) -> bool {
+    if pack_id.is_empty()
+        || pack_id == "."
+        || pack_id == ".."
+        || pack_id.contains('/')
+        || pack_id.contains('\\')
+        || pack_id.contains('\0')
+    {
+        return false;
+    }
+    let path = Path::new(pack_id);
+    let mut components = path.components();
+    matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
 }
 
 /// Path of the overlay file that sits beside `<policies_dir>/<pack_id>/`.
-#[must_use]
-pub fn overlay_path(policies_dir: &Path, pack_id: &str) -> PathBuf {
-    policies_dir.join(format!("{pack_id}.overlay.yaml"))
+pub fn overlay_path(policies_dir: &Path, pack_id: &str) -> Result<PathBuf, OverlayError> {
+    if !is_safe_pack_id(pack_id) {
+        return Err(OverlayError::InvalidPackId {
+            pack_id: pack_id.to_string(),
+        });
+    }
+    Ok(policies_dir.join(format!("{pack_id}.overlay.yaml")))
 }
 
 /// Load the overlay for `pack_id`. A missing file is an empty overlay (all
 /// members enabled), not an error.
 pub fn load_overlay(policies_dir: &Path, pack_id: &str) -> Result<PackOverlay, OverlayError> {
-    let path = overlay_path(policies_dir, pack_id);
+    let path = overlay_path(policies_dir, pack_id)?;
     let content = match std::fs::read_to_string(&path) {
         Ok(content) => content,
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
@@ -101,7 +131,7 @@ pub fn save_overlay(
     pack_id: &str,
     overlay: &PackOverlay,
 ) -> Result<(), OverlayError> {
-    let path = overlay_path(policies_dir, pack_id);
+    let path = overlay_path(policies_dir, pack_id)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|source| OverlayError::Io {
             path: parent.to_path_buf(),
@@ -282,7 +312,7 @@ mod tests {
     #[test]
     fn overlay_malformed_yaml_is_an_error_on_strict_load() {
         let (_tmp, dir) = policies_dir();
-        let path = overlay_path(&dir, "p");
+        let path = overlay_path(&dir, "p").expect("safe id");
         std::fs::write(&path, "disabled: [").expect("write");
         assert!(matches!(
             load_overlay(&dir, "p"),
@@ -320,5 +350,20 @@ mod tests {
             resolve_member_id(&manifest, "crypto-human-signoff"),
             "crypto-human-signoff"
         );
+    }
+
+    #[test]
+    fn overlay_rejects_escaping_pack_ids() {
+        let (_tmp, dir) = policies_dir();
+        for id in ["../escape", "/tmp/x", "a/b", "..", "", r"..\win"] {
+            assert!(!is_safe_pack_id(id), "{id} must not be a safe pack id");
+            assert!(matches!(
+                overlay_path(&dir, id),
+                Err(OverlayError::InvalidPackId { .. })
+            ));
+            assert!(load_overlay(&dir, id).is_err());
+        }
+        assert!(is_safe_pack_id("anvil-control-examples"));
+        assert!(overlay_path(&dir, "anvil-control-examples").is_ok());
     }
 }
