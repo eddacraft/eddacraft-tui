@@ -507,9 +507,13 @@ mod tests {
             .findings
             .into_iter()
             .map(|f| EvalFinding {
+                // Both variants named deliberately: a third severity would
+                // then fail to compile here rather than silently mapping to
+                // `Warning`, which is how a new blocking tier could slip into
+                // the falsifiability harness unnoticed.
                 severity: match f.severity {
                     anvil_policy_engine::result::Severity::Error => EvalSeverity::Error,
-                    _ => EvalSeverity::Warning,
+                    anvil_policy_engine::result::Severity::Warning => EvalSeverity::Warning,
                 },
                 message: f.message,
                 from: f.from,
