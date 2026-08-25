@@ -11,8 +11,8 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use anvil_policy_engine::pack::{
-    IssueCode, IssueSeverity, PackManifest, PolicySeverity, ValidationReport, enforce_tests,
-    load_manifest, run_pack_tests, validate_pack,
+    IssueCode, IssueSeverity, PackManifest, PackOverlay, PolicySeverity, ValidationReport,
+    enforce_tests, load_manifest, load_overlay, run_pack_tests, save_overlay, validate_pack,
 };
 
 use crate::GlobalArgs;
@@ -80,8 +80,8 @@ impl BundledPack {
     }
 }
 
-/// The single bundled starter pack shipped in slice 1. Guardrails shaped over
-/// the working-tree diff: change-set size and sensitive-path review.
+/// Bundled starter pack: advisory guardrails over the working-tree diff
+/// (change-set size and sensitive-path review).
 const ANVIL_BASELINE: BundledPack = BundledPack {
     id: "anvil-baseline",
     files: &[
@@ -110,8 +110,68 @@ const ANVIL_BASELINE: BundledPack = BundledPack {
     ],
 };
 
+/// Second bundled starter pack: engineering-control templates with a
+/// cryptographic hard-stop member and three warning-family members.
+const ANVIL_CONTROL_EXAMPLES: BundledPack = BundledPack {
+    id: "anvil-control-examples",
+    files: &[
+        BundledFile {
+            rel: "pack.yaml",
+            contents: include_str!("starter_packs/anvil-control-examples/pack.yaml"),
+        },
+        BundledFile {
+            rel: "policies/crypto_human_signoff.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/crypto_human_signoff.rego"
+            ),
+        },
+        BundledFile {
+            rel: "policies/crypto_human_signoff_test.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/crypto_human_signoff_test.rego"
+            ),
+        },
+        BundledFile {
+            rel: "policies/personal_data_paths.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/personal_data_paths.rego"
+            ),
+        },
+        BundledFile {
+            rel: "policies/personal_data_paths_test.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/personal_data_paths_test.rego"
+            ),
+        },
+        BundledFile {
+            rel: "policies/ai_decision_logging.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/ai_decision_logging.rego"
+            ),
+        },
+        BundledFile {
+            rel: "policies/ai_decision_logging_test.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/ai_decision_logging_test.rego"
+            ),
+        },
+        BundledFile {
+            rel: "policies/high_risk_ai_surface.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/high_risk_ai_surface.rego"
+            ),
+        },
+        BundledFile {
+            rel: "policies/high_risk_ai_surface_test.rego",
+            contents: include_str!(
+                "starter_packs/anvil-control-examples/policies/high_risk_ai_surface_test.rego"
+            ),
+        },
+    ],
+};
+
 /// Every bundled starter pack, in enumeration order.
-const BUNDLED_PACKS: &[BundledPack] = &[ANVIL_BASELINE];
+const BUNDLED_PACKS: &[BundledPack] = &[ANVIL_BASELINE, ANVIL_CONTROL_EXAMPLES];
 
 /// Locate a bundled pack by id, or fail with the list of known ids.
 fn find_pack(pack_id: &str) -> Result<&'static BundledPack> {
@@ -668,7 +728,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 /// Resolve the workspace root to install into: the explicit `--workspace`
 /// override, else the detected workspace root.
-fn resolve_workspace(explicit: Option<&Path>) -> Result<PathBuf> {
+pub(crate) fn resolve_workspace(explicit: Option<&Path>) -> Result<PathBuf> {
     match explicit {
         Some(path) => Ok(path.to_path_buf()),
         None => crate::util::workspace_root(),
@@ -691,6 +751,10 @@ pub struct InstallArgs {
     /// Workspace root to install into (defaults to the current workspace).
     #[arg(long)]
     workspace: Option<PathBuf>,
+    /// Disable these pack members after install. Writes
+    /// `.anvil/policies/<pack>.overlay.yaml`, which survives `--force` reinstall.
+    #[arg(long = "off", value_name = "MEMBER", action = clap::ArgAction::Append)]
+    off: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -712,6 +776,21 @@ pub fn run_install(args: &InstallArgs, global: &GlobalArgs) -> Result<()> {
     let manifest = pack.manifest()?;
     let workspace = resolve_workspace(args.workspace.as_deref())?;
 
+    let known_ids: Vec<String> = manifest
+        .policies
+        .iter()
+        .map(|entry| entry.metadata.id.clone())
+        .collect();
+    for member in &args.off {
+        if !known_ids.iter().any(|id| id == member) {
+            bail!(
+                "unknown member `{member}` in pack `{}`; known members: {}",
+                pack.id,
+                known_ids.join(", ")
+            );
+        }
+    }
+
     let outcome = install_pack_files(
         &workspace,
         pack.id,
@@ -720,7 +799,24 @@ pub fn run_install(args: &InstallArgs, global: &GlobalArgs) -> Result<()> {
         args.force,
     )?;
 
+    if matches!(outcome, InstallOutcome::Installed { .. }) && !args.off.is_empty() {
+        apply_install_overlay(&workspace, pack.id, &args.off)?;
+    }
+
     report_install(&outcome, global)
+}
+
+/// Write or merge `--off` member ids into the pack overlay. Lives beside the
+/// pack directory so a later `--force` install cannot clobber it.
+fn apply_install_overlay(workspace: &Path, pack_id: &str, off: &[String]) -> Result<()> {
+    let policies_dir = workspace.join(".anvil/policies");
+    let mut overlay =
+        load_overlay(&policies_dir, pack_id).unwrap_or_else(|_| PackOverlay::default());
+    for member in off {
+        overlay.disable(member);
+    }
+    save_overlay(&policies_dir, pack_id, &overlay)
+        .with_context(|| format!("writing overlay for pack `{pack_id}`"))
 }
 
 pub fn run_show(args: &ShowArgs, global: &GlobalArgs) -> Result<()> {
@@ -934,14 +1030,20 @@ mod tests {
         ANVIL_BASELINE.pack_files()
     }
 
-    /// The single bundled pack's own manifest must validate — a build guard.
+    /// Every bundled pack's own manifest must validate — a build guard.
     #[test]
     fn policy_install_bundled_manifest_validates() {
-        let manifest = ANVIL_BASELINE
-            .manifest()
-            .expect("embedded manifest validates");
-        assert_eq!(manifest.id, "anvil-baseline");
-        assert_eq!(manifest.policies.len(), 2);
+        for pack in BUNDLED_PACKS {
+            let manifest = pack.manifest().unwrap_or_else(|err| {
+                panic!("embedded manifest for `{}` validates: {err}", pack.id)
+            });
+            assert_eq!(manifest.id, pack.id);
+            assert!(
+                !manifest.policies.is_empty(),
+                "pack `{}` must declare members",
+                pack.id
+            );
+        }
     }
 
     #[test]
@@ -1517,6 +1619,7 @@ mod tests {
         };
         let msg = format!("{err:#}");
         assert!(msg.contains("anvil-baseline"), "{msg}");
+        assert!(msg.contains("anvil-control-examples"), "{msg}");
     }
 
     #[test]
@@ -1529,6 +1632,120 @@ mod tests {
         assert!(summaries.iter().any(|s| s.id == "anvil-baseline"));
         let baseline = summaries.iter().find(|s| s.id == "anvil-baseline").unwrap();
         assert_eq!(baseline.policies.len(), 2);
+        assert!(
+            summaries.iter().any(|s| s.id == "anvil-control-examples"),
+            "second bundled pack must be enumerable"
+        );
+        let examples = summaries
+            .iter()
+            .find(|s| s.id == "anvil-control-examples")
+            .unwrap();
+        assert_eq!(examples.policies.len(), 4);
+    }
+
+    fn control_examples_files() -> Vec<PackFile> {
+        ANVIL_CONTROL_EXAMPLES.pack_files()
+    }
+
+    #[test]
+    fn control_examples_install_writes_and_validates() {
+        let ws = TempDir::new().expect("workspace");
+        let version = ANVIL_CONTROL_EXAMPLES.manifest().unwrap().version;
+        let outcome = install_pack_files(
+            ws.path(),
+            "anvil-control-examples",
+            &version,
+            &control_examples_files(),
+            false,
+        )
+        .expect("install");
+        let InstallOutcome::Installed {
+            dest_dir, report, ..
+        } = outcome
+        else {
+            panic!("expected a clean install");
+        };
+        assert!(report.is_valid(), "unexpected issues: {:?}", report.issues);
+        assert!(dest_dir.join("pack.yaml").is_file());
+        assert!(
+            dest_dir
+                .join("policies/crypto_human_signoff.rego")
+                .is_file()
+        );
+        assert!(dest_dir.join("policies/personal_data_paths.rego").is_file());
+        assert!(dest_dir.join("policies/ai_decision_logging.rego").is_file());
+        assert!(
+            dest_dir
+                .join("policies/high_risk_ai_surface.rego")
+                .is_file()
+        );
+    }
+
+    #[test]
+    fn control_examples_crypto_is_violation_others_are_warning() {
+        for file in control_examples_files() {
+            let is_member = Path::new(&file.rel)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("rego"))
+                && !file.rel.ends_with("_test.rego");
+            if !is_member {
+                continue;
+            }
+            if file.rel.contains("crypto_human_signoff") {
+                assert!(
+                    file.contents.contains("violation contains"),
+                    "{} must emit violation",
+                    file.rel
+                );
+            } else {
+                assert!(
+                    file.contents.contains("warning contains"),
+                    "{} must emit warning",
+                    file.rel
+                );
+                assert!(
+                    !file.contents.contains("violation contains"),
+                    "{} must not emit violation",
+                    file.rel
+                );
+            }
+            assert!(
+                !file.contents.contains("input.config"),
+                "{} must not read input.config",
+                file.rel
+            );
+        }
+    }
+
+    #[test]
+    fn control_examples_overlay_survives_force_reinstall() {
+        let ws = TempDir::new().expect("workspace");
+        let version = ANVIL_CONTROL_EXAMPLES.manifest().unwrap().version;
+        install_pack_files(
+            ws.path(),
+            "anvil-control-examples",
+            &version,
+            &control_examples_files(),
+            false,
+        )
+        .expect("first install");
+        let policies_dir = ws.path().join(".anvil/policies");
+        let mut overlay = PackOverlay::default();
+        overlay.disable("personal-data-paths");
+        save_overlay(&policies_dir, "anvil-control-examples", &overlay).expect("overlay");
+        install_pack_files(
+            ws.path(),
+            "anvil-control-examples",
+            &version,
+            &control_examples_files(),
+            true,
+        )
+        .expect("force reinstall");
+        let loaded = load_overlay(&policies_dir, "anvil-control-examples").expect("reload");
+        assert!(
+            !loaded.is_enabled("personal-data-paths"),
+            "force reinstall must not clobber the overlay"
+        );
     }
 
     #[test]

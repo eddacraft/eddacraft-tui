@@ -10,6 +10,8 @@ upstream:
   - crates/anvil-cli/src/commands/policy/mod.rs
   - crates/anvil-cli/src/commands/policy/install.rs
   - crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline
+  - crates/anvil-cli/src/commands/policy/starter_packs/anvil-control-examples
+  - crates/anvil-policy-engine/src/pack/overlay.rs
   - crates/anvil-cli/src/commands/exception.rs
   - crates/anvil-cli/src/commands/check_catalog.rs
   - plans/decisions/108-policy-authoring-lint-and-agent-guidance.md
@@ -90,26 +92,37 @@ for config fields is the [config reference](../reference/config.md).
 
 ## Pack lifecycle
 
-| Step           | Command                           | Meaning                                                    |
-| -------------- | --------------------------------- | ---------------------------------------------------------- |
-| Discover packs | `anvil policy install --list`     | What can be installed. Not `anvil policy list`.            |
-| Inspect a pack | `anvil policy show <pack>`        | What a pack contains, without writing files.               |
-| Install        | `anvil policy install <pack>`     | Writes under `.anvil/policies/`.                           |
-| Validate       | `anvil policy validate <path>`    | Manifest and pack well-formedness.                         |
-| Test           | `anvil policy test [path]`        | Pack tests. Path is optional.                              |
-| Enforce        | `anvil gate --only-checks policy` | Policy is a **gate** check. `anvil check` will not run it. |
-| Exceptions     | `anvil exception`                 | Recorded exceptions to a policy finding.                   |
+| Step           | Command                           | Meaning                                                               |
+| -------------- | --------------------------------- | --------------------------------------------------------------------- |
+| Discover packs | `anvil policy install --list`     | What can be installed. Not `anvil policy list`.                       |
+| Inspect a pack | `anvil policy show <pack>`        | What a pack contains, without writing files.                          |
+| Install        | `anvil policy install <pack>`     | Writes under `.anvil/policies/`. `--off <member>` writes the overlay. |
+| Members        | `anvil policy members <pack>`     | List overlay state; `--off` / `--on` toggle members.                  |
+| Validate       | `anvil policy validate <path>`    | Manifest and pack well-formedness.                                    |
+| Test           | `anvil policy test [path]`        | Pack tests. Path is optional.                                         |
+| Enforce        | `anvil gate --only-checks policy` | Policy is a **gate** check. `anvil check` will not run it.            |
+| Exceptions     | `anvil exception`                 | Recorded exceptions to a policy finding.                              |
 
-The shipped starter pack is `anvil-baseline`. It is advisory starter guardrails
-over the working-tree diff: it flags large change sets, and it flags changes to
-secrets or CI configuration for review. Success of
-`anvil policy install anvil-baseline` reports files created under
-`.anvil/policies/anvil-baseline/`.
+Two bundled packs ship in the binary:
 
-It is **not** a compliance pack. It does not claim OWASP, SOC 2, ISO, GDPR, or
-similar coverage. Findings are warnings and never fail the gate. Thresholds are
-frozen in-rego. Sensitive-path matchers include substring heuristics that can
-false-positive. Broad framework packs stay behind a later expansion gate.
+| Pack                     | Role                                                                                                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anvil-baseline`         | Advisory starter guardrails over the working-tree diff: large change sets, and secrets or CI paths. Findings are warnings and never fail the gate.                  |
+| `anvil-control-examples` | Engineering-control templates for custom policy authoring. Four members; `crypto-human-signoff` is a hard stop on MCP pre-write until a human records an exception. |
+
+Neither pack is a compliance programme. They do not claim OWASP, SOC 2, ISO,
+GDPR, or AI Act coverage. Broad framework packs are not shipped.
+
+`anvil-control-examples` members can be selected independently. Selection lives
+in `.anvil/policies/<pack>.overlay.yaml`, beside the pack directory so
+`anvil policy install --force` cannot clobber it. Gate and MCP pre-write both
+honour the overlay. Default is all members on.
+
+`crypto-human-signoff` emits a blocking-intent finding. On MCP pre-write, with
+the default interrupt posture, that vetoes the write until
+`anvil exception grant --policy crypto-human-signoff` records a human. The other
+three members emit warnings and never veto. The policy **gate** check still
+reports those findings; it does not apply exception grants.
 
 Public docs name the pack and the install path. They do not reproduce pack
 source as an authoring tutorial.

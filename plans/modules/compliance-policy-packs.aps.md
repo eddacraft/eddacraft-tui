@@ -7,7 +7,8 @@
 | ------ | ----- | -------- | ------ | -------- |
 | CPACKS | —     | high     | In Progress  | 7/10      |
 
-**Last reviewed:** 2026-08-23 — CPACKS-007 promoted Proposed -> Ready as an
+**Last reviewed:** 2026-08-25 — CPACKS-011 filed In Progress (second starter
+pack `anvil-control-examples` plus a durable per-member overlay). Prior 2026-08-23 — CPACKS-007 promoted Proposed -> Ready as an
 **enabling change** under PR #4100, not by a direct instruction naming this
 item. The operator promoted POLFIT-007, which coordinates CPACKS-006 and
 CPACKS-007; its stated outcome is not deliverable while this item sits Draft,
@@ -18,8 +19,9 @@ copy — the audit found it did not exist). CPACKS-006 Merged via #4107 (eval
 wrappers). An earlier revision of this paragraph recorded CPACKS-006 as Blocked
 and not selectable; #4107 landed the same day and superseded that.
 
-**Open after that closure:** CPACKS-008 (expansion gate) plus **CPACKS-009** and
-**CPACKS-010**, both filed 2026-08-24 from planning council `council-9021df43`.
+**Open after that closure:** CPACKS-008 (expansion gate), **CPACKS-009** and
+**CPACKS-010** (filed 2026-08-24 from planning council `council-9021df43`), and
+**CPACKS-011** (live exclusive item: second starter pack + overlay).
 The first-wave residue is closed; the module is not. Any statement below dated
 before 2026-08-24 that calls CPACKS-006/-007 "the live residue" is historical. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
 `plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
@@ -346,4 +348,42 @@ small, deterministic pack before Anvil makes broader compliance claims.
 - **Dependencies:** CPACKS-006, COMPLY-001 (Draft — COMPLY's
   evidence-semantics design gate is the real blocker), POLRESET-010
   (satisfied — Merged 2026-07-04 via PR #3134)
+- **Confidence:** high
+
+### CPACKS-011: Second starter pack with per-member overlay
+
+- **Status:** In Progress — 2026-08-25 on `feat/cpacks-011-control-examples`.
+  Operator-approved design: one bundled pack, four members, durable overlay,
+  no TUI this slice.
+- **Intent:** Ship a second bundled starter pack that evaluates as real pack
+  members, so custom policy authoring is a working loop rather than a docs
+  recipe, without making GDPR or AI Act certification claims.
+- **Expected Outcome:** `anvil policy install anvil-control-examples` writes
+  `.anvil/policies/anvil-control-examples/` with four members.
+  `crypto-human-signoff` emits the `violation` family and vetoes MCP pre-write
+  under the default interrupt posture until `anvil exception grant --policy
+  crypto-human-signoff` (existing store). The other three emit `warning` and
+  never veto. A sibling overlay (`.anvil/policies/<pack>.overlay.yaml`) survives
+  reinstall; disabled members are not evaluated by gate or MCP. CLI can list and
+  set the overlay. Public copy labels the pack as engineering templates, not
+  legal certification.
+- **Scope:** Pack files, `BUNDLED_PACKS` registration, overlay load/filter on
+  gate and MCP, exception suppression on MCP pre-write, members CLI, pack tests,
+  public docs.
+- **Non-scope:** TUI install picker; SETINS/SETGOV edit screen; YAML authoring
+  (ADR-130); a new exception store; OWASP/SOC 2/ISO/GDPR/AI framework packs
+  (CPACKS-008); bumping stored `N/M` counts.
+- **Files:** `crates/anvil-cli/src/commands/policy/starter_packs/anvil-control-examples/`,
+  `crates/anvil-cli/src/commands/policy/install.rs`,
+  `crates/anvil-policy-engine/src/pack/`,
+  `crates/anvil-cli/src/mcp/policy_prewrite.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`,
+  `docs/public/anvil/concepts/policy-model.md`,
+  `docs/public/anvil/reference/policy.md`,
+  `docs/public/anvil/tutorials/policies.md`
+- **Validation:** `cargo test -p eddacraft-anvil --bin anvil --no-fail-fast -- control_examples`
+  and `cargo test -p eddacraft-anvil --bin anvil --no-fail-fast -- policy_install`
+  and `pnpm docs:check` and `pnpm aps:active-lint`
+- **Dependencies:** CPACKS-001..005 (Done); CPACKS-008 does not block — this is
+  the optional second starter pack in module scope, not a framework pack.
 - **Confidence:** high

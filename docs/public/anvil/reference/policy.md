@@ -7,7 +7,9 @@ description:
 owner: DOCDEF
 upstream:
   - crates/anvil-cli/src/commands/policy/mod.rs
+  - crates/anvil-cli/src/commands/policy/members.rs
   - crates/anvil-cli/src/commands/exception.rs
+  - crates/anvil-policy-engine/src/pack/overlay.rs
 verified_against: 0.9.6-beta
 ---
 
@@ -21,18 +23,24 @@ Policy is a **gate** check (`policy`). `anvil check` will not run it.
 
 ## Pack commands
 
-| Command                           | Purpose                                             |
-| --------------------------------- | --------------------------------------------------- |
-| `anvil policy install --list`     | List bundled packs that can be installed.           |
-| `anvil policy show <pack>`        | Preview a bundled pack without writing files.       |
-| `anvil policy install <pack>`     | Install a bundled pack under `.anvil/policies/`.    |
-| `anvil policy validate <path>`    | Check manifest, metadata, structure, and tests.     |
-| `anvil policy test [path]`        | Run the pack's included tests. Path is optional.    |
-| `anvil gate --only-checks policy` | Enforce installed packs as the `policy` gate check. |
+| Command                                      | Purpose                                                 |
+| -------------------------------------------- | ------------------------------------------------------- |
+| `anvil policy install --list`                | List bundled packs that can be installed.               |
+| `anvil policy show <pack>`                   | Preview a bundled pack without writing files.           |
+| `anvil policy install <pack>`                | Install a bundled pack under `.anvil/policies/`.        |
+| `anvil policy install <pack> --off <member>` | Install and disable named members in the overlay.       |
+| `anvil policy members <pack>`                | List overlay-selected members of an installed pack.     |
+| `anvil policy members <pack> --off/--on`     | Toggle members. The overlay survives `install --force`. |
+| `anvil policy validate <path>`               | Check manifest, metadata, structure, and tests.         |
+| `anvil policy test [path]`                   | Run the pack's included tests. Path is optional.        |
+| `anvil gate --only-checks policy`            | Enforce installed packs as the `policy` gate check.     |
 
-The shipped starter pack is `anvil-baseline`. It is advisory starter guardrails,
-not a compliance programme. See the [policy tutorial](../tutorials/policies.md)
-for known gaps.
+Bundled packs:
+
+| Pack                     | Role                                                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `anvil-baseline`         | Advisory starter guardrails, not a compliance programme. See the [policy tutorial](../tutorials/policies.md) for known gaps.           |
+| `anvil-control-examples` | Engineering-control templates. Not privacy, GDPR, or AI Act certification. `crypto-human-signoff` hard-stops MCP writes until a grant. |
 
 ## Exceptions
 

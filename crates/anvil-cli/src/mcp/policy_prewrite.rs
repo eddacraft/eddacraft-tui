@@ -8,11 +8,14 @@ use anvil_kernel_types::diagnostics::ControlDecision;
 use anvil_kernel_types::{
     Category, Diagnostic, DiagnosticSource, EnforcementMode, Location, Mode, Severity,
 };
+use anvil_policy::exceptions::{ExceptionStore, Violation, is_suppressed};
 use anvil_policy_engine::context::ChangedPath;
 use anvil_policy_engine::context::WorkflowPhase;
 use anvil_policy_engine::context::assertion::ChangeKind;
 use anvil_policy_engine::guidance::{PolicyGuidance, PolicySource};
-use anvil_policy_engine::pack::{LoadedPack, discover_and_load};
+use anvil_policy_engine::pack::{
+    LoadedPack, discover_and_load, enabled_entries, load_overlay_fail_open, resolve_member_id,
+};
 use anvil_policy_engine::result::{Finding, Severity as FindingSeverity};
 use anvil_policy_engine::{Engine, EngineConfig, GraphFacts, PrewriteBudget, PrewriteInput};
 
@@ -204,6 +207,8 @@ fn evaluate_with_budget(
         }
     }
 
+    let records = suppress_excepted_records(workspace_root, changed_path, records);
+
     let mut decision = ControlDecision::Allow;
     let mut diagnostics = Vec::with_capacity(records.len());
     for record in records {
@@ -286,55 +291,10 @@ fn evaluate_pack(
         )]);
     }
 
-    // Load the manifest's member policies. Member paths are already lexically
-    // contained within the pack directory (validated at manifest load); join
-    // and read. Any read / compile failure degrades the whole pack to a
-    // warning rather than blocking (AD-5). The deadline is checked before each
-    // compile so a large pack cannot overrun the pass.
-    for entry in &manifest.policies {
-        if Instant::now() >= deadline {
-            return PackEval::Truncated;
-        }
-        let member_path = pack.pack.dir.join(&entry.path);
-        // Bounded read: decide from metadata before reading so a huge member
-        // cannot stall the pass between deadline checks (fail-open).
-        if let Ok(meta) = std::fs::metadata(&member_path)
-            && meta.len() > PREWRITE_MAX_POLICY_BYTES
-        {
-            return PackEval::Findings(vec![degraded_record(
-                pack_id,
-                changed_path,
-                &format!(
-                    "policy `{}` exceeds the {} KiB pre-write size cap ({} bytes); \
-                         failing open — evaluate it via `anvil gate` instead",
-                    entry.metadata.id,
-                    PREWRITE_MAX_POLICY_BYTES / 1024,
-                    meta.len()
-                ),
-            )]);
-        }
-        let source = match std::fs::read_to_string(&member_path) {
-            Ok(source) => source,
-            Err(err) => {
-                return PackEval::Findings(vec![degraded_record(
-                    pack_id,
-                    changed_path,
-                    &format!(
-                        "policy `{}` could not be read ({}): {err}",
-                        entry.metadata.id,
-                        member_path.display(),
-                    ),
-                )]);
-            }
-        };
-        let name = entry.path.to_string_lossy().into_owned();
-        if let Err(err) = engine.add_policy(name, source) {
-            return PackEval::Findings(vec![degraded_record(
-                pack_id,
-                changed_path,
-                &format!("policy `{}` failed to compile: {err}", entry.metadata.id),
-            )]);
-        }
+    if let Err(early) =
+        compile_enabled_members(pack, manifest, pack_id, &mut engine, deadline, changed_path)
+    {
+        return early;
     }
 
     // Deadline gate before the eval itself.
@@ -357,14 +317,88 @@ fn evaluate_pack(
         }
     };
 
+    findings_from_eval(value.as_ref(), manifest, pack_id, changed_path)
+}
+
+/// Compile overlay-enabled members into `engine`. Disabled members are skipped
+/// so the overlay is honoured on the pre-write path. Read/compile failures
+/// degrade fail-open (AD-5).
+fn compile_enabled_members(
+    pack: &LoadedPack,
+    manifest: &anvil_policy_engine::pack::PackManifest,
+    pack_id: &str,
+    engine: &mut Engine,
+    deadline: Instant,
+    changed_path: &str,
+) -> Result<(), PackEval> {
+    let overlay = pack
+        .pack
+        .dir
+        .parent()
+        .map(|policies_dir| load_overlay_fail_open(policies_dir, pack_id))
+        .unwrap_or_default();
+    for entry in enabled_entries(manifest, &overlay) {
+        if Instant::now() >= deadline {
+            return Err(PackEval::Truncated);
+        }
+        let member_path = pack.pack.dir.join(&entry.path);
+        if let Ok(meta) = std::fs::metadata(&member_path)
+            && meta.len() > PREWRITE_MAX_POLICY_BYTES
+        {
+            return Err(PackEval::Findings(vec![degraded_record(
+                pack_id,
+                changed_path,
+                &format!(
+                    "policy `{}` exceeds the {} KiB pre-write size cap ({} bytes); \
+                         failing open — evaluate it via `anvil gate` instead",
+                    entry.metadata.id,
+                    PREWRITE_MAX_POLICY_BYTES / 1024,
+                    meta.len()
+                ),
+            )]));
+        }
+        let source = match std::fs::read_to_string(&member_path) {
+            Ok(source) => source,
+            Err(err) => {
+                return Err(PackEval::Findings(vec![degraded_record(
+                    pack_id,
+                    changed_path,
+                    &format!(
+                        "policy `{}` could not be read ({}): {err}",
+                        entry.metadata.id,
+                        member_path.display(),
+                    ),
+                )]));
+            }
+        };
+        let name = entry.path.to_string_lossy().into_owned();
+        if let Err(err) = engine.add_policy(name, source) {
+            return Err(PackEval::Findings(vec![degraded_record(
+                pack_id,
+                changed_path,
+                &format!("policy `{}` failed to compile: {err}", entry.metadata.id),
+            )]));
+        }
+    }
+    Ok(())
+}
+
+fn findings_from_eval(
+    value: Option<&serde_json::Value>,
+    manifest: &anvil_policy_engine::pack::PackManifest,
+    pack_id: &str,
+    changed_path: &str,
+) -> PackEval {
     PackEval::Findings(
         value
-            .as_ref()
             .map(extract_policy_findings)
             .unwrap_or_default()
             .into_iter()
             .enumerate()
-            .map(|(ordinal, finding)| record_from_finding(pack_id, changed_path, &finding, ordinal))
+            .map(|(ordinal, mut finding)| {
+                finding.policy_id = resolve_member_id(manifest, &finding.policy_id);
+                record_from_finding(pack_id, changed_path, &finding, ordinal)
+            })
             .collect(),
     )
 }
@@ -660,6 +694,36 @@ fn truncation_record(
         outcome: PolicyOutcome::warning(rule_id),
         diagnostic,
     }
+}
+
+/// Drop findings covered by an active tracked exception grant. Load failures
+/// fail open (keep the findings) so a broken store cannot hide a veto.
+fn suppress_excepted_records(
+    workspace_root: &Path,
+    changed_path: &str,
+    records: Vec<RoutedRecord>,
+) -> Vec<RoutedRecord> {
+    let Ok(store) = ExceptionStore::load(workspace_root) else {
+        return records;
+    };
+    let exceptions: Vec<_> = store.active_exceptions().into_iter().cloned().collect();
+    if exceptions.is_empty() {
+        return records;
+    }
+    records
+        .into_iter()
+        .filter(|record| {
+            let violation = Violation {
+                policy_id: record.outcome.rule_id.clone(),
+                file: changed_path.to_string(),
+                message: String::new(),
+                severity: String::new(),
+                category: None,
+                fingerprint: None,
+            };
+            !is_suppressed(&violation, &exceptions)
+        })
+        .collect()
 }
 
 /// Strictest-wins merge of two [`ControlDecision`]s (the caller merges the
@@ -1104,6 +1168,131 @@ warning contains msg if {
             let ws = install_pack("deny-pack", VIOLATION_REGO);
             let manifest: PathBuf = ws.path().join(".anvil/policies/deny-pack/pack.yaml");
             assert!(manifest.is_file(), "fixture writes an installed-style pack");
+        });
+    }
+
+    fn write_member(
+        pack_dir: &std::path::Path,
+        member_id: &str,
+        file_stem: &str,
+        package: &str,
+        family: &str,
+    ) {
+        let rel = format!("policies/{file_stem}.rego");
+        let source = format!(
+            "package anvil.policies.{package}\nimport rego.v1\n\n{family} contains msg if {{\n    some f in input.diff.changed_files\n    msg := sprintf(\"{family} %s\", [f])\n}}\n"
+        );
+        std::fs::write(pack_dir.join(&rel), source).expect("member");
+        let manifest_path = pack_dir.join("pack.yaml");
+        let header = if manifest_path.is_file() {
+            std::fs::read_to_string(&manifest_path).expect("read manifest")
+        } else {
+            format!(
+                "id: {}\nname: t\nversion: 1.0.0\ndescription: t\nowner: o\npolicies:\n",
+                pack_dir.file_name().unwrap().to_string_lossy()
+            )
+        };
+        let manifest = format!(
+            "{header}  - path: {rel}\n    metadata:\n      id: {member_id}\n      title: t\n      severity: high\n      owner: o\n      rationale: r\n      scope: diff.changed_files\n      tags: [t]\n"
+        );
+        std::fs::write(manifest_path, manifest).expect("manifest");
+    }
+
+    #[test]
+    fn control_examples_overlay_skips_disabled_violation_member() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = TempDir::new().expect("ws");
+            let pack_dir = ws.path().join(".anvil/policies/demo");
+            std::fs::create_dir_all(pack_dir.join("policies")).expect("dirs");
+            write_member(
+                &pack_dir,
+                "crypto-human-signoff",
+                "crypto_human_signoff",
+                "crypto_human_signoff",
+                "violation",
+            );
+            write_member(
+                &pack_dir,
+                "personal-data-paths",
+                "personal_data_paths",
+                "personal_data_paths",
+                "warning",
+            );
+            let mut overlay = anvil_policy_engine::pack::PackOverlay::default();
+            overlay.disable("crypto-human-signoff");
+            anvil_policy_engine::pack::save_overlay(
+                &ws.path().join(".anvil/policies"),
+                "demo",
+                &overlay,
+            )
+            .expect("overlay");
+            let outcome = evaluate(
+                ws.path(),
+                "crypto/src/aes.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert!(
+                !outcome.decision.is_veto(),
+                "disabled violation member must not veto: {:?}",
+                outcome.decision
+            );
+        });
+    }
+
+    #[test]
+    fn control_examples_exception_grant_lifts_crypto_veto() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = TempDir::new().expect("ws");
+            let pack_dir = ws.path().join(".anvil/policies/demo");
+            std::fs::create_dir_all(pack_dir.join("policies")).expect("dirs");
+            write_member(
+                &pack_dir,
+                "crypto-human-signoff",
+                "crypto_human_signoff",
+                "crypto_human_signoff",
+                "violation",
+            );
+            let blocked = evaluate(
+                ws.path(),
+                "crypto/src/aes.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert!(
+                blocked.decision.is_veto(),
+                "crypto violation must veto before a grant"
+            );
+
+            let mut store = anvil_policy::exceptions::ExceptionStore::empty();
+            store
+                .add(anvil_policy::exceptions::PolicyException {
+                    schema_version: String::new(),
+                    id: String::new(),
+                    policy_id: "crypto-human-signoff".into(),
+                    file_pattern: String::new(),
+                    finding_hash: None,
+                    reason: "human reviewed".into(),
+                    owner: Some("reviewer".into()),
+                    created_by: Some("reviewer@example.test".into()),
+                    created_at: chrono::Utc::now(),
+                    expires_at: None,
+                    revoked: None,
+                })
+                .expect("add");
+            let _ = store.save(ws.path()).expect("save store");
+
+            let allowed = evaluate(
+                ws.path(),
+                "crypto/src/aes.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert!(
+                !allowed.decision.is_veto(),
+                "grant must lift the crypto veto: {:?}",
+                allowed.decision
+            );
         });
     }
 }

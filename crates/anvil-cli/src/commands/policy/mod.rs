@@ -9,6 +9,7 @@ mod attack_regression;
 mod eval;
 mod eval_regression;
 mod install;
+mod members;
 #[cfg(test)]
 mod starter_proof;
 mod test_run;
@@ -59,6 +60,8 @@ enum PolicyCommand {
     Install(install::InstallArgs),
     /// Show a bundled starter policy pack without installing it.
     Show(install::ShowArgs),
+    /// List or toggle overlay-selected members of an installed pack.
+    Members(members::MembersArgs),
     /// Run policy tests
     Test {
         /// Test file or directory
@@ -278,6 +281,7 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
         PolicyCommand::Validate(validate_args) => return validate::run(validate_args, global),
         PolicyCommand::Install(install_args) => return install::run_install(install_args, global),
         PolicyCommand::Show(show_args) => return install::run_show(show_args, global),
+        PolicyCommand::Members(members_args) => return members::run(members_args, global),
         PolicyCommand::Test { path, list_files } => {
             return test_run::run(path.as_deref(), *list_files, global);
         }

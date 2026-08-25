@@ -7,6 +7,7 @@ use anvil_kernel_types::{
     Notification, NotificationClass, NotificationContext, NotificationPriority, Severity,
     diagnostics::KnownMode,
 };
+use anvil_policy_engine::pack::policy_file_is_enabled;
 use anvil_policy_engine::{Engine, EngineConfig, PolicyInput};
 use anyhow::{Context, Result, bail};
 use clap::Args;
@@ -3477,7 +3478,7 @@ fn discover_policy_files(dir: &Path) -> Result<Vec<PathBuf>, CheckResult> {
         {
             continue;
         }
-        if entry.path().is_file() {
+        if entry.path().is_file() && policy_file_is_enabled(dir, entry.path()) {
             files.push(entry.path().to_path_buf());
         }
     }

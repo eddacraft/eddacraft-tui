@@ -6,6 +6,8 @@ owner: CPACKS
 upstream:
   - crates/anvil-cli/src/commands/policy/install.rs
   - crates/anvil-cli/src/commands/policy/starter_packs/anvil-baseline
+  - crates/anvil-cli/src/commands/policy/starter_packs/anvil-control-examples
+  - crates/anvil-cli/src/commands/policy/members.rs
   - crates/anvil-cli/src/commands/policy/validate.rs
   - crates/anvil-cli/src/commands/policy/test_run.rs
 verified_against: 0.9.7-beta
@@ -35,7 +37,9 @@ not shipped.
 anvil policy install --list
 ```
 
-Success lists `anvil-baseline`, the bundled starter pack used below.
+Success lists the bundled packs, including `anvil-baseline` (used below) and
+`anvil-control-examples` (engineering-control templates; see
+[A second bundled pack](#a-second-bundled-pack)).
 
 ## 2. Preview before writing
 
@@ -131,16 +135,43 @@ ordinary files — `token_store.rs`, `password_field.tsx`, `secrets.example.md`.
 That is deliberate: the softer wording tells you to confirm rather than act, and
 no finding from this pack is blocking.
 
-**There is no way to suppress an individual pack finding at the policy gate
-today.** [`anvil exception`](../reference/policy.md#exceptions) records a
-scoped, attributed exception, but it is applied at the pre-push check — not by
-`anvil gate --only-checks policy`, the gate this tutorial runs. Until that
-changes, treat a heuristic hit as a prompt to confirm. If a pattern is
-persistently wrong for your repository, edit your installed copy under
+**The policy gate this tutorial runs does not honour exception grants.**
+[`anvil exception`](../reference/policy.md#exceptions) records a scoped,
+attributed exception. MCP pre-write applies those grants to pack findings (so
+`crypto-human-signoff` can proceed after a human records one).
+`anvil gate --only-checks policy` still reports the finding. Treat a heuristic
+hit from `anvil-baseline` as a prompt to confirm. If a pattern is persistently
+wrong for your repository, edit your installed copy under
 `.anvil/policies/anvil-baseline/` and re-run `anvil policy validate`.
 
 **Thresholds are fixed.** The 10- and 25-file limits are constants in the pack's
 Rego. They are not configurable per project today.
+
+## A second bundled pack
+
+`anvil-control-examples` is a separate install. It is an engineering-control
+template pack for trying custom policy authoring, not a privacy or AI
+certification pack.
+
+```text
+anvil policy show anvil-control-examples
+anvil policy install anvil-control-examples
+```
+
+Optional: disable members you do not want. The overlay sits beside the pack, so
+a later `install --force` does not clobber it.
+
+```text
+anvil policy install anvil-control-examples --off personal-data-paths
+anvil policy members anvil-control-examples
+anvil policy members anvil-control-examples --off ai-decision-logging
+anvil policy members anvil-control-examples --on ai-decision-logging
+```
+
+`crypto-human-signoff` vetoes an MCP pre-write to cryptographic-looking paths
+until a human runs
+`anvil exception grant --policy crypto-human-signoff --reason "..."`. The other
+three members warn only.
 
 ## Next step
 

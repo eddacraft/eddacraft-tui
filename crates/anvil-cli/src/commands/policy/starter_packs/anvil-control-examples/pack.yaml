@@ -1,0 +1,54 @@
+id: anvil-control-examples
+name: Anvil Control Examples
+version: 1.0.0
+description: >-
+  Engineering-control templates for custom policy authoring, shaped over the working-tree diff. Four
+  independently selectable members: cryptographic-path sign-off, personal-data path review,
+  agent/model/prompt review, and a companion audit-path nudge. Not a privacy, GDPR, or AI Act
+  certification pack.
+owner: anvil-platform
+policies:
+  - path: policies/crypto_human_signoff.rego
+    metadata:
+      id: crypto-human-signoff
+      title: Require a human exception before changing cryptographic code
+      severity: critical
+      owner: anvil-platform
+      rationale: >-
+        Cryptographic code is easy to weaken accidentally. Agent writes to those paths must wait for
+        a recorded human exception.
+      scope: diff.changed_files
+      tags: [security, crypto, agents]
+  - path: policies/personal_data_paths.rego
+    metadata:
+      id: personal-data-paths
+      title: Flag personal-data-shaped paths for review
+      severity: high
+      owner: anvil-platform
+      rationale: >-
+        Changes under personal-data-shaped paths deserve a second look. This is a path heuristic,
+        not a data-protection assessment.
+      scope: diff.changed_files
+      tags: [privacy, review]
+  - path: policies/ai_decision_logging.rego
+    metadata:
+      id: ai-decision-logging
+      title: Nudge agent, model, or prompt changes to include an audit path
+      severity: medium
+      owner: anvil-platform
+      rationale: >-
+        Changing agent, model, or prompt files without also touching an audit or log path makes
+        later review harder.
+      scope: diff.changed_files
+      tags: [agents, review]
+  - path: policies/high_risk_ai_surface.rego
+    metadata:
+      id: high-risk-ai-surface
+      title: Flag agent, model, and prompt path changes for human review
+      severity: medium
+      owner: anvil-platform
+      rationale: >-
+        Agent, model, and prompt paths often change runtime behaviour. Flag them so a human can look
+        before they land.
+      scope: diff.changed_files
+      tags: [agents, review]
