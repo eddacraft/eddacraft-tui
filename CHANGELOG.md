@@ -11,6 +11,21 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Added
+
+- **`anvil impact` maps the current repository in the terminal.** The read-only
+  view starts from the crate-level used-import graph, drills into a crate's
+  neighbourhood or internal modules, and restores the prior view when you back
+  out. Keyboard and mouse navigation are supported; `--json` and `--no-tui`
+  provide non-interactive output. It needs a warm graph snapshot and names cold
+  or unrenderable states instead of showing an empty canvas.
+
+- **Gate-time Python scans catch multiline swallowed exceptions.** The new
+  `PY-010` rule flags a named `except` handler whose body is only `pass`. MCP
+  `anvil_check` and target-file `anvil_gate` calls now include AST findings,
+  matching the CLI check path. The latency-sensitive interactive pre-write path
+  remains regex-only.
+
 ### Changed
 
 - **`anvil start` help bar leads with arrows and hides dead Enter.** Consent and
@@ -19,7 +34,19 @@ engineering maintenance are recorded in the
   listed only when it does something on the focused row (unsafe-drift confirm,
   or toggle a verdict section).
 
+- **Custom anti-pattern registries are explicit-only.** The catalogue embedded
+  in the binary remains the default even when a checkout contains
+  `patterns/compiled/registry.json`. Set `ANVIL_REGISTRY_PATH` (or provide an
+  explicit API path) to replace it; a cloned repository no longer changes what
+  anvil flags merely because that file is present.
+
 ### Fixed
+
+- **`anvil policy eval-regression` detects rules that go silent on frozen
+  fixtures.** A finding that appears or disappears now reports that the fixture
+  output changed, rather than calling a disappearing finding an improvement.
+  `--fail-on-regression` exits non-zero for that change; report-only runs remain
+  non-blocking.
 
 - **Antipattern scan no longer panics on a multibyte character at a keyword
   boundary.** A `§` (or any 2- or 3-byte glyph) sitting where the masker split a
