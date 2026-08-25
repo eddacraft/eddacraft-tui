@@ -228,9 +228,10 @@ mod service_tests {
 
     #[test]
     fn service_does_not_require_callers_to_open_config_files() {
-        let tmp = std::env::temp_dir();
+        let tmp = std::env::temp_dir().join("anvil-settings-discover-empty");
+        std::fs::create_dir_all(&tmp).unwrap();
         let discovered = SettingsService::discover_config(&tmp).unwrap();
-        assert!(discovered.is_none() || discovered.is_some());
+        assert!(discovered.is_none());
     }
 
     #[test]

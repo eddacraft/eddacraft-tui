@@ -19,7 +19,7 @@ checks.
 Re-ran the design assessment against `4588f1be8` (the DOCRB-001 stack tip,
 itself on `origin/main` `7a2ecf28f`).
 
-- **Crate roots:** unique `Cargo.toml` workspace members under `crates/` (36).
+- **Crate roots:** unique `Cargo.toml` workspace members under `crates/` (37).
   `crates/anvil-plan-read-model` exists on disk with its own `Cargo.toml` but
   is **not** a workspace member.
 - **App roots:** `apps/*` directories with `package.json` (9).
@@ -51,7 +51,7 @@ Diagram dispositions: `retain`, `move`, `redraw`, `merge`, `retire`.
 
 | Unit | Count | Local README | Local ARCHITECTURE.md |
 | ---- | ----- | ------------ | --------------------- |
-| Workspace crates | 36 | 11 | 0 |
+| Workspace crates | 37 | 11 | 0 |
 | Non-member crate dir | 1 (`anvil-plan-read-model`) | 0 | 0 |
 | Apps | 9 | 5 | 0 |
 | Package roots | 19 | 17 | 0 |
@@ -75,6 +75,7 @@ orphan crate dir, 9 apps, 19 packages, 4 grouping dirs. Co-located
 | `crates/anvil-cli` | component-doc required | CLI | Command dispatch, activation, MCP shim, TUI runner | Local README + ARCHITECTURE; central files are deprecated compatibility records | Request flow CLI → kernel / MCP | central detail moved here in DOCRB-005 |
 | `crates/anvil-run` | README only | CLI | Process launcher / air-gapped run | Local README | none | README only |
 | `crates/anvil-config` | component-doc required | UCFG | Config discovery, formats, delegation | Local README + ARCHITECTURE | Discovery/precedence | component-doc required |
+| `crates/anvil-settings` | README only | SETCON | Settings catalogue, resolver, constraints, attestation, health, envelope | Local README; link ADR-132 | none | README only |
 | `crates/anvil-hook` | README only | HOOK | Hook coexistence | Local README | none unless lifecycle grows | README only |
 | `crates/anvil-baseline` | README only | SCAN | Baseline persistence | Local README | none | README only |
 | `crates/anvil-capsule` | README only | CAPS | Review-capsule format | Local README; link ADR-074 | none | README only |

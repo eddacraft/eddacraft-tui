@@ -10,6 +10,8 @@ use crate::types::{EvidenceMode, SettingKey};
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceChannel {
     DaemonRpc,
+    /// Rejected by the classifier; cannot produce `active`.
+    Untrusted,
 }
 
 /// Catalogue trust requirement for accepting evidence.
@@ -97,10 +99,12 @@ pub fn classify_runtime_state(
             }
         }
         EvidenceMode::ClassifiedDigest => {
-            if att.classified_digest.is_some() {
-                RuntimeState::Active
-            } else {
-                RuntimeState::Unknown
+            match (att.classified_digest.as_deref(), input.resolved_value) {
+                (Some(digest), Some(resolved)) if digest == digest_of(resolved) => {
+                    RuntimeState::Active
+                }
+                (Some(_), Some(_)) => RuntimeState::Drift,
+                _ => RuntimeState::Unknown,
             }
         }
         EvidenceMode::Conformance => {
@@ -132,6 +136,12 @@ fn evidence_accepted(att: &Attestation, input: &ClassifyInput<'_>) -> bool {
 
 fn expired(valid_until: Option<&str>, now: &str) -> bool {
     valid_until.is_some_and(|until| now > until)
+}
+
+fn digest_of(value: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    let bytes = serde_json::to_vec(value).unwrap_or_default();
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn values_match(active: Option<&Value>, resolved: Option<&Value>) -> bool {
@@ -246,5 +256,69 @@ mod runtime_state_tests {
         inp.evidence_mode = EvidenceMode::None;
         let state = classify_runtime_state(Some(&att()), &inp);
         assert_eq!(state, RuntimeState::Unknown);
+    }
+
+    #[test]
+    fn runtime_state_rejects_untrusted_channel() {
+        let resolved = Value::Bool(true);
+        let mut att = att();
+        att.channel = EvidenceChannel::Untrusted;
+        let state = classify_runtime_state(
+            Some(&att),
+            &input("rev-1", "2026-08-25T00:30:00Z", &resolved),
+        );
+        assert_eq!(state, RuntimeState::Unknown);
+    }
+
+    #[test]
+    fn runtime_state_rejects_trust_mismatch() {
+        let resolved = Value::Bool(true);
+        let mut att = att();
+        att.trust = EvidenceTrust::None;
+        let state = classify_runtime_state(
+            Some(&att),
+            &input("rev-1", "2026-08-25T00:30:00Z", &resolved),
+        );
+        assert_eq!(state, RuntimeState::Unknown);
+    }
+
+    #[test]
+    fn runtime_state_stale_on_disconnect_or_expiry() {
+        let resolved = Value::Bool(true);
+        let mut att = att();
+        att.disconnected = true;
+        assert_eq!(
+            classify_runtime_state(
+                Some(&att),
+                &input("rev-1", "2026-08-25T00:30:00Z", &resolved)
+            ),
+            RuntimeState::Stale
+        );
+        att.disconnected = false;
+        assert_eq!(
+            classify_runtime_state(
+                Some(&att),
+                &input("rev-1", "2026-08-25T02:00:00Z", &resolved)
+            ),
+            RuntimeState::Stale
+        );
+    }
+
+    #[test]
+    fn runtime_state_classified_digest_must_match_resolved() {
+        let resolved = Value::Bool(true);
+        let mut att = att();
+        let mut inp = input("rev-1", "2026-08-25T00:30:00Z", &resolved);
+        inp.evidence_mode = EvidenceMode::ClassifiedDigest;
+        att.classified_digest = Some("deadbeef".into());
+        assert_eq!(
+            classify_runtime_state(Some(&att), &inp),
+            RuntimeState::Drift
+        );
+        att.classified_digest = Some(digest_of(&resolved));
+        assert_eq!(
+            classify_runtime_state(Some(&att), &inp),
+            RuntimeState::Active
+        );
     }
 }

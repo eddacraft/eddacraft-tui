@@ -2,19 +2,18 @@
 
 | Field | Value |
 | ----- | ----- |
-| Status | Final (spec v1.1, 2026-08-06) — planning intake; no ADR yet |
+| Status | Final (spec v1.1, 2026-08-06) — Slice 0 contract is [ADR-132](../decisions/132-settings-truth-contract.md) |
 | Date | 2026-08-06 |
 | Source | Operator-supplied product specification, imported verbatim below |
 | APS | [SETCON](../modules/settings-truth-contract.aps.md), [SETINS](../modules/settings-inspect-surface.aps.md), [SETPREF](../modules/settings-safe-preferences.aps.md), [SETGOV](../modules/settings-governed-changes.aps.md), [SETNL](../modules/settings-nl-proposals.aps.md) |
 
-> **Planning note (2026-08-06; deltas noted 2026-08-13).** This document is the
-> imported product specification, kept verbatim as the reference contract. The
-> APS modules above carry execution authority; where a module narrows or defers
-> spec scope, the module file states so explicitly. Design gates that this spec
-> leaves open are tracked in the modules: the catalogue home crate (SETCON-001
-> ADR) and the global exit-code registry (SETCON-009) as SETCON work items, the
-> attestation transport on the SETCON ready checklist, and audit-store reuse in
-> SETGOV-007.
+> **Planning note (2026-08-06; deltas noted 2026-08-13, ADR 2026-08-25).** This
+> document is the imported product specification, kept verbatim as the reference
+> contract. The APS modules above carry execution authority; where a module
+> narrows or defers spec scope, the module file states so explicitly. SETCON-001
+> is accepted as [ADR-132](../decisions/132-settings-truth-contract.md)
+> (catalogue home `eddacraft-anvil-settings`, daemon-RPC attestation, global
+> exit-code map). Audit-store reuse remains SETGOV-007.
 >
 > **Code-truth deltas (2026-08-13).** §7 and §23 name `anvil config validate`;
 > that subcommand does not exist — the current family

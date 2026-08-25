@@ -229,6 +229,36 @@ mod constraints_tests {
     }
 
     #[test]
+    fn constraints_expired_bundle_is_never_ignored() {
+        let bundle = PolicyBundle {
+            id: "org-1".into(),
+            verifiable: true,
+            expired: true,
+            compatible: true,
+            constraints: vec![],
+        };
+        assert_eq!(
+            apply_constraints(&[], Some(&bundle)).unwrap_err(),
+            ConstraintError::Expired("org-1".into())
+        );
+    }
+
+    #[test]
+    fn constraints_incompatible_bundle_is_never_ignored() {
+        let bundle = PolicyBundle {
+            id: "org-1".into(),
+            verifiable: true,
+            expired: false,
+            compatible: false,
+            constraints: vec![],
+        };
+        assert_eq!(
+            apply_constraints(&[], Some(&bundle)).unwrap_err(),
+            ConstraintError::Incompatible("org-1".into())
+        );
+    }
+
+    #[test]
     fn constraints_org_floor_beats_higher_precedence_project_declaration() {
         let requested = vec![row(
             "protection.enforcement.mode",

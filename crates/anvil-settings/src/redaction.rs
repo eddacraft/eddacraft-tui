@@ -11,46 +11,71 @@ pub enum RedactionError {
     Failed { key: String, reason: String },
 }
 
-/// Recursively redact `value` using catalogue classifications.
-///
-/// A failure aborts the entire payload — callers must emit nothing.
-pub fn redact_value(catalogue: &Catalogue, value: &Value) -> Result<Value, RedactionError> {
-    redact_walk(catalogue, value, None)
+/// Abort helper: a redaction failure emits no settings payload.
+#[must_use]
+pub fn fail_closed(key: &str, reason: &str) -> RedactionError {
+    RedactionError::Failed {
+        key: key.to_owned(),
+        reason: reason.to_owned(),
+    }
 }
 
-fn redact_walk(
+/// Redact one setting's value using that key's catalogue classification.
+///
+/// Class D / Secret values become presence-only. Unclassified values are
+/// hidden. After transformation, a leak of the original secret string fails
+/// closed rather than emitting a degraded payload.
+pub fn redact_setting_value(
     catalogue: &Catalogue,
+    key: &str,
     value: &Value,
-    current_key: Option<&str>,
 ) -> Result<Value, RedactionError> {
-    if let Some(key) = current_key
-        && let Some(entry) = catalogue.get(key)
-    {
-        return Ok(redact_classified(entry.sensitivity, value));
+    let sensitivity = catalogue
+        .get(key)
+        .map_or(Sensitivity::Unclassified, |e| e.sensitivity);
+    let redacted = redact_classified(sensitivity, value);
+    if sensitivity == Sensitivity::Secret {
+        ensure_not_leaked(key, value, &redacted)?;
     }
-    if let Some(key) = current_key
-        && catalogue.get(key).is_none()
-    {
-        // Unknown keys are unclassified: hide the value.
-        return Ok(redact_classified(Sensitivity::Unclassified, value));
-    }
+    Ok(redacted)
+}
+
+/// Recursively redact a JSON object whose keys are canonical setting keys.
+pub fn redact_value(catalogue: &Catalogue, value: &Value) -> Result<Value, RedactionError> {
     match value {
         Value::Object(map) => {
             let mut out = Map::new();
             for (k, v) in map {
-                out.insert(k.clone(), redact_walk(catalogue, v, Some(k))?);
+                out.insert(k.clone(), redact_setting_or_row(catalogue, k, v)?);
             }
             Ok(Value::Object(out))
         }
-        Value::Array(items) => {
-            let mut out = Vec::with_capacity(items.len());
-            for item in items {
-                out.push(redact_walk(catalogue, item, current_key)?);
-            }
-            Ok(Value::Array(out))
-        }
         other => Ok(other.clone()),
     }
+}
+
+/// Envelope `data` rows are `{requested, resolved, runtime}`. Redact the
+/// value fields using the parent setting key; do not treat the wrapper as
+/// the classified value (that would mark every Secret object `present`).
+fn redact_setting_or_row(
+    catalogue: &Catalogue,
+    key: &str,
+    value: &Value,
+) -> Result<Value, RedactionError> {
+    if let Value::Object(map) = value
+        && (map.contains_key("requested") || map.contains_key("resolved"))
+    {
+        let mut out = Map::new();
+        for (field, inner) in map {
+            if field == "requested" || field == "resolved" {
+                out.insert(field.clone(), redact_setting_value(catalogue, key, inner)?);
+            } else {
+                out.insert(field.clone(), inner.clone());
+            }
+        }
+        return Ok(Value::Object(out));
+    }
+    redact_setting_value(catalogue, key, value)
 }
 
 fn redact_classified(sensitivity: Sensitivity, value: &Value) -> Value {
@@ -80,12 +105,26 @@ fn hidden() -> Value {
     Value::Object(map)
 }
 
-/// Abort helper used when a channel cannot guarantee redaction.
-#[must_use]
-pub fn fail_closed(key: &str, reason: &str) -> RedactionError {
-    RedactionError::Failed {
-        key: key.to_owned(),
-        reason: reason.to_owned(),
+fn ensure_not_leaked(key: &str, original: &Value, redacted: &Value) -> Result<(), RedactionError> {
+    if let Some(secret) = original.as_str()
+        && !secret.is_empty()
+        && redacted_contains_string(redacted, secret)
+    {
+        return Err(fail_closed(key, "secret value leaked after redaction"));
+    }
+    Ok(())
+}
+
+fn redacted_contains_string(value: &Value, needle: &str) -> bool {
+    match value {
+        Value::String(s) => s.contains(needle),
+        Value::Array(items) => items
+            .iter()
+            .any(|item| redacted_contains_string(item, needle)),
+        Value::Object(map) => map
+            .values()
+            .any(|item| redacted_contains_string(item, needle)),
+        _ => false,
     }
 }
 
@@ -135,7 +174,6 @@ mod redaction_tests {
         map.insert("privacy.token".into(), Value::String("s3cret".into()));
         let out = redact_value(&cat, &Value::Object(map)).unwrap();
         assert_eq!(out["privacy.token"]["present"], Value::Bool(true));
-        assert!(out["privacy.token"].get("s3cret").is_none());
         assert_ne!(out["privacy.token"], Value::String("s3cret".into()));
     }
 
@@ -147,5 +185,47 @@ mod redaction_tests {
         let out = redact_value(&cat, &Value::Object(map)).unwrap();
         assert_eq!(out["mystery"]["redacted"], Value::Bool(true));
         assert_ne!(out["mystery"], Value::String("nope".into()));
+    }
+
+    #[test]
+    fn redaction_fail_closed_when_secret_would_leak() {
+        let err = ensure_not_leaked(
+            "privacy.token",
+            &Value::String("s3cret".into()),
+            &Value::String("s3cret-still-here".into()),
+        )
+        .unwrap_err();
+        assert_eq!(
+            err,
+            fail_closed("privacy.token", "secret value leaked after redaction")
+        );
+    }
+
+    #[test]
+    fn redaction_envelope_row_does_not_treat_wrapper_as_present() {
+        let cat = cat_with(
+            "privacy.license_token",
+            Sensitivity::Secret,
+            ConsequenceClass::D,
+        );
+        let mut row = Map::new();
+        row.insert("requested".into(), Value::Null);
+        row.insert("resolved".into(), Value::Null);
+        row.insert("runtime".into(), Value::String("unknown".into()));
+        let mut data = Map::new();
+        data.insert("privacy.license_token".into(), Value::Object(row));
+        let out = redact_value(&cat, &Value::Object(data)).unwrap();
+        assert_eq!(
+            out["privacy.license_token"]["requested"]["present"],
+            Value::Bool(false)
+        );
+        assert_eq!(
+            out["privacy.license_token"]["resolved"]["present"],
+            Value::Bool(false)
+        );
+        assert_eq!(
+            out["privacy.license_token"]["runtime"],
+            Value::String("unknown".into())
+        );
     }
 }

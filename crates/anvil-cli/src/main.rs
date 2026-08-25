@@ -90,15 +90,15 @@ pub const EXIT_DAEMON_DOWN: u8 = 6;
 /// `proto_version` is outside the surface's supported range.
 pub const EXIT_VERSION_MISMATCH: u8 = 7;
 
+/// Fail-closed settings redaction (ADR-132 / SETCON-009). No settings
+/// payload is emitted. Claims the previously reserved code 8.
+pub const EXIT_REDACTION_ERROR: u8 = 8;
+
 /// Discovery failed — runtime dir untrusted (lstat-ladder violation
 /// per ADR-036 §D-3) or `info.json` ownership / mode invalid.
 /// Reserved for future emission by `anvil doctor` / `anvil intercept
 /// ensure` / hooks that read the runtime sidecar.
 ///
-/// Fail-closed settings redaction (ADR-132 / SETCON-009). No settings
-/// payload is emitted. Claims the previously reserved code 8.
-pub const EXIT_REDACTION_ERROR: u8 = 8;
-
 /// Note: code 9 remains reserved for future expansion. Code 8 is claimed
 /// by [`EXIT_REDACTION_ERROR`] (ADR-132).
 pub const EXIT_DISCOVERY_FAILED: u8 = 10;

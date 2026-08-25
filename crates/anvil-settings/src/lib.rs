@@ -21,7 +21,7 @@ pub use constraints::{Constraint, ConstraintError, PolicyBundle};
 pub use envelope::{Envelope, EnvelopeCommand, SCHEMA_VERSION};
 pub use exit_codes::{SettingsOutcome, code_for};
 pub use health::{Health, HealthStatus};
-pub use redaction::{RedactionError, redact_value};
+pub use redaction::{RedactionError, fail_closed, redact_setting_value, redact_value};
 pub use resolver::{Declaration, ProvenanceEvent, ResolutionEvent, ResolvedSetting, Resolver};
 pub use runtime_state::{
     Attestation, EvidenceChannel, EvidenceTrust, RuntimeState, classify_runtime_state,
