@@ -3094,7 +3094,7 @@ THE SOFTWARE.
 
 Used by:
 
-- `either` 1.17.0
+- `either` 1.18.0
 - `itertools` 0.14.0
 - `itertools` 0.15.0
 - `petgraph` 0.8.3
@@ -9547,7 +9547,7 @@ the following restrictions:
 | `rusqlite` | 0.40.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
 | `hyper` | 1.11.0 | MIT License | https://github.com/hyperium/hyper |
-| `either` | 1.17.0 | MIT License | https://github.com/rayon-rs/either |
+| `either` | 1.18.0 | MIT License | https://github.com/rayon-rs/either |
 | `itertools` | 0.14.0 | MIT License | https://github.com/rust-itertools/itertools |
 | `itertools` | 0.15.0 | MIT License | https://github.com/rust-itertools/itertools |
 | `petgraph` | 0.8.3 | MIT License | https://github.com/petgraph/petgraph |
