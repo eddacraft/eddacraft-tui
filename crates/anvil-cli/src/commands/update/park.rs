@@ -43,14 +43,17 @@ pub(crate) struct ParkedBinary {
 /// Returns `Ok(None)` when nothing exists at `exe` — nothing to park,
 /// and the installer can create the file freely.
 pub(crate) fn park(exe: &Path) -> io::Result<Option<ParkedBinary>> {
-    if !exe.exists() {
+    // `try_exists`, not `exists`: a stat failure (permissions, an antivirus
+    // hold) must surface as the actionable swap-failure decline, not be read
+    // as "nothing to park" only to fail later inside the installer.
+    if !exe.try_exists()? {
         return Ok(None);
     }
     let pid = std::process::id();
     let mut last_err = None;
     for attempt in 0..MAX_PARK_ATTEMPTS {
         let candidate = park_sibling(exe, pid, attempt)?;
-        if candidate.exists() {
+        if candidate.try_exists()? {
             continue;
         }
         match std::fs::rename(exe, &candidate) {
@@ -60,6 +63,10 @@ pub(crate) fn park(exe: &Path) -> io::Result<Option<ParkedBinary>> {
                     parked: candidate,
                 }));
             }
+            // The source vanished between the probe and the rename — a
+            // concurrent updater parked it first. The name is free, which
+            // is all the installer needs.
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
             // A concurrent updater can claim the candidate between the
             // existence probe and the rename; try the next name.
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => last_err = Some(e),
