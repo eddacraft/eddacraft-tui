@@ -570,8 +570,13 @@ fn eval_finding_messages(policy_rel: &str, query: &str, input: &PolicyInput) -> 
 fn starter_policy_pack_change_scope_eval_wrapper_lockstep() {
     // CPACKS-009: the hard band was unexercised, so a threshold edit on one
     // side of the pack/wrapper pair could drift undetected above 25 files.
-    // Boundary values included: the rule is `> soft` and `> hard`, so 10 and 25
-    // must stay clean and 11 and 26 must fire.
+    //
+    // Bands, read off `change_scope.rego`: the soft rule is
+    // `count > soft_limit && count <= hard_limit` (11..=25) and the hard rule
+    // is `count > hard_limit` (26+). So **10** is the only clean boundary here;
+    // 25 still fires, in the soft band, and 26 is where the hard band starts.
+    // Both boundaries are exercised because an off-by-one on either limit is
+    // exactly the drift a single mid-band fixture cannot see.
     let cases: &[(usize, bool, &str)] = &[
         (3, false, "well below the soft threshold"),
         (10, false, "exactly the soft threshold, exclusive"),
