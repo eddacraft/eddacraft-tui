@@ -113,6 +113,12 @@ pub fn create_dir_all_nofollow(path: &Path) -> io::Result<()> {
 /// via `SetFileInformationByHandle(FileRenameInfo)` so a parent swap after the
 /// path check cannot redirect the write.
 ///
+/// A target another process holds open (e.g. a reader mid-poll of
+/// `mcp-refresh.generation`) does not fail the write: the held file is parked
+/// under a `.anvil-old-` sibling name marked delete-on-last-close, and the
+/// rename retries into the freed name (CIB-361 follow-on; the CIB-362 swap
+/// technique). Holders keep reading the parked content until they reopen.
+///
 /// # Errors
 /// Same reparse-refusal contract as [`create_dir_all_nofollow`].
 pub fn atomic_write_nofollow(path: &Path, data: &[u8]) -> io::Result<()> {
@@ -184,7 +190,7 @@ pub fn publish_directory_nofollow(destination: &Path, files: &[(&str, &[u8])]) -
                 write_all_handle(file.raw(), bytes)?;
             }
             remove_empty_destination(parent_handle.raw(), destination_name)?;
-            rename_at(staging.raw(), parent_handle.raw(), destination_name)
+            rename_at(staging.raw(), parent_handle.raw(), destination_name, true)
         })();
         if result.is_err() {
             cleanup_directory_handle(staging.raw(), files.iter().map(|(name, _)| *name));
@@ -655,8 +661,27 @@ fn atomic_write_at(parent: HANDLE, leaf: &OsStr, data: &[u8]) -> io::Result<()> 
             return Err(err);
         }
 
-        match rename_at(file.raw(), parent, leaf) {
+        match rename_at(file.raw(), parent, leaf, true) {
             Ok(()) => return Ok(()),
+            Err(err) if replace_blocked_by_open_target(&err) => {
+                // CIB-361 follow-on: classic `ReplaceIfExists` must delete
+                // the target, which fails while *any* handle is open on it —
+                // even a fully-shared reader mid-poll of
+                // `mcp-refresh.generation`. Park the held target aside under
+                // the same pinned parent (a plain rename is permitted for
+                // share-delete holders — the CIB-362 binary-swap trick) and
+                // retry into the freed name.
+                let park_name = format!(".anvil-old-{}-{nanos}-{attempt}", std::process::id());
+                let park_result = park_held_target(parent, leaf, OsStr::new(&park_name))
+                    .and_then(|()| rename_at(file.raw(), parent, leaf, true));
+                match park_result {
+                    Ok(()) => return Ok(()),
+                    Err(park_err) => {
+                        let _ = dispose_handle(file.raw());
+                        last_err = Some(park_err);
+                    }
+                }
+            }
             Err(err) => {
                 let _ = dispose_handle(file.raw());
                 last_err = Some(err);
@@ -723,7 +748,53 @@ fn read_handle(handle: HANDLE) -> io::Result<Vec<u8>> {
     Ok(buf)
 }
 
-fn rename_at(file: HANDLE, parent: HANDLE, leaf: &OsStr) -> io::Result<()> {
+/// True when a rename-into-place failed the way an open target handle causes:
+/// the classic `ReplaceIfExists` path deletes the target, and any open handle
+/// on it — regardless of its share mode — turns the replace into
+/// `ACCESS_DENIED` or a sharing violation.
+fn replace_blocked_by_open_target(err: &io::Error) -> bool {
+    matches!(
+        err.raw_os_error(),
+        Some(ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION)
+    )
+}
+
+/// Rename a held `leaf` to `park_leaf` and mark it delete-on-last-close, so
+/// the original name frees immediately and the parked file disappears the
+/// moment its last reader closes. Both operations are handle-relative to the
+/// same pinned `parent`, preserving the no-reparse contract.
+///
+/// The rename itself is permitted because anvil's readers open with std
+/// defaults (share read/write/delete); a holder that withheld
+/// `FILE_SHARE_DELETE` fails the `DELETE`-access open here, and the caller
+/// reports that as it reported the original replace failure.
+///
+/// A concurrently vanished target is success: the name is free, which is all
+/// the retrying rename needs.
+fn park_held_target(parent: HANDLE, leaf: &OsStr, park_leaf: &OsStr) -> io::Result<()> {
+    let target = match nt_create(
+        parent,
+        leaf,
+        DELETE | SYNCHRONIZE,
+        FILE_OPEN,
+        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_FOR_BACKUP_INTENT,
+        FILE_ATTRIBUTE_NORMAL,
+        true,
+    ) {
+        Ok(target) => target,
+        Err(err) if err.raw_os_error() == Some(ERROR_FILE_NOT_FOUND) => return Ok(()),
+        Err(err) => return Err(err),
+    };
+    rename_at(target.raw(), parent, park_leaf, false)?;
+    // Best-effort: with DELETE access granted the disposition is normally
+    // accepted, but even if it is refused the write must proceed — the name
+    // is already free, and the leftover carries the recognisable
+    // `.anvil-old-` prefix.
+    let _ = dispose_handle(target.raw());
+    Ok(())
+}
+
+fn rename_at(file: HANDLE, parent: HANDLE, leaf: &OsStr, replace: bool) -> io::Result<()> {
     let name: Vec<u16> = leaf.encode_wide().collect();
     if name.is_empty() {
         return Err(io::Error::new(
@@ -740,7 +811,7 @@ fn rename_at(file: HANDLE, parent: HANDLE, leaf: &OsStr) -> io::Result<()> {
     // stays inside `buf`.
     unsafe {
         let info = buf.as_mut_ptr().cast::<FILE_RENAME_INFO>();
-        (*info).Anonymous.ReplaceIfExists = true;
+        (*info).Anonymous.ReplaceIfExists = replace;
         (*info).RootDirectory = parent;
         (*info).FileNameLength = u32::try_from(name_bytes)
             .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "rename name too long"))?;
@@ -833,6 +904,70 @@ mod tests {
         let generation = dir.join("mcp-refresh.generation");
         atomic_write_nofollow(&generation, b"1\n").expect("write generation");
         assert_eq!(std::fs::read(&generation).unwrap(), b"1\n");
+    }
+
+    #[test]
+    fn atomic_write_replaces_a_target_a_reader_holds_open() {
+        // CIB-361 follow-on: `mcp serve` processes poll the generation file
+        // with ordinary std opens (share read/write/delete). The classic
+        // ReplaceIfExists rename fails while such a handle is open; the park
+        // fallback must free the name instead of surfacing ACCESS_DENIED.
+        use std::io::Read;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("mcp-refresh.generation");
+        atomic_write_nofollow(&path, b"1\n").expect("seed generation");
+
+        let mut reader = std::fs::File::open(&path).expect("reader mid-poll");
+        atomic_write_nofollow(&path, b"2\n").expect("replace while a reader holds the target");
+        assert_eq!(std::fs::read(&path).unwrap(), b"2\n");
+
+        // The held handle still reads the parked (old) content — holders are
+        // never corrupted mid-read.
+        let mut old = String::new();
+        reader
+            .read_to_string(&mut old)
+            .expect("read through held handle");
+        assert_eq!(old, "1\n");
+        drop(reader);
+
+        // Delete-on-last-close: once the reader is gone, no parked leftover
+        // survives beside the target.
+        let leftovers: Vec<_> = std::fs::read_dir(tmp.path())
+            .expect("read dir")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(".anvil-old-"))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "parked files must self-delete: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn atomic_write_still_fails_against_a_share_nothing_holder() {
+        // A holder that withheld FILE_SHARE_DELETE (the lock-file posture)
+        // cannot be parked — the DELETE-access open fails the sharing check.
+        // The write must report that honestly rather than spin or corrupt.
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("held.lock");
+        std::fs::write(&path, b"1").expect("seed");
+        let _holder = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .share_mode(0)
+            .open(&path)
+            .expect("exclusive holder");
+        let err = atomic_write_nofollow(&path, b"2").expect_err("share-nothing holder wins");
+        let code = err.raw_os_error();
+        assert!(
+            code == Some(ERROR_ACCESS_DENIED) || code == Some(ERROR_SHARING_VIOLATION),
+            "expected a sharing/access error, got: {err}"
+        );
     }
 
     #[test]

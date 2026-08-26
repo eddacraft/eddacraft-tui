@@ -60,8 +60,11 @@ engineering maintenance are recorded in the
 
 - **`anvil mcp refresh` no longer fails on Windows while other anvil processes
   hold lock files in `%LOCALAPPDATA%\anvil`.** Opening the existing state
-  directory no longer requests DELETE. `anvil doctor` fails `mcp-heal` when the
-  generation poke itself errors, instead of ticking Pass over the failure.
+  directory no longer requests DELETE. Replacing the refresh generation file
+  also succeeds while a live `mcp serve` process holds it open mid-poll: the
+  held file is renamed aside and removed once its last reader closes, the same
+  swap `anvil update` uses for the binary. `anvil doctor` fails `mcp-heal` when
+  the generation poke itself errors, instead of ticking Pass over the failure.
 
 - **`anvil update` completes on Windows while the daemon and editors hold
   `anvil.exe`.** The running binary is renamed aside so the installer can write
