@@ -8,6 +8,7 @@ use crate::GlobalArgs;
 use crate::commands::version::InstallMethod;
 
 mod fetch;
+mod park;
 mod signature;
 use signature::VerifiedArtefact;
 
@@ -639,23 +640,6 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
         return report_check(current, update_needed, global);
     }
 
-    // Windows holds an exclusive file lock on a running executable, so the
-    // in-process axoupdater replace cannot overwrite `anvil.exe`. The sidecar
-    // path (`find_sidecar`) is the only safe Windows updater; it is not
-    // shipped in this release (`install-updater = false` in
-    // dist-workspace.toml, gated on missing aarch64-pc-windows-msvc
-    // axoupdater binaries). Decline only after the same comparison `--check`
-    // just used, so already-current stays exit 0 and does not print a recipe.
-    if cfg!(windows) {
-        return conclude_windows_library_update(
-            current,
-            update_needed,
-            crate::commands::version::detect_install_method(),
-            global.json,
-            &mut std::io::stdout().lock(),
-        );
-    }
-
     if !update_needed && !args.force && args.version.is_none() {
         report_up_to_date(current, global);
         return Ok(());
@@ -691,13 +675,122 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
         Err(e) => return Err(e),
     };
 
+    // CIB-362: Windows blocks deleting or overwriting a running executable
+    // (the loaded image holds a sharing lock) but permits renaming it.
+    // Parking the live `anvil.exe` under a sibling name frees the file name
+    // for the installer to create afresh, so the update completes without
+    // stopping the intercept daemon, editor `anvil mcp serve` children, or
+    // this very process — all of which hold the binary. Rustup swaps itself
+    // the same way. On any other platform this is a no-op.
+    let parked = if cfg!(windows) {
+        match prepare_windows_swap(global) {
+            Ok(parked) => parked,
+            Err(park_err) => {
+                return conclude_windows_swap_failure(
+                    current,
+                    &park_err,
+                    crate::commands::version::detect_install_method(),
+                    global.json,
+                    &mut std::io::stdout().lock(),
+                );
+            }
+        }
+    } else {
+        None
+    };
+
     // Issue #3947: the installer child inherits stdout, so its progress
     // prose would precede the final `--json` document. Keep it quiet in
     // JSON mode; the final document still reports the outcome.
     if !global.json {
         updater.enable_installer_output();
     }
-    perform_update(updater, current, global)
+    let outcome = perform_update(updater, current, global);
+    if let Some(parked) = parked {
+        settle_windows_swap(
+            &parked,
+            outcome.is_ok(),
+            global,
+            &mut std::io::stderr().lock(),
+        );
+    }
+    outcome
+}
+
+/// Sweep leftovers from earlier swaps, then park the running binary so the
+/// installer can write a fresh `anvil.exe`. Windows-only in effect; the file
+/// operations themselves are portable and unit-tested everywhere.
+///
+/// The executable path is resolved *before* the rename on purpose:
+/// `current_exe` re-queries the kernel and would report the parked name
+/// afterwards.
+fn prepare_windows_swap(global: &GlobalArgs) -> anyhow::Result<Option<park::ParkedBinary>> {
+    let exe = std::env::current_exe()
+        .context("resolving the running anvil executable for park-and-swap")?;
+    let swept = park::sweep_stale_parks(&exe);
+    if global.verbose {
+        for removed in &swept.removed {
+            eprintln!("Removed stale parked binary: {}", removed.display());
+        }
+        for held in &swept.still_held {
+            eprintln!(
+                "Parked binary still held by a running process, will retry next update: {}",
+                held.display()
+            );
+        }
+    }
+    let parked = park::park(&exe)
+        .with_context(|| format!("moving the running binary aside ({})", exe.display()))?;
+    if global.verbose
+        && let Some(parked) = &parked
+    {
+        eprintln!(
+            "Parked running binary: {} -> {}",
+            parked.original.display(),
+            parked.parked.display()
+        );
+    }
+    Ok(parked)
+}
+
+/// After the installer ran: on success, tell the operator what still runs the
+/// old image; on failure, put the parked binary back. Written to stderr so a
+/// `--json` caller's one-document stdout contract holds (#3947).
+fn settle_windows_swap<E: Write>(
+    parked: &park::ParkedBinary,
+    installed: bool,
+    global: &GlobalArgs,
+    stderr: &mut E,
+) {
+    if installed {
+        if !global.json {
+            let _ = writeln!(
+                stderr,
+                "The previous binary was moved to {} and will be cleaned up by a later `anvil update` once every process holding it has exited.\n\
+                 A running intercept daemon keeps the old version until it is recycled; the next `anvil` or `anvil start` does that automatically.",
+                parked.parked.display()
+            );
+        }
+        return;
+    }
+    match park::unpark(parked) {
+        Ok(()) => {
+            let _ = writeln!(
+                stderr,
+                "Update failed; restored the previous binary to {}.",
+                parked.original.display()
+            );
+        }
+        Err(e) => {
+            let _ = writeln!(
+                stderr,
+                "Update failed and the previous binary could not be moved back ({e}).\n\
+                 It is still intact at {} — restore it by renaming it to {}.",
+                parked.parked.display(),
+                parked.original.display()
+            );
+        }
+    }
 }
 
 /// Loud warning emitted when `--insecure-skip-verify` is passed. ADR-045
@@ -830,21 +923,18 @@ fn report_check(current: &str, update_needed: bool, global: &GlobalArgs) -> anyh
     Ok(())
 }
 
-/// Windows library-fallback outcome after the same `update_needed`
-/// comparison `--check` uses. Already-current is success; a needed
-/// update is operator-action-required (non-zero).
-fn conclude_windows_library_update<W: Write>(
+/// Windows park-and-swap could not free the `anvil.exe` name (the rename
+/// itself failed — e.g. an antivirus quarantine hold or a permissions
+/// change). The installer would hit the same lock, so decline with the
+/// manual recipe instead of letting it fail halfway through.
+fn conclude_windows_swap_failure<W: Write>(
     current: &str,
-    update_needed: bool,
+    park_err: &anyhow::Error,
     method: InstallMethod,
     json: bool,
     stdout: &mut W,
 ) -> anyhow::Result<()> {
-    if !update_needed {
-        write_up_to_date(current, json, stdout)?;
-        return Ok(());
-    }
-    write_windows_unsupported(current, method, json, stdout)?;
+    write_windows_swap_failure(current, park_err, method, json, stdout)?;
     Err(crate::output::AlreadyReported.into())
 }
 
@@ -865,7 +955,7 @@ fn write_up_to_date<W: Write>(current: &str, json: bool, stdout: &mut W) -> std:
     }
 }
 
-fn windows_unsupported_alternatives(method: InstallMethod) -> Vec<&'static str> {
+fn windows_swap_failure_alternatives(method: InstallMethod) -> Vec<&'static str> {
     let command = crate::commands::version::upgrade_command_for_platform(method, true);
     if command.is_empty() {
         Vec::new()
@@ -874,14 +964,15 @@ fn windows_unsupported_alternatives(method: InstallMethod) -> Vec<&'static str> 
     }
 }
 
-fn write_windows_unsupported<W: Write>(
+fn write_windows_swap_failure<W: Write>(
     current: &str,
+    park_err: &anyhow::Error,
     method: InstallMethod,
     json: bool,
     stdout: &mut W,
 ) -> std::io::Result<()> {
-    let alternatives = windows_unsupported_alternatives(method);
-    let message = windows_unsupported_message(method);
+    let alternatives = windows_swap_failure_alternatives(method);
+    let message = windows_swap_failure_message(method);
     if json {
         writeln!(
             stdout,
@@ -889,26 +980,32 @@ fn write_windows_unsupported<W: Write>(
             serde_json::json!({
                 "current_version": current,
                 "platform": "windows",
-                "action": "unsupported",
+                "action": "swap_failed",
+                "error": format!("{park_err:#}"),
                 "message": message,
                 "alternatives": alternatives,
             })
         )
     } else {
         writeln!(stdout, "Current version: {current}")?;
+        writeln!(
+            stdout,
+            "Could not move the running anvil.exe aside: {park_err:#}"
+        )?;
         writeln!(stdout, "{message}")
     }
 }
 
 /// Exposed to `version` so a test can prove the two surfaces print the same
 /// Windows upgrade command; a user who runs both must not get two answers.
-pub(crate) fn windows_unsupported_message(method: InstallMethod) -> String {
-    let mut message = String::from("Self-update is not supported on Windows in this release.\n");
-    let Some(command) = windows_unsupported_alternatives(method).into_iter().next() else {
+pub(crate) fn windows_swap_failure_message(method: InstallMethod) -> String {
+    let mut message =
+        String::from("Self-update could not free the anvil.exe file name on Windows.\n");
+    let Some(command) = windows_swap_failure_alternatives(method).into_iter().next() else {
         return message;
     };
     if command == crate::commands::version::WINDOWS_INSTALLER_UPGRADE {
-        message.push_str("\nTo upgrade, re-run the PowerShell installer:\n    ");
+        message.push_str("\nTo upgrade manually, re-run the PowerShell installer:\n    ");
         message.push_str(command);
         message.push('\n');
         message.push_str(
@@ -919,7 +1016,7 @@ pub(crate) fn windows_unsupported_message(method: InstallMethod) -> String {
              Closing the editor is not required once the daemon has released the binary.",
         );
     } else {
-        message.push_str("\nTo upgrade, run:\n    ");
+        message.push_str("\nTo upgrade manually, run:\n    ");
         message.push_str(command);
     }
     message
@@ -1762,12 +1859,12 @@ mod tests {
     }
 
     #[test]
-    fn windows_unsupported_message_lists_alternatives() {
-        let msg = windows_unsupported_message(InstallMethod::CargoDist);
+    fn windows_swap_failure_message_lists_alternatives() {
+        let msg = windows_swap_failure_message(InstallMethod::CargoDist);
         assert!(msg.contains("eddacraft-anvil-installer.ps1"));
         assert!(
             msg.contains("anvil intercept stop"),
-            "Windows upgrade recipe must name intercept stop: {msg}"
+            "Windows manual recipe must name intercept stop: {msg}"
         );
         assert!(
             !msg.contains("anvil MCP server"),
@@ -1779,12 +1876,20 @@ mod tests {
         );
     }
 
+    fn park_error() -> anyhow::Error {
+        anyhow::Error::from(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "Access is denied. (os error 5)",
+        ))
+        .context(r"moving the running binary aside (C:\Users\u\.cargo\bin\anvil.exe)")
+    }
+
     #[test]
-    fn windows_unsupported_when_update_needed_is_nonzero() {
+    fn windows_swap_failure_is_nonzero_and_names_the_error() {
         let mut stdout = Vec::new();
-        let err = conclude_windows_library_update(
+        let err = conclude_windows_swap_failure(
             "0.9.4-beta",
-            true,
+            &park_error(),
             InstallMethod::CargoDist,
             false,
             &mut stdout,
@@ -1796,46 +1901,26 @@ mod tests {
         );
         let out = String::from_utf8(stdout).unwrap();
         assert!(
-            out.contains("Self-update is not supported on Windows"),
-            "decline must name the Windows limitation, got:\n{out}"
-        );
-    }
-
-    #[test]
-    fn already_current_windows_update_suppresses_upgrade_block() {
-        let mut stdout = Vec::new();
-        conclude_windows_library_update(
-            "0.9.4-beta",
-            false,
-            InstallMethod::CargoDist,
-            false,
-            &mut stdout,
-        )
-        .expect("already current must stay exit 0");
-        let out = String::from_utf8(stdout).unwrap();
-        assert!(
-            out.contains("Already up to date"),
-            "must match --check's already-current wording, got:\n{out}"
+            out.contains("Could not move the running anvil.exe aside"),
+            "decline must name what failed, got:\n{out}"
         );
         assert!(
-            !out.contains("To upgrade")
-                && !out.contains("winget")
-                && !out.contains("installer.ps1"),
-            "already-current must not print a reinstall recipe, got:\n{out}"
+            out.contains("Access is denied"),
+            "decline must surface the underlying error, got:\n{out}"
         );
     }
 
     #[test]
     fn cargo_dist_windows_remedy_does_not_lead_with_winget() {
         let mut stdout = Vec::new();
-        let err = conclude_windows_library_update(
+        let err = conclude_windows_swap_failure(
             "0.9.4-beta",
-            true,
+            &park_error(),
             InstallMethod::CargoDist,
             false,
             &mut stdout,
         )
-        .expect_err("needed update still declines on Windows");
+        .expect_err("a failed swap still declines on Windows");
         assert!(err.is::<crate::output::AlreadyReported>());
         let out = String::from_utf8(stdout).unwrap();
         let first_remedy = out
@@ -1861,9 +1946,9 @@ mod tests {
         );
 
         let mut json_out = Vec::new();
-        conclude_windows_library_update(
+        conclude_windows_swap_failure(
             "0.9.4-beta",
-            true,
+            &park_error(),
             InstallMethod::CargoDist,
             true,
             &mut json_out,
@@ -1871,7 +1956,13 @@ mod tests {
         .expect_err("JSON decline is still non-zero");
         let document: serde_json::Value =
             serde_json::from_str(std::str::from_utf8(&json_out).unwrap().trim()).unwrap();
-        assert_eq!(document["action"], "unsupported");
+        assert_eq!(document["action"], "swap_failed");
+        assert!(
+            document["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("Access is denied")),
+            "JSON decline must carry the underlying error: {document}"
+        );
         let alternatives = document["alternatives"]
             .as_array()
             .expect("JSON decline lists alternatives");
@@ -1892,14 +1983,14 @@ mod tests {
     #[test]
     fn winget_windows_remedy_is_only_for_winget_installs() {
         let mut stdout = Vec::new();
-        conclude_windows_library_update(
+        conclude_windows_swap_failure(
             "0.9.4-beta",
-            true,
+            &park_error(),
             InstallMethod::Winget,
             false,
             &mut stdout,
         )
-        .expect_err("needed update still declines on Windows");
+        .expect_err("a failed swap still declines on Windows");
         let out = String::from_utf8(stdout).unwrap();
         assert!(
             out.contains("winget upgrade --id eddacraft.anvil"),
@@ -1908,6 +1999,91 @@ mod tests {
         assert!(
             !out.contains("installer.ps1"),
             "winget installs must not be handed the cargo-dist installer, got:\n{out}"
+        );
+    }
+
+    // ── Park-and-swap settlement (CIB-362) ─────────────────────────
+
+    fn global_args(json: bool) -> GlobalArgs {
+        GlobalArgs {
+            json,
+            no_tui: false,
+            verbose: false,
+            anvil_home: None,
+            touch_project_state: false,
+        }
+    }
+
+    fn parked_in(dir: &Path) -> park::ParkedBinary {
+        park::ParkedBinary {
+            original: dir.join("anvil.exe"),
+            parked: dir.join("anvil.exe.old-42"),
+        }
+    }
+
+    #[test]
+    fn successful_swap_names_the_parked_file_and_the_daemon_consequence() {
+        let dir = tempfile::tempdir().unwrap();
+        let parked = parked_in(dir.path());
+        let mut stderr = Vec::new();
+        settle_windows_swap(&parked, true, &global_args(false), &mut stderr);
+        let out = String::from_utf8(stderr).unwrap();
+        assert!(
+            out.contains("anvil.exe.old-42"),
+            "operator must learn where the old binary went, got:\n{out}"
+        );
+        assert!(
+            out.contains("intercept daemon keeps the old version"),
+            "operator must learn the daemon still runs old code, got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn successful_swap_is_silent_in_json_mode() {
+        // The note is advisory prose; a `--json` caller gets the one-document
+        // stdout contract and nothing extra to parse around (#3947).
+        let dir = tempfile::tempdir().unwrap();
+        let parked = parked_in(dir.path());
+        let mut stderr = Vec::new();
+        settle_windows_swap(&parked, true, &global_args(true), &mut stderr);
+        assert!(stderr.is_empty());
+    }
+
+    #[test]
+    fn failed_install_restores_the_parked_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let parked = parked_in(dir.path());
+        std::fs::write(&parked.parked, b"old binary").unwrap();
+        // The installer died after writing a partial file.
+        std::fs::write(&parked.original, b"partial").unwrap();
+
+        let mut stderr = Vec::new();
+        settle_windows_swap(&parked, false, &global_args(false), &mut stderr);
+
+        assert_eq!(std::fs::read(&parked.original).unwrap(), b"old binary");
+        assert!(!parked.parked.exists());
+        let out = String::from_utf8(stderr).unwrap();
+        assert!(
+            out.contains("restored the previous binary"),
+            "restore must be reported, got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn unrestorable_failure_names_both_paths_for_manual_recovery() {
+        // Restore fails because the parked file is gone (worst case).
+        let dir = tempfile::tempdir().unwrap();
+        let parked = parked_in(dir.path());
+        let mut stderr = Vec::new();
+        settle_windows_swap(&parked, false, &global_args(false), &mut stderr);
+        let out = String::from_utf8(stderr).unwrap();
+        assert!(
+            out.contains("could not be moved back"),
+            "failed restore must be loud, got:\n{out}"
+        );
+        assert!(
+            out.contains("anvil.exe.old-42") && out.contains("anvil.exe"),
+            "recovery instructions must name both paths, got:\n{out}"
         );
     }
 

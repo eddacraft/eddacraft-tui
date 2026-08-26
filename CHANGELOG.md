@@ -63,9 +63,15 @@ engineering maintenance are recorded in the
   directory no longer requests DELETE. `anvil doctor` fails `mcp-heal` when the
   generation poke itself errors, instead of ticking Pass over the failure.
 
-- **Windows upgrade recipe names `anvil intercept stop`.** When the installer
-  cannot overwrite `anvil.exe` because the daemon holds it, the printed steps
-  stop the daemon first. Closing the editor is not required.
+- **`anvil update` completes on Windows while the daemon and editors hold
+  `anvil.exe`.** The running binary is renamed aside so the installer can write
+  a fresh one — the same swap rustup uses — so updating no longer requires
+  `anvil intercept stop`, closing editors whose MCP servers hold the file, or
+  running the installer by hand. Processes holding the old binary keep running
+  it; the next `anvil` or `anvil start` recycles a version-skewed daemon. Parked
+  copies (`anvil.exe.old-<pid>`) are cleaned up by a later `anvil update` once
+  their holders exit. If the rename itself fails, the manual recipe (PowerShell
+  installer after `anvil intercept stop`) is printed as before.
 
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty
 

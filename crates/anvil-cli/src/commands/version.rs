@@ -463,10 +463,10 @@ pub(crate) fn upgrade_command_for_platform(m: InstallMethod, windows: bool) -> &
         // resolves.
         //
         // Platform-split on purpose: a Windows user cannot run
-        // `curl … | sh`, and `anvil update` cannot self-update on Windows
-        // either (`install-updater = false`), so re-running the PowerShell
-        // installer is the only working upgrade path there. Without this
-        // split, fixing detection would have swapped one unrunnable
+        // `curl … | sh`, so the manual recipe there is the PowerShell
+        // installer (`anvil update` itself now park-and-swaps on Windows,
+        // CIB-362, but this surface prints the manual fallback). Without
+        // this split, fixing detection would have swapped one unrunnable
         // instruction (`cargo install --git …`, needs a toolchain) for
         // another (`curl … | sh`, needs a POSIX shell).
         InstallMethod::CargoDist => {
@@ -1363,11 +1363,11 @@ mod tests {
             "non-Windows must not be told to use irm: {unix}"
         );
 
-        // `anvil update` declines to self-update on Windows and prints its own
-        // upgrade line. If these two drift, one install gets two different
-        // instructions depending on which command you happened to run.
+        // When `anvil update` cannot park the running binary on Windows it
+        // prints a manual upgrade line. If these two drift, one install gets
+        // two different instructions depending on which command you ran.
         assert!(
-            crate::commands::update::windows_unsupported_message(InstallMethod::CargoDist)
+            crate::commands::update::windows_swap_failure_message(InstallMethod::CargoDist)
                 .contains(WINDOWS_INSTALLER_UPGRADE),
             "`version` and `update` must print the same Windows upgrade command"
         );
