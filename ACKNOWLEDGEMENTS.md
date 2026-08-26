@@ -2944,7 +2944,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `uuid` 1.24.1
+- `uuid` 1.25.0
 
 <details>
 <summary>Licence text</summary>
@@ -9542,7 +9542,7 @@ the following restrictions:
 | `regex-automata` | 0.4.18 | MIT License | https://github.com/rust-lang/regex |
 | `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.13.1 | MIT License | https://github.com/rust-lang/regex |
-| `uuid` | 1.24.1 | MIT License | https://github.com/uuid-rs/uuid |
+| `uuid` | 1.25.0 | MIT License | https://github.com/uuid-rs/uuid |
 | `libsqlite3-sys` | 0.38.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `rusqlite` | 0.40.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
