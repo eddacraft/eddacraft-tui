@@ -82,11 +82,37 @@ if [ -z "${RUNNER}" ]; then
   fi
 fi
 
+# Where a local install puts its executables. `git rev-parse --show-toplevel`
+# resolves to the *worktree* root, so this is correct in a linked worktree too.
+BIN_DIR="$(git rev-parse --show-toplevel 2>/dev/null)/node_modules/.bin"
+
+# Run a tool without invoking the package manager's dependency reconciliation.
+#
+# `pnpm exec` runs a deps-status check before the command. In a git worktree
+# whose node_modules is a symlink to the primary checkout's — the usual way to
+# avoid a multi-gigabyte duplicate install per worktree — that check decides the
+# modules directory is foreign and tries to purge and reinstall it. A hook never
+# has a TTY, so pnpm aborts with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY and
+# this gate refused every commit in the worktree, while a working lint-staged
+# sat one symlink away. The refusal then blamed a "missing or incomplete"
+# node_modules and prescribed `pnpm install`, which would have deleted the
+# symlink — a misdiagnosis that pushes people to --no-verify, which is how the
+# gate ends up not running at all.
+#
+# This gate's job is to run the tools, not to reconcile dependencies. Prefer the
+# resolved binary; fall back to the package runner only when there is no local
+# install for it to find, which preserves the auto-install a genuinely fresh
+# worktree relies on. Fail-closed is unaffected: a binary that exists but exits
+# non-zero still fails the probe below and still refuses the commit.
 run_tool() {
-  if [ "${RUNNER}" = "pnpm" ]; then
-    pnpm exec "$@"
+  tool="$1"
+  shift
+  if [ -x "${BIN_DIR}/${tool}" ]; then
+    "${BIN_DIR}/${tool}" "$@"
+  elif [ "${RUNNER}" = "pnpm" ]; then
+    pnpm exec "${tool}" "$@"
   else
-    npx "$@"
+    npx "${tool}" "$@"
   fi
 }
 
@@ -109,9 +135,12 @@ run_tool lint-staged
 # Clawpatch audit JSON is exported evidence under plans/audits/ and can be
 # larger than oxfmt's JSON target set; lint-staged validates it with JSON.parse.
 git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' |
-  RUNNER="${RUNNER}" xargs -0 sh -c '
+  RUNNER="${RUNNER}" BIN_DIR="${BIN_DIR}" xargs -0 sh -c '
     [ "$#" -eq 0 ] && exit 0
-    if [ "$RUNNER" = "pnpm" ]; then
+    # Same resolution order as run_tool above; keep the two in step.
+    if [ -x "$BIN_DIR/oxfmt" ]; then
+      "$BIN_DIR/oxfmt" --check -- "$@"
+    elif [ "$RUNNER" = "pnpm" ]; then
       pnpm exec oxfmt --check -- "$@"
     else
       npx oxfmt --check -- "$@"
