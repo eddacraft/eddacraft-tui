@@ -8664,7 +8664,7 @@ SOFTWARE.
 Used by:
 
 - `tree-sitter-language` 0.1.7
-- `tree-sitter` 0.26.12
+- `tree-sitter` 0.26.13
 
 <details>
 <summary>Licence text</summary>
@@ -9856,7 +9856,7 @@ the following restrictions:
 | `console` | 0.16.4 | MIT License | https://github.com/console-rs/console |
 | `tree-sitter-rust` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-rust |
 | `tree-sitter-language` | 0.1.7 | MIT License | https://github.com/tree-sitter/tree-sitter |
-| `tree-sitter` | 0.26.12 | MIT License | https://github.com/tree-sitter/tree-sitter |
+| `tree-sitter` | 0.26.13 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `bstr` | 1.13.1 | MIT License | https://github.com/BurntSushi/bstr |
 | `fuzzy-matcher` | 0.3.7 | MIT License | https://github.com/lotabout/fuzzy-matcher |
 | `crossbeam-deque` | 0.8.7 | MIT License | https://github.com/crossbeam-rs/crossbeam |
