@@ -190,6 +190,60 @@ BROKEN
     fail "message offers no remedy: ${out}"
 }
 
+# ── Probe 4: an unresolvable repo root refuses, it does not crash ────
+
+probe_unresolvable_repo_root_refuses() {
+  local dir="${tmp_root}/no-repo-root"
+  new_fixture_repo "${dir}"
+
+  # The gate locates its tools under `$(git rev-parse --show-toplevel)`. An
+  # empty result would make that `/node_modules/.bin` — an absolute path
+  # outside the repository, whose binaries the gate has no reason to trust —
+  # so it resolves the root explicitly and refuses when it cannot.
+  #
+  # This probe runs the hook script directly rather than through `git commit`,
+  # and that is not a shortcut. Git prepends its own exec-path to PATH before
+  # invoking a hook, and that directory contains a `git` binary
+  # (/usr/lib/git-core/git on Debian-alikes), so the real git always wins there
+  # and a PATH shim for `git` cannot be observed from inside a hook at all.
+  # Driving the script directly is the only way to exercise this branch.
+  local shim="${tmp_root}/norev-bin"
+  local real_git
+  real_git="$(command -v git)"
+  mkdir -p "${shim}"
+  cat >"${shim}/git" <<SHIM
+#!/bin/sh
+if [ "\$1" = "rev-parse" ] && [ "\$2" = "--show-toplevel" ]; then
+  echo "fatal: not a git repository (simulated)" >&2
+  exit 128
+fi
+exec "${real_git}" "\$@"
+SHIM
+  chmod +x "${shim}/git"
+
+  local out status=0
+  out=$(cd "${dir}" && PATH="${shim}:${PATH}" sh .husky/pre-commit 2>&1) || status=$?
+
+  [ "${status}" -ne 0 ] ||
+    fail "the gate continued with an unresolvable repository root (output: ${out})"
+
+  # The point is the *structured* refusal, not merely a non-zero exit: without
+  # the explicit guard the hook reaches its tool probe and refuses for an
+  # unrelated reason, which is what this assertion has to tell apart.
+  grep -q 'could not run' <<<"${out}" ||
+    fail "no refusal framing — the hook died instead of refusing: ${out}"
+
+  grep -q 'Cause:' <<<"${out}" ||
+    fail "message states no cause: ${out}"
+
+  # Deliberately NOT `grep 'repository root'`: the gate's stock remedy already
+  # reads "Run 'pnpm install' in the repository root", so that phrase matches
+  # the *wrong* refusal too and the probe passes against the unfixed hook —
+  # which is exactly what it did before this assertion was tightened.
+  grep -q 'could not be resolved' <<<"${out}" ||
+    fail "refused for some other reason — the root guard did not fire: ${out}"
+}
+
 # ── Probe 3: a working toolchain still gates ─────────────────────────
 
 probe_working_toolchain_still_runs_the_gate() {
@@ -241,5 +295,6 @@ WORKING
 probe_gate_is_present_without_install
 probe_broken_pnpm_names_the_gate_and_a_remedy
 probe_working_toolchain_still_runs_the_gate
+probe_unresolvable_repo_root_refuses
 
 echo 'pre-commit gate fail-closed probes passed'

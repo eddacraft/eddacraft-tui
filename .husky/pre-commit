@@ -84,7 +84,23 @@ fi
 
 # Where a local install puts its executables. `git rev-parse --show-toplevel`
 # resolves to the *worktree* root, so this is correct in a linked worktree too.
-BIN_DIR="$(git rev-parse --show-toplevel 2>/dev/null)/node_modules/.bin"
+#
+# Resolved explicitly, and fail-closed, rather than inlined into BIN_DIR. Two
+# reasons, both of which defeat the point of this gate:
+#
+#   - `set -e` aborts on a failing command substitution inside an assignment,
+#     so a `git rev-parse` failure would kill the hook with no output at all —
+#     skipping the structured refusal this file exists to provide.
+#   - An empty result would make BIN_DIR `/node_modules/.bin`: an absolute path
+#     outside the repository. On a machine where that path happens to exist,
+#     the gate would execute a binary it has no reason to trust.
+if ! REPO_ROOT="$(git rev-parse --show-toplevel 2>&1)" || [ -z "${REPO_ROOT}" ]; then
+  gate_unavailable \
+    "the repository root could not be resolved, so the gate cannot locate its tools." \
+    "Run the commit from inside the repository working tree." \
+    "${REPO_ROOT}"
+fi
+BIN_DIR="${REPO_ROOT}/node_modules/.bin"
 
 # Run a tool without invoking the package manager's dependency reconciliation.
 #
