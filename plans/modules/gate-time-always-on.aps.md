@@ -195,8 +195,6 @@ every save, and **without** defaulting `anvil watch --action gate`.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast` plus a CLI/integration test that an allowed `.rs` write produces a later AST finding without changing the save verdict
 - **Files:** `crates/anvil-cli/src/ast_followup.rs`,
   `crates/anvil-cli/src/commands/watch_save_time.rs`,
-  `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
-  `crates/anvil-cli/src/mcp/tools/apply_patch.rs`,
   `crates/anvil-cli/tests/ast_followup.rs`,
   `crates/anvil-intercept/src/ast_followup.rs`,
   `crates/anvil-intercept-proto/src/enforcement_config.rs`

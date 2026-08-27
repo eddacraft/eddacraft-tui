@@ -110,11 +110,12 @@ keep ERROR coverage live while AST covers documented blinds at gate.
 - **Mitigations:** GTAO-005 budget proof; kill switch; SARIF/output `ast`
   tag; PY-010 rule body names PY-004 as the save-time sibling.
   Wave 2 (GTAO-003/005) pins the follow-up as a coalesced CLI `anvil check`
-  of explicit changed paths: argv that includes `--all` or `gate` fails the
-  CI-visible contract; `ANVIL_AST_FOLLOWUP=0` and `.anvil.yaml`
-  `astFollowup: false` disable it; spawn failure is fail-safe. The follow-up
-  stays in the RLB-007 watch-churn budget class (one scoped child, not a
-  per-save whole-repo scan).
+  of explicit changed paths after on-disk `validate_paths` (watch). Pre-write
+  MCP `scan_buffer` is not a caller: proposed bytes are not on disk.
+  Argv that includes `--all` or `gate` fails the CI-visible contract;
+  `ANVIL_AST_FOLLOWUP=0` and `.anvil.yaml` `astFollowup: false` disable it;
+  spawn failure is fail-safe. The follow-up stays in the RLB-007 watch-churn
+  budget class (one scoped child, not a per-save whole-repo scan).
 
 ## References
 

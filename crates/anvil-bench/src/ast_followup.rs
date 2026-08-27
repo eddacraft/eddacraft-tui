@@ -35,13 +35,20 @@ mod tests {
     }
 
     #[test]
-    fn followup_stays_inside_the_watch_churn_budget_class() {
-        // Follow-up is one coalesced scoped `check` child — the same class
-        // RLB-007 already budgeted. A `--all` or `gate` regression would
-        // push the tree toward the pre-RLB-007 ~6.55-core storm, which is
-        // well above this ceiling.
-        let budget = ResourceBudget::ANVIL_WATCH_CHURN_V1;
-        assert!(budget.steady_state_cpu_pct < 655.0);
-        assert!(budget.steady_state_cpu_pct >= 8.0);
+    fn storm_argv_is_outside_the_watch_churn_contract() {
+        // GTAO-005 CI-visible proof is the argv shape (scoped `check`, never
+        // `--all`/`gate`), not a live process-tree sample. The watch churn
+        // ceiling already budgets one scoped child; a `--all`/`gate`
+        // regression is what would return to the ADR-061 storm.
+        assert!(is_legal_followup_argv(&[
+            "check",
+            "--json",
+            "--no-tui",
+            "--",
+            "src/lib.rs"
+        ]));
+        assert!(!is_legal_followup_argv(&["check", "--all"]));
+        assert!(!is_legal_followup_argv(&["gate"]));
+        let _ = ResourceBudget::ANVIL_WATCH_CHURN_V1;
     }
 }

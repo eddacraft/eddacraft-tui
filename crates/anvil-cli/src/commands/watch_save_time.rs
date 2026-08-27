@@ -332,8 +332,10 @@ impl WatchSaveTimeClient {
                     self.connected = true;
                     self.warned = false;
                 }
-                // GTAO-003: CLI-side cheap-catalogue follow-up. The interactive
-                // verdict does not wait; the daemon crate does not spawn this.
+                // GTAO-003: CLI-side cheap-catalogue follow-up after on-disk
+                // `validate_paths`. The interactive verdict does not wait; the
+                // daemon crate does not spawn this. Pre-write `scan_buffer`
+                // is not a caller — proposed bytes are not on disk yet.
                 let followup_paths: Vec<PathBuf> = descriptors
                     .iter()
                     .filter(|descriptor| {

@@ -15,15 +15,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
+#[cfg(test)]
 use std::thread::JoinHandle;
 
 use anvil_intercept_proto::enforcement_config::AnvilConfigFile;
-use anvil_kernel_types::diagnostics::ControlDecision;
-
-use crate::mcp::validation::DaemonStatus;
 
 /// Environment kill switch named in ADR-127.
-#[cfg_attr(test, allow(dead_code))]
 pub(crate) const FOLLOWUP_ENV: &str = "ANVIL_AST_FOLLOWUP";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,6 +133,7 @@ struct FollowupInner {
     runner: Arc<dyn FollowupRunner>,
     pending: Mutex<BTreeMap<PathBuf, BTreeSet<PathBuf>>>,
     running: AtomicBool,
+    #[cfg(test)]
     worker: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -150,6 +148,7 @@ impl FollowupScheduler {
                 runner,
                 pending: Mutex::new(BTreeMap::new()),
                 running: AtomicBool::new(false),
+                #[cfg(test)]
                 worker: Mutex::new(None),
             }),
         }
@@ -177,9 +176,13 @@ impl FollowupScheduler {
         }
         let inner = Arc::clone(&self.inner);
         let handle = std::thread::spawn(move || worker_loop(&inner));
-        let mut slot = recover(self.inner.worker.lock());
-        if let Some(prior) = slot.replace(handle) {
-            let _ = prior.join();
+        #[cfg(test)]
+        {
+            *recover(self.inner.worker.lock()) = Some(handle);
+        }
+        #[cfg(not(test))]
+        {
+            let _ = handle;
         }
     }
 
@@ -226,15 +229,22 @@ fn worker_loop(inner: &Arc<FollowupInner>) {
         }
         for (workspace, paths) in batch {
             let paths: Vec<PathBuf> = paths.into_iter().collect();
+            if !followup_enabled(
+                std::env::var_os(FOLLOWUP_ENV).as_deref(),
+                load_config_followup(&workspace),
+            ) {
+                continue;
+            }
             let Some(program) = resolve_exe() else {
-                tracing::warn!("ast follow-up skipped: cannot resolve current executable");
+                record_skip("cannot resolve current executable");
                 continue;
             };
             let Some(command) = build_followup_invocation(program, workspace, &paths) else {
+                record_skip("no on-disk files to scan");
                 continue;
             };
             if let Err(err) = inner.runner.run(command) {
-                tracing::warn!(error = %err, "ast follow-up skipped");
+                record_skip(&err);
             }
         }
     }
@@ -244,7 +254,7 @@ fn resolve_exe() -> Option<PathBuf> {
     match std::env::current_exe() {
         Ok(path) => Some(path),
         Err(err) => {
-            tracing::warn!(error = %err, "ast follow-up skipped: current_exe failed");
+            record_skip(&format!("current_exe failed: {err}"));
             None
         }
     }
@@ -254,26 +264,26 @@ fn recover<T>(result: std::sync::LockResult<T>) -> T {
     result.unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
+fn record_skip(reason: &str) {
+    tracing::warn!(
+        target: "anvil.ast_followup",
+        skip = true,
+        reason,
+        "ast follow-up skipped"
+    );
+}
+
 #[cfg_attr(test, allow(dead_code))]
 fn process_scheduler() -> &'static FollowupScheduler {
     static SCHEDULER: OnceLock<FollowupScheduler> = OnceLock::new();
     SCHEDULER.get_or_init(FollowupScheduler::process)
 }
 
-/// Schedule follow-up after a daemon-served allow/warn. Vetoes and embedded
-/// fallbacks do not spawn.
-pub(crate) fn schedule_after_daemon_allow(
-    daemon_status: DaemonStatus,
-    decision: ControlDecision,
-    workspace_root: &Path,
-    relative_path: &str,
-) {
-    if daemon_status == DaemonStatus::Available && !decision.is_veto() {
-        schedule_paths(workspace_root, &[workspace_root.join(relative_path)]);
-    }
-}
-
 /// Fire-and-forget: enqueue changed paths and return without waiting.
+///
+/// Pre-write MCP (`scan_buffer`) is not a caller: proposed bytes are not on
+/// disk yet, so a path-scoped `anvil check` would miss creates and scan stale
+/// updates. Golden-path follow-up is post-write `validate_paths` (watch).
 pub(crate) fn schedule_paths(workspace: &Path, paths: &[impl AsRef<Path>]) {
     let collected: Vec<PathBuf> = paths
         .iter()
@@ -288,10 +298,7 @@ pub(crate) fn schedule_paths(workspace: &Path, paths: &[impl AsRef<Path>]) {
     }
     #[cfg(not(test))]
     {
-        if !followup_enabled(
-            std::env::var_os(FOLLOWUP_ENV).as_deref(),
-            load_config_followup(workspace),
-        ) {
+        if !followup_enabled(std::env::var_os(FOLLOWUP_ENV).as_deref(), None) {
             return;
         }
         process_scheduler().schedule(workspace.to_path_buf(), collected);
