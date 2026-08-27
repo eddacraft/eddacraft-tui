@@ -1,8 +1,8 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                              |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-27 against the GTAO-003 CLI follow-up after daemon allow and the `Cargo.toml` jsonschema 0.50 dependency update; container and component topology are unaffected |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-28 against anvil-api ARCHITECTURE CIB-371 parse/narrowing and the `Cargo.toml` jsonschema 0.50 dependency update; container and component topology are unaffected. Previously reviewed 2026-08-27 against GTAO-003 |
 
 | Upstream                                                                                                                                                                                                                         | Downstream                                                                            |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |

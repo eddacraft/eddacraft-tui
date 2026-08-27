@@ -1,8 +1,8 @@
 # Documentation delivery
 
-| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                                                                      |
-| ----- | ------------- | --------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-25 after CPACKS-011 public pack/overlay copy on `docs/public/anvil/**` (prose only — no new content root, renderer, or build watch); source/build/deploy topology and diagrams unchanged |
+| Type  | Authority     | Owner           | Status | Freshness                                                                                                                             |
+| ----- | ------------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-28 against docs-shell ARCHITECTURE CIB-371 parse/narrowing; source/build/deploy topology and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                                                                                       | Downstream                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
