@@ -84,7 +84,7 @@ security concerns.
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
 | SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |
-| SEC-014 | Remediate the current Dependabot pull-request queue | In Progress |
+| SEC-014 | Remediate the current Dependabot pull-request queue | Complete |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -690,7 +690,7 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-014: Remediate the current Dependabot pull-request queue
 
-- **Status:** In Progress — approved 2026-08-27.
+- **Status:** Complete — approved and closed 2026-08-27.
 - **Intent:** Bring every Dependabot pull request open on 2026-08-27 to a
   reviewable, current-main, independently verified state without bypassing
   branch protection or merging on the operator's behalf.
@@ -721,6 +721,29 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **Evidence baseline (2026-08-27):** zero open Dependabot vulnerability
   alerts; six open Dependabot pull requests; `pnpm test` green on
   `origin/main` at `29ce17dc683de0cb9da92620aea08cbeab03aee8`.
+- **Closeout evidence (2026-08-27):**
+  - zero open Dependabot vulnerability alerts and zero unresolved review
+    conversations across PRs #4153, #4154, #4156, #4157, #4159, #4160, and
+    the sweep PR #4162;
+  - repository automation merged terminal-green PRs #4153
+    (`0716569b81765369ffd8e5edaaa1697b57600f68`), #4156
+    (`1cd7925533debbebb4d87a87d35863c70771ffa2`), #4157
+    (`25b62beddb849e39c90ed5114559e8b851e7d6d4`), and #4159
+    (`e5338986bdaf158e1c664ca1af169a3703541945`) without a manual merge,
+    auto-merge enablement, administrator override, or policy bypass;
+  - PR #4154 remains intentionally open, `CLEAN`, and terminal green at
+    `4bf167ab9f8ef0c63f9296c4ec9f48de345dc38c` after refreshed mergeability
+    against live `main`; PR #4160 is closed as superseded by the aligned
+    CodeQL update in #4157;
+  - dependency-specific Cargo tests, Hakari, licence/acknowledgement,
+    workflow-contract, formatting, and all 14 documentation surfaces passed;
+    exact-head hosted checks passed on every retained PR;
+  - the full local CLI test command reached application tests but four
+    file-watch binaries could not start because the host-wide inotify instance
+    pool was exhausted; the corresponding exact-head hosted `Test` gates
+    passed. `pnpm validate:changed` also exposed inherited current-main Nx
+    sync drift during typecheck, while the exact hosted typecheck passed; and
+  - Council session `council-1ead20b2` converged after the approved repairs.
 - **Confidence:** high for the remediation workflow; each dependency retains
   its own evidence and escalation boundary.
 
