@@ -199,32 +199,47 @@ fn run_tui(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Resu
     };
 
     let generated = generate_config_with_force(&config, &init_root, force)?;
-    print_success(&generated, &config.planning_dir, &checks, invocation);
-    print_capacity_recommendation(&init_root);
-    print_post_init_analysis(&init_root);
+    complete_init(
+        &generated,
+        &config.planning_dir,
+        &checks,
+        invocation,
+        &init_root,
+    );
     Ok(())
 }
 
 fn run_plain(root: &Path, force: bool, invocation: InitInvocation) -> anyhow::Result<()> {
     let config = AnvilConfig::default();
     let generated = generate_config_with_force(&config, root, force)?;
-    print_success(&generated, &config.planning_dir, &config.checks, invocation);
-    print_capacity_recommendation(root);
-    print_post_init_analysis(root);
+    complete_init(
+        &generated,
+        &config.planning_dir,
+        &config.checks,
+        invocation,
+        root,
+    );
     Ok(())
 }
 
-/// Run the post-init sample analysis (LAUNCH-004) and render an inline
-/// summary so the user lands on a real first signal of value instead of
-/// a "now run `anvil doctor`" stub. A project with no files matching the
-/// first scan's language coverage gets a discoverable next-step hint rather
-/// than silence.
-fn print_post_init_analysis(root: &Path) {
-    let Some(outcome) = run_post_init_analysis(root) else {
-        render_no_matching_files_hint();
-        return;
-    };
-    render_analysis(&outcome);
+/// Finish init only after the first scan returns. CIB-359: Dave's masker
+/// panic used to follow "anvil initialised successfully" and leave the
+/// repo half-initialised. Happy-path stdout stays success, then capacity,
+/// then First scan.
+fn complete_init(
+    generated: &GeneratedConfig,
+    planning_dir: &str,
+    checks: &[String],
+    invocation: InitInvocation,
+    root: &Path,
+) {
+    let analysis = run_post_init_analysis(root);
+    print_success(generated, planning_dir, checks, invocation);
+    print_capacity_recommendation(root);
+    match analysis {
+        Some(outcome) => render_analysis(&outcome),
+        None => render_no_matching_files_hint(),
+    }
 }
 
 /// First-touch hint when no files match the first scan's language coverage.

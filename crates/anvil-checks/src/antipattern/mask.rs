@@ -663,13 +663,21 @@ mod tests {
         assert!(!four.contains("any!"), "4-byte separator: {four}");
     }
 
-    #[test]
-    fn dave_b31_section_glyph_at_byte_61_does_not_panic() {
+    fn dave_b31_line_with_glyph_at_byte_61(glyph: &str) -> String {
         let mut line = format!("    # {} Section heading with box rules ", "─".repeat(2));
         assert!(line.len() < 61, "prefix too long: {}", line.len());
         line.push_str(&"x".repeat(61 - line.len()));
-        line.push_str("§C/§D ");
+        line.push_str(glyph);
+        line.push_str("C/");
+        line.push_str(glyph);
+        line.push_str("D ");
         line.push_str(&"─".repeat(10));
+        line
+    }
+
+    #[test]
+    fn dave_b31_section_glyph_at_byte_61_does_not_panic() {
+        let line = dave_b31_line_with_glyph_at_byte_61("§");
         assert_eq!(
             line.as_bytes().get(61).copied(),
             Some(0xC2),
@@ -677,6 +685,28 @@ mod tests {
         );
         let out = mask_one(&line);
         assert_eq!(out.len(), line.len());
+    }
+
+    #[test]
+    fn dave_b31_three_byte_glyph_at_byte_61_does_not_panic() {
+        // Validation for CIB-359: the same offset with a 3-byte separator
+        // (`€` = U+20AC, UTF-8 E2 82 AC), not only the 2-byte `§`.
+        let line = dave_b31_line_with_glyph_at_byte_61("€");
+        assert_eq!(
+            &line.as_bytes()[61..64],
+            [0xE2, 0x82, 0xAC],
+            "€ must occupy bytes 61..64"
+        );
+        let out = mask_one(&line);
+        assert_eq!(out.len(), line.len());
+    }
+
+    #[test]
+    fn ends_with_regex_keyword_skips_multibyte_separator() {
+        assert!(ends_with_regex_keyword("§return"));
+        assert!(ends_with_regex_keyword("€return"));
+        assert!(ends_with_regex_keyword("😀return"));
+        assert!(!ends_with_regex_keyword("§foo"));
     }
 
     #[test]

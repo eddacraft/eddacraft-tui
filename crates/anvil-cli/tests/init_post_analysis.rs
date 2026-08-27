@@ -53,6 +53,69 @@ fn init_force_prints_post_init_analysis_section() {
     );
 }
 
+fn dave_b31_line_with_glyph_at_byte_61(glyph: &str) -> String {
+    let mut line = format!("    # {} Section heading with box rules ", "─".repeat(2));
+    assert!(line.len() < 61, "prefix too long: {}", line.len());
+    line.push_str(&"x".repeat(61 - line.len()));
+    line.push_str(glyph);
+    line.push_str("C/");
+    line.push_str(glyph);
+    line.push_str("D ");
+    line.push_str(&"─".repeat(10));
+    line
+}
+
+/// CIB-359: Dave B31's § at byte 61 used to panic the masker during
+/// `anvil init`'s first scan after it had already printed success.
+#[test]
+fn init_force_does_not_panic_on_dave_b31_multibyte_line() {
+    let dir = tempfile::tempdir().unwrap();
+    let two_byte = dave_b31_line_with_glyph_at_byte_61("§");
+    assert_eq!(
+        two_byte.as_bytes().get(61).copied(),
+        Some(0xC2),
+        "§ must start at byte 61"
+    );
+    let three_byte = dave_b31_line_with_glyph_at_byte_61("€");
+    fs::write(
+        dir.path().join("heading.ts"),
+        format!("{two_byte}\n{three_byte}\n"),
+    )
+    .unwrap();
+
+    let output = Command::new(ANVIL_BIN)
+        .arg("--no-tui")
+        .arg("init")
+        .arg("--force")
+        .current_dir(dir.path())
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_DEV", "1")
+        .output()
+        .expect("failed to invoke anvil binary");
+
+    assert!(
+        output.status.success(),
+        "anvil init panicked or failed on Dave B31 fixture: {:?}\nstdout: {}\nstderr: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("anvil initialised successfully."),
+        "init must claim success only after the first scan returns, got:\n{stdout}",
+    );
+    let success_at = stdout
+        .find("anvil initialised successfully.")
+        .expect("success line");
+    let scan_at = stdout.find("First scan").expect("First scan section");
+    assert!(
+        success_at < scan_at,
+        "happy-path order is success then First scan, got:\n{stdout}"
+    );
+}
+
 #[test]
 fn init_force_post_analysis_scopes_clean_result_to_antipattern_sample() {
     let dir = tempfile::tempdir().unwrap();
