@@ -103,6 +103,10 @@ fn init_force_does_not_panic_on_dave_b31_multibyte_line() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
+        stdout.contains("Scanned"),
+        "Dave B31 fixture must be in the first-scan sample, got:\n{stdout}",
+    );
+    assert!(
         stdout.contains("anvil initialised successfully."),
         "init must claim success only after the first scan returns, got:\n{stdout}",
     );
