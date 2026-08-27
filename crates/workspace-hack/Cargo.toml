@@ -60,7 +60,7 @@ serde_json = { version = "1", features = ["alloc", "float_roundtrip", "preserve_
 slab = { version = "0.4" }
 smallvec = { version = "1", default-features = false, features = ["const_new"] }
 strum = { version = "0.28", features = ["derive"] }
-syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
+syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-traits", "full", "visit"] }
 sync_wrapper = { version = "1", default-features = false, features = ["futures"] }
 textwrap = { version = "0.16" }
 thiserror = { version = "2" }
@@ -78,7 +78,7 @@ quote = { version = "1" }
 semver = { version = "1" }
 serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "float_roundtrip", "preserve_order", "raw_value"] }
-syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-traits", "full"] }
+syn-7b89eefb6aaa9bf3 = { package = "syn", version = "3", features = ["extra-traits", "full", "visit"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
