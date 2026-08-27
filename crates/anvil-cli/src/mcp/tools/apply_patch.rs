@@ -146,6 +146,13 @@ fn call_with_validation_client(
     let diagnostics = normalise_response_diagnostics(&diagnostics, backend);
     let decision = enforcement::decision_for(&diagnostics, enforcement_mode);
 
+    crate::ast_followup::schedule_after_daemon_allow(
+        daemon_status,
+        decision,
+        &request.workspace_root,
+        &request.relative_path,
+    );
+
     let mut payload = json!({
         "schema": RESPONSE_SCHEMA,
         "decision": decision,

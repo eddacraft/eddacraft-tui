@@ -219,6 +219,10 @@ pub struct AnvilConfigFile {
     pub enforcement: EnforcementConfigFile,
     #[serde(default)]
     pub telemetry: TelemetryConfigFile,
+    /// GTAO-003 / ADR-127: CLI-side cheap-catalogue follow-up after a daemon
+    /// allow. `Some(false)` disables it. `ANVIL_AST_FOLLOWUP=0` still wins.
+    #[serde(default, rename = "astFollowup")]
+    pub ast_followup: Option<bool>,
 }
 
 #[cfg(test)]
@@ -247,6 +251,13 @@ enforcement:
         let yaml = "version: 1\n";
         let config: AnvilConfigFile = serde_yaml::from_str(yaml).expect("parse");
         assert_eq!(config.enforcement, EnforcementConfigFile::default());
+    }
+
+    #[test]
+    fn ast_followup_key_deserialises() {
+        let yaml = "astFollowup: false\n";
+        let config: AnvilConfigFile = serde_yaml::from_str(yaml).expect("parse");
+        assert_eq!(config.ast_followup, Some(false));
     }
 
     #[test]

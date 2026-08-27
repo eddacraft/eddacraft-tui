@@ -182,7 +182,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-003: Background changed-path check after daemon-allowed write
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Save and pre-write stay fast and regex-only; AST still runs
   automatically on the files that just changed.
 - **Expected Outcome:** After `scan_buffer` / `validate_paths` returns, the
@@ -193,8 +193,13 @@ every save, and **without** defaulting `anvil watch --action gate`.
   recorded, the process still exits 0. `daemon_dep_boundary` remains green.
   Kill switch from GTAO-001 honoured.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast` plus a CLI/integration test that an allowed `.rs` write produces a later AST finding without changing the save verdict
-- **Files:** `crates/anvil-cli/src/`, `crates/anvil-intercept/` (schedule hook
-  only; no tree-sitter dep), `crates/anvil-checks-ast/`
+- **Files:** `crates/anvil-cli/src/ast_followup.rs`,
+  `crates/anvil-cli/src/commands/watch_save_time.rs`,
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
+  `crates/anvil-cli/src/mcp/tools/apply_patch.rs`,
+  `crates/anvil-cli/tests/ast_followup.rs`,
+  `crates/anvil-intercept/src/ast_followup.rs`,
+  `crates/anvil-intercept-proto/src/enforcement_config.rs`
 - **Dependencies:** GTAO-001
 - **Confidence:** medium — subprocess and coalesce details are the ADR's job;
   the load risk is real.
@@ -229,7 +234,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-005: Resource-budget proof the follow-up does not recreate the save-storm
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Prove the background check stays on changed paths, coalesces,
   and does not return to ~7-core per-save scans.
 - **Expected Outcome:** A bench or load-probe assertion shows the follow-up is
@@ -238,7 +243,10 @@ every save, and **without** defaulting `anvil watch --action gate`.
   or `anvil gate` per save fails the bench. Documented in the ADR
   consequences.
 - **Validation:** `cargo bench -p eddacraft-anvil-bench --bench watch_resource_budget` (or the RLB process-tree probe the implementer names in the PR, pinned as a CI-visible test where flakiness allows)
-- **Files:** `crates/anvil-bench/`, `crates/anvil-intercept/benches/`
+- **Files:** `crates/anvil-bench/src/ast_followup.rs`,
+  `crates/anvil-cli/src/ast_followup.rs`,
+  `crates/anvil-intercept/benches/intercept_resource_budget.rs`,
+  `plans/decisions/127-always-on-cheap-catalogue.md`
 - **Dependencies:** GTAO-003
 - **Confidence:** medium — budgets exist; wiring a non-flaky assertion onto an
   async follow-up is the work.

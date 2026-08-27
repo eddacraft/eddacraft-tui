@@ -2,6 +2,7 @@ mod account_activity;
 mod activation;
 mod architecture_check;
 mod architecture_source;
+mod ast_followup;
 mod auth;
 mod capacity;
 mod commands;

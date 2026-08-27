@@ -282,11 +282,9 @@ fn call_with_validation_client(
         DaemonStatus::Unavailable,
         "operational failure must short-circuit before the claim gate",
     );
-    let protection_claim = if daemon_status == DaemonStatus::Available {
-        daemon.query_protection_claim(&request.workspace_root)
-    } else {
-        None
-    };
+    let protection_claim = (daemon_status == DaemonStatus::Available)
+        .then(|| daemon.query_protection_claim(&request.workspace_root))
+        .flatten();
 
     let mut diagnostics = normalise_response_diagnostics(&diagnostics, backend);
 
@@ -295,6 +293,7 @@ fn call_with_validation_client(
     // `merge_prewrite_policy`). Appends policy diagnostics and merges the routed
     // policy decision strictest-wins with the scan decision.
     let decision = merge_prewrite_policy(&request, &mut diagnostics, enforcement_mode);
+    schedule_validate_followup(daemon_status, decision, &request);
 
     let mut payload = validation_payload_with_decision(
         &request.relative_path,
@@ -330,6 +329,19 @@ fn call_with_validation_client(
     });
     apply_response_detail(&mut payload, request.detail);
     tool_result(&payload)
+}
+
+fn schedule_validate_followup(
+    daemon_status: DaemonStatus,
+    decision: ControlDecision,
+    request: &ValidateWriteRequest,
+) {
+    crate::ast_followup::schedule_after_daemon_allow(
+        daemon_status,
+        decision,
+        &request.workspace_root,
+        &request.relative_path,
+    );
 }
 
 /// RMCPF-040/043: shrink **clean** allow responses under `detail: minimal`.
@@ -2281,6 +2293,39 @@ mod tests {
             payload["diagnostics"][0]["source"]["rule_id"],
             "secret-detection",
         );
+    }
+
+    #[test]
+    fn daemon_allow_schedules_ast_followup_without_changing_verdict() {
+        crate::ast_followup::capture_schedules();
+        let workspace = tempdir().expect("workspace exists");
+        std::fs::create_dir_all(workspace.path().join("src")).expect("src");
+        std::fs::write(
+            workspace.path().join("src/lib.rs"),
+            "pub fn run() { let n = parse().unwrap(); }\n",
+        )
+        .expect("fixture");
+        let payload = parse_payload(&call_with_validation_client(
+            &json!({
+                "detail": "full",
+                "path": "src/lib.rs",
+                "operation": "update",
+                "proposedContent": "pub fn run() { let n = parse().unwrap(); }\n"
+            }),
+            workspace.path(),
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Diagnostics(vec![]),
+            },
+            &FixedEnforcement(EnforcementMode::Warn),
+        ));
+        assert_eq!(payload["decision"], "allow");
+        assert!(
+            payload["diagnostics"].as_array().is_some_and(Vec::is_empty),
+            "save verdict must stay regex-only, got {}",
+            payload["diagnostics"]
+        );
+        let scheduled = crate::ast_followup::take_scheduled();
+        assert_eq!(scheduled.len(), 1, "expected follow-up, got {scheduled:?}");
     }
 
     #[test]

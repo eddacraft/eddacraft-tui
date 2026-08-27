@@ -19,6 +19,12 @@
 //! drives the unauthenticated `session.list` verb, which still exercises the
 //! whole per-request IPC pipeline. The mid-edit scan latency path is covered
 //! by `midedit_roundtrip`.
+//!
+//! GTAO-005: this bench still measures the **daemon** tree. The cheap-catalogue
+//! follow-up is a CLI subprocess (never spawned here). A regression that
+//! shelled `anvil check --all` or `anvil gate` from the daemon would inflate
+//! burst CPU toward the ADR-061 storm; the CLI argv contract is pinned in
+//! `anvil-cli` `ast_followup` and `anvil-bench` `ast_followup`.
 
 #[cfg(unix)]
 mod unix_bench {

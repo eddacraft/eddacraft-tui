@@ -67,6 +67,7 @@
 #[cfg(any(unix, windows))]
 pub mod antipattern_config;
 pub mod assurance;
+pub mod ast_followup;
 pub mod auth;
 pub mod broadcaster;
 // DSV-010a / ADR-069: `change_class` is no longer Unix-gated as a whole — its

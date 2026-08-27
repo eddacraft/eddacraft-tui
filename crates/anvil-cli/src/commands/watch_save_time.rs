@@ -332,6 +332,16 @@ impl WatchSaveTimeClient {
                     self.connected = true;
                     self.warned = false;
                 }
+                // GTAO-003: CLI-side cheap-catalogue follow-up. The interactive
+                // verdict does not wait; the daemon crate does not spawn this.
+                let followup_paths: Vec<PathBuf> = descriptors
+                    .iter()
+                    .filter(|descriptor| {
+                        anvil_intercept::ast_followup::should_schedule_followup(&descriptor.change)
+                    })
+                    .map(|descriptor| self.workspace_root.join(&descriptor.path))
+                    .collect();
+                crate::ast_followup::schedule_paths(&self.workspace_root, &followup_paths);
                 SaveTimeDecision::Validated(Box::new(response))
             }
             Err(SaveTimeClientError::Unavailable) => {
@@ -1369,6 +1379,52 @@ mod tests {
             fake.full_scan_calls(),
             0,
             "no reconnect on the first successful cycle ⇒ no full scan",
+        );
+    }
+
+    #[test]
+    fn daemon_allow_schedules_ast_followup_without_waiting() {
+        crate::ast_followup::capture_schedules();
+        let dir = tempfile::tempdir().expect("workspace");
+        let file = dir.path().join("lib.rs");
+        std::fs::write(&file, "fn main() { let _ = maybe().unwrap(); }\n").expect("fixture");
+        let fake = std::sync::Arc::new(FakeTransport::new(vec![Ok(clean_response())]));
+        let forwarder = ArcTransport(std::sync::Arc::clone(&fake));
+        let mut client = WatchSaveTimeClient::new(Box::new(forwarder), dir.path().to_path_buf());
+        let start = std::time::Instant::now();
+        let decision = client.validate(vec![file.to_string_lossy().into_owned()]);
+        let elapsed = start.elapsed();
+        assert!(
+            matches!(decision, SaveTimeDecision::Validated(_)),
+            "daemon allow must remain the save verdict, got {decision:?}"
+        );
+        assert!(
+            elapsed < std::time::Duration::from_millis(50),
+            "follow-up must not delay the verdict, took {elapsed:?}"
+        );
+        let scheduled = crate::ast_followup::take_scheduled();
+        assert_eq!(
+            scheduled.len(),
+            1,
+            "expected one follow-up schedule, got {scheduled:?}"
+        );
+        assert!(
+            scheduled[0]
+                .1
+                .iter()
+                .any(|path| path.file_name() == Some(std::ffi::OsStr::new("lib.rs"))),
+            "follow-up must target the changed file, got {scheduled:?}"
+        );
+    }
+
+    #[test]
+    fn daemon_absent_fallback_does_not_schedule_followup() {
+        crate::ast_followup::capture_schedules();
+        let (mut client, _fake) = client_with(vec![Err(SaveTimeClientError::Unavailable)]);
+        let _ = client.validate(vec!["/ws/src/a.ts".into()]);
+        assert!(
+            crate::ast_followup::take_scheduled().is_empty(),
+            "follow-up is after a daemon allow, not the daemon-absent fallback"
         );
     }
 

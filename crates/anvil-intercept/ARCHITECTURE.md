@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                            |
-| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 daemon method registry; save-time and peer-admission topology unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                     |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-27 against GTAO-003 CLI follow-up hook; save-time and peer-admission topology unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -106,7 +106,10 @@ workspace under Open or Allowlist admission, reads paths through the held
 [`WorkspaceAnchor`](src/workspace_anchor.rs), and validates those guarded bytes
 through [`save_time.rs`](src/save_time.rs) and
 [`validate_paths.rs`](src/validate_paths.rs). It does not run the spoof
-cross-check.
+cross-check. After a daemon allow the **CLI** may schedule a coalesced
+changed-path `anvil check` subprocess (GTAO-003 / ADR-127); this crate only
+exposes the [`ast_followup.rs`](src/ast_followup.rs) eligibility hook and never
+spawns that child or links tree-sitter.
 
 Interrupt failure traces to [`interrupt.rs`](src/interrupt.rs), unattributed
 change handling to [`unregistered.rs`](src/unregistered.rs), and persistent
@@ -129,7 +132,8 @@ failures and unattributed or unregistered changes independently request fences.
 - [`validate_paths.rs`](src/validate_paths.rs),
   [`save_time.rs`](src/save_time.rs), and
   [`save_time_driver.rs`](src/save_time_driver.rs) compose save-time validation
-  over guarded bytes.
+  over guarded bytes. [`ast_followup.rs`](src/ast_followup.rs) is the CLI
+  schedule hook only (no subprocess, no tree-sitter).
 - [`fence.rs`](src/fence.rs), [`interrupt.rs`](src/interrupt.rs), and
   [`unregistered.rs`](src/unregistered.rs) own durable fencing triggers, state,
   and recovery inputs.

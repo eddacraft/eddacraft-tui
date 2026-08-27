@@ -1,5 +1,6 @@
 #![allow(clippy::cast_precision_loss)]
 
+pub mod ast_followup;
 pub mod budget;
 pub mod churn;
 pub mod cli_command;
