@@ -1,8 +1,8 @@
 # GitHub Device-Flow Login Operator Runbook
 
-| Type    | Authority     | Owner     | Status | Freshness                                                                                                                         |
-| ------- | ------------- | --------- | ------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | GHCLIAUTH | Live   | Last reviewed 2026-08-13 against `crates/anvil-cli/src/auth/device_flow.rs` and `apps/anvil-api/src/routes/auth-github-device.ts` |
+| Type    | Authority     | Owner     | Status | Freshness                                                                                                                                                  |
+| ------- | ------------- | --------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | GHCLIAUTH | Live   | Last reviewed 2026-08-28 against `apps/anvil-api/src/routes/auth-github-device.ts` CIB-371 mint-session schema parse; device-flow operator steps unchanged |
 
 | Upstream                                                                                                                                                                                                                                                  | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
