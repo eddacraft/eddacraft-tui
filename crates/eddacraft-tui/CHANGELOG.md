@@ -9,6 +9,8 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-27
+
 ### Added
 
 - **`flow` wrapper helpers** (still off by default, experimental, TUIN-015..020):
@@ -18,6 +20,13 @@ minor version bump indicates a breaking change.
   graph diff with ghost nodes (`themed_from_diff`), `FlowSession` RAII, and
   elision portals (`elide_from_edges`). Layout morph (TUIN-021) is a no-ship
   spike — no public morph API and no new Cargo feature.
+
+### Fixed
+
+- `zoom_to_read_after_layout` consumes rataflow's pending fit-view before
+  zooming, so a later same-size frame cannot undo the read zoom.
+- `spotlight` honours the caller's `Theme`. Elision ignores unknown
+  `always_keep` ids and uses a reserved portal-id namespace.
 
 ## [0.5.1] - 2026-08-23
 
@@ -453,7 +462,8 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.1...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.2...HEAD
+[0.5.2]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.1...eddacraft-tui-v0.5.2
 [0.5.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.0...eddacraft-tui-v0.5.1
 [0.5.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.1...eddacraft-tui-v0.5.0
 [0.4.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.0...eddacraft-tui-v0.4.1

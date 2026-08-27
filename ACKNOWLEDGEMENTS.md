@@ -395,7 +395,7 @@ Used by:
 
 Used by:
 
-- `eddacraft-tui` 0.5.1
+- `eddacraft-tui` 0.5.2
 
 <details>
 <summary>Licence text</summary>
@@ -9477,7 +9477,7 @@ the following restrictions:
 | Crate | Version | Licence | Source |
 | --- | --- | --- | --- |
 | `miette` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
-| `eddacraft-tui` | 0.5.1 | Apache License 2.0 | https://github.com/eddacraft/eddacraft-tui |
+| `eddacraft-tui` | 0.5.2 | Apache License 2.0 | https://github.com/eddacraft/eddacraft-tui |
 | `moxcms` | 0.8.1 | Apache License 2.0 | https://github.com/awxkee/moxcms.git |
 | `pxfm` | 0.1.30 | Apache License 2.0 | https://github.com/awxkee/pxfm |
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
