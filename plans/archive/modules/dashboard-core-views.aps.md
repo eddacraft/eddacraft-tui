@@ -6,8 +6,8 @@
 
 **Last reviewed:** 2026-07-27 — all nine work items are Merged. DASHCORE-001
 landed via PR #3363, DASHCORE-003..009 via PR #3379, and DASHCORE-002 retained
-history and trends via PR #3436. The module remains In Progress at 9/9 pending
-release evidence for the active `v0.10.0-beta` window.
+history and trends via PR #3436. The In Progress hold for a `v0.10.0-beta`
+window is discharged (Released/Shipped via v0.9.1-beta).
 
 2026-08-27: all nine items confirmed Released/Shipped via v0.9.1-beta (record: plans/releases/v0.9.1-beta.md). Pending-v0.10.0-beta hold is stale. Module Complete — archive per the archive cascade.
 

@@ -9,8 +9,8 @@
 015–017 in #3488. **Usability follow-ups ACTTUI-018..021 Merged via PR #3499**
 (quiet re-run consent, shared posture model, settled Install/Languages honesty,
 MCP pre-write prove honesty). Escape hatches: `--no-tui` / `ANVIL_NO_TUI=1`.
-Module **Done** (all 22 items Merged); release evidence still owed for
-Released/Shipped.
+Module **Complete** (all 22 items Merged); release evidence is the
+v0.9.0–v0.9.2-beta tags.
 
 2026-08-27: remaining ACTTUI-018..021 confirmed in the v0.9.2-beta tag (record: plans/releases/v0.9.2-beta.md); earlier items already Released/Shipped via v0.9.0-beta / v0.9.1-beta. Module Complete — archive per the archive cascade.
 

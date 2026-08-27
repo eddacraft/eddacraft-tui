@@ -7,8 +7,8 @@
 **Last reviewed:** 2026-07-27 — DASH-012 reconciled to Merged (PR #3421,
 2026-07-26): the dashboard is now reachable as `anvil dashboard --web` from the
 installed binary, closing the gap where Wave 1 had built a surface no user could
-open. All 12 items are terminal. The module remains In Progress until release
-evidence exists — a deliberate hold, not drift.
+open. All 12 items are terminal. The In Progress hold for release evidence is
+discharged (v0.9.0-beta / v0.9.1-beta).
 
 2026-08-27: all twelve items confirmed Released/Shipped via v0.9.0-beta / v0.9.1-beta (DASH-012 via #3421 is an ancestor of v0.9.1-beta). The flag-gated dashboard is not a headline claim; module work is Complete — archive per the archive cascade.
 

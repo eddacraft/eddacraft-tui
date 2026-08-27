@@ -13,8 +13,8 @@
 Public first-class docs (quickstart day-2, beta brief, CHANGELOG) landed with
 the v0.10 reframe. Spec:
 [`plans/specs/2026-08-01-bare-anvil-ensure.md`](../../specs/2026-08-01-bare-anvil-ensure.md).
-Conductor JOURNEY-011 closed with the same merge. Pending `v0.10.0-beta`
-Released/Shipped evidence.
+Conductor JOURNEY-011 closed with the same merge. Released/Shipped evidence
+is `v0.9.1-beta`.
 
 2026-08-27: all six items confirmed in the v0.9.1-beta tag (record: plans/releases/v0.9.1-beta.md); module Complete — archive per the archive cascade.
 

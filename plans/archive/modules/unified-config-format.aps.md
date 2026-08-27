@@ -21,8 +21,8 @@ revision was ever executed, so IDs are reallocated cleanly.
 
 **Last reviewed:** 2026-08-17 — all work items **Released/Shipped** via
 `v0.9.5-beta` (`5c4b61a7`). ADR-120 Accepted (operator). Secondary claim of
-that tag (MCP live-heal primary — see release record). Module **Done**; item
-Complete transitions remain a separate evidence pass if required. Council
+that tag (MCP live-heal primary — see release record). Module **Complete**;
+items are already Released/Shipped via v0.9.5-beta. Council
 `council-0851e9cb` (2026-08-12) findings were folded before execution.
 
 2026-08-27: all sixteen items already Released/Shipped via v0.9.5-beta (record: plans/releases/v0.9.5-beta.md); module Complete — archive per the archive cascade.
