@@ -115,7 +115,8 @@ Change status to **Ready** when:
       co-design seam and must not fork the future Rust `IntentLedgerRecord`
 - [ ] CONF-002..004 implement and prove exact Git extraction plus
       repository/worktree, revision/blob, schema, generation, and run binding;
-      then promote them separately with implementation Files and Rust validation
+      then promote them separately with implementation files and Rust validation
+      commands
 - [x] CONF-005..009 remain Proposed for later waves
 
 ## Work Items
