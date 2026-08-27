@@ -5,7 +5,7 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | In Progress | 0/6   |
+| SDT | —     | Proposed | 0/5      |
 
 **Last reviewed:** 2026-08-15 (created on operator direction after a
 cross-product review from `eddacraft/edda-scan`'s SEC-005 work surfaced the

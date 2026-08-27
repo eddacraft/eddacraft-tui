@@ -1,8 +1,8 @@
 # Testing Best Practices
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                      |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-08-27 against the taiki-e/install-action v2.86.6 workflow pin update; testing procedure unchanged. Also reviewed against `Cargo.toml`, `.github/workflows/rust-tests.yml`, `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-08-28 against `package.json` (SDT-002 adds the `secret:calibrate` script) and `crates/anvil-checks/tests/secret_calibration.rs`; documents the calibration runner and its fail-on-drift-in-either-direction behaviour. Previously reviewed 2026-08-27 against the taiki-e/install-action v2.86.6 workflow pin update; testing procedure otherwise unchanged. Also reviewed against `Cargo.toml`, `.github/workflows/rust-tests.yml`, `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `AGENTS.md`, `plans/project-context.md`, and AICON-002 |
 
 | Upstream                                                                                                                                                                                                      | Downstream                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -447,7 +447,27 @@ cargo test -p eddacraft-anvil-kernel                  # Single crate
 cargo test -p eddacraft-anvil-checks -- secret        # Filter by name
 INSTA_UPDATE=1 cargo test -p eddacraft-anvil-kernel   # Update snapshots
 cargo insta review                          # Interactive snapshot review
+pnpm secret:calibrate                       # Secret-detection calibration report
 ```
+
+### Secret-detection calibration (SDT-002)
+
+`pnpm secret:calibrate` runs the committed corpus at
+`crates/anvil-checks/tests/corpus/secret/` and prints detection rate,
+false-positive rate and per-rule misses. It is an ordinary test
+(`tests/secret_calibration.rs`), so it also runs under
+`cargo test -p eddacraft-anvil-checks` and rides the required `Test` check.
+
+Two things about it are deliberate and catch people out:
+
+- **It fails on drift in either direction.** An _improvement_ fails the suite
+  just as a regression does, because the point is that no rules change ships
+  unmeasured. Update the expectation in `manifest.json` in the same change and
+  the report tells you exactly which cases moved.
+- **The corpus holds real-shaped credentials.** Every value is full-shape for
+  the scanner and checksum-invalid to the issuing provider by construction. Read
+  `corpus/secret/PROVENANCE.md` before touching a case file, and never "fix" a
+  canary into a valid key.
 
 ### Snapshot Testing (insta)
 
