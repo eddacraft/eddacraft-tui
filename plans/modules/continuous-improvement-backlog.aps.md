@@ -5185,7 +5185,7 @@ archive.
 - **Identified From:** 2026-07-14 operator observability review — fleet
   version/install-method visibility requested; local envelope enrichment
   split out as the no-consent-needed half.
-- **Coordinates with:** [fleet-telemetry](./fleet-telemetry.aps.md) (FLEET —
+- **Coordinates with:** [fleet-telemetry](../archive/modules/fleet-telemetry.aps.md) (FLEET —
   the remote half), USAGE privacy contract, KDS daemon store (mixed-schema
   rows in one SQLite store).
 - **Confidence:** high
@@ -6000,7 +6000,7 @@ archive.
 - **Files:** `README.md`, `ROADMAP.md`, `RELEASE-PLAN.md`, `CHANGELOG.md`,
   `plans/index.aps.md`, `plans/project-context.md`,
   `plans/modules/continuous-improvement-backlog.aps.md`,
-  `plans/modules/fleet-telemetry.aps.md`,
+  `plans/archive/modules/fleet-telemetry.aps.md`,
   `plans/modules/mcp-dual-era-support.aps.md`, `.github/workflows/ci.yml`,
   `eslint.config.mjs`,
   `apps/docs-site/AGENTS.md`, `apps/docs-site/README.md`,

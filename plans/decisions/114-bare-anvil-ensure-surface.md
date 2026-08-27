@@ -5,7 +5,7 @@
 **Accepted** — 2026-08-01 (operator: ship before `v0.10.0-beta` cut). Product
 command split: bare `anvil` is the daily on-switch (daemon ensure + existing
 MCP ensure); `anvil start` remains activate / reconfigure / reinstall.
-Implementation: [ONSW](../modules/bare-ensure.aps.md). Conductor acceptance:
+Implementation: [ONSW](../archive/modules/bare-ensure.aps.md). Conductor acceptance:
 [JOURNEY-011](../modules/release-user-journeys.aps.md).
 
 ### Open questions resolved (accept)
@@ -209,7 +209,7 @@ implementation surface is thin.
   [ADR-094](094-worktree-registration-ux.md),
   [ADR-103](103-tty-default-activation-tui.md)
 - Design: [`plans/specs/2026-08-01-bare-anvil-ensure.md`](../specs/2026-08-01-bare-anvil-ensure.md)
-- APS modules: [bare-ensure (ONSW)](../modules/bare-ensure.aps.md),
+- APS modules: [bare-ensure (ONSW)](../archive/modules/bare-ensure.aps.md),
   [JOURNEY-011](../modules/release-user-journeys.aps.md),
   ACTMO (daemon spine), activation orchestrator consent plan
 - Supersedes for bare invocation only: CIB-177 exit-2-always contract (pointer

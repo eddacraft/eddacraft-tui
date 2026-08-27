@@ -82,7 +82,7 @@ workspace behaviour behind that boundary.
 
 - [rust-mcp-full-port](rust-mcp-full-port.aps.md) — shipped Rust MCP tool and
   resource surface under `anvil mcp serve`
-- [mcp-client-expansion](mcp-client-expansion.aps.md) — supported client matrix
+- [mcp-client-expansion](../archive/modules/mcp-client-expansion.aps.md) — supported client matrix
   that must keep working on the sealed legacy set
 - [activation-mcp-optional](activation-mcp-optional.aps.md) — activation probe
   path updated by MCP26-007

@@ -5,11 +5,13 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| BACT | —     | High     | Done | 12/12     |
+| BACT | —     | High     | Complete | 12/12     |
 
 **Last reviewed:** 2026-08-13 — phase 2 complete: BACT-007/-008/-009/-011/-012/-013 merged via
 PRs #3837/#3838/#3839/#3840/#3842/#3843 (plan column, activity stamps, DAA
 metrics, daily rollup, backfill, plan-aware evaluation context + JWT).
+
+2026-08-27: Phase 1 (#3782) and Phase 2 (#3837/#3838/#3839/#3840/#3842/#3843) confirmed ancestors of v0.9.5-beta; Merged items advanced to Released/Shipped. Module Complete — archive per the archive cascade.
 
 > **Exclusive module.** Feature PRs flip item `Status:` only; do not bump the
 > header or index `N/M` counts (ADR-053). Reconcile counts on a bookkeeping
@@ -34,7 +36,7 @@ identity:
 The product instinct (“Elliot ran `anvil watch`”) and the investor instinct
 (“is anyone using it?”) are both valid. They must not share one phone-home
 channel. Putting email or user ids on the anonymous fleet beacon would break
-[ADR-107](../decisions/107-fleet-telemetry-consent-posture.md). This module is
+[ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md). This module is
 the second pipe: **authenticated account activity and plan membership only**.
 
 ## In Scope
@@ -57,7 +59,7 @@ the second pipe: **authenticated account activity and plan membership only**.
 - Optional: daily account-activity **rollup** for historical DAA; optional
   refresh-token **backfill** of `last_activity_at` (never fake login stamps).
 - Design authority: ADR-121 +
-  [2026-08-12-account-plan-activity-entitlements.md](../specs/2026-08-12-account-plan-activity-entitlements.md).
+  [2026-08-12-account-plan-activity-entitlements.md](../../specs/2026-08-12-account-plan-activity-entitlements.md).
 
 ## Out of Scope
 
@@ -80,9 +82,9 @@ the second pipe: **authenticated account activity and plan membership only**.
 
 - [fleet-telemetry](./fleet-telemetry.aps.md) (FLEET, Done) — population half;
   BACT must not alter the anonymous beacon allowlist.
-- [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) — FLEET consent
+- [ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md) — FLEET consent
   remains binding for FLEET only.
-- [ADR-121](../decisions/121-account-plan-activity-and-flag-entitlements.md) —
+- [ADR-121](../../decisions/121-account-plan-activity-and-flag-entitlements.md) —
   plan, DAA, and flag-backed entitlements (phase 2 design gate).
 - Auth mint and refresh paths in `apps/anvil-api` — login + activity stamps.
 - Feature-flag catalogue (`flags/audiences.json`, `api.scope.*`, entitlement
@@ -91,11 +93,11 @@ the second pipe: **authenticated account activity and plan membership only**.
 
 **Coordinates with:**
 
-- [feature-flag-catalogue](./feature-flag-catalogue.aps.md) (FLAGCAT) — single
+- [feature-flag-catalogue](../../modules/feature-flag-catalogue.aps.md) (FLAGCAT) — single
   audience inventory; no parallel plan list.
-- [usage-analytics](../archive/modules/usage-analytics.aps.md) (USAGE, archived)
+- [usage-analytics](./usage-analytics.aps.md) (USAGE, archived)
   — local observations; BACT is remote identity-bound half.
-- [email-broadcast](../archive/modules/email-broadcast.aps.md) (EMAIL) —
+- [email-broadcast](./email-broadcast.aps.md) (EMAIL) —
   `beta:active-*` refresh-token cohorts remain until deliberately migrated;
   prefer `last_activity_at` for CS once shipped.
 - Beta ops skill / admin runbook — user activity and plan vocabulary.
@@ -214,7 +216,7 @@ Sequencing was: **BACT-001** ∥ **BACT-002** → **BACT-003**; **BACT-004** →
 
 ### BACT-003: Admin show/list login surface
 
-- **Status:** Merged 2026-08-12 via PR #3782
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Operators can see login state without Neon SQL.
@@ -233,7 +235,7 @@ Sequencing was: **BACT-001** ∥ **BACT-002** → **BACT-003**; **BACT-004** →
 
 ### BACT-004: Allowlisted account feature-touch store
 
-- **Status:** Merged 2026-08-12 via PR #3782
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** High
 - **Confidence:** medium — final key set is OQ1.
 - **Intent:** Persist “this account used this core surface” without free-form
@@ -255,7 +257,7 @@ Sequencing was: **BACT-001** ∥ **BACT-002** → **BACT-003**; **BACT-004** →
 
 ### BACT-005: Authenticated emission of feature-touch events
 
-- **Status:** Merged 2026-08-12 via PR #3782
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** High
 - **Confidence:** medium — must not block command latency or leak when logged
   out.
@@ -277,7 +279,7 @@ Sequencing was: **BACT-001** ∥ **BACT-002** → **BACT-003**; **BACT-004** →
 
 ### BACT-006: CS engagement filters and runbook
 
-- **Status:** Merged 2026-08-12 via PR #3782
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** Medium
 - **Confidence:** high
 - **Intent:** Operators can list who needs help without hand-written SQL.
@@ -304,7 +306,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-007: Phase-2 vocabulary and operator docs
 
-- **Status:** Merged 2026-08-13 via PR #3837
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Durable operator/agent language: users + plan, DAI vs DAA,
@@ -326,7 +328,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-008: Account `plan` + `last_activity_at` stamps
 
-- **Status:** Merged 2026-08-13 via PR #3838
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Schema and write paths so every licensed use can update activity
@@ -352,7 +354,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-009: Admin user activity metrics surface
 
-- **Status:** Merged 2026-08-13 via PR #3840
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** High
 - **Confidence:** high
 - **Intent:** Operators see DAA/WAA/MAA and quiet users without Neon SQL and
@@ -373,7 +375,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-011: Daily account-activity rollup (historical DAA)
 
-- **Status:** Merged 2026-08-13 via PR #3842
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** Medium
 - **Confidence:** medium — scheduling surface (cron vs external) at execution.
 - **Intent:** Reconstruct “how many accounts were active on day D” after users
@@ -392,7 +394,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-012: Optional refresh-token activity backfill
 
-- **Status:** Merged 2026-08-13 via PR #3843
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** Low
 - **Confidence:** high
 - **Intent:** One-shot proxy so pre-stamp token users are not all “never
@@ -409,7 +411,7 @@ coordinates with FLAGCAT inventories. **BACT-009** needs 008. **BACT-011** and
 
 ### BACT-013: Plan on evaluation context and JWT alignment
 
-- **Status:** Merged 2026-08-13 via PR #3839
+- **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Priority:** High
 - **Confidence:** medium — JWT compat for `tier` vs `plan` (OQ-C).
 - **Intent:** Entitlements evaluate with the account’s plan against catalogue

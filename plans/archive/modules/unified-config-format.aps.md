@@ -17,13 +17,15 @@ revision was ever executed, so IDs are reallocated cleanly.
 
 | ID   | Owner | Priority | Status   | Progress |
 | ---- | ----- | -------- | -------- | -------- |
-| UCFG | —     | medium   | Done     | 16/16    |
+| UCFG | —     | medium   | Complete     | 16/16    |
 
 **Last reviewed:** 2026-08-17 — all work items **Released/Shipped** via
 `v0.9.5-beta` (`5c4b61a7`). ADR-120 Accepted (operator). Secondary claim of
 that tag (MCP live-heal primary — see release record). Module **Done**; item
 Complete transitions remain a separate evidence pass if required. Council
 `council-0851e9cb` (2026-08-12) findings were folded before execution.
+
+2026-08-27: all sixteen items already Released/Shipped via v0.9.5-beta (record: plans/releases/v0.9.5-beta.md); module Complete — archive per the archive cascade.
 
 > **Activation gate: satisfied 2026-08-13.** ADR-120 Accepted (operator);
 > release window **`v0.9.5-beta`** (claim locked; re-pointed from provisional
@@ -44,8 +46,8 @@ that gate runs ignore, a separately-parsed `architecture.yaml`, and four
 independent precedence implementations. AI agents — Anvil's primary audience —
 must correlate all of them to understand configuration.
 
-**ADR:** [120-config-surface-consolidation](../decisions/120-config-surface-consolidation.md)
-(supersedes [016](../decisions/016-unified-config-format.md))
+**ADR:** [120-config-surface-consolidation](../../decisions/120-config-surface-consolidation.md)
+(supersedes [016](../../decisions/016-unified-config-format.md))
 
 ## In Scope
 
@@ -98,9 +100,9 @@ must correlate all of them to understand configuration.
 
 **Coordinates with:**
 
-- [settings-truth-contract](./settings-truth-contract.aps.md) (SETCON) —
+- [settings-truth-contract](../../modules/settings-truth-contract.aps.md) (SETCON) —
   reads the file layout this module fixes
-- [settings-safe-preferences](./settings-safe-preferences.aps.md) (SETPREF) —
+- [settings-safe-preferences](../../modules/settings-safe-preferences.aps.md) (SETPREF) —
   writer behaviour contract
 - ARCHCFG / ADR-102 — architecture authoring commands sit atop the resolved
   section; command surface decisions stay with ADR-102. **Sequencing:**

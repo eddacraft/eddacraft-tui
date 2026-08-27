@@ -14,7 +14,7 @@ types, existing shadcn Card primitive.
 
 ## File Map
 
-- `plans/modules/dashboard-core-views.aps.md` — authoritative split, source
+- `plans/archive/modules/dashboard-core-views.aps.md` — authoritative split, source
   mapping, statuses, and acceptance.
 - `plans/index.aps.md` — current NBI and module status.
 - `plans/specs/2026-07-18-dashboard-core-wave-2-split.md` — approved design and

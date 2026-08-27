@@ -26,7 +26,7 @@ On 2026-07-15 the operator resolved FLEET OQ3: fleet visibility is needed as
 cohorts, version/install-method distribution, and feature adoption. Download
 counts and GitHub stars cannot show retention or adoption; the local-only
 Kindling store cannot be seen. This ADR is the design gate for the
-[fleet-telemetry](../modules/fleet-telemetry.aps.md) (FLEET) module and
+[fleet-telemetry](../archive/modules/fleet-telemetry.aps.md) (FLEET) module and
 decides the consent posture and the exact data allowed on the wire.
 
 A dimension contract already exists on paper: the feature-flagging design
@@ -124,7 +124,7 @@ the local identity convention at all.
 
 - Related ADRs: ADR-035 (three-pipe rule — unchanged), ADR-031 (latency
   gate), ADR-018 (product tiers), ADR-066 (anvil-api brokering precedent)
-- APS modules: [fleet-telemetry](../modules/fleet-telemetry.aps.md) (FLEET
+- APS modules: [fleet-telemetry](../archive/modules/fleet-telemetry.aps.md) (FLEET
   — this is its design gate), CIB-197 (local envelope enrichment; the
   beacon reuses its `version`/`install_method` fields), USAGE (archived —
   privacy contract), EXPORT (tracing pipe, unaffected)
@@ -135,7 +135,7 @@ the local identity convention at all.
 ## Amendment 2026-08-11 — complementary BACT pipe (no identity change)
 
 Operator-accepted clarification (APS module
-[beta-account-activity](../modules/beta-account-activity.aps.md), BACT):
+[beta-account-activity](../archive/modules/beta-account-activity.aps.md), BACT):
 
 - **FLEET remains anonymous.** This ADR's install UUID, dimension allowlist,
   and "no email / user id / principal on the beacon" rules are unchanged.

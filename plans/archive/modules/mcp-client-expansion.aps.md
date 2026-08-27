@@ -2,13 +2,15 @@
 
 | ID   | Owner | Status   | Progress |
 | ---- | ----- | -------- | -------- |
-| MCPX | —     | Done | 6/6      |
+| MCPX | —     | Complete | 6/6      |
 
 **Last reviewed:** 2026-07-14 — MCPX-001 verified current vendor contracts and
 the first implementation wave is now present across config generation,
 managed installation, activation, smoke coverage, and public documentation.
 All 6 first-wave items are Done; Tier 2 clients (Visual Studio + Copilot,
 generic project MCP) remain unscheduled follow-on work.
+
+2026-08-27: first-wave items Done 2026-07-14 via #3328, confirmed ancestor of v0.9.1-beta (record names multi-client MCP install). Module Complete — archive per the archive cascade. Tier 2 clients remain unscheduled follow-on, not this module.
 
 ## Purpose
 
@@ -34,7 +36,7 @@ and compatibility smoke coverage for additional clients.
 
 - Rust MCP server tool/resource parity — owned by RMCPF
 - MCP `2026-07-28` dual-era protocol support — owned by
-  [MCP26](mcp-dual-era-support.aps.md); MCPX clients remain the
+  [MCP26](../../modules/mcp-dual-era-support.aps.md); MCPX clients remain the
   compatibility matrix MCP26 must not regress
 - New graph-context tools/resources — owned by GCTX
 - Skill packaging or `anvil skill install` targets — owned by SKPKG
@@ -46,11 +48,11 @@ and compatibility smoke coverage for additional clients.
 
 **Depends on:**
 
-- [rust-mcp-full-port](rust-mcp-full-port.aps.md) — canonical Rust MCP server and
+- [rust-mcp-full-port](../../modules/rust-mcp-full-port.aps.md) — canonical Rust MCP server and
   supported-client matrix decisions
 - RCLI3-016 / RCLI3-016b — existing `mcp-config` and `mcp install` command
   surfaces
-- [activation-mcp-optional](activation-mcp-optional.aps.md) — editor-aware MCP
+- [activation-mcp-optional](../../modules/activation-mcp-optional.aps.md) — editor-aware MCP
   install/probe UX during `anvil start`
 - `crates/anvil-cli/src/commands/mcp.rs` and
   `crates/anvil-cli/src/commands/mcp_config.rs` — current client enum, path

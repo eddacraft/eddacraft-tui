@@ -5,11 +5,13 @@
 
 | ID      | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| CLAWFIX | —     | P1       | Merged | 6/6      |
+| CLAWFIX | —     | P1       | Complete | 6/6      |
 
 **Last reviewed:** 2026-08-19 — CLAWFIX-001..006 merged into `main` via
 PR #4010. Wave-level validation and exact-snapshot Council review passed before
 integration.
+
+2026-08-27: CLAWFIX-001..006 via #4010 confirmed ancestor of v0.9.7-beta; Merged items advanced to Released/Shipped. Module Complete — archive per the archive cascade.
 
 **Pull request:** [#4010](https://github.com/eddacraft/anvil-001/pull/4010)
 merged into `main` on 2026-08-19.
@@ -22,7 +24,7 @@ tail or advisory test gaps.
 
 ## Governing design
 
-[2026-08-18 Clawpatch P1 repair-wave design](../specs/2026-08-18-clawpatch-p1-repair-wave.md).
+[2026-08-18 Clawpatch P1 repair-wave design](../../specs/2026-08-18-clawpatch-p1-repair-wave.md).
 
 ## In scope
 
@@ -44,7 +46,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-001: Preserve documentation-gate integrity
 
-- **Status:** Merged 2026-08-19 via PR #4010
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
 - **Intent:** A baseline suppresses only the occurrence it records, an
   unreadable tracked file is never reported as clean, and an escaping glob is
   rejected before filesystem expansion.
@@ -66,7 +68,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-002: Atomically claim admin approvals
 
-- **Status:** Merged 2026-08-19 via PR #4010
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
 - **Intent:** Overlapping batch requests cannot create a successful approval
   grant, success audit, audience transition, or invite for the same waitlist
   entry twice. Rejected no-scope requests remain distinct auditable operator
@@ -82,7 +84,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-003: Bound GitHub OAuth token exchange
 
-- **Status:** Merged 2026-08-19 via PR #4010
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
 - **Intent:** A stalled upstream token exchange cannot hold the callback open
   indefinitely.
 - **Expected Outcome:** the exchange fetch receives the same 8-second timeout
@@ -96,7 +98,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-004: Enforce canonical cutoff object IDs
 
-- **Status:** Merged 2026-08-19 via PR #4010
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
 - **Intent:** Every accepted cutoff value can compare directly with the full
   object IDs produced by Git.
 - **Expected Outcome:** policy parsing and pinning accept only canonical
@@ -113,7 +115,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-005: Publish capsules without an output-directory race
 
-- **Status:** Merged 2026-08-19 via PR #4010
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
 - **Intent:** Replacing the named output directory after validation cannot
   redirect capsule writes.
 - **Expected Outcome:** all capsule files are written relative to a pinned,
@@ -137,7 +139,7 @@ tail or advisory test gaps.
 
 ### CLAWFIX-006: Keep migration dry-run read-only
 
-- **Status:** Merged 2026-08-19 via PR #4010
+- **Status:** Released/Shipped via v0.9.7-beta (89a6d205 · 2026-08-21)
 - **Intent:** Previewing migrations against a fresh database does not create
   the tracking table or execute any other DDL/DML.
 - **Expected Outcome:** dry-run checks whether the tracking table exists using

@@ -81,7 +81,7 @@ Audit tab would imply historical coverage Anvil cannot evidence.
 
 **Coordinates with:**
 
-- [activation-tui](./activation-tui.aps.md) (ACTTUI) — shared TUI posture,
+- [activation-tui](../archive/modules/activation-tui.aps.md) (ACTTUI) — shared TUI posture,
   escape hatches (`--no-tui` / `ANVIL_NO_TUI=1`) and honesty copy pins
 - [daemon-protection-observability](./daemon-protection-observability.aps.md) —
   status/attestation signals the Status view reports rather than re-derives

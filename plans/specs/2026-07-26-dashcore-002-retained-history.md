@@ -5,7 +5,7 @@
 **Approved by the owner on 2026-07-26** via design grill.
 
 Supersedes only the open “retained-history authority” gate on
-[DASHCORE-002](../modules/dashboard-core-views.aps.md). Complements the Wave 2
+[DASHCORE-002](../archive/modules/dashboard-core-views.aps.md). Complements the Wave 2
 honesty rules in
 [2026-07-18-dashboard-core-wave-2-split.md](./2026-07-18-dashboard-core-wave-2-split.md)
 (actual-range labelling, no padding, no invented samples).
@@ -142,7 +142,7 @@ Implementation must prove:
 
 ## APS mapping
 
-- Module: [dashboard-core-views](../modules/dashboard-core-views.aps.md)
+- Module: [dashboard-core-views](../archive/modules/dashboard-core-views.aps.md)
 - Work item: **DASHCORE-002**
 - On Ready promotion: status `Proposed` → `Ready` only after this design and a
   `plan-ready` ReadyItem with exact validation commands

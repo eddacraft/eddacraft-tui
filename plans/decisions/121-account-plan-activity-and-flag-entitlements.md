@@ -110,6 +110,6 @@ DAU.”
 ## References
 
 - Spec: [2026-08-12-account-plan-activity-entitlements.md](../specs/2026-08-12-account-plan-activity-entitlements.md)
-- APS: [beta-account-activity](../modules/beta-account-activity.aps.md) (BACT-007..013)
+- APS: [beta-account-activity](../archive/modules/beta-account-activity.aps.md) (BACT-007..013)
 - ADR-107 (FLEET); ADR-048 (feature groups); [feature gating model](../specs/2026-05-19-feature-gating-model.md)
 - `flags/audiences.json`, `flags/manifest.json`, `apps/anvil-api/src/lib/feature-flags.ts`

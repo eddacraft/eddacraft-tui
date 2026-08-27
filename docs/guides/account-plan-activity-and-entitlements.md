@@ -12,7 +12,7 @@
 
 Operational vocabulary for **named accounts** (users), **plans**,
 **entitlements**, and **activity metrics**. Implementation tracks
-[BACT](../../plans/modules/beta-account-activity.aps.md) phase 2
+[BACT](../../plans/archive/modules/beta-account-activity.aps.md) phase 2
 (BACT-007..013).
 
 Source truth for the catalogue and account store:
@@ -110,4 +110,4 @@ Never treat FLEET DAI as “how many customers logged in.”
 - [admin-cli.md](../runbooks/admin-cli.md)
 - [usage-analytics.md](../observability/usage-analytics.md)
 - APS module
-  [beta-account-activity](../../plans/modules/beta-account-activity.aps.md)
+  [beta-account-activity](../../plans/archive/modules/beta-account-activity.aps.md)

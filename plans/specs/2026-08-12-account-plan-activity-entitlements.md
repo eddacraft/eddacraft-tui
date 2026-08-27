@@ -8,7 +8,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md), [ADR-048](../decisions/048-feature-group-architectural-model.md), [feature gating model](./2026-05-19-feature-gating-model.md), [BACT](../modules/beta-account-activity.aps.md), `flags/audiences.json` | BACT-007..013, FLAGCAT coordination, admin runbook, auth/JWT claim alignment |
+| [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md), [ADR-048](../decisions/048-feature-group-architectural-model.md), [feature gating model](./2026-05-19-feature-gating-model.md), [BACT](../archive/modules/beta-account-activity.aps.md), `flags/audiences.json` | BACT-007..013, FLAGCAT coordination, admin runbook, auth/JWT claim alignment |
 
 ## Goal
 
@@ -155,7 +155,7 @@ dedicated activity/users overview; do not overload `anvil.fleet-overview.v1`.
 
 ## Implementation sequencing (APS)
 
-See [beta-account-activity](../modules/beta-account-activity.aps.md) phase 2:
+See [beta-account-activity](../archive/modules/beta-account-activity.aps.md) phase 2:
 
 | ID | Intent |
 | -- | ------ |

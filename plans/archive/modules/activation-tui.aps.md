@@ -2,23 +2,25 @@
 
 | ID     | Owner | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| ACTTUI | Josh  | Done | 22/22 |
+| ACTTUI | Josh  | Complete | 22/22 |
 
 **Last reviewed:** 2026-08-03 — items **000–017 Merged via PR #3478/#3488**
-([spec](../specs/2026-08-03-activation-tui-completion.md)); completion programme
+([spec](../../specs/2026-08-03-activation-tui-completion.md)); completion programme
 015–017 in #3488. **Usability follow-ups ACTTUI-018..021 Merged via PR #3499**
 (quiet re-run consent, shared posture model, settled Install/Languages honesty,
 MCP pre-write prove honesty). Escape hatches: `--no-tui` / `ANVIL_NO_TUI=1`.
 Module **Done** (all 22 items Merged); release evidence still owed for
 Released/Shipped.
 
-The 2026-07-25 ADR-103 acceptance ([ADR-103](../decisions/103-tty-default-activation-tui.md))
+2026-08-27: remaining ACTTUI-018..021 confirmed in the v0.9.2-beta tag (record: plans/releases/v0.9.2-beta.md); earlier items already Released/Shipped via v0.9.0-beta / v0.9.1-beta. Module Complete — archive per the archive cascade.
+
+The 2026-07-25 ADR-103 acceptance ([ADR-103](../../decisions/103-tty-default-activation-tui.md))
 remains the governing rollout ladder. Post-flip continuous surface (ACTTUI-014)
 plus the 2026-08-03 completion programme (015–017) close the deferred thin-v1
 smoke gap and daily re-run friction without reopening machine contracts.
 
 Earlier review (2026-07-11) — the operator-approved
-[`JOURNEY` conductor](./release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
+[`JOURNEY` conductor](../../modules/release-user-journeys.aps.md) makes ACTTUI-009/-010/-012
 and WOW-005 release-cut gates, while retaining celebration and richer diagnostics
 as coordinated enhancements. The 2026-07-10 ACTTUI-009..011 implementation
 milestone Merged via PR #3263. Consent now binds the
@@ -27,7 +29,7 @@ real PTY restoration and all-phase snapshots; verdict/evidence models are built
 from typed activation data. Targeted Rust, Clippy, PTY, snapshot, and activation
 e2e checks pass locally. ACTTUI-012 has since Merged via PR #3284. The earlier
 post-ACTTUI first-run council review
-([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
 blocked the TTY-default flip because the opt-in `--tui` consent path was then a
 dead end; ACTTUI-009..012 tracked that remediation wave and all Merged.
 ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface
@@ -55,7 +57,7 @@ consent pickers, collapsible diagnostics, and a visible activation spine — usi
 
 Closes the re-run verbosity and picker-scaling gaps from the 2026-07-04
 welcome/start user-journey audit
-([`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../audits/2026-07-04-anvil-start-welcome-user-journey.md))
+([`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../../audits/2026-07-04-anvil-start-welcome-user-journey.md))
 and realises the operator investment in `eddacraft-tui` for end-user wow.
 
 ## Strategic sequencing
@@ -160,7 +162,7 @@ tutorial story changes (WOW owns narrative).
 | TUIN / eddacraft-tui | Enable `big-text` on `anvil-tui`; consider promoting `Tree`/`ParallelProgress` to `stable` if activation depends on them |
 | DSV-046..051 | Daemon attestation copy in `LogPanel`; no change to attestation rules |
 | JOURNEY | Release conductor; ACTTUI-009/-010/-012 were cut gates; completion programme (014–017) is post-cut polish for daily confidence |
-| Completion spec | [`2026-08-03-activation-tui-completion.md`](../specs/2026-08-03-activation-tui-completion.md) — WP0–WP3 product contract |
+| Completion spec | [`2026-08-03-activation-tui-completion.md`](../../specs/2026-08-03-activation-tui-completion.md) — WP0–WP3 product contract |
 
 ## Work Items
 
@@ -176,10 +178,10 @@ tutorial story changes (WOW owns narrative).
   ("scripting: `--no-tui`; probing: `--verify`/`--json`"); rollout ladder:
   opt-in (`--tui` or `ANVIL_ACTIVATION_TUI=1`) for first release, flip
   TTY-default only after contract matrix green. **Closeout:** met by
-  [`ADR-103`](../decisions/103-tty-default-activation-tui.md),
-  [`2026-07-08-activation-tui-contract-fixtures.md`](../specs/2026-07-08-activation-tui-contract-fixtures.md),
+  [`ADR-103`](../../decisions/103-tty-default-activation-tui.md),
+  [`2026-07-08-activation-tui-contract-fixtures.md`](../../specs/2026-07-08-activation-tui-contract-fixtures.md),
   `crates/anvil-cli/tests/fixtures/start-activation/README.md`, and
-  [`start-output-contracts.md`](../../docs/public/anvil/guides/start-output-contracts.md). PR #3231 WOW dependency noted as downstream coordination, without editing the WOW file on this branch.
+  [`start-output-contracts.md`](../../../docs/public/anvil/guides/start-output-contracts.md). PR #3231 WOW dependency noted as downstream coordination, without editing the WOW file on this branch.
 - **Files:** `plans/decisions/`, `docs/public/anvil/guides/`, fixture directory
 - **Validation:** `pnpm docs:check`; `pnpm adr:check`; `pnpm format:check`; council checklist ticked
 - **Confidence:** high
@@ -387,7 +389,7 @@ tutorial story changes (WOW owns narrative).
 
 - **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3263
 - **Source:** First-run council review C-001, C-002, C-003, C-005
-  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-004
 - **Intent:** The opt-in `anvil start --tui` path can actually collect consent
   and perform selected MCP/workflow writes, without silently skipping install or
@@ -418,7 +420,7 @@ tutorial story changes (WOW owns narrative).
 - **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3263 — CIB-182's existing repair-hint
   fixture change is accepted as the sanctioned contract.
 - **Source:** First-run council review C-006, C-007, C-011, C-012
-  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009
 - **Intent:** The rollout/default-flip contract is backed by executable fixtures
   and PTY coverage rather than README-only fixture intent.
@@ -445,7 +447,7 @@ tutorial story changes (WOW owns narrative).
   verdict/evidence panes with `from_typed_with_progress` from a typed
   `VerdictModel` and typed `LogEntry` rows.
 - **Source:** First-run council review C-004, C-010
-  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009
 - **Intent:** Activation TUI sections and tier evidence do not depend on
   substring-parsing the human plain-output copy.
@@ -467,12 +469,12 @@ tutorial story changes (WOW owns narrative).
 
 - **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-11 via PR #3284
 - **Shipped:** Promoted into the release cut by the operator-accepted JOURNEY
-  conductor ([`release-user-journeys.aps.md`](./release-user-journeys.aps.md));
+  conductor ([`release-user-journeys.aps.md`](../../modules/release-user-journeys.aps.md));
   tier-evidence pane rebound to `e` and pinned flag-free, one `esc/q` exit-key
   story, dead consent helpers removed, `ANVIL_NO_TUI=` semantics documented as
   aligned, `celebrate()`/`big-text` deferred with the unused dependency dropped.
 - **Source:** First-run council review C-013, C-014, C-015, C-017, C-018
-  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-010
 - **Intent:** Clear the remaining low-risk inconsistencies before making the
   activation TUI the default terminal path.
@@ -501,10 +503,10 @@ tutorial story changes (WOW owns narrative).
   `--tui` is retained as a hidden, accepted no-op and `ANVIL_ACTIVATION_TUI` is
   inert. New coverage: flag-free PTY entry, `--no-tui` holding in a real PTY,
   and byte-identical output with the retired aliases passed.
-- **Source:** [ADR-103](../decisions/103-tty-default-activation-tui.md) §4
+- **Source:** [ADR-103](../../decisions/103-tty-default-activation-tui.md) §4
   rollout ladder, Release 2 (Accepted 2026-07-25); JOURNEY-002 closed the
   just-works gate but deferred the flip itself as a phase-C decision
-  ([`release-user-journeys.aps.md`](./release-user-journeys.aps.md))
+  ([`release-user-journeys.aps.md`](../../modules/release-user-journeys.aps.md))
 - **Dependencies:** ACTTUI-008, ACTTUI-009, ACTTUI-010, ACTTUI-012 (all Merged)
 - **Intent:** A genuinely interactive `anvil start` opens the activation TUI
   with no flag, while every machine and non-interactive contract stays on the
@@ -542,9 +544,9 @@ tutorial story changes (WOW owns narrative).
 
 - **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-08-02 via PR #3478 — continuous live session; expanded acceptance residuals closed with ACTTUI-015..016 via PR #3488
 - **Source:** Owner direction on 2026-08-01;
-  [ADR-103](../decisions/103-tty-default-activation-tui.md); consistency
+  [ADR-103](../../decisions/103-tty-default-activation-tui.md); consistency
   reference in `crates/anvil-tui/src/surfaces/tutorial/`; completion programme
-  [spec](../specs/2026-08-03-activation-tui-completion.md) WP1
+  [spec](../../specs/2026-08-03-activation-tui-completion.md) WP1
 - **Dependencies:** ACTTUI-013 and its release gates (all Merged)
 - **Intent:** Make interactive `anvil start` feel like the tutorial: one
   branded, continuously updating terminal surface from preflight through
@@ -594,7 +596,7 @@ tutorial story changes (WOW owns narrative).
 
 - **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3488
 - **Source:** Live Homebrew validation 2026-08-02/03; completion programme
-  [spec](../specs/2026-08-03-activation-tui-completion.md) WP0
+  [spec](../../specs/2026-08-03-activation-tui-completion.md) WP0
 - **Dependencies:** none (may land before or during ACTTUI-014)
 - **Intent:** Stop teaching users a live-looking Smoke control that neither
   executes nor points at a recipe they will see on healthy re-runs.
@@ -626,7 +628,7 @@ tutorial story changes (WOW owns narrative).
 
 - **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3488
 - **Source:** Deferred ACTTUI-005 thin-v1 smoke; ADTRUST-006 recipe;
-  completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
+  completion programme [spec](../../specs/2026-08-03-activation-tui-completion.md)
   WP2
 - **Dependencies:** ACTTUI-015 (honest control surface); preferred after
   ACTTUI-014 quiet Verdict hand-off
@@ -666,7 +668,7 @@ tutorial story changes (WOW owns narrative).
 
 - **Status:** Released/Shipped via v0.9.2-beta (22f6a9be · 2026-08-04). Merged 2026-08-03 via PR #3488
 - **Source:** Live divergence (start `--verify` protecting vs status warming);
-  completion programme [spec](../specs/2026-08-03-activation-tui-completion.md)
+  completion programme [spec](../../specs/2026-08-03-activation-tui-completion.md)
   WP3
 - **Dependencies:** ACTTUI-014 preferred (stable Verdict next-step model); can
   parallel Prove (ACTTUI-016)
@@ -700,7 +702,7 @@ tutorial story changes (WOW owns narrative).
   Verdict without a consent parade
 - **Source:** Live validation + post-#3488 usability residual; completion
   programme WP1 gap (empty-offer skip only)
-  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+  ([spec](../../specs/2026-08-03-activation-tui-completion.md) follow-ups)
 - **Dependencies:** ACTTUI-014, ACTTUI-015 (Merged)
 - **Intent:** A healthy daily `anvil start` lands on Verdict in seconds without a
   multi-client consent parade when nothing actionable remains.
@@ -734,7 +736,7 @@ tutorial story changes (WOW owns narrative).
   Verdict layers and status meaning lines with byte-identical subordinate facts
 - **Source:** Residual of ACTTUI-017 (meaning lines only); live protecting vs
   warming divergence
-  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+  ([spec](../../specs/2026-08-03-activation-tui-completion.md) follow-ups)
 - **Dependencies:** ACTTUI-017 (Merged)
 - **Intent:** Operators get one coherent protection story across `anvil start`
   and `anvil status`, not just an explanatory footnote.
@@ -763,7 +765,7 @@ tutorial story changes (WOW owns narrative).
   rows; Languages inventory copy states Prove is global, not per-language
 - **Source:** Live TUI — Languages expand + `t` felt language-scoped; Install
   noise on re-run
-  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+  ([spec](../../specs/2026-08-03-activation-tui-completion.md) follow-ups)
 - **Dependencies:** ACTTUI-016 (Merged — Prove global); preferred after
   ACTTUI-018 so settled Install rows match filtered consent
 - **Intent:** Tree sections set correct expectations: Install shows what is
@@ -790,7 +792,7 @@ tutorial story changes (WOW owns narrative).
   pre-write honesty from `mcp_pre_write_live()` (refuse/honest path; no false
   live claim from check-pipeline results alone)
 - **Source:** Explicit gap after ACTTUI-016 (check-pipeline Prove ≠ MCP live)
-  ([spec](../specs/2026-08-03-activation-tui-completion.md) follow-ups)
+  ([spec](../../specs/2026-08-03-activation-tui-completion.md) follow-ups)
 - **Dependencies:** ACTTUI-016 (Merged); coordinates with ACTMO / daemon
   attestation truth
 - **Intent:** When the operator asks, prove **editor pre-write interception**

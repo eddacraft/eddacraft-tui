@@ -5,7 +5,7 @@
 **Accepted** — 2026-07-25 (owner). Release 1 of the §4 rollout ladder (opt-in
 `--tui` / `ANVIL_ACTIVATION_TUI=1`) shipped in v0.9.0-beta. The Release 2
 TTY-default flip is authorised and tracked by
-[`ACTTUI-013`](../modules/activation-tui.aps.md); its named gates
+[`ACTTUI-013`](../archive/modules/activation-tui.aps.md); its named gates
 (ACTTUI-008/-009/-010/-012) are all Merged.
 
 ## Date
@@ -22,7 +22,7 @@ audit
 found two structural gaps: re-run verbosity (the full dossier reprints on every
 `protecting` re-run) and picker scaling (hand-rolled `demand::MultiSelect`
 overlays do not scale to many MCP clients / workflows). The
-[`activation-tui`](../modules/activation-tui.aps.md) (ACTTUI) module replaces the
+[`activation-tui`](../archive/modules/activation-tui.aps.md) (ACTTUI) module replaces the
 plain dossier and `demand` pickers with a single interactive surface built on the
 `eddacraft-tui` widget vocabulary (ADR-047 / ADR-050 / ADR-054).
 
@@ -152,7 +152,7 @@ lands.
 
 ## References
 
-- APS module: [`activation-tui`](../modules/activation-tui.aps.md) (ACTTUI-000
+- APS module: [`activation-tui`](../archive/modules/activation-tui.aps.md) (ACTTUI-000
   gates this ADR; ACTTUI-001 first `In Progress` after it lands)
 - Fixture spec: [`plans/specs/2026-07-08-activation-tui-contract-fixtures.md`](../specs/2026-07-08-activation-tui-contract-fixtures.md)
 - [ADR-092](092-mcp-optional-activation-spine.md) — activation spine semantics
@@ -165,5 +165,5 @@ lands.
   (`--json` / `--no-tui` compatibility aliases)
 - [ADR-060](060-anvil-home-install-root-override.md) — `ANVIL_HOME` gated posture
 - Downstream: first-run-wow WOW-005 / WOW-006 design gates (PR #3231);
-  [`first-run-wow`](../modules/first-run-wow.aps.md)
+  [`first-run-wow`](../archive/modules/first-run-wow.aps.md)
 - Audit: [`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../audits/2026-07-04-anvil-start-welcome-user-journey.md)

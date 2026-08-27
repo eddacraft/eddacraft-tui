@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [`first-run-wow`](../modules/first-run-wow.aps.md) (WOW-002 reveal driver, WOW-006), [`activation-tui`](../modules/activation-tui.aps.md) (ACTTUI widget vocabulary), [`release-user-journeys`](../modules/release-user-journeys.aps.md) (JOURNEY-007) | [`first-run-wow`](../modules/first-run-wow.aps.md) WOW-006 implementation, [`release-user-journeys`](../modules/release-user-journeys.aps.md) JOURNEY-007 |
+| [`first-run-wow`](../archive/modules/first-run-wow.aps.md) (WOW-002 reveal driver, WOW-006), [`activation-tui`](../archive/modules/activation-tui.aps.md) (ACTTUI widget vocabulary), [`release-user-journeys`](../modules/release-user-journeys.aps.md) (JOURNEY-007) | [`first-run-wow`](../archive/modules/first-run-wow.aps.md) WOW-006 implementation, [`release-user-journeys`](../modules/release-user-journeys.aps.md) JOURNEY-007 |
 
 ## Problem
 

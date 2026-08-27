@@ -5,13 +5,15 @@
 
 | ID    | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| FLEET | —     | High     | Done |
+| FLEET | —     | High     | Complete |
 
 **Last reviewed:** 2026-08-11 — identity boundary clarified vs BACT (FLEET
 stays anonymous). Prior review 2026-08-03 against `v0.9.1-beta`, installed
 `anvil telemetry --help`, and the FLEET-001..007 implementation evidence.
-[ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) is the accepted
+[ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md) is the accepted
 consent and dimension contract.
+
+2026-08-27: all seven items confirmed in the v0.9.1-beta tag (record: plans/releases/v0.9.1-beta.md); module Complete — archive per the archive cascade.
 
 > **Provenance:** Filed 2026-07-14 from an operator observability review, when
 > anvil shipped zero remote telemetry. `v0.9.1-beta` now ships the completed
@@ -37,7 +39,7 @@ promised observations never left the machine, and the INSIGHTS module shipped
 with an explicit "No telemetry" annotation. The current two-pipe distinction is
 recorded in `docs/observability/usage-analytics.md`, and the remote boundary is
 decided by
-[ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) (Accepted
+[ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md) (Accepted
 2026-07-15): an enumerated payload behind a disclosed opt-out. FLEET-006 shipped
 the matching contract surfaces with the beacon.
 
@@ -82,7 +84,7 @@ shipped it in `v0.9.1-beta`.
 
 **Depends on:**
 
-- [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md) — the
+- [ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md) — the
   module's design gate, **Accepted 2026-07-15**; its dimension allowlist
   and consent requirements bind every item below.
 - LAUNCH-013 `InstallMethod` detection
@@ -93,10 +95,10 @@ shipped it in `v0.9.1-beta`.
 
 **Coordinates with:**
 
-- [usage-analytics](../archive/modules/usage-analytics.aps.md) (USAGE,
+- [usage-analytics](./usage-analytics.aps.md) (USAGE,
   archived) — privacy contract, salted-principal convention, opt-out env
   vars.
-- [observability-export](./observability-export.aps.md) (EXPORT) — separate
+- [observability-export](../../modules/observability-export.aps.md) (EXPORT) — separate
   pipe, but the consent ADR should speak to both so users get one coherent
   telemetry story.
 - FLAGS design spec + `docs/guides/feature-flag-governance.md` — the
@@ -117,12 +119,12 @@ shipped it in `v0.9.1-beta`.
 ## Open Questions
 
 - **OQ1 (consent):** **Resolved 2026-07-15** via
-  [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md)
+  [ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md)
   (Accepted) — disclosed opt-out (notice strictly before the first
   beacon; `anvil telemetry off` / `ANVIL_TELEMETRY=off` /
   `DO_NOT_TRACK=1` all hard offs).
 - **OQ2 (identity):** **Resolved 2026-07-15** via
-  [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md)
+  [ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md)
   (Accepted) —
   anonymous random per-install UUID, rotatable via `anvil telemetry
   reset-id`; the salted principal is deliberately NOT reused on the
@@ -136,7 +138,7 @@ shipped it in `v0.9.1-beta`.
 
 All satisfied 2026-07-15 — module flipped to **Ready**:
 
-- [x] [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md)
+- [x] [ADR-107](../../decisions/107-fleet-telemetry-consent-posture.md)
       Accepted by the operator (design gate; Accepted 2026-07-15)
 - [x] Dimension allowlist enumerated and reviewed against the privacy
       contract (ADR-107 Decision §3; amendments require a dated ADR note)

@@ -263,8 +263,8 @@ separate ADR-authorised consent and cannot be inferred from joining a study.
 - [dev-acceleration-benchmarks](./dev-acceleration-benchmarks.aps.md) (DEVACC)
   and its claims policy — Tier C corroborates but does not replace Tier B.
 - [ADR-107](../decisions/107-fleet-telemetry-consent-posture.md),
-  [fleet-telemetry](./fleet-telemetry.aps.md) (FLEET), and
-  [beta-account-activity](./beta-account-activity.aps.md) (BACT) — boundaries
+  [fleet-telemetry](../archive/modules/fleet-telemetry.aps.md) (FLEET), and
+  [beta-account-activity](../archive/modules/beta-account-activity.aps.md) (BACT) — boundaries
   this module must not weaken.
 - `anvil drift` snapshots/comparison, architecture boundary evidence, current
   checks, witness evidence, and supported insights/governance queries.

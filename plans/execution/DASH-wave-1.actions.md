@@ -115,7 +115,7 @@ must not accidentally decide those through a development-server shortcut.
 - `crates/anvil-kernel-types/src/gate_snapshot.rs` — canonical gate artefact
   contract shared by the CLI producer and dashboard consumer.
 - `Cargo.toml` — Cargo workspace membership for the dashboard server crate.
-- `plans/modules/dashboard-foundation.aps.md` — item-level status and validation
+- `plans/archive/modules/dashboard-foundation.aps.md` — item-level status and validation
   evidence only; feature work does not rewrite aggregate counters.
 
 ## Tasks
@@ -367,7 +367,7 @@ completed 2026-07-16.
 
 **Files:**
 
-- Modify: `plans/modules/dashboard-foundation.aps.md`
+- Modify: `plans/archive/modules/dashboard-foundation.aps.md`
 - Modify: `plans/index.aps.md`
 - Modify: `plans/execution/DASH-wave-1.actions.md`
 

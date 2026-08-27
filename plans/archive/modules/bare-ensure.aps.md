@@ -5,16 +5,18 @@
 
 | ID   | Owner | Priority | Status  | Progress |
 | ---- | ----- | -------- | ------- | -------- |
-| ONSW | Josh  | high     | Merged | 6/6     |
+| ONSW | Josh  | high     | Complete | 6/6     |
 
 **Last reviewed:** 2026-08-01 — **Merged** via PR
 [#3474](https://github.com/eddacraft/anvil-001/pull/3474) (`0388a432a` on
 `main`, ancestor-checked). ADR-114 Accepted; ONSW-001..006 all Merged.
 Public first-class docs (quickstart day-2, beta brief, CHANGELOG) landed with
 the v0.10 reframe. Spec:
-[`plans/specs/2026-08-01-bare-anvil-ensure.md`](../specs/2026-08-01-bare-anvil-ensure.md).
+[`plans/specs/2026-08-01-bare-anvil-ensure.md`](../../specs/2026-08-01-bare-anvil-ensure.md).
 Conductor JOURNEY-011 closed with the same merge. Pending `v0.10.0-beta`
 Released/Shipped evidence.
+
+2026-08-27: all six items confirmed in the v0.9.1-beta tag (record: plans/releases/v0.9.1-beta.md); module Complete — archive per the archive cascade.
 
 ## Purpose
 
@@ -47,12 +49,12 @@ reconfigure path.
 
 **Depends on:**
 
-- [ADR-114](../decisions/114-bare-anvil-ensure-surface.md) — product decision
-- [ADR-082](../decisions/082-daemon-lifecycle-user-startup.md) — daemon ensure
-- [ADR-092](../decisions/092-mcp-optional-activation-spine.md) — MCP-optional spine
-- [ADR-044](../decisions/044-mcp-entry-activation-owned.md) — MCP entry ownership
-- [ADR-094](../decisions/094-worktree-registration-ux.md) — worktree registration
-- [activation-mcp-optional](./activation-mcp-optional.aps.md) — ensure/register
+- [ADR-114](../../decisions/114-bare-anvil-ensure-surface.md) — product decision
+- [ADR-082](../../decisions/082-daemon-lifecycle-user-startup.md) — daemon ensure
+- [ADR-092](../../decisions/092-mcp-optional-activation-spine.md) — MCP-optional spine
+- [ADR-044](../../decisions/044-mcp-entry-activation-owned.md) — MCP entry ownership
+- [ADR-094](../../decisions/094-worktree-registration-ux.md) — worktree registration
+- [activation-mcp-optional](../../modules/activation-mcp-optional.aps.md) — ensure/register
   primitives
 - DLIFE ensure primitive (archived module; code lives under intercept ensure)
 
@@ -63,8 +65,8 @@ reconfigure path.
 
 **Coordinates with:**
 
-- [release-user-journeys](./release-user-journeys.aps.md) — JOURNEY-011 gate
-- [cli-command-truth](./cli-command-truth.aps.md) — root command truth note
+- [release-user-journeys](../../modules/release-user-journeys.aps.md) — JOURNEY-011 gate
+- [cli-command-truth](../../modules/cli-command-truth.aps.md) — root command truth note
 - ACTTUI (done) — start remains the consent owner
 
 ## Ready Checklist

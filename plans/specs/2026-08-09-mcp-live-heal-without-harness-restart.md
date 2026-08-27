@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Field evidence (multi-session Grok/Claude/Codex MCP skew after brew upgrade), [CIB-242](../modules/continuous-improvement-backlog.aps.md) (status skew hint; no auto-kill), [MCPX](../modules/mcp-client-expansion.aps.md), [MCP26](../modules/mcp-dual-era-support.aps.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [bare ensure](./2026-08-01-bare-anvil-ensure.md) | [MCPLH](../modules/mcp-live-heal.aps.md) Ready items 001..006; optional ADR if re-exec becomes cross-cutting beyond CLI MCP |
+| Field evidence (multi-session Grok/Claude/Codex MCP skew after brew upgrade), [CIB-242](../modules/continuous-improvement-backlog.aps.md) (status skew hint; no auto-kill), [MCPX](../archive/modules/mcp-client-expansion.aps.md), [MCP26](../modules/mcp-dual-era-support.aps.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [bare ensure](./2026-08-01-bare-anvil-ensure.md) | [MCPLH](../modules/mcp-live-heal.aps.md) Ready items 001..006; optional ADR if re-exec becomes cross-cutting beyond CLI MCP |
 
 **Execution authority** is the MCPLH work items (Ready). This document is the
 design contract those items implement. It does not itself authorise merge of

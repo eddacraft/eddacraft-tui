@@ -80,9 +80,9 @@ on changes that cannot weaken protection.
 
 **Coordinates with:**
 
-- [unified-config-format](./unified-config-format.aps.md) (UCFG) — writer
+- [unified-config-format](../archive/modules/unified-config-format.aps.md) (UCFG) — writer
   behaviour for the config file format
-- [activation-tui](./activation-tui.aps.md) (ACTTUI) — consent posture: nothing
+- [activation-tui](../archive/modules/activation-tui.aps.md) (ACTTUI) — consent posture: nothing
   writes without an explicit keypress on a surface that names the write
 
 ## Constraints

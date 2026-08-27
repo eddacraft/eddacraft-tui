@@ -44,7 +44,7 @@ This guide distinguishes **three** separate stories:
   (activity-idle) vs “never (interactively) logged in” is documented in
   [admin-cli.md](../runbooks/admin-cli.md#plan-activity-and-daa-vocabulary). See
   also
-  [beta-account-activity](../../plans/modules/beta-account-activity.aps.md),
+  [beta-account-activity](../../plans/archive/modules/beta-account-activity.aps.md),
   [account plan / activity / entitlements](../guides/account-plan-activity-and-entitlements.md),
   [ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md),
   and the 2026-08-11 amendment to ADR-107.

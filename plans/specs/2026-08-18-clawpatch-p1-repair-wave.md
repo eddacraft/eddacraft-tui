@@ -2,11 +2,11 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for CLAWFIX design | [CLAWFIX](../modules/clawpatch-p1-repair-wave.aps.md) | Accepted | 2026-08-18 — operator promoted the selected repair wave |
+| Spec | Authoritative for CLAWFIX design | [CLAWFIX](../archive/modules/clawpatch-p1-repair-wave.aps.md) | Accepted | 2026-08-18 — operator promoted the selected repair wave |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Clawpatch findings selected during the 2026-08-18 complete-store triage; current source and focused baseline tests at `67fb0fdd` | `plans/modules/clawpatch-p1-repair-wave.aps.md`; the nine named source/test surfaces |
+| Clawpatch findings selected during the 2026-08-18 complete-store triage; current source and focused baseline tests at `67fb0fdd` | `plans/archive/modules/clawpatch-p1-repair-wave.aps.md`; the nine named source/test surfaces |
 
 **Execution authority** is CLAWFIX-001..006. This specification fixes the
 repair invariants; it does not promote the remaining finding tail, edit the

@@ -79,14 +79,14 @@ the operator explicitly promotes them into the cut.
 
 | Module | Role | Release posture |
 | ------ | ---- | --------------- |
-| [first-run-wow](./first-run-wow.aps.md) | Repository-specific first win and sandbox tutorial | WOW-005 required; WOW-006 expansion |
-| [activation-tui](./activation-tui.aps.md) | Interactive activation, consent, contracts, celebration and diagnostics | ACTTUI-009/-010/-012 required; -005/-006/-011 expansion where not already required by their owner |
+| [first-run-wow](../archive/modules/first-run-wow.aps.md) | Repository-specific first win and sandbox tutorial | WOW-005 required; WOW-006 expansion |
+| [activation-tui](../archive/modules/activation-tui.aps.md) | Interactive activation, consent, contracts, celebration and diagnostics | ACTTUI-009/-010/-012 required; -005/-006/-011 expansion where not already required by their owner |
 | [activation-mcp-optional](./activation-mcp-optional.aps.md) | Daemon, durable registration, MCP-optional protection, optional local control app | Existing spine required; ACTMO-021 expansion |
 | [daemon-save-time-validation](../archive/modules/daemon-save-time-validation.aps.md) | Headless background save-time driver | Existing v0.9 usefulness cut-line |
 | [continuous-improvement-backlog](./continuous-improvement-backlog.aps.md) | Share receipt, quiet repeat start, consent parity, local repeat value | CIB-073/-183/-184/-190 required; CIB-075 expansion |
-| [bare-ensure](./bare-ensure.aps.md) | Bare `anvil` daily ensure vs `anvil start` reconfigure | JOURNEY-011; ADR-114 |
+| [bare-ensure](../archive/modules/bare-ensure.aps.md) | Bare `anvil` daily ensure vs `anvil start` reconfigure | JOURNEY-011; ADR-114 |
 | [usage-insights](../archive/modules/usage-insights.aps.md) | Local-only value aggregates and evidence semantics | Producer consumed by CIB-073/-190 when trustworthy |
-| [dashboard-foundation](./dashboard-foundation.aps.md) | Browser foundation for later continuity | Expansion; non-blocking |
+| [dashboard-foundation](../archive/modules/dashboard-foundation.aps.md) | Browser foundation for later continuity | Expansion; non-blocking |
 
 ## Work Items
 

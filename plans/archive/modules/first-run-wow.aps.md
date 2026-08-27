@@ -2,7 +2,7 @@
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| WOW | Josh  | Done | 6/6      |
+| WOW | Josh  | Complete | 6/6      |
 
 **Last reviewed:** 2026-07-30 — WOW-001..006 all Merged. WOW-006 sandboxed
 autoplay landed via PR [#3441](https://github.com/eddacraft/anvil-001/pull/3441)
@@ -11,6 +11,8 @@ with JOURNEY-007. Progress 6/6; module **Done** pending release evidence for
 operator's first-run-experience review (interactive session): the tutorial's
 Enter-executes-a-real-command behaviour is not evident before the keypress, and
 the first-run journey underuses the discovery scan's real findings.
+
+2026-08-27: all six items confirmed in the v0.9.1-beta tag (record: plans/releases/v0.9.1-beta.md); module Complete — archive per the archive cascade.
 
 ## Purpose
 
@@ -21,7 +23,7 @@ and should see anvil's value on their own findings, not generic copy.
 
 Complements — does not overlap — the 2026-07-04 welcome/start user-journey
 repair items (CIB-162..179,
-[audit](../audits/2026-07-04-anvil-start-welcome-user-journey.md)): those fix
+[audit](../../audits/2026-07-04-anvil-start-welcome-user-journey.md)): those fix
 honesty and navigation defects in the existing flow; this module adds
 evidence affordances and personalization on top of the repaired baseline.
 
@@ -168,7 +170,7 @@ evidence affordances and personalization on top of the repaired baseline.
 
 - **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-30 via PR #3441 — design gate closed (operator;
   design at
-  [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../specs/2026-07-26-wow-006-autoplay-demo.md)).
+  [`plans/specs/2026-07-26-wow-006-autoplay-demo.md`](../../specs/2026-07-26-wow-006-autoplay-demo.md)).
   Sandboxed autoplay shipped with JOURNEY-007 on
   `feat/wow-006-sandbox-autoplay`.
 - **Intent:** A "watch anvil work" mode plays the tutorial hands-free —

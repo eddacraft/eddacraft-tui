@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [`ACTTUI-000`](../modules/activation-tui.aps.md), [`ADR-103`](../decisions/103-tty-default-activation-tui.md), `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/activation/render.rs` | ACTTUI-001, ACTTUI-007, `crates/anvil-cli/tests/fixtures/start-activation/`, `docs/public/anvil/guides/start-output-contracts.md` |
+| [`ACTTUI-000`](../archive/modules/activation-tui.aps.md), [`ADR-103`](../decisions/103-tty-default-activation-tui.md), `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/activation/render.rs` | ACTTUI-001, ACTTUI-007, `crates/anvil-cli/tests/fixtures/start-activation/`, `docs/public/anvil/guides/start-output-contracts.md` |
 
 This spec pins the machine-readable and non-interactive output contracts that
 must survive the Activation TUI rollout. ACTTUI changes only the default
@@ -154,6 +154,6 @@ welcome work:
 - Merged PR #3231 records that WOW-006 cannot close its autoplay demo design gate until
   the ACTTUI foundation and shared-widget extract land.
 
-This branch deliberately does **not** edit `plans/modules/first-run-wow.aps.md`;
+This branch deliberately does **not** edit `plans/archive/modules/first-run-wow.aps.md`;
 PR #3231 owns and has merged the WOW-side APS update, while this branch records
 ACTTUI-side obligations and avoids replaying that same-file change.

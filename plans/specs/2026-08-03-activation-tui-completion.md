@@ -6,7 +6,7 @@
 
 | Upstream                                                                 | Downstream                                      |
 | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| [`activation-tui.aps.md`](../modules/activation-tui.aps.md), ADR-103, ADTRUST-006, CIB-164/165/166/183 | ACTTUI-014..017 execution |
+| [`activation-tui.aps.md`](../archive/modules/activation-tui.aps.md), ADR-103, ADTRUST-006, CIB-164/165/166/183 | ACTTUI-014..017 execution |
 
 ## Purpose
 
@@ -37,10 +37,10 @@ Great is not more chrome. It is **one honest loop** that answers:
 
 | Package | APS item | Intent |
 | ------- | -------- | ------ |
-| **WP0 — Honesty** | [ACTTUI-015](../modules/activation-tui.aps.md#acttui-015-honesty-hotfix-for-smokeprove-and-help) | Stop advertising a broken Smoke control; one help bar; no false plain-path recipe claim on re-runs |
-| **WP1 — Continuous quiet surface** | [ACTTUI-014](../modules/activation-tui.aps.md#acttui-014-continuous-live-activation-surface) (expanded) | Live preflight→consent→verdict; skip Consent when nothing is actionable; progress hand-off; pinned Next |
-| **WP2 — Prove** | [ACTTUI-016](../modules/activation-tui.aps.md#acttui-016-prove-protection-in-surface) | In-surface execution of the ADTRUST-006 recipe with real engine results |
-| **WP3 — Posture alignment** | [ACTTUI-017](../modules/activation-tui.aps.md#acttui-017-align-start-and-status-posture) | Shared protection / next-step language between start Verdict and `anvil status` |
+| **WP0 — Honesty** | [ACTTUI-015](../archive/modules/activation-tui.aps.md#acttui-015-honesty-hotfix-for-smokeprove-and-help) | Stop advertising a broken Smoke control; one help bar; no false plain-path recipe claim on re-runs |
+| **WP1 — Continuous quiet surface** | [ACTTUI-014](../archive/modules/activation-tui.aps.md#acttui-014-continuous-live-activation-surface) (expanded) | Live preflight→consent→verdict; skip Consent when nothing is actionable; progress hand-off; pinned Next |
+| **WP2 — Prove** | [ACTTUI-016](../archive/modules/activation-tui.aps.md#acttui-016-prove-protection-in-surface) | In-surface execution of the ADTRUST-006 recipe with real engine results |
+| **WP3 — Posture alignment** | [ACTTUI-017](../archive/modules/activation-tui.aps.md#acttui-017-align-start-and-status-posture) | Shared protection / next-step language between start Verdict and `anvil status` |
 
 ## What great looks like
 
@@ -143,10 +143,10 @@ Residual daily UX after #3488, tracked as **ACTTUI-018..021**:
 
 | Item | Gap | Priority |
 | ---- | --- | -------- |
-| [ACTTUI-018](../modules/activation-tui.aps.md) | Consent still re-offers settled MCP/hooks on healthy re-runs | **Highest** — daily 3-second health check |
-| [ACTTUI-019](../modules/activation-tui.aps.md) | start protecting vs status warming still different models | High — trust |
-| [ACTTUI-020](../modules/activation-tui.aps.md) | Install noise; Languages leaf feels actionable | Medium |
-| [ACTTUI-021](../modules/activation-tui.aps.md) | Check-pipeline Prove ≠ MCP pre-write | Medium; may ship refuse-only |
+| [ACTTUI-018](../archive/modules/activation-tui.aps.md) | Consent still re-offers settled MCP/hooks on healthy re-runs | **Highest** — daily 3-second health check |
+| [ACTTUI-019](../archive/modules/activation-tui.aps.md) | start protecting vs status warming still different models | High — trust |
+| [ACTTUI-020](../archive/modules/activation-tui.aps.md) | Install noise; Languages leaf feels actionable | Medium |
+| [ACTTUI-021](../archive/modules/activation-tui.aps.md) | Check-pipeline Prove ≠ MCP pre-write | Medium; may ship refuse-only |
 
 Recommended order: **018 → 020**, **019** in parallel, **021** when intercept
 fixtures allow honest success (else refuse path only).

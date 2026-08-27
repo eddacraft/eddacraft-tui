@@ -139,7 +139,7 @@ picks up accounts that are still genuinely null.
 
 ## Cross-references
 
-- Schema and stamp paths: `plans/modules/beta-account-activity.aps.md`
+- Schema and stamp paths: `plans/archive/modules/beta-account-activity.aps.md`
   (BACT-008, BACT-012),
   [ADR-121](../../plans/decisions/121-account-plan-activity-and-flag-entitlements.md),
   [design spec](../../plans/specs/2026-08-12-account-plan-activity-entitlements.md)

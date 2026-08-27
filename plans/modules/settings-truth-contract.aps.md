@@ -5,9 +5,9 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| SETCON | —     | medium   | In Progress | 11/11     |
+| SETCON | —     | medium   | Done | 11/11     |
 
-**Last reviewed:** 2026-08-25 — SETCON-001..011 Merged via PR
+**Last reviewed:** 2026-08-27 — module **Done**. SETCON-001..011 Merged via PR
 [#4140](https://github.com/eddacraft/anvil-001/pull/4140) (`07dfb17e2`).
 [ADR-132](../decisions/132-settings-truth-contract.md) accepted. Catalogue home
 is `eddacraft-anvil-settings`; attestation transport is intercept daemon RPC.
@@ -62,7 +62,7 @@ The governing invariant this module encodes (spec §1):
 - Audit storage and material-event recording (SETGOV)
 - Natural-language intent handling (SETNL)
 - Replacing `.anvilrc` / config file formats — SETCON reads what
-  [UCFG](./unified-config-format.aps.md) defines; it does not redesign it
+  [UCFG](../archive/modules/unified-config-format.aps.md) defines; it does not redesign it
 - Building a new policy engine — constraints evaluate over the existing policy
   surfaces ([POLLC](./policy-lifecycle.aps.md),
   [ORGHIER](./org-policy-hierarchy.aps.md)); SETCON defines how a constraint
@@ -90,7 +90,7 @@ The governing invariant this module encodes (spec §1):
 
 **Coordinates with:**
 
-- [unified-config-format](./unified-config-format.aps.md) (UCFG) — source
+- [unified-config-format](../archive/modules/unified-config-format.aps.md) (UCFG) — source
   discovery and file layout
 - [org-policy-hierarchy](./org-policy-hierarchy.aps.md) (ORGHIER) — org →
   team → project resolution feeding the constraint layer

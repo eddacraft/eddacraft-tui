@@ -4,7 +4,7 @@
 | ----- | ----- |
 | Status | Accepted with ADR-114 (2026-08-01); implementing in ONSW for `v0.10.0-beta` |
 | Date | 2026-08-01 |
-| APS | [ONSW](../modules/bare-ensure.aps.md), [JOURNEY-011](../modules/release-user-journeys.aps.md) |
+| APS | [ONSW](../archive/modules/bare-ensure.aps.md), [JOURNEY-011](../modules/release-user-journeys.aps.md) |
 
 ## Problem
 

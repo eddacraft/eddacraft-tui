@@ -2,12 +2,14 @@
 
 | ID       | Owner      | Status | Progress |
 | -------- | ---------- | ------ | -------- |
-| DASHCORE | @eddacraft | In Progress | 9/9      |
+| DASHCORE | @eddacraft | Complete | 9/9      |
 
 **Last reviewed:** 2026-07-27 — all nine work items are Merged. DASHCORE-001
 landed via PR #3363, DASHCORE-003..009 via PR #3379, and DASHCORE-002 retained
 history and trends via PR #3436. The module remains In Progress at 9/9 pending
 release evidence for the active `v0.10.0-beta` window.
+
+2026-08-27: all nine items confirmed Released/Shipped via v0.9.1-beta (record: plans/releases/v0.9.1-beta.md). Pending-v0.10.0-beta hold is stale. Module Complete — archive per the archive cascade.
 
 ## Purpose
 
@@ -115,7 +117,7 @@ DASHARCH.
 
 - **Status:** Released/Shipped via v0.9.1-beta (6a971188 · 2026-08-02). Merged 2026-07-27 via PR #3436
 - **Pull Request:** [#3436](https://github.com/eddacraft/anvil-001/pull/3436)
-- **Design:** [2026-07-26-dashcore-002-retained-history.md](../specs/2026-07-26-dashcore-002-retained-history.md)
+- **Design:** [2026-07-26-dashcore-002-retained-history.md](../../specs/2026-07-26-dashcore-002-retained-history.md)
   (approved 2026-07-26)
 - **Intent:** Add the authoritative historical health read model from a
   gate-writer NDJSON store, then visualise gate-score and warning-count

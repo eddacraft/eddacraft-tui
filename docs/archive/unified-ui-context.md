@@ -387,7 +387,7 @@ from each engineer's `.anvil/` workspace storage.
 ### 9.2 View Modules _(Planned)_
 
 > **Note:** The dashboard route group is not yet implemented. All routes below
-> are planned — see DASH-001 in `plans/modules/dashboard-foundation.aps.md`.
+> are planned — see DASH-001 in `plans/archive/modules/dashboard-foundation.aps.md`.
 
 #### Core Views (DASHCORE) _(Planned)_
 
@@ -438,7 +438,7 @@ from each engineer's `.anvil/` workspace storage.
 
 Shared dashboard components (target location: `components/dashboard/`). These
 files do not exist yet; they are defined as future DASH-003 work in
-`plans/modules/dashboard-foundation.aps.md`.
+`plans/archive/modules/dashboard-foundation.aps.md`.
 
 | Component              | Purpose                               |
 | ---------------------- | ------------------------------------- |
@@ -478,7 +478,7 @@ files do not exist yet; they are defined as future DASH-003 work in
 - **Data Hooks:** TanStack Query with `use-status`, `use-gates`, `use-warnings`,
   `use-drift`, etc. The dashboard runs as a local dev tool and reads from the
   engineer's `.anvil/` storage via localhost API routes (see
-  `plans/modules/dashboard-foundation.aps.md`). It is not a hosted Vercel
+  `plans/archive/modules/dashboard-foundation.aps.md`). It is not a hosted Vercel
   deployment for team-wide visibility — each engineer runs their own instance.
 
 ### 9.6 Demo Scenarios (Marketing / Video) _(Planned)_
@@ -750,7 +750,7 @@ All surfaces follow the same silence protocol:
      not yet implemented in the Rust CLI.)_
    - Open dashboard → same data, richer visualisation. _(Planned — the
      `/dashboard` route group is not yet implemented; see DASH-001 in
-     `plans/modules/dashboard-foundation.aps.md`.)_
+     `plans/archive/modules/dashboard-foundation.aps.md`.)_
    - Show architecture graph with a violation highlighted.
 
 4. **The Stack (60s):** _(Planned — `anvil status` does not display memory
