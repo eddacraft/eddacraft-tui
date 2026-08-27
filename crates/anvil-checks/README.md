@@ -19,8 +19,12 @@ compatibility and history record.
 
 - **`secret`** — secret/credential detection in source files, with a
   `max_line_bytes` ReDoS guard (default 4096 bytes) that skips oversized lines
-  before regex evaluation and reports skipped counts through
-  `SecretCheckResult`.
+  before regex evaluation. A skipped line is fail-closed: it blocks a clean pass
+  and zeroes the score rather than merely reporting a count, because the guard
+  runs before both the pattern and entropy passes and a line that was never read
+  cannot be proven clean. Detection is measured against a committed calibration
+  corpus (`pnpm secret:calibrate`), which reports detection rate, false-positive
+  rate and per-rule misses and fails on drift in either direction.
 - **`antipattern`** — registry-backed anti-pattern detection (unsafe code
   patterns, known bad practices). Every shipped rule flows through the compiled
   `.anvil` registry at `patterns/compiled/registry.json`, and rule provenance is

@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                  |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-27 against `src/antipattern/mask.rs` (CIB-359 3-byte-at-61 tests; production slice unchanged), `src/antipattern/registry_loader.rs`, and ADR-131; evaluation-flow diagram unaffected |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-27 against `src/secret/check.rs`, `src/secret/scanner.rs` and `tests/secret_calibration.rs` (SDT-001 fail-closed coverage reporting; SDT-002 calibration corpus), plus `src/antipattern/mask.rs` (CIB-359 3-byte-at-61 tests; production slice unchanged), `src/antipattern/registry_loader.rs`, and ADR-131; evaluation-flow diagram unaffected — SDT-001 changes result semantics, not the evaluation topology |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -102,8 +102,25 @@ orchestration from leaking into the reusable check engine.
   callers can compare runs.
 - Secret findings redact the matched value; tests assert that raw credentials do
   not enter finding output.
-- Oversized secret-scan lines are skipped before regular-expression evaluation
-  and the skip count remains observable in the result.
+- Oversized secret-scan lines are skipped before regular-expression evaluation,
+  and that skip is **fail-closed** (SDT-001): a non-zero skip count blocks a
+  clean pass and zeroes the score, because the guard drops the line before both
+  the pattern pass and the entropy pass, so a secret inside it cannot have been
+  seen. Every reason a scan could not read all of its input — a history-scan
+  failure or an oversize skip — collects in one place and is reported together;
+  neither swallows the other. The message names the count and both remedies
+  (raise `max_line_bytes`, or suppress with a documented reason under ADR-029),
+  since a red with no stated action trades a false-clean for an unactionable
+  one. The save-time intercept reports the same condition as a warning
+  diagnostic but does not interrupt the write.
+- Whole-_file_ skips are **not** yet covered by that rule: a configured
+  extension skip, the file-size limit, an unreadable file, and the SCAN-001
+  panic-containment arm each drop a file with no counter, so those paths can
+  still return a clean pass. Tracked as SDT-006.
+- Detection is measured, not asserted: `tests/corpus/secret/` holds a committed
+  calibration corpus and `tests/secret_calibration.rs` reports detection rate,
+  false-positive rate and per-rule misses, failing on drift in either direction
+  so no rules change ships unmeasured (SDT-002).
 - The antipattern disk-reading path uses a bounded shared rayon pool. The
   guarded-byte API accepts the caller's pool so the daemon controls its hot-path
   concurrency.
