@@ -311,7 +311,7 @@ completed study.
 
 ### FEFF-001: Accept the field-evidence and manual-export decision
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Establish a durable authority for what field evidence may be
   collected, retained, exported, and claimed.
 - **Expected Outcome:** An accepted ADR freezes the approved before/after
@@ -326,13 +326,22 @@ completed study.
   claim. The decision log and this module agree.
 - **Validation:** `pnpm format:check && pnpm aps:active-lint && pnpm docs:check`
 - **Files:** `plans/decisions/DECISION-LOG.md`,
-  `plans/decisions/<next>-field-effectiveness-evidence.md`, this module
+  `plans/decisions/133-field-effectiveness-evidence.md`, this module
 - **Confidence:** high
 - **Dependencies:** none
+- **Evidence:** ADR-133 accepted 2026-08-27 (owner), indexed in
+  `plans/decisions/DECISION-LOG.md` under Evaluation and Testing. Decisions
+  D-1..D-14 freeze the design, windows, cohort ladder, recruitment/stopping,
+  local-only processing, reviewed manual export, closed export allowlist,
+  disclosure-risk model, privacy-control precedence, Git/GitHub authorisation,
+  replay isolation, coverage/activity floors and missing-data treatment, metric
+  definitions and the AI-assisted rule, the claims allowlist, and fail-closed
+  verification. D-10's composite-command bar and D-11's missing-data clause are
+  written from FEFF-002's measured findings rather than from principle.
 
 ### FEFF-002: Audit evidence sources and historical replay feasibility
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Prove which planned measures are reconstructable from current
   supported sources before building a study surface.
 - **Expected Outcome:** A source audit maps each metric to its authoritative
@@ -347,11 +356,25 @@ completed study.
   FEFF-001.
 - **Validation:** The audit records successful replay and current-surface probe
   commands; `pnpm format:check && pnpm aps:active-lint && pnpm docs:check`
-- **Files:** `plans/audits/`, `crates/anvil-cli/src/commands/insights.rs`,
+- **Files:** `plans/audits/2026-08-27-feff-002-source-and-replay-audit.md`,
+  `crates/anvil-cli/src/commands/insights.rs`,
   `crates/anvil-cli/src/insights/`, `crates/anvil-cli/src/commands/drift.rs`,
   `crates/anvil-intercept/src/kindling_observation.rs`
 - **Confidence:** medium
 - **Dependencies:** none
+- **Evidence:** `plans/audits/2026-08-27-feff-002-source-and-replay-audit.md`.
+  Two operator-owned commits (`5d5f99a8`, `6e658892`) replayed via
+  `git archive` into isolated trees under a per-snapshot `ANVIL_HOME`; the
+  active checkout stayed clean throughout. `anvil drift snapshot --json` is
+  byte-deterministic apart from `created_at` and discriminates between
+  snapshots (antipatterns 93 vs 86, files 1728 vs 1652). Three blocking source
+  defects recorded: six of the `anvil insights` weekly summary's seven metrics
+  are hardcoded to `0`; the usage sidecar is machine-wide with 7-day retention
+  and carries no repository id; and both `gate --only-checks import-boundaries`
+  and `drift snapshot` report an unmeasured boundary state as a clean zero.
+  Implementation owners decided (FEFF-003/-005 to `anvil-bench`, FEFF-004 to
+  `anvil-cli`); KFIT-007/-009/-010 and DPO-003 dispositioned as
+  non-prerequisites.
 
 ### FEFF-003: Build the local retrospective baseline runner
 
