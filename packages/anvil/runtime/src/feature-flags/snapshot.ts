@@ -87,19 +87,22 @@ export function loadSnapshot(json: string): FeatureFlagSnapshot {
     throw new SnapshotLoadError('Missing required snapshot fields');
   }
 
+  const snapshotVersion = obj.snapshotVersion;
+  const issuedAt = obj.issuedAt;
+  const flags = obj.flags;
+
   // C-005: validate snapshotVersion is a positive integer
-  if (!Number.isInteger(obj.snapshotVersion) || (obj.snapshotVersion as number) < 1) {
+  if (!Number.isInteger(snapshotVersion) || snapshotVersion < 1) {
     throw new SnapshotLoadError('snapshotVersion must be a positive integer');
   }
 
   // C-006: validate issuedAt is a parseable timestamp
-  if (isNaN(new Date(obj.issuedAt as string).getTime())) {
+  if (isNaN(new Date(issuedAt).getTime())) {
     throw new SnapshotLoadError('issuedAt is not a valid timestamp');
   }
 
   // C-004: validate flag array elements have required fields
   const KNOWN_VALUE_TYPES = ['boolean', 'string', 'number', 'object'] as const;
-  const flags = obj.flags as unknown[];
   for (let i = 0; i < flags.length; i++) {
     const flag = flags[i];
     if (typeof flag !== 'object' || flag === null) {
@@ -125,7 +128,12 @@ export function loadSnapshot(json: string): FeatureFlagSnapshot {
     }
   }
 
-  return obj as unknown as FeatureFlagSnapshot;
+  return {
+    schemaVersion: FEATURE_FLAG_SCHEMA_VERSION,
+    snapshotVersion,
+    issuedAt,
+    flags: flags as FeatureFlagDefinition[],
+  };
 }
 
 // =============================================================================

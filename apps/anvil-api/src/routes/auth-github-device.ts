@@ -196,7 +196,13 @@ function reReturnMintedSession(c: Context, session: GithubDeviceSession, pollTok
   }
   let minted: MintSessionResult;
   try {
-    minted = JSON.parse(stored) as MintSessionResult;
+    minted = z
+      .object({
+        license: z.string(),
+        refreshToken: z.string(),
+        expiresAt: z.string(),
+      })
+      .parse(JSON.parse(stored));
   } catch {
     debug('minted session payload not valid JSON — failing closed');
     return c.json({ status: 'expired' });

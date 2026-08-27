@@ -146,7 +146,7 @@ pub fn collect_commits(
         ],
     )?;
 
-    // TODO(perf): this is 2 subprocesses per commit in the range. A
+    // TODO(perf, CIB-371): this is 2 subprocesses per commit in the range. A
     // 3-subprocess batch exists (`git log --format` for metadata + one
     // `git diff-tree --stdin -r -z --name-only` fed the rev-list) if
     // capsule ranges ever get big enough to feel it; the parse is

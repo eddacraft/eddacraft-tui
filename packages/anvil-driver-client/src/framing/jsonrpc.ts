@@ -106,9 +106,38 @@ export function classifyIncoming(
     (Object.prototype.hasOwnProperty.call(obj, 'result') ||
       Object.prototype.hasOwnProperty.call(obj, 'error'))
   ) {
-    // Response form. Pass it through; let downstream code branch on
-    // `result` vs `error`.
-    return { kind: 'response', response: obj as unknown as JsonRpcResponse };
+    // Response form. Reconstruct a typed envelope from narrowed fields
+    // rather than laundering the whole object through `unknown`.
+    const id = obj.id;
+    const responseId: JsonRpcId | null =
+      typeof id === 'string' || typeof id === 'number' || id === null ? id : null;
+    if (Object.prototype.hasOwnProperty.call(obj, 'error')) {
+      const err = obj.error;
+      if (typeof err !== 'object' || err === null) {
+        return { kind: 'unknown' };
+      }
+      const code = 'code' in err ? err.code : undefined;
+      const message = 'message' in err ? err.message : undefined;
+      if (typeof code !== 'number' || typeof message !== 'string') {
+        return { kind: 'unknown' };
+      }
+      return {
+        kind: 'response',
+        response: {
+          jsonrpc: '2.0',
+          id: responseId,
+          error: {
+            code,
+            message,
+            ...('data' in err ? { data: err.data } : {}),
+          },
+        },
+      };
+    }
+    return {
+      kind: 'response',
+      response: { jsonrpc: '2.0', id: responseId, result: obj.result },
+    };
   }
 
   if (typeof obj.method === 'string') {

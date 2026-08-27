@@ -8,6 +8,24 @@ interface VerifyResponse {
   isEdict?: boolean;
 }
 
+function parseVerifyResponse(value: unknown): VerifyResponse | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const valid = 'valid' in value ? value.valid : undefined;
+  const isEdict = 'isEdict' in value ? value.isEdict : undefined;
+  if (valid !== undefined && typeof valid !== 'boolean') {
+    return null;
+  }
+  if (isEdict !== undefined && typeof isEdict !== 'boolean') {
+    return null;
+  }
+  return {
+    ...(typeof valid === 'boolean' ? { valid } : {}),
+    ...(typeof isEdict === 'boolean' ? { isEdict } : {}),
+  };
+}
+
 function getAccessKey(body: unknown): string {
   if (!body || typeof body !== 'object' || !('accessKey' in body)) return '';
 
@@ -48,10 +66,14 @@ export async function POST(request: Request) {
     );
   }
 
-  let data: VerifyResponse;
+  let json: unknown;
   try {
-    data = (await response.json()) as VerifyResponse;
+    json = await response.json();
   } catch {
+    return NextResponse.json({ error: 'access_service_unavailable' }, { status: 503 });
+  }
+  const data = parseVerifyResponse(json);
+  if (data === null) {
     return NextResponse.json({ error: 'access_service_unavailable' }, { status: 503 });
   }
   if (data.valid !== true || data.isEdict !== true) {

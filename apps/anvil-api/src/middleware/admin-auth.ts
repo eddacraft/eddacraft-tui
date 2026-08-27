@@ -127,7 +127,12 @@ export const adminAuth: MiddlewareHandler = async (c, next) => {
     return c.json({ error: 'Invalid authorization format' }, 401);
   }
 
-  const provided = match[1]!;
+  const provided = match[1];
+  if (provided === undefined) {
+    debug('admin auth: invalid authorization format');
+    await auditAuthFailure('rejected_malformed', null, 'shared', { reason: 'bad_format' });
+    return c.json({ error: 'Invalid authorization format' }, 401);
+  }
 
   // Per-operator lookup only runs when the feature flag is on AND a pepper
   // is configured. Hashing with an empty pepper would (a) produce

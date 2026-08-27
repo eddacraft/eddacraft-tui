@@ -14,7 +14,8 @@ function extractSectionBody(content: string, headerPattern: RegExp): string | un
   const normalised = normaliseLineEndings(content);
   const match = normalised.match(headerPattern);
   if (!match) return undefined;
-  const start = match.index! + match[0].length;
+  if (match.index === undefined) return undefined;
+  const start = match.index + match[0].length;
   const nextSection = normalised.indexOf('\n##', start);
   const body = nextSection === -1 ? normalised.slice(start) : normalised.slice(start, nextSection);
   return body.trim() || undefined;

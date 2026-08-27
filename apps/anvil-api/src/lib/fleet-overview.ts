@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { NeonClient } from '../db/client.js';
 import {
   DEFAULT_TELEMETRY_RETENTION_DAYS,
@@ -41,6 +42,34 @@ export interface FleetDailyFeatureUsageRow {
   install_count: number | string;
   usage_count: number | string;
 }
+
+const FleetBeaconRowSchema = z.object({
+  as_of: z.string(),
+  beacon_id: z.string().nullable(),
+  install_id: z.string().nullable(),
+  received_on: z.string().nullable(),
+  version: z.string().nullable(),
+  install_method: z.string().nullable(),
+  feature_id: z.string().nullable(),
+  feature_key: z.string().nullable(),
+  usage_count: z.union([z.number(), z.string()]).nullable(),
+});
+
+const FleetDailyInstallRowSchema = z.object({
+  day: z.string(),
+  version: z.string(),
+  install_method: z.string(),
+  platform: z.string(),
+  channel: z.string(),
+  install_count: z.union([z.number(), z.string()]),
+});
+
+const FleetDailyFeatureUsageRowSchema = z.object({
+  day: z.string(),
+  feature_key: z.string(),
+  install_count: z.union([z.number(), z.string()]),
+  usage_count: z.union([z.number(), z.string()]),
+});
 
 export interface FleetOverviewSources {
   dailyInstalls: FleetDailyInstallRow[];
@@ -176,7 +205,11 @@ function lastCompletedAgeWeek(
 ): number {
   let latestFirstSeen = Number.NEGATIVE_INFINITY;
   for (const installId of members) {
-    latestFirstSeen = Math.max(latestFirstSeen, firstSeen.get(installId)!);
+    const seen = firstSeen.get(installId);
+    if (seen === undefined) {
+      throw new Error(`missing firstSeen for install ${installId}`);
+    }
+    latestFirstSeen = Math.max(latestFirstSeen, seen);
   }
   return Math.floor((asOfDay - latestFirstSeen + 1) / 7) - 1;
 }
@@ -383,7 +416,10 @@ export function buildFleetOverview(
       const periods = Array.from({ length: completedAgeWeek + 1 }, (_, week) => {
         let retained = 0;
         for (const installId of members) {
-          const installFirstSeen = firstSeen.get(installId)!;
+          const installFirstSeen = firstSeen.get(installId);
+          if (installFirstSeen === undefined) {
+            throw new Error(`missing firstSeen for install ${installId}`);
+          }
           const observed = (installBeacons.get(installId) ?? []).some(
             (beacon) => Math.floor((beacon.receivedDay - installFirstSeen) / 7) === week
           );
@@ -459,9 +495,9 @@ export async function findFleetOverview(sql: NeonClient): Promise<FleetOverview>
     FROM telemetry_daily_feature_usage
     ORDER BY day ASC, feature_key ASC
   `;
-  return buildFleetOverview(rows as unknown as FleetBeaconRow[], {
-    dailyInstalls: dailyInstalls as unknown as FleetDailyInstallRow[],
-    dailyFeatureUsage: dailyFeatureUsage as unknown as FleetDailyFeatureUsageRow[],
+  return buildFleetOverview(z.array(FleetBeaconRowSchema).parse(rows), {
+    dailyInstalls: z.array(FleetDailyInstallRowSchema).parse(dailyInstalls),
+    dailyFeatureUsage: z.array(FleetDailyFeatureUsageRowSchema).parse(dailyFeatureUsage),
     rawRetentionDays,
   });
 }

@@ -58,17 +58,20 @@ export function extractSections(body: string): MarkdownSections {
     if (fenceMarker === null) {
       const openMatch = line.match(FENCE_OPEN);
       if (openMatch) {
-        fenceMarker = openMatch[1]!;
+        const marker = openMatch[1];
+        if (marker === undefined) continue;
+        fenceMarker = marker;
         if (current) current.body.push(line);
         else preambleLines.push(line);
         continue;
       }
     } else {
       const closeMatch = line.match(FENCE_OPEN);
+      const closeMarker = closeMatch?.[1];
       if (
-        closeMatch &&
-        closeMatch[1]!.length >= fenceMarker.length &&
-        closeMatch[1]![0] === fenceMarker[0]
+        closeMarker !== undefined &&
+        closeMarker.length >= fenceMarker.length &&
+        closeMarker[0] === fenceMarker[0]
       ) {
         fenceMarker = null;
       }

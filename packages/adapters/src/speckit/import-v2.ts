@@ -211,7 +211,10 @@ export class SpecKitImportAdapterV2 extends BaseAdapter {
     errors: ConversionError[],
     warnings: ConversionWarning[]
   ): APSPlan {
-    const parsedSpec = docs.spec!.parsed!;
+    const parsedSpec = docs.spec?.parsed;
+    if (parsedSpec === undefined) {
+      throw new Error('buildAPSFromDocs requires a parsed spec.md');
+    }
     const parsedPlan = docs.plan?.parsed;
     const parsedTasks = docs.tasks?.parsed;
 

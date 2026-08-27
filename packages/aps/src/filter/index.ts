@@ -81,9 +81,10 @@ export function filterPlan(plan: LoadedPlan, criteria: FilterCriteria): Filtered
 
   // Apply module-level filters first
   if (criteria.modules && criteria.modules.length > 0) {
-    filteredModules = filteredModules.filter((m) => criteria.modules!.includes(m.id));
+    const moduleFilter = criteria.modules;
+    filteredModules = filteredModules.filter((m) => moduleFilter.includes(m.id));
     // Also filter tasks to only those in matching modules
-    const moduleIds = new Set(criteria.modules);
+    const moduleIds = new Set(moduleFilter);
     filteredTasks = filteredTasks.filter((t) => {
       const taskModule = findTaskModule(plan, t.id);
       return taskModule && moduleIds.has(taskModule.id);

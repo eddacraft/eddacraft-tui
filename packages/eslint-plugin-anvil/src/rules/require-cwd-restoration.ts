@@ -29,15 +29,41 @@ const rule: Rule.RuleModule = {
     // Track if any cwd variable is used in chdir
     let hasCwdRestoration = false;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ESLint AST node types
-    const isProcessCwdCall = (node: any): boolean => {
+    const isProcessCwdCall = (node: unknown): boolean => {
+      if (typeof node !== 'object' || node === null) {
+        return false;
+      }
+      if (!('type' in node) || node.type !== 'CallExpression') {
+        return false;
+      }
+      if (!('callee' in node) || typeof node.callee !== 'object' || node.callee === null) {
+        return false;
+      }
+      const callee = node.callee;
+      if (!('type' in callee) || callee.type !== 'MemberExpression') {
+        return false;
+      }
+      if (!('object' in callee) || typeof callee.object !== 'object' || callee.object === null) {
+        return false;
+      }
+      if (
+        !('property' in callee) ||
+        typeof callee.property !== 'object' ||
+        callee.property === null
+      ) {
+        return false;
+      }
+      const object = callee.object;
+      const property = callee.property;
       return (
-        node?.type === 'CallExpression' &&
-        node.callee?.type === 'MemberExpression' &&
-        node.callee.object?.type === 'Identifier' &&
-        node.callee.object.name === 'process' &&
-        node.callee.property?.type === 'Identifier' &&
-        node.callee.property.name === 'cwd'
+        'type' in object &&
+        object.type === 'Identifier' &&
+        'name' in object &&
+        object.name === 'process' &&
+        'type' in property &&
+        property.type === 'Identifier' &&
+        'name' in property &&
+        property.name === 'cwd'
       );
     };
 

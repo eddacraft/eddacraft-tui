@@ -741,8 +741,11 @@ admin.get('/users', zValidator('query', usersEngagementQuerySchema), async (c) =
   } else if (q.engagement === 'idle') {
     filter = { kind: 'idle', idleDays: q.idleDays };
   } else {
-    // schema refine guarantees feature when missing_feature
-    filter = { kind: 'missing_feature', featureKey: q.feature! };
+    const featureKey = q.feature;
+    if (featureKey === undefined) {
+      return c.json({ error: 'feature is required for missing_feature engagement' }, 400);
+    }
+    filter = { kind: 'missing_feature', featureKey };
   }
 
   const result = await findUsersByEngagement(sql, filter, q.limit, q.offset);

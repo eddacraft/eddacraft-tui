@@ -89,12 +89,19 @@ export function parseSidFromWhoamiOutput(output: string): string | null {
   if (firstLine !== undefined) {
     const quotedFields = firstLine.match(/"[^"]*"/g);
     if (quotedFields !== null && quotedFields.length >= 2) {
-      const lastField = quotedFields[quotedFields.length - 1]!.slice(1, -1);
+      const lastQuoted = quotedFields[quotedFields.length - 1];
+      if (lastQuoted === undefined) {
+        return null;
+      }
+      const lastField = lastQuoted.slice(1, -1);
       return FULL_SID_PATTERN.test(lastField) ? lastField : null;
     }
   }
   const matches = output.match(SID_PATTERN);
-  return matches === null ? null : matches[matches.length - 1]!;
+  if (matches === null) {
+    return null;
+  }
+  return matches[matches.length - 1] ?? null;
 }
 
 /** Process-lifetime cache: a (non-impersonating) process's user SID
@@ -303,11 +310,12 @@ export class WindowsNamedPipeTransport implements Transport {
   }
 
   public async send(chunk: string): Promise<void> {
-    if (this.closed || this.socket === null) {
+    const socket = this.socket;
+    if (this.closed || socket === null) {
       throw driverError('anvil-daemon-transport-drop', 'transport closed before send');
     }
     return new Promise<void>((resolve, reject) => {
-      const ok = this.socket!.write(chunk, 'utf8', (err) => {
+      const ok = socket.write(chunk, 'utf8', (err) => {
         if (err) {
           reject(driverError('anvil-daemon-transport-drop', `pipe write failed: ${err.message}`));
         }

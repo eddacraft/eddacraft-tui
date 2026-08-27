@@ -55,13 +55,23 @@ async function exchangeCodeForToken(code: string): Promise<string> {
     throw new Error(`GitHub token exchange failed: ${res.status}`);
   }
 
-  const body = (await res.json()) as Record<string, unknown>;
-  if (body.error) {
-    throw new Error(`GitHub OAuth error: ${body.error_description ?? body.error}`);
+  const body: unknown = await res.json();
+  const token = GitHubTokenSchema.safeParse(body);
+  if (token.success) {
+    return token.data.access_token;
   }
-
-  const parsed = GitHubTokenSchema.parse(body);
-  return parsed.access_token;
+  const oauthError = z
+    .object({
+      error: z.string(),
+      error_description: z.string().optional(),
+    })
+    .safeParse(body);
+  if (oauthError.success) {
+    throw new Error(
+      `GitHub OAuth error: ${oauthError.data.error_description ?? oauthError.data.error}`
+    );
+  }
+  throw new Error('GitHub token exchange returned an unexpected payload');
 }
 
 async function revokeGitHubToken(accessToken: string): Promise<void> {

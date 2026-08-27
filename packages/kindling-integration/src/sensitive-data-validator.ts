@@ -14,7 +14,11 @@
  * @see observation-contract.ts for the base containsSensitiveData utility
  */
 
-import { containsSensitiveData, type Observation } from './observation-contract.js';
+import {
+  containsSensitiveData,
+  ObservationSchema,
+  type Observation,
+} from './observation-contract.js';
 import { createDebugger } from './utils/debug.js';
 
 const debug = createDebugger('kindling');
@@ -163,5 +167,17 @@ export function redactSensitiveFields(observation: Observation): Observation {
     serialized = serialized.replace(pattern, replacement);
   }
 
-  return JSON.parse(serialized) as Observation;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    debug('redaction produced invalid JSON; returning original observation');
+    return observation;
+  }
+  const result = ObservationSchema.safeParse(parsed);
+  if (!result.success) {
+    debug('redaction produced an invalid observation; returning original');
+    return observation;
+  }
+  return result.data;
 }

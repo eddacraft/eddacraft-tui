@@ -1,7 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
-import { ProposalAlreadyResolvedError } from '../contracts/ember-proposal.js';
+import { z } from 'zod';
+import {
+  CandidateProposalSchema,
+  EvaluationSignalSchema,
+  ProposalAlreadyResolvedError,
+  type CandidateProposal,
+  type CreateProposalInput,
+  type ProposalQuery,
+  type ProposalQueryResult,
+  type ProposalStatus,
+  type ProposalType,
+} from '../contracts/ember-proposal.js';
 import {
   createProposalId,
   type MemoryId,
@@ -9,14 +20,7 @@ import {
   type SessionId,
 } from '../contracts/identifiers.js';
 import { calculateExpiry, now, parseTimestamp, type Timestamp } from '../contracts/temporal.js';
-import type {
-  CandidateProposal,
-  CreateProposalInput,
-  ProposalQuery,
-  ProposalQueryResult,
-  ProposalStatus,
-  ProposalType,
-} from '../contracts/ember-proposal.js';
+import { ProvenanceSummarySchema } from '../contracts/provenance.js';
 import type {
   EmberStats,
   IEmberPort,
@@ -672,14 +676,34 @@ export function serialiseProposal(proposal: CandidateProposal): SerialisedPropos
   };
 }
 
+function parseJsonColumn<T>(raw: string, schema: z.ZodType<T>, label: string): T {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Error(`invalid ${label} JSON`);
+  }
+  return schema.parse(value);
+}
+
 export function deserialiseRow(row: ProposalRow): CandidateProposal {
-  const metadata = row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : undefined;
+  const metadata = row.metadata
+    ? parseJsonColumn(row.metadata, z.record(z.string(), z.unknown()), 'proposal metadata')
+    : undefined;
   const signals = row.signals
-    ? (JSON.parse(row.signals) as CandidateProposal['signals'])
-    : ([] as CandidateProposal['signals']);
-  const provenance = JSON.parse(row.provenance) as CandidateProposal['provenance'];
+    ? parseJsonColumn(row.signals, z.array(EvaluationSignalSchema), 'proposal signals')
+    : [];
+  const provenance = parseJsonColumn(
+    row.provenance,
+    ProvenanceSummarySchema,
+    'proposal provenance'
+  );
   const resolution = row.resolution
-    ? (JSON.parse(row.resolution) as NonNullable<CandidateProposal['resolution']>)
+    ? parseJsonColumn(
+        row.resolution,
+        CandidateProposalSchema.shape.resolution.unwrap(),
+        'proposal resolution'
+      )
     : undefined;
 
   return {

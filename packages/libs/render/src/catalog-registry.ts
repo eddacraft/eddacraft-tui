@@ -55,8 +55,7 @@ export const catalog = schema.createCatalog({
  * to fit the combined catalog's ComponentFn type. The prop shapes are
  * identical — the cast is purely a TypeScript generic mismatch.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- shadcn registry types don't align with combined catalog generics; cast is safe because prop shapes are identical
-const components: any = {
+const components = {
   // shadcn built-ins
   Card: shadcnComponents.Card,
   Stack: shadcnComponents.Stack,

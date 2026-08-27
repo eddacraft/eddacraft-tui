@@ -219,12 +219,13 @@ export class UnixSocketTransport implements Transport {
   }
 
   public async send(chunk: string): Promise<void> {
-    if (this.closed || this.socket === null) {
+    const socket = this.socket;
+    if (this.closed || socket === null) {
       throw driverError('anvil-daemon-transport-drop', 'transport closed before send');
     }
 
     return new Promise<void>((resolve, reject) => {
-      const ok = this.socket!.write(chunk, 'utf8', (err) => {
+      const ok = socket.write(chunk, 'utf8', (err) => {
         if (err) {
           reject(driverError('anvil-daemon-transport-drop', `socket write failed: ${err.message}`));
         }

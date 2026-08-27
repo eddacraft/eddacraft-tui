@@ -423,7 +423,16 @@ export class DriverClient {
         timeoutMs,
       });
 
-      const sendPromise = this.transport!.send(encodeNdjsonLine(envelope));
+      const transport = this.transport;
+      if (transport === null) {
+        this.pending.delete(idKey);
+        this.scheduler.clearTimeout(timeoutHandle);
+        reject(
+          driverError('anvil-daemon-unavailable', 'transport not connected; call connect() first')
+        );
+        return;
+      }
+      const sendPromise = transport.send(encodeNdjsonLine(envelope));
       sendPromise.catch((err: unknown) => {
         // The send itself failed — typically because the transport
         // dropped between dispatch and write. Cancel the pending
