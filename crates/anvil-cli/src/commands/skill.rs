@@ -1353,7 +1353,7 @@ mod tests {
         create_dir_all_nofollow(compat).unwrap_or_else(|err| {
             panic!(
                 "OS root compatibility symlink {} must be walkable: {err:#}",
-                compat.display()
+                crate::display_path::shown(compat)
             )
         });
     }
