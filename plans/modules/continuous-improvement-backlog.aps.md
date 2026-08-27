@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 288/361  |
+| CIB | —     | In Progress | 288/365  |
 
 ## Purpose
 
@@ -11531,3 +11531,152 @@ hang before opening a supervisor ticket.
 - **Confidence:** high on the placeholder inventory (read from source and
   independently confirmed during verification of PR #4166); medium on whether
   the fix is a nullable field or a new schema version.
+
+### CIB-368: Older CLI must not fail-load a newer AST registry
+
+- **Status:** Ready
+- **Priority:** P2 — `anvil check --all` on this repo with the current
+  Homebrew `0.9.7-beta` binary errors on PY-010 even though the in-tree
+  predicate exists
+- **Intent:** A repo whose `patterns/compiled/registry.json` is newer than the
+  installed CLI must not fail `anvil check` with
+  `registry AST rule PY-010 has no predicate in anvil-checks-ast
+  (registry-completeness, ADR-071 §3)`. GTAO-008 already shipped PY-010 in
+  this tree via #4084 (2026-08-22). `v0.9.7-beta` shipped 2026-08-21, so a
+  released binary against current main is expected to lack the predicate.
+  Completeness should stay fail-closed for a *matching* binary that claims a
+  rule it cannot evaluate; it should skip-and-warn for registry IDs the
+  binary has never shipped.
+- **Expected Outcome:** Unknown AST registry IDs are skipped with a named
+  warning (`rule X requires a newer anvil`), not a load error. Checks still
+  run the rules the binary knows. A cargo-built anvil from this tree still
+  fires PY-010 on the GTAO-008 fixtures.
+- **Non-scope / do not:** do not re-implement PY-010; do not weaken ADR-071
+  completeness for a binary that includes the rule in its own catalogue.
+- **Files:** `crates/anvil-checks-ast/src/` (registry/predicate join),
+  `patterns/compiled/registry.json`
+- **Validation:** Install `0.9.7-beta` against current main registry → no
+  `PY-010 has no predicate` error; `cargo test -p eddacraft-anvil-checks-ast
+  --no-fail-fast` still green; PY-010 fixtures still fire on a same-tree
+  binary.
+- **Identified From:** tmux `anvil:18.1` `anvil check --all` on 2026-08-27
+  using `/home/linuxbrew/.linuxbrew/bin/anvil` `0.9.7-beta`.
+- **Coordinates with:** GTAO-008 (Merged via #4084), ADR-071, CIB-294
+  (CI dogfood must use a working-tree binary, not the release).
+- **Confidence:** high — in-tree `predicates.rs` maps PY-010; the released
+  binary predates the merge.
+
+### CIB-369: Secret detection must not red anvil-001 for its own corpus
+
+- **Status:** Ready
+- **Priority:** P2 — 304/304 listed errors on `anvil check --all` were
+  `SECRET-*` self-hits; none looked like live credentials
+- **Intent:** Scanning this repository with anvil is blocked by the detector
+  eating its own fixtures, Rust `secret::` module paths (reporter-redacted as
+  `secret:[REDACTED]`), and public high-entropy material (release verify keys,
+  DKIM `p=`, Vercel CNAME hashes, W3C zero `traceparent` IDs flagged as
+  credit cards).
+- **Expected Outcome:** `cargo run -p eddacraft-anvil -- check --all` on this
+  repo reports zero secret *errors* on product paths. `use crate::secret::…`
+  / `anvil_checks::secret::…` identifiers are not `SECRET-GENERIC-SECRET`.
+  `#[cfg(test)]` modules and named test files are skipped or allowlisted with
+  ADR-029 provenance. Known public material is classified benign. Issue #1800
+  textbook keys still fire.
+- **Non-scope / do not:** do not replace the engine; do not raise
+  `max_line_bytes`; do not reopen **CIB-080** (external-corpus FPs, Done).
+- **Files:** `crates/anvil-checks/src/secret/{scanner,patterns,entropy,check}.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks secret::`; secret
+  errors on anvil-001 product paths = 0; planted textbook keys still fire.
+- **Identified From:** tmux `anvil:18.1` `anvil check --all`, 2026-08-27.
+- **Coordinates with:** SDT-002 (calibration corpus allowlist), CIB-080
+  (Done), CIB-294 (CI dogfood), #1800.
+- **Confidence:** high on the inventory (392 listed findings parsed from the
+  pane); medium on the exact skip/allowlist shape versus SDT-002's corpus
+  format.
+
+### CIB-370: Retire leftover TypeScript policy, watch, and import-codemod surfaces
+
+- **Status:** Draft — inventory is evidence-backed; deletion needs an
+  operator promotion because it touches package graph and e2e smoke.
+- **Priority:** P3 — not on the product engine path; hygiene and false
+  warning load
+- **Intent:** CONTEXT.md already states the shipped product is the Rust
+  binary. ADR-033 / TSRET-005 archived the TS scanner. What remains in
+  `packages/anvil/policy`, `packages/anvil/runtime/src/watch/file-watcher.ts`,
+  and `tools/codemods` is leftover orchestration that still generates
+  TE-001/GS-001/AP-003 noise on `anvil check --all`.
+- **Context:** 2026-08-27 liveness check:
+  - `@eddacraft/anvil-policy` is a **dead** `package.json` dependency of
+    `@eddacraft/anvil-runtime`; no runtime `.ts` import remains. CLI policy
+    is `crates/anvil-policy`.
+  - `createFileWatcher` is only asserted by `apps/e2e` smoke (`typeof`) and
+    its own tests. No app imports `@eddacraft/anvil-runtime/watch`.
+  - `tools/codemods` (`rewrite-imports.ts`) is the TS package-split
+    one-shot; `pnpm codemod:imports` still exists.
+  - **Keep:** `packages/anvil/runtime/src/feature-flags/` (anvil-api +
+    docs-shell), `packages/anvil/core/src/anvil-format/` (`.anvil` compiler),
+    `packages/anvil/contracts`, `packages/anvil/flags-catalogue`,
+    `packages/anvil/runtime/src/concurrency/atomic.ts` (still used by
+    file-cache and lock-manager).
+- **Expected Outcome:** A sequenced retirement: (1) drop the unused
+  `anvil-policy` dependency from runtime; (2) archive or delete the policy
+  package once e2e/docs references are gone; (3) remove FileWatcher from the
+  public runtime export and the e2e typeof smoke, or archive the watch
+  subpath; (4) archive `tools/codemods` once no in-tree import still needs
+  the split. READMEs stop claiming MCP-server / anvil-cli TS consumers that
+  no longer exist.
+- **Non-scope / do not:** do not delete feature-flags, anvil-format, or
+  contracts; do not polish GS/TE on files slated for deletion (that is
+  **CIB-371**'s exclusion).
+- **Files:** `packages/anvil/policy/`, `packages/anvil/runtime/package.json`,
+  `packages/anvil/runtime/src/watch/`, `apps/e2e/src/smoke/smoke.e2e.test.ts`,
+  `tools/codemods/`, `packages/anvil/README.md`
+- **Validation:** `pnpm typecheck` and `apps/e2e` smoke green with the
+  retired surfaces gone; no remaining `@eddacraft/anvil-policy` importers.
+- **Identified From:** tmux `anvil:18.1` finding triage + package.json /
+  README consumer audit, 2026-08-27.
+- **Coordinates with:** ADR-033, TSRET-005, CIB-371.
+- **Confidence:** high on keep-vs-drop inventory; medium on whether watch
+  should archive vs shrink to git-status helpers.
+
+### CIB-371: Clear live TE/GS/AP boundary casts on remaining product TypeScript
+
+- **Status:** Ready
+- **Priority:** P2 — 32 warnings in files that must stay
+- **Intent:** After excluding leftover TS (CIB-370) and `audit.rs` `#[cfg(test)]`
+  DD fixtures, the remaining `anvil check --all` warnings on live product
+  TypeScript are unvalidated `JSON.parse` / `as` (`TE-001`, `GS-002`),
+  non-null assertions (`GS-001`), and a few `any` (`AP-003`).
+- **Expected Outcome:** Those live files parse untrusted JSON with a schema or
+  type-guard, bind optional regex/Map values instead of `!`, and drop
+  explicit `any` where ESLint/catalog types exist. Invalid GitHub / website
+  / SQL / SQLite JSON fails closed rather than asserting.
+- **Non-scope / do not:** do not clean `packages/anvil/policy`,
+  `file-watcher.ts`, or `tools/codemods` (CIB-370); do not treat `audit.rs`
+  TODO-string fixtures as product TODOs; do not change Neon query shapes.
+- **Files:** `apps/anvil-api/src/lib/fleet-overview.ts`,
+  `apps/anvil-api/src/routes/auth-github.ts`,
+  `apps/anvil-api/src/routes/auth-github-device.ts`,
+  `apps/anvil-api/src/middleware/admin-auth.ts`,
+  `apps/anvil-api/src/routes/admin.ts`,
+  `apps/website/app/api/early-access/install/route.ts`,
+  `packages/edda-stack/src/ember/proposal-store.ts`,
+  `packages/kindling-integration/src/sensitive-data-validator.ts`,
+  `packages/anvil/runtime/src/feature-flags/snapshot.ts`,
+  `packages/anvil-driver-client/src/{client/driver-client.ts,framing/jsonrpc.ts,transport/unix.ts,transport/windows.ts}`,
+  `packages/anvil/core/src/anvil-format/sections.ts`,
+  `packages/adapters/src/generic/utils.ts`,
+  `packages/adapters/src/speckit/import-v2.ts`,
+  `packages/aps/src/filter/index.ts`,
+  `packages/libs/render/src/catalog-registry.ts`,
+  `packages/eslint-plugin-anvil/src/rules/require-cwd-restoration.ts`,
+  `crates/anvil-capsule/src/collect.rs`
+- **Validation:** existing package tests plus new fail-closed cases for
+  invalid JSON on GitHub token exchange, website verify, proposal-store
+  deserialise, and fleet-overview row parse;
+  `anvil check` on those files has no TE-001/GS-001/GS-002/AP-003 on the
+  listed lines.
+- **Identified From:** tmux `anvil:18.1` `anvil check --all` triage,
+  2026-08-27.
+- **Coordinates with:** CIB-370 (do not polish files slated to retire).
+- **Confidence:** high.
