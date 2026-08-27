@@ -7736,7 +7736,7 @@ Used by:
 - `serde_path_to_error` 0.1.20
 - `serde_yaml` 0.9.34+deprecated
 - `syn` 2.0.119
-- `syn` 3.0.3
+- `syn` 3.0.4
 - `thiserror-impl` 2.0.20
 - `thiserror` 2.0.20
 - `unicode-ident` 1.0.24
@@ -9806,7 +9806,7 @@ the following restrictions:
 | `serde_path_to_error` | 0.1.20 | MIT License | https://github.com/dtolnay/path-to-error |
 | `serde_yaml` | 0.9.34+deprecated | MIT License | https://github.com/dtolnay/serde-yaml |
 | `syn` | 2.0.119 | MIT License | https://github.com/dtolnay/syn |
-| `syn` | 3.0.3 | MIT License | https://github.com/dtolnay/syn |
+| `syn` | 3.0.4 | MIT License | https://github.com/dtolnay/syn |
 | `thiserror-impl` | 2.0.20 | MIT License | https://github.com/dtolnay/thiserror |
 | `thiserror` | 2.0.20 | MIT License | https://github.com/dtolnay/thiserror |
 | `unicode-ident` | 1.0.24 | MIT License | https://github.com/dtolnay/unicode-ident |
