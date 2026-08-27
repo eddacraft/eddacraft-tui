@@ -116,9 +116,11 @@ The alternative framings were considered and rejected:
     **6.9% error-trees** over real OSS — clean enough for T1 symbol recovery,
     but the highest of the four clean-parsing tail languages. Boundary
     resolution and any AST-tier rule inherit that error rate.
-  - **No namespace→file resolver exists.** C# namespaces are conventionally
-    but not necessarily folder-aligned, and one file may declare several
-    namespaces. This is strictly harder than the Rust and Python resolvers.
+  - **No namespace resolver exists.** C# namespaces are conventionally but not
+    necessarily folder-aligned, one file may declare several, and one namespace
+    routinely spans many files. This is strictly harder than the Rust and
+    Python resolvers — and, per the mitigation below, is not a
+    namespace→*file* problem at all: the resolution is one-to-many.
   - **FP-prone rules.** `.Result` / `.Wait()` matches any property named
     `Result`, not only `Task.Result`; `dynamic` and `Console.Write` are noisy
     by nature.

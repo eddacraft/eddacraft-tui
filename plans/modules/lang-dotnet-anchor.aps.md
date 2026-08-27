@@ -42,7 +42,7 @@ of that, and nothing that T1 already delivers.
   `using Alias = System.Text;` (resolves to the **target**, not the alias).
 
 **The gap to T3** is everything §5.1 requires beyond that: an anti-pattern
-catalogue, suppression coverage, entry-point detection, namespace→file import
+catalogue, suppression coverage, entry-point detection, namespace import
 resolution, layer/boundary enforcement, drift baseline, and inclusion in
 `architecture-validate`.
 
@@ -81,11 +81,17 @@ shape; the archived file stays the historical record.
   `static void Main` / `static async Task Main`, and `.csproj`
   `<OutputType>Exe</OutputType>`, mirroring `detect_rust_entry_points`
   (RSTLAN-004) and `detect_python_entry_points` (PYLAN-005).
-- **Namespace→file import resolution** — map a `using` target to a
-  workspace-relative `.cs` file, the C# parallel of `resolve_rust_import` /
-  `resolve_python_import`. Unresolvable targets (BCL, NuGet, namespaces
-  declared nowhere in the tree) return `None` and the edge is **dropped**.
-- **Layer/boundary enforcement** reaching C# namespaces and projects.
+- **Namespace import resolution via a declared-namespace index** — resolve a
+  `using` target to the **set** of workspace-relative `.cs` files declaring
+  that namespace. Deliberately *not* the `resolve_rust_import` /
+  `resolve_python_import` single-file shape: a C# `using` imports a namespace,
+  not a file, and one namespace routinely spans many files. Targets declared
+  nowhere in the tree are external (BCL, NuGet) and the edge is **dropped**.
+  Design and rejected alternatives: DNLAN-005; extractor prerequisite:
+  DNLAN-009.
+- **Layer/boundary enforcement** reaching C# namespaces and projects —
+  including the collapse from that file set to a single layer verdict, with
+  layer-straddling namespaces dropped rather than guessed (DNLAN-006).
 - **Drift baseline default-on for `.cs`** — `.cs` joins
   `AntipatternCheckConfig::default()`'s extension set.
 - **`architecture-validate` includes C# projects** — `.cs` in the validator's
