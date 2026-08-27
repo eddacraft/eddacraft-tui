@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 289/357  |
+| CIB | —     | In Progress | 288/357  |
 
 ## Purpose
 
@@ -11217,7 +11217,7 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
 | B26 menu-align | Confirmed fixed on 0.9.7 | Closed. No CIB |
 | DOC-3 `--web` help | Confirmed fixed on 0.9.7 | Closed. No CIB |
 | HOMEBREW-1 | Notes only. Install was not broken; live 0.9.7 notes say `anvil` | Closed. No CIB |
-| B31 UTF-8 panic | Real crash in `ends_with_regex_keyword` (`rfind` + `i + 1`) | **CIB-359** Merged via #4129 |
+| B31 UTF-8 panic | Real crash in `ends_with_regex_keyword` (`rfind` + `i + 1`) | **CIB-359** Ready P1 |
 | B33 gate secrets skip `.py`/`.tsx`/`.go`/`.sh` | Documented domain. Pack-02 GATE-1. CIB-255 chose disclosure over parity | **Won't file.** **CIB-255** |
 | B28 `l4-validate` silent / `--json` empty | Designed silent CI admit (`json_surface_audit` class `silent`). Already replied | **Won't file.** |
 | B28 garbage policy still exit 0 | **Retracted by Dave 2026-08-22** (empty-`ANVIL_HOME` harness artifact). Under resolved identity, malformed policy exits 1 with a YAML parse error and a `--json` error document. Remaining silent no-op (no rule commits) is the designed silent class | **Retracted.** No CIB |
@@ -11229,7 +11229,9 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
 
 ### CIB-359: Antipattern masker must not panic on a multibyte char boundary
 
-- **Status:** Merged 2026-08-24 via PR #4129.
+- **Status:** Ready — operator-authorised 2026-08-22 after pack-10
+  disposition. Core slice landed in #4129; remaining 3-byte / init-order
+  gaps are on #4167.
 - **Priority:** P1 — `init` / `baseline` / `check <file>` panic exit 101
 - **Intent:** `ends_with_regex_keyword` in
   `crates/anvil-checks/src/antipattern/mask.rs` takes `str::rfind`'s byte
