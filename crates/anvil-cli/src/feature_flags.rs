@@ -1144,6 +1144,72 @@ mod tests {
         );
     }
 
+    // ── IMPV-002: impact view default-off gate ─────────────────────
+
+    #[test]
+    fn impact_view_gate_key_matches_catalogue() {
+        assert_eq!(IMPACT_VIEW_GATE_KEY, "impact.view");
+        let definition = impact_view::definition();
+        assert_eq!(definition.key, IMPACT_VIEW_GATE_KEY);
+        assert_eq!(definition.default_variant, "disabled");
+        assert_eq!(definition.class, anvil_kernel_types::FlagClass::Rollout);
+    }
+
+    #[test]
+    fn impact_view_denied_by_default() {
+        assert!(!impact_view_access_allowed_with(&FlagOverrides::default()));
+        let definition = impact_view::definition();
+        let context = cli_evaluation_context("cli-session", None);
+        let details = resolve_flag(&definition, &context, Some(&FlagOverrides::default()));
+        assert_eq!(details.variant, "disabled");
+        assert_eq!(details.reason, ResolutionReason::Default);
+    }
+
+    #[test]
+    fn impact_view_allowed_with_dev_override() {
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
+            let overrides = local_overrides_from_env();
+            assert_eq!(
+                overrides
+                    .local
+                    .get(IMPACT_VIEW_GATE_KEY)
+                    .map(String::as_str),
+                Some("enabled"),
+                "ANVIL_DEV=1 must insert a local override on {IMPACT_VIEW_GATE_KEY}"
+            );
+            assert!(impact_view_access_allowed_with(&overrides));
+        });
+    }
+
+    #[test]
+    fn impact_view_env_gate_allows_with_explicit_opt_in() {
+        temp_env::with_vars(
+            [
+                (IMPACT_VIEW_ENV_VAR, Some("1")),
+                (DEV_BYPASS_ENV_VAR, None::<&str>),
+            ],
+            || {
+                assert!(impact_view_access_allowed());
+            },
+        );
+    }
+
+    #[test]
+    fn impact_view_env_gate_force_off_beats_dev_override() {
+        temp_env::with_vars(
+            [
+                (IMPACT_VIEW_ENV_VAR, Some("0")),
+                (DEV_BYPASS_ENV_VAR, Some("1")),
+            ],
+            || {
+                assert!(
+                    !impact_view_access_allowed(),
+                    "ANVIL_IMPACT=0 must kill-switch even under ANVIL_DEV=1"
+                );
+            },
+        );
+    }
+
     // ── CIB-046: APS dashboard internal-developer gate ──────────────
 
     #[test]

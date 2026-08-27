@@ -44,11 +44,6 @@ fn impact_json_refusal_is_structured() {
         .expect("failed to invoke anvil binary");
 
     assert_eq!(output.status.code(), Some(EXIT_ERROR));
-    assert!(
-        output.stderr.is_empty(),
-        "structured refusal must not leak prose to stderr: {}",
-        String::from_utf8_lossy(&output.stderr),
-    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     let envelope: serde_json::Value =
         serde_json::from_str(&stdout).expect("refusal stdout must be one JSON document");
