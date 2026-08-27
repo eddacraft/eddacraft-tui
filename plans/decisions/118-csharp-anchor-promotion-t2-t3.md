@@ -124,13 +124,21 @@ The alternative framings were considered and rejected:
     by nature.
   - **Zero-demand drift.** With no user, the anchor can rot unnoticed.
 - **Mitigations:**
-  - Default to the **regex/RE2 tier** (the `PYLAN-003` precedent, save-time
-    safe) and escalate only the rules that fail the FP bar to the ADR-071
-    AST tier; rules that cannot clear the bar at either tier ship **opt-in**
-    or not at all.
-  - Resolver returns `None` and **drops the edge** when a namespace resolves
-    nowhere — conservative, never a false boundary violation (the
-    `PYLAN-006` rule).
+  - ~~Default to the **regex/RE2 tier** and escalate only the rules that fail
+    the FP bar to the ADR-071 AST tier.~~ **Amended 2026-08-06 (owner):** the
+    catalogue uses **both tiers, split per rule up front** — regex for the four
+    textual-directive rules, AST for the four that need block structure or type
+    context. Escalation-on-failure was the wrong default: a rule like
+    sync-over-async cannot be made correct at the regex tier by tuning, so
+    shipping it there first buys a known-bad result and a rewrite. Rules that
+    cannot clear the FP bar at their chosen tier still ship **opt-in** or not
+    at all. See the DNLAN module's Detection Tier section.
+  - Resolver **drops the edge** when a namespace resolves nowhere —
+    conservative, never a false boundary violation (the `PYLAN-006` rule).
+    **Amended 2026-08-06:** resolution is by *declared-namespace index*, not a
+    path-derivation returning `Option<PathBuf>` — a C# `using` imports a
+    namespace, not a file, and one namespace routinely spans many files. The
+    drop rule is unchanged and now also covers layer-straddling namespaces.
   - The FP bar (consequence 4 above) is the gate, not a follow-up.
 
 ## References
