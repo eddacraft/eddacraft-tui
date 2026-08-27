@@ -6703,6 +6703,7 @@ dependencies = [
  "miniz_oxide",
  "mio",
  "nix 0.31.3",
+ "num-bigint 0.4.8",
  "num-traits",
  "once_cell",
  "percent-encoding",

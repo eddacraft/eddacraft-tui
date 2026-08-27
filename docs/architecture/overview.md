@@ -1,8 +1,8 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-27 against GTAO-003 CLI follow-up after daemon allow; container topology unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                              |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-27 against the GTAO-003 CLI follow-up after daemon allow and the `Cargo.toml` jsonschema 0.50 dependency update; container and component topology are unaffected |
 
 | Upstream                                                                                                                                                                                                                         | Downstream                                                                            |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
