@@ -5,7 +5,7 @@
 
 | ID   | Owner  | Priority | Status | Progress |
 | ---- | ------ | -------- | ------ | -------- |
-| FEFF | @aneki | high     | Ready  | 0/8      |
+| FEFF | @aneki | high     | Ready  | 2/8      |
 
 **Last reviewed:** 2026-08-13 against the index success criteria, DEVACC Tier C
 boundary, ADR-107, FLEET/BACT, current insights/drift evidence, and the
@@ -311,7 +311,7 @@ completed study.
 
 ### FEFF-001: Accept the field-evidence and manual-export decision
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Establish a durable authority for what field evidence may be
   collected, retained, exported, and claimed.
 - **Expected Outcome:** An accepted ADR freezes the approved before/after
@@ -341,7 +341,7 @@ completed study.
 
 ### FEFF-002: Audit evidence sources and historical replay feasibility
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Intent:** Prove which planned measures are reconstructable from current
   supported sources before building a study surface.
 - **Expected Outcome:** A source audit maps each metric to its authoritative
