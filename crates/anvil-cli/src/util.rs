@@ -504,6 +504,10 @@ pub fn refuse_if_parent_is_symlink(target: &Path) -> Result<()> {
 /// On Unix this walks the path with `openat`/`mkdirat` and
 /// `O_DIRECTORY|O_NOFOLLOW`, so a concurrent swap of a checked component for
 /// a symlink cannot redirect directory creation outside the intended tree.
+/// One exception: an existing directory symlink that is a direct child of
+/// `/` is followed. That is the OS compatibility hop (`/var` →
+/// `/private/var` and `/tmp` → `/private/tmp` on macOS; usr-merge `/bin`
+/// on Linux). Nested and relative symlink components stay refused.
 /// On Windows the same guarantee is provided by handle-relative
 /// `NtCreateFile` with `OBJ_DONT_REPARSE` (junctions and symlinks). Other
 /// platforms fall back to [`std::fs::create_dir_all`] followed by a
@@ -653,82 +657,106 @@ fn refuse_symlink_path_components(path: &Path) -> Result<()> {
 }
 
 #[cfg(unix)]
+fn unix_dir_open_flags() -> (nix::fcntl::OFlag, nix::fcntl::OFlag) {
+    use nix::fcntl::OFlag;
+    let dir_flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_CLOEXEC;
+    (dir_flags, dir_flags | OFlag::O_NOFOLLOW)
+}
+
+#[cfg(unix)]
+fn try_open_dir_component(
+    parent: Option<std::os::fd::BorrowedFd<'_>>,
+    name: &std::ffi::OsStr,
+    flags: nix::fcntl::OFlag,
+) -> std::result::Result<std::os::fd::OwnedFd, nix::errno::Errno> {
+    use nix::fcntl::{open, openat};
+    use nix::sys::stat::Mode;
+    match parent {
+        Some(dirfd) => openat(dirfd, name, flags, Mode::empty()),
+        None => open(Path::new(name), flags, Mode::empty()),
+    }
+}
+
+#[cfg(unix)]
+fn open_or_mkdir_unix(
+    parent: Option<std::os::fd::BorrowedFd<'_>>,
+    name: &std::ffi::OsStr,
+    existing_flags: nix::fcntl::OFlag,
+    created_flags: nix::fcntl::OFlag,
+) -> Result<std::os::fd::OwnedFd> {
+    use nix::errno::Errno;
+    use nix::sys::stat::mkdirat;
+
+    match try_open_dir_component(parent, name, existing_flags) {
+        Ok(fd) => Ok(fd),
+        Err(Errno::ENOENT) => {
+            // Concurrent creators are fine: if mkdir loses the race we
+            // re-open the winner instead of treating EEXIST as fatal.
+            let create_result = match parent {
+                Some(dirfd) => {
+                    mkdirat(dirfd, name, nix::sys::stat::Mode::from_bits_truncate(0o755))
+                        .map_err(std::io::Error::from)
+                }
+                None => std::fs::create_dir(name),
+            };
+            match create_result {
+                Ok(()) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(err) => {
+                    return Err(err).with_context(|| {
+                        format!("creating directory component {}", Path::new(name).display())
+                    });
+                }
+            }
+            try_open_dir_component(parent, name, created_flags)
+                .map_err(std::io::Error::from)
+                .with_context(|| {
+                    format!(
+                        "opening created directory component {}",
+                        Path::new(name).display()
+                    )
+                })
+        }
+        Err(Errno::ELOOP) => bail!(
+            "refusing path through symlink {}: resolve the symlink and re-run",
+            Path::new(name).display()
+        ),
+        Err(Errno::ENOTDIR) => bail!(
+            "refusing path component that is not a real directory (symlink or non-directory): {}",
+            Path::new(name).display()
+        ),
+        Err(err) => Err(std::io::Error::from(err))
+            .with_context(|| format!("opening directory component {}", Path::new(name).display())),
+    }
+}
+
+#[cfg(unix)]
 fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
-    use std::ffi::OsStr;
     use std::os::fd::{AsFd, OwnedFd};
     use std::path::Component;
 
-    use nix::errno::Errno;
-    use nix::fcntl::{OFlag, open, openat};
-    use nix::sys::stat::{Mode, mkdirat};
+    use nix::fcntl::open;
+    use nix::sys::stat::Mode;
 
-    let dir_flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_CLOEXEC;
-    let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
-
-    let try_open = |parent: Option<std::os::fd::BorrowedFd<'_>>,
-                    name: &OsStr,
-                    flags: OFlag|
-     -> std::result::Result<OwnedFd, Errno> {
-        match parent {
-            Some(dirfd) => openat(dirfd, name, flags, Mode::empty()),
-            None => open(Path::new(name), flags, Mode::empty()),
-        }
-    };
-
-    let open_or_mkdir = |parent: Option<std::os::fd::BorrowedFd<'_>>,
-                         name: &OsStr|
-     -> Result<OwnedFd> {
-        match try_open(parent, name, nofollow_dir_flags) {
-            Ok(fd) => Ok(fd),
-            Err(Errno::ENOENT) => {
-                // Concurrent creators are fine: if mkdir loses the race we
-                // re-open the winner instead of treating EEXIST as fatal.
-                let create_result = match parent {
-                    Some(dirfd) => mkdirat(dirfd, name, Mode::from_bits_truncate(0o755))
-                        .map_err(std::io::Error::from),
-                    None => std::fs::create_dir(name),
-                };
-                match create_result {
-                    Ok(()) => {}
-                    Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
-                    Err(err) => {
-                        return Err(err).with_context(|| {
-                            format!("creating directory component {}", Path::new(name).display())
-                        });
-                    }
-                }
-                try_open(parent, name, nofollow_dir_flags)
-                    .map_err(std::io::Error::from)
-                    .with_context(|| {
-                        format!(
-                            "opening created directory component {}",
-                            Path::new(name).display()
-                        )
-                    })
-            }
-            Err(Errno::ELOOP) => bail!(
-                "refusing path through symlink {}: resolve the symlink and re-run",
-                Path::new(name).display()
-            ),
-            Err(Errno::ENOTDIR) => bail!(
-                "refusing path component that is not a real directory (symlink or non-directory): {}",
-                Path::new(name).display()
-            ),
-            Err(err) => Err(std::io::Error::from(err)).with_context(|| {
-                format!("opening directory component {}", Path::new(name).display())
-            }),
-        }
-    };
-
+    let (dir_flags, nofollow_dir_flags) = unix_dir_open_flags();
     let mut components = path.components();
+    // Follow a single existing directory symlink that is a direct child of
+    // `/` (macOS `/var`, Linux usr-merge `/bin`). Nested hops stay
+    // O_NOFOLLOW so a planted `escape -> /etc` still cannot redirect.
+    let mut follow_root_compat = false;
     let mut dirfd: OwnedFd = match components.next() {
-        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
-            .map_err(std::io::Error::from)
-            .with_context(|| "opening /")?,
+        Some(Component::RootDir) => {
+            follow_root_compat = true;
+            open(Path::new("/"), dir_flags, Mode::empty())
+                .map_err(std::io::Error::from)
+                .with_context(|| "opening /")?
+        }
         Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
             .map_err(std::io::Error::from)
             .with_context(|| "opening current directory")?,
-        Some(Component::Normal(name)) => open_or_mkdir(None, name)?,
+        Some(Component::Normal(name)) => {
+            open_or_mkdir_unix(None, name, nofollow_dir_flags, nofollow_dir_flags)?
+        }
         Some(Component::ParentDir) => {
             bail!("refusing path with parent-dir component {}", path.display())
         }
@@ -741,7 +769,18 @@ fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
     for component in components {
         match component {
             Component::Normal(name) => {
-                dirfd = open_or_mkdir(Some(dirfd.as_fd()), name)?;
+                let existing_flags = if follow_root_compat {
+                    dir_flags
+                } else {
+                    nofollow_dir_flags
+                };
+                dirfd = open_or_mkdir_unix(
+                    Some(dirfd.as_fd()),
+                    name,
+                    existing_flags,
+                    nofollow_dir_flags,
+                )?;
+                follow_root_compat = false;
             }
             Component::CurDir => {}
             Component::ParentDir => {
@@ -770,10 +809,14 @@ fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
     let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
 
     let mut components = path.components();
+    let mut follow_root_compat = false;
     let mut dirfd: OwnedFd = match components.next() {
-        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
-            .map_err(std::io::Error::from)
-            .with_context(|| "opening /")?,
+        Some(Component::RootDir) => {
+            follow_root_compat = true;
+            open(Path::new("/"), dir_flags, Mode::empty())
+                .map_err(std::io::Error::from)
+                .with_context(|| "opening /")?
+        }
         Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
             .map_err(std::io::Error::from)
             .with_context(|| "opening current directory")?,
@@ -793,8 +836,14 @@ fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
     for component in components {
         match component {
             Component::Normal(name) => {
-                dirfd = openat(dirfd.as_fd(), name, nofollow_dir_flags, Mode::empty())
+                let flags = if follow_root_compat {
+                    dir_flags
+                } else {
+                    nofollow_dir_flags
+                };
+                dirfd = openat(dirfd.as_fd(), name, flags, Mode::empty())
                     .map_err(|err| map_nofollow_dir_open_error(err, Path::new(name)))?;
+                follow_root_compat = false;
             }
             Component::CurDir => {}
             Component::ParentDir => {
@@ -1475,6 +1524,34 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn create_dir_all_nofollow_walks_os_root_compat_directory_symlink() {
+        // Nightly macOS Node tests failed because /var is a symlink to
+        // /private/var (same class as Linux usr-merge /bin -> usr/bin).
+        // The nofollow walk must follow that single root hop so tempfile
+        // paths work, without following attacker-planted nested links.
+        #[cfg(target_os = "macos")]
+        {
+            assert!(
+                std::fs::symlink_metadata("/var").is_ok_and(|meta| meta.file_type().is_symlink()),
+                "macOS /var must be a directory symlink; this is the nightly regression"
+            );
+        }
+        let candidates = [Path::new("/bin"), Path::new("/var"), Path::new("/tmp")];
+        let Some(compat) = candidates.into_iter().find(|path| {
+            std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+        }) else {
+            return;
+        };
+        create_dir_all_nofollow(compat).unwrap_or_else(|err| {
+            panic!(
+                "OS root compatibility symlink {} must be walkable: {err:#}",
+                compat.display()
+            )
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn create_dir_all_nofollow_refuses_symlink_component_without_creating_outside() {
         use std::os::unix::fs::symlink;
 
@@ -1489,6 +1566,10 @@ mod tests {
         assert!(
             msg.contains("symlink"),
             "error should mention symlink: {msg}"
+        );
+        assert!(
+            msg.contains("escape"),
+            "must refuse the nested planted name, not an ancestor OS hop: {msg}"
         );
         assert!(
             !outside.path().join("child").exists(),

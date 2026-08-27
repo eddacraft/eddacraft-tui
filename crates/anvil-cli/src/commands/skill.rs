@@ -545,19 +545,46 @@ fn replace_directory_with(
 /// This is an early advisory check used for clear error messages. Install and
 /// write paths must not rely on it alone: they use no-follow openat/mkdirat
 /// operations so a concurrent component swap cannot redirect the write.
+///
+/// A directory symlink that is a direct child of `/` is allowed (macOS
+/// `/var` → `/private/var`, Linux usr-merge `/bin`). Nested hops stay refused.
 fn ensure_safe_destination(destination: &Path) -> Result<()> {
+    use std::path::Component;
+
     let mut cursor = PathBuf::new();
+    let mut allow_root_compat = false;
     for component in destination.components() {
+        if matches!(component, Component::ParentDir) {
+            bail!(
+                "refusing managed skill path with parent-dir component {}",
+                crate::display_path::shown(destination)
+            );
+        }
+        if matches!(component, Component::RootDir) {
+            // Unix OS-compat hop only (`/var` → `/private/var`). Windows
+            // junctions under a drive root stay refused.
+            allow_root_compat = cfg!(unix);
+            cursor.push(component);
+            continue;
+        }
         cursor.push(component);
         let Ok(metadata) = fs::symlink_metadata(&cursor) else {
+            allow_root_compat = false;
             continue;
         };
         if metadata.file_type().is_symlink() {
+            let follow_os_compat =
+                allow_root_compat && fs::metadata(&cursor).is_ok_and(|followed| followed.is_dir());
+            allow_root_compat = false;
+            if follow_os_compat {
+                continue;
+            }
             bail!(
                 "refusing to install managed skill through symlinked path {}",
                 crate::display_path::shown(&cursor)
             );
         }
+        allow_root_compat = false;
     }
     Ok(())
 }
@@ -699,10 +726,19 @@ fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
     let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
 
     let mut components = path.components();
+    // Same root-compat hop as `crate::util::create_dir_all_nofollow`: follow
+    // `/var` → `/private/var` (macOS) or usr-merge `/bin` (Linux), then
+    // resume O_NOFOLLOW so nested planted links stay refused.
+    let mut follow_root_compat = false;
     let mut dirfd: OwnedFd = match components.next() {
-        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
-            .map_err(io::Error::from)
-            .with_context(|| format!("opening {}", crate::display_path::shown(Path::new("/"))))?,
+        Some(Component::RootDir) => {
+            follow_root_compat = true;
+            open(Path::new("/"), dir_flags, Mode::empty())
+                .map_err(io::Error::from)
+                .with_context(|| {
+                    format!("opening {}", crate::display_path::shown(Path::new("/")))
+                })?
+        }
         Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
             .map_err(io::Error::from)
             .with_context(|| "opening current directory")?,
@@ -728,12 +764,18 @@ fn create_dir_all_nofollow_unix(path: &Path) -> Result<()> {
     for component in components {
         match component {
             Component::Normal(name) => {
+                let existing_flags = if follow_root_compat {
+                    dir_flags
+                } else {
+                    nofollow_dir_flags
+                };
                 dirfd = open_or_mkdir_component(
                     Some(dirfd.as_fd()),
                     name,
-                    nofollow_dir_flags,
+                    existing_flags,
                     nofollow_dir_flags,
                 )?;
+                follow_root_compat = false;
             }
             Component::CurDir => {}
             Component::ParentDir => {
@@ -830,10 +872,16 @@ fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
     let nofollow_dir_flags = dir_flags | OFlag::O_NOFOLLOW;
 
     let mut components = path.components();
+    let mut follow_root_compat = false;
     let mut dirfd: OwnedFd = match components.next() {
-        Some(Component::RootDir) => open(Path::new("/"), dir_flags, Mode::empty())
-            .map_err(io::Error::from)
-            .with_context(|| format!("opening {}", crate::display_path::shown(Path::new("/"))))?,
+        Some(Component::RootDir) => {
+            follow_root_compat = true;
+            open(Path::new("/"), dir_flags, Mode::empty())
+                .map_err(io::Error::from)
+                .with_context(|| {
+                    format!("opening {}", crate::display_path::shown(Path::new("/")))
+                })?
+        }
         Some(Component::CurDir) => open(Path::new("."), dir_flags, Mode::empty())
             .map_err(io::Error::from)
             .with_context(|| "opening current directory")?,
@@ -863,7 +911,12 @@ fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
     for component in components {
         match component {
             Component::Normal(name) => {
-                dirfd = openat(dirfd.as_fd(), name, nofollow_dir_flags, Mode::empty())
+                let flags = if follow_root_compat {
+                    dir_flags
+                } else {
+                    nofollow_dir_flags
+                };
+                dirfd = openat(dirfd.as_fd(), name, flags, Mode::empty())
                     .map_err(|err| map_symlink_open_error(err, Path::new(name)))
                     .with_context(|| {
                         format!(
@@ -871,6 +924,7 @@ fn open_dir_nofollow_unix(path: &Path) -> Result<std::os::fd::OwnedFd> {
                             crate::display_path::shown(Path::new(name))
                         )
                     })?;
+                follow_root_compat = false;
             }
             Component::CurDir => {}
             Component::ParentDir => {
@@ -1267,6 +1321,45 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn ensure_safe_destination_refuses_parent_dir_component() {
+        let error = ensure_safe_destination(std::path::Path::new("/var/../etc")).unwrap_err();
+        let message = error.to_string();
+        assert!(
+            message.contains("parent-dir"),
+            "unexpected error: {message}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn create_dir_all_nofollow_walks_os_root_compat_directory_symlink() {
+        #[cfg(target_os = "macos")]
+        {
+            assert!(
+                fs::symlink_metadata("/var").is_ok_and(|meta| meta.file_type().is_symlink()),
+                "macOS /var must be a directory symlink; this is the nightly regression"
+            );
+        }
+        let candidates = [
+            std::path::Path::new("/bin"),
+            std::path::Path::new("/var"),
+            std::path::Path::new("/tmp"),
+        ];
+        let Some(compat) = candidates.into_iter().find(|path| {
+            fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+        }) else {
+            return;
+        };
+        create_dir_all_nofollow(compat).unwrap_or_else(|err| {
+            panic!(
+                "OS root compatibility symlink {} must be walkable: {err:#}",
+                compat.display()
+            )
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn create_dir_all_nofollow_refuses_symlink_component_without_creating_outside() {
         use std::os::unix::fs::symlink;
 
@@ -1283,6 +1376,10 @@ mod tests {
                 || message.contains("symlink")
                 || message.contains("not a real directory"),
             "unexpected error: {message}"
+        );
+        assert!(
+            message.contains("agents"),
+            "must refuse the nested planted name, not an ancestor OS hop: {message}"
         );
         assert!(
             !outside.path().join("skills").exists(),
