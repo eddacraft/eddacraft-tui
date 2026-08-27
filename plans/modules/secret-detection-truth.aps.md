@@ -7,7 +7,15 @@
 | --- | ----- | -------- | -------- |
 | SDT | —     | In Progress | 2/6   |
 
-**Last reviewed:** 2026-08-15 (created on operator direction after a
+**Last reviewed:** 2026-08-28 (SDT-001 and SDT-002 Merged via
+[#4185](https://github.com/eddacraft/anvil-001/pull/4185), reviewed against
+`src/secret/check.rs`, `src/secret/scanner.rs`,
+`anvil-intercept-rules/src/secret.rs` and `tests/secret_calibration.rs`. The
+measured baseline is recorded under SDT-002 and the module's third motivating
+defect — an unmeasured detector — is now closed. Defect 1 is closed at line
+granularity only: SDT-006 was filed for the whole-file half. Defect 2, the thin
+catalogue, is unchanged and now quantified rather than estimated. Originally
+created 2026-08-15 on operator direction after a
 cross-product review from `eddacraft/edda-scan`'s SEC-005 work surfaced the
 fail-open path, and beta feedback reported ~50% detection of planted secrets
 plus false-positive complaints. The assessment that produced this module —
