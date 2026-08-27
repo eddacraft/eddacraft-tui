@@ -56,8 +56,12 @@ pub struct AstScanOutput {
     /// Number of `.rs` files actually scanned.
     pub files_scanned: usize,
     /// Scanner-init problems surfaced loudly (ADR-071 §8): a malformed
-    /// `ast_query`, or a registry AST rule with no predicate-table entry.
+    /// `ast_query`, or a registry AST rule this binary *claims* but cannot
+    /// evaluate.
     pub init_errors: Vec<String>,
+    /// Registry AST rule ids this binary has never shipped. Skip them and
+    /// tell the operator to upgrade (CIB-368); do not fail the load.
+    pub init_warnings: Vec<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -109,6 +113,7 @@ struct LoadedRule {
 struct LoadOutcome {
     rules: Vec<LoadedRule>,
     init_errors: Vec<String>,
+    init_warnings: Vec<String>,
 }
 
 /// Load the AST-detection rules from the compiled registry, compiling each
@@ -129,6 +134,7 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
         return LoadOutcome {
             rules: Vec::new(),
             init_errors: loaded.warnings,
+            init_warnings: Vec::new(),
         };
     };
 
@@ -138,6 +144,7 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
     // embedded catalogue): the scan still runs, but the operator must see
     // the misconfiguration.
     let mut init_errors = loaded.warnings;
+    let mut init_warnings = Vec::new();
 
     for cp in &registry.patterns {
         let Detection::Ast { ast_query } = &cp.detection else {
@@ -147,14 +154,11 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
             continue;
         }
         let Some((kind, _expected)) = predicates::kind_for(&cp.id) else {
-            // ADR-071 §3 registry-completeness: a registry `ast` rule with no
-            // scanner predicate must fail loudly, never silently produce
-            // nothing. The completeness guard test catches this at build; here
-            // it surfaces at runtime rather than dropping the rule in silence.
-            init_errors.push(format!(
-                "registry AST rule {} has no predicate in anvil-checks-ast (registry-completeness, ADR-071 §3)",
-                cp.id
-            ));
+            // CIB-368: a repo registry newer than this binary can name AST
+            // rules the predicate table has never shipped. Skip them with a
+            // named upgrade warning. Completeness for rules this binary
+            // *does* claim stays a build-time guard (`registry_ast_rules_all_have_predicates`).
+            init_warnings.push(format!("rule {} requires a newer anvil", cp.id));
             continue;
         };
         let Some(language) = ScanLanguage::from_pattern(cp) else {
@@ -190,7 +194,11 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
         }
     }
 
-    LoadOutcome { rules, init_errors }
+    LoadOutcome {
+        rules,
+        init_errors,
+        init_warnings,
+    }
 }
 
 /// Scan already-read file bytes (gate-time core). `files` pairs each path with
@@ -202,13 +210,21 @@ pub fn scan_bytes(
     workspace_root: Option<&str>,
     opts: &AstScanOptions,
 ) -> AstScanOutput {
-    let LoadOutcome { rules, init_errors } = load_rules(opts);
+    let LoadOutcome {
+        rules,
+        init_errors,
+        init_warnings,
+    } = load_rules(opts);
     for err in &init_errors {
         tracing::error!(target: "anvil_checks_ast", "{err}");
+    }
+    for warn in &init_warnings {
+        tracing::warn!(target: "anvil_checks_ast", "{warn}");
     }
     if rules.is_empty() {
         return AstScanOutput {
             init_errors,
+            init_warnings,
             ..AstScanOutput::default()
         };
     }
@@ -259,6 +275,7 @@ pub fn scan_bytes(
         patterns_checked,
         files_scanned,
         init_errors,
+        init_warnings,
     }
 }
 

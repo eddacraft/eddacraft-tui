@@ -23,7 +23,6 @@ export type {
   WatchStatusEvent,
   WatchStatusEventType,
   WatchActionResult,
-  WatchOrchestratorOptions,
   MultiAgentConfig,
 } from './types.js';
 
@@ -34,11 +33,3 @@ export type { GetChangedFilesOptions } from './git-status.js';
 // Debouncer
 export { ChangeDebouncer, createDebouncer } from './debouncer.js';
 export type { DebouncerFlushCallback } from './debouncer.js';
-
-// File watcher
-export { FileWatcher, createFileWatcher } from './file-watcher.js';
-export type { FileWatcherOptions, FileWatcherEvents } from './file-watcher.js';
-
-// Orchestrator
-export { WatchOrchestrator, createWatchOrchestrator } from './orchestrator.js';
-export type { ActionHandler } from './orchestrator.js';

@@ -28,9 +28,6 @@
       "path": "./packages/anvil/runtime"
     },
     {
-      "path": "./packages/anvil/policy"
-    },
-    {
       "path": "./packages/edda-stack"
     },
     {
@@ -41,9 +38,6 @@
     },
     {
       "path": "./tools/generators"
-    },
-    {
-      "path": "./tools/codemods"
     },
     {
       "path": "./packages/aps"

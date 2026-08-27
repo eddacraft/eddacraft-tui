@@ -782,6 +782,86 @@ fn no_init_errors_against_workspace_registry() {
         "workspace registry must load cleanly: {:?}",
         out.init_errors
     );
+    assert!(
+        out.init_warnings.is_empty(),
+        "workspace registry must not skip known AST rules: {:?}",
+        out.init_warnings
+    );
+}
+
+#[test]
+fn unknown_ast_registry_rule_is_skipped_not_a_load_error() {
+    // CIB-368: a newer on-disk registry can name AST rules this binary has
+    // never shipped. Skip them with an upgrade warning; do not fail the load.
+    reset_registry_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("registry.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "schema_version": 1,
+  "compiled_at": "2026-08-28T00:00:00.000Z",
+  "source_root": "patterns",
+  "prefixes": {},
+  "families": [],
+  "patterns": [
+    {
+      "id": "ZZ-001",
+      "family": "future",
+      "title": "future AST rule",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 1,
+      "targets": ["source"],
+      "detection": { "type": "ast", "ast_query": "(except_clause) @target" },
+      "file_extensions": [".py"],
+      "allowlist": [],
+      "nudge": "n",
+      "related": [],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Future",
+      "category": "error-handling",
+      "explanation": "e",
+      "suggestion": "s",
+      "definition_ref": "patterns/future/definition.anvil",
+      "tensions": [],
+      "related_families": []
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+
+    let out = scan_bytes(
+        &[(
+            "src/app.py",
+            b"try:\n    x()\nexcept Exception:\n    pass\n",
+        )],
+        None,
+        &AstScanOptions {
+            registry_path: Some(path),
+            include_opt_in: false,
+        },
+    );
+    assert!(
+        out.init_errors.is_empty(),
+        "unknown AST ids must not be load errors: {:?}",
+        out.init_errors
+    );
+    assert!(
+        out.init_warnings
+            .iter()
+            .any(|w| w == "rule ZZ-001 requires a newer anvil"),
+        "expected upgrade warning, got {:?}",
+        out.init_warnings
+    );
+    assert!(
+        !out.patterns_checked.iter().any(|id| id == "ZZ-001"),
+        "ZZ-001 must not run: {:?}",
+        out.patterns_checked
+    );
 }
 
 // --- CIB-050: registry load failures must surface, not silently disable ----

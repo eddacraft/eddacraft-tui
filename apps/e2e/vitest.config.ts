@@ -26,7 +26,6 @@ export default defineConfig({
       '@eddacraft/anvil-contracts': resolve(__dirname, '../../packages/anvil/contracts/src'),
       '@eddacraft/anvil-core': resolve(__dirname, '../../packages/anvil/core/src'),
       '@eddacraft/anvil-runtime': resolve(__dirname, '../../packages/anvil/runtime/src'),
-      '@eddacraft/anvil-policy': resolve(__dirname, '../../packages/anvil/policy/src'),
       '@eddacraft/anvil-aps': resolve(__dirname, '../../packages/aps/src'),
       '@eddacraft/anvil-adapters': resolve(__dirname, '../../packages/adapters/src'),
       '@eddacraft/anvil-edda-stack': resolve(__dirname, '../../packages/edda-stack/src'),

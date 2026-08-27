@@ -1,8 +1,8 @@
 # OPA Policy Testing Guide
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                           |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-08-23 against ADR-040 D-5 (YAML-tier pin now ADR-130; runtime and testing path unchanged), ADR-098 (Rust OPA-subprocess module removal, PR-C), `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                              |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-08-28 against CIB-370 retirement of `@eddacraft/anvil-policy`; `opa test` fixtures and `crates/anvil-policy` remain |
 
 | Upstream                                                                                                                                                                                                                                                   | Downstream                                                                                       |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -119,17 +119,11 @@ opa test policies/fixtures --verbose  # per-test PASS/FAIL lines
 `PASS: N/N` with no `FAIL` lines is the success condition. The integration tests
 assert exactly that.
 
-### Via the legacy TS executor
+### Via the TypeScript executor
 
-```bash
-pnpm install --frozen-lockfile
-pnpm -F @eddacraft/anvil-policy build
-pnpm -F @eddacraft/anvil-policy exec vitest run src/opa-real.integration.test.ts
-```
-
-This package is still present for compatibility surfaces and OPA binary/version
-discipline. It is not the product policy runtime selected by ADR-040. The suite
-skips automatically when `opa` is not on `PATH` and `ANVIL_OPA_PATH` is unset.
+The legacy `@eddacraft/anvil-policy` package was retired (CIB-370). Policy
+evaluation lives in `crates/anvil-policy`. Direct `opa test` above remains the
+fixture-level check.
 
 ### Rust legacy OPA executor (removed)
 

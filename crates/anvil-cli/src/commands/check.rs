@@ -346,6 +346,9 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 for err in &ast.init_errors {
                     eprintln!("anvil: AST anti-pattern rule load error: {err}");
                 }
+                for warn in &ast.init_warnings {
+                    eprintln!("anvil: {warn}");
+                }
                 if result.files_scanned > 0 || ast.files_scanned > 0 {
                     any_files_scanned = true;
                 }

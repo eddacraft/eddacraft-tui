@@ -197,7 +197,7 @@ describe('Smoke › @eddacraft/anvil-runtime', () => {
 
   it('exports watch utilities', async () => {
     const mod = await import('@eddacraft/anvil-runtime/watch');
-    expect(typeof mod.createFileWatcher).toBe('function');
+    expect(typeof mod.getChangedFiles).toBe('function');
   });
 });
 

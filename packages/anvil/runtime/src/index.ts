@@ -34,10 +34,6 @@ export {
   getChangedFiles,
   ChangeDebouncer,
   createDebouncer,
-  FileWatcher,
-  createFileWatcher,
-  WatchOrchestrator,
-  createWatchOrchestrator,
 } from './watch/index.js';
 
 export type {
@@ -49,12 +45,8 @@ export type {
   WatchStatusEvent,
   WatchStatusEventType,
   WatchActionResult,
-  WatchOrchestratorOptions,
   GetChangedFilesOptions,
   DebouncerFlushCallback,
-  FileWatcherOptions,
-  FileWatcherEvents,
-  ActionHandler,
   MultiAgentConfig,
 } from './watch/index.js';
 

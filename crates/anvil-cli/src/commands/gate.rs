@@ -2977,6 +2977,9 @@ fn run_check_antipattern(
     for err in &ast.init_errors {
         eprintln!("anvil: AST anti-pattern rule load error: {err}");
     }
+    for warn in &ast.init_warnings {
+        eprintln!("anvil: {warn}");
+    }
 
     if result.files_scanned == 0 && ast.files_scanned == 0 {
         return CheckResult {

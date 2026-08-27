@@ -171,6 +171,14 @@ fn is_generic_secret_false_positive(matched_value: &str) -> bool {
         return false;
     }
 
+    // Rust (and similar) module paths: `crate::secret::scanner` matches the
+    // Generic Secret regex because `secret:` is a legal `[:=]` split and the
+    // remainder is `:` plus an identifier. A real assignment is `secret =` or
+    // `secret: "value"`, never `secret::`.
+    if matched_value.as_bytes().get(rhs_start + 1).copied() == Some(b':') {
+        return true;
+    }
+
     let quoted = (rhs.starts_with('"') && rhs.ends_with('"'))
         || (rhs.starts_with('\'') && rhs.ends_with('\''));
 
@@ -261,6 +269,18 @@ fn pattern_skip_reason(
     }
 
     if pattern.name == "API Key" && is_api_key_placeholder_slug(matched_value) {
+        return Some(SkipReason::Allowlisted(
+            AllowlistProvenance::BuiltinBenignFixture,
+        ));
+    }
+
+    if is_public_high_entropy_material(&pattern.name, line, matched_value) {
+        return Some(SkipReason::Allowlisted(
+            AllowlistProvenance::BuiltinBenignFixture,
+        ));
+    }
+
+    if file_path.ends_with(".rs") && is_after_rust_cfg_test_module(lines, line_index) {
         return Some(SkipReason::Allowlisted(
             AllowlistProvenance::BuiltinBenignFixture,
         ));
@@ -378,6 +398,46 @@ fn is_placeholder_database_url_fixture(
             .to_ascii_lowercase()
             .contains("template-literal.test.");
     placeholder_userinfo && validator_context
+}
+
+fn is_after_rust_cfg_test_module(lines: &[&str], line_index: usize) -> bool {
+    let mut test_module_started = false;
+    for (index, line) in lines.iter().enumerate() {
+        if index > line_index {
+            break;
+        }
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("#[cfg(test)]") {
+            let next_code = lines
+                .get(index + 1)
+                .map(|next| next.trim_start().starts_with("mod "))
+                .unwrap_or(false);
+            if next_code || trimmed.contains("mod ") {
+                test_module_started = true;
+            }
+        }
+    }
+    test_module_started
+}
+
+fn is_public_high_entropy_material(pattern_name: &str, line: &str, matched_value: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    if lower.contains("dev_public_key")
+        || lower.contains("test_public_key")
+        || lower.contains("zero_parent_id")
+    {
+        return true;
+    }
+    if lower.contains("v=dkim1") && lower.contains("p=") {
+        return true;
+    }
+    if pattern_name == "Credit Card" {
+        let digits: String = matched_value.chars().filter(char::is_ascii_digit).collect();
+        if digits.len() == 16 && digits.bytes().all(|b| b == b'0') {
+            return true;
+        }
+    }
+    false
 }
 
 fn has_runtime_database_binding(line: &str) -> bool {
@@ -1038,6 +1098,66 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
                     && s.provenance == AllowlistProvenance::BuiltinBenignFixture),
             "suppression should be observable: {:?}",
             stats.suppressions
+        );
+    }
+
+    #[test]
+    fn rust_module_path_secret_is_not_a_generic_secret() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content =
+            "use crate::secret::scanner;\nuse anvil_checks::secret::types::SecretFinding;\n";
+        let findings = scan_content(content, "crates/anvil-cli/src/commands/check.rs", &config);
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.pattern_name != "Generic Secret"),
+            "Rust secret:: paths must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn rust_cfg_test_module_corpus_is_not_a_finding() {
+        let config = SecretCheckConfig::default();
+        let content = r#"
+pub fn prod() {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn plants_a_key() {
+        let k = "AKIAIOSFODNN7EXAMPLE";
+    }
+}
+"#;
+        let findings = scan_content(
+            content,
+            "crates/anvil-checks/src/secret/scanner.rs",
+            &config,
+        );
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.pattern_name != "AWS Key"),
+            "cfg(test) corpus must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn textbook_aws_key_still_flags_outside_rust_tests() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = "const k = \"AKIAIOSFODNN7EXAMPLE\";";
+        let findings = scan_content(content, "src/aws.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.pattern_name == "AWS Key"),
+            "issue #1800 textbook keys must still fire: {findings:?}"
         );
     }
 

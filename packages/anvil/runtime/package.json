@@ -33,7 +33,6 @@
   "dependencies": {
     "@eddacraft/anvil-contracts": "workspace:*",
     "@eddacraft/anvil-core": "workspace:*",
-    "@eddacraft/anvil-policy": "workspace:*",
     "chokidar": "^5.0.0",
     "eslint": "^10.6.0",
     "glob": "^13.0.0",

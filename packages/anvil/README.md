@@ -10,7 +10,6 @@ anvil/
 ├── ports/       # @eddacraft/anvil-ports - Interface definitions
 ├── core/        # @eddacraft/anvil-core - Pure domain logic (no I/O)
 ├── runtime/     # @eddacraft/anvil-runtime - Orchestration and I/O
-├── policy/      # @eddacraft/anvil-policy - OPA/Rego policy wrappers
 └── sdk/         # @eddacraft/anvil-sdk - Client SDK (planned, not yet created)
 ```
 
@@ -52,43 +51,18 @@ import {
 } from '@eddacraft/anvil-core';
 ```
 
-### @eddacraft/anvil-policy (Layer 2)
-
-OPA/Rego integration for policy evaluation.
-
-```typescript
-import {
-  OPAExecutor,
-  BundleManager,
-  PolicyLoader,
-} from '@eddacraft/anvil-policy';
-```
-
 ### @eddacraft/anvil-runtime (Layer 3)
 
-Orchestration and I/O operations.
+Orchestration and I/O: cache, feature flags, git-status watch helpers. The
+TypeScript FileWatcher and `@eddacraft/anvil-policy` OPA wrappers were retired
+(CIB-370); policy evaluation is `crates/anvil-policy`.
 
 ```typescript
-import { GateRunner, FileCache, FileWatcher } from '@eddacraft/anvil-runtime';
+import { FileCache } from '@eddacraft/anvil-runtime';
 ```
 
 ## Dependency Direction
 
 ```
 apps → runtime → core → ports → contracts
-          ↓
-       policy ───────────────→ contracts
 ```
-
-## Migration Status
-
-| Package   | Status   | Source                        |
-| --------- | -------- | ----------------------------- |
-| contracts | Scaffold | core/src/schema/, types/      |
-| ports     | Scaffold | core/src/gate/check.interface |
-| core      | Scaffold | core/src/antipattern/, etc.   |
-| runtime   | Scaffold | core/src/gate/, cache/, watch |
-| policy    | Scaffold | core/src/gate/policy/         |
-| sdk       | Planned  | Not yet created               |
-
-Note: Scaffolds are in place. File migration to be completed.

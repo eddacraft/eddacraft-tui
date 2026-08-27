@@ -1,7 +1,7 @@
 import { Tree, formatFiles, joinPathFragments, offsetFromRoot } from '@nx/devkit';
 
 export interface AnvilPackageGeneratorSchema {
-  name: 'contracts' | 'ports' | 'core' | 'runtime' | 'policy' | 'sdk';
+  name: 'contracts' | 'ports' | 'core' | 'runtime' | 'sdk';
   description?: string;
 }
 
@@ -25,19 +25,9 @@ const PACKAGE_CONFIG: Record<string, { description: string; deps: string[]; laye
     deps: ['@eddacraft/anvil-contracts', '@eddacraft/anvil-ports'],
     layer: 2,
   },
-  policy: {
-    description: 'OPA/Rego wrappers depending on contracts',
-    deps: ['@eddacraft/anvil-contracts'],
-    layer: 2,
-  },
   runtime: {
     description: 'Orchestration and I/O depending on core, ports, contracts',
-    deps: [
-      '@eddacraft/anvil-contracts',
-      '@eddacraft/anvil-ports',
-      '@eddacraft/anvil-core',
-      '@eddacraft/anvil-policy',
-    ],
+    deps: ['@eddacraft/anvil-contracts', '@eddacraft/anvil-ports', '@eddacraft/anvil-core'],
     layer: 3,
   },
   sdk: {

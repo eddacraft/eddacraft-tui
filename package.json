@@ -40,8 +40,6 @@
     "typecheck": "nx run-many -t typecheck --exclude=anvil-vscode && pnpm run typecheck:rust",
     "lint:md": "markdownlint --ignore-path .markdownlintignore .",
     "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",
-    "codemod:imports": "tsx tools/codemods/src/cli.ts imports",
-    "codemod:imports:dry": "tsx tools/codemods/src/cli.ts imports --dry-run",
     "ci:classify": "bash scripts/ci/classify-changes.sh",
     "test:ci-classify": "bash scripts/ci/classify-changes.test.sh",
     "test:precommit-gate": "bash scripts/ci/precommit-gate-fail-closed.test.sh",

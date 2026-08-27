@@ -8,9 +8,6 @@
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
   "references": [
     {
-      "path": "../policy"
-    },
-    {
       "path": "../core"
     },
     {

@@ -5,10 +5,18 @@ pub(crate) fn is_test_or_fixture_path(path: &str) -> bool {
         || file.ends_with(".test.tsx")
         || file.ends_with(".spec.ts")
         || file.ends_with(".spec.tsx")
+        || file == "tests.rs"
+        || file.ends_with("_test.rs")
         || norm.split('/').any(|segment| {
             matches!(
                 segment,
-                "__tests__" | "tests" | "fixtures" | "fixture" | "test-data"
+                "__tests__"
+                    | "tests"
+                    | "fixtures"
+                    | "fixture"
+                    | "test-data"
+                    | "testdata"
+                    | "benches"
             )
         })
 }

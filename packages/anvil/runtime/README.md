@@ -12,11 +12,11 @@ paths. This package remains in use by the MCP server and e2e tests.
 
 ## API Surface
 
-| Export                           | Description                         |
-| -------------------------------- | ----------------------------------- |
-| `@eddacraft/anvil-runtime`       | Everything below                    |
-| `@eddacraft/anvil-runtime/cache` | Cache providers                     |
-| `@eddacraft/anvil-runtime/watch` | File watcher, git status, debouncer |
+| Export                           | Description                             |
+| -------------------------------- | --------------------------------------- |
+| `@eddacraft/anvil-runtime`       | Everything below                        |
+| `@eddacraft/anvil-runtime/cache` | Cache providers                         |
+| `@eddacraft/anvil-runtime/watch` | Git status helpers and change debouncer |
 
 Scanner-era subpaths for gate and export were removed in `0.5.1-beta`; use the
 Rust CLI surfaces for those flows.
