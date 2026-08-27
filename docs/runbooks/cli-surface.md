@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-24 `anvil impact` mouse support — command review: `--json`/`--no-tui` exercised against the warm anvil-001 snapshot and the surface suite (8 tests) green; pointer path verified against rataflow's coordinate mapping and confirmed interactively by the operator 2026-08-24 (click/drag/wheel working, tmux); executable sources `crates/anvil-cli/src/commands/impact.rs`, `crates/anvil-cli/src/tui.rs`, `crates/anvil-tui/src/surfaces/impact/`; prior: 2026-08-22 addition of `anvil impact` (IMPV-001); 2026-08-16 updates for the CLI-wide `--json` contract (#3947 operator decision A), the per-surface repairs on `config` (#3938/#3943) and `migrate format` (#3946), and the #3962 canonical YAML metadata correction; not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                       |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Targeted 2026-08-27 IMPV-002 default-off `impact.view` gate against `flags/manifest.json`, `crates/anvil-cli/src/feature_flags.rs`, `crates/anvil-cli/src/commands/impact.rs`, and process tests; prior targeted review: 2026-08-24 `anvil impact` mouse support; not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -1245,7 +1245,13 @@ internal module graph. **When to use:** To read the repository's real dependency
 structure (imports actually used, not Cargo declarations), scope the blast
 radius of a change, or orient in an unfamiliar codebase.
 
-**Synopsis:** `anvil impact`
+**Availability:** Default-off behind the `impact.view` rollout flag while the
+customer experience is hardened. Opt in for one process or shell with
+`ANVIL_IMPACT=1`; `ANVIL_DEV=1` also enables it. `ANVIL_IMPACT=0` forces it off
+even in developer mode. This flag does not disable the MCP
+`anvil_impact_of_change` tool.
+
+**Synopsis:** `ANVIL_IMPACT=1 anvil impact`
 
 **Flags:** none beyond the global set. `--json` prints the crate-level graph as
 one JSON document; `--no-tui` (or a non-interactive stdout) prints a text

@@ -18,7 +18,9 @@ engineering maintenance are recorded in the
   neighbourhood or internal modules, and restores the prior view when you back
   out. Keyboard and mouse navigation are supported; `--json` and `--no-tui`
   provide non-interactive output. It needs a warm graph snapshot and names cold
-  or unrenderable states instead of showing an empty canvas.
+  or unrenderable states instead of showing an empty canvas. The command is
+  default-off while that experience is hardened; opt in with `ANVIL_IMPACT=1` or
+  `ANVIL_DEV=1`.
 
 - **Gate-time Python scans catch multiline swallowed exceptions.** The new
   `PY-010` rule flags a named `except` handler whose body is only `pass`. MCP

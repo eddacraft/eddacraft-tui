@@ -5,9 +5,10 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| IMPV | —     | Done | 1/1      |
+| IMPV | —     | In Progress | 1/2 |
 
-**Last reviewed:** 2026-08-22 (created from the `spike-flow` validation spike in
+**Last reviewed:** 2026-08-27 (IMPV-002 default-off customer-experience gate;
+created from the `spike-flow` validation spike in
 [PR #4074](https://github.com/eddacraft/anvil-001/pull/4074); findings updated
 from the spike's second pass in
 [PR #4081](https://github.com/eddacraft/anvil-001/pull/4081) — intent layer,
@@ -180,6 +181,35 @@ only after the graduation question in Out of Scope is decided.
   exact pin and a shipped-crate attribution entry are load-bearing, and an
   upstream break is a real maintenance cost this module accepts on the consumer
   side before any `eddacraft-tui` promotion is considered.
+
+### IMPV-002: Gate the impact view off by default
+
+- **Status:** In Progress
+- **Intent:** Keep customers out of the impact surface while its first-use,
+  recovery, and non-Rust repository experience are being hardened, without
+  removing the implementation or the separate MCP impact-of-change tool.
+- **Expected Outcome:** `anvil impact` evaluates the catalogue-backed
+  `impact.view` rollout flag before reading repository state. The default
+  variant refuses the command with exit 1 and names the opt-in. Human and JSON
+  callers receive stable refusal output. `ANVIL_IMPACT=1` and `ANVIL_DEV=1`
+  opt in; `ANVIL_IMPACT=0` wins over developer mode as the dedicated kill
+  switch. The MCP `anvil_impact_of_change` surface is unaffected.
+- **Validation:** `cargo test -p eddacraft-anvil --test impact_gate`,
+  `cargo test -p eddacraft-anvil --bin anvil -- feature_flags`,
+  `cargo test -p eddacraft-anvil-kernel-types`,
+  `pnpm nx test flags-catalogue`, `pnpm docs:check`,
+  `pnpm aps:active-lint`, and `pnpm aps:index:check`.
+- **Files:** `flags/manifest.json`, `flags/surfaces.json`,
+  `crates/anvil-cli/src/feature_flags.rs`,
+  `crates/anvil-cli/src/commands/impact.rs`,
+  `crates/anvil-cli/tests/impact_gate.rs`, `CHANGELOG.md`,
+  `packages/anvil/flags-catalogue/tests/manifest.test.ts`,
+  `scripts/docs/generate-product-catalogue.mjs`,
+  `docs/guides/feature-flag-inventory.md`,
+  `docs/guides/product-feature-catalogue.md`,
+  `docs/runbooks/cli-surface.md`, this module, and `plans/index.aps.md`.
+- **Dependencies:** IMPV-001 (Done).
+- **Risk:** Standard — reversible default-off boundary over one CLI command.
 
 ---
 

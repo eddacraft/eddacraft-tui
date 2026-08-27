@@ -2,7 +2,7 @@
 
 | Type  | Authority | Owner   | Status | Freshness                                                                        |
 | ----- | --------- | ------- | ------ | -------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-25 against `flags/surfaces.json` and `flags/manifest.json` |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-27 against `flags/surfaces.json` and `flags/manifest.json` |
 
 | Upstream                                                                                    | Downstream                            |
 | ------------------------------------------------------------------------------------------- | ------------------------------------- |
@@ -14,7 +14,7 @@ This page is a generated view of the canonical product catalogue. Edit
 `flags/surfaces.json` and `flags/manifest.json`, then run
 `pnpm docs:catalogue:generate`. Do not maintain a second feature list.
 
-Schema version 2. 79 product features, 189 delivery surfaces, 12 exclusions, 17
+Schema version 2. 79 product features, 189 delivery surfaces, 12 exclusions, 18
 operational flags.
 
 ## Product feature groups
@@ -83,7 +83,7 @@ operational flags.
 | `gctx.symbol-context`    | Bounded symbol context               | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `hook`                   | anvil hook                           | Git hooks             | GHOOK     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `hooks`                  | anvil hooks                          | Git hooks             | GHOOK     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `impact`                 | Change impact                        | Governance engine     | IMPV      | active | gv2.reverse-impact-depth (entitlement)                                                           | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `impact`                 | Change impact                        | Governance engine     | IMPV      | active | gv2.reverse-impact-depth (entitlement), impact.view (rollout)                                    | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `init`                   | anvil init                           | Setup and onboarding  | RCLI      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `insights`               | anvil insights                       | Local tools           | INSIGHTS  | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `intercept`              | anvil intercept                      | Save-time validation  | INTD      | active | daemon.persist-graph (rollout)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
@@ -340,6 +340,7 @@ operational flags.
 | `docs.access`                 | entitlement | anvil-docs, docs-shell                                                                                                                                               | active |
 | `gctx.egress`                 | rollout     | gctx.snippets, gctx-control                                                                                                                                          | active |
 | `gv2.reverse-impact-depth`    | entitlement | impact                                                                                                                                                               | active |
+| `impact.view`                 | rollout     | impact                                                                                                                                                               | active |
 | `kindling.embedded-runtime`   | rollout     | kindling                                                                                                                                                             | active |
 | `track.pack`                  | rollout     | —                                                                                                                                                                    | active |
 | `track.surface`               | rollout     | —                                                                                                                                                                    | active |

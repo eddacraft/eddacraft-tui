@@ -24,7 +24,7 @@ use anvil_kernel::feature_flags::{
 #[cfg(feature = "kindling-embedded-runtime")]
 use anvil_kernel_types::feature_flags_catalogue::kindling_embedded_runtime;
 use anvil_kernel_types::feature_flags_catalogue::{
-    cli_licence_gate, dashboard_web, tui_dashboard_aps_dashboard,
+    cli_licence_gate, dashboard_web, impact_view, tui_dashboard_aps_dashboard,
 };
 use anvil_kernel_types::{
     AudienceContext, EnvironmentContext, EnvironmentName, EvaluationContext, FeatureFlagDefinition,
@@ -263,6 +263,9 @@ pub fn local_overrides_from_env() -> FlagOverrides {
         overrides
             .local
             .insert(DASHBOARD_WEB_GATE_KEY.into(), "enabled".into());
+        overrides
+            .local
+            .insert(IMPACT_VIEW_GATE_KEY.into(), "enabled".into());
     }
     overrides
 }
@@ -556,6 +559,48 @@ fn web_dashboard_access_allowed_with(overrides: &FlagOverrides) -> bool {
     let context = cli_evaluation_context("cli-session", None);
     let details = resolve_flag(&definition, &context, Some(overrides));
     details.variant == dashboard_web::variants::ENABLED
+}
+
+// ── IMPV-002: default-off gate for `anvil impact` ────────────────
+
+/// The `impact.view` flag key, sourced from the generated catalogue so it
+/// cannot drift from `flags/manifest.json`.
+pub const IMPACT_VIEW_GATE_KEY: &str = impact_view::KEY;
+
+/// Session override for the impact view. `=1` forces `impact.view` to
+/// `"enabled"` and `=0` forces it to `"disabled"` through the shared
+/// resolver.
+pub const IMPACT_VIEW_ENV_VAR: &str = "ANVIL_IMPACT";
+
+/// Whether the caller may open `anvil impact`.
+///
+/// The rollout is default-off while the customer experience is hardened.
+/// `ANVIL_IMPACT=1` or `ANVIL_DEV=1` opts in; the dedicated `=0`
+/// override wins over the broad developer override.
+#[must_use]
+pub fn impact_view_access_allowed() -> bool {
+    let mut overrides = local_overrides_from_env();
+    match std::env::var(IMPACT_VIEW_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides
+                .local
+                .insert(IMPACT_VIEW_GATE_KEY.into(), "enabled".into());
+        }
+        Ok("0") => {
+            overrides
+                .local
+                .insert(IMPACT_VIEW_GATE_KEY.into(), "disabled".into());
+        }
+        _ => {}
+    }
+    impact_view_access_allowed_with(&overrides)
+}
+
+/// Pure gate decision for tests.
+fn impact_view_access_allowed_with(overrides: &FlagOverrides) -> bool {
+    let definition = impact_view::definition();
+    let context = cli_evaluation_context("cli-session", None);
+    resolve_flag(&definition, &context, Some(overrides)).variant == impact_view::variants::ENABLED
 }
 
 // ── KFIT-006: default-off embedded kindling runtime ────────────────

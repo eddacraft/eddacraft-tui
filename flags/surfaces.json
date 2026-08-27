@@ -973,7 +973,7 @@
       "requires": [],
       "flagLinkage": {
         "disposition": "linked",
-        "flagKeys": ["gv2.reverse-impact-depth"]
+        "flagKeys": ["gv2.reverse-impact-depth", "impact.view"]
       },
       "planAvailability": {
         "plan-free": "undecided",

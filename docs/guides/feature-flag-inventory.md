@@ -1,8 +1,8 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                                                           |
-| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-25 against FLAGCAT-015 plan availability, FLAGCAT-012 host completeness, FLAGCAT-013 linkage, FLAGCAT-011/-016, ADR-076, `flags/surfaces.json`, the catalogue loader, and live flag consumers |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                      |
+| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-27 for the IMPV-002 `impact.view` rollout gate, against `flags/manifest.json`, `flags/surfaces.json`, the generated Rust catalogue, and the CLI consumer |
 
 | Upstream                                                                                                                                                                                                                  | Downstream                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -123,6 +123,7 @@ To add a flag:
 | OPA agent orchestration rollout  | (no flag yet)                                 | defer          | `rollout`     | —                 |
 | Tier-based product capabilities  | (no flag yet)                                 | adopt          | `entitlement` | —                 |
 | Web dashboard (`--web`)          | `crates/anvil-cli/src/feature_flags.rs`       | migrated       | `rollout`     | default-off / env |
+| Impact view (`anvil impact`)     | `crates/anvil-cli/src/feature_flags.rs`       | adopt          | `rollout`     | default-off / env |
 | Dashboard AI builder             | (no flag yet)                                 | adopt          | `rollout`     | —                 |
 | Tutorial / advanced TUI surfaces | (no flag yet)                                 | adopt          | `rollout`     | —                 |
 
@@ -324,6 +325,20 @@ the start when they are built.
 - **Featureboard swap impact:** Provider replacement only.
 
 ## Shipped Controls — Adopt
+
+### Impact view (`impact.view` / `ANVIL_IMPACT`)
+
+- **Current state:** The `anvil impact` command is default-off while its
+  first-use, recovery, and non-Rust repository experience are hardened.
+- **Classification:** **adopt** — the new boundary uses the shared resolver
+  directly rather than migrating a legacy control.
+- **Flag key / manifest:** `impact.view` in `flags/manifest.json` (class
+  `rollout`, `defaultVariant: disabled`, owner IMPV).
+- **Semantics:** `ANVIL_IMPACT=1` or `ANVIL_DEV=1` opts in. `ANVIL_IMPACT=0`
+  forces the command off even in a developer session. The separate MCP
+  `anvil_impact_of_change` tool is not gated by this flag.
+- **Review:** `expiryOrReviewDate` 2026-11-30 — reassess after the customer
+  experience repairs have independent journey evidence.
 
 ### Warm-graph persistence (`daemon.persist-graph` / `ANVIL_PERSIST_GRAPH`)
 

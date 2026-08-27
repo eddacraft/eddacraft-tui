@@ -42,7 +42,29 @@ struct ImpactGraphJson {
     edges: Vec<(String, String)>,
 }
 
+fn refuse_impact(global: &GlobalArgs) -> anyhow::Error {
+    let detail = "`anvil impact` is disabled by the `impact.view` feature flag. \
+         Opt in with ANVIL_IMPACT=1, or ANVIL_DEV=1 for a full developer session.";
+    if global.json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "error": "feature_disabled",
+                "flag": crate::feature_flags::IMPACT_VIEW_GATE_KEY,
+                "detail": detail,
+            })
+        );
+    } else {
+        eprintln!("{detail}");
+    }
+    crate::output::AlreadyReported.into()
+}
+
 pub fn run(_args: &ImpactArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    if !crate::feature_flags::impact_view_access_allowed() {
+        return Err(refuse_impact(global));
+    }
+
     let root = util::workspace_root()?;
     let loaded = ImpactGraph::load(&root);
 

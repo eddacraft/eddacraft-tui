@@ -241,6 +241,30 @@
       "controlsProductFeatures": ["impact"]
     },
     {
+      "key": "impact.view",
+      "owner": "IMPV",
+      "intent": "Keep the anvil impact command unavailable by default while its customer experience is hardened",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "IMPV-002",
+      "expiryOrReviewDate": "2026-11-30T00:00:00Z",
+      "description": "Default-off after customer-value review found the surface too narrow and unclear for general use. Opt in with ANVIL_IMPACT=1 or ANVIL_DEV=1; ANVIL_IMPACT=0 remains a kill switch during developer sessions.",
+      "primaryGroup": "cli",
+      "controlsProductFeatures": ["impact"]
+    },
+    {
       "key": "kindling.embedded-runtime",
       "owner": "KFIT",
       "intent": "Gate anvil's embedded kindling runtime while downstream adoption is prepared",
