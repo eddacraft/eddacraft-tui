@@ -158,9 +158,8 @@ deleted under ADR-098 AD-1). Current product-engine coverage is
 
 ## OPA binary version
 
-The pinned version lives in **one** place:
-`packages/anvil/policy/src/opa-binary-manager.ts` (`DEFAULT_OPA_VERSION`).
-Currently `1.16.1`. CI installs the same version via
+The pinned version lives in **one** place: `.github/workflows/rust-tests.yml`
+(`EXPECTED_OPA_VERSION`). Currently `1.16.1`. CI installs the same version via
 [`open-policy-agent/setup-opa`](https://github.com/open-policy-agent/setup-opa)
 in `.github/workflows/ci.yml`, `.github/workflows/ci-nightly.yml`,
 `.github/workflows/rust.yml`, `.github/workflows/rust-tests.yml`, and
@@ -169,13 +168,13 @@ gate).
 
 To bump:
 
-1. Update `DEFAULT_OPA_VERSION` in `opa-binary-manager.ts`.
+1. Update `EXPECTED_OPA_VERSION` in `.github/workflows/rust-tests.yml`.
 2. Update the `version:` input (and `EXPECTED_OPA_VERSION` env where present) in
    all five workflows. Re-run `scripts/bench-vs-go-opa.sh` and refresh the
    POLENG-008 parity result note in `plans/archive/modules/policy-engine.aps.md`
    if the reference OPA version changed.
 3. Update any other files in the allowlist in `scripts/check-opa-version-pin.sh`
-   (e.g. doc comments, AGENTS.md).
+   (e.g. doc comments).
 4. **If you rename, add, or remove any of the files listed above, edit the
    `ALLOWLIST` block in `scripts/check-opa-version-pin.sh` to match.** The guard
    only catches _unknown_ references; a stale allowlist entry will not fail CI
@@ -183,8 +182,8 @@ To bump:
 5. Run `./scripts/check-opa-version-pin.sh` locally — it fails the build if the
    pinned version string appears in any file not in the allowlist, which is the
    canary against silent doc rot when this runbook rots.
-6. Run the direct OPA fixture suite plus the TS executor real-binary integration
-   suite locally (the Rust executor suite was deleted under ADR-098 AD-1).
+6. Run the direct OPA fixture suite locally (the TypeScript OPA executor and
+   Rust executor suites were deleted under CIB-370 and ADR-098 AD-1).
 7. Note the bump in the relevant ADR / decision log entry if the version change
    is load-bearing for a policy.
 

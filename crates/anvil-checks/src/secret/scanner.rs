@@ -280,7 +280,11 @@ fn pattern_skip_reason(
         ));
     }
 
-    if file_path.ends_with(".rs") && is_after_rust_cfg_test_module(lines, line_index) {
+    if std::path::Path::new(file_path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
+        && is_after_rust_cfg_test_module(lines, line_index)
+    {
         return Some(SkipReason::Allowlisted(
             AllowlistProvenance::BuiltinBenignFixture,
         ));
@@ -410,8 +414,7 @@ fn is_after_rust_cfg_test_module(lines: &[&str], line_index: usize) -> bool {
         if trimmed.starts_with("#[cfg(test)]") {
             let next_code = lines
                 .get(index + 1)
-                .map(|next| next.trim_start().starts_with("mod "))
-                .unwrap_or(false);
+                .is_some_and(|next| next.trim_start().starts_with("mod "));
             if next_code || trimmed.contains("mod ") {
                 test_module_started = true;
             }

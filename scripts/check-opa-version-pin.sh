@@ -1,8 +1,8 @@
 #!/bin/sh
 # check-opa-version-pin.sh
 #
-# Assert that the pinned OPA version (`DEFAULT_OPA_VERSION` from
-# packages/anvil/policy/src/opa-binary-manager.ts) only appears in an explicit
+# Assert that the pinned OPA version (`EXPECTED_OPA_VERSION` from
+# .github/workflows/rust-tests.yml) only appears in an explicit
 # allowlist of files. A new hit outside the allowlist means a contributor
 # duplicated the version string without updating the bump runbook — fail CI so
 # the next bump doesn't rot silently.
@@ -13,20 +13,20 @@
 # Exit codes:
 #   0 — all hits accounted for
 #   1 — unknown file contains the pinned version
-#   2 — could not read DEFAULT_OPA_VERSION
+#   2 — could not read EXPECTED_OPA_VERSION
 
 set -eu
 
 ROOT="$(git rev-parse --show-toplevel)"
-BM="$ROOT/packages/anvil/policy/src/opa-binary-manager.ts"
+PIN="$ROOT/.github/workflows/rust-tests.yml"
 
-# Match the first `const DEFAULT_OPA_VERSION = '...'` line and exit so we
-# don't concatenate if the file ever grows a second match (e.g. a commented
-# example or a migration helper). The line must look like `const
-# DEFAULT_OPA_VERSION = '1.16.1'` — single-quoted literal on the same line.
-VERSION="$(awk -F"'" '/const DEFAULT_OPA_VERSION/ { print $2; exit }' "$BM")"
+# Match the first `EXPECTED_OPA_VERSION: '...'` assignment and exit so we
+# don't concatenate if the file ever grows a second match. The line must
+# look like `EXPECTED_OPA_VERSION: '1.16.1'` — single-quoted literal on
+# the same line.
+VERSION="$(awk -F"'" '/EXPECTED_OPA_VERSION:/ { print $2; exit }' "$PIN")"
 if [ -z "${VERSION:-}" ]; then
-  echo "check-opa-version-pin: could not read DEFAULT_OPA_VERSION from $BM" >&2
+  echo "check-opa-version-pin: could not read EXPECTED_OPA_VERSION from $PIN" >&2
   exit 2
 fi
 
@@ -34,8 +34,6 @@ fi
 # runbook in docs/guides/opa-policy-testing.md changes, update this list too.
 # Keep paths repo-relative, one per line, no leading/trailing whitespace.
 ALLOWLIST="
-packages/anvil/policy/src/opa-binary-manager.ts
-packages/anvil/policy/src/opa-binary-manager.test.ts
 .github/workflows/ci.yml
 .github/workflows/ci-nightly.yml
 .github/workflows/rust.yml
@@ -43,8 +41,6 @@ packages/anvil/policy/src/opa-binary-manager.test.ts
 .github/workflows/poleng-parity.yml
 docs/guides/opa-policy-testing.md
 docs/archive/planning/opa-policy-engine.md
-crates/anvil-policy/tests/opa_real_binary.rs
-AGENTS.md
 scripts/check-opa-version-pin.sh
 "
 

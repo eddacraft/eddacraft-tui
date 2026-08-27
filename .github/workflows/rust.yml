@@ -578,7 +578,7 @@ jobs:
         if: matrix.can_test
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
         with:
-          # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
+          # Pinned Go OPA version; keep EXPECTED_OPA_VERSION in rust-tests.yml in sync.
           version: v1.16.1
 
       - name: Verify OPA version

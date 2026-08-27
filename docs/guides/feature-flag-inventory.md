@@ -1,8 +1,8 @@
 # Feature Flag Inventory
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                      |
-| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-27 for the IMPV-002 `impact.view` rollout gate, against `flags/manifest.json`, `flags/surfaces.json`, the generated Rust catalogue, and the CLI consumer |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                                                                                          |
+| ----- | --------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-28 after CIB-370 retired leftover TypeScript OPA env controls; prior 2026-08-27 IMPV-002 `impact.view` rollout gate against `flags/manifest.json`, `flags/surfaces.json`, the generated Rust catalogue, and the CLI consumer |
 
 | Upstream                                                                                                                                                                                                                  | Downstream                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -377,16 +377,14 @@ The following environment variables and controls were reviewed but are **not
 feature flags**. They are operational configuration, debug tooling, or
 infrastructure secrets and do not belong in the shared flagging model.
 
-| Control                        | Location                                          | Reason excluded                                  |
-| ------------------------------ | ------------------------------------------------- | ------------------------------------------------ |
-| `ANVIL_DEBUG` / `DEBUG`        | `packages/anvil/core/src/utils/debug.ts`          | Debug logging — not feature gating               |
-| `ANVIL_OPA_VERSION`            | `packages/anvil/policy/src/opa-binary-manager.ts` | Toolchain version override — not rollout control |
-| `ANVIL_OPA_PATH`               | `packages/anvil/policy/src/opa-binary-manager.ts` | Custom binary path — infrastructure config       |
-| `ANVIL_AGENT_TYPE` and related | `packages/anvil/runtime/src/concurrency/agent.ts` | Telemetry/metadata — not access gating           |
-| CI detection env vars          | `packages/anvil/core/src/provenance/collector.ts` | Build metadata collection — not rollout control  |
-| `RESEND_API_KEY`               | `apps/anvil-api/src/lib/email.ts`                 | Service credential — graceful degradation        |
-| `RESEND_BETA_AUDIENCE_ID`      | `apps/anvil-api/src/lib/audience.ts`              | Mailing list config — not feature gating         |
-| `DOCS_UPSTREAM_SECRET`         | `apps/docs-public/middleware.ts`                  | Infrastructure routing secret                    |
+| Control                        | Location                                          | Reason excluded                                 |
+| ------------------------------ | ------------------------------------------------- | ----------------------------------------------- |
+| `ANVIL_DEBUG` / `DEBUG`        | `packages/anvil/core/src/utils/debug.ts`          | Debug logging — not feature gating              |
+| `ANVIL_AGENT_TYPE` and related | `packages/anvil/runtime/src/concurrency/agent.ts` | Telemetry/metadata — not access gating          |
+| CI detection env vars          | `packages/anvil/core/src/provenance/collector.ts` | Build metadata collection — not rollout control |
+| `RESEND_API_KEY`               | `apps/anvil-api/src/lib/email.ts`                 | Service credential — graceful degradation       |
+| `RESEND_BETA_AUDIENCE_ID`      | `apps/anvil-api/src/lib/audience.ts`              | Mailing list config — not feature gating        |
+| `DOCS_UPSTREAM_SECRET`         | `apps/docs-public/middleware.ts`                  | Infrastructure routing secret                   |
 
 ## Provider Swap Summary
 
