@@ -5,9 +5,10 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| IMPV | —     | In Progress | 1/2 |
+| IMPV | —     | Merged | 2/2 |
 
-**Last reviewed:** 2026-08-27 (IMPV-002 default-off customer-experience gate;
+**Last reviewed:** 2026-08-27 (IMPV-002 merged via PR #4178: default-off
+customer-experience gate;
 created from the `spike-flow` validation spike in
 [PR #4074](https://github.com/eddacraft/anvil-001/pull/4074); findings updated
 from the spike's second pass in
@@ -184,7 +185,7 @@ only after the graduation question in Out of Scope is decided.
 
 ### IMPV-002: Gate the impact view off by default
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-27 via PR #4178
 - **Intent:** Keep customers out of the impact surface while its first-use,
   recovery, and non-Rust repository experience are being hardened, without
   removing the implementation or the separate MCP impact-of-change tool.
@@ -209,6 +210,10 @@ only after the graduation question in Out of Scope is decided.
   `docs/guides/product-feature-catalogue.md`,
   `docs/runbooks/cli-surface.md`, this module, and `plans/index.aps.md`.
 - **Dependencies:** IMPV-001 (Done).
+- **Delivered:** PR #4178 (2026-08-27) — catalogue-backed default-off
+  `impact.view` gate for `anvil impact`, explicit developer opt-in and
+  force-off semantics, stable human/JSON refusal contracts, and no change to
+  the separate MCP impact-of-change surface.
 - **Risk:** Standard — reversible default-off boundary over one CLI command.
 
 ---
