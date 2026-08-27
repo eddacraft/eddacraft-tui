@@ -283,7 +283,7 @@ fn pattern_skip_reason(
     if std::path::Path::new(file_path)
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
-        && is_after_rust_cfg_test_module(lines, line_index)
+        && is_inside_rust_cfg_test_module(lines, line_index)
     {
         return Some(SkipReason::Allowlisted(
             AllowlistProvenance::BuiltinBenignFixture,
@@ -404,23 +404,115 @@ fn is_placeholder_database_url_fixture(
     placeholder_userinfo && validator_context
 }
 
-fn is_after_rust_cfg_test_module(lines: &[&str], line_index: usize) -> bool {
-    let mut test_module_started = false;
-    for (index, line) in lines.iter().enumerate() {
-        if index > line_index {
-            break;
+/// True when `line_index` sits inside a `#[cfg(test)] mod … { … }` body.
+///
+/// The first `#[cfg(test)]` header is not enough: production code after
+/// that module closes must still be scanned.
+fn is_inside_rust_cfg_test_module(lines: &[&str], line_index: usize) -> bool {
+    let mut pending_cfg_test = false;
+    let mut depth = 0i32;
+    for (index, raw) in lines.iter().enumerate() {
+        let inside_before = depth > 0;
+        let mut entered_this_line = false;
+        let trimmed = raw.trim_start();
+        if depth > 0 {
+            depth = (depth + rust_line_brace_delta(raw)).max(0);
+        } else if let Some(after_attr) = trimmed.strip_prefix("#[cfg(test)]") {
+            pending_cfg_test = true;
+            entered_this_line = apply_pending_cfg_test_line(
+                raw,
+                after_attr.trim_start(),
+                &mut pending_cfg_test,
+                &mut depth,
+            );
+        } else if pending_cfg_test {
+            entered_this_line =
+                apply_pending_cfg_test_line(raw, trimmed, &mut pending_cfg_test, &mut depth);
         }
-        let trimmed = line.trim_start();
-        if trimmed.starts_with("#[cfg(test)]") {
-            let next_code = lines
-                .get(index + 1)
-                .is_some_and(|next| next.trim_start().starts_with("mod "));
-            if next_code || trimmed.contains("mod ") {
-                test_module_started = true;
-            }
+        if index == line_index {
+            return inside_before || entered_this_line || depth > 0;
         }
     }
-    test_module_started
+    false
+}
+
+fn apply_pending_cfg_test_line(
+    raw: &str,
+    trimmed: &str,
+    pending_cfg_test: &mut bool,
+    depth: &mut i32,
+) -> bool {
+    if is_skippable_cfg_test_prefix(trimmed) {
+        return false;
+    }
+    if is_rust_mod_item(trimmed) {
+        if trimmed.contains(';') && !trimmed.contains('{') {
+            *pending_cfg_test = false;
+            return false;
+        }
+        if trimmed.contains('{') {
+            *pending_cfg_test = false;
+            *depth = rust_line_brace_delta(raw).max(0);
+            return true;
+        }
+        return false;
+    }
+    if trimmed.starts_with('{') {
+        *pending_cfg_test = false;
+        *depth = rust_line_brace_delta(raw).max(0);
+        return true;
+    }
+    *pending_cfg_test = false;
+    false
+}
+
+fn is_skippable_cfg_test_prefix(trimmed: &str) -> bool {
+    trimmed.is_empty()
+        || trimmed.starts_with("//")
+        || trimmed.starts_with("/*")
+        || trimmed.starts_with("#[")
+}
+
+fn is_rust_mod_item(trimmed: &str) -> bool {
+    let rest = trimmed
+        .strip_prefix("pub(crate) ")
+        .or_else(|| trimmed.strip_prefix("pub(super) "))
+        .or_else(|| trimmed.strip_prefix("pub(self) "))
+        .or_else(|| trimmed.strip_prefix("pub "))
+        .unwrap_or(trimmed);
+    rest.starts_with("mod ")
+}
+
+fn rust_line_brace_delta(line: &str) -> i32 {
+    let mut delta = 0i32;
+    let mut in_string = false;
+    let mut in_char = false;
+    let mut escaped = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if in_string || in_char {
+            if c == '\\' {
+                escaped = true;
+            } else if (in_string && c == '"') || (in_char && c == '\'') {
+                in_string = false;
+                in_char = false;
+            }
+            continue;
+        }
+        match c {
+            '/' if chars.peek() == Some(&'/') => break,
+            '"' => in_string = true,
+            '\'' => in_char = true,
+            '{' => delta += 1,
+            '}' => delta -= 1,
+            _ => {}
+        }
+    }
+    delta
 }
 
 fn is_public_high_entropy_material(pattern_name: &str, line: &str, matched_value: &str) -> bool {
@@ -1145,6 +1237,53 @@ mod tests {
                 .iter()
                 .all(|finding| finding.pattern_name != "AWS Key"),
             "cfg(test) corpus must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn rust_secret_after_closed_cfg_test_module_still_flags() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = "\
+pub fn prod() {}\n\
+\n\
+#[cfg(test)]\n\
+mod tests {\n\
+    fn plants_a_key() {\n\
+        let k = \"AKIAIOSFODNN7EXAMPLE\";\n\
+    }\n\
+}\n\
+\n\
+pub const LIVE_KEY: &str = \"AKIAIOSFODNN7EXAMPLE\";\n";
+        let findings = scan_content(
+            content,
+            "crates/anvil-checks/src/secret/scanner.rs",
+            &config,
+        );
+        let live_line = content
+            .lines()
+            .position(|line| line.contains("LIVE_KEY"))
+            .expect("live key line")
+            + 1;
+        let test_line = content
+            .lines()
+            .position(|line| line.contains("let k ="))
+            .expect("test key line")
+            + 1;
+        let aws_lines: Vec<usize> = findings
+            .iter()
+            .filter(|finding| finding.pattern_name == "AWS Key")
+            .map(|finding| finding.line)
+            .collect();
+        assert!(
+            aws_lines.contains(&live_line),
+            "secret after a closed cfg(test) module must still fire: {findings:?}"
+        );
+        assert!(
+            !aws_lines.contains(&test_line),
+            "cfg(test) corpus must stay suppressed: {findings:?}"
         );
     }
 
