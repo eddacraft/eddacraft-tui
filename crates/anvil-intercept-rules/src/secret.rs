@@ -1,4 +1,6 @@
-use anvil_checks::secret::{SecretCheckConfig, SecretFinding, scan_content_with_limit};
+use anvil_checks::secret::{
+    ScanStats, SecretCheckConfig, SecretFinding, scan_content_with_limit_and_stats,
+};
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 
 use crate::{ChangeKind, InterceptRule, RuleDecision, RuleInput, mode_id_part, sanitise_id_part};
@@ -36,30 +38,52 @@ impl SecretDetectionRule {
         if limit == 0 {
             return Vec::new();
         }
-        self.findings_with_limit(input, limit)
+        let (findings, stats) = self.scan_with_limit(input, limit);
+        let mut diagnostics: Vec<Diagnostic> = findings
             .into_iter()
             .map(|finding| finding_to_diagnostic(&finding, mode.clone()))
-            .collect()
+            .collect();
+        // SDT-001: a line the SCAN-002 guard refused to walk was checked by
+        // neither the pattern pass nor the entropy pass, so silence here
+        // would claim a coverage this rule never had. Reported after the
+        // findings so a real secret still wins a capped diagnostic budget.
+        if stats.lines_skipped_oversize > 0 {
+            diagnostics.push(oversize_skip_diagnostic(
+                &input.path.to_string_lossy(),
+                stats.lines_skipped_oversize,
+                mode.clone(),
+            ));
+        }
+        diagnostics.truncate(limit);
+        diagnostics
     }
 
-    fn findings_with_limit(&self, input: &RuleInput<'_>, limit: usize) -> Vec<SecretFinding> {
+    /// SDT-001: routes through the stats-carrying scanner entry point.
+    /// `scan_content_with_limit` — the documented "legacy entry point that
+    /// drops the SCAN-002 stats" — made an oversize-line warning structurally
+    /// impossible here, not merely unimplemented.
+    fn scan_with_limit(
+        &self,
+        input: &RuleInput<'_>,
+        limit: usize,
+    ) -> (Vec<SecretFinding>, ScanStats) {
         if limit == 0 {
-            return Vec::new();
+            return (Vec::new(), ScanStats::default());
         }
         // Deletions are not content writes — allow even if a caller retained
         // prior content on the event (matches antipattern/regex_content).
         if input.change_kind == ChangeKind::Removed {
-            return Vec::new();
+            return (Vec::new(), ScanStats::default());
         }
         if self.should_skip_path(input) {
-            return Vec::new();
+            return (Vec::new(), ScanStats::default());
         }
         let Some(content) = input.content else {
-            return Vec::new();
+            return (Vec::new(), ScanStats::default());
         };
         let content = String::from_utf8_lossy(content);
         let path = input.path.to_string_lossy();
-        scan_content_with_limit(content.as_ref(), path.as_ref(), &self.config, limit)
+        scan_content_with_limit_and_stats(content.as_ref(), path.as_ref(), &self.config, limit)
     }
 
     fn should_skip_path(&self, input: &RuleInput<'_>) -> bool {
@@ -95,7 +119,11 @@ impl InterceptRule for SecretDetectionRule {
     }
 
     fn evaluate(&self, input: &RuleInput<'_>) -> RuleDecision {
-        let findings = self.findings_with_limit(input, 1);
+        // SDT-001: skipped lines are reported through `diagnostics`, never
+        // here. Interrupting a save because a file contains a minified line
+        // would trade a false clean for a wall the operator cannot pass —
+        // the repo's warnings-over-blocks posture forbids it.
+        let (findings, _stats) = self.scan_with_limit(input, 1);
         let Some(first) = findings.first() else {
             return RuleDecision::Allow;
         };
@@ -147,6 +175,44 @@ fn finding_to_diagnostic(finding: &SecretFinding, mode: Mode) -> Diagnostic {
         mode,
     )
     .with_remediation_hint("Use a placeholder or environment variable instead.")
+}
+
+/// SDT-001: the save-time counterpart of the gate's coverage note.
+///
+/// `Severity::Warning`, not `Error`: `Error` is this rule's vocabulary for a
+/// credential it actually found and vetoes the write over, and an unscanned
+/// line is an admission about coverage, not a detection. The guard has only a
+/// count — it does not record which lines it dropped — so the location is the
+/// file with no line number.
+fn oversize_skip_diagnostic(file: &str, lines_skipped: usize, mode: Mode) -> Diagnostic {
+    Diagnostic::new(
+        format!(
+            "diag_secret_{}_{}_oversize_lines_skipped",
+            mode_id_part(&mode),
+            sanitise_id_part(file)
+        ),
+        Severity::Warning,
+        format!(
+            "{lines_skipped} line(s) too long to scan, so this file cannot be proven free of \
+             secrets"
+        ),
+        Location {
+            file: file.to_string(),
+            line: None,
+            column: None,
+            end_line: None,
+            end_column: None,
+        },
+        Category::Secret,
+        DiagnosticSource {
+            rule_id: SECRET_RULE_ID.to_string(),
+            source_module: "anvil-checks::secret".to_string(),
+        },
+        mode,
+    )
+    .with_remediation_hint(
+        "Raise `max_line_bytes` to cover them, or suppress with a documented reason (ADR-029).",
+    )
 }
 
 #[cfg(test)]
@@ -291,6 +357,148 @@ mod tests {
         assert_eq!(diagnostic.mode, Mode::Unknown("pre-write".to_string()));
         assert_eq!(diagnostic.source.rule_id, SECRET_RULE_ID);
         assert!(!diagnostic.summary.contains("abcdEFGH1234567890"));
+    }
+
+    // SDT-001 — the save-time path must not be silent about lines it
+    // refused to scan. Before SDT-001 this rule called
+    // `scan_content_with_limit`, the legacy entry point that drops the
+    // SCAN-002 stats, so it was *structurally* incapable of warning.
+
+    /// One line long enough to trip the default `max_line_bytes` guard,
+    /// with a real credential shape buried inside it.
+    fn oversize_secret_line() -> Vec<u8> {
+        format!("const k = '{}ghp_{}';\n", "x".repeat(5000), "a".repeat(36)).into_bytes()
+    }
+
+    #[test]
+    fn secret_rule_reports_oversize_skipped_lines_as_a_diagnostic() {
+        let path = Path::new("src/bundle.ts");
+        let body = oversize_secret_line();
+
+        let diagnostics = SecretDetectionRule::default().diagnostics(
+            &input(path, Some(body.as_slice())),
+            &Mode::Unknown("pre-write".to_string()),
+        );
+
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "the skipped line must produce exactly one diagnostic: {diagnostics:#?}",
+        );
+        let diagnostic = &diagnostics[0];
+        assert_eq!(
+            diagnostic.id, "diag_secret_pre_write_src_bundle_ts_oversize_lines_skipped",
+            "the id must be stable and distinct from a finding diagnostic",
+        );
+        assert_eq!(
+            diagnostic.severity,
+            Severity::Warning,
+            "an unscanned line is an advisory, not a save-blocking error",
+        );
+        assert_eq!(diagnostic.category, Category::Secret);
+        assert_eq!(diagnostic.location.file, "src/bundle.ts");
+        assert_eq!(
+            diagnostic.location.line, None,
+            "the guard counts lines, it does not record which ones",
+        );
+        assert_eq!(diagnostic.source.rule_id, SECRET_RULE_ID);
+        assert!(
+            diagnostic.summary.contains("1 line(s) too long to scan"),
+            "the summary must name the count: {}",
+            diagnostic.summary,
+        );
+        let hint = diagnostic
+            .remediation_hint
+            .as_deref()
+            .expect("an unactionable red is not an improvement on a false clean");
+        assert!(
+            hint.contains("max_line_bytes") && hint.contains("ADR-029"),
+            "the hint must name both remedies: {hint}",
+        );
+    }
+
+    #[test]
+    fn secret_rule_does_not_interrupt_a_save_for_oversize_lines_alone() {
+        // Warnings over blocks: a minified file is a legitimate save. The
+        // skip is reported through the diagnostic channel, not by vetoing
+        // the write.
+        let path = Path::new("src/bundle.ts");
+        let body = oversize_secret_line();
+
+        let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body.as_slice())));
+
+        assert_eq!(
+            decision,
+            RuleDecision::Allow,
+            "an oversize line must not interrupt the save",
+        );
+    }
+
+    #[test]
+    fn secret_rule_reports_findings_before_oversize_skips_under_a_limit() {
+        // A real finding outranks the coverage advisory when the caller
+        // caps the diagnostic count.
+        let path = Path::new("src/bundle.ts");
+        let mut body = b"const config = { api_key: 'abcdEFGH1234567890' };\n".to_vec();
+        body.extend_from_slice(&oversize_secret_line());
+
+        let diagnostics = SecretDetectionRule::default().diagnostics_with_limit(
+            &input(path, Some(body.as_slice())),
+            &Mode::Unknown("pre-write".to_string()),
+            1,
+        );
+
+        assert_eq!(diagnostics.len(), 1, "the limit must still be honoured");
+        assert_eq!(diagnostics[0].severity, Severity::Error);
+        assert!(diagnostics[0].summary.contains("Potential secret detected"));
+    }
+
+    #[test]
+    fn secret_rule_reports_both_a_finding_and_the_oversize_skip_when_unlimited() {
+        let path = Path::new("src/bundle.ts");
+        let mut body = b"const config = { api_key: 'abcdEFGH1234567890' };\n".to_vec();
+        body.extend_from_slice(&oversize_secret_line());
+
+        let diagnostics = SecretDetectionRule::default().diagnostics(
+            &input(path, Some(body.as_slice())),
+            &Mode::Unknown("pre-write".to_string()),
+        );
+
+        assert_eq!(diagnostics.len(), 2, "{diagnostics:#?}");
+        assert!(diagnostics[0].summary.contains("Potential secret detected"));
+        assert!(diagnostics[1].summary.contains("too long to scan"));
+    }
+
+    #[test]
+    fn secret_rule_reports_no_oversize_diagnostic_for_skipped_or_removed_input() {
+        // The early exits must keep their behaviour: a skipped extension, a
+        // deletion, and a zero limit each produce nothing at all — the new
+        // advisory must not leak through any of them.
+        let mode = Mode::Unknown("pre-write".to_string());
+        let rule = SecretDetectionRule::default();
+        let body = oversize_secret_line();
+
+        let skipped = Path::new("pnpm-lock.yaml.lock");
+        assert!(
+            rule.diagnostics(&input(skipped, Some(body.as_slice())), &mode)
+                .is_empty(),
+            "a skipped extension is not scanned, so there is nothing to report",
+        );
+
+        let path = Path::new("src/bundle.ts");
+        let removed = RuleInput {
+            path,
+            change_kind: ChangeKind::Removed,
+            content: Some(body.as_slice()),
+        };
+        assert!(rule.diagnostics(&removed, &mode).is_empty());
+        assert_eq!(rule.evaluate(&removed), RuleDecision::Allow);
+
+        assert!(
+            rule.diagnostics_with_limit(&input(path, Some(body.as_slice())), &mode, 0)
+                .is_empty(),
+            "a zero limit means no diagnostics at all",
+        );
     }
 
     #[test]

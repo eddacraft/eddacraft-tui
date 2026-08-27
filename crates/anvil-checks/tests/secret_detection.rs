@@ -596,6 +596,46 @@ fn run_secret_check_scores_degrade_with_findings() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// SDT-001: the public-API contract for unscanned surface. A clean
+/// `secret-detection` result must mean "scanned and clean", never "skipped
+/// and silent" — before this, a secret inside a line over `max_line_bytes`
+/// produced `passed: true, score: 100, "No secrets detected"`.
+///
+/// The exact message is pinned, not merely substring-matched: SDT-001's
+/// recorded risk is that failing closed trades a false clean for an
+/// unactionable red, so the two remedies are part of the contract.
+#[test]
+fn run_secret_check_fails_closed_on_lines_too_long_to_scan() {
+    let dir = temp_dir("oversize-fail-closed");
+    let f = dir.join("bundle.ts");
+    // A credential shape buried past the default per-line byte guard: the
+    // scanner drops the line before both the pattern and entropy passes.
+    let content = format!("const k = '{}ghp_{}';\n", "x".repeat(5000), "a".repeat(36));
+    std::fs::write(&f, content).unwrap();
+
+    let fs = f.to_string_lossy().to_string();
+    let files = [fs.as_str()];
+    let result = run_secret_check(&files, &default_config(), None);
+
+    assert_eq!(result.lines_skipped_oversize, 1);
+    assert!(
+        result.findings.is_empty(),
+        "the guard never walked the line"
+    );
+    assert!(
+        !result.passed,
+        "unscanned surface must not pass: {result:?}"
+    );
+    assert_eq!(result.score, 0, "{result:?}");
+    assert_eq!(
+        result.message,
+        "1 line(s) too long to scan, so this result cannot prove them clean: raise \
+         `max_line_bytes` to cover them, or suppress with a documented reason (ADR-029)",
+    );
+
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn run_secret_check_skips_binary_extensions() {
     let dir = temp_dir("skip-ext");

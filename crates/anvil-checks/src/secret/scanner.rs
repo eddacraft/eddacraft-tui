@@ -687,6 +687,14 @@ pub fn scan_content_with_compiled_patterns(
     (findings, stats)
 }
 
+/// Legacy limited-scan entry point that drops the SCAN-002 stats.
+///
+/// SDT-001: an empty return from this function is ambiguous — it means
+/// either "scanned and clean" or "skipped the only line that mattered", and
+/// the caller cannot tell which. A caller that reports a verdict to a human
+/// must use [`scan_content_with_limit_and_stats`] and consult
+/// `ScanStats::lines_skipped_oversize`; the save-time intercept rule reported
+/// silent false-cleans for exactly as long as it called this instead.
 pub fn scan_content_with_limit(
     content: &str,
     file_path: &str,
@@ -1427,6 +1435,13 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
         // *intentionally* not surfaced — the guard's contract is "we
         // refuse to walk this line at all" and the counter tells the
         // caller that decision was made.
+        //
+        // SDT-001: "0 findings" here is therefore never evidence of a clean
+        // file. The counter is the only truthful signal, and every caller
+        // that renders a verdict must act on it — see
+        // `check::assemble_secret_check_result` (blocks the pass, score 0)
+        // and the save-time rule's oversize diagnostic. A caller that reads
+        // only `findings` reports a false clean.
         let secret = "ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let padding = "x".repeat(5000);
         let content = format!("{padding}{secret}");
@@ -1439,7 +1454,10 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
             0,
             "oversize line should be skipped wholesale"
         );
-        assert_eq!(stats.lines_skipped_oversize, 1);
+        assert_eq!(
+            stats.lines_skipped_oversize, 1,
+            "the skip must be countable, or the callers above cannot fail closed"
+        );
     }
 
     #[test]

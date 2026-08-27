@@ -145,9 +145,14 @@ fn assemble_secret_check_result(
     lines_skipped_oversize: usize,
     history_scan_errors: Vec<String>,
 ) -> SecretCheckResult {
-    // History-scan failures block a clean pass even when no secret findings
-    // were produced — otherwise a broken scan looks identical to "clean".
-    let passed = findings.is_empty() && history_scan_errors.is_empty();
+    // SDT-001: everything that means "we did not scan all of it" collects
+    // here. History-scan failures block a clean pass even when no secret
+    // findings were produced — otherwise a broken scan looks identical to
+    // "clean" — and an oversize-line skip is the same class of lie: the
+    // SCAN-002 guard drops the line before *both* pattern and entropy
+    // evaluation, so a secret inside it cannot have been seen.
+    let coverage_notes = coverage_notes(&history_scan_errors, lines_skipped_oversize);
+    let passed = findings.is_empty() && coverage_notes.is_empty();
     let pattern_count = findings
         .iter()
         .filter(|finding| finding.finding_type == FindingType::Pattern)
@@ -156,19 +161,18 @@ fn assemble_secret_check_result(
         .iter()
         .filter(|finding| finding.finding_type == FindingType::Entropy)
         .count();
-    let score_usize = if !history_scan_errors.is_empty() && findings.is_empty() {
+    let score_usize = if lines_skipped_oversize > 0 {
+        // Unscanned surface makes the score meaningless, not merely lower:
+        // there is no denominator for "how much of this file was checked".
+        0
+    } else if !history_scan_errors.is_empty() && findings.is_empty() {
         // Incomplete coverage is not a full score.
         0
     } else {
         100_usize.saturating_sub(findings.len().saturating_mul(10))
     };
     let score = u8::try_from(score_usize).unwrap_or(0);
-    let message = secret_check_message(
-        &findings,
-        pattern_count,
-        entropy_count,
-        &history_scan_errors,
-    );
+    let message = secret_check_message(&findings, pattern_count, entropy_count, &coverage_notes);
 
     SecretCheckResult {
         passed,
@@ -182,17 +186,41 @@ fn assemble_secret_check_result(
     }
 }
 
+/// SDT-001: every reason this scan could not see all of its input, in a
+/// stable order. History failures first (they can mean *nothing* ran), then
+/// the oversize-line skip. Both are reported — a result can carry both at
+/// once, and an operator who fixes one must not be surprised by the other.
+fn coverage_notes(history_scan_errors: &[String], lines_skipped_oversize: usize) -> Vec<String> {
+    let mut notes = history_scan_errors.to_vec();
+    if lines_skipped_oversize > 0 {
+        notes.push(oversize_skip_note(lines_skipped_oversize));
+    }
+    notes
+}
+
+/// The operator-facing text for an oversize-line skip. It names the count
+/// *and* both remedies deliberately: a repo with legitimately long lines in
+/// scanned extensions flips from silent-green to red here, and a red with no
+/// stated action is just a different kind of useless.
+fn oversize_skip_note(lines_skipped_oversize: usize) -> String {
+    format!(
+        "{lines_skipped_oversize} line(s) too long to scan, so this result cannot prove them \
+         clean: raise `max_line_bytes` to cover them, or suppress with a documented reason \
+         (ADR-029)"
+    )
+}
+
 fn secret_check_message(
     findings: &[SecretFinding],
     pattern_count: usize,
     entropy_count: usize,
-    history_scan_errors: &[String],
+    coverage_notes: &[String],
 ) -> String {
-    if !history_scan_errors.is_empty() && findings.is_empty() {
-        return history_scan_errors.join("; ");
-    }
     if findings.is_empty() {
-        return "No secrets detected".to_string();
+        if coverage_notes.is_empty() {
+            return "No secrets detected".to_string();
+        }
+        return coverage_notes.join("; ");
     }
     let mut parts = Vec::new();
     if pattern_count > 0 {
@@ -206,10 +234,10 @@ fn secret_check_message(
         findings.len(),
         parts.join(", ")
     );
-    if history_scan_errors.is_empty() {
+    if coverage_notes.is_empty() {
         base
     } else {
-        format!("{base}; {}", history_scan_errors.join("; "))
+        format!("{base}; {}", coverage_notes.join("; "))
     }
 }
 
@@ -711,6 +739,172 @@ mod tests {
             result.message, "No secrets detected",
             "must not use the clean-result message when history coverage failed"
         );
+    }
+
+    // SDT-001 — unscanned surface must not report as clean.
+    //
+    // The SCAN-002 per-line guard skips any line over `max_line_bytes`
+    // before *both* pattern and entropy evaluation, so a secret hiding in a
+    // minified line is invisible to the scan. Before SDT-001 the gate
+    // ignored the counter and reported "No secrets detected", passed,
+    // score 100 — a false clean. These tests pin the fail-closed contract.
+
+    fn git(dir: &std::path::Path, args: &[&str]) {
+        let out = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .output()
+            .expect("git is available");
+        assert!(
+            out.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    /// Deterministic throwaway repo (identity pinned, signing and hooks off)
+    /// mirroring the `git_scanner` test harness.
+    fn temp_repo(label: &str) -> PathBuf {
+        let tmp = create_temp_dir(label);
+        git(&tmp, &["init", "-q"]);
+        git(&tmp, &["config", "user.email", "test@example.com"]);
+        git(&tmp, &["config", "user.name", "Test"]);
+        git(&tmp, &["config", "commit.gpgsign", "false"]);
+        let empty_hooks = tmp.join("empty-hooks");
+        std::fs::create_dir_all(&empty_hooks).expect("create empty hooks dir");
+        git(
+            &tmp,
+            &["config", "core.hooksPath", &empty_hooks.to_string_lossy()],
+        );
+        tmp
+    }
+
+    /// A single line long enough to trip the default `max_line_bytes` guard,
+    /// with a real credential shape buried inside it.
+    fn oversize_secret_line() -> String {
+        format!("const k = '{}ghp_{}';\n", "x".repeat(5000), "a".repeat(36))
+    }
+
+    #[test]
+    fn oversize_skipped_line_is_not_a_clean_pass() {
+        let temp_dir = create_temp_dir("oversize-gate");
+        let file = temp_dir.join("minified.ts");
+        fs::write(&file, oversize_secret_line()).unwrap();
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert_eq!(
+            result.lines_skipped_oversize, 1,
+            "the guard must have skipped the oversize line: {result:?}"
+        );
+        assert!(
+            result.findings.is_empty(),
+            "the guard refuses to walk the line, so there is nothing to find: {result:?}"
+        );
+        assert!(
+            !result.passed,
+            "an unscanned line must not report a clean pass: {result:?}"
+        );
+        assert_eq!(
+            result.score, 0,
+            "incomplete coverage must not keep a full score: {result:?}"
+        );
+        assert_ne!(
+            result.message, "No secrets detected",
+            "the clean-result message must not be used when lines went unscanned"
+        );
+        assert!(
+            result.message.contains("1 line(s) too long to scan"),
+            "the message must name the count: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains("max_line_bytes"),
+            "the message must name the raise-the-limit remedy: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains("ADR-029"),
+            "the message must name the suppression remedy: {}",
+            result.message
+        );
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn oversize_skip_and_history_failure_are_both_named() {
+        // A result can carry both conditions at once; neither may swallow
+        // the other, or the operator fixes one and still sees a red.
+        let temp_dir = create_temp_dir("oversize-plus-history");
+        let file = temp_dir.join("minified.ts");
+        fs::write(&file, oversize_secret_line()).unwrap();
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        let missing = missing_workspace_path("oversize-plus-history");
+        let result = run_secret_check(&files, &config, Some(&missing));
+
+        assert!(!result.passed, "{result:?}");
+        assert_eq!(result.score, 0, "{result:?}");
+        assert!(
+            result.message.to_lowercase().contains("history"),
+            "the history failure must survive composition: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains("1 line(s) too long to scan"),
+            "the oversize skip must survive composition: {}",
+            result.message
+        );
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn history_oversize_skip_blocks_a_clean_pass() {
+        // `merge_git_history_scan` folds history skips into the same total,
+        // so a secret buried in an oversize line in a *commit* is covered by
+        // the same gate — nothing on disk needs to be scanned for it to fire.
+        let repo = temp_repo("history-oversize");
+        let name = "huge.py";
+        std::fs::write(repo.join(name), oversize_secret_line()).expect("write fixture");
+        git(&repo, &["add", name]);
+        git(&repo, &["commit", "-q", "-m", "add fixture"]);
+
+        let config = SecretCheckConfig {
+            scan_git_history: true,
+            ..SecretCheckConfig::default()
+        };
+        let root = repo.to_string_lossy().to_string();
+        let result = run_secret_check(&[], &config, Some(&root));
+
+        assert!(
+            result.history_scan_errors.is_empty(),
+            "the history scan itself must succeed: {result:?}"
+        );
+        assert_eq!(
+            result.lines_skipped_oversize, 1,
+            "the history skip must reach the result: {result:?}"
+        );
+        assert!(
+            !result.passed,
+            "an unscanned history line must not report a clean pass: {result:?}"
+        );
+        assert_eq!(result.score, 0, "{result:?}");
+        assert!(
+            result.message.contains("1 line(s) too long to scan"),
+            "the message must name the count: {}",
+            result.message
+        );
+
+        let _ = fs::remove_dir_all(repo);
     }
 
     #[test]
