@@ -311,7 +311,7 @@ completed study.
 
 ### FEFF-001: Accept the field-evidence and manual-export decision
 
-- **Status:** Merged
+- **Status:** Merged 2026-08-27 via PR #4166
 - **Intent:** Establish a durable authority for what field evidence may be
   collected, retained, exported, and claimed.
 - **Expected Outcome:** An accepted ADR freezes the approved before/after
@@ -341,7 +341,7 @@ completed study.
 
 ### FEFF-002: Audit evidence sources and historical replay feasibility
 
-- **Status:** Merged
+- **Status:** Merged 2026-08-27 via PR #4166
 - **Intent:** Prove which planned measures are reconstructable from current
   supported sources before building a study surface.
 - **Expected Outcome:** A source audit maps each metric to its authoritative
