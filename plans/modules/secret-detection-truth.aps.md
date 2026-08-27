@@ -5,7 +5,7 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | Proposed | 0/5      |
+| SDT | —     | In Progress | 2/6   |
 
 **Last reviewed:** 2026-08-15 (created on operator direction after a
 cross-product review from `eddacraft/edda-scan`'s SEC-005 work surfaced the
@@ -97,9 +97,11 @@ what gets adopted from elsewhere is at most a clean-roomed concept.
 
 ### SDT-001: Fail closed on unscanned lines
 
-- **Status:** In Progress — operator-promoted 2026-08-27 (Proposed → Ready →
-  In Progress in one step, on direction). Implemented on
-  `feat/sdt-001-002-secret-truth`.
+- **Status:** Merged — via
+  [#4185](https://github.com/eddacraft/anvil-001/pull/4185) (rebase-merge
+  2026-08-27; ancestor of `main` proven by content at `817e2849f`).
+  Operator-promoted 2026-08-27 (Proposed → Ready → In Progress in one step,
+  on direction).
 - **Intent:** A clean secret-detection result must mean every line was
   actually scanned; unscanned surface blocks a clean pass and is named.
 - **Expected Outcome:** `lines_skipped_oversize > 0` blocks `passed` and caps
@@ -176,9 +178,11 @@ what gets adopted from elsewhere is at most a clean-roomed concept.
 
 ### SDT-002: Calibration corpus and measured detection rate
 
-- **Status:** In Progress — operator-promoted 2026-08-27 (Proposed → Ready →
-  In Progress in one step, on direction). Implemented on
-  `feat/sdt-001-002-secret-truth`.
+- **Status:** Merged — via
+  [#4185](https://github.com/eddacraft/anvil-001/pull/4185) (rebase-merge
+  2026-08-27; ancestor of `main` proven by content at `817e2849f`).
+  Operator-promoted 2026-08-27 (Proposed → Ready → In Progress in one step,
+  on direction).
 - **Intent:** No rules change ships unmeasured; the beta "~50% detection"
   becomes a decomposed, reproducible number instead of an anecdote.
 - **Expected Outcome:** A committed corpus of true positives (canary-format
