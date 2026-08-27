@@ -1,8 +1,8 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                     |
-| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-25 against SETCON `crates/anvil-settings` workspace membership; container diagram now includes the settings truth crate |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-27 against GTAO-003 CLI follow-up after daemon allow; container topology unchanged |
 
 | Upstream                                                                                                                                                                                                                         | Downstream                                                                            |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |

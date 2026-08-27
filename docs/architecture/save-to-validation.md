@@ -1,8 +1,8 @@
 # Save to validation
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                     |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 daemon catalogue registry; save-time dispatch topology unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                  |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-27 against GTAO-003 CLI follow-up after `validate_paths`; caller-buffer vs post-save split unchanged |
 
 | Upstream                                                                                                                                                                                         | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
@@ -61,6 +61,9 @@ sequenceDiagram
                     Daemon-->>Observe: best-effort save-time gate_evaluated observation
                 end
                 Daemon-->>Driver: post-save verdict
+                opt follow-up enabled
+                    Driver->>Checks: background changed-path anvil check, regex plus AST, does not wait
+                end
             else absent, refused, error, disconnect, or timeout
                 Driver->>Checks: selected subprocess action
                 Driver->>Driver: unavailable daemon-absent assurance and warn once
@@ -90,7 +93,10 @@ PreWrite are distinct modes on that method; MCP `anvil_validate_write` uses
 PreWrite because proposed content may not exist on disk. The post-save driver
 instead sends changed path descriptors through `validate_paths`; the daemon
 admits the workspace, reads the paths through its guarded boundary, and returns
-diagnostics plus coverage and assurance.
+diagnostics plus coverage and assurance. After that on-disk verdict the CLI may
+schedule a coalesced changed-path `anvil check` (regex + AST) without waiting;
+PreWrite does not schedule, because the proposed bytes are not on disk yet
+(GTAO-003 / ADR-127).
 
 Only MidEdit enters the MidEdit observation path shown here. Missing emitters,
 throttling, sink errors, and later queue loss do not change the MidEdit verdict.

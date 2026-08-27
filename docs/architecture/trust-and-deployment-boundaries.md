@@ -1,8 +1,8 @@
 # Trust and deployment boundaries
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                     |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 host completeness reviews; trust topology and diagrams unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                         |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-27 against GTAO-003 CLI follow-up after daemon allow; trust topology and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                                                                                                                                           | Downstream                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
