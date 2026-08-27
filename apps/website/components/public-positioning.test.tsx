@@ -62,6 +62,18 @@ describe('rendered website positioning', () => {
     expect(textOf(<SocialCard />)).toContain('MCP REQUEST :: anvil_validate_write');
   });
 
+  it('names the ANVIL autonomy state in the trust gap', () => {
+    expect(textOf(<TrustGap />)).toContain('ANVIL');
+    expect(textOf(<TrustGap />)).toContain('BABYSIT');
+    expect(textOf(<TrustGap />)).toContain('UNSUPERVISED');
+  });
+
+  it('exposes an accessible copy action for the install command', () => {
+    const markup = renderToStaticMarkup(<HeroSection />);
+    expect(markup).toContain('aria-label="Copy install command"');
+    expect(markup).toContain('[ COPY ]');
+  });
+
   it('does not mistake unreachable JSX for rendered content', () => {
     const HiddenClaim = ({ show }: { show: boolean }) => (
       <section>

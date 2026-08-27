@@ -48,14 +48,14 @@ export function TrustGap() {
               ))}
             </dl>
             <div className="grid gap-px bg-structure md:grid-cols-3">
-              {AUTONOMY.map(([label, text], index) => (
+              {AUTONOMY.map(([label, text]) => (
                 <div
                   key={label}
-                  className={`bg-void p-4 ${index === 2 ? 'border-l border-anvil' : ''}`}
+                  className={`bg-void p-4 ${label === 'ANVIL' ? 'border-l border-anvil' : ''}`}
                 >
                   <p
                     className={`font-mono text-xs uppercase tracking-wider ${
-                      index === 2 ? 'text-anvil' : 'text-ghost-grey'
+                      label === 'ANVIL' ? 'text-anvil' : 'text-ghost-grey'
                     }`}
                   >
                     {label}

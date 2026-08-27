@@ -30,10 +30,18 @@ const heroContent = readFileSync(
   new URL('../components/hero-section.tsx', import.meta.url),
   'utf8'
 );
+const trustGapContent = readFileSync(
+  new URL('../components/trust-gap.tsx', import.meta.url),
+  'utf8'
+);
 
 const sourceContractsByFile = new Map([
   ['../app/layout.tsx', ['Inter']],
-  ['../components/hero-section.tsx', ['Dialog.Title', 'Dialog.Description', 'Dialog.Close']],
+  [
+    '../components/hero-section.tsx',
+    ['Dialog.Title', 'Dialog.Description', 'Dialog.Close', 'Copy install command'],
+  ],
+  ['../components/trust-gap.tsx', ["label === 'ANVIL'"]],
   ['../components/terminal-window.tsx', ['MCP REQUEST :: anvil_validate_write']],
   ['../components/cli-footer.tsx', ['Dialog.Title', 'Dialog.Description', 'Dialog.Close']],
 ]);
@@ -76,6 +84,7 @@ const failures = [
     ? ['hero does not compose TerminalWindow']
     : []),
   ...(heroContent.includes('hidden md:block') ? ['hero hides the terminal on mobile'] : []),
+  ...(trustGapContent.includes('index === 2') ? ['trust-gap highlights ANVIL by array index'] : []),
   ...[...qualifiedFiles].flatMap(([name, qualifiers]) => {
     const fileContent = readFileSync(new URL(`../components/${name}`, import.meta.url), 'utf8');
     return qualifiers

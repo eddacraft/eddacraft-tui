@@ -149,11 +149,10 @@ export function HeroSection() {
               </Dialog.Trigger>
               <button
                 type="button"
+                aria-label={copied ? 'Install command copied' : 'Copy install command'}
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(
-                      installCommand ?? REDACTED_INSTALL_COMMAND
-                    );
+                    await navigator.clipboard.writeText(installCommand ?? REDACTED_INSTALL_COMMAND);
                     setCopied(true);
                     window.setTimeout(() => setCopied(false), 1600);
                   } catch {
