@@ -77,6 +77,11 @@ fn init_force_does_not_panic_on_dave_b31_multibyte_line() {
         "§ must start at byte 61"
     );
     let three_byte = dave_b31_line_with_glyph_at_byte_61("€");
+    assert_eq!(
+        &three_byte.as_bytes()[61..64],
+        [0xE2, 0x82, 0xAC],
+        "€ must occupy bytes 61..64"
+    );
     fs::write(
         dir.path().join("heading.ts"),
         format!("{two_byte}\n{three_byte}\n"),
@@ -103,8 +108,8 @@ fn init_force_does_not_panic_on_dave_b31_multibyte_line() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Scanned"),
-        "Dave B31 fixture must be in the first-scan sample, got:\n{stdout}",
+        stdout.contains("Scanned 1 file(s) (sampled from project tree)"),
+        "Dave B31 heading.ts must be the sampled file, got:\n{stdout}",
     );
     assert!(
         stdout.contains("anvil initialised successfully."),
