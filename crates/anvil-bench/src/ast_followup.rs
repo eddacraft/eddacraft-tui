@@ -9,7 +9,17 @@
 /// Legal follow-up: `check` with an explicit path list, never `--all` or `gate`.
 #[must_use]
 pub fn is_legal_followup_argv(args: &[&str]) -> bool {
-    args.first() == Some(&"check") && !args.iter().any(|arg| *arg == "--all" || *arg == "gate")
+    if args.first() != Some(&"check") {
+        return false;
+    }
+    if args.iter().any(|arg| *arg == "--all" || *arg == "gate") {
+        return false;
+    }
+    let Some(separator) = args.iter().position(|arg| *arg == "--") else {
+        return false;
+    };
+    args.get(separator + 1)
+        .is_some_and(|path| !path.is_empty() && !path.starts_with('-'))
 }
 
 #[cfg(test)]
@@ -31,6 +41,10 @@ mod tests {
     #[test]
     fn check_all_and_gate_fail_the_budget_contract() {
         assert!(!is_legal_followup_argv(&["check", "--all"]));
+        assert!(!is_legal_followup_argv(&["check", "--json", "--no-tui"]));
+        assert!(!is_legal_followup_argv(&[
+            "check", "--json", "--no-tui", "--"
+        ]));
         assert!(!is_legal_followup_argv(&["gate", "--profile", "ci"]));
     }
 
