@@ -11437,11 +11437,17 @@ hang before opening a supervisor ticket.
 - **Intent:** Stop anvil presenting "we did not measure this" as "this is
   clean".
 - **Context:** With no architecture configuration present,
-  `anvil gate --only-checks import-boundaries --json` returns
-  `{"overall": true, "score": 100.0, "checks": [{"passed": true,
-  "score": 100.0, "message": "No architecture config found ... Skipping."}]}`
-  at exit 0, and `anvil drift snapshot --json` reports
-  `boundary_violations: 0` for the same unmeasured state. Only the human-readable
+  `anvil gate --only-checks import-boundaries --json` returns the following at
+  exit 0:
+
+  ```json
+  { "overall": true, "score": 100.0,
+    "checks": [ { "passed": true, "score": 100.0,
+      "message": "No architecture config found ... Skipping." } ] }
+  ```
+
+  `anvil drift snapshot --json` reports `boundary_violations: 0` for the same
+  unmeasured state. Only the human-readable
   `message` distinguishes the two cases; neither the boolean, the score, nor the
   count does. Reproduced on two historical snapshots of this repository, which
   carries `.anvilrc` but no `.anvil/architecture.yaml`.
