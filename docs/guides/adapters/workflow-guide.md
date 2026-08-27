@@ -1,8 +1,8 @@
 # Adapter Implementation & Developer Workflow Guide
 
-| Type  | Authority | Owner    | Status | Freshness                                                                                              |
-| ----- | --------- | -------- | ------ | ------------------------------------------------------------------------------------------------------ |
-| Guide | Advisory  | OPENSPEC | Live   | Last reviewed 2026-05-25 against `packages/adapters/src/` and `plans/modules/open-spec-adapter.aps.md` |
+| Type  | Authority | Owner    | Status | Freshness                                                                                                              |
+| ----- | --------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | OPENSPEC | Live   | Last reviewed 2026-08-28 against `packages/adapters/src/` CIB-371 type-narrowing; adapter import/export flow unchanged |
 
 | Upstream                                                                                                                                                              | Downstream                                                             |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |

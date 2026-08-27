@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                        |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 API catalogue completeness tests; authentication topology unchanged |
+| Type     | Authority | Owner | Status | Freshness                                                                                                    |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-28 against `apps/anvil-api` CIB-371 parse/narrowing; authentication topology unchanged |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |

@@ -1,8 +1,8 @@
 # anvil driver client architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                        |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------ |
-| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-08-20 against `packages/anvil-driver-client/src` and its tests at `f0f834b39` |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                         |
+| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-08-28 against `packages/anvil-driver-client/src` CIB-371 transport/JSON-RPC narrowing; request and notification flow unchanged |
 
 | Upstream                                                             | Downstream                                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
