@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                       |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-25 against `src/antipattern/mask.rs` (CIB-359 char-boundary slice), `src/antipattern/registry_loader.rs`, and ADR-131; evaluation-flow diagram unaffected |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                  |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-27 against `src/antipattern/mask.rs` (CIB-359 3-byte-at-61 tests; production slice unchanged), `src/antipattern/registry_loader.rs`, and ADR-131; evaluation-flow diagram unaffected |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
