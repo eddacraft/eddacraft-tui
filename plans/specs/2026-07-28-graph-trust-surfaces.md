@@ -2,33 +2,33 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Derived | APS modules named below | Live | 2026-07-28 — operator-approved shortlist formalised as Option A |
+| Spec | Derived | APS modules named below | Live | 2026-08-27 — CONF-001/ADR-134 and current release/NBI references reconciled |
 
 | Upstream | Downstream |
 | -------- | ---------- |
 | `plans/index.aps.md` (NBI), named APS modules, `ROADMAP.md` Horizon 2–5 | NBI Schedule rows, Wave 0 clearance work, future release-window scoping |
 
-**Not** the active `v0.10.0-beta` cut authority. That remains
-[`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) (DASH + JOURNEY post-cut + MCPX/SKPKG).
-This note schedules a **side programme** that may become a later minor theme once
-Wave 1 demos prove the story.
+**Not** the active provisional `v0.9.8-beta` field-intake authority. That
+remains [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md). This note schedules a
+**side programme** that may become a later minor theme once Wave 1 demos prove
+the story.
 
 ## 1. Product story
 
-Anvil already holds a trusted graph (GV2 / GCTX / GBASE, shipped in
+anvil already holds a trusted graph (GV2 / GCTX / GBASE, shipped in
 `v0.9.0-beta`). Graph Trust Surfaces answers five questions agents and team
 leads care about, without inventing a second product:
 
 | # | Question | Module | Wave-1 claim |
 | - | -------- | ------ | ------------ |
-| 1 | Did this change match what was claimed? | [CONF](../modules/intent-conformance.aps.md) | Tier 0: commit/PR claims vs file-level delta, advisory |
+| 1 | Did this change match what was claimed? | [CONF](../modules/intent-conformance.aps.md) | Tier 0: per-commit claims vs pinned Git coverage + claim-appropriate bound evidence, advisory |
 | 2 | Where is this symbol used, exactly? | [LSPNAV](../modules/lsp-graph-navigation.aps.md) | One language/client: exact graph-backed `textDocument/references` |
-| 3 | Did review leave a durable gate trail? | [CGBDG](../modules/council-gate-bridge.aps.md) | Council verdict → Anvil-shaped evidence (prefer thin witness lines) |
+| 3 | Did review leave a durable gate trail? | [CGBDG](../modules/council-gate-bridge.aps.md) | Council verdict → anvil-shaped evidence (prefer thin witness lines) |
 | 4 | What may this agent attempt? | [POLCAP](../modules/policy-capability-discovery.aps.md) | Advisory `anvil policy capabilities` signed view |
 | 5 | What new deps did this change pull in? | [SCA](../modules/supply-chain-attestation.aps.md) | One ecosystem: baseline + new-edge warnings |
 
-**Consumer, not producer, for v0.10:** DASH shows evidence these tracks produce.
-Do not stall the Team-Lead Surface cut for this programme.
+Dashboard surfaces may later consume evidence these tracks produce. This
+programme is not a claim of the active provisional `v0.9.8-beta` window.
 
 ## 2. Waves
 
@@ -37,7 +37,7 @@ Do not stall the Team-Lead Surface cut for this programme.
 | Track | Work | Mode today | Outcome that clears Wave 1 |
 | ----- | ---- | ---------- | -------------------------- |
 | **CGBDG** | CGBDG-001..006 discovery | **Ready** — execute | Discovery report + follow-on implement/spec or explicit park |
-| **CONF** | CONF-001 product ADR | Proposed | Accepted ADR; Tier-0 carve-out that does not wait on full ILGOV |
+| **CONF** | CONF-001 product ADR | **In Progress**; module Proposed | ADR-134 accepted; implement/prove its Git, base-tree scope-authority, and evidence-binding contract before promoting CONF-002..004 |
 | **POLCAP** | POLCAP-001 ADR + Planning Council | Proposed | Accepted ADR; AD-3/AD-4 reconciled with ADR-098 |
 | **SCA** | SCA-001 design (one ecosystem + graph shape) | Proposed | Design doc; edge-type home decided |
 | **LSPNAV** | RTAI-005 diagnostics-only + ADR-111 Accept | Proposed | RTAI-005 production boundary + ADR-111 Accepted |
@@ -46,7 +46,7 @@ Do not stall the Team-Lead Surface cut for this programme.
 
 | Track | First executable slice | Explicitly out of Wave 1 |
 | ----- | ---------------------- | ------------------------ |
-| CONF | CONF-002..004 (minimal contract + commit claims vs delta) | ILGOV session ledger; Tier-2 APS adapters; symbol-level claims |
+| CONF | CONF-002..004 (minimal contract + commit claims vs claim-appropriate evidence) | ILGOV session ledger; Tier-2 APS adapters; PR-body claims; symbol-level claims beyond bound GV2 support |
 | CGBDG | Follow-on implement only if CGBDG-006 warrants it | PocketFlow re-platform of council; LLM on enforcement path |
 | POLCAP | Schema + 3–5 recipes + CLI (advisory) | Daemon IPC optional stretch; asymmetric signing; dashboard |
 | SCA | One ecosystem SBOM → baseline → new-edge warn | Multi-ecosystem; hosted vuln DB; SLSA release attestation |
@@ -54,7 +54,8 @@ Do not stall the Team-Lead Surface cut for this programme.
 
 ### Wave 2 — Close the loops
 
-- CONF-005..007 (PR claims, correlation join, closeout + capsule)
+- CONF-005..007 and CONF-009 (PR claims, correlation join, closeout, and
+  minimised/privacy-reviewed capsule grading)
 - POLCAP daemon IPC + witness `cap_id` binding
 - SCA release-time attestation (optional)
 - LSPNAV promotion evidence and soak
@@ -83,7 +84,7 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
 
 | Track | Park if |
 | ----- | ------- |
-| CONF | GV2 delta cannot supply a reliable file-level touched set without heroic work |
+| CONF | Exact per-commit Git extraction or revision/schema/generation-bound GV2 evidence cannot be proved without heroic work |
 | LSPNAV | RTAI-005 keeps navigation scope, or occurrence snapshots break ADR-031 budgets |
 | CGBDG | No clean map without a second attestation product — document and stop |
 | POLCAP | Council cannot keep the surface advisory without a parallel policy evaluator |
@@ -101,23 +102,33 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
 
 ### Cleared for APS Option B (execute or promote)
 
-| Module | Disposition (2026-07-28) |
+| Module | Disposition (2026-08-27) |
 | ------ | ------------------------ |
-| **CGBDG** | Already **Ready**; promoted into the active **Graph Trust Surfaces** index band; NBI rank 2. Discovery may start without further status promotion. |
-| CONF / POLCAP / SCA / LSPNAV | **Not** Ready. Clearance steps in §6. Do not mark Ready until the listed gates pass. |
+| **CGBDG** | **Ready**; NBI rank 3. Discovery may start without further status promotion. |
+| **CONF** | CONF-001 is operator-authorised and **In Progress**; ADR-134 is accepted. Existing `GraphDelta.file` alone is not clearance. The module remains **Proposed** until CONF-002..004 implement and prove exact Git extraction and claim-appropriate evidence binding, then receive separate promotion. |
+| POLCAP / SCA / LSPNAV | **Not** Ready. Clearance steps in §6 still apply. |
 
 ## 6. Clearance checklist (to unlock the rest)
 
 ### CONF — Intent conformance (Tier 0)
 
-- [ ] Author and accept **CONF-001** product ADR (in-lane; tier model; naming
-      "conformance" not "drift"; planless Tier 0)
-- [ ] Confirm GV2 `GraphDelta` (or equivalent) exposes a file-level touched set
-      sufficient for Tier-0 evaluation
-- [ ] Carve **Tier-0 contract** so CONF-002 can land without waiting for full
-      ILGOV `IntentLedgerRecord` rescope (co-design note only: no fork)
-- [ ] Promote CONF-002..004 to **Ready** with Rust validation commands
-- [ ] Leave CONF-005..009 Proposed until Wave 1 dogfood
+- [x] Author and accept **CONF-001** product ADR (ADR-134: in-lane; tier model;
+      naming "conformance" not "drift"; planless Tier 0)
+- [x] Pin deterministic per-commit Git extraction, explicit `path:` grammar,
+      fixed extraction/rename budgets with reason-coded overflow,
+      replacement-disabled sanitised Git execution, option-safe revision
+      resolution, base-tree scope-mapping authority, claim-appropriate
+      evidence, per-member dispositions, monotonic outcome/evidence-strength
+      semantics, and the capsule privacy gate in ADR-134
+- [x] Record that `GraphDelta.file` is an input, not sufficient per-file
+      evidence or clearance without revision/schema/generation binding
+- [x] Sequence the **Tier-0 contract** so CONF-002 can land without waiting for
+      full ILGOV `IntentLedgerRecord` rescope item 1 (co-design seam; no fork)
+- [ ] Implement and prove exact Git extraction plus repository/worktree,
+      revision/blob, graph-schema, generation, and run binding in CONF-002..004;
+      enforce base-tree mapping authority and `policy-change` dispositions;
+      then promote them separately with Rust validation commands
+- [x] Leave CONF-005..009 Proposed until later-wave dogfood
 
 ### LSPNAV — Graph-backed references
 
@@ -162,11 +173,12 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
 2. Agent resolves exact references while editing → **LSPNAV**
 3. Save/check warns on claim/delta mismatch and new dep edges → **CONF** + **SCA**
 4. Council review of the PR attests into the same trail → **CGBDG**
-5. Team-lead DASH glances the same evidence → consumer (v0.10)
+5. Team-lead dashboard glances the same evidence → consumer, not release claim
 
 ## 8. Non-goals
 
-- Replacing or delaying `v0.10.0-beta` Team-Lead Surface Foundations
+- Replacing or delaying the active provisional `v0.9.8-beta` field-intake
+  window
 - Enterprise constellation (POLFED / ORGHIER / CEWS / TRUST)
 - WEAVE / in-process agent harness as part of this programme
 - Auto-fix of violations
@@ -179,5 +191,5 @@ After Wave 0 clearance and at least two Wave 1 demos:
 1. Name a later minor theme (candidate: "Graph Trust Surfaces" / "Agent Trust Loop")
 2. Or keep the tracks as a standing side programme under NBI Schedule rows
 
-Until then: **execute CGBDG discovery**; clear the §6 checklists; do not force
-all five into one cut.
+Until then: **execute CGBDG discovery**, integrate CONF-001, and promote later
+work only through the §6 checklists; do not force all five into one cut.
