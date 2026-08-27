@@ -687,24 +687,27 @@ function parseJsonColumn<T>(raw: string, schema: z.ZodType<T>, label: string): T
 }
 
 export function deserialiseRow(row: ProposalRow): CandidateProposal {
-  const metadata = row.metadata
-    ? parseJsonColumn(row.metadata, z.record(z.string(), z.unknown()), 'proposal metadata')
-    : undefined;
-  const signals = row.signals
-    ? parseJsonColumn(row.signals, z.array(EvaluationSignalSchema), 'proposal signals')
-    : [];
+  const metadata =
+    row.metadata !== null
+      ? parseJsonColumn(row.metadata, z.record(z.string(), z.unknown()), 'proposal metadata')
+      : undefined;
+  const signals =
+    row.signals !== null
+      ? parseJsonColumn(row.signals, z.array(EvaluationSignalSchema), 'proposal signals')
+      : [];
   const provenance = parseJsonColumn(
     row.provenance,
     ProvenanceSummarySchema,
     'proposal provenance'
   );
-  const resolution = row.resolution
-    ? parseJsonColumn(
-        row.resolution,
-        CandidateProposalSchema.shape.resolution.unwrap(),
-        'proposal resolution'
-      )
-    : undefined;
+  const resolution =
+    row.resolution !== null
+      ? parseJsonColumn(
+          row.resolution,
+          CandidateProposalSchema.shape.resolution.unwrap(),
+          'proposal resolution'
+        )
+      : undefined;
 
   return {
     id: createProposalId(row.id),

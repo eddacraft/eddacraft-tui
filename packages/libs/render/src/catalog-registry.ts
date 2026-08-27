@@ -51,9 +51,9 @@ export const catalog = schema.createCatalog({
 /**
  * Component registry — maps catalog entries to React implementations.
  *
- * The shadcn components are typed against their own catalog, so we cast them
- * to fit the combined catalog's ComponentFn type. The prop shapes are
- * identical — the cast is purely a TypeScript generic mismatch.
+ * The shadcn catalog's ComponentFn generics do not match the combined
+ * catalog, but the runtime prop shapes are identical, so the object is
+ * passed through without a local cast.
  */
 const components = {
   // shadcn built-ins
