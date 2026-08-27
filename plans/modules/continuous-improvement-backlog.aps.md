@@ -11393,3 +11393,135 @@ hang before opening a supervisor ticket.
 - **Confidence:** high on the lock and incomplete recipe; medium on
   implementing in-process stop-swap-restart versus the honesty-only first
   slice.
+
+### CIB-364: `DO_NOT_TRACK` does not reach the save-time and fence producers
+
+- **Status:** Draft
+- **Intent:** Make the documented privacy hard-off actually stop every local
+  observation producer, at the values users really set.
+- **Context:** Two separate gaps, found while auditing evidence sources for
+  FEFF-002. **Scope:** `usage_collection_disabled`
+  (`crates/anvil-cli/src/usage.rs:789`) is consulted only by
+  `record_invocation` (`:805`), which gates the CLI `command.invoked` producer.
+  The save-time and fence producers are gated independently by
+  `daemon_observation_producers` (`:1258`), which checks
+  `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1` alone and **never consults
+  `DO_NOT_TRACK` at any value**. A user who sets `DO_NOT_TRACK=1` today still
+  has `gate_evaluated` and `constraint_applied` rows written to the sidecar.
+  **Value sensitivity:** all three variables are honoured only at the exact
+  string `"1"`, so `DO_NOT_TRACK=true`, `DO_NOT_TRACK=yes`, and a bare exported
+  `DO_NOT_TRACK` are ignored, though the convention is presence-based.
+- **Expected Outcome:** `DO_NOT_TRACK` is a superset hard-off across every
+  local observation producer, honoured at any non-empty value. Fixing the value
+  sensitivity alone does **not** close this — the scope gap is the load-bearing
+  half.
+- **Non-scope / do not:** do not change what the sidecar records when
+  collection is permitted; do not introduce a new opt-out variable.
+- **Files:** `crates/anvil-cli/src/usage.rs` (`usage_collection_disabled`,
+  `daemon_observation_producers`)
+- **Validation:** a test asserting that `DO_NOT_TRACK` at a non-`1` value, and
+  at `1`, both yield no save-time and no fence producer.
+- **Identified From:** FEFF-002 audit section 3.4,
+  `plans/audits/2026-08-27-feff-002-source-and-replay-audit.md`, 2026-08-27.
+- **Likely owner on promotion:** DPO (its scope already names the usage
+  producer convention and privacy default).
+- **Coordinates with:** ADR-133 D-7, which requires the study surface to treat
+  any non-empty `DO_NOT_TRACK` as a hard-off and to check controls before every
+  read and write — that covers the study, not the product.
+- **Confidence:** high on both gaps (read from source and reproduced); medium
+  on whether the scope fix belongs in the daemon producer or a shared gate.
+
+### CIB-365: A skipped boundary check reports as a measured pass and a zero
+
+- **Status:** Draft
+- **Intent:** Stop anvil presenting "we did not measure this" as "this is
+  clean".
+- **Context:** With no architecture configuration present,
+  `anvil gate --only-checks import-boundaries --json` returns
+  `{"overall": true, "score": 100.0, "checks": [{"passed": true,
+  "score": 100.0, "message": "No architecture config found ... Skipping."}]}`
+  at exit 0, and `anvil drift snapshot --json` reports
+  `boundary_violations: 0` for the same unmeasured state. Only the human-readable
+  `message` distinguishes the two cases; neither the boolean, the score, nor the
+  count does. Reproduced on two historical snapshots of this repository, which
+  carries `.anvilrc` but no `.anvil/architecture.yaml`.
+- **Expected Outcome:** A skipped check is machine-distinguishable from a passed
+  one, and an unmeasured boundary count is machine-distinguishable from a
+  measured zero, on the JSON surface — not only in prose. Any consumer reading
+  `passed` or `boundary_violations` can tell that the check did not run.
+- **Non-scope / do not:** do not make a missing architecture config an error or
+  a failure — skipping is correct behaviour; only its *reporting* is wrong.
+- **Files:** `crates/anvil-cli/src/commands/drift.rs`, the `import-boundaries`
+  gate check and its JSON surface
+- **Validation:** a test asserting that a repository with no architecture
+  configuration yields a JSON result whose skipped state is machine-readable,
+  and that `boundary_violations` is absent or explicitly not-measured rather
+  than `0`.
+- **Identified From:** FEFF-002 audit section 4.2,
+  `plans/audits/2026-08-27-feff-002-source-and-replay-audit.md`, 2026-08-27.
+- **Confidence:** high — reproduced directly, and independently reproduced
+  during verification of PR #4166.
+
+### CIB-366: `anvil drift snapshot` has no read-only mode
+
+- **Status:** Draft
+- **Intent:** Let a caller analyse a tree under an isolated state root without
+  also granting permission to mutate durable project state.
+- **Context:** `--anvil-home <dir>` without `--touch-project-state` makes
+  `anvil drift snapshot` refuse outright: *"Refusing drift snapshot under a
+  non-default ANVIL_HOME ... Re-run with `--touch-project-state` if you
+  deliberately want this candidate to write the real project."* The guard is
+  correct for its designed purpose, but it makes the two flags an isolated
+  caller wants mutually exclusive: the only way to get a snapshot under an
+  isolated home is to also authorise baseline, witness, and cutoff writes. On a
+  participant's live checkout that combination writes their real state.
+- **Expected Outcome:** A snapshot can be produced without durable project
+  mutation — for example a read-only or compute-only mode that emits the JSON
+  and writes nothing under the project root.
+- **Non-scope / do not:** do not weaken the existing `--touch-project-state`
+  guard; the fix is an additional read-only path, not a relaxed default.
+- **Files:** `crates/anvil-cli/src/commands/drift.rs`
+- **Validation:** a test asserting a snapshot succeeds under a non-default
+  `ANVIL_HOME` without `--touch-project-state` and leaves the project root
+  byte-identical.
+- **Identified From:** FEFF-002 audit section 4.4,
+  `plans/audits/2026-08-27-feff-002-source-and-replay-audit.md`, 2026-08-27.
+- **Coordinates with:** DISTRIB-006, which introduced `--anvil-home` for
+  side-by-side candidate installs.
+- **Confidence:** high on the behaviour; medium on the shape of the fix.
+
+### CIB-367: `anvil insights` weekly summary emits six placeholder zeros
+
+- **Status:** Draft
+- **Intent:** Stop the machine-readable insights surface presenting
+  never-instrumented fields as measurements.
+- **Context:** `insights::aggregator::weekly_summary`
+  (`crates/anvil-cli/src/insights/aggregator.rs:65-77`) measures exactly one of
+  its seven metric fields. `total_saves_observed`, `findings_raised`,
+  `suppressions_applied`, `suppressions_resolved`, `baseline_edges_added`, and
+  `daemon_uptime_percentage` are hardcoded to `0` in the constructor. Only
+  `witness_events_observed` is real. The human surface renders
+  `daemon_uptime_percentage` honestly as "not yet measured", but the JSON wire
+  value is an indistinguishable `0`, and the other five have no honest render at
+  all. Any consumer reading `anvil insights --json` records six fabricated
+  zeros as measurements.
+- **Expected Outcome:** The JSON surface distinguishes "not yet measured" from a
+  measured zero for every field that is not instrumented, so a consumer cannot
+  silently treat a placeholder as evidence.
+- **Non-scope / do not:** do not instrument the missing metrics as part of this
+  item — the defect is the misrepresentation, not the absence.
+- **Files:** `crates/anvil-cli/src/insights/aggregator.rs`,
+  `schemas/anvil-insights.v1.json`, `crates/anvil-cli/src/commands/insights.rs`
+  (`print_plain`)
+- **Validation:** a test asserting no uninstrumented field serialises as a bare
+  `0` on the JSON surface.
+- **Identified From:** FEFF-002 audit section 3.3,
+  `plans/audits/2026-08-27-feff-002-source-and-replay-audit.md`, 2026-08-27.
+- **Coordinates with:** the archived INSIGHTS module, which shipped this
+  surface, and ACTMO-011, which established the human-surface "not yet
+  measured" render. `daemon_uptime_percentage` is schema-locked at `0` by
+  `schemas/anvil-insights.v1.json`, so this needs a schema version bump, not a
+  code change alone.
+- **Confidence:** high on the placeholder inventory (read from source and
+  independently confirmed during verification of PR #4166); medium on whether
+  the fix is a nullable field or a new schema version.
