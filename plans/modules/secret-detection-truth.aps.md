@@ -5,7 +5,7 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | Proposed | 0/5      |
+| SDT | —     | In Progress | 0/6   |
 
 **Last reviewed:** 2026-08-15 (created on operator direction after a
 cross-product review from `eddacraft/edda-scan`'s SEC-005 work surfaced the
@@ -358,9 +358,69 @@ known gap lives.
 
 ---
 
+### SDT-006: Fail closed on unscanned files
+
+- **Status:** Proposed
+- **Intent:** SDT-001 made unscanned *lines* honest. Whole *files* are still
+  dropped silently, so the same false-clean survives one level up: a clean
+  result can still mean "we never read it".
+- **Expected Outcome:** `run_secret_check` accounts for every file it
+  declined to scan, and that accounting reaches the result the way
+  `lines_skipped_oversize` now does — blocking a clean pass and naming the
+  cause. Four paths drop a file today with no counter at all
+  (`crates/anvil-checks/src/secret/check.rs`, the `par_iter().filter_map`
+  body):
+  1. `should_skip_file(...)` — a configured `skip_extensions` match;
+  2. `file_exceeds_size_limit(file)` — the 1 MiB `MAX_FILE_SIZE` guard;
+  3. `fs::read_to_string(file).ok()?` — an unreadable or non-UTF-8 file,
+     swallowed by `.ok()?`;
+  4. `Err(_) => None` — the SCAN-001 `catch_unwind` panic-containment arm.
+  **Path 4 is the sharpest and should land first:** a panicking custom regex
+  silently discards an entire file's scan and the result still reports "No
+  secrets detected", `passed = true`, `score = 100`. That is precisely the
+  defect class this module exists to eliminate, and SCAN-001 contained the
+  panic without surfacing it.
+  Not every skip deserves equal weight — a configured `.png` skip is a
+  deliberate operator choice and a panic is a bug — so the outcome must
+  distinguish *deliberate* exclusions from *failed* ones rather than
+  flattening both into one red. The base test
+  `check.rs::skips_files_exceeding_size_limit` currently asserts
+  `result.passed` and will need revisiting under whatever distinction is
+  chosen.
+- **Non-scope / do not:** do not raise `MAX_FILE_SIZE` or `max_line_bytes` —
+  both are legitimate resource bounds, and SDT-001 already established that
+  the defect is the silence, not the skip. Do not remove the SCAN-001
+  `catch_unwind`; containing the panic is correct, reporting nothing is not.
+  Do not revisit the SDT-001 line-level machinery, which is delivered.
+- **Validation:** `cargo test -p eddacraft-anvil-checks`;
+  `cargo test -p eddacraft-anvil-intercept-rules`; a panicking custom pattern
+  produces a non-passing result naming the file; `pnpm secret:calibrate`
+  shows no regression. Note that the SDT-002 corpus **cannot** currently
+  detect this class — its runner calls the scanner directly rather than
+  `run_secret_check`, so the file-selection layer is outside its reach;
+  extending the corpus to cover file selection is part of this item.
+- **Files:** `crates/anvil-checks/src/secret/check.rs`,
+  `crates/anvil-checks/src/secret/types.rs` (result shape),
+  `crates/anvil-checks/tests/`
+- **Dependencies:** SDT-001
+- **Confidence:** high on the defect and its location — all four paths were
+  read directly and the panic arm reproduced in review; medium on the right
+  reporting shape, because deliberate exclusions and failed reads should not
+  read identically to an operator.
+- **Identified From:** blind verification of SDT-001/-002, 2026-08-27, rated
+  MAJOR-advisory. SDT-001's Expected Outcome named `lines_skipped_oversize`
+  specifically and was fully delivered; its *Intent* sentence ("every line
+  was actually scanned") is broader than the delivery, and this item closes
+  the difference.
+
+---
+
 Ranking is deliberate: SDT-001 is the "claims protected when it fails"
 complaint verbatim and touches nothing else; SDT-002 must exist before
 SDT-004 so breadth lands measured; SDT-003 keeps the licence boundary a
 decision rather than an accident; SDT-005 is the biggest FP lever but the
-only item with an egress question, so it goes last. Promoting any item to
-Ready is an operator decision.
+only item with an egress question, so it goes last. SDT-006 was added after
+SDT-001 shipped, on blind-review evidence that the same false-clean survives
+at file granularity; it ranks with SDT-001 in kind, and its panic-arm slice
+is the highest-value part. Promoting any item to Ready is an operator
+decision.
