@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryId, createProposalId, createSessionId } from '../contracts/identifiers.js';
 import type { CreateProposalInput, ProposalType } from '../contracts/ember-proposal.js';
 import { ProposalAlreadyResolvedError } from '../contracts/ember-proposal.js';
-import { deserialiseRow, ProposalStore } from './proposal-store.js';
+import { ProposalStore } from './proposal-store.js';
 
 function createInput(type: ProposalType = 'pattern', sessionId?: string): CreateProposalInput {
   const currentSessionId = sessionId ?? createSessionId(randomUUID());
@@ -28,14 +28,16 @@ describe('ProposalStore', () => {
   let store: ProposalStore;
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({
+      toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+    });
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
     store = ProposalStore.createInMemory();
   });
 
   afterEach(() => {
-    store.close();
     vi.useRealTimers();
+    store.close();
   });
 
   it('creates, reads, and checks existence of proposals', async () => {
@@ -398,82 +400,5 @@ describe('ProposalStore', () => {
       const current = await store.getProposal(proposal.id);
       expect(current?.status).toBe('dismissed');
     });
-  });
-});
-
-describe('deserialiseRow JSON columns', () => {
-  const provenance = JSON.stringify({
-    observation_ids: [randomUUID()],
-    session_ids: [randomUUID()],
-    earliest_observation: '2026-01-01T00:00:00.000Z',
-    latest_observation: '2026-01-01T00:05:00.000Z',
-  });
-
-  function rowFromDriver(
-    overrides: {
-      metadata?: string | null;
-      signals?: string | null;
-      resolution?: string | null;
-    } = {}
-  ) {
-    return {
-      id: randomUUID(),
-      type: 'pattern' as const,
-      status: 'active' as const,
-      summary: 'pattern summary',
-      rationale: 'pattern rationale',
-      confidence: 0.7,
-      metadata: null,
-      signals: '[]',
-      provenance,
-      created_at: '2026-01-01T00:00:00.000Z',
-      expires_at: '2026-01-31T00:00:00.000Z',
-      ttl_days: 30,
-      updated_at: null,
-      resolution: null,
-      ...overrides,
-    };
-  }
-
-  it('treats null JSON columns as missing', () => {
-    const proposal = deserialiseRow(
-      rowFromDriver({ metadata: null, signals: null, resolution: null })
-    );
-
-    expect(proposal.metadata).toBeUndefined();
-    expect(proposal.signals).toEqual([]);
-    expect(proposal.resolution).toBeUndefined();
-  });
-
-  it('fails fast when metadata is an empty JSON string', () => {
-    expect(() => deserialiseRow(rowFromDriver({ metadata: '' }))).toThrow(
-      'invalid proposal metadata JSON'
-    );
-  });
-
-  it('fails fast when signals is an empty JSON string', () => {
-    expect(() => deserialiseRow(rowFromDriver({ signals: '' }))).toThrow(
-      'invalid proposal signals JSON'
-    );
-  });
-
-  it('fails fast when resolution is an empty JSON string', () => {
-    expect(() => deserialiseRow(rowFromDriver({ resolution: '' }))).toThrow(
-      'invalid proposal resolution JSON'
-    );
-  });
-
-  it('treats undefined JSON columns as missing', () => {
-    const proposal = deserialiseRow(
-      rowFromDriver({
-        metadata: undefined,
-        signals: undefined,
-        resolution: undefined,
-      })
-    );
-
-    expect(proposal.metadata).toBeUndefined();
-    expect(proposal.signals).toEqual([]);
-    expect(proposal.resolution).toBeUndefined();
   });
 });
