@@ -84,6 +84,7 @@ security concerns.
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
 | SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |
+| SEC-014 | Remediate the current Dependabot pull-request queue | In Progress |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -686,3 +687,43 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 **changeType:** fix
 **releaseIntent:** candidate
 **releaseScope:** patch
+
+### SEC-014: Remediate the current Dependabot pull-request queue
+
+- **Status:** In Progress — approved 2026-08-27.
+- **Intent:** Bring every Dependabot pull request open on 2026-08-27 to a
+  reviewable, current-main, independently verified state without bypassing
+  branch protection or merging on the operator's behalf.
+- **Expected Outcome:** the supported dependency targets are retained or
+  advanced where upstream evidence justifies it; generated dependency metadata
+  and documentation freshness are reconciled; CodeQL action phases use one
+  version; required checks are green on exact heads; unresolved review
+  conversations are answered and resolved. Superseded duplicate pull requests
+  are closed only after their replacement is viable.
+- **Scope:** Dependabot PRs #4153, #4154, #4156, #4157, #4159, and #4160;
+  their dependency manifests, lockfiles, generated workspace-hack metadata,
+  action workflows, and narrowly triggered documentation freshness fields.
+- **Non-scope / do not:** do not merge or enable auto-merge; do not use
+  administrator or policy bypasses; do not broaden dependency versions beyond
+  researched compatible targets; do not dismiss security alerts without
+  evidence.
+- **Dependencies:** current `origin/main`; upstream release and migration
+  notes; hosted required checks.
+- **Validation:** `pnpm test:ci-workflow-contracts` for action updates;
+  `cargo test -p eddacraft-anvil-checks-napi`; `cargo hakari verify` plus
+  `cargo test -p eddacraft-anvil --no-fail-fast`,
+  `cargo test -p eddacraft-anvil-dashboard-server`,
+  `cargo test -p eddacraft-anvil-sarif`, and
+  `cargo test -p eddacraft-anvil-capsule` for Rust dependency updates;
+  `pnpm docs:check` and `pnpm validate:changed` for every changed branch.
+  Closeout additionally requires terminal hosted checks on each exact head and
+  zero unresolved review conversations.
+- **Evidence baseline (2026-08-27):** zero open Dependabot vulnerability
+  alerts; six open Dependabot pull requests; `pnpm test` green on
+  `origin/main` at `29ce17dc683de0cb9da92620aea08cbeab03aee8`.
+- **Confidence:** high for the remediation workflow; each dependency retains
+  its own evidence and escalation boundary.
+
+**changeType:** internal
+**releaseIntent:** never
+**releaseScope:** none
