@@ -11394,6 +11394,55 @@ hang before opening a supervisor ticket.
   implementing in-process stop-swap-restart versus the honesty-only first
   slice.
 
+### CIB-363: camelCase `apiKey` bindings are invisible to the API Key rule
+
+- **Status:** Proposed
+- **Priority:** P2 — a named-provider rule is silent on the single most
+  common JavaScript/TypeScript spelling of the binding it exists to catch
+- **Intent:** **CIB-340** (Dave B16) established that the mixed-case half of
+  `looks_like_code` "used to drop ~half of mixed-case opaque tokens" and
+  removed it from the entropy pass, which now calls
+  `looks_like_structural_code` only. That fix was deliberately scoped to
+  entropy — `entropy.rs` says so in as many words: "Named-pattern scanning
+  still uses the full `looks_like_code` set." The consequence was not
+  followed through. For a low-confidence pattern the matched span *includes
+  the binding name*, so `apiKey: '<secret>'` is matched by the API Key rule
+  and then discarded by `looks_like_mixed_case_identifier`
+  (`^[a-z][a-z0-9]*[A-Z]`, matching `a`+`pi`+`K`). The snake, flat and
+  screaming spellings all survive; only the camelCase one dies, and
+  camelCase is the JS/TS house style.
+- **Expected Outcome:** A credential bound as `apiKey: '<secret>'` is
+  reported by the API Key rule. Whatever the fix (test the value rather than
+  the whole matched span; drop mixed-case for named patterns as CIB-340 did
+  for entropy; or anchor the heuristic past the binding name), the
+  false-positive cost is measured, not argued — **SDT-002** landed a
+  calibration corpus for exactly this, so the change ships with a
+  before/after detection and FP figure.
+- **Non-scope / do not:** do not touch the high-confidence bypass at
+  `scanner.rs` — issue #1800 established that textbook credentials must
+  survive keyword and `looks_like_code` suppression, and that path is not
+  implicated here. Do not reopen the CIB-340 entropy decision. Do not widen
+  `looks_like_code` removal to `Generic Secret` without its own measurement:
+  its regex matches from the `secret`/`password` keyword, so it does not
+  obviously share the defect and may carry a different FP profile.
+- **Files:** `crates/anvil-checks/src/secret/patterns.rs`
+  (`looks_like_code`, `looks_like_mixed_case_identifier`),
+  `crates/anvil-checks/src/secret/scanner.rs` (`heuristic_skip`)
+- **Validation:** a camelCase `apiKey` binding is detected;
+  `cargo test -p eddacraft-anvil-checks`; `pnpm secret:calibrate` shows the
+  detection gain and any FP cost against the committed baseline.
+- **Identified From:** SDT-002 corpus construction, 2026-08-27. Two benign
+  controls proved vacuous because the camelCase spelling was suppressed
+  before the rule under test ran; the controls now normalise `apiKey` to
+  `api_key` to isolate that rule, and the manifest records why. Confirmed
+  independently against the shipped regexes: the API Key pattern matches all
+  four spellings, and `^[a-z][a-z0-9]*[A-Z]` kills only `apiKey`.
+- **Coordinates with:** CIB-340, SDT-002, SDT-004
+- **Confidence:** high on the mechanism and its narrowness — the deciding
+  predicates were run directly; medium on the right fix, because the
+  heuristic is shared with `Generic Secret` and the FP cost is unmeasured
+  until the corpus runs.
+
 ### CIB-364: `DO_NOT_TRACK` does not reach the save-time and fence producers
 
 - **Status:** Draft
