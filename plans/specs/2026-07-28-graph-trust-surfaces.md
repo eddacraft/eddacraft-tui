@@ -37,7 +37,7 @@ programme is not a claim of the active provisional `v0.9.8-beta` window.
 | Track | Work | Mode today | Outcome that clears Wave 1 |
 | ----- | ---- | ---------- | -------------------------- |
 | **CGBDG** | CGBDG-001..006 discovery | **Ready** — execute | Discovery report + follow-on implement/spec or explicit park |
-| **CONF** | CONF-001 product ADR | **In Progress**; module Proposed | ADR-134 accepted; implement/prove its Git, base-tree scope-authority, and evidence-binding contract before promoting CONF-002..004 |
+| **CONF** | CONF-001 product ADR | **Merged via #4174**; module Proposed | ADR-134 accepted; implement/prove its Git, base-tree scope-authority, and evidence-binding contract before promoting CONF-002..004 |
 | **POLCAP** | POLCAP-001 ADR + Planning Council | Proposed | Accepted ADR; AD-3/AD-4 reconciled with ADR-098 |
 | **SCA** | SCA-001 design (one ecosystem + graph shape) | Proposed | Design doc; edge-type home decided |
 | **LSPNAV** | RTAI-005 diagnostics-only + ADR-111 Accept | Proposed | RTAI-005 production boundary + ADR-111 Accepted |
@@ -105,7 +105,7 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
 | Module | Disposition (2026-08-27) |
 | ------ | ------------------------ |
 | **CGBDG** | **Ready**; NBI rank 3. Discovery may start without further status promotion. |
-| **CONF** | CONF-001 is operator-authorised and **In Progress**; ADR-134 is accepted. Existing `GraphDelta.file` alone is not clearance. The module remains **Proposed** until CONF-002..004 implement and prove exact Git extraction and claim-appropriate evidence binding, then receive separate promotion. |
+| **CONF** | CONF-001 **Merged via #4174**; ADR-134 is accepted. Existing `GraphDelta.file` alone is not clearance. The module remains **Proposed** until CONF-002..004 implement and prove exact Git extraction and claim-appropriate evidence binding, then receive separate promotion. |
 | POLCAP / SCA / LSPNAV | **Not** Ready. Clearance steps in §6 still apply. |
 
 ## 6. Clearance checklist (to unlock the rest)
@@ -191,5 +191,5 @@ After Wave 0 clearance and at least two Wave 1 demos:
 1. Name a later minor theme (candidate: "Graph Trust Surfaces" / "Agent Trust Loop")
 2. Or keep the tracks as a standing side programme under NBI Schedule rows
 
-Until then: **execute CGBDG discovery**, integrate CONF-001, and promote later
-work only through the §6 checklists; do not force all five into one cut.
+Until then: **execute CGBDG discovery**; CONF-001 is integrated, and later work
+promotes only through the §6 checklists. Do not force all five into one cut.

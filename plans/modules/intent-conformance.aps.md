@@ -2,9 +2,10 @@
 
 | ID   | Owner  | Status   | Progress |
 | ---- | ------ | -------- | -------- |
-| CONF | @aneki | Proposed | 0/9      |
+| CONF | @aneki | Proposed | 1/9      |
 
-**Last reviewed:** 2026-08-27 — CONF-001 is operator-authorised and In Progress.
+**Last reviewed:** 2026-08-27 — CONF-001 Merged via
+[#4174](https://github.com/eddacraft/anvil-001/pull/4174).
 [ADR-134](../decisions/134-intent-conformance-gating.md) is accepted and pins
 the deterministic Git, evidence-binding, and fail-honest outcome contract. The
 existing GV2 per-file channel is **not** implementation clearance until
@@ -123,7 +124,7 @@ Change status to **Ready** when:
 
 ### CONF-001: Product-decision ADR for conformance gating
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-27 via PR #4174
 - **Intent:** Record the decision that intent/plan-conformance gating is
   in-lane, with the tier model and the retrieval-surface distinction.
 - **Expected Outcome:** Accepted ADR in `plans/decisions/`; DECISION-LOG row;
