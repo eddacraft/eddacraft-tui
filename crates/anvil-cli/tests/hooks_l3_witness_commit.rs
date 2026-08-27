@@ -129,6 +129,7 @@ fn apply_hermetic<'a>(cmd: &'a mut Command, fx: &Fixture) -> &'a mut Command {
         .env("HOME", &fx.home)
         .env("USERPROFILE", &fx.home)
         .env("LOCALAPPDATA", &fx.home)
+        .env("XDG_RUNTIME_DIR", &fx.home)
         .env("PATH", path)
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
@@ -232,7 +233,7 @@ fn stock_hooks_install_then_commit_witnesses_head() {
     );
 
     let head = head_sha(&fx);
-    let (_code, report, audit_stderr) = audit_chain_json(&fx);
+    let (code, report, audit_stderr) = audit_chain_json(&fx);
     assert_eq!(
         report["commits_walked"].as_u64(),
         Some(1),
@@ -242,6 +243,11 @@ fn stock_hooks_install_then_commit_witnesses_head() {
         report["witnessed"].as_u64(),
         Some(1),
         "stock install must witness HEAD; report={report} stderr={audit_stderr}",
+    );
+    assert_eq!(
+        code,
+        0,
+        "clean coverage must keep audit-chain exit 0; stderr={audit_stderr}",
     );
     let unwitnessed = unwitnessed_shas(&report);
     assert!(
@@ -268,7 +274,7 @@ fn gate_only_pre_commit_leaves_head_unwitnessed() {
     );
 
     let head = head_sha(&fx);
-    let (_code, report, audit_stderr) = audit_chain_json(&fx);
+    let (code, report, audit_stderr) = audit_chain_json(&fx);
     assert_eq!(
         report["commits_walked"].as_u64(),
         Some(1),
@@ -278,6 +284,11 @@ fn gate_only_pre_commit_leaves_head_unwitnessed() {
         report["witnessed"].as_u64(),
         Some(0),
         "gate-only pre-commit must leave audit-chain dark; report={report} stderr={audit_stderr}",
+    );
+    assert_eq!(
+        code,
+        1,
+        "threshold-1 drift must fail audit-chain; stderr={audit_stderr}",
     );
     let unwitnessed = unwitnessed_shas(&report);
     assert!(
