@@ -97,7 +97,9 @@ what gets adopted from elsewhere is at most a clean-roomed concept.
 
 ### SDT-001: Fail closed on unscanned lines
 
-- **Status:** Proposed
+- **Status:** In Progress — operator-promoted 2026-08-27 (Proposed → Ready →
+  In Progress in one step, on direction). Implemented on
+  `feat/sdt-001-002-secret-truth`.
 - **Intent:** A clean secret-detection result must mean every line was
   actually scanned; unscanned surface blocks a clean pass and is named.
 - **Expected Outcome:** `lines_skipped_oversize > 0` blocks `passed` and caps
@@ -122,12 +124,61 @@ what gets adopted from elsewhere is at most a clean-roomed concept.
   flip from silent-green to warn; the message must say what to do (raise
   `max_line_bytes`, or suppress per ADR-029 with a reason), or this trades a
   false-clean for an unactionable red.
+- **As built (2026-08-27):** Every reason a scan could not see all of its
+  input now collects in one place (`coverage_notes`), so `passed` is blocked
+  by an oversize skip exactly as it is by a history-scan error, and the two
+  compose instead of swallowing each other. `score` is 0 on any oversize
+  skip. Message: `N line(s) too long to scan, so this result cannot prove
+  them clean: raise` `max_line_bytes` `to cover them, or suppress with a
+  documented reason (ADR-029)`. The intercept routes through
+  `scan_content_with_limit_and_stats` and emits a `Severity::Warning`
+  diagnostic; `evaluate()` still returns `Allow`, so an unscanned line never
+  interrupts a save — an admission about coverage is not a detection, and
+  blocking saves on minified files would violate warnings-over-blocks.
+  History skips needed no separate handling: `merge_git_history_scan`
+  already folded them into the same counter, verified end-to-end by
+  `history_oversize_skip_blocks_a_clean_pass`.
+- **Deviations from the written Expected Outcome (both deliberate):**
+  1. *Score is zeroed, not capped, and the history precedent is not mirrored
+     exactly.* The precedent zeroes only when `findings.is_empty()`, so
+     "finding + history error" scores 90 while "finding + oversize skip"
+     scores 0. Implemented per operator decision (score 0). Blind review
+     called the asymmetry "internally incoherent" but not a contract breach,
+     and recommends a one-line follow-up zeroing on either condition — the
+     history half is pre-existing behaviour outside this item's scope.
+  2. *No test was inverted, because none existed to invert.* The written
+     outcome assumed a test asserting "0 findings, passed" on an oversize
+     skip. Verified against the base revision: the only oversize tests are
+     in `scanner.rs` and `git_scanner.rs` and assert scanner-level facts
+     that remain correct. The missing check-level assertion was added
+     instead.
+- **Dogfood measurement:** across every tracked file minus default
+  `skip_extensions`, exactly 3 have lines over the 4096-byte default — all
+  `plans/**` markdown with long table rows (`completed-index.aps.md`,
+  `index.aps.md`, `DECISION-LOG.md`), no source file. No workflow runs
+  `anvil gate` against this repo, so CI is unaffected. The recorded Risk
+  landed smaller than feared.
+- **Known gap (not this item):** whole-*file* skips remain silent —
+  `skip_extensions`, the file-size limit, an unreadable file, and the
+  SCAN-001 `catch_unwind` panic arm all drop a file with no counter, so a
+  panicking custom regex still yields "No secrets detected", passed, score
+  100. That is the same defect class as this item's, one level up. Named by
+  blind review; candidate follow-up.
+- **Validation evidence (2026-08-27):** `cargo test -p eddacraft-anvil-checks`
+  exit 0 (597 lib + 26 `secret_detection`, 18 targets, 0 failed);
+  `cargo test -p eddacraft-anvil-intercept-rules` exit 0 (104 passed);
+  `cargo clippy --workspace --all-targets -- -D warnings` exit 0;
+  `cargo fmt --check` exit 0 both crates. Guard tests proven RED by
+  reverting the production predicates: 5 of 8 fail on reversion, the other 3
+  pin the rejected alternative rather than the change.
 
 ---
 
 ### SDT-002: Calibration corpus and measured detection rate
 
-- **Status:** Proposed
+- **Status:** In Progress — operator-promoted 2026-08-27 (Proposed → Ready →
+  In Progress in one step, on direction). Implemented on
+  `feat/sdt-001-002-secret-truth`.
 - **Intent:** No rules change ships unmeasured; the beta "~50% detection"
   becomes a decomposed, reproducible number instead of an anecdote.
 - **Expected Outcome:** A committed corpus of true positives (canary-format
@@ -147,6 +198,90 @@ what gets adopted from elsewhere is at most a clean-roomed concept.
   (including Anvil's own gate and GitHub push protection); the corpus format
   must be constructed to be recognisably synthetic and allowlisted once,
   deliberately, with provenance.
+
+#### SDT-002 baseline — 2026-08-27, 21-pattern catalogue
+
+Reproduce with `pnpm secret:calibrate`. Corpus:
+`crates/anvil-checks/tests/corpus/secret/` (55 cases); runner:
+`crates/anvil-checks/tests/secret_calibration.rs`.
+
+| Measure                                | Figure         |
+| -------------------------------------- | -------------- |
+| Detection — catalogue rules            | 21/21 = 100.0% |
+| Detection — providers outside catalogue | 8/20 = 40.0%   |
+| Detection — all planted secrets         | 29/41 = 70.7%  |
+| False-positive rate                     | 1/13 = 7.7%    |
+| Per-rule misses among the 21 built-ins  | none           |
+| Built-in rules with no test case        | none           |
+
+Reported separately and excluded from the rates: an oversize probe (a `ghp_`
+canary past `max_line_bytes`) is **not** detected, `lines_skipped_oversize=1`
+— the SDT-001 false-clean, measured. Folded in, the planted figure would read
+29/42 = 69.0%. The single false positive is the CIB-080 Google-Drive `id=`
+residual, which that review left deliberately unsuppressed.
+
+**Decomposition — what the beta "~50%" is made of.** Catalogue gaps dominate
+and nothing else comes close:
+
+- **Catalogue gaps: all 12 out-of-catalogue misses are "no rule matched."**
+  Not one is a suppression. GitLab, OpenSSH, EC private key, DigitalOcean,
+  Mailgun, Shopify, Discord, Slack webhook URL, `https://user:pass@`, Azure
+  Storage, Postman, New Relic.
+- **CIB-080 over-suppression: zero.** No true positive is suppressed by any
+  allowlist tier. Every benign case's suppression carries provenance
+  (`BuiltinBenignFixture` / `BuiltinKeyword` / `BuiltinShape`) and 12 of 13
+  have a non-vacuity control that fires, so the suppressions are doing work
+  rather than the scanner never having cared. The standing suspicion that
+  CIB-080 traded detection for quiet is not supported.
+- **Oversize skips:** real (measured above) but not a volume driver here.
+
+**Read the 40% carefully.** Of the 8 out-of-catalogue detections, only 3 come
+from a pattern rule (Datadog via the `DD_API_KEY=` keyword; JDBC and age via
+`Generic Secret`). The other 5 fire on `High Entropy String` — a
+low-precision backstop, not provider knowledge. **Zero** are caught by a
+provider-specific rule. Hex-alphabet providers (Datadog, Mailgun, Shopify,
+DigitalOcean, Postman) can never be entropy-rescued: hex caps at 4.0 bits
+against a 4.5 threshold. SDT-004's detection gain must be measured against
+that, not against the headline.
+
+**What this baseline cannot say.** It does not reproduce the beta ~50%. That
+was field data on unknown planted shapes; 70.7% is a property of *this*
+corpus composition (21 canaries + 20 chosen providers) and moves when the
+composition moves — the runner prints that caveat on every run. The
+composition-independent figures are the 21/21 catalogue coverage and the
+named miss list. It also measures the pattern/entropy engine only: the runner
+calls the scanner directly, so `skip_extensions`, the file-size limit and the
+SCAN-001 panic arm are outside its reach — which is exactly where SDT-001's
+known gap lives.
+
+- **As built (2026-08-27):** One case per file so radius-2, path-sensitive
+  CIB-080 rules see faithful context. The `.corpus` extension keeps the
+  repo's own walkers out, while the manifest declares a realistic scan path
+  (`src/payments/stripe.ts`, `packages/zod/.../string.test.ts`) that is
+  handed to the scanner as `file_path` — so nothing about the real scan path
+  is faked. Canaries are literal and full-shape but built from a `CANARY`
+  marker plus fixed filler, which breaks provider checksums by construction;
+  `PROVENANCE.md` records that as load-bearing so nobody later "fixes" one
+  into a valid key. The gate fails on drift in **either** direction, so an
+  improvement ships measured too, and it rides the required `Test` check
+  (confirmed: `Test` is a required status check on `main`, path-gated on
+  `crates/**`, running the affected Rust project — so a rules change cannot
+  avoid it).
+- **The corpus nearly poisoned the repo.** `manifest.json` and
+  `PROVENANCE.md` both tripped anvil's own scanner on first write (high
+  entropy; AWS/STS/credit-card literals quoted in prose). Both fixed, and now
+  guarded by `corpus_metadata_stays_clean_under_the_scanner`, which scans the
+  corpus's own metadata and fails if it carries a credential shape.
+- **Known gaps (named by blind review, not blocking):** the vacuity gate
+  asserts that a *declared* control fires but does not require one, so a
+  future benign case added with no control banks an unproven "false positive
+  avoided"; and the before/after CI leg has never been executed end-to-end.
+- **Validation evidence (2026-08-27):** `cargo test -p eddacraft-anvil-checks`
+  exit 0 including `secret_calibration` (2 passed);
+  `bash scripts/ci/workflow-contracts.test.sh` exit 0; `pnpm format:check`
+  exit 0. Blind review stripped all four per-case config overrides and
+  re-ran: false-positive rate unchanged at 1/13, no per-case drift — the
+  overrides are inert, not measurement-weakening.
 
 ---
 
