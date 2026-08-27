@@ -245,8 +245,7 @@ fn stock_hooks_install_then_commit_witnesses_head() {
         "stock install must witness HEAD; report={report} stderr={audit_stderr}",
     );
     assert_eq!(
-        code,
-        0,
+        code, 0,
         "clean coverage must keep audit-chain exit 0; stderr={audit_stderr}",
     );
     let unwitnessed = unwitnessed_shas(&report);
@@ -286,8 +285,7 @@ fn gate_only_pre_commit_leaves_head_unwitnessed() {
         "gate-only pre-commit must leave audit-chain dark; report={report} stderr={audit_stderr}",
     );
     assert_eq!(
-        code,
-        1,
+        code, 1,
         "threshold-1 drift must fail audit-chain; stderr={audit_stderr}",
     );
     let unwitnessed = unwitnessed_shas(&report);
