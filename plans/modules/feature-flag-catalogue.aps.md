@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | high     | In Progress | 11/16    |
+| FLAGCAT | —     | high     | In Progress | 15/18    |
 
 **Last reviewed:** 2026-08-25 — FLAGCAT-011 Merged via PR #4111 with the
 strict product-catalogue v2 shape, immutable delivery identities, an explicit

@@ -5,7 +5,7 @@
 
 | ID   | Owner  | Status   | Progress |
 | ---- | ------ | -------- | -------- |
-| GTAO | @aneki | Proposed | 3/10     |
+| GTAO | @aneki | Proposed | 5/10     |
 
 **Last reviewed:** 2026-08-22 — created from operator direction after the
 regex/AST and “when do gates fire” discussion. Agreed shape: do not auto-run
@@ -182,7 +182,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-003: Background changed-path check after daemon-allowed write
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-27 via PR #4168
 - **Intent:** Save and pre-write stay fast and regex-only; AST still runs
   automatically on the files that just changed.
 - **Expected Outcome:** After `scan_buffer` / `validate_paths` returns, the
@@ -232,7 +232,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-005: Resource-budget proof the follow-up does not recreate the save-storm
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-27 via PR #4168
 - **Intent:** Prove the background check stays on changed paths, coalesces,
   and does not return to ~7-core per-save scans.
 - **Expected Outcome:** A bench or load-probe assertion shows the follow-up is
@@ -376,6 +376,6 @@ every save, and **without** defaulting `anvil watch --action gate`.
 ---
 
 GTAO-001, GTAO-002, and GTAO-008 are Merged 2026-08-22 via PR #4084.
-Remaining items stay Draft: GTAO-003..007 depend on the now-Accepted ADR-127;
-GTAO-009/-010 wait on promotion after the Python dispatch proof. Do not
-convert PY-008 to `detection: ast`.
+GTAO-003 and GTAO-005 (Wave 2) are Merged 2026-08-27 via PR #4168.
+Remaining items stay Draft: GTAO-004/006/007 (Wave 3) and GTAO-009/-010
+(Wave 4). Do not convert PY-008 to `detection: ast`.
