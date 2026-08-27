@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 285/357  |
+| CIB | —     | In Progress | 289/357  |
 
 ## Purpose
 
@@ -11217,7 +11217,7 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
 | B26 menu-align | Confirmed fixed on 0.9.7 | Closed. No CIB |
 | DOC-3 `--web` help | Confirmed fixed on 0.9.7 | Closed. No CIB |
 | HOMEBREW-1 | Notes only. Install was not broken; live 0.9.7 notes say `anvil` | Closed. No CIB |
-| B31 UTF-8 panic | Real crash in `ends_with_regex_keyword` (`rfind` + `i + 1`) | **CIB-359** Ready P1 |
+| B31 UTF-8 panic | Real crash in `ends_with_regex_keyword` (`rfind` + `i + 1`) | **CIB-359** Merged via #4129 |
 | B33 gate secrets skip `.py`/`.tsx`/`.go`/`.sh` | Documented domain. Pack-02 GATE-1. CIB-255 chose disclosure over parity | **Won't file.** **CIB-255** |
 | B28 `l4-validate` silent / `--json` empty | Designed silent CI admit (`json_surface_audit` class `silent`). Already replied | **Won't file.** |
 | B28 garbage policy still exit 0 | **Retracted by Dave 2026-08-22** (empty-`ANVIL_HOME` harness artifact). Under resolved identity, malformed policy exits 1 with a YAML parse error and a `--json` error document. Remaining silent no-op (no rule commits) is the designed silent class | **Retracted.** No CIB |
@@ -11229,8 +11229,7 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
 
 ### CIB-359: Antipattern masker must not panic on a multibyte char boundary
 
-- **Status:** Ready — operator-authorised 2026-08-22 after pack-10
-  disposition.
+- **Status:** Merged 2026-08-24 via PR #4129.
 - **Priority:** P1 — `init` / `baseline` / `check <file>` panic exit 101
 - **Intent:** `ends_with_regex_keyword` in
   `crates/anvil-checks/src/antipattern/mask.rs` takes `str::rfind`'s byte
@@ -11284,9 +11283,9 @@ hang before opening a supervisor ticket.
 | B31 will-fix accepted | Already **CIB-359**. Pack-11 notes the byte-window over-predicts | **CIB-359** |
 | B32 / B33 / EXIT-0-ON-NOT-READY | Dave accepts pack-10 dispositions | Closed. No new CIB |
 | B34 gate hang on worker panic | Observed on 0.9.6 large tree; **not re-fired on 0.9.7**. Matches the shipped `git check-attr` deadlock (`linguist-generated` hang, 0.9.7 changelog / CIB-199). Dave inferred supervisor/IPC without reading source | **Won't file** until re-fired on 0.9.7 |
-| B35 Git Bash `workspace allow` | `std::path::absolute` stores drive-relative `D:path` as `{cwd}\basename`; daemon drops it; `workspace list` still shows admitted | **CIB-360** Ready P2 |
-| B36 `mcp refresh` sharing violation | `create_dir_all_nofollow` / `DIR_ACCESS_FULL` on existing `%LOCALAPPDATA%\anvil` with lock handles held. Doctor still Passes over `generation poke failed` | **CIB-361** Ready P1 |
-| B37 no clean Windows self-update | CIB-324 made the decline honest; recipe still says close the editor, not `anvil intercept stop`. Installer cannot overwrite `anvil.exe` while the daemon holds it | **CIB-362** Ready P2 |
+| B35 Git Bash `workspace allow` | `std::path::absolute` stores drive-relative `D:path` as `{cwd}\basename`; daemon drops it; `workspace list` still shows admitted | **CIB-360** Merged via #4129 |
+| B36 `mcp refresh` sharing violation | `create_dir_all_nofollow` / `DIR_ACCESS_FULL` on existing `%LOCALAPPDATA%\anvil` with lock handles held. Doctor still Passes over `generation poke failed` | **CIB-361** Merged via #4129/#4149 |
+| B37 no clean Windows self-update | CIB-324 made the decline honest; recipe still says close the editor, not `anvil intercept stop`. Installer cannot overwrite `anvil.exe` while the daemon holds it | **CIB-362** Merged via #4129/#4148 |
 | H-1..H-5 harness | Dave's own verifier-seat wrapper. Explicitly no anvil findings | **Won't file.** |
 | PATTERN-POSITIVE-ASSERTION | Process credit (fail closed on typed safe state). Does not consume roadmap | no CIB |
 | UX-3 heading correction | Pack-06 heading overstated; body was right. No action | no CIB |
@@ -11296,8 +11295,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-360: `workspace allow` must refuse Git Bash drive-relative paths
 
-- **Status:** Ready — operator-authorised 2026-08-24 after pack-11
-  disposition.
+- **Status:** Merged 2026-08-24 via PR #4129.
 - **Priority:** P2 — operator believes the workspace is admitted when
   save-time is refused
 - **Intent:** From Git Bash, MSYS eats the backslash after the drive
@@ -11330,8 +11328,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-361: `mcp refresh` must not fail creating an existing Windows state dir
 
-- **Status:** Ready — operator-authorised 2026-08-24 after pack-11
-  disposition.
+- **Status:** Merged 2026-08-24 via PR #4129 (park follow-on 2026-08-26 via PR #4149).
 - **Priority:** P1 — emergency refresh hard-fails whenever anvil is in
   use on Windows
 - **Intent:** `write_generation_sidecar` → `atomic_write_nofollow` →
@@ -11366,8 +11363,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-362: Windows upgrade must complete when only the daemon holds the binary
 
-- **Status:** Ready — operator-authorised 2026-08-24 after pack-11
-  disposition.
+- **Status:** Merged 2026-08-24 via PR #4129 (park-and-swap 2026-08-26 via PR #4148).
 - **Priority:** P2 — no unaided self-update path on Windows
 - **Intent:** **CIB-324** made the Windows decline honest (non-zero exit,
   method-filtered recipe, file-lock note). The printed recipe still says
