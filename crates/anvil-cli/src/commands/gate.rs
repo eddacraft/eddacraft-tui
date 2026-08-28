@@ -2459,7 +2459,7 @@ fn secret_coverage_suffix(coverage_notes: &[String]) -> String {
     }
 
     format!(
-        "\n\n⚠ the scan could not cover everything it was asked to:\n{}",
+        "\n\n⚠ The scan could not cover everything it was asked to:\n{}",
         coverage_notes
             .iter()
             .map(|note| format!("  - {note}"))

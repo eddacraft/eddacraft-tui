@@ -154,10 +154,23 @@ orchestration from leaking into the reusable check engine.
   since a red with no stated action trades a false-clean for an unactionable
   one. The save-time intercept reports the same condition as a warning
   diagnostic but does not interrupt the write.
-- Whole-_file_ skips are **not** yet covered by that rule: a configured
-  extension skip, the file-size limit, an unreadable file, and the SCAN-001
-  panic-containment arm each drop a file with no counter, so those paths can
-  still return a clean pass. Tracked as SDT-006.
+- Whole-_file_ skips follow the same rule, with one deliberate exception
+  (SDT-006). Every candidate file reports why it was not scanned. A file at or
+  over `MAX_FILE_SIZE`, one that could not be read, and one whose scan hit the
+  SCAN-001 panic-containment arm each block a clean pass and zero the score. A
+  configured `skip_extensions` match is the exception: it is counted and
+  observable but **never** blocks, because the defaults include `.png`, `.jpg`
+  and `.lock` and blocking a deliberate operator exclusion would redden every
+  repository. Blocking causes carry normalised paths — the same shape as finding
+  paths, so a consumer never reconciles two path vocabularies — while the
+  advisory case carries only a count, because that population is unbounded.
+  Lockfiles are the sharp edge: they bypass `skip_extensions` to reach the
+  URL-credential scan, so an oversize lockfile cannot be excluded at all, and
+  the note names it rather than offering a remedy that does nothing.
+- Coverage failures reach `anvil gate` only. `anvil audit` reads findings alone,
+  and planless `anvil check` pre-filters oversize and extension-skipped files
+  before the scan, so the accounting never reaches it. Both predate SDT-006 and
+  neither is closed by it.
 - Detection is measured, not asserted: `tests/corpus/secret/` holds a committed
   calibration corpus and `tests/secret_calibration.rs` reports detection rate,
   false-positive rate and per-rule misses, failing on drift in either direction

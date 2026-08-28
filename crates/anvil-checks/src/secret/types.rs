@@ -257,8 +257,13 @@ pub struct SecretCheckResult {
     pub history_scan_errors: Vec<String>,
     /// SDT-001/SDT-006: every reason this result cannot claim it saw all of
     /// its input — a failed history scan, oversize lines, and the blocking
-    /// file-level skips below — in the order `message` renders them. Non-empty
-    /// exactly when `passed` is false for a reason other than a finding.
+    /// file-level skips below — in the order `message` renders them.
+    ///
+    /// Non-empty whenever the scan could not read all of its input, which is
+    /// **independent of `findings`**: a result can carry real findings *and*
+    /// coverage notes at the same time. It forces `passed` to false on its own
+    /// when there are no findings. Do not read it as "the reason this failed
+    /// instead of a finding" — read it as "what this result could not see".
     ///
     /// This is the data behind the coverage half of `message`. Consumers that
     /// build their own output need it structured rather than as prose: `anvil
