@@ -149,6 +149,16 @@ module.exports = {
       tasks.push(`oxfmt --write ${toCommandList(formatted)}`);
     }
     tasks.push(`markdownlint --fix ${toCommandList(kept)}`);
+    // Conflict markers, on EVERY staged Markdown file including `plans/**`.
+    //
+    // Scope matters here. `.markdownlintignore` excludes `plans/**`, so the
+    // markdownlint task above is a deliberate no-op for planning docs — and a
+    // planning doc, `plans/index.aps.md`, is exactly where a committed diff3
+    // marker reached main (#4187). Hanging this off `kept` rather than
+    // `formatted` is what gives the planning tree its only staged-file
+    // coverage. `docs:check` catches a marker after it is committed; this is
+    // the half that stops it being committed at all.
+    tasks.push(`node scripts/docs/check-conflict-markers.mjs ${toCommandList(kept)}`);
     return tasks;
   },
 };

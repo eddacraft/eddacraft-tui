@@ -31,11 +31,14 @@
 // visible rather than becoming a silent hole.
 //
 // Wired as a `pnpm docs:check` surface and runnable standalone via
-// `pnpm conflict-markers:check`.
+// `pnpm conflict-markers:check`. Explicit paths may be passed as positional
+// arguments to scan just those files — the pre-commit hook uses that to check
+// exactly the staged Markdown, including `plans/**`, which `.markdownlintignore`
+// excludes and so no other staged-file task covers.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 
@@ -77,12 +80,15 @@ function markerAt(line) {
   return null;
 }
 
-const { values } = parseArgs({
+const { values, positionals } = parseArgs({
   options: {
     root: { type: 'string' },
     'all-text': { type: 'boolean', default: false },
   },
-  allowPositionals: false,
+  // Positional paths select an explicit file list, which is how the pre-commit
+  // hook hands over exactly the staged files. Without them the whole corpus is
+  // scanned.
+  allowPositionals: true,
 });
 
 const root = resolve(values.root ?? process.cwd());
@@ -135,6 +141,11 @@ function walkFiles(dir, prefix, out) {
  * the unit tests run against plain temporary directories.
  */
 function listFiles() {
+  if (positionals.length > 0) {
+    // Explicit list wins: report paths relative to the root and with forward
+    // slashes, so hook output and corpus output read identically.
+    return positionals.map((p) => relative(root, resolve(root, p)).split(sep).join('/'));
+  }
   const args = ['-C', root, 'ls-files', '-z'];
   if (!values['all-text']) args.push('--', '*.md');
   const res = spawnSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

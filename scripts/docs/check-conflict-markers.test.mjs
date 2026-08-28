@@ -201,3 +201,31 @@ test('a bare mention of the opt-out phrase does not exempt a file', async () => 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('explicit positional paths scan only those files', async () => {
+  const root = await makeRepo({
+    'docs/dirty.md': `${OURS} HEAD\n`,
+    'docs/clean.md': '# clean\n',
+  });
+  try {
+    const clean = run(root, ['docs/clean.md']);
+    assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+    const dirty = run(root, ['docs/dirty.md']);
+    assert.equal(dirty.status, 1, dirty.stdout + dirty.stderr);
+    assert.match(dirty.stderr, /docs\/dirty\.md:1/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('explicit absolute paths report repo-relative forward-slash paths', async () => {
+  const root = await makeRepo({ 'plans/index.aps.md': `| a |\n${BASE} parent of abc (s)\n` });
+  try {
+    const r = run(root, [join(root, 'plans', 'index.aps.md')]);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, /plans\/index\.aps\.md:2/);
+    assert.ok(!r.stderr.includes(root), 'must not echo the absolute root');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
