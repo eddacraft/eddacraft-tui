@@ -13,12 +13,17 @@ use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::LazyLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 const CAPTURE_DRAIN_TIMEOUT: Duration = Duration::from_millis(250);
+static CONVENTIONAL_COMMIT_HEADER_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^([a-z][a-z0-9-]*)(?:\(([^()\r\n]+)\))?(!)?: ([^\s].*)$")
+        .expect("constant Conventional Commit regex")
+});
 
 /// Versioned deterministic and operational extraction limits from ADR-134.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1514,15 +1519,15 @@ fn parse_header(
     ),
     GitNonEvaluation,
 > {
-    let pattern = Regex::new(r"^([a-z][a-z0-9-]*)(?:\(([^()\r\n]+)\))?(!)?: ([^\s].*)$")
-        .expect("constant Conventional Commit regex");
-    let captures = pattern.captures(first_line).ok_or_else(|| {
-        not_evaluated(
-            "claim.malformed",
-            "claim",
-            "header does not match Conventional Commit syntax".to_owned(),
-        )
-    })?;
+    let captures = CONVENTIONAL_COMMIT_HEADER_PATTERN
+        .captures(first_line)
+        .ok_or_else(|| {
+            not_evaluated(
+                "claim.malformed",
+                "claim",
+                "header does not match Conventional Commit syntax".to_owned(),
+            )
+        })?;
 
     let commit_type = captures[1].to_owned();
     let scope = captures.get(2).map(|value| value.as_str().to_owned());

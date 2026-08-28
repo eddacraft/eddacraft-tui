@@ -690,6 +690,7 @@ fn is_documentation_path(path: &str) -> bool {
                 | "changelog"
                 | "changelog.md"
                 | "contributing.md"
+                | "LICENSE"
                 | "license"
                 | "license.md"
                 | "notice"

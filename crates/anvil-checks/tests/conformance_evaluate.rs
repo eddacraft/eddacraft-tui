@@ -150,7 +150,11 @@ fn closed_file_class_claims_use_the_complete_changed_file_set() {
     let passing = commit(
         vec![docs_claim.clone()],
         None,
-        vec![change("docs/guide.md"), change("README.md")],
+        vec![
+            change("docs/guide.md"),
+            change("README.md"),
+            change("LICENSE"),
+        ],
     );
     assert_eq!(
         evaluate_tier0(&contract_from(&passing, vec![]), &passing, &[])
