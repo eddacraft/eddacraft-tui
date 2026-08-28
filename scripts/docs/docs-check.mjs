@@ -20,6 +20,7 @@
 //   asbuilt-paths     — scripts/docs/check-asbuilt-paths.mjs (stub, DOCGOV-006)
 //   retired-claims    — scripts/docs/check-retired-claims.mjs (real)
 //   product-catalogue — scripts/docs/generate-product-catalogue.mjs (FLAGCAT-014)
+//   conflict-markers  — scripts/docs/check-conflict-markers.mjs (real)
 //
 // Verdicts (CIB-278): a surface that could not RUN is reported as
 // `ERROR (tooling)`, never as `FAIL`. Collapsing both into `FAIL` told
@@ -85,6 +86,13 @@ const DEFAULT_SURFACES = [
     baselineable: true,
   },
   { name: 'release-plan', script: 'scripts/docs/check-release-plan.mjs', baselineable: false },
+  {
+    // Conflict-marker lint: a marker that survives into tracked Markdown
+    // renders silently instead of failing a build (see the script header).
+    name: 'conflict-markers',
+    script: 'scripts/docs/check-conflict-markers.mjs',
+    baselineable: false,
+  },
   {
     name: 'product-catalogue',
     script: 'scripts/docs/generate-product-catalogue.mjs',

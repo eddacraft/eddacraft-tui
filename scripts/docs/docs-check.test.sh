@@ -79,10 +79,21 @@ fi
 # Case 3: baseline absorbs current errors so the live repo passes.
 echo "case 3: baseline file absorbs current errors"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"
-if echo "${out}" | grep -qE "^\[docs-check\] 14/14 surfaces passed"; then
-  pass "live repo passes all fourteen surfaces under baseline"
+# Derive the count rather than pinning it: a hardcoded total made every new
+# surface look like a regression here. The assertion still bites — passed must
+# equal total, failed must be zero, and the floor catches a surface silently
+# dropping out of the registry.
+summary="$(echo "${out}" | grep -E "^\[docs-check\] [0-9]+/[0-9]+ surfaces passed" | tail -1)"
+sc_passed="$(echo "${summary}" | sed -nE 's|^.*\] ([0-9]+)/([0-9]+) surfaces passed.*$|\1|p')"
+sc_total="$(echo "${summary}" | sed -nE 's|^.*\] ([0-9]+)/([0-9]+) surfaces passed.*$|\2|p')"
+sc_floor=15
+if [ -n "${sc_passed}" ] &&
+   [ "${sc_passed}" = "${sc_total}" ] &&
+   [ "${sc_total}" -ge "${sc_floor}" ] &&
+   echo "${summary}" | grep -q "0 failed"; then
+  pass "live repo passes all ${sc_total} surfaces under baseline"
 else
-  fail "live repo expected 14/14 passed; got tail: $(echo "${out}" | tail -3)"
+  fail "live repo expected N/N passed (N >= ${sc_floor}); got tail: $(echo "${out}" | tail -3)"
 fi
 
 # Case 4: --no-baseline reveals the baselined corpus errors. The metadata surface
