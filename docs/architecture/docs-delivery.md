@@ -1,8 +1,8 @@
 # Documentation delivery
 
-| Type  | Authority     | Owner           | Status | Freshness                                                                                                                             |
-| ----- | ------------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-28 against docs-shell ARCHITECTURE CIB-371 parse/narrowing; source/build/deploy topology and diagrams unchanged |
+| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                |
+| ----- | ------------- | --------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-28 against PR #4194's docs-shell test-only freshness closeout; source, build, deployment, request topology, and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                                                                                       | Downstream                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

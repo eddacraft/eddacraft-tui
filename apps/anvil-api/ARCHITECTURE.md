@@ -1,8 +1,8 @@
 # anvil API architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                      |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-28 against `apps/anvil-api/src/**` CIB-371 parse/narrowing; HTTP composition, routes, and persistence topology unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                           |
+| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-28 against PR #4194's `apps/anvil-api/src/__tests__/auth-github.test.ts` key-generation timeout; HTTP composition, routes, authentication, and persistence topology unchanged |
 
 | Upstream                                                                                    | Downstream                                       |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------ |

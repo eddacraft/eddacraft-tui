@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                    |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-28 against `apps/anvil-api` CIB-371 parse/narrowing; authentication topology unchanged |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                      |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-28 against PR #4194's test-only API key-generation timeout and docs-shell valid-session fixture correction; authentication contracts, trust boundaries, lifecycle, and diagram unchanged |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |

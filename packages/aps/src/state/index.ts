@@ -9,7 +9,7 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { dirname, join, isAbsolute, resolve } from 'node:path';
+import { basename, dirname, join, isAbsolute, resolve } from 'node:path';
 import { randomBytes, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { z } from 'zod';
@@ -315,8 +315,11 @@ const STATE_LOCK_STALE_MS = 10_000;
  *    The lock content is a unique fencing token for this holder.
  * 2. On EEXIST, retry with a short delay until {@link STATE_LOCK_TIMEOUT_MS}.
  *    A lock older than {@link STATE_LOCK_STALE_MS} was abandoned by a crashed
- *    holder and is reaped via an atomic rename-aside, so exactly one
- *    contender wins the reap even under contention. Only ENOENT (lock
+ *    holder and is reaped via an atomic rename-aside. A delayed observer can
+ *    move a replacement lock after another reaper wins, so a fresh
+ *    rename-aside remains as a visible predecessor instead of being deleted.
+ *    Every new holder waits for the predecessor paths it observed at
+ *    acquisition before entering the critical section. Only ENOENT (lock
  *    released/reaped between attempts) is treated as benign; other
  *    stat/rename failures are rethrown rather than silently retried.
  *    On Windows only, EPERM/EACCES/EBUSY are additionally treated as
@@ -325,11 +328,10 @@ const STATE_LOCK_STALE_MS = 10_000;
  *    rename of the same path, so under contention they mean "lost the race,
  *    try again" — the pending-delete window is bounded by the loser's next
  *    syscall. On unix they still fail fast as real permission errors.
- * 3. The lock is removed in a `finally`, but only after verifying the on-disk
- *    token still matches this holder's (fencing): if a reaper stole the lock
- *    while this holder was paused past the stale threshold and a new holder
- *    re-created it, release becomes a no-op instead of deleting the new
- *    holder's live lock.
+ * 3. Release uses the same rename-aside protocol and deletes only paths whose
+ *    content matches this holder's token. If a holder was displaced, it
+ *    releases its unique predecessor path; if release itself displaces a new
+ *    holder, that holder remains visible to later acquisitions.
  */
 
 /** Win32 delete/rename-race artefacts that mean "retry", never on unix. */
@@ -347,6 +349,184 @@ function isLockContention(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'EEXIST' || isWin32Contention(error);
 }
 
+const STATE_LOCK_REAP_SUFFIX = '.reaped';
+
+function createStateLockReapPath(lockPath: string): string {
+  return `${lockPath}.${randomBytes(8).toString('hex')}${STATE_LOCK_REAP_SUFFIX}`;
+}
+
+async function listStateLockReapPaths(lockPath: string): Promise<string[]> {
+  const directory = dirname(lockPath);
+  const prefix = `${basename(lockPath)}.`;
+  try {
+    const entries = await fs.readdir(directory);
+    return entries
+      .filter((entry) => entry.startsWith(prefix) && entry.endsWith(STATE_LOCK_REAP_SUFFIX))
+      .map((entry) => join(directory, entry))
+      .sort();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return [];
+    }
+    throw new StateError(
+      `Failed to list displaced state file locks: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      lockPath
+    );
+  }
+}
+
+async function stateLockReapPathIsLive(reapPath: string): Promise<boolean> {
+  let stats: import('node:fs').Stats;
+  try {
+    stats = await fs.stat(reapPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false;
+    }
+    if (isWin32Contention(error)) {
+      return true;
+    }
+    throw new StateError(
+      `Failed to inspect displaced state file lock: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      reapPath
+    );
+  }
+
+  if (Date.now() - stats.mtime.getTime() <= STATE_LOCK_STALE_MS) {
+    return true;
+  }
+
+  try {
+    await fs.unlink(reapPath);
+    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false;
+    }
+    if (isWin32Contention(error)) {
+      return true;
+    }
+    throw new StateError(
+      `Failed to remove expired displaced state file lock: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      reapPath
+    );
+  }
+}
+
+async function findStateLockPredecessors(lockPath: string, token: string): Promise<string[]> {
+  const predecessors: string[] = [];
+  for (const reapPath of await listStateLockReapPaths(lockPath)) {
+    if (!(await stateLockReapPathIsLive(reapPath))) {
+      continue;
+    }
+    try {
+      if ((await fs.readFile(reapPath, 'utf-8')) !== token) {
+        predecessors.push(reapPath);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        continue;
+      }
+      if (isWin32Contention(error)) {
+        predecessors.push(reapPath);
+        continue;
+      }
+      throw new StateError(
+        `Failed to inspect displaced state file lock token: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        reapPath
+      );
+    }
+  }
+  return predecessors;
+}
+
+async function waitForStateLockPredecessors(
+  predecessors: string[],
+  deadline: number
+): Promise<void> {
+  let pending = predecessors;
+  while (pending.length > 0) {
+    const next: string[] = [];
+    for (const reapPath of pending) {
+      if (await stateLockReapPathIsLive(reapPath)) {
+        next.push(reapPath);
+      }
+    }
+    if (next.length === 0) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new StateError(
+        `Timed out waiting for displaced state file lock after ${STATE_LOCK_TIMEOUT_MS}ms`,
+        next[0]
+      );
+    }
+    pending = next;
+    await new Promise((resolve) => setTimeout(resolve, STATE_LOCK_RETRY_MS));
+  }
+}
+
+async function releaseStateFileLockToken(lockPath: string, token: string): Promise<boolean> {
+  try {
+    const current = await fs.readFile(lockPath, 'utf-8');
+    if (current === token) {
+      try {
+        await fs.rename(lockPath, createStateLockReapPath(lockPath));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !isWin32Contention(error)) {
+          throw error;
+        }
+      }
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !isWin32Contention(error)) {
+      throw error;
+    }
+  }
+
+  let released = false;
+  for (const reapPath of await listStateLockReapPaths(lockPath)) {
+    try {
+      if ((await fs.readFile(reapPath, 'utf-8')) === token) {
+        await fs.unlink(reapPath);
+        released = true;
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !isWin32Contention(error)) {
+        throw error;
+      }
+    }
+  }
+  return released;
+}
+
+async function reapStateFileLock(lockPath: string): Promise<void> {
+  const reapPath = createStateLockReapPath(lockPath);
+  try {
+    await fs.rename(lockPath, reapPath);
+  } catch (reapError) {
+    if ((reapError as NodeJS.ErrnoException).code === 'ENOENT' || isWin32Contention(reapError)) {
+      return;
+    }
+    throw new StateError(
+      `Failed to reap stale state file lock: ${
+        reapError instanceof Error ? reapError.message : String(reapError)
+      }`,
+      lockPath
+    );
+  }
+
+  await stateLockReapPathIsLive(reapPath);
+}
+
 async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): Promise<T> {
   const statePath = getStateFilePath(projectRoot);
   const lockPath = `${statePath}.lock`;
@@ -362,13 +542,15 @@ async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): 
       fd = await fs.open(lockPath, 'wx');
       await fd.writeFile(token);
       await fd.close();
+      const predecessors = await findStateLockPredecessors(lockPath, token);
+      await waitForStateLockPredecessors(predecessors, deadline);
       break;
     } catch (error) {
       if (!isLockContention(error)) {
         // Clean up only if this process created the file (fd was assigned).
         if (fd) {
           await fd.close().catch(() => {});
-          await fs.unlink(lockPath).catch(() => {});
+          await releaseStateFileLockToken(lockPath, token).catch(() => {});
         }
         throw new StateError(
           `Failed to acquire state file lock: ${error instanceof Error ? error.message : String(error)}`,
@@ -405,26 +587,7 @@ async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): 
     }
 
     if (Date.now() - heldSinceMs > STATE_LOCK_STALE_MS) {
-      // Abandoned lock — rename-aside is atomic, so only one reaper wins;
-      // losers get ENOENT and simply retry the O_EXCL create.
-      try {
-        const reapPath = `${lockPath}.${randomBytes(4).toString('hex')}.reaped`;
-        await fs.rename(lockPath, reapPath);
-        await fs.unlink(reapPath).catch(() => {});
-      } catch (reapError) {
-        if (
-          (reapError as NodeJS.ErrnoException).code !== 'ENOENT' &&
-          // Win32: losing the reap race to a concurrent rename/delete
-          // reports EPERM/EACCES/EBUSY rather than ENOENT.
-          !isWin32Contention(reapError)
-        ) {
-          throw new StateError(
-            `Failed to reap stale state file lock: ${reapError instanceof Error ? reapError.message : String(reapError)}`,
-            lockPath
-          );
-        }
-        // Lost the reap race — another contender removed it; retry.
-      }
+      await reapStateFileLock(lockPath);
       continue;
     }
 
@@ -443,25 +606,15 @@ async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): 
     return await fn();
   } finally {
     try {
-      // Fencing check: only delete the lock if it still carries our token.
-      const current = await fs.readFile(lockPath, 'utf-8');
-      if (current === token) {
-        await fs.unlink(lockPath);
-      } else {
+      if (!(await releaseStateFileLockToken(lockPath, token))) {
         process.stderr.write(
-          `Warning: state file lock at ${lockPath} was taken over by another writer; leaving it in place\n`
+          `Warning: state file lock at ${lockPath} was already released or reaped\n`
         );
       }
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        // Already released or reaped — nothing to do.
-      } else {
-        // Unexpected I/O failure: the lock file may linger until the
-        // stale reap; surface it so operators aren't left guessing.
-        process.stderr.write(
-          `Warning: failed to release state file lock at ${lockPath}: ${String(error)}\n`
-        );
-      }
+      process.stderr.write(
+        `Warning: failed to release state file lock at ${lockPath}: ${String(error)}\n`
+      );
     }
   }
 }

@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                     |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-27 against GTAO-003 CLI follow-up hook; save-time and peer-admission topology unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                            |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-28 against PR #4194's test-only `src/egress_consent.rs` platform-temporary-path fixture; egress, save-time, and peer-admission topology and diagrams unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |

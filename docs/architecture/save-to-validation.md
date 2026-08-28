@@ -1,8 +1,8 @@
 # Save to validation
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                  |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-27 against GTAO-003 CLI follow-up after `validate_paths`; caller-buffer vs post-save split unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                    |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-28 against PR #4194's intercept test-only egress fixture and component freshness closeout; caller-buffer, post-save, and validation sequence unchanged |
 
 | Upstream                                                                                                                                                                                         | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |

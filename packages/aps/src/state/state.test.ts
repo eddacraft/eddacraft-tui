@@ -7,6 +7,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promises as fs, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import {
   readStateFile,
@@ -36,6 +38,9 @@ import type { Task } from '../types/index.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const fixturesDir = join(__dirname, '__fixtures__');
+const rootRequire = createRequire(import.meta.url);
+const viteRequire = createRequire(rootRequire.resolve('vite/package.json'));
+const tsxCli = viteRequire.resolve('tsx/cli');
 
 // Helper to create a temporary directory for tests
 function createTempDir(): string {
@@ -45,6 +50,29 @@ function createTempDir(): string {
 // Helper to clean up temp directory
 async function cleanupTempDir(tempDir: string): Promise<void> {
   await safeCleanup(tempDir);
+}
+
+function runStateUpdateChild(projectRoot: string, taskId: string): Promise<void> {
+  const fixture = join(__dirname, '__fixtures__', 'update-state.ts');
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [tsxCli, fixture, projectRoot, taskId], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    let stderr = '';
+    child.stderr.setEncoding('utf-8');
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`state update child exited with ${String(code)}: ${stderr.trim()}`));
+      }
+    });
+  });
 }
 
 // Sample task for testing
@@ -219,6 +247,127 @@ describe('State File Operations', () => {
       const state = await readStateFile(tempDir);
       expect(Object.keys(state.tasks).sort()).toEqual(taskIds);
     });
+
+    it('preserves writers when a stale observer displaces a replacement lock', async () => {
+      const statePath = getStateFilePath(tempDir);
+      const lockPath = `${getStateFilePath(tempDir)}.lock`;
+      await fs.mkdir(dirname(lockPath), { recursive: true });
+      await fs.writeFile(lockPath, 'crashed-holder-token');
+      const past = new Date(Date.now() - 60_000);
+      await fs.utimes(lockPath, past, past);
+
+      const realOpen = fs.open.bind(fs);
+      const realReadFile = fs.readFile.bind(fs);
+      const realRename = fs.rename.bind(fs);
+      const realStat = fs.stat.bind(fs);
+      let staleStatCount = 0;
+      let bothStaleResolve: (() => void) | undefined;
+      const bothStale = new Promise<void>((resolve) => {
+        bothStaleResolve = resolve;
+      });
+      let firstReapCompleted = false;
+      let replacementWasDisplaced = false;
+      let replacementAcquiredResolve: (() => void) | undefined;
+      const replacementAcquired = new Promise<void>((resolve) => {
+        replacementAcquiredResolve = resolve;
+      });
+      let stateReadCount = 0;
+      let concurrentStateReadsResolve: (() => void) | undefined;
+      const concurrentStateReads = new Promise<void>((resolve) => {
+        concurrentStateReadsResolve = resolve;
+      });
+
+      vi.spyOn(fs, 'stat').mockImplementation(((...args: unknown[]) => {
+        const [path] = args as [string];
+        if (String(path) === lockPath && staleStatCount < 2) {
+          staleStatCount += 1;
+          const staleStats = realStat(path);
+          if (staleStatCount === 2) {
+            bothStaleResolve?.();
+          }
+          return staleStats.then((stats) => bothStale.then(() => stats));
+        }
+        return realStat(path);
+      }) as typeof fs.stat);
+
+      vi.spyOn(fs, 'open').mockImplementation(((...args: unknown[]) => {
+        const [path, flags] = args as [string, string?];
+        return realOpen(path, flags as string).then((fd) => {
+          if (firstReapCompleted && String(path) === lockPath && flags === 'wx') {
+            replacementAcquiredResolve?.();
+          }
+          return fd;
+        });
+      }) as typeof fs.open);
+
+      vi.spyOn(fs, 'readFile').mockImplementation(((...args: unknown[]) => {
+        const [path] = args as [string];
+        if (String(path) === statePath && stateReadCount < 2) {
+          stateReadCount += 1;
+          if (stateReadCount === 2) {
+            concurrentStateReadsResolve?.();
+          }
+          return Promise.race([
+            concurrentStateReads,
+            new Promise<void>((resolve) => setTimeout(resolve, 100)),
+          ]).then(() => realReadFile(...(args as Parameters<typeof fs.readFile>)));
+        }
+        return realReadFile(...(args as Parameters<typeof fs.readFile>));
+      }) as typeof fs.readFile);
+
+      vi.spyOn(fs, 'rename').mockImplementation(((...args: unknown[]) => {
+        const [from, to] = args as [string, string];
+        if (String(from) !== lockPath || replacementWasDisplaced) {
+          return realRename(from, to);
+        }
+
+        if (!firstReapCompleted) {
+          return realRename(from, to).then(() => {
+            firstReapCompleted = true;
+          });
+        }
+
+        return replacementAcquired.then(() => {
+          replacementWasDisplaced = true;
+          return realRename(from, to);
+        });
+      }) as typeof fs.rename);
+
+      await Promise.all([
+        updateTaskState(tempDir, 'REAP-FENCE-01', {
+          status: 'locked',
+          locked_at: '2025-12-17T10:00:00.000Z',
+          locked_by: 'first contender',
+        }),
+        updateTaskState(tempDir, 'REAP-FENCE-02', {
+          status: 'locked',
+          locked_at: '2025-12-17T10:00:00.000Z',
+          locked_by: 'second contender',
+        }),
+      ]);
+
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks).sort()).toEqual(['REAP-FENCE-01', 'REAP-FENCE-02']);
+      expect(staleStatCount).toBe(2);
+      expect(replacementWasDisplaced).toBe(true);
+    });
+
+    it('cross-process contenders reaping an abandoned lock preserve every record', async () => {
+      const lockPath = `${getStateFilePath(tempDir)}.lock`;
+      await fs.mkdir(dirname(lockPath), { recursive: true });
+      await fs.writeFile(lockPath, 'crashed-holder-token');
+      const past = new Date(Date.now() - 60_000);
+      await fs.utimes(lockPath, past, past);
+
+      const taskIds = Array.from(
+        { length: 8 },
+        (_, i) => `REAP-PROCESS-${String(i).padStart(2, '0')}`
+      );
+      await Promise.all(taskIds.map((taskId) => runStateUpdateChild(tempDir, taskId)));
+
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks).sort()).toEqual(taskIds);
+    }, 30_000);
 
     it('on win32, EPERM from a contended lock open retries instead of failing', async () => {
       // Win32 reports EPERM/EACCES/EBUSY (not EEXIST/ENOENT) when an open,

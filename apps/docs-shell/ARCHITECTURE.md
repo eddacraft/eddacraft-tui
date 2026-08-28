@@ -1,8 +1,8 @@
 # anvil documentation shell architecture
 
-| Type         | Authority | Owner           | Status | Freshness                                                                                                         |
-| ------------ | --------- | --------------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-28 against BAUTH auth-as-built CIB-371 parse/narrowing; architecture and diagrams unchanged |
+| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                          |
+| ------------ | --------- | --------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-28 against PR #4194's `apps/docs-shell/proxy.test.ts` valid-session fixture correction; routing, trust boundaries, failure behaviour, and diagrams unchanged |
 
 | Upstream                                                                                                                                          | Downstream                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
