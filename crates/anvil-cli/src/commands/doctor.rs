@@ -322,6 +322,24 @@ fn check_config_variants() -> DiagnosticCheck {
 /// edited (incl. the forced-init stale-variant edge). Candidate
 /// presence uses `try_exists` so a stat error is Fail, not absence.
 fn check_config_variants_in(root: &Path) -> DiagnosticCheck {
+    let first_format = anvil_config::DISCOVER_PRECEDENCE
+        .first()
+        .expect("config discovery precedence is non-empty");
+    let first_candidate = root.join(format!(".anvil.{}", first_format.extension()));
+    match std::fs::metadata(root) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            let error = std::io::Error::new(
+                std::io::ErrorKind::NotADirectory,
+                "project root is not a directory",
+            );
+            return config_variants_stat_error(&first_candidate, &error);
+        }
+        Err(error) => {
+            return config_variants_stat_error(&first_candidate, &error);
+        }
+    }
+
     let mut present: Vec<String> = Vec::new();
     for format in &anvil_config::DISCOVER_PRECEDENCE {
         let name = format!(".anvil.{}", format.extension());

@@ -419,7 +419,6 @@ fn exec_preferred(preferred: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -716,8 +715,8 @@ mod tests {
     fn mcp_reexec_preferred_skips_empty_path_components() {
         let path_dir = tempfile::tempdir().expect("path dir");
         let path_anvil = write_fake_anvil(path_dir.path(), "anvil");
-        let mut path = OsString::from(":");
-        path.push(path_dir.path());
+        let path = std::env::join_paths([std::path::Path::new(""), path_dir.path()])
+            .expect("PATH with an empty component");
 
         let resolved = resolve_preferred_executable(None, Some(path.as_os_str())).expect("PATH");
         assert_eq!(resolved, path_anvil);

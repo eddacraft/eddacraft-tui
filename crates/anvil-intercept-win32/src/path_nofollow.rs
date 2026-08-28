@@ -31,9 +31,9 @@ use windows_sys::Win32::Security::SECURITY_DESCRIPTOR;
 use windows_sys::Win32::Storage::FileSystem::{
     BY_HANDLE_FILE_INFORMATION, CreateFileW, DELETE, FILE_ATTRIBUTE_DIRECTORY,
     FILE_ATTRIBUTE_NORMAL, FILE_DISPOSITION_INFO, FILE_FLAG_BACKUP_SEMANTICS,
-    FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    FileDispositionInfo, FlushFileBuffers, GetFileInformationByHandle, OPEN_EXISTING,
-    SetFileInformationByHandle, WriteFile,
+    FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+    FILE_SHARE_WRITE, FileDispositionInfo, FlushFileBuffers, GetFileInformationByHandle,
+    OPEN_EXISTING, SetFileInformationByHandle, WriteFile,
 };
 use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
 
@@ -258,7 +258,13 @@ fn remove_at(path: &Path, is_dir: bool) -> io::Result<()> {
     // junction is the object we inspect, matching Unix `unlinkat` (does not
     // follow). A real directory is refused by `remove_file_nofollow`; a
     // reparse point is unlinked itself.
-    let leaf_handle = nt_open_at(dir.raw(), leaf, OpenKind::Any, DELETE | SYNCHRONIZE, false)?;
+    let leaf_handle = nt_open_at(
+        dir.raw(),
+        leaf,
+        OpenKind::Any,
+        DELETE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+        false,
+    )?;
     let reparse = is_reparse(leaf_handle.raw())?;
     let directory = is_directory(leaf_handle.raw())?;
     if is_dir {
@@ -272,7 +278,13 @@ fn remove_at(path: &Path, is_dir: bool) -> io::Result<()> {
 }
 
 fn remove_empty_destination(parent: HANDLE, name: &OsStr) -> io::Result<()> {
-    let existing = match nt_open_at(parent, name, OpenKind::Any, DELETE | SYNCHRONIZE, false) {
+    let existing = match nt_open_at(
+        parent,
+        name,
+        OpenKind::Any,
+        DELETE | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+        false,
+    ) {
         Ok(handle) => handle,
         Err(error)
             if error.raw_os_error() == Some(ERROR_FILE_NOT_FOUND)

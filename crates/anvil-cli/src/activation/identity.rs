@@ -1662,7 +1662,12 @@ origin_canonical:
     /// repository. `TempDir::new()` follows `TMPDIR`, which test
     /// harnesses often remap inside this worktree.
     fn isolated_non_git_tempdir() -> TempDir {
-        for base in [Path::new("/tmp"), Path::new("/var/tmp")] {
+        let platform_temp = std::env::temp_dir();
+        for base in [
+            platform_temp.as_path(),
+            Path::new("/tmp"),
+            Path::new("/var/tmp"),
+        ] {
             if !base.is_dir() {
                 continue;
             }

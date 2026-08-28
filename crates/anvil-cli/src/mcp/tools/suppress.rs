@@ -200,9 +200,8 @@ fn sanitise_reason(reason: &str) -> String {
 /// re-verifying that the canonicalised result is still inside the workspace.
 fn canonicalise_inside_workspace(workspace_path: &Path, relative: &str) -> Result<PathBuf, String> {
     let joined = workspace_path.join(relative);
-    let resolved = joined
-        .canonicalize()
-        .map_err(|err| format!("filePath is not accessible: {err}"))?;
+    let resolved =
+        dunce::canonicalize(&joined).map_err(|err| format!("filePath is not accessible: {err}"))?;
     if !resolved.starts_with(workspace_path) {
         return Err("filePath resolves outside workspaceRoot".to_string());
     }

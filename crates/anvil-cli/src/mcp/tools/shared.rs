@@ -331,7 +331,7 @@ pub fn resolve_workspace_files(
     let mut absolute = Vec::with_capacity(relative.len());
     for (index, rel) in relative.iter().enumerate() {
         let joined = workspace_root.join(rel);
-        let resolved = match joined.canonicalize() {
+        let resolved = match dunce::canonicalize(&joined) {
             Ok(path) => path,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 // Forward the workspace-joined path verbatim. The scanner
