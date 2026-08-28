@@ -438,6 +438,48 @@ known gap lives.
   specifically and was fully delivered; its *Intent* sentence ("every line
   was actually scanned") is broader than the delivery, and this item closes
   the difference.
+- **As built (2026-08-28):** Every candidate file now returns *why* it was not
+  scanned. Failures (unreadable, SCAN-001 panic) and the size limit block a
+  clean pass and zero the score; a `skip_extensions` match increments an
+  advisory counter and never blocks, guarded independently by a unit test and
+  an integration test. Blocking causes carry normalised paths (same shape as
+  finding paths), the advisory case carries only a count because that
+  population is unbounded. Notes compose with SDT-001's line and history notes.
+  Two things the work surfaced: `should_skip_file` returns early for lockfiles
+  so they reach the GH #2584 URL-credential scan, which means `skip_extensions`
+  *cannot* exclude an oversize lockfile — the note says so and names the file
+  rather than offering a remedy that does nothing; and `anvil gate` rendered a
+  coverage-only failure as "Potential secrets found in 0 location(s):" above an
+  empty list, so coverage notes now get their own block there.
+- **Validation deviation, accepted 2026-08-28:** this item's Validation says
+  "extending the corpus to cover file selection is part of this item". That was
+  **not** satisfied as written, deliberately. The SDT-002 corpus measures the
+  pattern/entropy engine — it feeds byte strings to `scan_content_with_stats`
+  and its cases are `.corpus` files intentionally invisible to path-based
+  walkers, which is the opposite of what selection tests need (real paths, real
+  extensions, real sizes, real read failures). Selection is also a pass/fail
+  contract, not a detection *rate*, so modelling it as a corpus rate would add
+  manifest machinery and assert less. Equivalent coverage is delivered in
+  `crates/anvil-checks/tests/secret_file_coverage.rs`, and the calibration
+  runner's docs now state the boundary so its "outside its reach" limitation is
+  no longer an unqualified claim.
+- **Known gap, NOT closed here:** `anvil gate` is the only surface that reports
+  these coverage failures. `anvil audit` (`audit.rs:312`) reads
+  `result.findings` only and exits 0 over an unread file. Planless `anvil check`
+  is worse: it *pre-filters* oversize and extension-skipped files via
+  `is_secret_scannable` before calling `run_secret_check`, so the accounting
+  never arrives and wiring it up means undoing that pre-filter, not reading a
+  new field. Pre-existing on both — SDT-001's `lines_skipped_oversize` is
+  equally unread there — and neither surface is in this item's Files list.
+  Blind review rated it major-advisory and asked that it be raised as a
+  follow-up before the module closes.
+- **Verification (2026-08-28):** blind review returned `pass-with-findings`,
+  no blocking findings. It ran 13 independent production mutations; 11 turned
+  the new tests red, including one that removes the SCAN-001 `catch_unwind`
+  this item's Non-scope forbids removing — a guarantee no test previously
+  enforced. The two survivors (unpinned `display_path` normalisation, and the
+  lockfile caveat firing without naming its file past the 3-path cap) were
+  repaired in this branch with tests proven RED against those exact mutations.
 
 ---
 

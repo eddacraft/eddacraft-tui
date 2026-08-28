@@ -262,6 +262,48 @@ fn oversize_lockfile_blocks_and_says_exclusion_will_not_help() {
         "the note must not offer a remedy that provably does nothing for this file: {}",
         result.message
     );
+    assert!(
+        result.message.contains("pnpm-lock.yaml"),
+        "the caveat must name the file it applies to: {}",
+        result.message
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+/// Blind review (2026-08-28, finding F3): the inline path list is capped at
+/// three, so a lockfile sorting past the cap produced a note that asserted "a
+/// lockfile is the exception" while naming no lockfile — the operator was told
+/// an exception applied without being told to which file, next to a generic
+/// remedy that is false for exactly that file.
+#[test]
+fn the_lockfile_caveat_names_its_file_even_past_the_inline_path_cap() {
+    let dir = temp_dir("lockfile-past-cap");
+    // Names chosen so the lockfile sorts last and falls outside the cap.
+    let paths: Vec<String> = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"]
+        .iter()
+        .map(|name| write_oversize(&dir, name))
+        .chain(std::iter::once(write_oversize(&dir, "pnpm-lock.yaml")))
+        .collect();
+    let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+
+    let result = run_secret_check(&refs, &SecretCheckConfig::default(), None);
+
+    assert_eq!(
+        result.files_skipped_oversize.len(),
+        6,
+        "every oversize file is accounted for even when only some are named: {result:?}"
+    );
+    assert!(
+        result.message.contains("and 3 more"),
+        "the inline list is still capped, or this test no longer exercises the cap: {}",
+        result.message
+    );
+    assert!(
+        result.message.contains("pnpm-lock.yaml"),
+        "the lockfile must be named by the caveat even though the capped inline list omits it: {}",
+        result.message
+    );
 
     let _ = fs::remove_dir_all(dir);
 }
@@ -353,6 +395,58 @@ fn unscanned_file_paths_are_reported_in_a_stable_order() {
     assert_eq!(
         forwards.message, backwards.message,
         "input order must not change the reported message"
+    );
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+/// Blind review (2026-08-28, finding F2) mutated the `Oversize` and
+/// `Unreadable` arms to carry the raw path instead of the normalised
+/// `display_path` and the whole suite still passed: every other test here uses
+/// `workspace_root: None`, the one input where the two are equal by definition.
+/// The property was correct and unpinned, which is how it silently stops being
+/// correct later.
+///
+/// Skipped paths must render exactly like finding paths. A consumer that
+/// reconciles `findings[].file` against `files_skipped_*` — a gate summary, a
+/// dashboard, a dedupe — sees one path vocabulary or it sees a bug.
+#[test]
+fn unscanned_paths_use_the_same_normalisation_as_findings() {
+    let dir = temp_dir("normalisation");
+    let huge = write_oversize(&dir, "huge.ts");
+    let leaky = write_text(
+        &dir,
+        "leaky.ts",
+        &format!("const t = '{}';\n", planted_secret()),
+    );
+    let root = dir.to_string_lossy().to_string();
+
+    let result = run_secret_check(
+        &[huge.as_str(), leaky.as_str()],
+        &SecretCheckConfig::default(),
+        Some(&root),
+    );
+
+    let finding_path = result
+        .findings
+        .first()
+        .map(|finding| finding.file.clone())
+        .expect("the planted secret must still be found alongside the skip");
+
+    assert_eq!(
+        finding_path, "/leaky.ts",
+        "baseline: findings are normalised relative to the workspace root, got {finding_path}"
+    );
+    assert_eq!(
+        result.files_skipped_oversize,
+        vec!["/huge.ts".to_string()],
+        "a skipped path must be normalised the same way a finding path is, not left absolute: {:?}",
+        result.files_skipped_oversize
+    );
+    assert!(
+        !result.message.contains(&root),
+        "the workspace root must not leak into the message once normalisation applies: {}",
+        result.message
     );
 
     let _ = fs::remove_dir_all(dir);

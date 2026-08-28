@@ -66,9 +66,14 @@ impl UnscannedFiles {
         !self.oversize.is_empty() || !self.unreadable.is_empty() || !self.panicked.is_empty()
     }
 
-    /// Impose a stable order on the parallel scan's output. Anvil's first
-    /// principle is same-input-same-output, and rayon's completion order is
-    /// neither stable nor meaningful to a reader.
+    /// Impose a stable order independent of the caller's file list. Anvil's
+    /// first principle is same-input-same-output, and two callers handing the
+    /// same set of files in different orders are the same input.
+    ///
+    /// Note this is *not* about rayon: `par_iter().map().collect()` is an
+    /// indexed parallel iterator and preserves input order. The
+    /// non-determinism this guards against comes from the walker above,
+    /// which does not promise a stable enumeration order.
     fn sort(&mut self) {
         self.oversize.sort();
         self.unreadable.sort();
@@ -414,15 +419,26 @@ fn unreadable_file_note(paths: &[String]) -> String {
 /// Naming a remedy that provably does nothing would trade a false clean for a
 /// false instruction.
 fn oversize_file_note(paths: &[String]) -> String {
-    let lockfile_caveat = if paths
+    // The caveat names the lockfiles it applies to. `named_paths` caps the
+    // inline list at MAX_NAMED_PATHS, so a lockfile sorting past that cap would
+    // otherwise tell the operator "a lockfile is the exception" without saying
+    // which file — an exception arriving without its subject is worse than
+    // either alone, and the generic remedy beside it is false for exactly that
+    // file.
+    let lockfiles: Vec<&str> = paths
         .iter()
-        .any(|p| crate::filter::is_lockfile(Path::new(p)))
-    {
-        " (a lockfile is the exception: `skip_extensions` deliberately cannot exclude one, \
-         because lockfiles carry the URL-credential scan, so an oversize lockfile has no \
-         exclusion remedy today)"
+        .filter(|path| crate::filter::is_lockfile(Path::new(path)))
+        .map(String::as_str)
+        .collect();
+    let lockfile_caveat = if lockfiles.is_empty() {
+        String::new()
     } else {
-        ""
+        format!(
+            " ({} cannot be excluded that way: `skip_extensions` deliberately does not apply to \
+             lockfiles, because they carry the URL-credential scan, so an oversize lockfile has \
+             no exclusion remedy today)",
+            lockfiles.join(", ")
+        )
     };
     format!(
         "{} file(s) at or over the {} MiB scan limit were not scanned, so this result cannot \
