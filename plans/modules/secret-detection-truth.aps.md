@@ -5,7 +5,7 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | In Progress | 2/6   |
+| SDT | —     | In Progress | 3/6   |
 
 **Last reviewed:** 2026-08-28 (SDT-001 and SDT-002 Merged via
 [#4185](https://github.com/eddacraft/anvil-001/pull/4185), reviewed against
@@ -372,8 +372,10 @@ known gap lives.
 
 ### SDT-006: Fail closed on unscanned files
 
-- **Status:** In Progress — operator-promoted 2026-08-28 (Proposed → Ready →
-  In Progress on direction). Implemented on `feat/sdt-006-unscanned-files`.
+- **Status:** Merged — via
+  [#4192](https://github.com/eddacraft/anvil-001/pull/4192) (rebase-merge
+  2026-08-28; ancestor of `main` proven by content at `b14ca7f1f`).
+  Operator-promoted 2026-08-28 (Proposed → Ready → In Progress on direction).
 - **Intent:** SDT-001 made unscanned *lines* honest. Whole *files* are still
   dropped silently, so the same false-clean survives one level up: a clean
   result can still mean "we never read it".
