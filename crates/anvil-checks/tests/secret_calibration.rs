@@ -21,6 +21,16 @@
 //! The committed expectations live in `manifest.json`. Any drift — a
 //! regression *or* an improvement — fails this test with both numbers
 //! printed, so no rules change lands unmeasured.
+//!
+//! **Scope boundary (SDT-006).** This runner measures the pattern/entropy
+//! *engine*: it calls `scan_content_with_stats` directly, so file selection —
+//! `skip_extensions`, the `MAX_FILE_SIZE` guard, unreadable files and the
+//! SCAN-001 panic arm — is outside its reach by construction, and its cases
+//! are `.corpus` files no path-based walker selects. Those paths are covered
+//! by `tests/secret_file_coverage.rs`, which drives `run_secret_check` over
+//! real files on disk. They are deliberately not folded in here: selection is
+//! a pass/fail contract, not a detection *rate* a manifest baseline can track
+//! drift on.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;

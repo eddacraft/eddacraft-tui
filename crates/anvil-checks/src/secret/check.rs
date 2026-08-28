@@ -1,13 +1,12 @@
 use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 
 use crate::secret::git_scanner::scan_git_history;
 use crate::secret::patterns::compile_custom_patterns;
-use crate::secret::scanner::scan_content_with_compiled_patterns;
+use crate::secret::scanner::{ScanStats, scan_content_with_compiled_patterns};
 use crate::secret::types::{
     FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding, Suppression,
     partition_skip_extensions,
@@ -17,6 +16,65 @@ use crate::secret::types::{
 /// skipped to avoid excessive memory usage on binaries or generated artefacts.
 pub const MAX_FILE_SIZE: u64 = 1024 * 1024;
 const _: () = assert!(MAX_FILE_SIZE == 1024 * 1024);
+
+/// At most this many paths are named inline in a coverage note. Beyond it the
+/// note says "and N more" — the full list always stays on the result, but a
+/// gate message that dumps 400 paths is not read by anyone.
+const MAX_NAMED_PATHS: usize = 3;
+
+/// SDT-006: what happened to one candidate file. Every arm except
+/// [`FileOutcome::Scanned`] means "this file was not scanned", and the
+/// distinction between the arms is the whole point: a configured
+/// `skip_extensions` match is a deliberate exclusion, the other three are
+/// coverage the check *wanted* and did not get.
+enum FileOutcome {
+    Scanned {
+        findings: Vec<SecretFinding>,
+        suppressions: Vec<Suppression>,
+        lines_skipped_oversize: usize,
+    },
+    /// A configured `skip_extensions` entry matched. Advisory only.
+    SkippedExtension,
+    /// At or over [`MAX_FILE_SIZE`].
+    Oversize(String),
+    /// Exists, but `fs::read_to_string` failed (permissions, non-UTF-8, …).
+    Unreadable(String),
+    /// The scan panicked and SCAN-001's `catch_unwind` contained it.
+    Panicked(String),
+}
+
+/// SDT-006: every file `run_secret_check` declined to scan, grouped by cause.
+///
+/// Three of the four block a clean pass; `extension` never does. Keeping them
+/// in one value is what lets [`coverage_notes`] report all of them at once
+/// instead of the first one it happens to notice.
+#[derive(Debug, Default)]
+struct UnscannedFiles {
+    oversize: Vec<String>,
+    unreadable: Vec<String>,
+    panicked: Vec<String>,
+    extension: usize,
+}
+
+impl UnscannedFiles {
+    /// Did anything happen here that a clean pass must not paper over?
+    ///
+    /// `extension` is deliberately absent: an operator who configured
+    /// `skip_extensions` asked for that skip, and the defaults (`.png`,
+    /// `.jpg`, `.lock`) exist in every repository.
+    fn blocks(&self) -> bool {
+        !self.oversize.is_empty() || !self.unreadable.is_empty() || !self.panicked.is_empty()
+    }
+
+    /// Impose a stable order on the parallel scan's output. Anvil's first
+    /// principle is same-input-same-output, and rayon's completion order is
+    /// neither stable nor meaningful to a reader.
+    fn sort(&mut self) {
+        self.oversize.sort();
+        self.unreadable.sort();
+        self.panicked.sort();
+    }
+}
 
 pub fn run_secret_check(
     files: &[&str],
@@ -30,9 +88,49 @@ pub fn run_secret_check(
     // shared across rayon workers; `pattern_errors` is reported via
     // `SecretCheckResult.pattern_errors` so a misconfigured custom
     // pattern surfaces at the boundary that owns config.
-    let (compiled_custom_patterns, mut pattern_errors) =
+    let (compiled_custom_patterns, pattern_errors) =
         compile_custom_patterns(&config.custom_patterns);
 
+    run_secret_check_with_scanner(
+        files,
+        config,
+        workspace_root,
+        pattern_errors,
+        |content, display_path| {
+            scan_content_with_compiled_patterns(
+                content,
+                display_path,
+                config,
+                &compiled_custom_patterns,
+                usize::MAX,
+            )
+        },
+    )
+}
+
+/// [`run_secret_check`] with the per-file scan supplied by the caller.
+///
+/// The parameterisation exists for one reason: SCAN-001 wraps the scan in
+/// `catch_unwind`, and before SDT-006 that arm had never been executed by a
+/// test — a panicking scan discarded the file and the result still reported
+/// "No secrets detected", passed, score 100. No input reachably panics the
+/// real scanner today (probed across the credit-card, URL-path, drive-letter
+/// and redaction slicing paths with adversarial multibyte content and custom
+/// patterns named after the built-in rules), so a test cannot get at the arm
+/// through the public entry point. Handing the scan in lets the guard test
+/// drive the *real* accounting, assembly and message path with a scan that
+/// does panic. It is not a production seam: `run_secret_check` is the only
+/// non-test caller.
+fn run_secret_check_with_scanner<F>(
+    files: &[&str],
+    config: &SecretCheckConfig,
+    workspace_root: Option<&str>,
+    mut pattern_errors: Vec<String>,
+    scan: F,
+) -> SecretCheckResult
+where
+    F: Fn(&str, &str) -> (Vec<SecretFinding>, ScanStats) + Sync,
+{
     // A `skip_extensions` entry only narrows the scan if it is a well-formed
     // dotted suffix. An empty entry would match every path (`ends_with("")`)
     // and silently disable non-lockfile scanning while still reporting a
@@ -43,50 +141,38 @@ pub fn run_secret_check(
     pattern_errors.extend(skip_extension_warnings);
 
     // SCAN-001: read + scan each candidate file in parallel on the rayon
-    // pool, mirroring the welcome-screen discovery shape. Per-file panics
-    // are contained via `catch_unwind`; read failures and skipped files
-    // simply drop out of the collected findings stream. Deterministic
-    // ordering is restored downstream after dedupe via `sort_findings`.
-    let lines_skipped_atomic = AtomicUsize::new(0);
-    let per_file: Vec<(Vec<SecretFinding>, Vec<Suppression>)> = files
+    // pool, mirroring the welcome-screen discovery shape. Per-file panics are
+    // contained via `catch_unwind`. SDT-006: nothing drops out silently any
+    // more — every non-scanned file returns the reason it was not scanned, so
+    // the fold below can account for it. Deterministic ordering is restored
+    // downstream after dedupe via `sort_findings` and `UnscannedFiles::sort`.
+    let per_file: Vec<FileOutcome> = files
         .par_iter()
-        .filter_map(|file| {
-            if should_skip_file(file, &skip_extensions) {
-                return None;
-            }
-            if file_exceeds_size_limit(file) {
-                return None;
-            }
-            let content = fs::read_to_string(file).ok()?;
-            let display_path = normalise_file_path(file, workspace_root);
-            // SCAN-001: contain panics from custom user regexes so a
-            // single bad pattern can't tear down the whole secret scan.
-            let scan_result = catch_unwind(AssertUnwindSafe(|| {
-                scan_content_with_compiled_patterns(
-                    &content,
-                    &display_path,
-                    config,
-                    &compiled_custom_patterns,
-                    usize::MAX,
-                )
-            }));
-            match scan_result {
-                Ok((file_findings, stats)) => {
-                    lines_skipped_atomic.fetch_add(stats.lines_skipped_oversize, Ordering::Relaxed);
-                    Some((file_findings, stats.suppressions))
-                }
-                Err(_) => None,
-            }
-        })
+        .map(|file| scan_one_file(file, workspace_root, &skip_extensions, &scan))
         .collect();
 
     let mut findings: Vec<SecretFinding> = Vec::new();
     let mut suppressions: Vec<Suppression> = Vec::new();
-    for (file_findings, file_suppressions) in per_file {
-        findings.extend(file_findings);
-        suppressions.extend(file_suppressions);
+    let mut lines_skipped_oversize = 0usize;
+    let mut unscanned = UnscannedFiles::default();
+    for outcome in per_file {
+        match outcome {
+            FileOutcome::Scanned {
+                findings: file_findings,
+                suppressions: file_suppressions,
+                lines_skipped_oversize: file_lines_skipped,
+            } => {
+                findings.extend(file_findings);
+                suppressions.extend(file_suppressions);
+                lines_skipped_oversize += file_lines_skipped;
+            }
+            FileOutcome::SkippedExtension => unscanned.extension += 1,
+            FileOutcome::Oversize(path) => unscanned.oversize.push(path),
+            FileOutcome::Unreadable(path) => unscanned.unreadable.push(path),
+            FileOutcome::Panicked(path) => unscanned.panicked.push(path),
+        }
     }
-    let mut lines_skipped_oversize = lines_skipped_atomic.load(Ordering::Relaxed);
+    unscanned.sort();
 
     let history_scan_errors = merge_git_history_scan(
         config,
@@ -103,7 +189,46 @@ pub fn run_secret_check(
         pattern_errors,
         lines_skipped_oversize,
         history_scan_errors,
+        unscanned,
     )
+}
+
+/// Select, read and scan one candidate file, reporting *why* when it is not
+/// scanned. SDT-006: the four declining paths used to return `None` into a
+/// `filter_map`, which is precisely how a whole file could vanish from a
+/// result that still claimed a clean pass.
+fn scan_one_file<F>(
+    file: &str,
+    workspace_root: Option<&str>,
+    skip_extensions: &[&str],
+    scan: &F,
+) -> FileOutcome
+where
+    F: Fn(&str, &str) -> (Vec<SecretFinding>, ScanStats) + Sync,
+{
+    if should_skip_file(file, skip_extensions) {
+        return FileOutcome::SkippedExtension;
+    }
+    // Report skipped files under the same path rendering as findings, so a
+    // consumer never has to reconcile two path shapes from one result.
+    let display_path = normalise_file_path(file, workspace_root);
+    if file_exceeds_size_limit(file) {
+        return FileOutcome::Oversize(display_path);
+    }
+    let Ok(content) = fs::read_to_string(file) else {
+        return FileOutcome::Unreadable(display_path);
+    };
+    // SCAN-001: contain panics from custom user regexes so a single bad
+    // pattern can't tear down the whole secret scan. SDT-006: containing it
+    // is still right; returning nothing was the bug.
+    match catch_unwind(AssertUnwindSafe(|| scan(&content, &display_path))) {
+        Ok((findings, stats)) => FileOutcome::Scanned {
+            findings,
+            suppressions: stats.suppressions,
+            lines_skipped_oversize: stats.lines_skipped_oversize,
+        },
+        Err(_) => FileOutcome::Panicked(display_path),
+    }
 }
 
 /// Run the optional git-history pass, folding findings and skip counts into the
@@ -144,6 +269,7 @@ fn assemble_secret_check_result(
     pattern_errors: Vec<String>,
     lines_skipped_oversize: usize,
     history_scan_errors: Vec<String>,
+    unscanned: UnscannedFiles,
 ) -> SecretCheckResult {
     // SDT-001: everything that means "we did not scan all of it" collects
     // here. History-scan failures block a clean pass even when no secret
@@ -151,7 +277,10 @@ fn assemble_secret_check_result(
     // "clean" — and an oversize-line skip is the same class of lie: the
     // SCAN-002 guard drops the line before *both* pattern and entropy
     // evaluation, so a secret inside it cannot have been seen.
-    let coverage_notes = coverage_notes(&history_scan_errors, lines_skipped_oversize);
+    //
+    // SDT-006 adds the file-level members of that same class. A configured
+    // `skip_extensions` match is *not* one of them and never reaches here.
+    let coverage_notes = coverage_notes(&history_scan_errors, lines_skipped_oversize, &unscanned);
     let passed = findings.is_empty() && coverage_notes.is_empty();
     let pattern_count = findings
         .iter()
@@ -161,9 +290,11 @@ fn assemble_secret_check_result(
         .iter()
         .filter(|finding| finding.finding_type == FindingType::Entropy)
         .count();
-    let score_usize = if lines_skipped_oversize > 0 {
+    let score_usize = if lines_skipped_oversize > 0 || unscanned.blocks() {
         // Unscanned surface makes the score meaningless, not merely lower:
         // there is no denominator for "how much of this file was checked".
+        // SDT-006 follows SDT-001's rule unchanged — an unread file is a
+        // larger hole than an unread line, not a smaller one.
         0
     } else if !history_scan_errors.is_empty() && findings.is_empty() {
         // Incomplete coverage is not a full score.
@@ -183,17 +314,37 @@ fn assemble_secret_check_result(
         lines_skipped_oversize,
         suppressions,
         history_scan_errors,
+        coverage_notes,
+        files_skipped_oversize: unscanned.oversize,
+        files_skipped_unreadable: unscanned.unreadable,
+        files_skipped_panicked: unscanned.panicked,
+        files_skipped_extension: unscanned.extension,
     }
 }
 
-/// SDT-001: every reason this scan could not see all of its input, in a
-/// stable order. History failures first (they can mean *nothing* ran), then
-/// the oversize-line skip. Both are reported — a result can carry both at
-/// once, and an operator who fixes one must not be surprised by the other.
-fn coverage_notes(history_scan_errors: &[String], lines_skipped_oversize: usize) -> Vec<String> {
+/// SDT-001/SDT-006: every reason this scan could not see all of its input, in
+/// a stable order. History failures first (they can mean *nothing* ran), then
+/// the oversize-line skip, then the file-level skips sharpest-first — a panic
+/// is a bug, an unreadable file is an environment problem, an oversize file is
+/// a known bound. All of them are reported: a result can carry several at
+/// once, and an operator who fixes one must not be surprised by the next.
+fn coverage_notes(
+    history_scan_errors: &[String],
+    lines_skipped_oversize: usize,
+    unscanned: &UnscannedFiles,
+) -> Vec<String> {
     let mut notes = history_scan_errors.to_vec();
     if lines_skipped_oversize > 0 {
         notes.push(oversize_skip_note(lines_skipped_oversize));
+    }
+    if !unscanned.panicked.is_empty() {
+        notes.push(panicked_file_note(&unscanned.panicked));
+    }
+    if !unscanned.unreadable.is_empty() {
+        notes.push(unreadable_file_note(&unscanned.unreadable));
+    }
+    if !unscanned.oversize.is_empty() {
+        notes.push(oversize_file_note(&unscanned.oversize));
     }
     notes
 }
@@ -207,6 +358,79 @@ fn oversize_skip_note(lines_skipped_oversize: usize) -> String {
         "{lines_skipped_oversize} line(s) too long to scan, so this result cannot prove them \
          clean: raise `max_line_bytes` to cover them, or suppress with a documented reason \
          (ADR-029)"
+    )
+}
+
+/// Name the paths behind a coverage note, capped so one bad directory cannot
+/// bury the remedy at the end of a wall of text.
+fn named_paths(paths: &[String]) -> String {
+    let shown = paths
+        .iter()
+        .take(MAX_NAMED_PATHS)
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join(", ");
+    match paths.len().checked_sub(MAX_NAMED_PATHS) {
+        Some(rest) if rest > 0 => format!("{shown}, and {rest} more"),
+        _ => shown,
+    }
+}
+
+/// SDT-006, path 4 — the sharpest. Naming the file is the whole value here:
+/// the panic is contained, so the file is the only evidence of which input
+/// provoked it, and a custom regex is the documented cause SCAN-001 was
+/// written for.
+fn panicked_file_note(paths: &[String]) -> String {
+    format!(
+        "{} file(s) crashed the scanner and were not scanned, so this result cannot prove them \
+         clean ({}): this is a bug — a `custom_patterns` regex is the usual cause, so remove or \
+         narrow the pattern and report the crash",
+        paths.len(),
+        named_paths(paths)
+    )
+}
+
+/// SDT-006, path 3. The remedy is an environment fix, not a config one, so
+/// the note says which environment property to look at.
+fn unreadable_file_note(paths: &[String]) -> String {
+    format!(
+        "{} file(s) could not be read, so this result cannot prove them clean ({}): the scanner \
+         reads UTF-8 text — fix the file's permissions or encoding, or exclude it with \
+         `skip_extensions` if it is binary",
+        paths.len(),
+        named_paths(paths)
+    )
+}
+
+/// SDT-006, path 2. `MAX_FILE_SIZE` is a fixed resource bound and SDT-006 is
+/// explicitly barred from raising it, so — unlike the `max_line_bytes` note —
+/// "raise the limit" is not offered. The two remedies that do exist are.
+///
+/// Lockfiles get an extra sentence, because for them the first remedy is a
+/// lie: [`should_skip_file`] returns early for a lockfile so that it reaches
+/// the GH #2584 URL-credential scan, which means `skip_extensions` cannot
+/// exclude one however it is configured. That is not a corner case here — the
+/// file that motivated this item is this repository's own `pnpm-lock.yaml`.
+/// Naming a remedy that provably does nothing would trade a false clean for a
+/// false instruction.
+fn oversize_file_note(paths: &[String]) -> String {
+    let lockfile_caveat = if paths
+        .iter()
+        .any(|p| crate::filter::is_lockfile(Path::new(p)))
+    {
+        " (a lockfile is the exception: `skip_extensions` deliberately cannot exclude one, \
+         because lockfiles carry the URL-credential scan, so an oversize lockfile has no \
+         exclusion remedy today)"
+    } else {
+        ""
+    };
+    format!(
+        "{} file(s) at or over the {} MiB scan limit were not scanned, so this result cannot \
+         prove them clean ({}): exclude them with `skip_extensions` if they are generated \
+         artefacts, or split them below the limit{lockfile_caveat}",
+        paths.len(),
+        MAX_FILE_SIZE / (1024 * 1024),
+        named_paths(paths)
     )
 }
 
@@ -548,8 +772,15 @@ mod tests {
         let files = [file_string.as_str()];
         let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
 
+        // SDT-006: still a clean pass. A configured exclusion is an operator
+        // decision, not a coverage failure — see
+        // `tests/secret_file_coverage.rs` for why blocking here is rejected.
         assert!(result.passed);
         assert_eq!(result.findings.len(), 0);
+        assert_eq!(
+            result.files_skipped_extension, 1,
+            "the exclusion is advisory, but it is not invisible: {result:?}"
+        );
 
         let _ = fs::remove_dir_all(temp_dir);
     }
@@ -568,8 +799,88 @@ mod tests {
         let files = [file_string.as_str()];
         let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
 
-        assert!(result.passed, "large files should be skipped entirely");
+        // The file is still skipped — SDT-006 does not raise `MAX_FILE_SIZE`.
         assert_eq!(result.findings.len(), 0);
+        // SDT-006 inverts the old `assert!(result.passed)`. Skipping the file
+        // is correct; reporting a clean pass over a file nobody read is not.
+        assert!(
+            !result.passed,
+            "a file dropped by the size guard must not report a clean pass: {result:?}"
+        );
+        assert_eq!(result.score, 0, "{result:?}");
+        assert_eq!(
+            result.files_skipped_oversize.len(),
+            1,
+            "the skipped file must be named on the result: {result:?}"
+        );
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    /// SDT-006 — the SCAN-001 `catch_unwind` arm.
+    ///
+    /// Before this item, a panicking scan discarded the whole file and the
+    /// result read "No secrets detected", `passed = true`, `score = 100`. The
+    /// panic must still be contained (a bad custom regex may not tear down
+    /// the run) and must now also be reported.
+    ///
+    /// The scan is injected because no input reachably panics the real
+    /// scanner — see `run_secret_check_with_scanner`. Everything downstream of
+    /// the `catch_unwind` (accounting, `coverage_notes`, scoring, message) is
+    /// the production path.
+    #[test]
+    fn panicking_scan_is_not_a_clean_pass() {
+        let temp_dir = create_temp_dir("panic-arm");
+        let file = temp_dir.join("boom.ts");
+        fs::write(&file, "export const x = 1;\n").unwrap();
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+
+        // SCAN-001 contains the unwind, but the default hook still prints a
+        // panic banner from the rayon worker that reads like a test failure.
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let result = super::run_secret_check_with_scanner(
+            &files,
+            &SecretCheckConfig::default(),
+            None,
+            Vec::new(),
+            |_content, _display_path| panic!("custom pattern blew up mid-scan"),
+        );
+        std::panic::set_hook(previous);
+
+        assert!(
+            result.findings.is_empty(),
+            "the scan never completed, so there is nothing to find: {result:?}"
+        );
+        assert!(
+            !result.passed,
+            "a file whose scan crashed must not report a clean pass: {result:?}"
+        );
+        assert_eq!(
+            result.score, 0,
+            "a crashed scan has no coverage denominator: {result:?}"
+        );
+        assert_ne!(
+            result.message, "No secrets detected",
+            "the clean-result message must not survive a crashed scan: {result:?}"
+        );
+        assert_eq!(
+            result.files_skipped_panicked.len(),
+            1,
+            "the crashed file must be named on the result: {result:?}"
+        );
+        assert!(
+            result.message.contains("boom.ts"),
+            "the message must name the file that provoked the crash: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains("custom_patterns"),
+            "the message must name the usual cause so the operator can act: {}",
+            result.message
+        );
 
         let _ = fs::remove_dir_all(temp_dir);
     }
@@ -680,11 +991,19 @@ mod tests {
         let files = [file_string.as_str()];
         let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
 
-        assert!(
-            result.passed,
-            "file at exact size boundary should be skipped"
-        );
+        // The boundary itself is unchanged: `>= MAX_FILE_SIZE` is skipped.
         assert_eq!(result.findings.len(), 0);
+        // SDT-006 inverts the old `assert!(result.passed)` for the same reason
+        // as `skips_files_exceeding_size_limit`.
+        assert!(
+            !result.passed,
+            "a file skipped at the exact size boundary is still an unscanned file: {result:?}"
+        );
+        assert_eq!(
+            result.files_skipped_oversize.len(),
+            1,
+            "the boundary file must be reported, not merely dropped: {result:?}"
+        );
 
         let _ = fs::remove_dir_all(temp_dir);
     }

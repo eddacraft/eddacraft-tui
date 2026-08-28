@@ -2406,16 +2406,66 @@ fn run_check_secret_with_hook_mode_and_provenance(
             } else {
                 f64::from(result.score)
             },
-            // CIB-255: domain on FAIL too — readers comparing gate vs
-            // per-file `check` counts need the same scope statement.
-            message: format!(
-                "Potential secrets found in {} location(s):\n{}{suppression_suffix}{pattern_errors_suffix}\n{GATE_SECRET_SCAN_DOMAIN}",
+            message: secret_failure_message(
                 finding_count,
-                locations.join("\n")
+                &locations,
+                &result.coverage_notes,
+                &suppression_suffix,
+                &pattern_errors_suffix,
             ),
             requires_config: false,
         }
     }
+}
+
+/// Render a failing `secret-detection` result for gate output.
+///
+/// SDT-006: the check can now fail on coverage alone — a file it could not
+/// read, one at or over the 1 MiB limit, or a scan that crashed. None of those
+/// is a "location", so routing them through the finding count produced
+/// "Potential secrets found in 0 location(s):" above an empty list: a red
+/// naming nothing to act on, which is exactly the Risk SDT-001 recorded
+/// against itself. The notes carry both cause and remedy, so they get their own
+/// block and survive *alongside* real findings rather than replacing them.
+///
+/// CIB-255: the domain note rides on FAIL as well as PASS — readers comparing
+/// gate against per-file `check` counts need the same scope statement.
+fn secret_failure_message(
+    finding_count: usize,
+    locations: &[String],
+    coverage_notes: &[String],
+    suppression_suffix: &str,
+    pattern_errors_suffix: &str,
+) -> String {
+    let headline = if finding_count == 0 && !coverage_notes.is_empty() {
+        "Secret scan could not prove this tree clean".to_string()
+    } else {
+        format!(
+            "Potential secrets found in {finding_count} location(s):\n{}",
+            locations.join("\n")
+        )
+    };
+    let coverage_suffix = secret_coverage_suffix(coverage_notes);
+    format!(
+        "{headline}{coverage_suffix}{suppression_suffix}{pattern_errors_suffix}\n{GATE_SECRET_SCAN_DOMAIN}"
+    )
+}
+
+/// SDT-006: render the coverage gaps as their own block, mirroring the shape
+/// [`secret_pattern_errors_suffix`] already uses for unusable config.
+fn secret_coverage_suffix(coverage_notes: &[String]) -> String {
+    if coverage_notes.is_empty() {
+        return String::new();
+    }
+
+    format!(
+        "\n\n⚠ the scan could not cover everything it was asked to:\n{}",
+        coverage_notes
+            .iter()
+            .map(|note| format!("  - {note}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
 }
 
 /// Format one antipattern or AST warning as a gate location line.
@@ -11142,6 +11192,57 @@ rules: []
         assert!(
             result.message.contains(GATE_SECRET_SCAN_DOMAIN),
             "FAIL message must carry the domain note:\n{}",
+            result.message
+        );
+    }
+
+    /// SDT-006: a secret check can now fail with **zero** findings, because
+    /// coverage it wanted was not obtained. Gate renders findings as
+    /// locations, so without this the operator gets "Potential secrets found
+    /// in 0 location(s):" and an empty list — a red naming nothing to do,
+    /// which is the exact failure mode SDT-001 recorded as its own Risk.
+    ///
+    /// This is not hypothetical on this repository: `pnpm-lock.yaml` is over
+    /// the 1 MiB limit and inside the gate's `.yaml` scan domain.
+    #[test]
+    fn secret_fail_on_coverage_alone_names_the_cause_not_zero_locations() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // In-domain (`.yaml`) and at/over `MAX_FILE_SIZE`, so the scanner
+        // declines to read it — mirroring this repo's own lockfile.
+        let padding_len =
+            usize::try_from(anvil_checks::secret::MAX_FILE_SIZE).expect("limit fits usize");
+        std::fs::write(tmp.path().join("huge.yaml"), "x".repeat(padding_len)).unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+
+        assert!(
+            !result.passed,
+            "an unscanned in-domain file must not pass the gate:\n{}",
+            result.message
+        );
+        assert!(
+            !result.message.contains("0 location(s)"),
+            "a coverage failure must not be rendered as a finding count of zero:\n{}",
+            result.message
+        );
+        assert!(
+            result.message.contains("huge.yaml"),
+            "the gate must name the unscanned file:\n{}",
+            result.message
+        );
+        assert!(
+            result.message.contains("scan limit"),
+            "the gate must carry the cause and remedy through from the check:\n{}",
+            result.message
+        );
+        assert!(
+            result.message.contains(GATE_SECRET_SCAN_DOMAIN),
+            "the domain note still rides along:\n{}",
             result.message
         );
     }

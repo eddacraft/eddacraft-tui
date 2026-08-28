@@ -255,4 +255,56 @@ pub struct SecretCheckResult {
     /// field backward-compatible with pre-fix wire consumers.
     #[serde(default)]
     pub history_scan_errors: Vec<String>,
+    /// SDT-001/SDT-006: every reason this result cannot claim it saw all of
+    /// its input — a failed history scan, oversize lines, and the blocking
+    /// file-level skips below — in the order `message` renders them. Non-empty
+    /// exactly when `passed` is false for a reason other than a finding.
+    ///
+    /// This is the data behind the coverage half of `message`. Consumers that
+    /// build their own output need it structured rather than as prose: `anvil
+    /// gate` renders findings as locations, so without this a coverage-only
+    /// failure came out as "Potential secrets found in 0 location(s):" above
+    /// an empty list — a red naming nothing to act on. `serde(default)` keeps
+    /// the field backward-compatible.
+    #[serde(default)]
+    pub coverage_notes: Vec<String>,
+    /// SDT-006: files at or over `MAX_FILE_SIZE`, so no byte of them was
+    /// scanned. **Blocking** — the file-level twin of `lines_skipped_oversize`,
+    /// and measured on the anvil repository itself this is the path that hides
+    /// `pnpm-lock.yaml` from the GH #2584 URL-credential scan.
+    ///
+    /// Paths, not a bare count: "3 files were not scanned" is not something an
+    /// operator can act on, and a path is no more sensitive than the `file` a
+    /// `SecretFinding` already reports unredacted. Rendered through the same
+    /// `normalise_file_path` as findings, and sorted, so the value is stable
+    /// under the parallel scan. `serde(default)` for wire compatibility.
+    #[serde(default)]
+    pub files_skipped_oversize: Vec<String>,
+    /// SDT-006: files that exist but could not be read as UTF-8 text — the
+    /// `fs::read_to_string(..).ok()?` path. **Blocking**: a failed read is not
+    /// an operator choice, and a credential in a file nobody opened is exactly
+    /// the false-clean this module exists to remove.
+    #[serde(default)]
+    pub files_skipped_unreadable: Vec<String>,
+    /// SDT-006: files whose scan panicked and was contained by the SCAN-001
+    /// `catch_unwind`. **Blocking, and the sharpest of the four**: containing
+    /// the panic is correct, but before SDT-006 the whole file's scan was
+    /// discarded and the result still read "No secrets detected", passed,
+    /// score 100.
+    #[serde(default)]
+    pub files_skipped_panicked: Vec<String>,
+    /// SDT-006: how many files a configured `skip_extensions` entry excluded.
+    /// **Never blocking** — a deliberate operator exclusion, not a failure.
+    /// The default list carries `.png`, `.jpg` and `.lock`, which every
+    /// repository has, so blocking here would redden every clean pass
+    /// everywhere (operator decision, 2026-08-28).
+    ///
+    /// A count rather than paths, and deliberately absent from `message`: this
+    /// population is unbounded (a repo can hold thousands of images) and
+    /// reciting the operator's own configuration back at them on every clean
+    /// run would train them to skip the coverage clause — which is the clause
+    /// the blocking notes above need them to read. Carrying it here keeps the
+    /// exclusion observable without spending the message channel on it.
+    #[serde(default)]
+    pub files_skipped_extension: usize,
 }

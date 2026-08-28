@@ -372,7 +372,8 @@ known gap lives.
 
 ### SDT-006: Fail closed on unscanned files
 
-- **Status:** Proposed
+- **Status:** In Progress — operator-promoted 2026-08-28 (Proposed → Ready →
+  In Progress on direction). Implemented on `feat/sdt-006-unscanned-files`.
 - **Intent:** SDT-001 made unscanned *lines* honest. Whole *files* are still
   dropped silently, so the same false-clean survives one level up: a clean
   result can still mean "we never read it".
@@ -395,7 +396,20 @@ known gap lives.
   Not every skip deserves equal weight — a configured `.png` skip is a
   deliberate operator choice and a panic is a bug — so the outcome must
   distinguish *deliberate* exclusions from *failed* ones rather than
-  flattening both into one red. The base test
+  flattening both into one red.
+  **Operator decision, 2026-08-28:** genuine failures (unreadable file,
+  SCAN-001 panic) **and** the file-size limit block a clean pass; a configured
+  `skip_extensions` match is reported but never blocks. Blocking on
+  `skip_extensions` is rejected outright — the defaults include `.png`,
+  `.jpg` and `.lock`, which every repository has, so it would redden every
+  clean pass everywhere. The size limit blocks because it is the direct
+  analogue of `max_line_bytes`, which SDT-001 already made blocking, and
+  because it hides a real credential path: measured on this repository, the
+  three tracked files over the 1 MiB limit are two `.json` audits and
+  **`pnpm-lock.yaml`** — all in gate-scanned extensions. The lockfile is
+  supposed to receive the URL-credential scan (GH #2584) but is dropped whole
+  before that scan can run, so anvil cannot currently prove its own lockfile
+  free of credentials. The base test
   `check.rs::skips_files_exceeding_size_limit` currently asserts
   `result.passed` and will need revisiting under whatever distinction is
   chosen.
