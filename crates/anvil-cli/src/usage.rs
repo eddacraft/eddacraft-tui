@@ -782,19 +782,73 @@ pub fn attach_principal(frame: &mut serde_json::Value) {
 /// (`ANVIL_USAGE_DISABLE`), the cross-cutting whole-observation break-glass
 /// (`ANVIL_INTERCEPT_DISABLE_OBSERVATION`, so a single toggle silences both
 /// the daemon and the CLI), and the cross-tool `DO_NOT_TRACK` consent
-/// convention. Any of them set to `1` (the explicit opt-out value the
-/// daemon kill-switch already uses) declines collection. Read fresh each
-/// call so an operator can flip it without a code change.
+/// convention. Any of them set to a non-empty value other than `0`/`false`
+/// declines collection (CIB-364(b) widened this from an exact `"1"` match).
+/// Read fresh each call so an operator can flip it without a code change.
+/// Whether one opt-out variable's value declines collection.
+///
+/// CIB-364(b): every switch used to match the exact string `"1"`, so
+/// `DO_NOT_TRACK=true` — the form plenty of tools and users actually set —
+/// was ignored and collection continued. For a privacy control that is
+/// failing OPEN, the unsafe direction.
+///
+/// The rule here is not invented: it mirrors `telemetry::do_not_track_is_set`,
+/// which this crate already applies to the telemetry send gate. Any non-empty
+/// value other than an explicit `0`/`false` opts out — when in doubt, do not
+/// collect. Applying it to anvil's own switches too keeps one rule across
+/// every opt-out rather than two that disagree.
+#[must_use]
+pub(crate) fn opt_out_value_is_set(value: Option<&str>) -> bool {
+    value.is_some_and(|v| {
+        let v = v.trim();
+        !v.is_empty() && !matches!(v.to_ascii_lowercase().as_str(), "0" | "false")
+    })
+}
+
+/// Pure core of [`usage_collection_disabled`], with every switch injected so
+/// tests pin each one without touching the process environment (the same
+/// shape `telemetry::evaluate_send_gate` uses).
+#[must_use]
+pub(crate) fn usage_collection_disabled_from(
+    do_not_track: Option<&str>,
+    intercept_disable: Option<&str>,
+    usage_disable: Option<&str>,
+) -> bool {
+    opt_out_value_is_set(do_not_track)
+        || opt_out_value_is_set(intercept_disable)
+        || opt_out_value_is_set(usage_disable)
+}
+
+/// Pure core of the daemon producer gate.
+///
+/// CIB-364(a): the daemon path used to consult
+/// `ANVIL_INTERCEPT_DISABLE_OBSERVATION` alone and never `DO_NOT_TRACK` at any
+/// value, so a user who had opted out still had `gate_evaluated` and
+/// `constraint_applied` rows written. The CLI and daemon paths now share one
+/// rule, so they cannot disagree about whether someone opted out.
+#[must_use]
+pub(crate) fn observation_producers_disabled(
+    do_not_track: Option<&str>,
+    intercept_disable: Option<&str>,
+    usage_disable: Option<&str>,
+) -> bool {
+    usage_collection_disabled_from(do_not_track, intercept_disable, usage_disable)
+}
+
+/// Read an opt-out variable as UTF-8. A non-UTF-8 value is treated as set:
+/// it is certainly not `0`/`false`, and refusing to collect is the safe
+/// reading of a value we cannot parse.
+fn opt_out_env(var: &str) -> Option<String> {
+    env::var_os(var).map(|v| v.into_string().unwrap_or_else(|_| "1".to_string()))
+}
+
 #[must_use]
 pub fn usage_collection_disabled() -> bool {
-    const OPT_OUT_VARS: [&str; 3] = [
-        "ANVIL_USAGE_DISABLE",
-        "ANVIL_INTERCEPT_DISABLE_OBSERVATION",
-        "DO_NOT_TRACK",
-    ];
-    OPT_OUT_VARS
-        .iter()
-        .any(|var| env::var_os(var).is_some_and(|v| v == "1"))
+    usage_collection_disabled_from(
+        opt_out_env("DO_NOT_TRACK").as_deref(),
+        opt_out_env("ANVIL_INTERCEPT_DISABLE_OBSERVATION").as_deref(),
+        opt_out_env("ANVIL_USAGE_DISABLE").as_deref(),
+    )
 }
 
 pub fn record_invocation(command_name: &str) -> Result<()> {
@@ -1262,11 +1316,18 @@ pub fn daemon_observation_producers() -> (
 ) {
     // Whole-DPO kill-switch (council J): one env toggle disables every DPO
     // producer. Read fresh so an operator can flip it per daemon start.
-    if env::var_os("ANVIL_INTERCEPT_DISABLE_OBSERVATION").is_some_and(|v| v == "1") {
+    // CIB-364(a): `DO_NOT_TRACK` is checked HERE too, not only on the CLI
+    // `command.invoked` path. Before this, a user who set it still had
+    // save-time and fence rows written to the sidecar.
+    if observation_producers_disabled(
+        opt_out_env("DO_NOT_TRACK").as_deref(),
+        opt_out_env("ANVIL_INTERCEPT_DISABLE_OBSERVATION").as_deref(),
+        opt_out_env("ANVIL_USAGE_DISABLE").as_deref(),
+    ) {
         tracing::warn!(
             target: "anvil::usage",
-            "ANVIL_INTERCEPT_DISABLE_OBSERVATION=1 — save-time + fence observation \
-             producers disabled (break-glass)",
+            "observation opt-out set (DO_NOT_TRACK / ANVIL_INTERCEPT_DISABLE_OBSERVATION / \
+             ANVIL_USAGE_DISABLE) — save-time + fence observation producers disabled",
         );
         return (None, None, false);
     }
@@ -1323,6 +1384,82 @@ pub fn daemon_observation_producers() -> (
 /// producer hot path never blocks. Sized generously so only a genuinely
 /// stuck sidecar trips it.
 const DEFAULT_OBSERVATION_CHANNEL_CAPACITY: usize = 1024;
+
+#[cfg(test)]
+mod cib_364_tests {
+    use super::*;
+
+    // CIB-364. Two defects, found while auditing evidence sources for FEFF-002.
+    //
+    // (a) Scope: `DO_NOT_TRACK` gated only the CLI `command.invoked` producer.
+    //     The save-time and fence producers consulted
+    //     `ANVIL_INTERCEPT_DISABLE_OBSERVATION` alone, so `DO_NOT_TRACK=1`
+    //     still wrote `gate_evaluated` and `constraint_applied` rows.
+    // (b) Value: every switch matched the exact string `"1"`, so
+    //     `DO_NOT_TRACK=true` was ignored — failing OPEN, the unsafe direction
+    //     for a privacy control.
+
+    #[test]
+    fn opt_out_honours_conventional_truthy_values() {
+        for value in ["1", "true", "yes", "TRUE", " 1 "] {
+            assert!(
+                opt_out_value_is_set(Some(value)),
+                "{value:?} must be honoured as an opt-out",
+            );
+        }
+    }
+
+    #[test]
+    fn opt_out_ignores_explicit_off_and_empty_values() {
+        for value in ["0", "false", "FALSE", "", "   "] {
+            assert!(
+                !opt_out_value_is_set(Some(value)),
+                "{value:?} must not be treated as an opt-out",
+            );
+        }
+        assert!(!opt_out_value_is_set(None), "unset must not opt out");
+    }
+
+    #[test]
+    fn do_not_track_disables_the_save_time_and_fence_producers() {
+        // The load-bearing half of CIB-364: before the fix this predicate
+        // ignored `DO_NOT_TRACK` entirely.
+        assert!(
+            observation_producers_disabled(Some("1"), None, None),
+            "DO_NOT_TRACK=1 must disable the daemon observation producers",
+        );
+        assert!(
+            observation_producers_disabled(Some("true"), None, None),
+            "DO_NOT_TRACK=true must disable the daemon observation producers",
+        );
+    }
+
+    #[test]
+    fn each_switch_independently_disables_the_producers() {
+        assert!(observation_producers_disabled(None, Some("1"), None));
+        assert!(observation_producers_disabled(None, None, Some("1")));
+        assert!(!observation_producers_disabled(None, None, None));
+        assert!(!observation_producers_disabled(
+            Some("0"),
+            Some("0"),
+            Some("0")
+        ));
+    }
+
+    #[test]
+    fn cli_and_daemon_paths_agree_on_the_same_values() {
+        // The two surfaces must never disagree about whether a user opted
+        // out; divergence between them is what CIB-364 actually was.
+        for value in ["1", "true", "yes", "0", "false", ""] {
+            let cli = usage_collection_disabled_from(Some(value), None, None);
+            let daemon = observation_producers_disabled(Some(value), None, None);
+            assert_eq!(
+                cli, daemon,
+                "DO_NOT_TRACK={value:?} must gate both paths alike"
+            );
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
