@@ -96,7 +96,7 @@ function render() {
     '',
     '| Type  | Authority | Owner   | Status | Freshness |',
     '| ----- | --------- | ------- | ------ | --------- |',
-    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-27 against `flags/surfaces.json` and `flags/manifest.json` |',
+    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-28 against `flags/surfaces.json`, `flags/manifest.json`, and the generator Windows launcher repair; catalogue semantics unchanged |',
     '',
     '| Upstream | Downstream |',
     '| -------- | ---------- |',

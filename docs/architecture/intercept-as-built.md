@@ -1,8 +1,8 @@
 # anvil-intercept compatibility record
 
-| Type     | Authority  | Owner     | Status     | Freshness                                                                                                                                                                    |
-| -------- | ---------- | --------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Historical | INTD, DSV | Deprecated | Reviewed 2026-08-27 after GTAO-003 CLI follow-up; live truth remains `crates/anvil-intercept/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
+| Type     | Authority  | Owner     | Status     | Freshness                                                                                                                                                                                                      |
+| -------- | ---------- | --------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | INTD, DSV | Deprecated | Reviewed 2026-08-28 after PR #4194's Windows and macOS Nightly portability repairs; live truth remains `crates/anvil-intercept/ARCHITECTURE.md`; this dated snapshot remains for inbound links and Git history |
 
 | Upstream                                                                                                                                                                             | Downstream                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
