@@ -9,7 +9,9 @@ use anvil_kernel_types::{
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(unix)]
+use std::time::Instant;
 use tempfile::TempDir;
 
 fn git(repo: &Path, args: &[&str]) -> String {
