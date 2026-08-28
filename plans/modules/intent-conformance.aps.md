@@ -194,13 +194,15 @@ Change status to **Ready** when:
   `crates/anvil-checks/tests/conformance_git.rs`,
   `crates/anvil-checks/src/lib.rs`, `crates/anvil-checks/Cargo.toml`,
   and `Cargo.lock`
-- **Evidence:** Twenty-seven extractor tests cover option-safe selection,
+- **Evidence:** Twenty-nine extractor tests cover option-safe selection,
   replacement/graft/shallow rejection, first-parent and ancestry semantics,
   raw record fidelity, base-tree authority, opaque identity verification, and
   stage-local last-complete-record budget diagnostics. Controlled Git wrappers
   prove preflight/final endpoint equality, timeout counters, descendant
   process-tree teardown, canonical absolute Git executable resolution, and
-  canonical top-level worktree identity with explicit bare-repository rejection.
+  canonical top-level worktree identity and command execution with explicit
+  bare-repository rejection. Revision-list byte overflow retains the configured
+  commit ceiling and the last complete commit count.
 - **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast`
 - **Dependencies:** CONF-002
 - **Confidence:** high

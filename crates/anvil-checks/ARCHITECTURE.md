@@ -114,7 +114,8 @@ orchestration from leaking into the reusable check engine.
   canonical-worktree identities are derived from the canonical Git common
   directory and top-level respectively, re-verified at extraction, and emitted
   only as opaque digests. Bare repositories are rejected, while any directory
-  inside one worktree resolves to the same worktree identity.
+  inside one worktree resolves to the same worktree identity and every later Git
+  command executes from that verified top-level.
 - Git executable discovery accepts only a canonical absolute program reached
   through an absolute `PATH` entry. Each command is isolated in a process group
   (or Windows process tree), abnormal exits terminate descendants, and reader

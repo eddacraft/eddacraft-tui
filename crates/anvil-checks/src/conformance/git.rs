@@ -205,7 +205,7 @@ impl GitExtractor {
             .canonicalize()
             .map_err(|error| not_evaluated("repository.invalid", "identity", error.to_string()))?;
         let empty_config = EmptyGlobalConfig::create()?;
-        self.reject_bare_repository(&repository, &empty_config, started)?;
+        let repository = self.resolve_canonical_worktree(&repository, &empty_config, started)?;
         self.reject_replacement_state(&repository, &empty_config, started)?;
         self.derive_repository_identity(&repository, &empty_config, run_id.into(), started)
     }
@@ -236,7 +236,7 @@ impl GitExtractor {
             not_evaluated("repository.invalid", "repository", error.to_string())
         })?;
         let empty_config = EmptyGlobalConfig::create()?;
-        self.reject_bare_repository(&repository, &empty_config, started)?;
+        let repository = self.resolve_canonical_worktree(&repository, &empty_config, started)?;
         self.reject_replacement_state(&repository, &empty_config, started)?;
         let verified_identity = self.derive_repository_identity(
             &repository,
@@ -448,12 +448,12 @@ impl GitExtractor {
         Ok(())
     }
 
-    fn reject_bare_repository(
+    fn resolve_canonical_worktree(
         &self,
         repository: &Path,
         empty_config: &EmptyGlobalConfig,
         started: Instant,
-    ) -> Result<(), GitNonEvaluation> {
+    ) -> Result<PathBuf, GitNonEvaluation> {
         let bare = self.run_git(
             repository,
             empty_config,
@@ -470,7 +470,19 @@ impl GitExtractor {
                 "bare repositories have no canonical worktree".to_owned(),
             ));
         }
-        Ok(())
+        let worktree = self.run_git(
+            repository,
+            empty_config,
+            &["rev-parse", "--path-format=absolute", "--show-toplevel"],
+            started,
+            "identity-worktree",
+            64 * 1024,
+            "git.output-bytes",
+        )?;
+        let worktree = utf8_trimmed(worktree, "identity.worktree-invalid")?;
+        Path::new(&worktree).canonicalize().map_err(|error| {
+            not_evaluated("identity.worktree-invalid", "identity", error.to_string())
+        })
     }
 
     fn derive_repository_identity(
@@ -493,23 +505,10 @@ impl GitExtractor {
         let common_dir = Path::new(&common_dir).canonicalize().map_err(|error| {
             not_evaluated("identity.common-dir-invalid", "identity", error.to_string())
         })?;
-        let worktree = self.run_git(
-            repository,
-            empty_config,
-            &["rev-parse", "--path-format=absolute", "--show-toplevel"],
-            started,
-            "identity-worktree",
-            64 * 1024,
-            "git.output-bytes",
-        )?;
-        let worktree = utf8_trimmed(worktree, "identity.worktree-invalid")?;
-        let worktree = Path::new(&worktree).canonicalize().map_err(|error| {
-            not_evaluated("identity.worktree-invalid", "identity", error.to_string())
-        })?;
         Ok(GitEvaluationIdentity {
             run_id,
             repository_id: opaque_path_identity(b"repository", &common_dir),
-            canonical_worktree_id: opaque_path_identity(b"worktree", &worktree),
+            canonical_worktree_id: opaque_path_identity(b"worktree", repository),
         })
     }
 
@@ -1056,6 +1055,14 @@ impl GitExtractor {
             termination = Some((overflow_reason, stdout.total, output_limit));
         }
         if let Some((reason, observed, limit)) = termination {
+            let (observed, limit) = if reason == "budget.commits" {
+                (
+                    complete_revision_count(&stdout.bytes),
+                    self.limits.max_commits,
+                )
+            } else {
+                (observed, limit)
+            };
             let mut failure = over_budget(reason, stage, observed, limit);
             failure.raw_digest = Some(stdout.digest.into_boxed_str());
             let diagnostics = failure.budget.as_mut().expect("budget diagnostics");
@@ -1066,6 +1073,9 @@ impl GitExtractor {
                 let (records, decoded_bytes) = complete_raw_record_counts(&stdout.bytes);
                 diagnostics.records = Some(records);
                 diagnostics.decoded_bytes = Some(decoded_bytes);
+            }
+            if reason == "budget.commits" {
+                diagnostics.commits = Some(observed);
             }
             diagnostics.raw_bytes = Some(stdout.total);
             diagnostics
@@ -1176,6 +1186,17 @@ fn complete_raw_record_counts(raw: &[u8]) -> (usize, usize) {
         decoded_bytes = decoded_bytes.saturating_add(record_decoded_bytes);
     }
     (records, decoded_bytes)
+}
+
+fn complete_revision_count(raw: &[u8]) -> usize {
+    raw.split_inclusive(|byte| *byte == b'\n')
+        .filter(|line| {
+            let Some(oid) = line.strip_suffix(b"\n") else {
+                return false;
+            };
+            matches!(oid.len(), 40 | 64) && oid.iter().all(u8::is_ascii_hexdigit)
+        })
+        .count()
 }
 
 fn coverage_endpoints(members: &[GitCoverageMember]) -> BTreeSet<&str> {

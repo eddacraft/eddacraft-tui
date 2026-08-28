@@ -685,7 +685,7 @@ fn deterministic_extraction_budgets_are_reason_coded_and_keep_the_commit() {
     let too_many_commits = GitExtractor::with_limits(limits.clone()).extract(
         repo.path(),
         GitSelection::Range {
-            base,
+            base: base.clone(),
             head: head.clone(),
         },
         &identity(repo.path()),
@@ -703,6 +703,38 @@ fn deterministic_extraction_budgets_are_reason_coded_and_keep_the_commit() {
             .as_deref()
             .is_some_and(|digest| digest.starts_with("sha256:"))
     );
+
+    for index in 4..=6 {
+        commit_file(
+            repo.path(),
+            &format!("docs/{index}.md"),
+            &format!("{index}\n"),
+            "docs(path:docs): extend range",
+        );
+    }
+    let overflow_head = git(repo.path(), &["rev-parse", "HEAD"]);
+    limits = GitExtractionLimits {
+        max_commits: 0,
+        ..GitExtractionLimits::default()
+    };
+    let overflow = GitExtractor::with_limits(limits.clone()).extract(
+        repo.path(),
+        GitSelection::Range {
+            base,
+            head: overflow_head,
+        },
+        &identity(repo.path()),
+    );
+    let GitExtractionOutcome::NotEvaluated(overflow) = overflow else {
+        panic!("revision-list byte guard must preserve commit budget semantics");
+    };
+    assert_eq!(overflow.reason, "budget.commits");
+    assert_eq!(overflow.observed, 3);
+    assert_eq!(overflow.limit, Some(0));
+    let commit_budget = overflow.budget.expect("overflow commit diagnostics");
+    assert_eq!(commit_budget.configured_limit, 0);
+    assert_eq!(commit_budget.commits, Some(3));
+    assert!(commit_budget.raw_bytes.is_some_and(|bytes| bytes > 129));
 
     limits = GitExtractionLimits {
         max_records_per_commit: 0,
@@ -873,6 +905,78 @@ fn descendant_holding_pipe_git_wrapper(directory: &Path) {
         .permissions();
     permissions.set_mode(0o755);
     std::fs::set_permissions(path, permissions).expect("make Git wrapper executable");
+}
+
+#[cfg(unix)]
+fn nested_repository_race_git_wrapper(directory: &Path, nested: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let real_git = real_git_program();
+    let script = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --path-format=absolute --show-toplevel '*)\n    '{}' \"$@\"\n    status=$?\n    '{}' -C '{}' init -q\n    exit $status\n    ;;\nesac\nexec '{}' \"$@\"\n",
+        real_git.display(),
+        real_git.display(),
+        nested.display(),
+        real_git.display()
+    );
+    let path = directory.join("git");
+    std::fs::write(&path, script).expect("write nested-repository Git wrapper");
+    let mut permissions = std::fs::metadata(&path)
+        .expect("wrapper metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).expect("make Git wrapper executable");
+}
+
+#[cfg(unix)]
+#[test]
+fn verified_canonical_worktree_remains_the_command_boundary() {
+    let repo = repository();
+    commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");
+    let nested = repo.path().join("docs/nested");
+    std::fs::create_dir_all(&nested).expect("create nested path");
+    let expected = identity(repo.path());
+    let wrapper = tempfile::tempdir().expect("wrapper directory");
+    nested_repository_race_git_wrapper(wrapper.path(), &nested);
+
+    let status = Command::new(std::env::current_exe().expect("current test executable"))
+        .args([
+            "--exact",
+            "canonical_worktree_boundary_child",
+            "--nocapture",
+        ])
+        .env("ANVIL_CONF_CANONICAL_REPO", &nested)
+        .env("ANVIL_CONF_REPOSITORY_ID", &expected.repository_id)
+        .env("ANVIL_CONF_WORKTREE_ID", &expected.canonical_worktree_id)
+        .env("PATH", wrapper.path())
+        .status()
+        .expect("run canonical-worktree boundary child");
+    assert!(
+        status.success(),
+        "canonical worktree boundary was not retained"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn canonical_worktree_boundary_child() {
+    let Some(repository) = std::env::var_os("ANVIL_CONF_CANONICAL_REPO") else {
+        return;
+    };
+    let expected = GitEvaluationIdentity {
+        run_id: "run-conf-003".to_owned(),
+        repository_id: std::env::var("ANVIL_CONF_REPOSITORY_ID").expect("repository identity"),
+        canonical_worktree_id: std::env::var("ANVIL_CONF_WORKTREE_ID").expect("worktree identity"),
+    };
+    let outcome = GitExtractor::default().extract(
+        Path::new(&repository),
+        GitSelection::Commit("HEAD".into()),
+        &expected,
+    );
+    let GitExtractionOutcome::Evaluated(extraction) = outcome else {
+        panic!("verified canonical worktree must remain authoritative: {outcome:?}");
+    };
+    assert_eq!(extraction.commits.len(), 1);
 }
 
 #[cfg(unix)]
