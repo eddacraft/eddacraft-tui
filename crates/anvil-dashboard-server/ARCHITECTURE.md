@@ -1,8 +1,8 @@
 # anvil dashboard server architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                        |
-| ------------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-25 against FLAGCAT-012 dashboard route completeness; server and OpenAPI topology unchanged |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                |
+| ------------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-28 against PR #4194's Windows concurrent OpenAPI export repair; server and OpenAPI topology and diagrams unchanged |
 
 | Upstream                                                                                                                                        | Downstream                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |

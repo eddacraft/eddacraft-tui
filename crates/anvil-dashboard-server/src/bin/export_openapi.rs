@@ -1,6 +1,9 @@
+#[cfg(any(not(windows), test))]
 use std::fs::{self, File, OpenOptions};
+#[cfg(not(windows))]
 use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(any(not(windows), test))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anvil_dashboard_server::openapi_document;
@@ -16,12 +19,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Windows already has a handle-relative, reparse-safe atomic writer with
+/// replace-in-place semantics. Reuse it here: the old backup-then-install
+/// sequence avoided deleting the destination on a single-writer failure, but
+/// was not serialisable when concurrent exporters raced over the destination.
+#[cfg(windows)]
+fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
+    anvil_intercept_win32::path_nofollow::atomic_write_nofollow(path, content)
+}
+
 /// Write `content` via a same-directory temp file + rename so an interrupted
 /// export cannot leave the committed `OpenAPI` contract truncated.
 ///
 /// Staging uses an exclusive (`create_new`) uniquely named sibling so a
 /// pre-planted symlink cannot redirect the write and concurrent exporters
 /// cannot share one temporary path.
+#[cfg(not(windows))]
 fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
     // Bare filenames like `openapi.json` report an empty parent; treat that as
     // the current directory. Only error when `parent()` is actually missing
@@ -42,9 +55,6 @@ fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
         .and_then(|s| s.to_str())
         .unwrap_or("openapi.json");
 
-    #[cfg(windows)]
-    let (mut file, tmp_path, attempt_id) = open_exclusive_staging_file(dir, file_name)?;
-    #[cfg(not(windows))]
     let (mut file, tmp_path, _) = open_exclusive_staging_file(dir, file_name)?;
     if let Err(e) = file.write_all(content).and_then(|()| file.sync_all()) {
         drop(file);
@@ -55,27 +65,11 @@ fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
     // that still has an open *source* handle.
     drop(file);
 
-    // On Unix, rename replaces an existing destination atomically. On Windows,
-    // rename fails if the destination exists — use backup-then-replace so a
-    // failed install can restore the previous contract instead of deleting it
-    // first (clawpatch high: data-loss on rename failure).
-    // No `return`: once the other arm is cfg-stripped this block is the
-    // function's tail expression, so `return` here trips `needless_return`
-    // on a Windows build (CIB-193).
-    #[cfg(windows)]
-    {
-        let backup_path = dir.join(format!(".{file_name}.{attempt_id}.bak"));
-        replace_existing_via_backup(&tmp_path, path, &backup_path)
-    }
-
-    #[cfg(not(windows))]
-    {
-        match fs::rename(&tmp_path, path) {
-            Ok(()) => Ok(()),
-            Err(e) => {
-                let _ = fs::remove_file(&tmp_path);
-                Err(e)
-            }
+    match fs::rename(&tmp_path, path) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            let _ = fs::remove_file(&tmp_path);
+            Err(e)
         }
     }
 }
@@ -88,6 +82,7 @@ fn atomic_write(path: &Path, content: &[u8]) -> std::io::Result<()> {
 /// predictable-name concurrent-clobber race and the `File::create` symlink
 /// redirection window a PID-only (or PID+nanos without exclusive create)
 /// staging path allowed.
+#[cfg(any(not(windows), test))]
 fn open_exclusive_staging_file(
     dir: &Path,
     file_name: &str,
@@ -118,60 +113,6 @@ fn open_exclusive_staging_file(
         std::io::ErrorKind::AlreadyExists,
         "exhausted exclusive temporary export file name attempts",
     ))
-}
-
-/// Install `tmp` over `dest` without permanently discarding the previous
-/// destination until the install rename succeeds.
-///
-/// Steps: move `dest` aside to `backup` (if present), rename `tmp` → `dest`,
-/// then remove `backup`. If the install rename fails, restore `backup` → `dest`
-/// and surface the original install error.
-///
-/// Used on Windows (where `rename` cannot replace). Also exercised on all
-/// platforms in unit tests so the restore path is covered without a Windows
-/// runner.
-#[cfg(any(windows, test))]
-fn replace_existing_via_backup(tmp: &Path, dest: &Path, backup: &Path) -> std::io::Result<()> {
-    // Callers pass a unique backup path per attempt, so we do not delete any
-    // pre-existing path here — that would risk clobbering a recovery backup
-    // from an earlier failed restore.
-
-    let dest_existed = match fs::symlink_metadata(dest) {
-        Ok(_) => true,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
-        Err(e) => {
-            let _ = fs::remove_file(tmp);
-            return Err(e);
-        }
-    };
-
-    if dest_existed && let Err(e) = fs::rename(dest, backup) {
-        let _ = fs::remove_file(tmp);
-        return Err(e);
-    }
-
-    match fs::rename(tmp, dest) {
-        Ok(()) => {
-            if dest_existed {
-                let _ = fs::remove_file(backup);
-            }
-            Ok(())
-        }
-        Err(e) => {
-            let _ = fs::remove_file(tmp);
-            if dest_existed && let Err(restore_err) = fs::rename(backup, dest) {
-                return Err(std::io::Error::new(
-                    e.kind(),
-                    format!(
-                        "failed to install new content at {}: {e}; also failed to restore previous content from {}: {restore_err}",
-                        dest.display(),
-                        backup.display()
-                    ),
-                ));
-            }
-            Err(e)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -385,65 +326,6 @@ mod tests {
                 .is_symlink(),
             "planted path should remain a symlink"
         );
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn replace_via_backup_preserves_destination_when_install_fails() {
-        let dir = temp_dir("backup-restore");
-        let dest = dir.join("openapi.json");
-        let tmp = dir.join(".openapi.json.tmp");
-        let backup = dir.join(".openapi.json.bak");
-
-        fs::write(&dest, b"original-contract\n").expect("seed dest");
-        // Missing `tmp` forces the install rename to fail after dest is moved
-        // aside; the helper must restore the original contract from backup.
-        let err = replace_existing_via_backup(&tmp, &dest, &backup).expect_err("install must fail");
-        assert!(
-            err.kind() == std::io::ErrorKind::NotFound || err.raw_os_error().is_some(),
-            "unexpected error: {err:?}"
-        );
-
-        assert_eq!(
-            fs::read_to_string(&dest).expect("restored dest"),
-            "original-contract\n",
-            "previous contract must be restored when install fails"
-        );
-        assert!(!backup.exists(), "backup should be consumed by restore");
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn replace_via_backup_replaces_and_removes_backup() {
-        let dir = temp_dir("backup-success");
-        let dest = dir.join("openapi.json");
-        let tmp = dir.join(".openapi.json.tmp");
-        let backup = dir.join(".openapi.json.bak");
-
-        fs::write(&dest, b"old\n").expect("seed dest");
-        fs::write(&tmp, b"new\n").expect("seed tmp");
-
-        replace_existing_via_backup(&tmp, &dest, &backup).expect("replace");
-
-        assert_eq!(fs::read_to_string(&dest).expect("read"), "new\n");
-        assert!(!tmp.exists(), "tmp should be gone");
-        assert!(!backup.exists(), "backup should be removed after success");
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn replace_via_backup_creates_when_dest_missing() {
-        let dir = temp_dir("backup-create");
-        let dest = dir.join("openapi.json");
-        let tmp = dir.join(".openapi.json.tmp");
-        let backup = dir.join(".openapi.json.bak");
-
-        fs::write(&tmp, b"fresh\n").expect("seed tmp");
-
-        replace_existing_via_backup(&tmp, &dest, &backup).expect("create");
-
-        assert_eq!(fs::read_to_string(&dest).expect("read"), "fresh\n");
-        assert!(!backup.exists());
         let _ = fs::remove_dir_all(&dir);
     }
 }
