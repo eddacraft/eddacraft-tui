@@ -51,8 +51,8 @@ pub fn write_last_run_files(root: &Path, json: &impl Serialize, human: &str) -> 
     let json_path = dir.join(LAST_CHECK_JSON);
     // Refuse both destinations before writing either, so a planted symlink
     // cannot leave a half-updated pair.
-    refuse_symlink(&txt_path)?;
-    refuse_symlink(&json_path)?;
+    refuse_non_regular_destination(&txt_path)?;
+    refuse_non_regular_destination(&json_path)?;
     write_regular_file(&txt_path, human.as_bytes())?;
     let mut json_bytes = serde_json::to_vec_pretty(json)
         .map_err(|err| anyhow::anyhow!("serialize last-run JSON: {err}"))?;
@@ -83,11 +83,15 @@ fn ensure_anvil_dir(dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn refuse_symlink(path: &Path) -> anyhow::Result<()> {
+fn refuse_non_regular_destination(path: &Path) -> anyhow::Result<()> {
     match path.symlink_metadata() {
         Ok(md) if md.file_type().is_symlink() => anyhow::bail!(
             "refusing to write last-run report to {}: it is a symlink; \
              pass a regular file path",
+            path.display()
+        ),
+        Ok(md) if !md.is_file() => anyhow::bail!(
+            "refusing to write last-run report to {}: not a regular file",
             path.display()
         ),
         _ => Ok(()),
@@ -95,7 +99,7 @@ fn refuse_symlink(path: &Path) -> anyhow::Result<()> {
 }
 
 fn write_regular_file(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
-    refuse_symlink(path)?;
+    refuse_non_regular_destination(path)?;
     let mut opts = OpenOptions::new();
     opts.write(true).create(true).truncate(true);
     #[cfg(unix)]
@@ -108,6 +112,17 @@ fn write_regular_file(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
         .map_err(|err| anyhow::anyhow!("write {}: {err}", path.display()))?;
     file.write_all(bytes)
         .map_err(|err| anyhow::anyhow!("write {}: {err}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mut perms = file
+            .metadata()
+            .map_err(|err| anyhow::anyhow!("stat {}: {err}", path.display()))?
+            .permissions();
+        perms.set_mode(0o600);
+        std::fs::set_permissions(path, perms)
+            .map_err(|err| anyhow::anyhow!("chmod {}: {err}", path.display()))?;
+    }
     Ok(())
 }
 
@@ -231,6 +246,35 @@ mod tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o600);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn last_run_overwrite_tightens_existing_mode_to_0600() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let tmp = tempfile::tempdir().unwrap();
+        write_last_run_files(tmp.path(), &sample_json(), "old\n").unwrap();
+        let json_path = tmp.path().join(".anvil").join(LAST_CHECK_JSON);
+        let mut perms = std::fs::metadata(&json_path).unwrap().permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&json_path, perms).unwrap();
+        write_last_run_files(tmp.path(), &sample_json(), "new\n").unwrap();
+        let mode = std::fs::metadata(&json_path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+
+    #[test]
+    fn last_run_refuses_directory_destination() {
+        let tmp = tempfile::tempdir().unwrap();
+        let anvil = tmp.path().join(".anvil");
+        std::fs::create_dir(&anvil).unwrap();
+        std::fs::create_dir(anvil.join(LAST_CHECK_JSON)).unwrap();
+        let err = write_last_run_files(tmp.path(), &sample_json(), "hi\n").unwrap_err();
+        assert!(err.to_string().contains("not a regular file"), "got {err}");
+        assert!(
+            !anvil.join(LAST_CHECK_TXT).exists(),
+            "directory dest refusal must not write last-check.txt"
+        );
     }
 
     #[test]
