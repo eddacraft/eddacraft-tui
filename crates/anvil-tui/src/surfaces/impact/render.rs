@@ -84,7 +84,7 @@ mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
-    use crate::surfaces::impact::data::{ImpactGraph, RawGraph};
+    use crate::surfaces::impact::data::{ImpactDataError, ImpactGraph, RawGraph};
     use crate::surfaces::impact::{ImpactState, ImpactView};
     use crate::test_utils::snapshot::buffer_to_string;
     use eddacraft_tui::keyboard::Action;
@@ -158,8 +158,11 @@ mod tests {
 
     #[test]
     fn snapshot_degraded_no_snapshot() {
-        // a root no daemon has ever scanned
-        let state = ImpactState::load(std::path::Path::new("/"));
+        // Construct the named failure directly: canonicalising `/` maps to
+        // the current drive root on Windows and makes the snapshot host-specific.
+        let state = ImpactState::from_error(ImpactDataError::NoSnapshot {
+            root: PathBuf::from("/"),
+        });
         insta::assert_snapshot!(draw(&state));
     }
 

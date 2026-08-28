@@ -366,9 +366,10 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                         .then_with(|| a.id.cmp(&b.id))
                 });
                 for (w, is_ast) in &merged {
-                    aggregated_warnings.push(antipattern_warning_to_json(w));
+                    aggregated_warnings
+                        .push(antipattern_warning_to_json(w, workspace_root.as_deref()));
                     if mode == OutputMode::Sarif {
-                        sarif.add_warning_tiered(w, *is_ast);
+                        sarif.add_warning_tiered(w, *is_ast, workspace_root.as_deref());
                     }
                 }
                 aggregated_patterns.extend(result.patterns_checked);
@@ -567,14 +568,14 @@ fn is_secret_scannable(file: &str, config: &SecretCheckConfig) -> bool {
     }
 }
 
-fn antipattern_warning_to_json(w: &Warning) -> JsonWarning {
+fn antipattern_warning_to_json(w: &Warning, workspace_root: Option<&str>) -> JsonWarning {
     JsonWarning {
         id: w.id.clone(),
         category: category_str(w.category).to_string(),
         severity: severity_str(w.severity).to_string(),
         title: w.title.clone(),
         message: w.message.clone(),
-        file: w.location.file.clone(),
+        file: relativise(&w.location.file, workspace_root),
         line: w.location.line,
         suggestion: w.suggestion.clone(),
         nudge: w.nudge.clone(),
@@ -662,29 +663,31 @@ struct SarifAccumulator {
 
 impl SarifAccumulator {
     fn add_warning(&mut self, w: &Warning) {
-        self.add_warning_tiered(w, false);
+        self.add_warning_tiered(w, false, None);
     }
 
     /// Add a warning, tagging its rule descriptor with the AST tier when it
     /// comes from the gate-time AST scanner (ADR-071 §9).
-    fn add_warning_tiered(&mut self, w: &Warning, is_ast: bool) {
+    fn add_warning_tiered(&mut self, w: &Warning, is_ast: bool, workspace_root: Option<&str>) {
         self.rules.entry(w.id.clone()).or_insert_with(|| {
             let rule =
                 sarif::ReportingDescriptor::new(w.id.clone()).short_description(w.title.clone());
             if is_ast { rule.tier("ast") } else { rule }
         });
         let line = u32::try_from(w.location.line).unwrap_or(u32::MAX);
+        let file = relativise(&w.location.file, workspace_root);
         // `Warning.location.column` is a 0-based byte offset, but SARIF
         // `startColumn` is 1-based and the schema rejects 0; column is optional
         // in our pinned subset, so we emit line-only regions rather than risk an
         // invalid (or semantically wrong) `startColumn`.
         let region = sarif::Region::try_line(line);
-        let fingerprint = w.fingerprint.clone().unwrap_or_else(|| {
-            sarif::stable_fingerprint(&w.id, &w.location.file, Some(line), &w.message)
-        });
+        let fingerprint = w
+            .fingerprint
+            .clone()
+            .unwrap_or_else(|| sarif::stable_fingerprint(&w.id, &file, Some(line), &w.message));
         let mut result =
             sarif::SarifResult::new(w.id.clone(), sarif_level(w.severity), w.message.clone())
-                .location(sarif::Location::new(w.location.file.clone(), region))
+                .location(sarif::Location::new(file, region))
                 .fingerprint("anvilFingerprint/v1", fingerprint);
         if let Some(s) = &w.suppressed {
             // `check` suppressions are in-source (`@anvil-ignore`) markers.
@@ -924,7 +927,7 @@ fn run_non_source_artifact(
             let json_warnings: Vec<JsonWarning> = warning_result
                 .warnings
                 .iter()
-                .map(antipattern_warning_to_json)
+                .map(|w| antipattern_warning_to_json(w, None))
                 .collect();
             let json_output = build_json_output(
                 &reference_files,
@@ -1718,6 +1721,21 @@ mod tests {
         );
     }
 
+    #[test]
+    fn antipattern_projection_relativises_a_verbatim_windows_path() {
+        let mut warning = ap_warning("PY-008", WarningSeverity::Error, false);
+        warning.location.file = r"\\?\C:\project\src\app.py".to_string();
+
+        let json = antipattern_warning_to_json(&warning, Some(r"C:\project"));
+
+        assert_eq!(json.file, "src/app.py");
+        assert!(
+            !json.file.contains(r"\\?\"),
+            "verbatim prefix leaked into finding output: {}",
+            json.file
+        );
+    }
+
     /// CIB-279 (guarding CIB-237 × CIB-199). `check` feeds this same value
     /// into the `git check-attr` generated-file set, which is keyed on
     /// repo-relative `/`-separated strings. A path that failed to relativise
@@ -1805,8 +1823,10 @@ mod tests {
             suppressed: 0,
         };
 
-        let json_warnings: Vec<JsonWarning> =
-            warnings.iter().map(antipattern_warning_to_json).collect();
+        let json_warnings: Vec<JsonWarning> = warnings
+            .iter()
+            .map(|w| antipattern_warning_to_json(w, None))
+            .collect();
         let out = build_json_output(
             &["src/foo.ts".to_string()],
             json_warnings,

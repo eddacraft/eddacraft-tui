@@ -184,20 +184,22 @@ function render() {
 }
 
 function formatMarkdown(content) {
-  const oxfmt = resolve(ROOT, 'node_modules/.bin/oxfmt');
-  if (!existsSync(oxfmt)) {
+  const oxfmtCli = resolve(ROOT, 'node_modules/oxfmt/bin/oxfmt');
+  if (!existsSync(oxfmtCli)) {
     return content;
   }
   const directory = mkdtempSync(join(tmpdir(), 'product-catalogue-'));
   const file = join(directory, 'product-feature-catalogue.md');
   writeFileSync(file, content);
-  const result = spawnSync(oxfmt, ['--write', file], {
+  const result = spawnSync(process.execPath, [oxfmtCli, '--write', file], {
     cwd: ROOT,
     encoding: 'utf8',
   });
   if (result.status !== 0) {
     rmSync(directory, { recursive: true, force: true });
-    throw new Error((result.stderr || result.stdout || 'oxfmt failed').trim());
+    throw new Error(
+      (result.error?.message || result.stderr || result.stdout || 'oxfmt failed').trim()
+    );
   }
   const formatted = readFileSync(file, 'utf8');
   rmSync(directory, { recursive: true, force: true });

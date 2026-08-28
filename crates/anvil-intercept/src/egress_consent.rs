@@ -496,9 +496,10 @@ mod tests {
 
     #[test]
     fn consent_state_dir_prefers_anvil_home_then_xdg_then_home() {
-        let anvil = PathBuf::from("/tmp/anvil-home-prefix");
-        let xdg = PathBuf::from("/tmp/xdg-state");
-        let home = PathBuf::from("/tmp/home");
+        let platform_tmp = std::env::temp_dir();
+        let anvil = platform_tmp.join("anvil-home-prefix");
+        let xdg = platform_tmp.join("xdg-state");
+        let home = platform_tmp.join("home");
         assert_eq!(
             consent_state_dir_from(Some(anvil.clone()), Some(xdg.clone()), Some(home.clone())),
             Some(anvil)

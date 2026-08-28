@@ -79,12 +79,16 @@ impl ImpactState {
     pub fn load(root: &std::path::Path) -> Self {
         match ImpactGraph::load(root) {
             Ok(graph) => Self::from_graph(graph),
-            Err(err) => Self {
-                body: ImpactBody::Degraded(err),
-                status: String::new(),
-                should_quit: false,
-                wants_back: false,
-            },
+            Err(err) => Self::from_error(err),
+        }
+    }
+
+    fn from_error(err: ImpactDataError) -> Self {
+        Self {
+            body: ImpactBody::Degraded(err),
+            status: String::new(),
+            should_quit: false,
+            wants_back: false,
         }
     }
 

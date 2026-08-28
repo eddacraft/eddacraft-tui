@@ -54,7 +54,7 @@ beforeAll(async () => {
   originalSigningKey = process.env['LICENSE_SIGNING_KEY'];
   const { privateKey } = await generateKeyPair('ES256', { extractable: true });
   process.env['LICENSE_SIGNING_KEY'] = await exportPKCS8(privateKey);
-});
+}, 30_000);
 
 afterAll(() => {
   if (originalSigningKey === undefined) delete process.env['LICENSE_SIGNING_KEY'];

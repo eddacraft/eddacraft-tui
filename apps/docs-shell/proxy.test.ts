@@ -71,12 +71,16 @@ describe('middleware', () => {
   });
 
   it('passes through with a valid cookie', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('ok', { status: 200 }));
     const token = await signToken();
     const req = makeRequest('https://docs.eddacraft.ai/anvil/overview', {
       'anvil-docs-session': token,
     });
     const res = await proxy(req as never);
-    expect(res.status).not.toBe(302);
+    expect(res.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
   it('redirects and clears cookie when token is expired', async () => {
