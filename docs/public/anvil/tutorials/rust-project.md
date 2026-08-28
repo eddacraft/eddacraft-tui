@@ -29,7 +29,9 @@ anvil check src/main.rs --format plain
 ```
 
 For a library crate, choose an existing file such as `src/lib.rs`. Success is a
-finding list or an explicit clean result.
+finding list or an explicit clean result. The same run also overwrites
+`.anvil/last-check.txt` (human report) and `.anvil/last-check.json` so you can
+open the findings in an editor or hand them to an agent.
 
 ## 2. Check the current change
 

@@ -1,4 +1,5 @@
 pub mod json;
+pub mod last_run;
 pub mod plain;
 /// Shared SARIF 2.1.0 emitter (ADR-058), re-exported from its own crate so
 /// non-CLI producers (the review capsule, GITGOV-008) reuse the same emitter.

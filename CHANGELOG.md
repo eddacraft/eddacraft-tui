@@ -13,6 +13,13 @@ engineering maintenance are recorded in the
 
 ### Added
 
+- **`anvil check` writes last-run reports under `.anvil/`.** Every run that
+  produces a result overwrites `.anvil/last-check.txt` (the same human report as
+  plain stdout) and `.anvil/last-check.json` (the existing check JSON schema).
+  Open the text file in an editor, then hand the JSON to an agent without
+  re-running the scan. `--format` still selects stdout only; a write failure
+  warns and does not change the check result.
+
 - **`anvil impact` maps the current repository in the terminal.** The read-only
   view starts from the crate-level used-import graph, drills into a crate's
   neighbourhood or internal modules, and restores the prior view when you back

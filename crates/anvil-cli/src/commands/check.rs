@@ -218,6 +218,11 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     // Gather files to analyse.
     let (files, source) = gather_files(args, &extensions)?;
 
+    // Workspace root is needed for `.anvilrc` discovery, path relativisation,
+    // and last-run files. Falls back to the current directory when git is
+    // unavailable so non-git callers still get sane paths.
+    let workspace_root = resolve_workspace_root();
+
     if files.is_empty() {
         let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
         let message = match source {
@@ -225,32 +230,19 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             FileSource::Changed => "No changed files to analyse",
             FileSource::Explicit => "No files to analyse",
         };
-        if mode == OutputMode::Json {
-            output::json::print(&empty_output(elapsed, message))?;
-        } else if mode == OutputMode::Sarif {
-            output::json::print(&SarifAccumulator::default().into_log())?;
-        } else {
-            output::plain::info(message);
-        }
+        emit_check_result(
+            workspace_root.as_deref(),
+            mode,
+            &empty_output(elapsed, message),
+            &human_info_line(message),
+            None,
+        )?;
         return Ok(());
     }
 
     if matches!(mode, OutputMode::Plain | OutputMode::Tui) && global.verbose {
         output::plain::info(&format!("Analysing {} file(s)...", files.len()));
     }
-
-    // Workspace root is needed both for `.anvilrc` discovery and for path
-    // relativisation in output. Falls back to the current directory when
-    // git is unavailable so non-git callers still get sane paths.
-    let workspace_root = git_toplevel()
-        .ok()
-        .map(|p| p.to_string_lossy().to_string())
-        .or_else(|| {
-            std::env::current_dir()
-                .and_then(|dir| crate::display_path::canonicalise(&dir))
-                .ok()
-                .map(|p| p.to_string_lossy().to_string())
-        });
 
     // Issue #1797: resolve which planless-eligible checks to run. The
     // planless dispatcher must honour `.anvilrc#checks` (or fall back to
@@ -270,13 +262,13 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
              Use `anvil gate` for config-heavy checks like policy, architecture, or import-boundaries.",
             PLANLESS_ELIGIBLE_CHECKS.join(", ")
         );
-        if mode == OutputMode::Json {
-            output::json::print(&empty_output(elapsed, &message))?;
-        } else if mode == OutputMode::Sarif {
-            output::json::print(&SarifAccumulator::default().into_log())?;
-        } else {
-            output::plain::warn(&message);
-        }
+        emit_check_result(
+            workspace_root.as_deref(),
+            mode,
+            &empty_output(elapsed, &message),
+            &human_warn_line(&message),
+            None,
+        )?;
         return Ok(());
     }
 
@@ -431,15 +423,15 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     // unreadable paths) and no check accepted the inputs, report clearly
     // rather than a misleading "no warnings".
     if !any_files_scanned {
-        if mode == OutputMode::Json {
-            output::json::print(&empty_output(elapsed, "No analysable files found"))?;
-        } else if mode == OutputMode::Sarif {
-            output::json::print(&SarifAccumulator::default().into_log())?;
-        } else {
-            output::plain::warn(
-                "No analysable files found (0 scanned). Check file extensions and readability.",
-            );
-        }
+        let message =
+            "No analysable files found (0 scanned). Check file extensions and readability.";
+        emit_check_result(
+            workspace_root.as_deref(),
+            mode,
+            &empty_output(elapsed, "No analysable files found"),
+            &human_warn_line(message),
+            None,
+        )?;
         return Ok(());
     }
 
@@ -455,50 +447,48 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         .collect();
     let patterns_checked: Vec<String> = aggregated_patterns.into_iter().collect();
 
-    match mode {
-        OutputMode::Json => {
-            let file_extensions = match source {
-                FileSource::All | FileSource::Changed => Some(extensions.clone()),
-                FileSource::Explicit => None,
-            };
-            let json_output = build_json_output(
-                &relative_files,
-                aggregated_warnings,
-                &checks_run,
-                &summary,
-                &patterns_checked,
-                has_blocking,
-                elapsed,
-                file_extensions,
-            );
-            output::json::print(&json_output)?;
-        }
-        OutputMode::Sarif => output::json::print(&sarif.into_log())?,
-        OutputMode::Plain | OutputMode::Tui => {
-            // CIB-255: pass discovery extensions for All/Changed so the
-            // "Checked N file(s)" line names the domain.
-            let ext_for_render = match source {
-                FileSource::All | FileSource::Changed => Some(extensions.as_slice()),
-                FileSource::Explicit => None,
-            };
-            print_human(
-                &aggregated_warnings_for_print(&aggregated_warnings),
-                &summary,
-                &relative_files,
-                global.verbose,
-                elapsed,
-                source,
-                ext_for_render,
-            );
-        }
+    let file_extensions = match source {
+        FileSource::All | FileSource::Changed => Some(extensions.clone()),
+        FileSource::Explicit => None,
+    };
+    let json_output = build_json_output(
+        &relative_files,
+        aggregated_warnings,
+        &checks_run,
+        &summary,
+        &patterns_checked,
+        has_blocking,
+        elapsed,
+        file_extensions,
+    );
+    // CIB-255: pass discovery extensions for All/Changed so the
+    // "Checked N file(s)" line names the domain.
+    let ext_for_render = match source {
+        FileSource::All | FileSource::Changed => Some(extensions.as_slice()),
+        FileSource::Explicit => None,
+    };
+    let mut human = render_human(
+        &aggregated_warnings_for_print(&json_output.warnings),
+        &summary,
+        &relative_files,
+        global.verbose,
+        elapsed,
+        source,
+        ext_for_render,
+    );
+    if has_blocking {
+        human.push_str(&blocking_banner_line());
     }
+    let sarif_log = (mode == OutputMode::Sarif).then(|| sarif.into_log());
+    emit_check_result(
+        workspace_root.as_deref(),
+        mode,
+        &json_output,
+        &human,
+        sarif_log.as_ref(),
+    )?;
 
     if has_blocking {
-        // Keep the blocking notice off the machine-output streams (it goes to
-        // stdout); JSON and SARIF stay well-formed. Exit code is unchanged.
-        if matches!(mode, OutputMode::Plain | OutputMode::Tui) {
-            output::plain::error(BLOCKING_FINDINGS_BANNER);
-        }
         // Signal failure via AlreadyReported so main exits with EXIT_ERROR
         // without reprinting the message.
         Err(output::AlreadyReported.into())
@@ -921,50 +911,50 @@ fn run_non_source_artifact(
 
     let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
     let reference_files: Vec<String> = args.files.clone();
-
-    match mode {
-        OutputMode::Json => {
-            let json_warnings: Vec<JsonWarning> = warning_result
-                .warnings
-                .iter()
-                .map(|w| antipattern_warning_to_json(w, None))
-                .collect();
-            let json_output = build_json_output(
-                &reference_files,
-                json_warnings,
-                &["antipattern-scan".to_string()],
-                &warning_result.summary,
-                &pattern_ids,
-                has_blocking,
-                elapsed,
-                None,
-            );
-            output::json::print(&json_output)?;
-        }
-        OutputMode::Sarif => {
-            let mut sarif = SarifAccumulator::default();
-            for w in &warning_result.warnings {
-                sarif.add_warning(w);
-            }
-            output::json::print(&sarif.into_log())?;
-        }
-        OutputMode::Plain | OutputMode::Tui => {
-            print_human(
-                &warning_result.warnings,
-                &warning_result.summary,
-                &reference_files,
-                global.verbose,
-                elapsed,
-                FileSource::Explicit,
-                None,
-            );
-        }
+    let workspace_root = resolve_workspace_root();
+    let json_warnings: Vec<JsonWarning> = warning_result
+        .warnings
+        .iter()
+        .map(|w| antipattern_warning_to_json(w, None))
+        .collect();
+    let json_output = build_json_output(
+        &reference_files,
+        json_warnings,
+        &["antipattern-scan".to_string()],
+        &warning_result.summary,
+        &pattern_ids,
+        has_blocking,
+        elapsed,
+        None,
+    );
+    let mut human = render_human(
+        &warning_result.warnings,
+        &warning_result.summary,
+        &reference_files,
+        global.verbose,
+        elapsed,
+        FileSource::Explicit,
+        None,
+    );
+    if has_blocking {
+        human.push_str(&blocking_banner_line());
     }
+    let sarif_log = (mode == OutputMode::Sarif).then(|| {
+        let mut sarif = SarifAccumulator::default();
+        for w in &warning_result.warnings {
+            sarif.add_warning(w);
+        }
+        sarif.into_log()
+    });
+    emit_check_result(
+        workspace_root.as_deref(),
+        mode,
+        &json_output,
+        &human,
+        sarif_log.as_ref(),
+    )?;
 
     if has_blocking {
-        if matches!(mode, OutputMode::Plain | OutputMode::Tui) {
-            output::plain::error(BLOCKING_FINDINGS_BANNER);
-        }
         Err(output::AlreadyReported.into())
     } else {
         Ok(())
@@ -1219,6 +1209,61 @@ fn relativise(path: &str, workspace_root: Option<&str>) -> String {
     crate::display_path::render(path, workspace_root.map(Path::new))
 }
 
+/// Workspace root for `.anvilrc` discovery, path relativisation, and last-run
+/// files. Falls back to the current directory when git is unavailable.
+fn resolve_workspace_root() -> Option<String> {
+    git_toplevel()
+        .ok()
+        .map(|p| p.to_string_lossy().to_string())
+        .or_else(|| {
+            std::env::current_dir()
+                .and_then(|dir| crate::display_path::canonicalise(&dir))
+                .ok()
+                .map(|p| p.to_string_lossy().to_string())
+        })
+}
+
+fn persist_last_run(
+    workspace_root: Option<&str>,
+    mode: OutputMode,
+    json: &CheckOutput,
+    human: &str,
+) {
+    output::last_run::persist_or_warn(workspace_root.map(Path::new), mode, json, human);
+}
+
+fn human_info_line(message: &str) -> String {
+    format!("  \u{2139} {message}\n")
+}
+
+fn human_warn_line(message: &str) -> String {
+    format!("  \u{26a0} {message}\n")
+}
+
+fn blocking_banner_line() -> String {
+    format!("  \u{2717} {BLOCKING_FINDINGS_BANNER}\n")
+}
+
+/// Persist last-run files, then print stdout for this mode.
+fn emit_check_result(
+    workspace_root: Option<&str>,
+    mode: OutputMode,
+    json: &CheckOutput,
+    human: &str,
+    sarif: Option<&sarif::SarifLog>,
+) -> Result<()> {
+    persist_last_run(workspace_root, mode, json, human);
+    match mode {
+        OutputMode::Json => output::json::print(json)?,
+        OutputMode::Sarif => match sarif {
+            Some(log) => output::json::print(log)?,
+            None => output::json::print(&SarifAccumulator::default().into_log())?,
+        },
+        OutputMode::Plain | OutputMode::Tui => print!("{human}"),
+    }
+    Ok(())
+}
+
 // ── Output formatters ───────────────────────────────────────────────
 
 fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
@@ -1347,24 +1392,7 @@ fn notification_priority_for_json_warning(severity: &str) -> NotificationPriorit
     }
 }
 
-fn print_human(
-    warnings: &[Warning],
-    summary: &WarningSummary,
-    files: &[String],
-    verbose: bool,
-    elapsed: u64,
-    source: FileSource,
-    extensions: Option<&[String]>,
-) {
-    print!(
-        "{}",
-        render_human(
-            warnings, summary, files, verbose, elapsed, source, extensions,
-        )
-    );
-}
-
-/// String form of [`print_human`], shared with the welcome autoplay demo.
+/// String form of the human check report, shared with the welcome autoplay demo.
 ///
 /// CIB-248: mirrors `output::plain`'s formats exactly (`section` underlines to
 /// 40 chars, `label` pads to 16, `item` prefixes an icon and two spaces), so
@@ -2566,5 +2594,129 @@ mod tests {
         // Non-suppressed result has no suppressions key (omitted when empty).
         let plain = results.iter().find(|r| r["ruleId"] == "AP-003").unwrap();
         assert!(plain.get("suppressions").is_none());
+    }
+
+    // ── Last-run files (CHKLR-001) ──────────────────────────────────
+
+    fn last_run_args(file: &Path, format: output::Format) -> CheckArgs {
+        CheckArgs {
+            files: vec![file.to_string_lossy().to_string()],
+            changed: false,
+            staged: false,
+            since: None,
+            all: false,
+            extensions: None,
+            severity: "error".to_string(),
+            include_opt_in: false,
+            artifact: "source".to_string(),
+            format: Some(format),
+        }
+    }
+
+    fn write_clean_ts(tmp: &Path) -> std::path::PathBuf {
+        let src = tmp.join("src");
+        std::fs::create_dir(&src).unwrap();
+        let file = src.join("ok.ts");
+        std::fs::write(&file, "export const x = 1;\n").unwrap();
+        file
+    }
+
+    #[test]
+    fn last_run_writes_txt_and_json_on_clean_named_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_clean_ts(tmp.path());
+        let args = last_run_args(&file, output::Format::Plain);
+        let global = GlobalArgs::default();
+        let result = crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global));
+        assert!(result.is_ok(), "clean file must not block: {result:?}");
+        let txt = std::fs::read_to_string(tmp.path().join(".anvil/last-check.txt")).unwrap();
+        let json_text = std::fs::read_to_string(tmp.path().join(".anvil/last-check.json")).unwrap();
+        assert!(
+            txt.contains("No warnings found"),
+            "human last-run must match the clean report:\n{txt}"
+        );
+        let parsed: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+        assert_eq!(parsed["version"], "1.0.0");
+        assert_eq!(parsed["warnings"].as_array().unwrap().len(), 0);
+        assert!(!tmp.path().join(".anvil/first-run").exists());
+    }
+
+    #[test]
+    fn last_run_overwrites_stale_files_on_clean_run() {
+        let tmp = tempfile::tempdir().unwrap();
+        let anvil = tmp.path().join(".anvil");
+        std::fs::create_dir(&anvil).unwrap();
+        std::fs::write(
+            anvil.join("last-check.txt"),
+            "stale findings from yesterday\n",
+        )
+        .unwrap();
+        std::fs::write(anvil.join("last-check.json"), "{\"n\":1}\n").unwrap();
+        let file = write_clean_ts(tmp.path());
+        let args = last_run_args(&file, output::Format::Plain);
+        let global = GlobalArgs::default();
+        crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global)).unwrap();
+        let txt = std::fs::read_to_string(anvil.join("last-check.txt")).unwrap();
+        assert!(
+            !txt.contains("stale findings"),
+            "clean run must overwrite yesterday's report:\n{txt}"
+        );
+        assert!(txt.contains("No warnings found"));
+    }
+
+    #[test]
+    fn last_run_json_mode_still_writes_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_clean_ts(tmp.path());
+        let args = last_run_args(&file, output::Format::Json);
+        let global = GlobalArgs {
+            json: true,
+            ..GlobalArgs::default()
+        };
+        crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global)).unwrap();
+        let json_text = std::fs::read_to_string(tmp.path().join(".anvil/last-check.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+        assert_eq!(parsed["version"], "1.0.0");
+        let txt = std::fs::read_to_string(tmp.path().join(".anvil/last-check.txt")).unwrap();
+        assert!(txt.contains("No warnings found"));
+    }
+
+    #[test]
+    fn last_run_json_mode_file_includes_blocking_banner() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir(&src).unwrap();
+        let smelly = src.join("smelly.ts");
+        std::fs::write(
+            &smelly,
+            "const apiKey = \"sk-1234567890abcdefghijklmnopqrstuv\";\n",
+        )
+        .unwrap();
+        let args = last_run_args(&smelly, output::Format::Json);
+        let global = GlobalArgs {
+            json: true,
+            ..GlobalArgs::default()
+        };
+        let result = crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global));
+        assert!(result.is_err(), "planted secret must block");
+        let txt = std::fs::read_to_string(tmp.path().join(".anvil/last-check.txt")).unwrap();
+        assert!(
+            txt.contains(BLOCKING_FINDINGS_BANNER),
+            "JSON stdout must not drop the banner from the human last-run file:\n{txt}"
+        );
+    }
+
+    #[test]
+    fn last_run_write_failure_does_not_change_exit() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".anvil"), "not a directory\n").unwrap();
+        let file = write_clean_ts(tmp.path());
+        let args = last_run_args(&file, output::Format::Plain);
+        let global = GlobalArgs::default();
+        let result = crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global));
+        assert!(
+            result.is_ok(),
+            "a last-run write failure must not change the check result: {result:?}"
+        );
     }
 }

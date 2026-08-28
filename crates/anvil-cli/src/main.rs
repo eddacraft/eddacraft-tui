@@ -236,6 +236,11 @@ enum Commands {
     /// Profile-based or config-heavy checks (`architecture`, `policy`,
     /// `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`,
     /// `dependency`) live under `anvil gate`.
+    ///
+    /// Every run that produces a result overwrites `.anvil/last-check.txt`
+    /// (human report) and `.anvil/last-check.json` (same schema as
+    /// `--format json`) so findings can be opened in an editor or handed
+    /// to an agent without using terminal scrollback.
     Check(commands::check::CheckArgs),
     /// Report a false positive against a check or a printed finding id.
     ///
