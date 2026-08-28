@@ -155,3 +155,49 @@ test('scans non-Markdown text files too when asked', async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('non-git fallback walks nested directories and reports forward-slash paths', async () => {
+  // The fallback must not shell out to POSIX `find` (absent on Windows) and
+  // must emit `/` separators so its paths match Git's, on every platform.
+  const root = await makeRepo({
+    'docs/deep/nested/a.md': `# T\n\n${OURS} HEAD\n`,
+    'docs/keep.md': '# clean\n',
+  });
+  try {
+    const r = run(root);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, /docs\/deep\/nested\/a\.md:3/);
+    assert.ok(!r.stderr.includes('\\'), `path separators must be forward slashes: ${r.stderr}`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('non-git fallback skips a .git directory', async () => {
+  const root = await makeRepo({
+    'docs/a.md': '# clean\n',
+    '.git/HEAD.md': `${OURS} not a real doc\n`,
+  });
+  try {
+    const r = run(root);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a bare mention of the opt-out phrase does not exempt a file', async () => {
+  // Guards against self-exemption: this script and its tests both mention the
+  // opt-out phrase, and matching it outside an HTML comment let them skip
+  // themselves under --all-text.
+  const root = await makeRepo({
+    'docs/a.md': `# T\n\nSet "docs-check: allow-conflict-markers" to opt out.\n\n${OURS} HEAD\n`,
+  });
+  try {
+    const r = run(root);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, /docs\/a\.md:5/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

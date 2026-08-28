@@ -33,9 +33,9 @@
 // Wired as a `pnpm docs:check` surface and runnable standalone via
 // `pnpm conflict-markers:check`.
 
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 
@@ -43,6 +43,18 @@ const SURFACE = 'conflict-markers';
 
 /** Per-file opt-out for documents that demonstrate conflict resolution. */
 const OPT_OUT = 'docs-check: allow-conflict-markers';
+
+/**
+ * The opt-out counts only as a standalone HTML comment on its own line.
+ *
+ * Two tightenings, both found by pointing the check at itself. Matching the
+ * bare phrase anywhere let any file that merely *mentions* the opt-out exempt
+ * itself; requiring the comment form was not enough either, because this
+ * script's own header documents the syntax and so still skipped itself. A
+ * line-anchored comment is how a real document writes it, and an incidental
+ * mention inside prose, backticks, or a string literal no longer counts.
+ */
+const OPT_OUT_COMMENT = /^[ \t]*<!--[ \t]*docs-check:[ \t]*allow-conflict-markers[ \t]*-->[ \t]*$/m;
 
 /**
  * The three markers Git writes at the start of a line, each exactly seven
@@ -84,37 +96,55 @@ try {
 }
 
 /**
+ * Walk the tree without shelling out.
+ *
+ * A Node walk rather than `find`, for two reasons that would both have bitten
+ * on the Windows leg: `find` is not available there, and building results from
+ * absolute paths would emit `\` separators while the Git branch below emits
+ * `/` — so the same corpus would produce different-looking findings per
+ * platform. Relative paths are assembled with `/` directly, so the two sources
+ * agree everywhere.
+ *
+ * Symlinks are not followed: `Dirent.isDirectory()` is false for a symlink, so
+ * a link pointing at an ancestor cannot loop the walk.
+ */
+function walkFiles(dir, prefix, out) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    // Unreadable directory — an honest under-report, never a fabricated pass
+    // for content we did not actually read.
+    return out;
+  }
+  for (const entry of entries) {
+    if (entry.name === '.git') continue;
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      walkFiles(join(dir, entry.name), rel, out);
+    } else if (entry.isFile() && (values['all-text'] || rel.endsWith('.md'))) {
+      out.push(rel);
+    }
+  }
+  return out;
+}
+
+/**
  * Prefer the Git index so untracked scratch files and build output are out of
- * scope. Fall back to a filesystem walk when the root is not a repository —
+ * scope. Fall back to the filesystem walk when the root is not a repository —
  * the unit tests run against plain temporary directories.
  */
 function listFiles() {
   const args = ['-C', root, 'ls-files', '-z'];
   if (!values['all-text']) args.push('--', '*.md');
   const res = spawnSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  if (res.status === 0 && res.stdout.length > 0) {
-    return res.stdout.split('\0').filter(Boolean);
-  }
-  if (res.status === 0) return [];
-  const walk = spawnSync(
-    'find',
-    values['all-text']
-      ? [root, '-type', 'f', '-not', '-path', '*/.git/*']
-      : [root, '-type', 'f', '-name', '*.md', '-not', '-path', '*/.git/*'],
-    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
-  );
-  if (walk.status !== 0) {
-    console.error(`[${SURFACE}] cannot enumerate files under ${root}`);
-    process.exit(2);
-  }
-  return walk.stdout
-    .split('\n')
-    .filter(Boolean)
-    .map((abs) => relative(root, abs));
+  // Git already reports repo-relative, forward-slash paths.
+  if (res.status === 0) return res.stdout.split('\0').filter(Boolean);
+  return walkFiles(root, '', []);
 }
 
 const findings = [];
-let optedOut = 0;
+const optedOutFiles = [];
 let scanned = 0;
 
 for (const rel of listFiles()) {
@@ -128,8 +158,8 @@ for (const rel of listFiles()) {
     continue;
   }
   scanned += 1;
-  if (text.includes(OPT_OUT)) {
-    optedOut += 1;
+  if (OPT_OUT_COMMENT.test(text)) {
+    optedOutFiles.push(rel);
     continue;
   }
   const lines = text.split('\n');
@@ -155,7 +185,9 @@ if (findings.length > 0) {
 
 console.log(
   `[${SURFACE}] ok: no conflict markers in ${scanned} scanned file(s)` +
-    (optedOut > 0 ? `; ${optedOut} file(s) opted out` : '') +
+    (optedOutFiles.length > 0
+      ? `; ${optedOutFiles.length} file(s) opted out (${optedOutFiles.join(', ')})`
+      : '') +
     (values['all-text'] ? ' [all tracked text]' : ' [tracked Markdown]') +
     '.'
 );
