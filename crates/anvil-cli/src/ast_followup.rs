@@ -371,7 +371,8 @@ mod tests {
     impl FollowupRunner for RecordingRunner {
         fn run(&self, command: FollowupInvocation) -> Result<(), String> {
             self.started.fetch_add(1, Ordering::SeqCst);
-            if let Some(rx) = recover(self.hold.lock()).as_ref() {
+            let hold = recover(self.hold.lock()).take();
+            if let Some(rx) = hold {
                 let _ = rx.recv_timeout(Duration::from_secs(2));
             }
             recover(self.calls.lock()).push(command);
@@ -498,10 +499,10 @@ mod tests {
         tx.send(()).expect("release first run");
         scheduler.wait_idle();
         let calls = runner.calls();
-        assert!(
-            calls.len() <= 2,
-            "save burst must not spawn per keystroke, got {}",
-            calls.len()
+        assert_eq!(
+            calls.len(),
+            2,
+            "the in-flight save and coalesced remainder must each run once: {calls:?}"
         );
         assert!(calls.iter().all(FollowupInvocation::is_legal));
         let joined = calls

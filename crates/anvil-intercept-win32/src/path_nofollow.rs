@@ -20,19 +20,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use windows_sys::Wdk::Foundation::OBJECT_ATTRIBUTES;
 use windows_sys::Wdk::Storage::FileSystem::{
     FILE_CREATE, FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE, FILE_OPEN,
-    FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_REPARSE_POINT, FILE_SYNCHRONOUS_IO_NONALERT,
-    NtCreateFile,
+    FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_REPARSE_POINT, FILE_RENAME_INFORMATION,
+    FILE_SYNCHRONOUS_IO_NONALERT, FileRenameInformation, NtCreateFile, NtSetInformationFile,
 };
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE, UNICODE_STRING,
+    CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE, RtlNtStatusToDosError,
+    UNICODE_STRING,
 };
 use windows_sys::Win32::Security::SECURITY_DESCRIPTOR;
 use windows_sys::Win32::Storage::FileSystem::{
     BY_HANDLE_FILE_INFORMATION, CreateFileW, DELETE, FILE_ATTRIBUTE_DIRECTORY,
     FILE_ATTRIBUTE_NORMAL, FILE_DISPOSITION_INFO, FILE_FLAG_BACKUP_SEMANTICS,
-    FILE_FLAG_OPEN_REPARSE_POINT, FILE_RENAME_INFO, FILE_SHARE_DELETE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, FileDispositionInfo, FileRenameInfo, FlushFileBuffers,
-    GetFileInformationByHandle, OPEN_EXISTING, SetFileInformationByHandle, WriteFile,
+    FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    FileDispositionInfo, FlushFileBuffers, GetFileInformationByHandle, OPEN_EXISTING,
+    SetFileInformationByHandle, WriteFile,
 };
 use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
 
@@ -110,8 +111,8 @@ pub fn create_dir_all_nofollow(path: &Path) -> io::Result<()> {
 ///
 /// Parents are created with [`create_dir_all_nofollow`]. The payload is written
 /// to a unique temp leaf under a pinned parent handle and renamed into place
-/// via `SetFileInformationByHandle(FileRenameInfo)` so a parent swap after the
-/// path check cannot redirect the write.
+/// via `NtSetInformationFile(FileRenameInformation)` so a parent swap after
+/// the path check cannot redirect the write.
 ///
 /// A target another process holds open (e.g. a reader mid-poll of
 /// `mcp-refresh.generation`) does not fail the write: the held file is parked
@@ -802,36 +803,57 @@ fn rename_at(file: HANDLE, parent: HANDLE, leaf: &OsStr, replace: bool) -> io::R
             "rename destination has no file name",
         ));
     }
-    let name_bytes = name.len() * 2;
-    let header = std::mem::offset_of!(FILE_RENAME_INFO, FileName);
-    let size = header + name_bytes;
-    let mut buf = vec![0u8; size.max(std::mem::size_of::<FILE_RENAME_INFO>())];
-    // SAFETY: `buf` is large enough for FILE_RENAME_INFO plus the extra
-    // wide-name bytes; fields are written before the call; the name copy
-    // stays inside `buf`.
+    let name_bytes = name
+        .len()
+        .checked_mul(std::mem::size_of::<u16>())
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "rename name too long"))?;
+    let size = std::mem::size_of::<FILE_RENAME_INFORMATION>()
+        .checked_add(name_bytes)
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "rename info too large"))?;
+    let word_size = std::mem::size_of::<usize>();
+    let word_count = size
+        .checked_add(word_size - 1)
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "rename info too large"))?
+        / word_size;
+    let mut buffer = vec![0usize; word_count];
+    // SAFETY: `buffer` has pointer alignment suitable for
+    // FILE_RENAME_INFORMATION plus the variable-length UTF-16 name. The
+    // zeroed flexible-array slot and padding supply the trailing NUL; every
+    // field is initialised before the call and the name
+    // copy stays inside `buffer`.
     unsafe {
-        let info = buf.as_mut_ptr().cast::<FILE_RENAME_INFO>();
+        let info = buffer.as_mut_ptr().cast::<FILE_RENAME_INFORMATION>();
         (*info).Anonymous.ReplaceIfExists = replace;
         (*info).RootDirectory = parent;
         (*info).FileNameLength = u32::try_from(name_bytes)
             .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "rename name too long"))?;
         std::ptr::copy_nonoverlapping(name.as_ptr(), (*info).FileName.as_mut_ptr(), name.len());
     }
-    // SAFETY: `file` is a live handle with DELETE access; `buf` holds a
-    // well-formed FILE_RENAME_INFO for `size` bytes.
-    let ok = unsafe {
-        SetFileInformationByHandle(
+    let mut iosb = IO_STATUS_BLOCK::default();
+    // SAFETY: `file` is a live handle with DELETE access; `buffer` holds a
+    // well-formed FILE_RENAME_INFORMATION for `size` bytes, and `iosb` is a
+    // valid out pointer for the duration of this synchronous operation.
+    let status = unsafe {
+        NtSetInformationFile(
             file,
-            FileRenameInfo,
-            buf.as_ptr().cast(),
+            &mut iosb,
+            buffer.as_ptr().cast(),
             u32::try_from(size)
                 .map_err(|_| io::Error::new(ErrorKind::InvalidInput, "rename info too large"))?,
+            FileRenameInformation,
         )
     };
-    if ok == 0 {
-        return Err(io::Error::last_os_error());
+    if status >= STATUS_SUCCESS {
+        return Ok(());
     }
-    Ok(())
+    let error_code = match status {
+        STATUS_ACCESS_DENIED => ERROR_ACCESS_DENIED as u32,
+        STATUS_SHARING_VIOLATION => ERROR_SHARING_VIOLATION as u32,
+        STATUS_OBJECT_NAME_COLLISION => ERROR_ALREADY_EXISTS as u32,
+        // SAFETY: `status` is the NTSTATUS returned by NtSetInformationFile.
+        other => unsafe { RtlNtStatusToDosError(other) },
+    };
+    Err(io::Error::from_raw_os_error(error_code as i32))
 }
 
 fn dispose_handle(handle: HANDLE) -> io::Result<()> {
