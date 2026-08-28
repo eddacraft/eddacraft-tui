@@ -12,8 +12,10 @@ existing GV2 per-file channel is **not** implementation clearance until
 revision/schema/generation binding is proved. Tier 0 does not wait on the full
 ILGOV rescope. CONF-002..004 remain **In Progress** until merge; their
 dependency-ordered Wave-1 implementation and executor proof are complete on
-`feat/conf-002-004-tier0`, with the scoped Council repair re-review and PR
-landing still required. CONF-005..009 remain Proposed.
+`feat/conf-002-004-tier0`, the scoped Council repair review converged with all
+findings fixed, and review continues in
+[#4190](https://github.com/eddacraft/anvil-001/pull/4190). CONF-005..009 remain
+Proposed.
 
 > **Origin (2026-06-11):** Product direction set during the graphify gap
 > analysis: plan gates return as a conformance lint — "did the agent build
