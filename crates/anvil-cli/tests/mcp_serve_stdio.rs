@@ -2128,7 +2128,7 @@ fn mcp_serve_stdio_resources_read_suppressions_summarises_inline_and_exceptions(
     let workspace = tempfile::tempdir().expect("workspace dir exists");
     std::fs::write(
         workspace.path().join("smelly.ts"),
-        "// @anvil-ignore AP-001: still needed\nconst x = 1;\n",
+        "// @anvil-ignore AP-001 -- still needed\nconst x = 1;\n",
     )
     .expect("source is writable");
     let store_dir = workspace.path().join("anvil/exceptions");

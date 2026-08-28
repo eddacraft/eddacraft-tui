@@ -146,12 +146,13 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(
             tmp.path().join("smelly.ts"),
-            "// @anvil-ignore AP-001: legacy\nconst x = 1;\n",
+            "// @anvil-ignore AP-001 -- legacy\nconst x = 1;\n",
         )
         .unwrap();
         let result = load_suppressions(tmp.path());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].pattern_id, "AP-001");
+        assert_eq!(result[0].reason, "legacy");
         assert_eq!(result[0].scope, "inline");
         assert!(result[0].file.starts_with("smelly.ts"));
     }

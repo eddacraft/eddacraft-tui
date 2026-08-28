@@ -184,7 +184,7 @@ fn read_boundaries() -> Result<Value, ReadError> {
         match crate::architecture_source::resolve_architecture(&root) {
             Ok(Some((definition, _origin))) => json!({
                 "layers": serde_json::to_value(&definition.layers).expect("layers serialise"),
-                "rules": serde_json::to_value(&definition.rules).expect("rules serialise"),
+                "boundaries": serde_json::to_value(&definition.rules).expect("rules serialise"),
             }),
             Ok(None) => json!({
                 "error": "no-architecture",
@@ -447,8 +447,8 @@ mod tests {
                 .expect("resource description exists")
         };
 
-        assert!(description(URI_BASELINE).contains("baseline-load-failed"));
-        assert!(description(URI_BOUNDARIES).contains("baseline-load-failed"));
+        assert!(description(URI_BASELINE).contains("architecture-load-failed"));
+        assert!(description(URI_BOUNDARIES).contains("architecture-load-failed"));
         assert!(
             description(URI_CONSTRAINTS).contains("metadata.workspace_root")
                 && description(URI_CONSTRAINTS).contains("redacted to `.`")

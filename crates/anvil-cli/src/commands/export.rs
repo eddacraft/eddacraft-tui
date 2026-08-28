@@ -668,6 +668,7 @@ pub(crate) fn collect_constraints(workspace_root: &std::path::Path) -> Constrain
         .map(|def| {
             def.rules
                 .iter()
+                .filter(|rule| !rule.allowed)
                 .map(|rule| BoundaryEntry {
                     name: rule.name.clone(),
                     from: rule.from.clone(),

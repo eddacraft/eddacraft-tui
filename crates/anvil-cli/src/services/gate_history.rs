@@ -43,18 +43,21 @@ impl GateHistoryPoint {
     }
 
     pub(crate) fn duration_ms(&self) -> u64 {
-        self.duration_seconds
+        let Some(seconds) = self
+            .duration_seconds
             .as_deref()
             .and_then(|raw| raw.parse::<f64>().ok())
-            .map(|seconds| {
-                let millis = (seconds * 1000.0).round();
-                if millis.is_finite() && millis >= 0.0 {
-                    millis as u64
-                } else {
-                    0
-                }
-            })
-            .unwrap_or(0)
+            .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
+        else {
+            return 0;
+        };
+        let millis = (seconds * 1000.0).min(86_400_000.0);
+        // Bounded to one day of milliseconds, so the u64 conversion cannot
+        // overflow or take a negative value.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        {
+            millis.round() as u64
+        }
     }
 
     /// `YYYY-MM-DD HH:MM` from an RFC3339 `recorded_at` (`…Z`).
