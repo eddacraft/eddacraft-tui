@@ -2707,6 +2707,51 @@ mod tests {
     }
 
     #[test]
+    fn last_run_sarif_mode_still_writes_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = write_clean_ts(tmp.path());
+        let args = last_run_args(&file, output::Format::Sarif);
+        let global = GlobalArgs::default();
+        crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global)).unwrap();
+        let json_text = std::fs::read_to_string(tmp.path().join(".anvil/last-check.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+        assert_eq!(parsed["version"], "1.0.0");
+        assert!(
+            parsed.get("runs").is_none(),
+            "last-check.json is CheckOutput, not SARIF"
+        );
+        let txt = std::fs::read_to_string(tmp.path().join(".anvil/last-check.txt")).unwrap();
+        assert!(txt.contains("No warnings found"));
+    }
+
+    #[test]
+    fn last_run_empty_all_writes_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let args = CheckArgs {
+            files: Vec::new(),
+            changed: false,
+            staged: false,
+            since: None,
+            all: true,
+            extensions: Some(".ts".to_string()),
+            severity: "error".to_string(),
+            include_opt_in: false,
+            artifact: "source".to_string(),
+            format: Some(output::Format::Plain),
+        };
+        let global = GlobalArgs::default();
+        crate::test_support::cwd::with_cwd_in(tmp.path(), || run(&args, &global)).unwrap();
+        let txt = std::fs::read_to_string(tmp.path().join(".anvil/last-check.txt")).unwrap();
+        let json_text = std::fs::read_to_string(tmp.path().join(".anvil/last-check.json")).unwrap();
+        assert!(
+            txt.contains("No source files found"),
+            "empty --all must persist the empty human result:\n{txt}"
+        );
+        let parsed: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+        assert_eq!(parsed["message"], "No source files found");
+    }
+
+    #[test]
     fn last_run_write_failure_does_not_change_exit() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join(".anvil"), "not a directory\n").unwrap();

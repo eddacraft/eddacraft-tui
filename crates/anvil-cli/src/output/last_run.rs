@@ -47,13 +47,19 @@ pub fn persist_or_warn(
 pub fn write_last_run_files(root: &Path, json: &impl Serialize, human: &str) -> anyhow::Result<()> {
     let dir = root.join(".anvil");
     ensure_anvil_dir(&dir)?;
-    write_regular_file(&dir.join(LAST_CHECK_TXT), human.as_bytes())?;
+    let txt_path = dir.join(LAST_CHECK_TXT);
+    let json_path = dir.join(LAST_CHECK_JSON);
+    // Refuse both destinations before writing either, so a planted symlink
+    // cannot leave a half-updated pair.
+    refuse_symlink(&txt_path)?;
+    refuse_symlink(&json_path)?;
+    write_regular_file(&txt_path, human.as_bytes())?;
     let mut json_bytes = serde_json::to_vec_pretty(json)
         .map_err(|err| anyhow::anyhow!("serialize last-run JSON: {err}"))?;
     if !json_bytes.ends_with(b"\n") {
         json_bytes.push(b'\n');
     }
-    write_regular_file(&dir.join(LAST_CHECK_JSON), &json_bytes)?;
+    write_regular_file(&json_path, &json_bytes)?;
     Ok(())
 }
 
@@ -77,15 +83,19 @@ fn ensure_anvil_dir(dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn write_regular_file(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
+fn refuse_symlink(path: &Path) -> anyhow::Result<()> {
     match path.symlink_metadata() {
         Ok(md) if md.file_type().is_symlink() => anyhow::bail!(
             "refusing to write last-run report to {}: it is a symlink; \
              pass a regular file path",
             path.display()
         ),
-        _ => {}
+        _ => Ok(()),
     }
+}
+
+fn write_regular_file(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
+    refuse_symlink(path)?;
     let mut opts = OpenOptions::new();
     opts.write(true).create(true).truncate(true);
     #[cfg(unix)]
@@ -159,6 +169,31 @@ mod tests {
             "expected symlink refusal, got {err}"
         );
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "planted\n");
+        assert!(
+            !anvil.join(LAST_CHECK_TXT).exists(),
+            "JSON-symlink refusal must not write last-check.txt"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn last_run_refuses_symlinked_txt_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let anvil = tmp.path().join(".anvil");
+        std::fs::create_dir(&anvil).unwrap();
+        let target = tmp.path().join("evil.txt");
+        std::fs::write(&target, "planted\n").unwrap();
+        std::os::unix::fs::symlink(&target, anvil.join(LAST_CHECK_TXT)).unwrap();
+        let err = write_last_run_files(tmp.path(), &sample_json(), "hi\n").unwrap_err();
+        assert!(
+            err.to_string().contains("symlink"),
+            "expected symlink refusal, got {err}"
+        );
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "planted\n");
+        assert!(
+            !anvil.join(LAST_CHECK_JSON).exists(),
+            "txt-symlink refusal must not write last-check.json"
+        );
     }
 
     #[cfg(unix)]
