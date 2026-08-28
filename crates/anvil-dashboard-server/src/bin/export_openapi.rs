@@ -1,5 +1,7 @@
+#[cfg(not(windows))]
+use std::fs;
 #[cfg(any(not(windows), test))]
-use std::fs::{self, File, OpenOptions};
+use std::fs::{File, OpenOptions};
 #[cfg(not(windows))]
 use std::io::Write;
 use std::path::{Path, PathBuf};
