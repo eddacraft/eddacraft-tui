@@ -32,6 +32,35 @@ fn git(repo: &Path, args: &[&str]) -> String {
         .to_owned()
 }
 
+#[cfg(unix)]
+fn git_with_stdin(repo: &Path, args: &[&str], stdin: &[u8]) -> Vec<u8> {
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    let mut child = Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("run git");
+    child
+        .stdin
+        .take()
+        .expect("git stdin")
+        .write_all(stdin)
+        .expect("write git stdin");
+    let output = child.wait_with_output().expect("wait for git");
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
+}
+
 fn repository() -> TempDir {
     let repo = tempfile::tempdir().expect("temporary repository");
     git(repo.path(), &["init", "-q"]);
@@ -1359,17 +1388,26 @@ fn preserves_gitlink_object_identity_and_type() {
 #[cfg(unix)]
 #[test]
 fn invalid_utf8_path_is_reason_coded_not_evaluated() {
-    use std::ffi::OsStr;
-    use std::os::unix::ffi::OsStrExt;
-
     let repo = repository();
-    let invalid = OsStr::from_bytes(b"bad-\xff.md");
-    std::fs::write(repo.path().join(invalid), b"invalid path\n").expect("write invalid path");
-    git(repo.path(), &["add", "-A"]);
-    git(
+    let blob = String::from_utf8(git_with_stdin(
         repo.path(),
-        &["commit", "-q", "-m", "docs(path:docs): invalid path"],
+        &["hash-object", "-w", "--stdin"],
+        b"invalid path\n",
+    ))
+    .expect("blob id")
+    .trim()
+    .to_owned();
+    let mut tree_entry = format!("100644 blob {blob}\t").into_bytes();
+    tree_entry.extend_from_slice(b"bad-\xff.md\0");
+    let tree = String::from_utf8(git_with_stdin(repo.path(), &["mktree", "-z"], &tree_entry))
+        .expect("tree id")
+        .trim()
+        .to_owned();
+    let commit = git(
+        repo.path(),
+        &["commit-tree", &tree, "-m", "docs(path:docs): invalid path"],
     );
+    git(repo.path(), &["update-ref", "HEAD", &commit]);
 
     let failure = commit_failure(extract_head(repo.path(), GitExtractionLimits::default()));
     assert_eq!(failure.reason, "git.path-invalid-utf8");
