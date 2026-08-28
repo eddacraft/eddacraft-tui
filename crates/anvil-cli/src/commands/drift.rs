@@ -7,7 +7,7 @@ use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::{Deserialize, Serialize};
 
-use anvil_architecture::{load_baseline, read_to_string_capped};
+use anvil_architecture::read_to_string_capped;
 use anvil_checks::antipattern::{AntipatternCheckConfig, run_antipattern_check};
 
 use crate::GlobalArgs;
@@ -804,26 +804,39 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
         output::plain::info(&format!("Scanning {} files...", files.len()));
     }
 
-    // Load architecture baseline for violations.
-    let baseline = load_baseline(&cwd)?;
-    let violations: Vec<SnapshotViolation> = baseline
-        .as_ref()
-        .map(|b| {
-            b.baseline_snapshot
+    // Live architecture violations from the yaml/config definition.
+    let violations: Vec<SnapshotViolation> = match crate::architecture_source::resolve_architecture(
+        &cwd,
+    ) {
+        Ok(Some((definition, _))) => {
+            let files = anvil_architecture::collect_source_files(&cwd, &definition);
+            let edges = crate::architecture_check::extract_import_edges(&cwd, Some(&files));
+            let result =
+                anvil_architecture::validate_with_files_and_edges(&definition, &files, &edges);
+            result
                 .violations
-                .iter()
+                .into_iter()
                 .map(|v| SnapshotViolation {
-                    id: v.id.clone(),
+                    id: anvil_architecture::create_violation_id(
+                        &v.edge.from,
+                        &v.edge.to,
+                        v.edge.line,
+                    ),
                     violation_type: "boundary".to_string(),
-                    from_file: v.from_file.clone(),
-                    to_file: v.to_file.clone(),
-                    from_layer: Some(v.from_layer.clone()),
-                    to_layer: Some(v.to_layer.clone()),
-                    line: v.import_line,
+                    from_file: v.edge.from,
+                    to_file: v.edge.to,
+                    from_layer: v.edge.from_layer,
+                    to_layer: v.edge.to_layer,
+                    line: v.edge.line,
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        }
+        Ok(None) => Vec::new(),
+        Err(error) => {
+            tracing::debug!(error = %error, "drift snapshot: architecture definition unreadable");
+            Vec::new()
+        }
+    };
 
     // Run antipattern scan and collect results.
     let (antipatterns, suppressions, ap_result) = collect_antipatterns(&files, &cwd);

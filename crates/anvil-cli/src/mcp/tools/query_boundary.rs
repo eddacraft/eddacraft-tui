@@ -1,18 +1,17 @@
 //! `anvil_query_boundary` — architecture boundary query tool.
 //!
-//! RMCPF-011 MCP-driver-local composition: reads
-//! `.anvil/architecture.json` via `anvil_architecture::load_baseline`
-//! and answers whether `sourceFile` is allowed to import `targetFile`
-//! under the workspace's layered architecture rules. No daemon round-
-//! trip — this is local read-only state that the daemon does not own.
+//! RMCPF-011 MCP-driver-local composition: reads the live architecture
+//! definition (project config `architecture` section or
+//! `.anvil/architecture.yaml`) and answers whether `sourceFile` is
+//! allowed to import `targetFile` under layered rules. No daemon
+//! round-trip — this is local read-only state that the daemon does not
+//! own. The TypeScript-era `.anvil/architecture.json` snapshot is not
+//! consulted.
 //!
-//! Behaviour parity with
-//! `anvil-archive/anvil-mcp-server/src/tools/query-boundary.tool.ts`:
-//!
-//! - `no-baseline`: workspace has no `.anvil/architecture.json` —
-//!   import is allowed by default with a hint pointing at `anvil init`.
-//! - `baseline-load-failed`: the file exists but parsing failed —
-//!   import is allowed by default with a load-failed reason.
+//! - `no-architecture`: no definition — the query did **not** evaluate;
+//!   `allowed` is false so agents cannot treat silence as a green light.
+//! - `architecture-load-failed`: a definition was present but could not
+//!   be parsed — also unevaluated, not fail-open.
 //! - `same-layer`: source and target resolve to the same layer —
 //!   always allowed.
 //! - `unassigned-layer`: at least one side has no matching layer —
@@ -29,8 +28,7 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use anvil_architecture::{
-    ArchitectureBaseline, Boundary, BoundarySeverity, Layers, assign_layers,
-    create_default_boundaries, load_baseline,
+    Boundary, BoundarySeverity, Layers, assign_layers, create_default_boundaries,
 };
 
 use crate::mcp::tools::shared::{
@@ -110,57 +108,87 @@ fn query_payload(arguments: &Value) -> Result<Value, String> {
 
     let workspace_str = redact_workspace_root(&workspace_path, &server_root);
 
-    // --- No baseline -------------------------------------------------------
-    let baseline_path = workspace_path.join(".anvil").join("architecture.json");
-    if !baseline_path.exists() {
-        return Ok(no_baseline_payload(&workspace_str));
-    }
-
-    // --- Load baseline -----------------------------------------------------
-    let baseline = match load_baseline(&workspace_path) {
-        Ok(Some(b)) => b,
-        Ok(None) => return Ok(no_baseline_payload(&workspace_str)),
-        Err(_) => return Ok(baseline_load_failed_payload(&workspace_str)),
+    let (layers, rules) = match crate::architecture_source::resolve_architecture(&workspace_path) {
+        Ok(Some((definition, _origin))) => (definition.layers, definition.rules),
+        Ok(None) => return Ok(no_architecture_payload(&workspace_str)),
+        Err(_) => return Ok(architecture_load_failed_payload(&workspace_str)),
     };
+    let explicit = boundaries_from_rules(&rules);
 
     Ok(resolve_query(
-        &baseline,
+        &layers,
+        &explicit,
         &source_file,
         &target_file,
         &workspace_str,
     ))
 }
 
-fn no_baseline_payload(workspace_str: &str) -> Value {
+fn no_architecture_payload(workspace_str: &str) -> Value {
     json!({
-        "allowed": true,
-        "reason": "no-baseline",
-        "message": "No architecture baseline found. Run `anvil init` to create one. Without a baseline, all imports are allowed.",
+        "allowed": false,
+        "evaluated": false,
+        "reason": "no-architecture",
+        "message": "No architecture definition found. Add an `architecture` section to the project config, or create `.anvil/architecture.yaml`. This query did not evaluate a boundary.",
         "workspaceRoot": workspace_str,
         "backend": "local",
         "daemonStatus": "not-wired"
     })
 }
 
-fn baseline_load_failed_payload(workspace_str: &str) -> Value {
+fn architecture_load_failed_payload(workspace_str: &str) -> Value {
     json!({
-        "allowed": true,
-        "reason": "baseline-load-failed",
-        "message": "Could not load architecture baseline.",
+        "allowed": false,
+        "evaluated": false,
+        "reason": "architecture-load-failed",
+        "message": "Could not load the architecture definition.",
         "workspaceRoot": workspace_str,
         "backend": "local",
         "daemonStatus": "not-wired"
     })
+}
+
+fn boundaries_from_rules(
+    rules: &[anvil_architecture::definition::ArchitectureRule],
+) -> Vec<Boundary> {
+    use anvil_architecture::definition::RuleSeverity;
+    rules
+        .iter()
+        .filter_map(|rule| {
+            let severity = match rule.severity {
+                RuleSeverity::Error => BoundarySeverity::Error,
+                RuleSeverity::Warn => BoundarySeverity::Warning,
+                RuleSeverity::Info => BoundarySeverity::Info,
+                RuleSeverity::Ignore => return None,
+            };
+            // An allow-list rule overrides the default deny with a non-blocking
+            // explicit entry so `effective_boundaries` drops it from the block set.
+            let severity = if rule.allowed {
+                BoundarySeverity::Info
+            } else {
+                severity
+            };
+            Some(Boundary {
+                name: rule.name.clone(),
+                from: rule.from.clone(),
+                to: rule.to.clone(),
+                severity,
+                message: rule.message.clone().unwrap_or_default(),
+                confidence: None,
+            })
+        })
+        .collect()
 }
 
 fn resolve_query(
-    baseline: &ArchitectureBaseline,
+    layers: &Layers,
+    explicit: &[Boundary],
     source_file: &str,
     target_file: &str,
     workspace_str: &str,
 ) -> Value {
-    let source_layer = match_layer(source_file, &baseline.layers);
-    let target_layer = match_layer(target_file, &baseline.layers);
+    let source_layer = match_layer(source_file, layers);
+    let target_layer = match_layer(target_file, layers);
 
     if source_layer.is_none() || target_layer.is_none() {
         let mut unassigned: Vec<String> = Vec::new();
@@ -206,7 +234,7 @@ fn resolve_query(
     // Default boundaries forbid every cross-layer pair not listed in
     // `depends_on`. Explicit `boundaries` entries override severity but the
     // schema only uses these for blocking checks (Error severity blocks).
-    let boundaries = effective_boundaries(&baseline.layers, &baseline.boundaries);
+    let boundaries = effective_boundaries(layers, explicit);
 
     if let Some(boundary) = boundaries
         .iter()
@@ -302,11 +330,11 @@ fn tool_result(payload: &Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anvil_architecture::types::BaselineSnapshot;
     use anvil_architecture::{
-        ArchitectureBaseline, Boundary, BoundarySeverity, Layer, Layers, save_baseline,
+        ArchitectureDefinition, ArchitectureTemplate, Layer, Layers, write_architecture_yaml,
     };
     use std::collections::BTreeMap;
+    use std::path::Path;
 
     fn sample_layers() -> Layers {
         let mut layers: Layers = BTreeMap::new();
@@ -345,27 +373,22 @@ mod tests {
         layers
     }
 
-    fn sample_baseline(layers: Layers) -> ArchitectureBaseline {
-        ArchitectureBaseline {
+    fn write_definition(root: &Path, layers: Layers) {
+        let definition = ArchitectureDefinition {
             schema_version: "0.1.0".into(),
-            created_at: "2026-05-14T00:00:00Z".into(),
-            updated_at: "2026-05-14T00:00:00Z".into(),
-            entry_points: vec![],
+            template: ArchitectureTemplate::Custom,
             layers,
-            boundaries: vec![],
-            baseline_snapshot: BaselineSnapshot {
-                module_count: 0,
-                timestamp: "2026-05-14T00:00:00Z".into(),
-                violations: vec![],
-            },
-        }
+            bounded_contexts: None,
+            rules: vec![],
+            options: None,
+        };
+        write_architecture_yaml(root, &definition).expect("definition persists");
     }
 
     fn workspace_with_baseline() -> tempfile::TempDir {
         let cwd = std::env::current_dir().expect("test cwd is accessible");
         let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
-        let baseline = sample_baseline(sample_layers());
-        save_baseline(workspace.path(), &baseline).expect("baseline persists");
+        write_definition(workspace.path(), sample_layers());
         workspace
     }
 
@@ -389,8 +412,7 @@ mod tests {
     fn workspace_with_anchored_baseline() -> tempfile::TempDir {
         let cwd = std::env::current_dir().expect("test cwd is accessible");
         let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
-        let baseline = sample_baseline(anchored_layers());
-        save_baseline(workspace.path(), &baseline).expect("baseline persists");
+        write_definition(workspace.path(), anchored_layers());
         workspace
     }
 
@@ -451,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn returns_no_baseline_when_workspace_has_none() {
+    fn returns_no_architecture_when_workspace_has_none() {
         let cwd = std::env::current_dir().expect("test cwd is accessible");
         let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
         let result = call(&json!({
@@ -462,10 +484,35 @@ mod tests {
         assert_eq!(result["isError"], false);
         let payload: Value =
             serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
-        assert_eq!(payload["allowed"], true);
-        assert_eq!(payload["reason"], "no-baseline");
-        assert!(payload["message"].as_str().unwrap().contains("anvil init"));
+        assert_eq!(payload["allowed"], false);
+        assert_eq!(payload["evaluated"], false);
+        assert_eq!(payload["reason"], "no-architecture");
+        assert!(
+            payload["message"]
+                .as_str()
+                .unwrap()
+                .contains("architecture.yaml")
+        );
         assert_eq!(payload["backend"], "local");
+    }
+
+    #[test]
+    fn architecture_json_snapshot_is_not_a_source() {
+        let cwd = std::env::current_dir().expect("test cwd is accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let anvil_dir = workspace.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).expect("dir created");
+        std::fs::write(anvil_dir.join("architecture.json"), "{}").expect("file written");
+        let result = call(&json!({
+            "sourceFile": "src/controllers/user.ts",
+            "targetFile": "src/services/user-service.ts",
+            "workspaceRoot": workspace.path()
+        }));
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["reason"], "no-architecture");
+        assert_eq!(payload["allowed"], false);
+        assert_eq!(payload["evaluated"], false);
     }
 
     #[test]
@@ -566,12 +613,13 @@ mod tests {
     }
 
     #[test]
-    fn returns_baseline_load_failed_for_invalid_json() {
+    fn returns_architecture_load_failed_for_invalid_yaml() {
         let cwd = std::env::current_dir().expect("test cwd is accessible");
         let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
         let anvil_dir = workspace.path().join(".anvil");
         std::fs::create_dir_all(&anvil_dir).expect("dir created");
-        std::fs::write(anvil_dir.join("architecture.json"), "not-json").expect("file written");
+        std::fs::write(anvil_dir.join("architecture.yaml"), "not: [unterminated")
+            .expect("file written");
 
         let result = call(&json!({
             "sourceFile": "src/a.ts",
@@ -582,8 +630,9 @@ mod tests {
         assert_eq!(result["isError"], false);
         let payload: Value =
             serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
-        assert_eq!(payload["allowed"], true);
-        assert_eq!(payload["reason"], "baseline-load-failed");
+        assert_eq!(payload["allowed"], false);
+        assert_eq!(payload["evaluated"], false);
+        assert_eq!(payload["reason"], "architecture-load-failed");
     }
 
     #[test]
@@ -593,20 +642,23 @@ mod tests {
         // allow the import.
         let cwd = std::env::current_dir().expect("test cwd is accessible");
         let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
-        let mut layers = sample_layers();
-        // Pin presentation -> domain as warning-only.
-        let mut baseline = sample_baseline(layers.clone());
-        baseline.boundaries.push(Boundary {
-            name: "presentation-domain-warning".into(),
-            from: "presentation".into(),
-            to: "domain".into(),
-            severity: BoundarySeverity::Warning,
-            message: "warning".into(),
-            confidence: None,
-        });
-        // Keep `layers` from being unused.
-        layers.clear();
-        save_baseline(workspace.path(), &baseline).expect("baseline persists");
+        let layers = sample_layers();
+        let definition = ArchitectureDefinition {
+            schema_version: "0.1.0".into(),
+            template: ArchitectureTemplate::Custom,
+            layers,
+            bounded_contexts: None,
+            rules: vec![anvil_architecture::definition::ArchitectureRule {
+                name: "presentation-domain-warning".into(),
+                from: "presentation".into(),
+                to: "domain".into(),
+                severity: anvil_architecture::definition::RuleSeverity::Warn,
+                allowed: false,
+                message: Some("warning".into()),
+            }],
+            options: None,
+        };
+        write_architecture_yaml(workspace.path(), &definition).expect("definition persists");
 
         let result = call(&json!({
             "sourceFile": "src/controllers/user.ts",

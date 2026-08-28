@@ -1,8 +1,8 @@
 # Edda Memory Management
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                             |
-| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | RCLI3 | Live   | Last reviewed 2026-05-25 against `crates/anvil-cli/src/commands/edda.rs` and `packages/edda-stack/src/edda/README.md` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                     |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | RCLI3 | Live   | Last reviewed 2026-08-28 against `crates/anvil-cli/src/commands/edda.rs` (`list`/`show` only) |
 
 | Upstream                                                                                                                                                            | Downstream                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
@@ -174,6 +174,11 @@ Use `--json` to get the full YAML structure as JSON, suitable for scripting or
 piping into other tools.
 
 ### Promote an Ember candidate to memory
+
+The current Rust CLI implements `anvil edda list` and `anvil edda show` only. It
+reads a TypeScript MemoryStore at `.anvil/edda/` and does not create or promote
+memories. `anvil edda promote` is not a shipped command on this binary. The
+examples below describe the intended TypeScript-era flow.
 
 Promotion is the only path from Ember to Edda. You must supply a reason, an
 actor, a confidence level, and a memory type.
@@ -474,10 +479,11 @@ a human decision at the promotion step is what makes Edda trustworthy.
 
 ### Can I create a memory without an Ember proposal?
 
-Not via `anvil edda promote`. If you want to create a memory directly — for
-example, to capture a decision made in a meeting with no prior Ember signal —
-contact your team lead or see the `MemoryService.createMemory` API in the
-technical README.
+Not via the current Rust CLI: `anvil edda promote` is not implemented, and
+`anvil edda list`/`show` only read a store this binary does not write. If you
+want to create a memory directly — for example, to capture a decision made in a
+meeting with no prior Ember signal — contact your team lead or see the
+`MemoryService.createMemory` API in the technical README.
 
 ### Can I edit a memory after promoting it?
 

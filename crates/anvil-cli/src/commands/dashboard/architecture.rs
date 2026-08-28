@@ -1,16 +1,17 @@
 //! `anvil dashboard architecture` — native architecture-health dashboard
-//! (TDASH-002). Loads `.anvil/architecture.json` via the architecture crate's
-//! baseline reader and renders it: `--json` emits a structured snapshot,
-//! non-TTY prints a plain summary, TTY runs the Ratatui surface. A missing
-//! baseline is a legitimate empty state, not an error.
+//! (TDASH-002). Loads the live architecture definition (project config
+//! section or `.anvil/architecture.yaml`) and renders it: `--json` emits a
+//! structured snapshot, non-TTY prints a plain summary, TTY runs the
+//! Ratatui surface. A missing definition is a legitimate empty state, not
+//! an error. The TypeScript-era `.anvil/architecture.json` snapshot is
+//! not consulted.
 
 use std::io::IsTerminal;
 
-use anvil_architecture::baseline::load_baseline;
-use anvil_architecture::types::ArchitectureBaseline;
-use anvil_tui::surfaces::dashboard::architecture::{
-    ArchViolationRow, ArchitectureDashboardState, ArchitectureView,
-};
+use anvil_architecture::ArchitectureDefinition;
+use anvil_tui::surfaces::dashboard::architecture::{ArchitectureDashboardState, ArchitectureView};
+
+use crate::architecture_source::{ArchitectureOrigin, resolve_architecture};
 use serde::Serialize;
 
 use crate::{GlobalArgs, tui, util};
@@ -54,14 +55,12 @@ struct ArchitectureJson {
 /// branches (`--json`, no-TTY) print and report `Quit`.
 pub fn run(global: &GlobalArgs) -> anyhow::Result<tui::SurfaceExit> {
     let root = util::workspace_root()?;
-    // Propagate load errors (corrupt/unreadable baseline); `Ok(None)` is the
-    // legitimate no-baseline empty state, not a failure.
-    let baseline = load_baseline(&root)?;
+    let resolved = resolve_architecture(&root)?;
+    let snapshot = resolved
+        .as_ref()
+        .map(|(definition, origin)| snapshot_from_definition(definition, origin));
 
     if global.json {
-        // Stable envelope so the top-level shape never flips between an object
-        // and `null`: `baseline_present` flags absence, `snapshot` carries data.
-        let snapshot = baseline.as_ref().map(snapshot_from);
         let payload = ArchitectureJson {
             baseline_present: snapshot.is_some(),
             snapshot,
@@ -71,66 +70,55 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<tui::SurfaceExit> {
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
-        print_summary(baseline.as_ref().map(snapshot_from).as_ref());
+        print_summary(snapshot.as_ref());
         return Ok(tui::SurfaceExit::Quit);
     }
 
-    let view = baseline.as_ref().map(view_from);
+    let view = snapshot.as_ref().map(view_from_snapshot);
     let (_, exit) = tui::run_surface_with_exit(ArchitectureDashboardState::new(view))?;
     Ok(exit)
 }
 
-fn snapshot_from(baseline: &ArchitectureBaseline) -> ArchitectureSnapshot {
-    ArchitectureSnapshot {
-        created_at: baseline.created_at.clone(),
-        updated_at: baseline.updated_at.clone(),
-        module_count: baseline.baseline_snapshot.module_count,
-        layer_count: baseline.layers.len(),
-        boundary_count: baseline.boundaries.len(),
-        entry_point_count: baseline.entry_points.len(),
-        violation_count: baseline.baseline_snapshot.violations.len(),
-        violations: baseline
-            .baseline_snapshot
-            .violations
-            .iter()
-            .map(|violation| ViolationRecord {
-                from_layer: violation.from_layer.clone(),
-                to_layer: violation.to_layer.clone(),
-                from_file: violation.from_file.clone(),
-                to_file: violation.to_file.clone(),
-                import_line: violation.import_line,
-                rule: violation.rule.clone(),
-            })
-            .collect(),
+fn origin_label(origin: &ArchitectureOrigin) -> String {
+    match origin {
+        ArchitectureOrigin::Section(_) => "project config".to_string(),
+        ArchitectureOrigin::LegacyFile(_) => ".anvil/architecture.yaml".to_string(),
     }
 }
 
-fn view_from(baseline: &ArchitectureBaseline) -> ArchitectureView {
+fn snapshot_from_definition(
+    definition: &ArchitectureDefinition,
+    origin: &ArchitectureOrigin,
+) -> ArchitectureSnapshot {
+    ArchitectureSnapshot {
+        created_at: origin_label(origin),
+        updated_at: "live".to_string(),
+        module_count: 0,
+        layer_count: definition.layers.len(),
+        boundary_count: definition.rules.len(),
+        entry_point_count: 0,
+        violation_count: 0,
+        violations: vec![],
+    }
+}
+
+fn view_from_snapshot(snapshot: &ArchitectureSnapshot) -> ArchitectureView {
     ArchitectureView {
-        created_at: baseline.created_at.clone(),
-        updated_at: baseline.updated_at.clone(),
-        module_count: baseline.baseline_snapshot.module_count,
-        layer_count: baseline.layers.len(),
-        boundary_count: baseline.boundaries.len(),
-        entry_point_count: baseline.entry_points.len(),
-        violations: baseline
-            .baseline_snapshot
-            .violations
-            .iter()
-            .map(|violation| ArchViolationRow {
-                from_layer: violation.from_layer.clone(),
-                to_layer: violation.to_layer.clone(),
-                from_file: violation.from_file.clone(),
-                import_line: violation.import_line,
-                rule: violation.rule.clone(),
-            })
-            .collect(),
+        created_at: snapshot.created_at.clone(),
+        updated_at: snapshot.updated_at.clone(),
+        module_count: snapshot.module_count,
+        layer_count: snapshot.layer_count,
+        boundary_count: snapshot.boundary_count,
+        entry_point_count: snapshot.entry_point_count,
+        violations: vec![],
     }
 }
 
 fn print_summary(snapshot: Option<&ArchitectureSnapshot>) {
     let Some(snapshot) = snapshot else {
-        println!("No architecture baseline found at .anvil/architecture.json.");
+        println!(
+            "No architecture definition found. Add an `architecture` section to the project config, or create `.anvil/architecture.yaml`."
+        );
         return;
     };
     println!("Architecture Health");
@@ -147,52 +135,61 @@ fn print_summary(snapshot: Option<&ArchitectureSnapshot>) {
 
 #[cfg(test)]
 mod tests {
-    use anvil_architecture::baseline::{CreateBaselineOptions, create_baseline};
-    use anvil_architecture::types::BaselineViolation;
+    use std::collections::BTreeMap;
+
+    use anvil_architecture::{ArchitectureDefinition, ArchitectureTemplate, Layer};
 
     use super::*;
 
-    fn baseline_with(
-        module_count: u32,
-        violations: Vec<BaselineViolation>,
-    ) -> ArchitectureBaseline {
-        create_baseline(CreateBaselineOptions {
-            entry_points: vec![],
-            layers: None,
-            boundaries: None,
-            violations,
-            module_count,
-        })
-    }
-
-    #[test]
-    fn snapshot_maps_counts_from_baseline() {
-        let baseline = baseline_with(
-            17,
-            vec![BaselineViolation {
-                id: "abc".to_string(),
-                from_layer: "ui".to_string(),
-                to_layer: "db".to_string(),
-                from_file: "a.ts".to_string(),
-                to_file: "b.ts".to_string(),
-                import_line: 5,
-                rule: Some("no-ui-to-db".to_string()),
-            }],
+    fn sample_definition() -> ArchitectureDefinition {
+        let mut layers = BTreeMap::new();
+        layers.insert(
+            "ui".into(),
+            Layer {
+                patterns: vec!["src/ui/**".into()],
+                depends_on: vec!["domain".into()],
+                description: None,
+            },
         );
-        let snapshot = snapshot_from(&baseline);
-        assert_eq!(snapshot.module_count, 17);
-        assert_eq!(snapshot.violation_count, 1);
-        assert_eq!(snapshot.violations[0].rule.as_deref(), Some("no-ui-to-db"));
-        // Default layers/boundaries are populated by create_baseline.
-        assert!(snapshot.layer_count > 0);
+        layers.insert(
+            "domain".into(),
+            Layer {
+                patterns: vec!["src/domain/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        ArchitectureDefinition {
+            schema_version: "0.1.0".into(),
+            template: ArchitectureTemplate::Custom,
+            layers,
+            bounded_contexts: None,
+            rules: vec![],
+            options: None,
+        }
     }
 
     #[test]
-    fn view_and_snapshot_agree_on_violation_count() {
-        let baseline = baseline_with(3, vec![]);
+    fn snapshot_maps_counts_from_definition() {
+        let definition = sample_definition();
+        let origin =
+            ArchitectureOrigin::LegacyFile(std::path::PathBuf::from(".anvil/architecture.yaml"));
+        let snapshot = snapshot_from_definition(&definition, &origin);
+        assert_eq!(snapshot.layer_count, 2);
+        assert_eq!(snapshot.violation_count, 0);
+        assert_eq!(snapshot.created_at, ".anvil/architecture.yaml");
+        assert_eq!(snapshot.updated_at, "live");
+    }
+
+    #[test]
+    fn view_and_snapshot_agree_on_layer_count() {
+        let definition = sample_definition();
+        let origin =
+            ArchitectureOrigin::LegacyFile(std::path::PathBuf::from(".anvil/architecture.yaml"));
+        let snapshot = snapshot_from_definition(&definition, &origin);
         assert_eq!(
-            snapshot_from(&baseline).violation_count,
-            view_from(&baseline).violations.len()
+            snapshot.layer_count,
+            view_from_snapshot(&snapshot).layer_count
         );
     }
 }

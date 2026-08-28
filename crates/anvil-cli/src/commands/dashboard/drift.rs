@@ -1,23 +1,16 @@
 //! `anvil dashboard drift` — native drift-snapshots dashboard (TDASH-003).
 //!
 //! Reads the snapshot history under `.anvil/snapshots/` via the `drift`
-//! command's existing readers and the architecture baseline
-//! (`.anvil/architecture.json`, the same baseline `anvil drift snapshot` scores
-//! against). `--json` emits a structured snapshot, non-TTY prints a plain
-//! summary, TTY runs the Ratatui surface. No snapshots is a legitimate empty
-//! state, not an error.
+//! command's existing readers. `--json` emits a structured snapshot, non-TTY
+//! prints a plain summary, TTY runs the Ratatui surface. No snapshots is a
+//! legitimate empty state, not an error.
 //!
-//! Note: the TDASH-003 item names `.anvil/baseline.json`; in the live tree the
-//! drift baseline that snapshots are scored against is the architecture
-//! baseline at `.anvil/architecture.json` (the per-finding fingerprint store at
-//! `.anvil/baseline.json` is a separate MLP-007 concern). New-vs-baseline here
-//! compares the latest snapshot's boundary violations against that architecture
-//! baseline, matching how the snapshot's violations were captured.
+//! Snapshot-to-snapshot deltas are the live comparison. The TypeScript-era
+//! `.anvil/architecture.json` frozen violation snapshot is not consulted.
 
 use std::collections::BTreeSet;
 use std::io::IsTerminal;
 
-use anvil_architecture::load_baseline;
 use anvil_architecture::types::ArchitectureBaseline;
 use anvil_tui::surfaces::dashboard::drift::{
     DriftDashboardState, DriftDelta, DriftSnapshotRow, DriftView,
@@ -72,9 +65,8 @@ struct DriftJson {
 pub fn run(global: &GlobalArgs) -> anyhow::Result<tui::SurfaceExit> {
     let root = util::workspace_root()?;
     let snapshots = load_all_snapshots(&root)?;
-    // Propagate load errors (corrupt/unreadable baseline); `Ok(None)` is the
-    // legitimate no-baseline state, which renders new-vs-baseline as unknown.
-    let baseline = load_baseline(&root)?;
+    // No frozen architecture.json snapshot — compare snapshots to each other.
+    let baseline = None;
 
     if global.json {
         let payload = build_json(&snapshots, baseline.as_ref());

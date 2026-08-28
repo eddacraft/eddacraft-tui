@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use super::{ReadError, contents, descriptor, ensure_known_query_keys, split_uri};
 
-/// `anvil://baseline` — the architecture baseline (`.anvil/architecture.json`).
+/// `anvil://baseline` — the live architecture definition (config or yaml).
 pub const URI_BASELINE: &str = "anvil://baseline";
 /// `anvil://boundaries` — layers and boundary rules derived from the baseline.
 pub const URI_BOUNDARIES: &str = "anvil://boundaries";
@@ -32,19 +32,20 @@ pub fn list() -> Vec<Value> {
         descriptor(
             URI_BASELINE,
             "Architecture baseline",
-            "The workspace architecture baseline (`.anvil/architecture.json`): \
-             schema version, entry points, layer definitions, boundary rules, \
-             and the baseline violation snapshot. Returns `{ \"error\": \
-             \"no-baseline\" }` when no baseline exists, or `{ \"error\": \
-             \"baseline-load-failed\" }` when the baseline cannot be loaded.",
+            "The workspace architecture definition (project config \
+             `architecture` section or `.anvil/architecture.yaml`): \
+             schema version, template, and layer definitions. Returns \
+             `{ \"error\": \"no-architecture\" }` when no definition \
+             exists, or `{ \"error\": \"architecture-load-failed\" }` \
+             when it cannot be loaded.",
         ),
         descriptor(
             URI_BOUNDARIES,
             "Architecture boundaries",
-            "Layer definitions and explicit boundary rules derived from the \
-             architecture baseline. Returns `{ \"error\": \"no-baseline\" }` \
-             when no baseline exists, or `{ \"error\": \"baseline-load-failed\" \
-             }` when the baseline cannot be loaded.",
+            "Layer definitions derived from the live architecture definition. \
+             Returns `{ \"error\": \"no-architecture\" }` when no definition \
+             exists, or `{ \"error\": \"architecture-load-failed\" }` when it \
+             cannot be loaded.",
         ),
         descriptor(
             URI_PATTERNS,
@@ -56,9 +57,10 @@ pub fn list() -> Vec<Value> {
         descriptor(
             URI_SUPPRESSIONS,
             "Active suppressions",
-            "Active (unexpired) suppressions from `.anvil/suppressions.json`, \
-             each with pattern id, file, scope, reason, and optional expiry, \
-             plus a summary of total/active/expired counts.",
+            "Active (unexpired) suppressions from the tracked exception store \
+             and inline `@anvil-ignore` directives, each with pattern id, \
+             file, scope, reason, and optional expiry, plus a summary of \
+             total/active/expired counts.",
         ),
         descriptor(
             URI_CONFIG,
@@ -159,37 +161,41 @@ fn redact_root(root: &Path, message: &str) -> String {
 
 fn read_baseline() -> Result<Value, ReadError> {
     let root = workspace_root_path()?;
-    Ok(match anvil_architecture::baseline::load_baseline(&root) {
-        Ok(Some(baseline)) => {
-            serde_json::to_value(&baseline).expect("architecture baseline serialises")
-        }
-        Ok(None) => json!({
-            "error": "no-baseline",
-            "message": "No architecture baseline found. Run `anvil init` to create one.",
-        }),
-        Err(err) => json!({
-            "error": "baseline-load-failed",
-            "message": redact_root(&root, &err.to_string()),
-        }),
-    })
+    Ok(
+        match crate::architecture_source::resolve_architecture(&root) {
+            Ok(Some((definition, _origin))) => {
+                serde_json::to_value(&definition).expect("architecture definition serialises")
+            }
+            Ok(None) => json!({
+                "error": "no-architecture",
+                "message": "No architecture definition found. Add an `architecture` section to the project config, or create `.anvil/architecture.yaml`.",
+            }),
+            Err(err) => json!({
+                "error": "architecture-load-failed",
+                "message": redact_root(&root, &err.to_string()),
+            }),
+        },
+    )
 }
 
 fn read_boundaries() -> Result<Value, ReadError> {
     let root = workspace_root_path()?;
-    Ok(match anvil_architecture::baseline::load_baseline(&root) {
-        Ok(Some(baseline)) => json!({
-            "layers": serde_json::to_value(&baseline.layers).expect("layers serialise"),
-            "boundaries": serde_json::to_value(&baseline.boundaries).expect("boundaries serialise"),
-        }),
-        Ok(None) => json!({
-            "error": "no-baseline",
-            "message": "No architecture baseline found. Run `anvil init` to create one.",
-        }),
-        Err(err) => json!({
-            "error": "baseline-load-failed",
-            "message": redact_root(&root, &err.to_string()),
-        }),
-    })
+    Ok(
+        match crate::architecture_source::resolve_architecture(&root) {
+            Ok(Some((definition, _origin))) => json!({
+                "layers": serde_json::to_value(&definition.layers).expect("layers serialise"),
+                "rules": serde_json::to_value(&definition.rules).expect("rules serialise"),
+            }),
+            Ok(None) => json!({
+                "error": "no-architecture",
+                "message": "No architecture definition found. Add an `architecture` section to the project config, or create `.anvil/architecture.yaml`.",
+            }),
+            Err(err) => json!({
+                "error": "architecture-load-failed",
+                "message": redact_root(&root, &err.to_string()),
+            }),
+        },
+    )
 }
 
 fn read_patterns() -> Value {

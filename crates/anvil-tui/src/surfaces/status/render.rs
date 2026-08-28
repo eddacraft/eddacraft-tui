@@ -187,7 +187,7 @@ fn render_results_panel(
     // a blank box (beta smoke feedback).
     if state.data.recent_runs.is_empty() {
         let empty = Paragraph::new(Line::from(Span::styled(
-            "  No runs recorded yet — run `anvil check` or save a watched file.",
+            "  No runs recorded yet — run `anvil gate`.",
             Style::default().fg(theme.muted()),
         )));
         frame.render_widget(empty, inner);
@@ -458,6 +458,10 @@ mod tests {
         assert!(
             rendered.contains("No runs recorded yet"),
             "empty Recent Runs panel must render an honest empty-state line; got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("anvil gate"),
+            "empty-state must name the command that records a run; got:\n{rendered}"
         );
     }
 }

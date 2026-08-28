@@ -938,8 +938,11 @@ fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
     )
     .expect("test config is writable");
     std::fs::create_dir_all(workspace.path().join(".anvil")).expect("anvil dir is writable");
-    std::fs::write(workspace.path().join(".anvil/architecture.json"), "{}")
-        .expect("baseline is writable");
+    std::fs::write(
+        workspace.path().join(".anvil/architecture.yaml"),
+        "schema_version: \"0.1.0\"\ntemplate: custom\nlayers: {}\n",
+    )
+    .expect("architecture definition is writable");
 
     let mut child = spawn_mcp_server_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");
@@ -1470,7 +1473,7 @@ fn mcp_serve_stdio_tools_call_blocks_secret_content() {
 }
 
 #[test]
-fn mcp_serve_stdio_tools_call_query_boundary_returns_no_baseline_for_clean_workspace() {
+fn mcp_serve_stdio_tools_call_query_boundary_returns_no_architecture_for_clean_workspace() {
     let workspace = tempfile::tempdir().expect("workspace exists");
 
     let mut child = spawn_mcp_server_in(workspace.path());
@@ -1516,8 +1519,9 @@ fn mcp_serve_stdio_tools_call_query_boundary_returns_no_baseline_for_clean_works
     assert_eq!(parsed["result"]["isError"], false);
 
     let payload = parse_tool_payload(&parsed);
-    assert_eq!(payload["allowed"], true);
-    assert_eq!(payload["reason"], "no-baseline");
+    assert_eq!(payload["allowed"], false);
+    assert_eq!(payload["evaluated"], false);
+    assert_eq!(payload["reason"], "no-architecture");
     assert_eq!(payload["backend"], "local");
     assert_eq!(payload["daemonStatus"], "not-wired");
 }
@@ -2112,38 +2116,49 @@ fn mcp_serve_stdio_resources_read_patterns_returns_catalogue() {
 }
 
 #[test]
-fn mcp_serve_stdio_resources_read_baseline_reports_no_baseline_when_absent() {
+fn mcp_serve_stdio_resources_read_baseline_reports_no_architecture_when_absent() {
     let workspace = tempfile::tempdir().expect("workspace dir exists");
     let parsed = read_anvil_resource(workspace.path(), 42, "anvil://baseline");
     let payload = anvil_resource_payload(&parsed, "anvil://baseline");
-    assert_eq!(payload["error"], "no-baseline", "{payload}");
+    assert_eq!(payload["error"], "no-architecture", "{payload}");
 }
 
 #[test]
-fn mcp_serve_stdio_resources_read_suppressions_summarises_active_and_expired() {
+fn mcp_serve_stdio_resources_read_suppressions_summarises_inline_and_exceptions() {
     let workspace = tempfile::tempdir().expect("workspace dir exists");
-    std::fs::create_dir_all(workspace.path().join(".anvil")).expect("anvil dir is writable");
     std::fs::write(
-        workspace.path().join(".anvil/suppressions.json"),
+        workspace.path().join("smelly.ts"),
+        "// @anvil-ignore AP-001: still needed\nconst x = 1;\n",
+    )
+    .expect("source is writable");
+    let store_dir = workspace.path().join("anvil/exceptions");
+    std::fs::create_dir_all(&store_dir).expect("exceptions dir is writable");
+    std::fs::write(
+        store_dir.join("store.json"),
         r#"{
-            "version": 1,
-            "suppressions": [
-                { "pattern_id": "AP-001", "file": "a.ts", "scope": "file", "reason": "active", "expires_at": "2099-12-31T00:00:00Z" },
-                { "pattern_id": "AP-002", "file": "b.ts", "scope": "file", "reason": "stale", "expires_at": "2020-01-01T00:00:00Z" }
+            "exceptions": [
+                {
+                    "schema_version": "anvil.exception.v1",
+                    "id": "exc_old",
+                    "policy_id": "AP-002",
+                    "file_pattern": "gone.ts",
+                    "reason": "expired",
+                    "created_at": "2020-01-01T00:00:00Z",
+                    "expires_at": "2020-06-01T00:00:00Z"
+                }
             ]
         }"#,
     )
-    .expect("suppressions file is writable");
+    .expect("exception store is writable");
 
     let parsed = read_anvil_resource(workspace.path(), 43, "anvil://suppressions");
     let payload = anvil_resource_payload(&parsed, "anvil://suppressions");
-    assert_eq!(payload["summary"]["total"], 2, "{payload}");
     assert_eq!(payload["summary"]["active"], 1, "{payload}");
     assert_eq!(payload["summary"]["expired"], 1, "{payload}");
     assert_eq!(
         payload["suppressions"].as_array().expect("array").len(),
         1,
-        "only the active suppression is listed"
+        "only the live inline suppression is listed"
     );
 }
 
@@ -2605,8 +2620,11 @@ fn mcp_serve_stdio_legacy_tools_call_accepts_progress_token_metadata() {
     )
     .expect("test config is writable");
     std::fs::create_dir_all(workspace.path().join(".anvil")).expect("anvil dir is writable");
-    std::fs::write(workspace.path().join(".anvil/architecture.json"), "{}")
-        .expect("baseline is writable");
+    std::fs::write(
+        workspace.path().join(".anvil/architecture.yaml"),
+        "schema_version: \"0.1.0\"\ntemplate: custom\nlayers: {}\n",
+    )
+    .expect("architecture definition is writable");
 
     let mut child = spawn_mcp_server_in(workspace.path());
     let stdout = child.stdout.take().expect("child stdout is piped");

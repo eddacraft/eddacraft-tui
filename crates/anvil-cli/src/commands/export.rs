@@ -654,40 +654,35 @@ pub(crate) fn collect_constraints(workspace_root: &std::path::Path) -> Constrain
     let now = chrono::Utc::now().to_rfc3339();
     let root_str = workspace_root.to_string_lossy().to_string();
 
-    // Load architecture baseline (warn on errors rather than silently ignoring)
-    let file_exists = anvil_architecture::baseline::baseline_exists(workspace_root);
-    let baseline = match anvil_architecture::baseline::load_baseline(workspace_root) {
-        Ok(b) => b,
+    let definition = match crate::architecture_source::resolve_architecture(workspace_root) {
+        Ok(resolved) => resolved.map(|(definition, _)| definition),
         Err(e) => {
-            eprintln!("warning: could not load architecture baseline: {e}");
+            eprintln!("warning: could not load architecture definition: {e}");
             None
         }
     };
-    let has_baseline = file_exists || baseline.is_some();
+    let has_baseline = definition.is_some();
 
-    let boundaries: Vec<BoundaryEntry> = baseline
+    let boundaries: Vec<BoundaryEntry> = definition
         .as_ref()
-        .map(|b| {
-            b.boundaries
+        .map(|def| {
+            def.rules
                 .iter()
-                .map(|boundary| BoundaryEntry {
-                    name: boundary.name.clone(),
-                    from: boundary.from.clone(),
-                    to: boundary.to.clone(),
-                    message: boundary.message.clone(),
-                    severity: serde_json::to_value(&boundary.severity)
-                        .ok()
-                        .and_then(|v| v.as_str().map(String::from))
-                        .unwrap_or_else(|| format!("{:?}", boundary.severity).to_lowercase()),
+                .map(|rule| BoundaryEntry {
+                    name: rule.name.clone(),
+                    from: rule.from.clone(),
+                    to: rule.to.clone(),
+                    message: rule.message.clone().unwrap_or_default(),
+                    severity: format!("{:?}", rule.severity).to_lowercase(),
                 })
                 .collect()
         })
         .unwrap_or_default();
 
-    let layers: Vec<LayerEntry> = baseline
+    let layers: Vec<LayerEntry> = definition
         .as_ref()
-        .map(|b| {
-            b.layers
+        .map(|def| {
+            def.layers
                 .iter()
                 .map(|(name, layer)| LayerEntry {
                     name: name.clone(),
@@ -722,7 +717,6 @@ pub(crate) fn collect_constraints(workspace_root: &std::path::Path) -> Constrain
 
     let conventions = default_conventions();
 
-    // Load suppressions from .anvil/suppressions.json
     let suppressions = load_suppressions(workspace_root);
 
     ConstraintData {

@@ -325,7 +325,10 @@ fn run_list(args: &ListArgs, global: &GlobalArgs) -> Result<()> {
             println!("{}", missing_envelope(&db_path));
             return Err(AlreadyReported.into());
         }
-        bail!("No Ember database found at {}", db_path.display());
+        bail!(
+            "No Ember database found at {}. This CLI lists a TypeScript ProposalStore; it does not create one.",
+            db_path.display()
+        );
     }
 
     let conn = match Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY) {
@@ -392,7 +395,10 @@ fn missing_envelope(db_path: &Path) -> Value {
     // Exactly the historical Node.js not-found shape (`list.ts`): five keys,
     // no `limit`/`has_more`/`filters`.
     json!({
-        "error": format!("No Ember database found at {}", db_path.display()),
+        "error": format!(
+            "No Ember database found at {}. This CLI lists a TypeScript ProposalStore; it does not create one.",
+            db_path.display()
+        ),
         "database_found": false,
         "database_path": db_path.display().to_string(),
         "total": 0,

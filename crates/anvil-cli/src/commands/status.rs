@@ -423,121 +423,23 @@ fn gather_profile(root: &Path) -> ProfileInfo {
     }
 }
 
-/// Read the most recent gate runs from the cache index.
+/// Read the most recent gate runs from `.anvil/gate-history.ndjson`.
 fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
-    let index_path = root.join(".anvil/cache/index.json");
-    let cache_dir = root.join(".anvil/cache");
-
-    let Ok(contents) = std::fs::read_to_string(&index_path) else {
-        return vec![];
-    };
-
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
-        return vec![];
-    };
-
-    let Some(entries) = value.get("entries").and_then(serde_json::Value::as_object) else {
-        return vec![];
-    };
-
-    let mut runs: Vec<GateRunResult> = entries
-        .iter()
-        .filter_map(|(key, val)| {
-            // Try loading the actual entry file for full gate results.
-            // The index entry only has metadata (file, created_at, expires_at, size_bytes).
-            if let Some(file) = val.get("file").and_then(serde_json::Value::as_str)
-                && !file.contains('/')
-                && !file.contains('\\')
-                && file != ".."
-                && file != "."
-            {
-                // Try entries/ subdirectory (workspace FileCacheProvider format)
-                // then cache root (standalone format).
-                let entry_path = cache_dir.join("entries").join(file);
-                let entry_path = if entry_path.exists() {
-                    entry_path
-                } else {
-                    cache_dir.join(file)
-                };
-                if let Ok(entry_contents) = std::fs::read_to_string(entry_path) {
-                    // Workspace FileCacheProvider writes entries as
-                    // <64-hex-hmac>\n<json>. Skip the HMAC prefix.
-                    let json_str = if entry_contents.len() > 65
-                        && entry_contents.as_bytes()[64] == b'\n'
-                        && entry_contents[..64].chars().all(|c| c.is_ascii_hexdigit())
-                    {
-                        &entry_contents[65..]
-                    } else {
-                        &entry_contents
-                    };
-                    if let Ok(entry_val) = serde_json::from_str::<serde_json::Value>(json_str) {
-                        let gate_val = entry_val.get("value").unwrap_or(&entry_val);
-                        return parse_gate_entry(key, gate_val);
-                    }
-                }
-            }
-            // Fall back to parsing the index entry directly.
-            parse_gate_entry(key, val)
+    crate::services::gate_history::load_recent(root, 5)
+        .into_iter()
+        .map(|point| GateRunResult {
+            timestamp: point.timestamp_display(),
+            passed: point.passed(),
+            score: point.score,
+            checks_run: point.checks_run(),
+            checks_passed: point.checks_passed(),
+            duration_ms: point.duration_ms(),
         })
-        .collect();
-
-    // Sort by timestamp descending, take 5 most recent.
-    runs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-    runs.truncate(5);
-    runs
-}
-
-fn parse_gate_entry(key: &str, val: &serde_json::Value) -> Option<GateRunResult> {
-    // Try timestamp from the last colon-separated segment of the key.
-    // Falls back to `created_at` field in the entry metadata (used by the
-    // runtime file-cache provider whose keys are `gate:check:<name>:<hash>`).
-    let ts: i64 = key
-        .rsplit(':')
-        .next()
-        .and_then(|s| s.parse().ok())
-        .or_else(|| {
-            // Runtime file-cache writes created_at as Date.now() (milliseconds).
-            val.get("created_at")
-                .and_then(serde_json::Value::as_i64)
-                .map(|ms| ms / 1000)
-        })?;
-
-    let timestamp = format_unix_timestamp(ts);
-
-    let passed = val
-        .get("passed")
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false);
-    let score = val
-        .get("score")
-        .and_then(serde_json::Value::as_f64)
-        .unwrap_or(0.0);
-    #[allow(clippy::cast_possible_truncation)]
-    let checks_run = val
-        .get("checksRun")
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(0) as usize;
-    #[allow(clippy::cast_possible_truncation)]
-    let checks_passed = val
-        .get("checksPassed")
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(0) as usize;
-    let duration_ms = val
-        .get("durationMs")
-        .and_then(serde_json::Value::as_u64)
-        .unwrap_or(0);
-
-    Some(GateRunResult {
-        timestamp,
-        passed,
-        score,
-        checks_run,
-        checks_passed,
-        duration_ms,
-    })
+        .collect()
 }
 
 /// Format a Unix timestamp as `YYYY-MM-DD HH:MM` (UTC, no external crate).
+#[cfg(test)]
 fn format_unix_timestamp(secs: i64) -> String {
     // Days from epoch algorithm (civil from days).
     let days_since_epoch = secs.div_euclid(86400);
@@ -2047,8 +1949,37 @@ mod tests {
         cleanup(&dir);
     }
 
+    fn write_gate_history(dir: &Path, lines: &[&str]) {
+        let anvil = dir.join(".anvil");
+        std::fs::create_dir_all(&anvil).unwrap();
+        std::fs::write(anvil.join("gate-history.ndjson"), lines.join("\n") + "\n").unwrap();
+    }
+
     #[test]
-    fn gather_with_cache_index() {
+    fn gather_from_gate_history() {
+        let dir = make_temp_dir();
+        write_gate_history(
+            &dir,
+            &[
+                r#"{"recorded_at":"2026-08-17T19:41:45Z","score":100.0,"status":"pass","status_label":"PASSED","warning_count":0,"duration_seconds":"0.5","checks_run":"8"}"#,
+                r#"{"recorded_at":"2026-08-16T10:00:00Z","score":75.0,"status":"fail","status_label":"FAILED","warning_count":2,"duration_seconds":"2.1","checks_run":"8"}"#,
+            ],
+        );
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.recent_runs.len(), 2);
+        assert!(data.recent_runs[0].passed);
+        assert!(!data.recent_runs[1].passed);
+        assert_eq!(data.recent_runs[0].checks_passed, 8);
+        assert_eq!(data.recent_runs[1].checks_passed, 0);
+        assert_eq!(data.recent_runs[0].timestamp, "2026-08-17 19:41");
+        assert_eq!(data.recent_runs[0].duration_ms, 500);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn typescript_cache_index_is_not_a_run_source() {
         let dir = make_temp_dir();
         let cache_dir = dir.join(".anvil/cache");
         std::fs::create_dir_all(&cache_dir).unwrap();
@@ -2062,13 +1993,6 @@ mod tests {
                         "checksRun": 8,
                         "checksPassed": 8,
                         "durationMs": 1850
-                    },
-                    "gate:plan.md:1709990000": {
-                        "passed": false,
-                        "score": 0.75,
-                        "checksRun": 8,
-                        "checksPassed": 6,
-                        "durationMs": 2100
                     }
                 }
             }"#,
@@ -2076,87 +2000,7 @@ mod tests {
         .unwrap();
 
         let data = gather_status_data(dir.to_str().unwrap());
-        assert_eq!(data.recent_runs.len(), 2);
-        // Most recent first.
-        assert!(data.recent_runs[0].passed);
-        assert!(!data.recent_runs[1].passed);
-        assert_eq!(data.recent_runs[0].checks_passed, 8);
-        assert_eq!(data.recent_runs[1].checks_passed, 6);
-
-        cleanup(&dir);
-    }
-
-    #[test]
-    fn gather_with_file_cache_entries_subdir() {
-        let dir = make_temp_dir();
-        let cache_dir = dir.join(".anvil/cache");
-        let entries_dir = cache_dir.join("entries");
-        std::fs::create_dir_all(&entries_dir).unwrap();
-        std::fs::write(
-            cache_dir.join("index.json"),
-            r#"{
-                "entries": {
-                    "gate:plan.md:1710000000": {
-                        "file": "abc123.json",
-                        "created_at": 1710000000000,
-                        "size_bytes": 128
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-        std::fs::write(
-            entries_dir.join("abc123.json"),
-            format!(
-                "{}\n{}",
-                "a".repeat(64),
-                r#"{"value":{"passed":true,"score":0.9,"checksRun":3,"checksPassed":3,"durationMs":1200}}"#
-            ),
-        )
-        .unwrap();
-
-        let data = gather_status_data(dir.to_str().unwrap());
-        assert_eq!(data.recent_runs.len(), 1);
-        assert!(data.recent_runs[0].passed);
-        assert_eq!(data.recent_runs[0].checks_run, 3);
-        assert_eq!(data.recent_runs[0].checks_passed, 3);
-
-        cleanup(&dir);
-    }
-
-    #[test]
-    fn gather_with_file_cache_entries_root() {
-        let dir = make_temp_dir();
-        let cache_dir = dir.join(".anvil/cache");
-        std::fs::create_dir_all(&cache_dir).unwrap();
-        std::fs::write(
-            cache_dir.join("index.json"),
-            r#"{
-                "entries": {
-                    "gate:plan.md:1710001000": {
-                        "file": "root-entry.json",
-                        "created_at": 1710001000000,
-                        "size_bytes": 128
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-        std::fs::write(
-            cache_dir.join("root-entry.json"),
-            format!(
-                "{}\n{}",
-                "b".repeat(64),
-                r#"{"value":{"passed":false,"score":0.5,"checksRun":4,"checksPassed":2,"durationMs":900}}"#
-            ),
-        )
-        .unwrap();
-
-        let data = gather_status_data(dir.to_str().unwrap());
-        assert_eq!(data.recent_runs.len(), 1);
-        assert!(!data.recent_runs[0].passed);
-        assert_eq!(data.recent_runs[0].checks_run, 4);
-        assert_eq!(data.recent_runs[0].checks_passed, 2);
+        assert!(data.recent_runs.is_empty());
 
         cleanup(&dir);
     }
@@ -2270,58 +2114,6 @@ mod tests {
         assert!(checks.is_empty());
     }
 
-    // --- parse_gate_entry ---
-
-    #[test]
-    fn parse_gate_entry_from_key_timestamp() {
-        let val = serde_json::json!({
-            "passed": true,
-            "score": 0.95,
-            "checksRun": 5,
-            "checksPassed": 5,
-            "durationMs": 1200
-        });
-        let result = parse_gate_entry("gate:plan.md:1710000000", &val).unwrap();
-        assert!(result.passed);
-        assert!((result.score - 0.95).abs() < f64::EPSILON);
-        assert_eq!(result.checks_run, 5);
-        assert_eq!(result.checks_passed, 5);
-        assert_eq!(result.duration_ms, 1200);
-    }
-
-    #[test]
-    fn parse_gate_entry_fallback_to_created_at() {
-        let val = serde_json::json!({
-            "created_at": 1_710_000_000_000_i64,
-            "passed": false,
-            "score": 0.5
-        });
-        // Key has no parseable timestamp suffix
-        let result = parse_gate_entry("gate:check:secret:abcdef", &val).unwrap();
-        assert!(!result.passed);
-        assert!((result.score - 0.5).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn parse_gate_entry_defaults_missing_fields() {
-        let val = serde_json::json!({
-            "created_at": 1_710_000_000_000_i64
-        });
-        let result = parse_gate_entry("gate:no-data:xxx", &val).unwrap();
-        assert!(!result.passed);
-        assert!(result.score.abs() < f64::EPSILON);
-        assert_eq!(result.checks_run, 0);
-        assert_eq!(result.checks_passed, 0);
-        assert_eq!(result.duration_ms, 0);
-    }
-
-    #[test]
-    fn parse_gate_entry_no_timestamp_returns_none() {
-        let val = serde_json::json!({"passed": true});
-        let result = parse_gate_entry("no-timestamp-key", &val);
-        assert!(result.is_none());
-    }
-
     // --- format_unix_timestamp ---
 
     #[test]
@@ -2367,25 +2159,16 @@ mod tests {
 
     #[test]
     fn truncates_to_five_runs() {
-        use std::fmt::Write;
-
         let dir = make_temp_dir();
-        let cache_dir = dir.join(".anvil/cache");
-        std::fs::create_dir_all(&cache_dir).unwrap();
-
-        let mut entries = String::from("{\"entries\":{");
-        for i in 0..8 {
-            if i > 0 {
-                entries.push(',');
-            }
-            let ts = 1_710_000_000 + i * 1000;
-            let _ = write!(
-                entries,
-                "\"gate:f.md:{ts}\":{{\"passed\":true,\"score\":0.9,\"checksRun\":1,\"checksPassed\":1,\"durationMs\":100}}"
-            );
-        }
-        entries.push_str("}}");
-        std::fs::write(cache_dir.join("index.json"), &entries).unwrap();
+        let lines: Vec<String> = (0..8)
+            .map(|i| {
+                format!(
+                    r#"{{"recorded_at":"2026-08-1{i}T10:00:00Z","score":100.0,"status":"pass","status_label":"PASSED","warning_count":0,"duration_seconds":"0.1","checks_run":"1"}}"#
+                )
+            })
+            .collect();
+        let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
+        write_gate_history(&dir, &refs);
 
         let data = gather_status_data(dir.to_str().unwrap());
         assert_eq!(data.recent_runs.len(), 5);

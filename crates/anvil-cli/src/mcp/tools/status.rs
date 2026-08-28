@@ -51,7 +51,12 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
     let redacted_workspace_root = redact_workspace_root(&workspace_path, &server_root);
 
     let config = load_config_info(&workspace_path);
-    let has_baseline = workspace_path.join(".anvil/architecture.json").is_file();
+    let has_architecture = crate::architecture_source::resolve_architecture(&workspace_path)
+        .ok()
+        .flatten()
+        .is_some();
+    let has_tracked_baseline = workspace_path.join("anvil/baseline.json").is_file();
+    let has_baseline = has_architecture || has_tracked_baseline;
     let available_checks = check_catalog::gate_canonical_names();
 
     Ok(json!({

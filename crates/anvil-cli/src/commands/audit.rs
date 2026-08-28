@@ -414,68 +414,16 @@ fn contains_marker(line: &str) -> bool {
     line.contains("//") || line.contains('#') || line.starts_with("/*") || line.contains("* ")
 }
 
-/// Load up to 4 historical score entries from the cache index.
+/// Load up to 4 historical score entries from `.anvil/gate-history.ndjson`.
 fn load_historical_scores(root: &Path) -> Vec<HistoricalScore> {
-    let index_path = root.join(".anvil/cache/index.json");
-
-    let Ok(contents) = std::fs::read_to_string(&index_path) else {
-        return vec![];
-    };
-
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
-        return vec![];
-    };
-
-    let Some(entries) = value.get("entries").and_then(serde_json::Value::as_object) else {
-        return vec![];
-    };
-
-    let mut scores: Vec<HistoricalScore> = entries
-        .iter()
-        .filter_map(|(key, val)| {
-            let ts_str = key.rsplit(':').next()?;
-            let ts: i64 = ts_str.parse().ok()?;
-            let timestamp = format_unix_timestamp(ts);
-            let score = val.get("score").and_then(serde_json::Value::as_f64)?;
-            #[allow(clippy::cast_possible_truncation)]
-            let issue_count = val
-                .get("issueCount")
-                .or_else(|| val.get("checksRun"))
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0) as usize;
-            Some(HistoricalScore {
-                timestamp,
-                score,
-                issue_count,
-            })
+    crate::services::gate_history::load_recent(root, 4)
+        .into_iter()
+        .map(|point| HistoricalScore {
+            timestamp: point.timestamp_display(),
+            score: point.score,
+            issue_count: point.warning_count,
         })
-        .collect();
-
-    scores.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-    scores.truncate(4);
-    scores
-}
-
-/// Format a Unix timestamp as `YYYY-MM-DD HH:MM` (UTC, no external crate).
-fn format_unix_timestamp(secs: i64) -> String {
-    let days_since_epoch = secs.div_euclid(86400);
-    let time_of_day = secs.rem_euclid(86400);
-
-    let hours = time_of_day / 3600;
-    let minutes = (time_of_day % 3600) / 60;
-
-    let z = days_since_epoch + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-
-    format!("{y:04}-{m:02}-{d:02} {hours:02}:{minutes:02}")
+        .collect()
 }
 
 /// Generate actionable next steps from the issue list.
@@ -1444,7 +1392,30 @@ mod tests {
     }
 
     #[test]
-    fn historical_scores_from_cache() {
+    fn historical_scores_from_gate_history() {
+        let dir = make_temp_dir();
+        let anvil = dir.join(".anvil");
+        std::fs::create_dir_all(&anvil).unwrap();
+        std::fs::write(
+            anvil.join("gate-history.ndjson"),
+            concat!(
+                r#"{"recorded_at":"2026-08-17T19:41:45Z","score":90.0,"status":"pass","status_label":"PASSED","warning_count":3,"duration_seconds":"0.5","checks_run":"8"}"#,
+                "\n",
+                r#"{"recorded_at":"2026-08-16T10:00:00Z","score":80.0,"status":"fail","status_label":"FAILED","warning_count":5,"duration_seconds":"1","checks_run":"8"}"#,
+                "\n",
+            ),
+        )
+        .unwrap();
+
+        let data = run_audit(&dir);
+        assert_eq!(data.historical_scores.len(), 2);
+        assert_eq!(data.historical_scores[0].timestamp, "2026-08-17 19:41");
+        assert_eq!(data.historical_scores[0].issue_count, 3);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn typescript_cache_index_is_not_a_score_source() {
         let dir = make_temp_dir();
         let cache_dir = dir.join(".anvil/cache");
         std::fs::create_dir_all(&cache_dir).unwrap();
@@ -1452,15 +1423,14 @@ mod tests {
             cache_dir.join("index.json"),
             r#"{
                 "entries": {
-                    "gate:f.md:1710000000": {"score": 0.9, "issueCount": 3},
-                    "gate:f.md:1709990000": {"score": 0.8, "issueCount": 5}
+                    "gate:f.md:1710000000": {"score": 0.9, "issueCount": 3}
                 }
             }"#,
         )
         .unwrap();
 
         let data = run_audit(&dir);
-        assert_eq!(data.historical_scores.len(), 2);
+        assert!(data.historical_scores.is_empty());
         cleanup(&dir);
     }
 

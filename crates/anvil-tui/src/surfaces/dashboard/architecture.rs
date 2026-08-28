@@ -1,6 +1,6 @@
 //! Architecture-health dashboard surface (TDASH-002).
 //!
-//! Renders the architecture baseline (`.anvil/architecture.json`) natively: a
+//! Renders the live architecture definition natively: a
 //! summary of module/layer/boundary counts plus the table of baselined
 //! boundary violations. Read-only; the CLI loads the baseline and maps it into
 //! the render-only view structs here.
@@ -125,11 +125,11 @@ fn render_empty(frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
         Paragraph::new(Text::from(vec![
             Line::raw(""),
             Line::styled(
-                "  No architecture baseline found.",
+                "  No architecture definition found.",
                 Style::default().fg(theme.muted()),
             ),
             Line::styled(
-                "  Expected at .anvil/architecture.json.",
+                "  Add an architecture section or .anvil/architecture.yaml.",
                 Style::default().fg(theme.muted()),
             ),
         ])),
@@ -322,11 +322,11 @@ mod tests {
         let state = ArchitectureDashboardState::new(None);
         let rendered = render_to_string(&state, 100, 20);
         assert!(
-            rendered.contains("No architecture baseline"),
+            rendered.contains("No architecture definition"),
             "got:\n{rendered}"
         );
         assert!(
-            rendered.contains(".anvil/architecture.json"),
+            rendered.contains(".anvil/architecture.yaml"),
             "got:\n{rendered}"
         );
     }

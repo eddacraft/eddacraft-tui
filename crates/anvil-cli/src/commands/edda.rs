@@ -237,7 +237,10 @@ fn run_list(args: &ListArgs, global: &GlobalArgs) -> Result<()> {
         if json_output {
             println!("{envelope}");
         } else {
-            println!("No Edda storage found at {}", storage_path.display());
+            println!(
+                "No Edda storage found at {}. This CLI lists a TypeScript MemoryStore; it does not create one.",
+                storage_path.display()
+            );
         }
         // Match the historical Node.js CLI: missing storage is a
         // CliError, so callers (scripts, CI) can distinguish "no
@@ -571,7 +574,10 @@ fn missing_storage_envelope(
     limit: usize,
 ) -> Value {
     json!({
-        "error": format!("No Edda storage found at {}", storage_path.display()),
+        "error": format!(
+            "No Edda storage found at {}. This CLI lists a TypeScript MemoryStore; it does not create one.",
+            storage_path.display()
+        ),
         "storage_found": false,
         "storage_path": storage_path.display().to_string(),
         "total": 0,

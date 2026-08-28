@@ -1,12 +1,19 @@
-//! Shared loader for `.anvil/suppressions.json`.
+//! Shared loader for live suppressions.
 //!
-//! Reads the suppression store, filtering out expired and malformed entries.
+//! Reads the tracked exception store (`anvil/exceptions/store.json`) and
+//! inline `@anvil-ignore` directives. The TypeScript-era
+//! `.anvil/suppressions.json` snapshot is not consulted.
 //! Consumed by `anvil export` (constraint bundles) and the `anvil dashboard
 //! suppressions` surface (TDASH-004).
 
 use std::path::Path;
 
+use anvil_checks::antipattern::{AntipatternCheckConfig, parse_suppression};
+use anvil_policy::exceptions::ExceptionStore;
 use serde::Serialize;
+use walkdir::WalkDir;
+
+use crate::util::is_ignored_dir_name;
 
 /// One active suppression, projected for serialization and display.
 #[derive(Debug, Clone, Serialize)]
@@ -17,20 +24,6 @@ pub(crate) struct SuppressionEntry {
     pub(crate) reason: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) expires_at: Option<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct SuppressionStore {
-    suppressions: Vec<RawSuppression>,
-}
-
-#[derive(serde::Deserialize)]
-struct RawSuppression {
-    pattern_id: String,
-    file: String,
-    scope: String,
-    reason: String,
-    expires_at: Option<String>,
 }
 
 /// The active suppressions plus the active/expired counts over the whole store.
@@ -48,61 +41,49 @@ pub(crate) struct SuppressionsReport {
     pub(crate) expired: usize,
 }
 
-/// Load active suppressions from `.anvil/suppressions.json`.
-///
-/// Returns an empty vec when the file is absent or unparseable, and filters out
-/// entries whose `expires_at` is in the past or malformed (treated as expired).
+/// Load active suppressions from the live exception store and `@anvil-ignore`.
 pub(crate) fn load_suppressions(workspace_root: &Path) -> Vec<SuppressionEntry> {
     load_suppressions_report(workspace_root).active
 }
 
-/// Load the suppression store as an active-plus-counts [`SuppressionsReport`].
-///
-/// Same parse/expiry semantics as [`load_suppressions`] (absent/unparseable →
-/// an empty report; past or malformed `expires_at` counts as expired), but it
-/// retains the total and expired counts the active-only loader discards.
+/// Load the suppression inventory as an active-plus-counts [`SuppressionsReport`].
 pub(crate) fn load_suppressions_report(workspace_root: &Path) -> SuppressionsReport {
-    let path = workspace_root.join(".anvil").join("suppressions.json");
-    let Ok(content) = std::fs::read_to_string(&path) else {
-        return SuppressionsReport {
-            active: Vec::new(),
-            total: 0,
-            expired: 0,
-        };
-    };
+    let mut active = Vec::new();
+    let mut expired = 0usize;
 
-    let store: SuppressionStore = match serde_json::from_str(&content) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("warning: could not parse {}: {e}", path.display());
-            return SuppressionsReport {
-                active: Vec::new(),
-                total: 0,
-                expired: 0,
-            };
+    match ExceptionStore::load(workspace_root) {
+        Ok(store) => {
+            let now = chrono::Utc::now();
+            for exception in store.exceptions {
+                if exception.revoked.is_some() {
+                    expired += 1;
+                    continue;
+                }
+                if exception.expires_at.is_some_and(|exp| exp < now) {
+                    expired += 1;
+                    continue;
+                }
+                active.push(SuppressionEntry {
+                    pattern_id: exception.policy_id,
+                    file: exception.file_pattern,
+                    scope: "exception".to_string(),
+                    reason: exception.reason,
+                    expires_at: exception
+                        .expires_at
+                        .map(|exp| exp.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
+                });
+            }
         }
-    };
+        Err(error) => {
+            eprintln!("warning: could not load exception store: {error}");
+        }
+    }
 
-    let now = chrono::Utc::now();
-    let total = store.suppressions.len();
-    let active: Vec<SuppressionEntry> = store
-        .suppressions
-        .into_iter()
-        .filter(|s| match s.expires_at.as_ref() {
-            None => true,
-            Some(exp) => chrono::DateTime::parse_from_rfc3339(exp)
-                .is_ok_and(|d| d.with_timezone(&chrono::Utc) >= now),
-        })
-        .map(|s| SuppressionEntry {
-            pattern_id: s.pattern_id,
-            file: s.file,
-            scope: s.scope,
-            reason: s.reason,
-            expires_at: s.expires_at,
-        })
-        .collect();
-    let expired = total - active.len();
+    for inline in collect_inline_ignores(workspace_root) {
+        active.push(inline);
+    }
 
+    let total = active.len() + expired;
     SuppressionsReport {
         active,
         total,
@@ -110,59 +91,122 @@ pub(crate) fn load_suppressions_report(workspace_root: &Path) -> SuppressionsRep
     }
 }
 
+fn collect_inline_ignores(workspace_root: &Path) -> Vec<SuppressionEntry> {
+    let config = AntipatternCheckConfig::default();
+    let mut entries = Vec::new();
+    for entry in WalkDir::new(workspace_root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            !(e.file_type().is_dir() && is_ignored_dir_name(&e.file_name().to_string_lossy()))
+        })
+    {
+        let Ok(entry) = entry else { continue };
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        let path_str = path.to_string_lossy();
+        if !config
+            .extensions
+            .iter()
+            .any(|ext| path_str.ends_with(ext.as_str()))
+        {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let rel = path
+            .strip_prefix(workspace_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        for (idx, line) in content.lines().enumerate() {
+            if let Some((rule, reason)) = parse_suppression(line) {
+                entries.push(SuppressionEntry {
+                    pattern_id: rule,
+                    file: format!("{rel}:{}", idx + 1),
+                    scope: "inline".to_string(),
+                    reason,
+                    expires_at: None,
+                });
+            }
+        }
+    }
+    entries
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn load_suppressions_filters_expired_and_malformed() {
+    fn loads_inline_anvil_ignore() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("smelly.ts"),
+            "// @anvil-ignore AP-001: legacy\nconst x = 1;\n",
+        )
+        .unwrap();
+        let result = load_suppressions(tmp.path());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].pattern_id, "AP-001");
+        assert_eq!(result[0].scope, "inline");
+        assert!(result[0].file.starts_with("smelly.ts"));
+    }
+
+    #[test]
+    fn loads_exception_store_and_filters_expired() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let store_dir = tmp.path().join("anvil/exceptions");
+        std::fs::create_dir_all(&store_dir).unwrap();
+        std::fs::write(
+            store_dir.join("store.json"),
+            r#"{
+                "exceptions": [
+                    {
+                        "schema_version": "anvil.exception.v1",
+                        "id": "exc_active",
+                        "policy_id": "AP-010",
+                        "file_pattern": "src/legacy/**",
+                        "reason": "still needed",
+                        "created_at": "2026-01-01T00:00:00Z"
+                    },
+                    {
+                        "schema_version": "anvil.exception.v1",
+                        "id": "exc_old",
+                        "policy_id": "AP-011",
+                        "file_pattern": "src/gone.ts",
+                        "reason": "expired",
+                        "created_at": "2020-01-01T00:00:00Z",
+                        "expires_at": "2020-06-01T00:00:00Z"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+        let result = load_suppressions(tmp.path());
+        let ids: Vec<&str> = result.iter().map(|s| s.pattern_id.as_str()).collect();
+        assert!(ids.contains(&"AP-010"));
+        assert!(!ids.contains(&"AP-011"));
+    }
+
+    #[test]
+    fn typescript_suppressions_json_is_ignored() {
         let tmp = tempfile::TempDir::new().unwrap();
         let anvil_dir = tmp.path().join(".anvil");
         std::fs::create_dir_all(&anvil_dir).unwrap();
         std::fs::write(
             anvil_dir.join("suppressions.json"),
-            r#"{
-                "version": 1,
-                "suppressions": [
-                    { "pattern_id": "AP-001", "file": "a.ts", "scope": "file", "reason": "active", "expires_at": "2099-12-31T00:00:00Z" },
-                    { "pattern_id": "AP-002", "file": "b.ts", "scope": "file", "reason": "expired", "expires_at": "2020-01-01T00:00:00Z" },
-                    { "pattern_id": "AP-003", "file": "c.ts", "scope": "file", "reason": "malformed date", "expires_at": "not-a-date" },
-                    { "pattern_id": "AP-004", "file": "d.ts", "scope": "file", "reason": "no expiry" }
-                ],
-                "lastUpdated": "2026-01-01T00:00:00Z"
-            }"#,
+            r#"{ "suppressions": [{ "pattern_id": "AP-001", "file": "a.ts", "scope": "file", "reason": "stale store" }] }"#,
         )
         .unwrap();
-
-        let result = load_suppressions(tmp.path());
-        let ids: Vec<&str> = result.iter().map(|s| s.pattern_id.as_str()).collect();
-        // Active (future expiry) and no-expiry should be kept; expired and malformed should be dropped.
-        assert!(ids.contains(&"AP-001"), "active suppression should be kept");
-        assert!(
-            ids.contains(&"AP-004"),
-            "no-expiry suppression should be kept"
-        );
-        assert!(
-            !ids.contains(&"AP-002"),
-            "expired suppression should be filtered"
-        );
-        assert!(
-            !ids.contains(&"AP-003"),
-            "malformed date should be treated as expired"
-        );
-    }
-
-    #[test]
-    fn invalid_json_returns_empty() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let anvil_dir = tmp.path().join(".anvil");
-        std::fs::create_dir_all(&anvil_dir).unwrap();
-        std::fs::write(anvil_dir.join("suppressions.json"), "not json at all").unwrap();
         assert!(load_suppressions(tmp.path()).is_empty());
     }
 
     #[test]
-    fn absent_file_returns_empty() {
+    fn absent_sources_return_empty() {
         let tmp = tempfile::TempDir::new().unwrap();
         assert!(load_suppressions(tmp.path()).is_empty());
     }
