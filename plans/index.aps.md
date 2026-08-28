@@ -109,7 +109,7 @@ Selection rules:
 | 4 | DOCRB — documentation re-baseline | Done | [docs-rebaseline](./modules/docs-rebaseline.aps.md), [clean-room evidence](./reviews/2026-08-23-docrb-010-clean-room-verification.md) | All 11 items are Merged; independent clean-room verification merged via #4117. Residuals #4114/#4115/#4116 remain separately owned. | None — programme complete; not a release claim. |
 | 5 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
 | 6 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
-| 7 | CONF-001 — intent-conformance product ADR | Merged | [intent-conformance](./modules/intent-conformance.aps.md), [ADR-134](./decisions/134-intent-conformance-gating.md), [PR #4174](https://github.com/eddacraft/anvil-001/pull/4174), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Wave-0 decision integrated 2026-08-27; accepted ADR pins planless Tier-0 coverage/evidence semantics. Not a release claim. | None for CONF-001; module stays Proposed until CONF-002..004 are separately promoted. |
+| 7 | CONF-002..004 — Tier-0 intent conformance | In Progress | [intent-conformance](./modules/intent-conformance.aps.md), [ADR-134](./decisions/134-intent-conformance-gating.md), [PR #4174](https://github.com/eddacraft/anvil-001/pull/4174), [programme §6](./specs/2026-07-28-graph-trust-surfaces.md#6-clearance-checklist-to-unlock-the-rest) | Operator promoted the dependency-ordered contract, Git extraction, and advisory evaluation slice on 2026-08-28. CONF-001 remains Merged; not a release claim. | Implement and prove CONF-002, then CONF-003, then CONF-004; keep CONF-005..009 Proposed. |
 | 8 | SDT-001/-002 — secret-detection fail-closed + calibration corpus | Schedule | [secret-detection-truth](./modules/secret-detection-truth.aps.md) | Beta-reported false-clean on the customer-facing gate; honesty fix is small; corpus decomposes detection report before rules change. Not this cut claim. | Operator promotes when ready. |
 | 9 | v0.9.6-beta claim set | Released/Shipped | [release record](./releases/v0.9.6-beta.md) | Field fixes + shell command-safety published 2026-08-18. | None — historical. |
 | 10 | GTAO — gate-time catalogue on always-on surfaces | Schedule | [gate-time-always-on](./modules/gate-time-always-on.aps.md) | AST/MCP check are dark on the golden-path daemon; full gate is opt-in. Operator added a bounded Python AST slice 2026-08-22. Not this cut claim. | Wave 1 Merged via #4084. Wave 2 (GTAO-003/005) Merged via #4168. Next: promote GTAO-004/006/007 when ready. Do not auto-run full `anvil gate` on save; do not convert regex PY-008 to AST. |
@@ -793,15 +793,15 @@ claim.
 | Track | Module | Scope | Status | Programme next |
 | ----- | ------ | ----- | ------ | -------------- |
 | Council → gate | [council-gate-bridge](./modules/council-gate-bridge.aps.md) | CGBDG | **Ready** | Execute discovery CGBDG-001..006 (NBI #3); prefer thin witness-lines path |
-| Intent conformance | [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Proposed | CONF-001/ADR-134 Merged via #4174; promote CONF-002..004 separately |
+| Intent conformance | [intent-conformance](./modules/intent-conformance.aps.md) | CONF | In Progress | CONF-001/ADR-134 Merged via #4174; CONF-002..004 implemented and executor-proved on `feat/conf-002-004-tier0`, pending review and merge |
 | Capability discovery | [policy-capability-discovery](./modules/policy-capability-discovery.aps.md) | POLCAP | Proposed | POLCAP ADR + Planning Council when scheduled; design: [2026-05-24](./specs/2026-05-24-policy-capability-discovery.md) |
 | Supply-chain edges | [supply-chain-attestation](./modules/supply-chain-attestation.aps.md) | SCA | Proposed | SCA-001 one-ecosystem design when scheduled |
 | Graph LSP refs | [lsp-graph-navigation](./modules/lsp-graph-navigation.aps.md) | LSPNAV | Proposed | After RTAI-005 diagnostics-only + ADR-111 Accept |
 
-**Executable now:** CGBDG discovery. CONF-001 is Merged; later CONF work and
-the POLCAP / SCA / LSPNAV modules stay Proposed until their
-programme §6 checklist items pass; promote later work items to Ready only in
-their owning modules.
+**Executable now:** CGBDG discovery and CONF-002..004 review/landing closeout.
+CONF-001 is Merged; CONF-005..009 and the POLCAP / SCA / LSPNAV modules stay
+Proposed until their programme §6 checklist items pass; promote later work
+items only in their owning modules.
 
 Sibling (not in the five-track shortlist; remains demand-pulled after CGBDG):
 [clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md)
@@ -852,7 +852,7 @@ compatibility interface on the same resolver — nothing here deprecates it.
 | [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Gateway integration with pocketflow | Draft |
 | [early-access-migration](./modules/early-access-migration.aps.md) | EAMIG | Early access migration tooling — POLRESET reconciliation removed the obsolete Go OPA/bundle migration slice and left exception ownership with EXCEPT | In Progress |
 | [early-access-tests](./modules/early-access-tests.aps.md) | EATEST | Early access test infrastructure (6/38 complete) — POLRESET reconciliation removed tests for the deleted Go OPA/bundle/profile APIs; current runtime coverage stays with POLENG/OPAE/POLVAL/EXCEPT | In Progress |
-| [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters). **Graph Trust Surfaces** track; CONF-001/ADR-134 Merged via #4174, while CONF-002..009 remain Proposed (see [programme](./specs/2026-07-28-graph-trust-surfaces.md)). | Proposed |
+| [intent-conformance](./modules/intent-conformance.aps.md) | CONF | Intent/claims conformance gating — "built what was planned and what it said" (tiered: commits/PR claims → session intent → plan adapters). **Graph Trust Surfaces** track; CONF-001/ADR-134 Merged via #4174; CONF-002..004 are In Progress; CONF-005..009 remain Proposed (see [programme](./specs/2026-07-28-graph-trust-surfaces.md)). | In Progress |
 | [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Intent ledger governance model — reconciled 2026-07-17 with POLRESET/ADR-098: Rust ownership split across kernel types, CLI, architecture/kernel, and policy engine; remains Draft pending product timing and CONF-002 contract co-design. Tier-1 for CONF; not Wave 1. | Draft |
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking — **not** in the Graph Trust Surfaces five-track shortlist; validation commands still need Rust rescope before any execution claim. | Ready |
 | [unified-config-format](./archive/modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces — **Complete 16/16**; secondary claim of `v0.9.5-beta`; archived 2026-08-27 | Complete |

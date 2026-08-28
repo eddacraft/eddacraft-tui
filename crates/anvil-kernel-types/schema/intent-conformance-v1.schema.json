@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "anvil.intent-conformance.v1",
+  "title": "ConformanceContract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "binding",
+    "sources",
+    "declared_scopes",
+    "claimed_changes",
+    "acceptance_assertions",
+    "graph_evidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "anvil.intent-conformance.v1" },
+    "binding": { "$ref": "#/$defs/EvaluationBinding" },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/IntentSource" }
+    },
+    "declared_scopes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/DeclaredScope" }
+    },
+    "claimed_changes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ConformanceClaim" }
+    },
+    "acceptance_assertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/AcceptanceAssertion" }
+    },
+    "graph_evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/GraphEvidenceBinding" }
+    }
+  },
+  "$defs": {
+    "NonEmptyString": { "type": "string", "minLength": 1 },
+    "SourceIndex": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "EvaluationBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "repository_id",
+        "canonical_worktree_id",
+        "base_revision",
+        "head_revision",
+        "commit_revision"
+      ],
+      "properties": {
+        "run_id": { "$ref": "#/$defs/NonEmptyString" },
+        "repository_id": { "$ref": "#/$defs/NonEmptyString" },
+        "canonical_worktree_id": { "$ref": "#/$defs/NonEmptyString" },
+        "base_revision": { "$ref": "#/$defs/NonEmptyString" },
+        "head_revision": { "$ref": "#/$defs/NonEmptyString" },
+        "commit_revision": { "$ref": "#/$defs/NonEmptyString" }
+      }
+    },
+    "IntentSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tier", "kind", "reference", "digest", "evidence_grade", "producer_schema"],
+      "properties": {
+        "tier": { "enum": ["tier-0", "tier-1", "tier-2"] },
+        "kind": {
+          "enum": ["conventional-commit", "pull-request", "session-intent", "plan-adapter"]
+        },
+        "reference": { "$ref": "#/$defs/NonEmptyString" },
+        "digest": { "$ref": "#/$defs/NonEmptyString" },
+        "evidence_grade": { "enum": ["strong", "moderate", "weak"] },
+        "producer_schema": { "$ref": "#/$defs/NonEmptyString" },
+        "producer_record_id": { "$ref": "#/$defs/NonEmptyString" }
+      }
+    },
+    "ConformanceClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "source_index"],
+      "properties": {
+        "kind": { "enum": ["file-class", "path-prefix", "graph-semantic"] },
+        "value": { "$ref": "#/$defs/NonEmptyString" },
+        "source_index": { "$ref": "#/$defs/SourceIndex" }
+      }
+    },
+    "DeclaredScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "authority", "source_index"],
+      "properties": {
+        "label": { "$ref": "#/$defs/NonEmptyString" },
+        "authority": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind"],
+              "properties": { "kind": { "const": "none" } }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "prefix"],
+              "properties": {
+                "kind": { "const": "explicit-path" },
+                "prefix": { "$ref": "#/$defs/NonEmptyString" }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "mapping_key",
+                "prefixes",
+                "schema_version",
+                "source_path",
+                "source_digest"
+              ],
+              "properties": {
+                "kind": { "const": "base-mapping" },
+                "mapping_key": { "$ref": "#/$defs/NonEmptyString" },
+                "prefixes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": { "$ref": "#/$defs/NonEmptyString" }
+                },
+                "schema_version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4294967295
+                },
+                "source_path": { "$ref": "#/$defs/NonEmptyString" },
+                "source_digest": { "$ref": "#/$defs/NonEmptyString" }
+              }
+            }
+          ]
+        },
+        "source_index": { "$ref": "#/$defs/SourceIndex" }
+      }
+    },
+    "AcceptanceAssertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "source_index"],
+      "properties": {
+        "id": { "$ref": "#/$defs/NonEmptyString" },
+        "statement": { "$ref": "#/$defs/NonEmptyString" },
+        "source_index": { "$ref": "#/$defs/SourceIndex" }
+      }
+    },
+    "GraphEvidenceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "path", "revision", "blob", "schema_version", "generation"],
+      "properties": {
+        "run_id": { "$ref": "#/$defs/NonEmptyString" },
+        "path": { "$ref": "#/$defs/NonEmptyString" },
+        "revision": { "$ref": "#/$defs/NonEmptyString" },
+        "blob": { "$ref": "#/$defs/NonEmptyString" },
+        "schema_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "generation": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

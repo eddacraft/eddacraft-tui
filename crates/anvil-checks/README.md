@@ -2,7 +2,7 @@
 
 | Type   | Authority     | Owner | Status | Freshness                                                                                           |
 | ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------- |
-| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/lib.rs`, `src/surface/**`, and `ARCHITECTURE.md` |
+| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-28 against ADR-134, `src/conformance/**`, `src/lib.rs`, and `ARCHITECTURE.md` |
 
 | Upstream                                                  | Downstream                                              |
 | --------------------------------------------------------- | ------------------------------------------------------- |
@@ -38,6 +38,67 @@ compatibility and history record.
   `# @anvil-ignore SURFENV-001`, plus SQL, Dockerfile, GitHub Actions, and shell
   source-specific checks.
 - **`command_safety`** — shell command safety analysis.
+- **`conformance`** — bounded, replacement-disabled Tier-0 Git extraction and
+  advisory claim-versus-effect evaluation. Opaque repository/worktree identities
+  and structured budget diagnostics keep failures observable without leaking
+  local paths. Raw Git records stay distinct from canonical per-path coverage
+  and evaluator-owned evidence dispositions.
+
+## Intent-conformance claim table v1
+
+The closed v1 table recognises:
+
+- Conventional Commit type `docs` as `documentation-only`: paths under `docs/`
+  or `plans/`, documentation extensions (`.md`, `.mdx`, `.rst`, `.adoc`), and
+  the documented root/basename files in `evaluate.rs`;
+- type `test` as `test-only`: conventional test directories and the exact
+  filename suffixes in `evaluate.rs`;
+- an explicit `path:<prefix>` scope, or a versioned
+  `intent_conformance.scope_mappings` entry loaded only from the evaluated base
+  tree.
+
+The v1 mapping shape is:
+
+```yaml
+intent_conformance:
+  scope_mappings:
+    schema_version: 1
+    mappings:
+      core:
+        - crates/core
+        - src/core
+```
+
+Mapping keys are non-empty and each prefix array is non-empty, byte-sorted,
+unique, and free of glob syntax, traversal segments, empty segments, and
+absolute paths. All prefixes in a selected mapping form one authorised union.
+Unknown `scope_mappings` keys are rejected. The selected base-tree source path
+and canonical full-config digest travel with the authority, and every
+contributing base configuration path is marked `policy-change` independently of
+the claim's scope form.
+
+Git path classification is byte- and case-exact. Renames retain one raw record
+while both old and new endpoints receive independent coverage dispositions.
+Legal repository-relative UTF-8 filenames are not restricted by the stricter
+scope-prefix grammar. The bounded no-renames preflight and rename-enabled final
+diff must produce identical endpoint sets. Budget failures preserve the
+originating stage and expose configured limits, elapsed time, counts through the
+last complete record of that stage, and a raw-input digest where available. Git
+is resolved once to a canonical absolute executable; relative or empty `PATH`
+entries cannot change the invoked program after the working directory changes.
+Every invocation runs in an isolated process tree, which is terminated as a unit
+on timeout or output overflow, and pipe capture has its own bounded shutdown.
+Repository subdirectories resolve to the same canonical Git top-level identity,
+while bare repositories are not evaluated.
+
+Free-form scopes never gain path meaning by similarity. Graph bindings are
+checked across repository, canonical worktree, run, path, revision/blob, schema,
+and generation before semantic evaluation. Missing, stale, and mismatched
+bindings remain visible. Graph-semantic claims have no v1 predicate and remain
+reason-coded `not-evaluated` even when the binding is valid; only a future
+predicate-specific adapter over an actual, revision-bound GV2 delta can change
+that. Findings use canonical policy diagnostics at warning severity, leaving
+process-exit policy to callers.
 
 ## Parallel Scanning
 
@@ -58,4 +119,4 @@ Benchmarks live in `benches/checks.rs`.
 
 ## Part of
 
-[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-checks`).
+[eddacraft anvil](../../README.md) monorepo (`crates/anvil-checks`).

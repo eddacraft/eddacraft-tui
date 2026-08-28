@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-28 against `src/secret/scanner.rs` (CIB-369 skip helpers and clippy Path/`is_some_and` clean-up). Evaluation-flow diagram unaffected — skip helpers do not add a family or change the caller/filter/results topology. Previously reviewed 2026-08-27 against `src/secret/check.rs`, `src/secret/scanner.rs` and `tests/secret_calibration.rs` (SDT-001 fail-closed coverage reporting; SDT-002 calibration corpus), plus `src/antipattern/mask.rs` (CIB-359 3-byte-at-61 tests; production slice unchanged), `src/antipattern/registry_loader.rs`, and ADR-131 |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-28 against ADR-134 and `src/conformance/**`; conformance extraction and evaluation added to the family flow. Also reviewed against `src/secret/scanner.rs` (CIB-369 skip helpers and clippy Path/`is_some_and` clean-up); those helpers do not change the flow. Previously reviewed 2026-08-27 against `src/secret/check.rs`, `src/secret/scanner.rs` and `tests/secret_calibration.rs` (SDT-001 fail-closed coverage reporting; SDT-002 calibration corpus), plus `src/antipattern/mask.rs` (CIB-359 3-byte-at-61 tests; production slice unchanged), `src/antipattern/registry_loader.rs`, and ADR-131 |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -42,11 +42,13 @@ flowchart LR
     Families --> Reason[reasoning]
     Families --> Surface[env, SQL, Dockerfile, GitHub Actions, shell]
     Families --> Command[command safety]
+    Families --> Conformance[intent conformance]
     Anti --> Results[typed findings and diagnostics]
     Secret --> Results
     Reason --> Results
     Surface --> Results
     Command --> Results
+    Conformance --> Results
     Results --> Caller[CLI, intercept, activation, or MCP caller]
 ```
 
@@ -80,6 +82,11 @@ path. Ordinary CLI callers may use the disk-reading wrapper.
   specific matching rule, and returns a decision with evidence. Default
   filesystem, Git, and shell rules live under
   [`command_safety/rules/`](src/command_safety/rules).
+- [`conformance/`](src/conformance) owns bounded Tier-0 Git evidence extraction,
+  the versioned closed claim table, claim-versus-effect evaluation, and
+  canonical advisory finding construction. It consumes the shared contract from
+  `anvil-kernel-types`; callers still own repository selection, graph
+  production, baseline policy, enforcement, and presentation.
 - [`filter.rs`](src/filter.rs) owns shared directory, suffix, binary, and
   always-scan classification. Callers still own discovery and decide which
   candidate paths enter this filter.
@@ -100,6 +107,39 @@ orchestration from leaking into the reusable check engine.
   family score or fail that family.
 - Result order and path rendering are deterministic so JSON and diagnostic
   callers can compare runs.
+- Intent-conformance extraction disables replacement objects, rejects
+  replacement/graft and shallow state, clears ambient Git configuration, and
+  applies per-command and whole-run resource budgets. Every selected commit
+  remains represented as evaluated or reason-coded not-evaluated. Repository and
+  canonical-worktree identities are derived from the canonical Git common
+  directory and top-level respectively, re-verified at extraction, and emitted
+  only as opaque digests. Bare repositories are rejected, while any directory
+  inside one worktree resolves to the same worktree identity.
+- Git executable discovery accepts only a canonical absolute program reached
+  through an absolute `PATH` entry. Each command is isolated in a process group
+  (or Windows process tree), abnormal exits terminate descendants, and reader
+  shutdown remains time-bounded even if an inherited output pipe stays open.
+- Timeout and deterministic-budget failures preserve their originating stage and
+  structured diagnostics: configured limit, elapsed time, commit/record/
+  rename/raw/decoded counts through the last complete record of the affected
+  stage, and a raw-input digest when available.
+- Exact raw Git records retain status, rename, mode, object type, object ID, and
+  gitlink evidence. Canonical byte-sorted per-path coverage separately maps
+  paths to raw-record indices and evaluator dispositions; rename endpoints are
+  therefore independently dispositioned without duplicating the raw record. A
+  bounded no-renames preflight and rename-enabled final diff must name identical
+  endpoint sets.
+- File-class and prefix matching are case-exact. Every prefix in a selected
+  base-tree mapping forms one authority union. Contributing base configuration
+  paths are `policy-change` regardless of the claim's scope form. Raw Git paths
+  retain legal UTF-8 metacharacters that the stricter authority-prefix grammar
+  forbids.
+- Conformance outcome and evidence strength are independent and aggregate
+  monotonically: incomplete evidence cannot pass, while a proven violation
+  cannot disappear behind missing evidence. Graph bindings are checked across
+  repository, worktree, run, path, revision/blob, schema, and generation;
+  missing, stale, or mismatched evidence remains observable. A valid binding
+  alone never satisfies a graph-semantic claim.
 - Secret findings redact the matched value; tests assert that raw credentials do
   not enter finding output.
 - Oversized secret-scan lines are skipped before regular-expression evaluation,

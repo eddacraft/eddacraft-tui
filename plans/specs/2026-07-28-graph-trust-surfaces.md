@@ -37,7 +37,7 @@ programme is not a claim of the active provisional `v0.9.8-beta` window.
 | Track | Work | Mode today | Outcome that clears Wave 1 |
 | ----- | ---- | ---------- | -------------------------- |
 | **CGBDG** | CGBDG-001..006 discovery | **Ready** — execute | Discovery report + follow-on implement/spec or explicit park |
-| **CONF** | CONF-001 product ADR | **Merged via #4174**; module Proposed | ADR-134 accepted; implement/prove its Git, base-tree scope-authority, and evidence-binding contract before promoting CONF-002..004 |
+| **CONF** | CONF-002..004 Tier-0 implementation | **In Progress**; CONF-001 Merged via #4174 | Implement/prove ADR-134's Git, base-tree scope-authority, and evidence-binding contract; keep CONF-005..009 Proposed |
 | **POLCAP** | POLCAP-001 ADR + Planning Council | Proposed | Accepted ADR; AD-3/AD-4 reconciled with ADR-098 |
 | **SCA** | SCA-001 design (one ecosystem + graph shape) | Proposed | Design doc; edge-type home decided |
 | **LSPNAV** | RTAI-005 diagnostics-only + ADR-111 Accept | Proposed | RTAI-005 production boundary + ADR-111 Accepted |
@@ -105,7 +105,7 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
 | Module | Disposition (2026-08-27) |
 | ------ | ------------------------ |
 | **CGBDG** | **Ready**; NBI rank 3. Discovery may start without further status promotion. |
-| **CONF** | CONF-001 **Merged via #4174**; ADR-134 is accepted. Existing `GraphDelta.file` alone is not clearance. The module remains **Proposed** until CONF-002..004 implement and prove exact Git extraction and claim-appropriate evidence binding, then receive separate promotion. |
+| **CONF** | CONF-001 **Merged via #4174**; ADR-134 is accepted. CONF-002..004 remain **In Progress** until merge, with implementation and executor proof complete on `feat/conf-002-004-tier0`. Existing `GraphDelta.file` alone is not sufficient evidence; exact Git extraction and claim-appropriate binding are now proved by focused tests. |
 | POLCAP / SCA / LSPNAV | **Not** Ready. Clearance steps in §6 still apply. |
 
 ## 6. Clearance checklist (to unlock the rest)
@@ -124,10 +124,11 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
       evidence or clearance without revision/schema/generation binding
 - [x] Sequence the **Tier-0 contract** so CONF-002 can land without waiting for
       full ILGOV `IntentLedgerRecord` rescope item 1 (co-design seam; no fork)
-- [ ] Implement and prove exact Git extraction plus repository/worktree,
+- [x] Promote CONF-002..004 on 2026-08-28 with concrete Rust ownership and
+      validation commands
+- [x] Implement and prove exact Git extraction plus repository/worktree,
       revision/blob, graph-schema, generation, and run binding in CONF-002..004;
-      enforce base-tree mapping authority and `policy-change` dispositions;
-      then promote them separately with Rust validation commands
+      enforce base-tree mapping authority and `policy-change` dispositions
 - [x] Leave CONF-005..009 Proposed until later-wave dogfood
 
 ### LSPNAV — Graph-backed references

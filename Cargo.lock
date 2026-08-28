@@ -1388,12 +1388,16 @@ name = "eddacraft-anvil-checks"
 version = "0.9.7-beta"
 dependencies = [
  "criterion",
+ "eddacraft-anvil-config",
+ "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-kernel-types",
  "miette",
+ "nix 0.31.3",
  "rayon",
  "regex",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tempfile",
  "tracing",
  "workspace-hack",

@@ -10,14 +10,20 @@ description = "Anvil quality gate checks ported to Rust - secret scan, anti-patt
 name = "anvil_checks"
 
 [dependencies]
+anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
+anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 miette = { workspace = true }
 rayon = { workspace = true }
 regex = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.11"
 tracing = { workspace = true }
 workspace-hack.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", default-features = false, features = ["signal"] }
 
 [dev-dependencies]
 criterion = { workspace = true }

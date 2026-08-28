@@ -1,6 +1,7 @@
 # anvil-kernel-types
 
-Shared types for the Anvil Rust kernel — events, graph nodes, and trust levels.
+Shared types for the anvil Rust kernel — events, graph nodes, trust levels, and
+cross-surface contracts.
 
 ## Modules
 
@@ -9,6 +10,8 @@ Shared types for the Anvil Rust kernel — events, graph nodes, and trust levels
 - **`graph`** — graph node and edge type definitions
 - **`trust`** — trust level enums and scoring
 - **`diagnostics`** — the canonical `anvil.diagnostic.v1` envelope (see below)
+- **`conformance`** — the canonical `anvil.intent-conformance.v1` input and
+  verdict types, binding validation, and external-producer JSON Schema
 
 ## Canonical Diagnostic Envelope (`anvil.diagnostic.v1`)
 
@@ -26,9 +29,25 @@ depend on this crate rather than re-deriving a parallel shape.
 ## Usage
 
 This crate is a dependency of `anvil-kernel`, `anvil-tui`, `anvil-cli`,
-`anvil-checks`, and the MCP server. It contains no logic — only type definitions
-and serialisation derives.
+`anvil-checks`, and the MCP server. It contains shared type definitions,
+serialisation derives, and contract-only structural validation; source parsing
+and policy evaluation stay with their owning crates.
+
+External conformance producers can consume
+[`intent-conformance-v1.schema.json`](schema/intent-conformance-v1.schema.json)
+or the same schema through `conformance_json_schema()`. The runtime contract
+keeps intent provenance, Git and graph evidence bindings, outcome, and evidence
+strength distinct so incomplete evidence cannot serialise as a conformant
+verdict.
+
+Verdicts also separate exact raw Git change records from canonical per-path
+coverage. Coverage entries reference their backing raw-record indices and carry
+the path's policy/evidence disposition, so a rename keeps one raw record while
+its old and new endpoints are evaluated independently. Output validation
+requires the exact endpoint-to-record map in both directions and accepts legal
+repository-relative UTF-8 Git paths independently of the stricter
+authority-prefix grammar.
 
 ## Part of
 
-[eddacraft Anvil](../../README.md) monorepo (`crates/anvil-kernel-types`).
+[eddacraft anvil](../../README.md) monorepo (`crates/anvil-kernel-types`).

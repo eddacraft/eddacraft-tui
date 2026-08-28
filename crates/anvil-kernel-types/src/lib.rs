@@ -1,5 +1,6 @@
 pub mod adversarial;
 pub mod attack_scenario;
+pub mod conformance;
 pub mod diagnostics;
 pub mod enforcement;
 mod events;
@@ -16,6 +17,13 @@ pub mod trust;
 pub mod watch_event;
 
 pub use adversarial::{ExpectedOutcome, PayloadClass, Probe, ProbeCategory};
+pub use conformance::{
+    AcceptanceAssertion, CONFORMANCE_SCHEMA_VERSION, ClaimKind, ConformanceClaim,
+    ConformanceContract, ConformanceOutcome, ConformanceVerdict, ContractValidationError,
+    CoverageMember, DeclaredScope, EvaluationBinding, EvidenceDisposition, EvidenceGrade,
+    EvidenceStrength, GitChangeStatus, GitObjectType, GraphEvidenceBinding, IntentSource,
+    IntentSourceKind, IntentTier, RawGitChangeRecord, ScopeAuthority, conformance_json_schema,
+};
 pub use diagnostics::{
     Category, ControlDecision, DIAGNOSTIC_SCHEMA_VERSION, Diagnostic, DiagnosticSource, Location,
     Mode, Severity,

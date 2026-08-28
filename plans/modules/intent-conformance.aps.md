@@ -1,17 +1,19 @@
 # Intent Conformance
 
-| ID   | Owner  | Status   | Progress |
-| ---- | ------ | -------- | -------- |
-| CONF | @aneki | Proposed | 1/9      |
+| ID   | Owner  | Status      | Progress |
+| ---- | ------ | ----------- | -------- |
+| CONF | @aneki | In Progress | 1/9      |
 
-**Last reviewed:** 2026-08-27 — CONF-001 Merged via
+**Last reviewed:** 2026-08-28 — CONF-001 Merged via
 [#4174](https://github.com/eddacraft/anvil-001/pull/4174).
 [ADR-134](../decisions/134-intent-conformance-gating.md) is accepted and pins
 the deterministic Git, evidence-binding, and fail-honest outcome contract. The
 existing GV2 per-file channel is **not** implementation clearance until
 revision/schema/generation binding is proved. Tier 0 does not wait on the full
-ILGOV rescope. The module remains **Proposed** until CONF-002..004 are
-separately promoted with implementation files and Rust validation commands.
+ILGOV rescope. CONF-002..004 remain **In Progress** until merge; their
+dependency-ordered Wave-1 implementation and executor proof are complete on
+`feat/conf-002-004-tier0`, with the scoped Council repair re-review and PR
+landing still required. CONF-005..009 remain Proposed.
 
 > **Origin (2026-06-11):** Product direction set during the graphify gap
 > analysis: plan gates return as a conformance lint — "did the agent build
@@ -114,10 +116,11 @@ Change status to **Ready** when:
       explicit `path:` scope authority, base-tree mappings, and capsule privacy
 - [x] Tier 0 sequenced ahead of ILGOV rescope item 1; CONF-002 keeps a
       co-design seam and must not fork the future Rust `IntentLedgerRecord`
-- [ ] CONF-002..004 implement and prove exact Git extraction plus
+- [x] CONF-002..004 promoted 2026-08-28 under operator authority with
+      implementation files and exact Rust validation commands
+- [x] CONF-002..004 implement and prove exact Git extraction plus
       repository/worktree, revision/blob, schema, generation, and run binding;
-      then promote them separately with implementation files and Rust validation
-      commands
+      each dependency boundary has focused tests and full affected-crate proof
 - [x] CONF-005..009 remain Proposed for later waves
 
 ## Work Items
@@ -152,20 +155,30 @@ Change status to **Ready** when:
 
 ### CONF-002: Canonical conformance contract
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** One Rust contract all tiers normalise into: declared scope,
   claimed changes, acceptance assertions, source provenance + evidence grade.
 - **Expected Outcome:** Contract type in `anvil-kernel-types` with serde JSON
   schema for external producers; binds repository/worktree, evaluation run,
   revision/blob and graph schema/generation; extends (not forks) ILGOV's record
   schema.
-- **Validation:** `cargo test -p anvil-kernel-types`
+- **Files:** `crates/anvil-kernel-types/src/conformance.rs`,
+  `crates/anvil-kernel-types/src/lib.rs`, and
+  `crates/anvil-kernel-types/README.md`,
+  `crates/anvil-kernel-types/schema/intent-conformance-v1.schema.json`, and
+  `crates/anvil-kernel-types/tests/conformance_contract.rs`
+- **Evidence:** Canonical input and verdict round trips cover all binding axes;
+  output validation proves raw-record/per-path separation, rename endpoints,
+  canonical ordering, exact bidirectional endpoint references, and legal Git
+  paths independent of scope-prefix grammar. Nine focused tests pass.
+- **Validation:**
+  `cargo test -p eddacraft-anvil-kernel-types --no-fail-fast`
 - **Dependencies:** CONF-001
 - **Confidence:** medium
 
 ### CONF-003: Tier-0 claim extraction — conventional commits
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Deterministically parse commit `type(scope)` and trailers into
   conformance contract claims as the first executable Tier-0 source.
 - **Expected Outcome:** Each selected commit is bound to its own exact raw Git
@@ -174,13 +187,25 @@ Change status to **Ready** when:
   option-shaped revision inputs yield reason-coded not-evaluated, never
   conformant. Tests cover option-shaped inputs, active replacement refs,
   legacy graft state, ambient Git overrides, and every budget reason.
-- **Validation:** `cargo test -p anvil-checks`
+- **Files:** `crates/anvil-checks/src/conformance/mod.rs`,
+  `crates/anvil-checks/src/conformance/git.rs`,
+  `crates/anvil-checks/tests/conformance_git.rs`,
+  `crates/anvil-checks/src/lib.rs`, `crates/anvil-checks/Cargo.toml`,
+  and `Cargo.lock`
+- **Evidence:** Twenty-seven extractor tests cover option-safe selection,
+  replacement/graft/shallow rejection, first-parent and ancestry semantics,
+  raw record fidelity, base-tree authority, opaque identity verification, and
+  stage-local last-complete-record budget diagnostics. Controlled Git wrappers
+  prove preflight/final endpoint equality, timeout counters, descendant
+  process-tree teardown, canonical absolute Git executable resolution, and
+  canonical top-level worktree identity with explicit bare-repository rejection.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast`
 - **Dependencies:** CONF-002
 - **Confidence:** high
 
 ### CONF-004: Tier-0 conformance check — claims vs delta
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Evaluate Tier-0 claims against the change delta and emit
   advisory findings.
 - **Expected Outcome:** Closed path/file-class claims evaluate from Git;
@@ -189,7 +214,18 @@ Change status to **Ready** when:
   versioned base-tree authority and mapping changes are `policy-change`;
   proven violations remain non-conformant under partial evidence; warnings exit
   0 by default; baselined new-edges-only.
-- **Validation:** `cargo test -p anvil-checks` + dogfood on this repo's history
+- **Files:** `crates/anvil-checks/src/conformance/evaluate.rs`,
+  `crates/anvil-checks/src/conformance/mod.rs`,
+  `crates/anvil-checks/tests/conformance_evaluate.rs`,
+  `crates/anvil-checks/README.md`, and
+  `crates/anvil-checks/ARCHITECTURE.md`
+- **Evidence:** Sixteen focused evaluator tests prove exact-case classification,
+  mapped-prefix union authority, multi-source provenance remapping,
+  policy-change independence, raw-record/per-path coverage, monotonic
+  aggregation, and graph binding failure visibility across every identity
+  axis; the ignored pinned-history dogfood also passes when selected exactly.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast` plus
+  a deterministic dogfood test over this repository's committed history
 - **Dependencies:** CONF-003
 - **Confidence:** high
 
