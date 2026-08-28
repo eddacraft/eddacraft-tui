@@ -408,14 +408,11 @@ mod tests {
     }
 
     fn temp_repo() -> std::path::PathBuf {
-        let tmp = std::env::temp_dir().join(format!(
-            "anvil-gitscan-repo-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| d.as_nanos())
-        ));
-        std::fs::create_dir_all(&tmp).expect("create temp repo dir");
+        let tmp = tempfile::Builder::new()
+            .prefix("anvil-gitscan-repo-")
+            .tempdir()
+            .expect("create unique temp repo dir")
+            .keep();
         git(&tmp, &["init", "-q"]);
         // Pin identity + disable signing/hooks so the commit is deterministic
         // regardless of the host's global git config.
