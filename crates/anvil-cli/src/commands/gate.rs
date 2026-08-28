@@ -186,6 +186,14 @@ struct CheckResult {
     // free function without needing a custom `is_false` helper.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     requires_config: bool,
+    /// CIB-365 — true when the check did not run, as distinct from running
+    /// and finding nothing. With no architecture config the check reported
+    /// `passed: true, score: 100.0` and the skip was visible only in the
+    /// human-readable `message`, so a consumer reading the booleans could
+    /// not tell "not measured" from "clean". Additive-optional like
+    /// `requires_config`, so the JSON schema stays backward compatible.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    skipped: bool,
 }
 
 /// CIB-011 / #1803 — aggregation result for the gate render + envelope.
@@ -943,6 +951,7 @@ fn run_check_lint(name: &str, root: &Path) -> CheckResult {
             score: 100.0,
             message: "No lint errors".to_string(),
             requires_config: false,
+            skipped: false,
         },
         Ok(o) => {
             let stdout = String::from_utf8_lossy(&o.stdout);
@@ -953,6 +962,7 @@ fn run_check_lint(name: &str, root: &Path) -> CheckResult {
                 score: 0.0,
                 message: format!("Lint errors found\n{stdout}\n{stderr}"),
                 requires_config: false,
+                skipped: false,
             }
         }
         Err(e) => CheckResult {
@@ -961,6 +971,7 @@ fn run_check_lint(name: &str, root: &Path) -> CheckResult {
             score: 0.0,
             message: format!("Failed to run lint: {e}"),
             requires_config: false,
+            skipped: false,
         },
     }
 }
@@ -977,6 +988,7 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
             score: 100.0,
             message: "All tests passed".to_string(),
             requires_config: false,
+            skipped: false,
         },
         Ok(o) => {
             let stdout = String::from_utf8_lossy(&o.stdout);
@@ -987,6 +999,7 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
                 score: 0.0,
                 message: format!("Tests failed\n{stdout}\n{stderr}"),
                 requires_config: false,
+                skipped: false,
             }
         }
         Err(e) => CheckResult {
@@ -995,6 +1008,7 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
             score: 0.0,
             message: format!("Failed to run tests: {e}"),
             requires_config: false,
+            skipped: false,
         },
     }
 }
@@ -2335,6 +2349,7 @@ fn run_check_secret_with_hook_mode_and_provenance(
                 "No hardcoded secrets found{suppression_suffix}{pattern_errors_suffix}\n{GATE_SECRET_SCAN_DOMAIN}"
             ),
             requires_config: false,
+            skipped: false,
         }
     } else {
         // CIB-239: the hook still scans the full tree, but exact finding
@@ -2414,6 +2429,7 @@ fn run_check_secret_with_hook_mode_and_provenance(
                 &pattern_errors_suffix,
             ),
             requires_config: false,
+            skipped: false,
         }
     }
 }
@@ -2636,6 +2652,7 @@ fn run_check_sql_migrations(
             score: 100.0,
             message: summary,
             requires_config: false,
+            skipped: false,
         };
     }
 
@@ -2658,6 +2675,7 @@ fn run_check_sql_migrations(
             new_locations.join("\n")
         ),
         requires_config: false,
+        skipped: false,
     }
 }
 
@@ -2738,6 +2756,7 @@ fn run_check_github_actions(
                 files.len() + unreadable
             ),
             requires_config: false,
+            skipped: false,
         };
     }
 
@@ -2754,6 +2773,7 @@ fn run_check_github_actions(
             locations.join("\n")
         ),
         requires_config: false,
+        skipped: false,
     }
 }
 
@@ -2822,6 +2842,7 @@ fn run_check_dockerfile(
                 files.len() + unreadable
             ),
             requires_config: false,
+            skipped: false,
         };
     }
 
@@ -2838,6 +2859,7 @@ fn run_check_dockerfile(
             locations.join("\n")
         ),
         requires_config: false,
+        skipped: false,
     }
 }
 
@@ -2908,6 +2930,7 @@ fn run_check_shell(
                 files.len() + unreadable
             ),
             requires_config: false,
+            skipped: false,
         };
     }
 
@@ -2924,6 +2947,7 @@ fn run_check_shell(
             locations.join("\n")
         ),
         requires_config: false,
+        skipped: false,
     }
 }
 
@@ -2974,6 +2998,7 @@ fn resolve_antipattern_excludes(name: &str, root: &Path) -> Result<Vec<String>, 
         score: 0.0,
         message: format!("Failed to read `antipattern.exclude` from project config: {err}"),
         requires_config: false,
+        skipped: false,
     })
 }
 
@@ -3040,6 +3065,7 @@ fn run_check_antipattern(
                 "No analysable files found for anti-pattern scan. Skipping.\n{GATE_ANTIPATTERN_SCAN_DOMAIN}"
             ),
             requires_config: false,
+            skipped: false,
         };
     }
 
@@ -3069,6 +3095,7 @@ fn run_check_antipattern(
             // readable as a full-repo scan.
             message: format!("{}\n{GATE_ANTIPATTERN_SCAN_DOMAIN}", result.message),
             requires_config: false,
+            skipped: false,
         }
     } else {
         let mut locations: Vec<String> = result
@@ -3094,6 +3121,7 @@ fn run_check_antipattern(
             score: f64::from(result.score),
             message: format!("{details}\n{GATE_ANTIPATTERN_SCAN_DOMAIN}"),
             requires_config: false,
+            skipped: false,
         }
     }
 }
@@ -3126,7 +3154,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                         passed: true,
                         score: 100.0,
                         message: "Coverage report empty (no lines tracked). Skipping.".to_string(),
-                        requires_config: false,
+                        ..Default::default()
                     };
                 }
                 #[allow(clippy::cast_precision_loss)]
@@ -3137,7 +3165,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                     passed,
                     score: pct,
                     message: format!("Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"),
-                    requires_config: false,
+                    ..Default::default()
                 }
             }
             Err(e) => CheckResult {
@@ -3145,7 +3173,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                 passed: false,
                 score: 0.0,
                 message: format!("Failed to read lcov.info: {e}"),
-                requires_config: false,
+                ..Default::default()
             },
         }
     } else if cobertura_path.exists() {
@@ -3168,7 +3196,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                             message: format!(
                                 "Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"
                             ),
-                            requires_config: false,
+                            ..Default::default()
                         }
                     }
                     None => CheckResult {
@@ -3176,7 +3204,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                         passed: false,
                         score: 0.0,
                         message: "Failed to parse line-rate from cobertura.xml".to_string(),
-                        requires_config: false,
+                        ..Default::default()
                     },
                 }
             }
@@ -3185,7 +3213,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                 passed: false,
                 score: 0.0,
                 message: format!("Failed to read cobertura.xml: {e}"),
-                requires_config: false,
+                ..Default::default()
             },
         }
     } else {
@@ -3196,7 +3224,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
             message:
                 "No coverage report found (coverage/lcov.info or coverage/cobertura.xml). Skipping."
                     .to_string(),
-            requires_config: false,
+            ..Default::default()
         }
     }
 }
@@ -3224,6 +3252,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
             score: 100.0,
             message: "No lockfile found (package-lock.json or Cargo.lock). Skipping.".to_string(),
             requires_config: false,
+            skipped: false,
         };
     }
 
@@ -3246,6 +3275,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
                     score: 0.0,
                     message: format!("Failed to read {}: {e}", npm_lock.display()),
                     requires_config: false,
+                    skipped: false,
                 };
             }
         }
@@ -3260,6 +3290,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
             score: 100.0,
             message: "No blocked dependencies found".to_string(),
             requires_config: false,
+            skipped: false,
         }
     } else {
         CheckResult {
@@ -3268,6 +3299,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
             score: 0.0,
             message: format!("Blocked dependencies found: {}", blocked_found.join(", ")),
             requires_config: false,
+            skipped: false,
         }
     }
 }
@@ -3320,13 +3352,23 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
     use crate::architecture_check::ArchitectureCheckOutcome;
 
     match crate::architecture_check::check_architecture(project_root, None) {
-        ArchitectureCheckOutcome::Skipped { message }
-        | ArchitectureCheckOutcome::Passed { message } => CheckResult {
+        // CIB-365: these two used to share an arm, which is exactly where the
+        // distinction was thrown away. `Skipped` means the check never ran.
+        ArchitectureCheckOutcome::Skipped { message } => CheckResult {
             name: "architecture".to_string(),
             passed: true,
             score: 100.0,
             message,
             requires_config: false,
+            skipped: true,
+        },
+        ArchitectureCheckOutcome::Passed { message } => CheckResult {
+            name: "architecture".to_string(),
+            passed: true,
+            score: 100.0,
+            message,
+            requires_config: false,
+            skipped: false,
         },
         ArchitectureCheckOutcome::Failed { message } => CheckResult {
             name: "architecture".to_string(),
@@ -3334,6 +3376,7 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
             score: 0.0,
             message,
             requires_config: false,
+            skipped: false,
         },
         ArchitectureCheckOutcome::Violations { findings } => {
             let msgs: Vec<String> = findings
@@ -3351,6 +3394,7 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
                 score: 0.0,
                 message: format!("{} violation(s):\n{}", findings.len(), msgs.join("\n")),
                 requires_config: false,
+                skipped: false,
             }
         }
     }
@@ -3465,6 +3509,7 @@ fn failed_policy_result(message: String) -> CheckResult {
         score: 0.0,
         message,
         requires_config: false,
+        skipped: false,
     }
 }
 
@@ -3478,6 +3523,7 @@ fn passing_policy_result(message: String) -> CheckResult {
         score: 100.0,
         message,
         requires_config: false,
+        skipped: false,
     }
 }
 
@@ -3920,6 +3966,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
                     def.file_shape_globs.join(", "),
                 ),
                 requires_config: false,
+                skipped: false,
             };
         }
     }
@@ -3961,6 +4008,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
             score: 0.0,
             message: format!("Unknown check: {name}"),
             requires_config: false,
+            skipped: false,
         },
     };
 
@@ -3992,7 +4040,10 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     // Architecture and policy checks return passed=true with a
     // "Skipping" message when their config files are absent — that's
     // the precise signal we mark as config-gap.
-    if ctx.strict_config && result.passed && is_skipped_for_missing_config(name, &result.message) {
+    if ctx.strict_config
+        && result.passed
+        && check_is_skipped_for_missing_config(name, &result.message, result.skipped)
+    {
         result.requires_config = true;
         result.message = format!("{}\n  next: {}", result.message, config_gap_next_hint(name));
     }
@@ -4017,6 +4068,21 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
 /// were previously conflated via a substring match on "Skipping",
 /// with the result that any developer or CI runner without OPA in
 /// PATH would get a blocked AI-guardrail run.
+/// CIB-365: prefer the structured `skipped` flag over the message text.
+///
+/// The message-grep below is retained only for checks that do not yet carry
+/// structured skip state. Deriving the signal from prose meant rewording a
+/// user-facing string would silently disable strict-mode config-gap
+/// detection.
+fn check_is_skipped_for_missing_config(name: &str, message: &str, skipped: bool) -> bool {
+    if skipped {
+        // Host tooling absence is not a project-config gap, whichever way the
+        // skip was signalled.
+        return !(name == "policy" && message.contains("OPA not installed"));
+    }
+    is_skipped_for_missing_config(name, message)
+}
+
 fn is_skipped_for_missing_config(name: &str, message: &str) -> bool {
     match name {
         "architecture" => message.contains("Skipping"),
@@ -4071,6 +4137,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
                         score: 0.0,
                         message: format!("failed to read plan file '{}': {e}", path.display()),
                         requires_config: false,
+                        skipped: false,
                     };
                 }
             }
@@ -4093,6 +4160,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
             score: 100.0,
             message: "Command-safety check disabled. Skipping.".to_string(),
             requires_config: false,
+            skipped: false,
         };
     }
 
@@ -4108,6 +4176,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
             score: f64::from(result.score),
             message,
             requires_config: false,
+            skipped: false,
         }
     } else {
         let mut details: Vec<String> = result
@@ -4149,6 +4218,7 @@ fn run_check_command_safety(name: &str, root: &Path, plan_path: Option<&str>) ->
             score: f64::from(result.score),
             message,
             requires_config: false,
+            skipped: false,
         }
     }
 }
@@ -8136,6 +8206,7 @@ mod tests {
             score: 0.0,
             message: "Potential secret on src/leak.ts:12".to_string(),
             requires_config: false,
+            skipped: false,
         };
         let diag = check_result_to_diagnostic(&check);
         assert_eq!(diag.schema_version, "anvil.diagnostic.v1");
@@ -8154,6 +8225,7 @@ mod tests {
                 score: 0.0,
                 message: "leak".to_string(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "policy".to_string(),
@@ -8161,6 +8233,7 @@ mod tests {
                 score: 100.0,
                 message: "ok".to_string(),
                 requires_config: false,
+                skipped: false,
             },
         ];
         let notifications = notifications_for_gate_result(&checks, false);
@@ -8190,6 +8263,7 @@ mod tests {
                 score: 100.0,
                 message: "clean".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "secret".into(),
@@ -8197,6 +8271,7 @@ mod tests {
                 score: 0.0,
                 message: "leak found".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "architecture".into(),
@@ -8204,6 +8279,7 @@ mod tests {
                 score: 0.0,
                 message: "no config".into(),
                 requires_config: true,
+                skipped: false,
             },
         ];
         let aggregate = aggregate_gate_outcome(&checks);
@@ -8264,6 +8340,7 @@ mod tests {
                 score: 100.0,
                 message: "ok".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "architecture".into(),
@@ -8271,6 +8348,7 @@ mod tests {
                 score: 0.0,
                 message: "no config".into(),
                 requires_config: true,
+                skipped: false,
             },
         ];
         let aggregate = aggregate_gate_outcome(&checks);
@@ -8674,6 +8752,61 @@ mod tests {
         assert!(
             !outside.path().join("gates.json").exists(),
             "the snapshot must not escape the workspace"
+        );
+    }
+
+    #[test]
+    fn cib_365_architecture_skip_is_machine_distinguishable_from_a_pass() {
+        // CIB-365: with no architecture config the check does not run, but it
+        // reported `passed: true, score: 100.0` with the skip visible only in
+        // the human-readable message. A consumer reading the booleans could
+        // not tell "not measured" from "clean".
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = run_check_architecture(tmp.path());
+
+        assert!(result.skipped, "an unrun check must report skipped=true");
+        assert!(
+            result.message.contains("Skipping"),
+            "human message retained: {}",
+            result.message
+        );
+
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(
+            json["skipped"], true,
+            "skipped must reach the JSON surface, not just the message: {json}"
+        );
+    }
+
+    #[test]
+    fn cib_365_a_real_pass_does_not_claim_to_be_skipped() {
+        let passed = CheckResult {
+            name: "architecture".into(),
+            passed: true,
+            score: 100.0,
+            message: "No violations".into(),
+            requires_config: false,
+            skipped: false,
+        };
+        let json = serde_json::to_value(&passed).unwrap();
+        assert!(
+            json.get("skipped").is_none(),
+            "skipped is additive-optional and must be absent when false: {json}"
+        );
+    }
+
+    #[test]
+    fn cib_365_config_gap_marking_uses_the_flag_not_the_message_text() {
+        // The strict-mode config-gap signal was derived by grepping the
+        // human message for "Skipping", so rewording it would silently break
+        // detection. Structured state must win.
+        assert!(
+            check_is_skipped_for_missing_config("architecture", "wording changed entirely", true),
+            "a structurally skipped check must be detected regardless of wording",
+        );
+        assert!(
+            !check_is_skipped_for_missing_config("policy", "OPA not installed. Skipping.", true),
+            "host-tooling gaps stay excluded even when structurally skipped",
         );
     }
 
@@ -10486,6 +10619,7 @@ rules: []
             score: 100.0,
             message: "clean".to_string(),
             requires_config: false,
+            skipped: false,
         }];
         let notifications = notifications_for_gate_result(&checks, overall);
         let result = GateResult {
@@ -10625,6 +10759,7 @@ rules: []
                 score: 100.0,
                 message: "clean".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "secret-detection".into(),
@@ -10632,6 +10767,7 @@ rules: []
                 score: 0.0,
                 message: "secret found".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "import-boundaries".into(),
@@ -10639,6 +10775,7 @@ rules: []
                 score: 100.0,
                 message: "...Skipping. next: ...".into(),
                 requires_config: true,
+                skipped: false,
             },
             CheckResult {
                 name: "policy".into(),
@@ -10646,6 +10783,7 @@ rules: []
                 score: 100.0,
                 message: "...Skipping. next: ...".into(),
                 requires_config: true,
+                skipped: false,
             },
             CheckResult {
                 name: "command-safety".into(),
@@ -10653,6 +10791,7 @@ rules: []
                 score: 100.0,
                 message: "...No commands... next: ...".into(),
                 requires_config: true,
+                skipped: false,
             },
         ];
         let agg = aggregate_gate_outcome(&checks);
@@ -10672,6 +10811,7 @@ rules: []
                 score: 100.0,
                 message: "clean".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "secret-detection".into(),
@@ -10679,6 +10819,7 @@ rules: []
                 score: 100.0,
                 message: "clean".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "import-boundaries".into(),
@@ -10686,6 +10827,7 @@ rules: []
                 score: 100.0,
                 message: "...next: ...".into(),
                 requires_config: true,
+                skipped: false,
             },
         ];
         let agg = aggregate_gate_outcome(&checks);
@@ -10707,6 +10849,7 @@ rules: []
             score: 100.0,
             message: "...next: ...".into(),
             requires_config: true,
+            skipped: false,
         }];
         let agg = aggregate_gate_outcome(&checks);
         assert!(agg.overall);
@@ -10724,6 +10867,7 @@ rules: []
                 score: 0.0,
                 message: "secret found".into(),
                 requires_config: false,
+                skipped: false,
             },
             CheckResult {
                 name: "import-boundaries".into(),
@@ -10731,6 +10875,7 @@ rules: []
                 score: 100.0,
                 message: "...next: ...".into(),
                 requires_config: true,
+                skipped: false,
             },
         ];
         let result = GateResult {
@@ -11334,6 +11479,7 @@ rules: []
             score: if passed { 100.0 } else { 0.0 },
             message: message.to_string(),
             requires_config,
+            skipped: false,
         }
     }
 

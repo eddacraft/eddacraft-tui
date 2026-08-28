@@ -141,6 +141,16 @@ const FIELD_DECLARATIONS: &[FieldDeclaration] = &[
         introduced_in: SchemaVersion::new(1, 0, 0),
     },
     FieldDeclaration {
+        // CIB-365: distinguishes "no readable architecture definition, so
+        // boundaries were never analysed" from "analysed and clean". Added
+        // additively, so a v1.1.0 snapshot still reads; historical snapshots
+        // cannot retroactively recover whether their analysis was skipped.
+        // Shipping the field advances the schema to v1.2.0.
+        surface: "boundary-coverage",
+        fields: &["metrics.boundary_analysis_skipped"],
+        introduced_in: SchemaVersion::new(1, 2, 0),
+    },
+    FieldDeclaration {
         // SURFSQL-006: the SQL governance surface contributes its findings to
         // the drift baseline so the gate can warn only on *new* edges. Added
         // additively, so a v1.0.0 baseline still reads (the field defaults to
@@ -668,6 +678,22 @@ pub struct DriftSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotMetrics {
     pub boundary_violations: usize,
+    /// CIB-365 — true when no readable architecture definition was resolved,
+    /// so the boundary state was never analysed.
+    ///
+    /// Without this, both the missing-definition and unreadable-definition
+    /// outcomes produce an empty violation list and the snapshot reports
+    /// `boundary_violations: 0` — indistinguishable from a repository that
+    /// was analysed and found clean. A consumer reading the count at face
+    /// value would record perfect architectural health for a repository that
+    /// was never checked.
+    ///
+    /// Additive-optional: absent from JSON when false, and defaulted to false
+    /// on load so pre-v1.2.0 snapshots remain readable. Their absent field
+    /// cannot reconstruct whether the historical run actually analysed
+    /// boundaries.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub boundary_analysis_skipped: bool,
     pub antipattern_count: usize,
     pub suppression_count: usize,
     pub expired_suppressions: usize,
@@ -827,39 +853,43 @@ fn build_snapshot(
         output::plain::info(&format!("Scanning {} files...", files.len()));
     }
 
-    // Live architecture violations from the yaml/config definition.
-    let violations: Vec<SnapshotViolation> = match crate::architecture_source::resolve_architecture(
-        root,
-    ) {
-        Ok(Some((definition, _))) => {
-            let files = anvil_architecture::collect_source_files(root, &definition);
-            let edges = crate::architecture_check::extract_import_edges(root, Some(&files));
-            let result =
-                anvil_architecture::validate_with_files_and_edges(&definition, &files, &edges);
-            result
-                .violations
-                .into_iter()
-                .map(|v| SnapshotViolation {
-                    id: anvil_architecture::create_violation_id(
-                        &v.edge.from,
-                        &v.edge.to,
-                        v.edge.line,
-                    ),
-                    violation_type: "boundary".to_string(),
-                    from_file: v.edge.from,
-                    to_file: v.edge.to,
-                    from_layer: v.edge.from_layer,
-                    to_layer: v.edge.to_layer,
-                    line: v.edge.line,
-                })
-                .collect()
-        }
-        Ok(None) => Vec::new(),
-        Err(error) => {
-            tracing::debug!(error = %error, "drift snapshot: architecture definition unreadable");
-            Vec::new()
-        }
-    };
+    // Resolve and analyse the live architecture definition. CIB-365: an empty
+    // list can mean either "analysed and clean" or "not analysed", so keep
+    // that distinction beside the count instead of presenting both as zero.
+    let (violations, boundary_analysis_skipped): (Vec<SnapshotViolation>, bool) =
+        match crate::architecture_source::resolve_architecture(root) {
+            Ok(Some((definition, _))) => {
+                let files = anvil_architecture::collect_source_files(root, &definition);
+                let edges = crate::architecture_check::extract_import_edges(root, Some(&files));
+                let result =
+                    anvil_architecture::validate_with_files_and_edges(&definition, &files, &edges);
+                (
+                    result
+                        .violations
+                        .into_iter()
+                        .map(|v| SnapshotViolation {
+                            id: anvil_architecture::create_violation_id(
+                                &v.edge.from,
+                                &v.edge.to,
+                                v.edge.line,
+                            ),
+                            violation_type: "boundary".to_string(),
+                            from_file: v.edge.from,
+                            to_file: v.edge.to,
+                            from_layer: v.edge.from_layer,
+                            to_layer: v.edge.to_layer,
+                            line: v.edge.line,
+                        })
+                        .collect(),
+                    false,
+                )
+            }
+            Ok(None) => (Vec::new(), true),
+            Err(error) => {
+                tracing::debug!(error = %error, "drift snapshot: architecture definition unreadable");
+                (Vec::new(), true)
+            }
+        };
 
     // Run antipattern scan and collect results.
     let (antipatterns, suppressions, ap_result) = collect_antipatterns(&files, root);
@@ -883,6 +913,7 @@ fn build_snapshot(
         name: name.map(String::from),
         metrics: SnapshotMetrics {
             boundary_violations: violations.len(),
+            boundary_analysis_skipped,
             antipattern_count: antipatterns.len(),
             suppression_count: suppressions.len(),
             expired_suppressions: 0, // Expiry tracking not yet implemented.
@@ -1305,6 +1336,71 @@ mod cib_366_tests {
 
         let snapshot = build_snapshot(root, None, false).expect("snapshot computes");
         assert_eq!(snapshot.git_ref.as_deref(), Some(expected.as_str()));
+mod cib_365_drift_tests {
+    use super::*;
+
+    // CIB-365, drift half. Without a readable architecture definition the
+    // live analysis produces an empty violation list, so
+    // `boundary_violations: 0` would describe a boundary state that was never
+    // measured. The JSON must distinguish that from a clean repository.
+
+    #[test]
+    fn unmeasured_boundary_state_is_flagged_not_reported_as_zero() {
+        let metrics = SnapshotMetrics {
+            boundary_violations: 0,
+            boundary_analysis_skipped: true,
+            antipattern_count: 3,
+            suppression_count: 0,
+            expired_suppressions: 0,
+            files_analysed: 12,
+        };
+        let json = serde_json::to_value(&metrics).unwrap();
+        assert_eq!(
+            json["boundary_analysis_skipped"], true,
+            "an unmeasured boundary state must be machine-readable: {json}"
+        );
+    }
+
+    #[test]
+    fn a_measured_clean_repo_does_not_carry_the_flag() {
+        let metrics = SnapshotMetrics {
+            boundary_violations: 0,
+            boundary_analysis_skipped: false,
+            antipattern_count: 0,
+            suppression_count: 0,
+            expired_suppressions: 0,
+            files_analysed: 12,
+        };
+        let json = serde_json::to_value(&metrics).unwrap();
+        assert!(
+            json.get("boundary_analysis_skipped").is_none(),
+            "additive-optional: absent when the analysis really ran: {json}"
+        );
+    }
+
+    #[test]
+    fn an_older_snapshot_without_the_field_uses_the_compatibility_default() {
+        // Backward compatibility: a v1.1.0 snapshot predates the signal.
+        // Defaulting to false preserves readability, but cannot reconstruct
+        // whether that historical run actually analysed boundaries.
+        let older = serde_json::json!({
+            "boundary_violations": 0,
+            "antipattern_count": 1,
+            "suppression_count": 0,
+            "expired_suppressions": 0,
+            "files_analysed": 5
+        });
+        let metrics: SnapshotMetrics = serde_json::from_value(older).unwrap();
+        assert!(!metrics.boundary_analysis_skipped);
+    }
+
+    #[test]
+    fn the_additive_field_advances_the_schema_version() {
+        assert!(
+            current_schema() >= SchemaVersion::new(1, 2, 0),
+            "declaring the field must advance the schema: {}",
+            current_schema()
+        );
     }
 }
 
@@ -1842,6 +1938,7 @@ mod tests {
             name: Some(name.to_string()),
             metrics: SnapshotMetrics {
                 boundary_violations: violations,
+                boundary_analysis_skipped: false,
                 antipattern_count: aps,
                 suppression_count: sups,
                 expired_suppressions: 0,

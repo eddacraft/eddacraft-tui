@@ -285,6 +285,7 @@ mod tests {
     fn metrics(violations: usize, antipatterns: usize) -> SnapshotMetrics {
         SnapshotMetrics {
             boundary_violations: violations,
+            boundary_analysis_skipped: false,
             antipattern_count: antipatterns,
             suppression_count: 0,
             expired_suppressions: 0,
