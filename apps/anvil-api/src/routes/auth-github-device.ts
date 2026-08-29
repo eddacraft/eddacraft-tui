@@ -235,14 +235,6 @@ authGithubDevice.post(
   async (c) => {
     debug('POST /auth/github-device/poll');
 
-    let clientId: string;
-    try {
-      ({ clientId } = getGitHubCliCredentials());
-    } catch {
-      debug('poll rejected: github cli credentials unavailable');
-      return c.json({ error: 'github_device_flow_unavailable' }, 503);
-    }
-
     const { pollToken } = c.req.valid('json');
     const pollTokenHash = hashToken(pollToken);
     const sql = getClient();
@@ -261,6 +253,14 @@ authGithubDevice.post(
     if (isSessionExpired(session)) {
       debug('poll: session expired');
       return c.json({ status: 'expired' });
+    }
+
+    let clientId: string;
+    try {
+      ({ clientId } = getGitHubCliCredentials());
+    } catch {
+      debug('poll rejected: github cli credentials unavailable');
+      return c.json({ error: 'github_device_flow_unavailable' }, 503);
     }
 
     // Per-token cooldown + cross-instance gate in one atomic claim.

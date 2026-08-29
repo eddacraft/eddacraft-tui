@@ -10,10 +10,10 @@
 **Last reviewed:** 2026-08-29 — operator selected the 24 findings that remain
 after SETCON-012 from the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
-for a bounded repair wave. Five clusters are locally implemented and
-independently verified; CLAWOPEN-007, -009, and -011 retain explicit design
-checkpoints, while four other clusters retain the named write-gate blockers
-below.
+for a bounded repair wave. CLAWOPEN-003 and -005 are implemented locally after
+retrying the earlier write-gate context mismatches; CLAWOPEN-007, -009, and
+-011 retain explicit design checkpoints; CLAWOPEN-002 and -010 still retain
+the named operator-approval blockers below.
 
 > **Exclusive module.** The wave orchestrator is the only plan writer.
 > Parallel executors own isolated code/test workspaces and do not edit this
@@ -93,7 +93,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-003: Recover GitHub device sessions and verified identity
 
-- **Status:** Blocked
+- **Status:** In Progress
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** Durable minted sessions replay without live OAuth credentials, and
@@ -107,15 +107,13 @@ shared CIB backlog as feature-branch state.
 - **Files:** `apps/anvil-api/src/routes/auth-github-device.ts`,
   `apps/anvil-api/src/lib/github-user.ts`,
   `apps/anvil-api/src/__tests__/auth-github-device.test.ts`,
-  `apps/anvil-api/src/__tests__/auth-github.test.ts`
+  `apps/anvil-api/src/__tests__/auth-github.test.ts`,
+  `apps/anvil-api/src/__tests__/github-user.test.ts`
 - **Finding IDs:** `fnd_sig-feat-route-dad030c9a3-d923ad_09016e1842`,
   `fnd_sig-feat-service-b6b9358432-46e3_bbe96abfba`
 - **Validation:** `pnpm --dir apps/anvil-api exec vitest run
   src/__tests__/auth-github-device.test.ts src/__tests__/auth-github.test.ts`;
   `pnpm --dir apps/anvil-api typecheck`
-- **Blocker:** The pre-write validator rejected the first RED test patch for a
-  context mismatch and marked the submission non-retriable. No source or test
-  change was applied.
 - **Decision:** ready
 
 ### CLAWOPEN-004: Keep persisted waitlist success truthful
@@ -149,10 +147,6 @@ shared CIB backlog as feature-branch state.
   `fnd_sig-feat-route-0fc07f4172-f0ced0_6460acabcb`
 - **Validation:** focused Vitest suites for both routes; affected project
   typechecks
-- **Blocker:** The missing callback suite exposed an unresolved docs-shell
-  Vitest alias seam, then the pre-write validator rejected the test-only
-  correction as a non-retriable context mismatch. The incomplete test was
-  removed and no product or test change remains.
 - **Decision:** ready
 
 ### CLAWOPEN-006: Reject false-valid boundary data

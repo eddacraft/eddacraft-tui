@@ -12,7 +12,7 @@ use anvil_kernel_types::{
     EvidenceStrength, GitChangeStatus, GitObjectType, GraphEvidenceBinding, IntentSource,
     IntentSourceKind, IntentTier, ScopeAuthority, Severity,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::TempDir;
 
@@ -627,13 +627,22 @@ fn assert_graph_disposition(
     assert_eq!(report.verdict.coverage[0].disposition, expected_disposition);
 }
 
-fn git(repo: &Path, args: &[&str]) -> String {
-    let output = Command::new("git")
-        .arg("-C")
+fn git_with_env(repo: &Path, args: &[&str], extra_env: &[(&str, &str)]) -> String {
+    let empty_config = tempfile::Builder::new()
+        .prefix("anvil-conf-test-gitconfig-")
+        .tempfile()
+        .expect("empty gitconfig");
+    let mut cmd = Command::new("git");
+    cmd.arg("-C")
         .arg(repo)
         .args(args)
-        .output()
-        .expect("run git");
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_SYSTEM", empty_config.path())
+        .env("GIT_CONFIG_GLOBAL", empty_config.path());
+    for (key, value) in extra_env {
+        cmd.env(*key, *value);
+    }
+    let output = cmd.output().expect("run git");
     assert!(
         output.status.success(),
         "git {args:?} failed: {}",
@@ -646,32 +655,57 @@ fn git(repo: &Path, args: &[&str]) -> String {
 }
 
 fn repository() -> TempDir {
+    repository_with_env(&[])
+}
+
+fn repository_with_env(extra_env: &[(&str, &str)]) -> TempDir {
     let repo = tempfile::tempdir().expect("temporary repository");
-    git(repo.path(), &["init", "-q"]);
-    git(repo.path(), &["config", "user.name", "CONF test"]);
-    git(
+    git_with_env(repo.path(), &["init", "-q"], extra_env);
+    git_with_env(
+        repo.path(),
+        &["config", "user.name", "CONF test"],
+        extra_env,
+    );
+    git_with_env(
         repo.path(),
         &["config", "user.email", "conf-test@example.invalid"],
+        extra_env,
     );
-    git(repo.path(), &["config", "commit.gpgsign", "false"]);
+    git_with_env(
+        repo.path(),
+        &["config", "commit.gpgsign", "false"],
+        extra_env,
+    );
     let empty_hooks = repo.path().join("empty-hooks");
     std::fs::create_dir_all(&empty_hooks).expect("create empty hooks directory");
-    git(
+    let hooks_path = empty_hooks.to_string_lossy().into_owned();
+    git_with_env(
         repo.path(),
-        &["config", "core.hooksPath", &empty_hooks.to_string_lossy()],
+        &["config", "core.hooksPath", &hooks_path],
+        extra_env,
     );
     repo
 }
 
 fn commit_file(repo: &Path, path: &str, contents: &str, message: &str) -> String {
+    commit_file_with_env(repo, path, contents, message, &[])
+}
+
+fn commit_file_with_env(
+    repo: &Path,
+    path: &str,
+    contents: &str,
+    message: &str,
+    extra_env: &[(&str, &str)],
+) -> String {
     let full_path = repo.join(path);
     if let Some(parent) = full_path.parent() {
         std::fs::create_dir_all(parent).expect("create parent");
     }
     std::fs::write(full_path, contents).expect("write fixture");
-    git(repo, &["add", "--", path]);
-    git(repo, &["commit", "-q", "-m", message]);
-    git(repo, &["rev-parse", "HEAD"])
+    git_with_env(repo, &["add", "--", path], extra_env);
+    git_with_env(repo, &["commit", "-q", "-m", message], extra_env);
+    git_with_env(repo, &["rev-parse", "HEAD"], extra_env)
 }
 
 #[test]
@@ -710,6 +744,70 @@ fn hermetic_git_extraction_drives_tier0_evaluation() {
     assert_eq!(report.verdict.outcome, ConformanceOutcome::Conformant);
     assert_eq!(report.verdict.evidence_strength, EvidenceStrength::Complete);
     assert!(report.findings.is_empty());
+}
+
+fn hostile_host_gitconfig(dir: &Path) -> PathBuf {
+    let hooks = dir.join("hooks");
+    std::fs::create_dir_all(&hooks).expect("hostile hooks directory");
+    let hook = hooks.join("pre-commit");
+    std::fs::write(&hook, "#!/bin/sh\nexit 1\n").expect("failing pre-commit");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod failing hook");
+    }
+    let global = dir.join("gitconfig");
+    std::fs::write(&global, "").expect("hostile gitconfig");
+    let hooks_path = hooks.to_string_lossy().into_owned();
+    let global_path = global.to_string_lossy().into_owned();
+    for (key, value) in [
+        ("commit.gpgsign", "true"),
+        ("gpg.program", "/definitely/missing/clawopen-gpg"),
+        ("core.hooksPath", hooks_path.as_str()),
+    ] {
+        let output = Command::new("git")
+            .args(["config", "--file", &global_path, key, value])
+            .output()
+            .expect("write hostile gitconfig key");
+        assert!(
+            output.status.success(),
+            "git config {key} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    global
+}
+
+#[test]
+fn hermetic_git_extraction_survives_hostile_host_signing_and_hooks() {
+    let host = tempfile::tempdir().expect("hostile host git directory");
+    let global = hostile_host_gitconfig(host.path());
+    let global_path = global.to_string_lossy().into_owned();
+    let extra = [("GIT_CONFIG_GLOBAL", global_path.as_str())];
+
+    let repository = repository_with_env(&extra);
+    let revision = commit_file_with_env(
+        repository.path(),
+        "docs/guide.md",
+        "hello\n",
+        "docs(path:docs): add guide",
+        &extra,
+    );
+
+    let extractor = GitExtractor::default();
+    let identity = extractor
+        .identity_for_repository(repository.path(), "run-conf-004-hostile-host")
+        .expect("derive canonical repository identity");
+    let extraction = extractor.extract(
+        repository.path(),
+        GitSelection::Commit("HEAD".into()),
+        &identity,
+    );
+    let GitExtractionOutcome::Evaluated(extraction) = extraction else {
+        panic!("hostile-host repository must select HEAD: {extraction:?}");
+    };
+    assert_eq!(extraction.head_revision, revision);
 }
 
 fn path_claim(prefix: &str) -> ConformanceClaim {

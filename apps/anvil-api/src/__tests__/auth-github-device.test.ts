@@ -540,6 +540,28 @@ describe('POST /auth/github-device/poll', () => {
       expect(claimGithubDevicePoll).not.toHaveBeenCalled();
     });
 
+    it('re-returns a minted session when OAuth credentials are missing', async () => {
+      delete process.env['GITHUB_CLI_CLIENT_ID'];
+      delete process.env['GITHUB_CLI_CLIENT_SECRET'];
+      vi.mocked(findGithubDeviceSessionByPollTokenHash).mockResolvedValue(
+        sessionRow({
+          minted_at: new Date().toISOString(),
+          minted_session_enc: encryptDeviceCode(POLL_TOKEN, JSON.stringify(MINTED_SESSION)),
+        }) as never
+      );
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+      const res = await poll({ pollToken: POLL_TOKEN });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as Record<string, unknown>).toEqual({
+        status: 'confirmed',
+        ...MINTED_SESSION,
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(mintSession).not.toHaveBeenCalled();
+      expect(claimGithubDevicePoll).not.toHaveBeenCalled();
+    });
+
     it('expires a minted session past its TTL instead of re-returning it', async () => {
       vi.mocked(findGithubDeviceSessionByPollTokenHash).mockResolvedValue(
         sessionRow({
@@ -809,12 +831,13 @@ describe('POST /auth/github-device/poll', () => {
   });
 
   describe('upstream + credential failure paths', () => {
-    it('returns 503 without touching the DB when CLI credentials are absent', async () => {
+    it('returns 503 before token exchange when CLI credentials are absent', async () => {
       delete process.env['GITHUB_CLI_CLIENT_ID'];
 
       const res = await poll({ pollToken: POLL_TOKEN });
       expect(res.status).toBe(503);
-      expect(findGithubDeviceSessionByPollTokenHash).not.toHaveBeenCalled();
+      expect(claimGithubDevicePoll).not.toHaveBeenCalled();
+      expect(mintSession).not.toHaveBeenCalled();
     });
 
     it('maps an exchange timeout to 502 without minting', async () => {

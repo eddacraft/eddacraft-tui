@@ -59,19 +59,20 @@ export async function fetchGitHubUser(accessToken: string): Promise<GitHubIdenti
   const user = GitHubUserSchema.parse(await userRes.json());
   const emails = GitHubEmailSchema.parse(await emailsRes.json());
 
-  const primary = emails.find((e) => e.primary && e.verified);
-  if (!primary) {
-    throw new Error('No verified primary email on GitHub account');
+  // Prefer a verified primary as the canonical email; fall back to another
+  // verified address. Unverified emails never enter the first-link surface
+  // (GHCLIAUTH-003 / ADR-066 / CLAWOPEN-003).
+  const verified = emails.filter((e) => e.verified);
+  const canonical = verified.find((e) => e.primary) ?? verified[0];
+  if (!canonical) {
+    throw new Error('No verified email on GitHub account');
   }
-  // All verified emails (incl. the primary) are the first-link match surface —
-  // a user whose primary is a `noreply` address still binds via a verified
-  // secondary (GHCLIAUTH-003 / ADR-066). Unverified emails are never included.
-  const verifiedEmails = emails.filter((e) => e.verified).map((e) => e.email.toLowerCase().trim());
+  const verifiedEmails = verified.map((e) => e.email.toLowerCase().trim());
 
   return {
     id: user.id,
     login: user.login,
-    email: primary.email.toLowerCase().trim(),
+    email: canonical.email.toLowerCase().trim(),
     verifiedEmails,
   };
 }

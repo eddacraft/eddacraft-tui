@@ -300,7 +300,7 @@ describe('POST /auth/github/callback', () => {
       }
     );
 
-    it('returns 401 when the account has no verified primary email', async () => {
+    it('accepts a verified secondary when no verified primary exists', async () => {
       mockFetch({
         'https://github.com/login/oauth/access_token': {
           ok: true,
@@ -313,6 +313,34 @@ describe('POST /auth/github/callback', () => {
         'https://api.github.com/user/emails': {
           ok: true,
           json: [{ email: 'octo@example.com', primary: false, verified: true }],
+        },
+        'https://api.github.com/applications/': { ok: true, json: {} },
+      });
+
+      const res = await callback({ code: 'gh-code' });
+      expect(vi.mocked(linkOrCreateGitHubUser)).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          email: 'octo@example.com',
+          verifiedEmails: ['octo@example.com'],
+        })
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 401 when the account has no verified email', async () => {
+      mockFetch({
+        'https://github.com/login/oauth/access_token': {
+          ok: true,
+          json: { access_token: 'gh-token', token_type: 'bearer' },
+        },
+        'https://api.github.com/user': {
+          ok: true,
+          json: { id: 1, login: 'octocat', name: 'Octocat', avatar_url: null },
+        },
+        'https://api.github.com/user/emails': {
+          ok: true,
+          json: [{ email: 'octo@example.com', primary: true, verified: false }],
         },
       });
 
