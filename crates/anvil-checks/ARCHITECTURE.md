@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-28 against PR #4194's test-only `src/secret/git_scanner.rs` temporary-repository isolation; check families, filtering, results, boundaries, and diagrams unchanged. Previously reviewed against `src/secret/check.rs`, `src/secret/types.rs`, `tests/secret_file_coverage.rs`, ADR-134, and `src/conformance/**` for SDT-006 and conformance flow; against `src/secret/scanner.rs` for CIB-369; and 2026-08-27 against SDT-001, SDT-002, `src/antipattern/mask.rs`, `src/antipattern/registry_loader.rs`, and ADR-131 |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-29 against SDT-007's streaming secret scan — `src/secret/source.rs`, `src/secret/scanner.rs`, `src/secret/entropy.rs`, `src/secret/check.rs` (`MAX_FILE_SIZE` as a runaway guard, `is_secret_scannable`) and `tests/secret_streaming.rs`. Previously reviewed 2026-08-28 against PR #4194's test-only `src/secret/git_scanner.rs` temporary-repository isolation; check families, filtering, results, boundaries, and diagrams unchanged. Previously reviewed against `src/secret/check.rs`, `src/secret/types.rs`, `tests/secret_file_coverage.rs`, ADR-134, and `src/conformance/**` for SDT-006 and conformance flow; against `src/secret/scanner.rs` for CIB-369; and 2026-08-27 against SDT-001, SDT-002, `src/antipattern/mask.rs`, `src/antipattern/registry_loader.rs`, and ADR-131 |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -167,10 +167,25 @@ orchestration from leaking into the reusable check engine.
   Lockfiles are the sharp edge: they bypass `skip_extensions` to reach the
   URL-credential scan, so an oversize lockfile cannot be excluded at all, and
   the note names it rather than offering a remedy that does nothing.
+- Large files are scanned, not excused (SDT-007). Both passes are window-local —
+  patterns are line-local, entropy reaches only
+  `context_window(lines, index, 2)` and `lines.get(index)` — so a file is read
+  through a bounded reader carrying a radius-2 window (`secret/source.rs`)
+  instead of being materialised. The one thing that is _not_ window-local is
+  `#[cfg(test)] mod` membership, which is a prefix fold; it is carried
+  incrementally, once per line in read order, and is why the reader is a driver
+  rather than a five-element array. `MAX_FILE_SIZE` survives only as a runaway
+  guard, its value set by a measured scan rate rather than by the memory bound
+  that no longer binds.
+- One predicate decides scannability. `anvil-checks` exports
+  `is_secret_scannable`; `anvil-cli` used to carry a copy annotated as "kept in
+  lockstep with the upstream", which had already drifted — it applied
+  `skip_extensions` to lockfiles the scanner deliberately exempts, so planless
+  `anvil check` withheld exactly the files the URL-credential scan exists for.
 - Coverage failures reach `anvil gate` only. `anvil audit` reads findings alone,
-  and planless `anvil check` pre-filters oversize and extension-skipped files
-  before the scan, so the accounting never reaches it. Both predate SDT-006 and
-  neither is closed by it.
+  and planless `anvil check` pre-filters unscannable files before the scan, so
+  the accounting never reaches it. Both predate SDT-006 and neither is closed by
+  it.
 - Detection is measured, not asserted: `tests/corpus/secret/` holds a committed
   calibration corpus and `tests/secret_calibration.rs` reports detection rate,
   false-positive rate and per-rule misses, failing on drift in either direction

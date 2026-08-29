@@ -1,9 +1,13 @@
+use std::io;
+use std::ops::ControlFlow;
+
 use regex::Regex;
 
 use crate::secret::context::{
-    context_window, has_sensitive_binding_context, has_validator_fixture_context, is_benign_context,
+    has_sensitive_binding_context, has_validator_fixture_context, is_benign_context,
 };
 use crate::secret::patterns::PatternMatcher;
+use crate::secret::source::{LineSource, LineWindow, for_each_windowed_line};
 use crate::secret::types::{
     AllowlistProvenance, FindingType, SecretCheckConfig, SecretFinding, Suppression,
 };
@@ -45,26 +49,40 @@ pub fn detect_high_entropy_strings_with_limit(
     config: &SecretCheckConfig,
     limit: usize,
 ) -> Vec<SecretFinding> {
-    detect_high_entropy_strings_with_line_filter_and_limit(
-        content,
+    detect_high_entropy_strings_over_source(
+        &LineSource::Memory(content),
         file,
         config,
         limit,
-        |_, _| true,
+        |_| false,
+        |_| true,
         &mut Vec::new(),
     )
+    .expect("an in-memory line source cannot fail to read")
 }
 
-pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
-    content: &str,
+/// SDT-007: the entropy pass over a streamed source.
+///
+/// Verified window-local before this was written: the only things this pass
+/// reaches beyond the current line are `context_window(lines, index, 2)` and
+/// `lines.get(index)`, both inside [`is_benign_entropy_fixture`]. A radius-2
+/// window therefore reproduces it byte for byte.
+///
+/// `line_flag` exists for the caller's `include_line` filter, not for this
+/// pass: the scanner's filter re-runs the pattern rules, and those consult
+/// the `#[cfg(test)]` prefix fold. Callers with no such filter pass
+/// `|_| false`.
+pub(crate) fn detect_high_entropy_strings_over_source(
+    source: &LineSource<'_>,
     file: &str,
     config: &SecretCheckConfig,
     limit: usize,
-    mut include_line: impl FnMut(usize, &str) -> bool,
+    line_flag: impl FnMut(&str) -> bool,
+    mut include_line: impl FnMut(&LineWindow<'_>) -> bool,
     suppressions: &mut Vec<Suppression>,
-) -> Vec<SecretFinding> {
+) -> io::Result<Vec<SecretFinding>> {
     if limit == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let matcher = PatternMatcher::new(&config.custom_allowlist);
     // Real secret tokens are dense alphanumeric runs with at most a few
@@ -76,19 +94,19 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
     // here rejects values containing spaces, parentheses, brackets,
     // commas, dots, etc — none of which appear in actual secret tokens.
     let Ok(quoted_pattern) = Regex::new(r#"['\"]([a-zA-Z0-9_/+=\-]{16,})['\"]"#) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let Ok(assignment_pattern) = Regex::new(r#"[:=]\s*['\"]?([a-zA-Z0-9_/+=-]{16,})['\"]?"#) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
 
     let mut findings = Vec::new();
-    let lines = content.lines().collect::<Vec<_>>();
 
-    for (index, line) in lines.iter().copied().enumerate() {
-        let line_number = index + 1;
-        if !include_line(index, line) {
-            continue;
+    for_each_windowed_line(source, line_flag, |window| {
+        let line = window.line();
+        let line_number = window.line_number();
+        if !include_line(window) {
+            return ControlFlow::Continue(());
         }
 
         for pattern in [&quoted_pattern, &assignment_pattern] {
@@ -127,7 +145,7 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
                 continue;
             }
 
-            if is_benign_entropy_fixture(file, &lines, index, candidate) {
+            if is_benign_entropy_fixture(file, window, candidate) {
                 suppressions.push(Suppression {
                     file: file.to_string(),
                     line: line_number,
@@ -166,12 +184,13 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
                 token_shape: Some(crate::secret::types::TokenShape::Opaque),
             });
             if findings.len() == limit {
-                return findings;
+                return ControlFlow::Break(());
             }
         }
-    }
+        ControlFlow::Continue(())
+    })?;
 
-    findings
+    Ok(findings)
 }
 
 /// True when the matched token is a filesystem / document path rather than a
@@ -545,16 +564,12 @@ fn is_document_extension(ext: &str) -> bool {
     )
 }
 
-fn is_benign_entropy_fixture(file: &str, lines: &[&str], index: usize, candidate: &str) -> bool {
-    let window = context_window(lines, index, 2);
+fn is_benign_entropy_fixture(file: &str, line_window: &LineWindow<'_>, candidate: &str) -> bool {
+    let window = line_window.context();
     if has_sensitive_binding_context(&window) {
         return false;
     }
-    let lower_line = lines
-        .get(index)
-        .copied()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
+    let lower_line = line_window.line().to_ascii_lowercase();
     let context_is_benign = is_benign_context(file, &window)
         || lower_line.contains("alphabet")
         || lower_line.contains("charset")
@@ -616,7 +631,31 @@ pub fn rounded_entropy(value: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use crate::secret::entropy::{calculate_entropy, detect_high_entropy_strings, rounded_entropy};
-    use crate::secret::types::{AllowlistProvenance, FindingType, SecretCheckConfig};
+    use crate::secret::source::LineSource;
+    use crate::secret::types::{
+        AllowlistProvenance, FindingType, SecretCheckConfig, SecretFinding, Suppression,
+    };
+
+    /// The entropy pass over in-memory content with its suppressions
+    /// observable — the shape these tests need, without every case
+    /// restating the streaming plumbing.
+    fn detect_with_suppressions(
+        content: &str,
+        file: &str,
+        config: &SecretCheckConfig,
+        suppressions: &mut Vec<Suppression>,
+    ) -> Vec<SecretFinding> {
+        super::detect_high_entropy_strings_over_source(
+            &LineSource::Memory(content),
+            file,
+            config,
+            usize::MAX,
+            |_| false,
+            |_| true,
+            suppressions,
+        )
+        .expect("an in-memory line source cannot fail to read")
+    }
 
     #[test]
     fn calculates_known_entropy_values() {
@@ -1046,12 +1085,10 @@ const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
         let config = SecretCheckConfig::default();
         let content = "test('base64 vectors', () => {\n  expect(base64.parse(\"TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcms=\")).toBe('ok');\n  const alphabet = \"abcdefghijklmnopqrstuvwxyz\";\n});";
         let mut suppressions = Vec::new();
-        let findings = super::detect_high_entropy_strings_with_line_filter_and_limit(
+        let findings = detect_with_suppressions(
             content,
             "packages/zod/src/v4/classic/tests/string.test.ts",
             &config,
-            usize::MAX,
-            |_, _| true,
             &mut suppressions,
         );
 
@@ -1091,12 +1128,10 @@ const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
         let config = SecretCheckConfig::default();
         let content = "const chars = \"abcdefghijklmnopqrstuvwxyz\";\nexport const BASE_62_DIGITS =\n  \"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\";";
         let mut suppressions = Vec::new();
-        let findings = super::detect_high_entropy_strings_with_line_filter_and_limit(
+        let findings = detect_with_suppressions(
             content,
             "packages/fractional-indexing/src/index.ts",
             &config,
-            usize::MAX,
-            |_, _| true,
             &mut suppressions,
         );
 
@@ -1128,12 +1163,10 @@ const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
     fn suppresses_known_ksuid_validator_vector_only_in_context() {
         let config = SecretCheckConfig::default();
         let mut suppressions = Vec::new();
-        let findings = super::detect_high_entropy_strings_with_line_filter_and_limit(
+        let findings = detect_with_suppressions(
             "test('z.ksuid', () => {\n  expect(z.parse(a, \"2naeRjTrrHJAkfd3tOuEjw90WCA\")).toEqual(\"2naeRjTrrHJAkfd3tOuEjw90WCA\");\n});",
             "packages/zod/src/v4/mini/tests/string.test.ts",
             &config,
-            usize::MAX,
-            |_, _| true,
             &mut suppressions,
         );
 

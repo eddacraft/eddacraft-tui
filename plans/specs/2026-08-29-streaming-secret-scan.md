@@ -37,8 +37,20 @@ the scan *needs*:
 
 Neither pass requires that:
 
-- **Patterns** iterate `content.lines().enumerate()` with no cross-line state.
+- **Patterns** iterate `content.lines().enumerate()`.
   `scan_lockfile_url_credentials` is the same shape and needs no context at all.
+  **Correction (2026-08-29, found during SDT-007):** this section originally
+  claimed the pattern pass carries "no cross-line state". That was **wrong**.
+  `pattern_skip_reason` calls `is_inside_rust_cfg_test_module(lines,
+  line_index)`, which folds from line 0 to the candidate's line on every match
+  — `#[cfg(test)]` membership depends on every preceding line. A radius-2 ring
+  buffer alone would have silently broken `#[cfg(test)]` suppression in `.rs`
+  files, and the calibration corpus would **not** have caught it, because it
+  carries no `.rs` cases. It streams correctly anyway, because the dependency
+  is a forward fold over two `Copy` fields that can be carried on the window
+  rather than recomputed — but as O(1) carried state, not as "no state". Left
+  visible rather than silently edited: the error is instructive, and the
+  corpus's blind spot is worth knowing.
 - **Entropy** reaches only `context_window(lines, index, 2)` and
   `lines.get(index)` — verified by reading `is_benign_entropy_fixture`, which
   touches nothing wider.

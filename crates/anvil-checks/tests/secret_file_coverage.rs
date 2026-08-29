@@ -52,11 +52,19 @@ fn planted_secret() -> String {
 
 /// Write a file whose byte length is at least `MAX_FILE_SIZE`, with a real
 /// credential on its first line.
+///
+/// The tail is **sparse**: SDT-007 raised the guard from 1 MiB to 8 MiB, and
+/// the case below that needs six of these would otherwise write 48 MB per
+/// run to prove a `metadata().len()` comparison. The credential in the head
+/// is what matters — a guard that regressed into reading the file would find
+/// it and fail these tests loudly rather than quietly.
 fn write_oversize(dir: &Path, name: &str) -> String {
     let path = dir.join(name);
     let secret = planted_secret();
-    let padding_len = usize::try_from(MAX_FILE_SIZE).expect("MAX_FILE_SIZE fits usize");
-    fs::write(&path, format!("{secret}{}", "x".repeat(padding_len))).expect("write oversize file");
+    let file = fs::File::create(&path).expect("create oversize file");
+    std::io::Write::write_all(&mut &file, secret.as_bytes()).expect("write credential");
+    let target = MAX_FILE_SIZE + u64::try_from(secret.len()).expect("head fits u64");
+    file.set_len(target).expect("extend past the guard");
     path.to_string_lossy().into_owned()
 }
 

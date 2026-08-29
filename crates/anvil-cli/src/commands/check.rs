@@ -15,7 +15,7 @@ use anvil_checks::antipattern::{
     AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningReport,
     WarningSeverity, WarningSummary, create_warning_result, run_antipattern_check, scan_artifacts,
 };
-use anvil_checks::secret::{SecretCheckConfig, SecretFinding, run_secret_check};
+use anvil_checks::secret::{SecretFinding, is_secret_scannable, run_secret_check};
 
 use crate::GlobalArgs;
 use crate::commands::check_catalog::canonical_check_name;
@@ -372,11 +372,14 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 let config = crate::util::secret_check_config(std::path::Path::new(
                     workspace_root.as_deref().unwrap_or("."),
                 ));
-                // `run_secret_check` silently drops files by extension
-                // (`config.skip_extensions`) and by size (`MAX_FILE_SIZE`).
-                // Pre-filter so the "0 scanned" guard below stays honest
-                // even when every input falls in the skip set (e.g. all
-                // `.lock` or all 2 MB minified bundles).
+                // `run_secret_check` drops files by extension
+                // (`config.skip_extensions`) and by the `MAX_FILE_SIZE`
+                // runaway guard. Pre-filter so the "0 scanned" guard below
+                // stays honest even when every input falls in the skip set.
+                // SDT-007: this asks `anvil-checks` itself rather than a
+                // local copy of its rules, so the pre-filter cannot hide a
+                // file the scanner would have read — the copy had already
+                // drifted on lockfiles.
                 let scannable_files: Vec<String> = files
                     .iter()
                     .filter(|f| is_secret_scannable(f, &config))
@@ -535,27 +538,6 @@ fn resolve_enabled_planless_checks(workspace_root: Option<&str>) -> Result<Vec<&
         .collect();
 
     Ok(resolved)
-}
-
-/// Mirror the skip criteria inside `anvil_checks::secret::run_secret_check`
-/// so the planless dispatcher can tell ahead of time whether a file would
-/// be scanned. Without this pre-check, handing the scanner only
-/// `skip_extensions` inputs (e.g. all `.lock`) lets the empty-output
-/// guard below flip on a scan that never actually ran.
-///
-/// Kept in lockstep with the upstream `should_skip_file` /
-/// `file_exceeds_size_limit` predicates — see
-/// `crates/anvil-checks/src/secret/check.rs`.
-fn is_secret_scannable(file: &str, config: &SecretCheckConfig) -> bool {
-    if config.skip_extensions.iter().any(|ext| file.ends_with(ext)) {
-        return false;
-    }
-    // Mirror `MAX_FILE_SIZE` from `anvil_checks::secret::check`. If we can't
-    // stat the file, let the scanner decide — its error path is silent.
-    match std::fs::metadata(file) {
-        Ok(m) => m.len() < anvil_checks::secret::MAX_FILE_SIZE,
-        Err(_) => true,
-    }
 }
 
 fn antipattern_warning_to_json(w: &Warning, workspace_root: Option<&str>) -> JsonWarning {
@@ -1548,6 +1530,8 @@ fn render_warning(w: &Warning, verbose: bool) -> String {
 
 #[cfg(test)]
 mod tests {
+    use anvil_checks::secret::SecretCheckConfig;
+
     use super::*;
 
     #[test]
@@ -2398,6 +2382,30 @@ mod tests {
         assert!(!is_secret_scannable("foo.svg", &config));
         assert!(is_secret_scannable("src/foo.ts", &config));
         assert!(is_secret_scannable("src/foo.rs", &config));
+    }
+
+    /// SDT-007: the pre-filter is now the scanner's own predicate, so it
+    /// inherits the lockfile carve-out instead of contradicting it.
+    ///
+    /// The deleted local copy applied `skip_extensions` unconditionally, so
+    /// `Cargo.lock` failed its `.lock` test and planless `anvil check` never
+    /// handed the file to a scanner that would have run the GH #2584
+    /// URL-credential rule over it. That is exactly the drift the copy's own
+    /// comment warned about — present before streaming, closed by it.
+    #[test]
+    fn lockfiles_are_scannable_because_the_scanner_carves_them_out() {
+        let config = SecretCheckConfig::default();
+        assert!(
+            is_secret_scannable("Cargo.lock", &config),
+            "a real lockfile reaches the URL-credential scan; `skip_extensions` \
+             deliberately does not apply to it"
+        );
+        assert!(is_secret_scannable("pnpm-lock.yaml", &config));
+        assert!(
+            !is_secret_scannable("foo.lock", &config),
+            "a `.lock` file that is not a known lockfile is still an ordinary \
+             `skip_extensions` match"
+        );
     }
 
     #[test]

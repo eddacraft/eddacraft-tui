@@ -4,9 +4,10 @@ pub mod entropy;
 pub mod git_scanner;
 pub mod patterns;
 pub mod scanner;
+pub(crate) mod source;
 pub mod types;
 
-pub use check::{MAX_FILE_SIZE, run_secret_check};
+pub use check::{MAX_FILE_SIZE, is_secret_scannable, run_secret_check};
 pub use entropy::{
     calculate_entropy, detect_high_entropy_strings, detect_high_entropy_strings_with_limit,
 };
@@ -18,7 +19,7 @@ pub use patterns::{
 pub use scanner::{
     ScanStats, scan_content, scan_content_with_compiled_patterns, scan_content_with_limit,
     scan_content_with_limit_and_stats, scan_content_with_pattern_errors_and_stats,
-    scan_content_with_stats, scan_lockfile_url_credentials,
+    scan_content_with_stats, scan_file_with_compiled_patterns, scan_lockfile_url_credentials,
 };
 pub use types::{
     AllowlistProvenance, EntropyFinding, FindingType, SecretCheckConfig, SecretCheckResult,

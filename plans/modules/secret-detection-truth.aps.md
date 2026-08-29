@@ -487,14 +487,17 @@ known gap lives.
 
 ### SDT-007: Stream large files instead of skipping them
 
-- **Status:** Proposed
+- **Status:** In Progress — operator-promoted 2026-08-29 (Proposed → Ready →
+  In Progress on direction). Implemented on `feat/sdt-007-stream-large-files`.
 - **Intent:** The file-size cap is a memory bound, not a correctness one. A
   large file should be *scanned*, not excused — SDT-006 made the skip honest,
   this makes it unnecessary.
 - **Expected Outcome:** `run_secret_check` reads through a bounded reader
   instead of `fs::read_to_string`, with a radius-2 ring buffer feeding both
   passes. This is behaviour-preserving by construction: the pattern pass
-  iterates `content.lines()` with no cross-line state, and the entropy pass
+  iterates `content.lines()` — but see the As-built note: that claim was
+  wrong about `is_inside_rust_cfg_test_module`, which folds from line 0 — and
+  the entropy pass
   reaches only `context_window(lines, index, 2)` and `lines.get(index)` — read
   directly from `is_benign_entropy_fixture`, which touches nothing wider.
   `MAX_FILE_SIZE` survives **only as a runaway guard**, its value derived from
@@ -535,6 +538,67 @@ known gap lives.
   measures volume — and must be measured rather than argued. A
   behaviour-preserving refactor that silently changes detection is the failure
   mode; the corpus exists to catch exactly that.
+- **As built (2026-08-29):** New `secret/source.rs` owns a `LineSource`
+  (`Memory` or `File`) walked by `for_each_windowed_line`, handing each line a
+  clipped `[i-2 ..= i+2]` window. At most five lines are resident; the memory
+  variant stays zero-copy (`Cow::Borrowed`) so the save-time hot path is
+  unaffected. The file variant reproduces `str::lines` exactly, pinned by a
+  test comparing both variants across ten edge-case inputs, plus
+  `streamed_and_in_memory_scans_agree_exactly` comparing findings,
+  suppressions and skip counts field-by-field under limits 0,1,2,3,5,8.
+- **The window-locality premise was wrong, and the corpus could not have
+  caught it.** `pattern_skip_reason` calls
+  `is_inside_rust_cfg_test_module(lines, line_index)`, which folds from line 0
+  on every candidate match — `#[cfg(test)]` membership depends on every
+  preceding line. A ring buffer alone would have silently broken `#[cfg(test)]`
+  suppression in `.rs` files, and the calibration corpus carries no `.rs`
+  cases, so zero drift would have been reported over a real regression. It
+  streams as an O(1) forward fold (`RustCfgTestTracker::advance` is the old
+  loop body, driven once per line), which incidentally turns a per-match
+  O(file) walk into O(1). Guarded by
+  `rust_cfg_test_membership_survives_streaming`, whose test module is wider
+  than any window.
+- **The predicate copy had already drifted — the hazard was live, not
+  theoretical.** `anvil-cli`'s `is_secret_scannable` applied `skip_extensions`
+  unconditionally with no lockfile carve-out, while the scanner's
+  `should_skip_file` returns early for lockfiles. So planless `anvil check`
+  was withholding lockfiles from the scanner — exactly the files the GH #2584
+  URL-credential rule exists for. Fixed by deletion: one exported predicate.
+  Verified with the real binary — `anvil check Cargo.lock --json` now reports
+  `checksRun: ['secret-detection', 'antipattern-scan']`.
+- **Runaway guard: 1 MiB → 8 MiB**, derived from measurement, not feel.
+  Release-mode scan rate: `pnpm-lock.yaml` 281.9 MiB/s; ordinary `.ts` source
+  through the full catalogue plus entropy 35.5 MiB/s. The slow row sets it —
+  8 MiB ≈ 225 ms, still inside one second on hardware four times slower.
+  ADR-031's interactive budgets were deliberately **not** used: at 35 MiB/s a
+  50 ms budget yields 1.7 MiB, i.e. *lower* than the 1 MiB this item exists to
+  raise; those budgets govern the kilobyte-sized file a user just edited.
+- **Corpus drift: zero.** 21/21 catalogue, 8/20 other providers, 29/41 all
+  planted, FP 1/13 — every manifest expectation matched, manifest untouched.
+  The runner drives `scan_content_with_stats`, which now routes through the
+  streaming core, so it measures the refactor rather than around it.
+- **Dogfood, and the recorded Risk materialising.** `pnpm-lock.yaml` (1.22 MiB)
+  now scans clean — `passed=true`, score 100, 0 findings, 8.8 ms — so Anvil
+  proves its own lockfile clean for the first time, and the gate stops
+  reporting any of the three files as unprovable. The two
+  `plans/audits/*.json` files went **0 → 50 findings**, of which 48 are
+  unambiguous false positives: clawpatch record ids of the shape
+  `fnd_sig-feat-cli-command-00b48c6528-…` (1522 such ids in one file), all
+  flagged as `High Entropy String`. The remaining 2 are synthetic `ghu_`/`ghp_`
+  example tokens in `"reproduction"` prose — arguably true positives in kind.
+  **Operator decision 2026-08-29: land as-is.** The FP is a pre-existing
+  property of the entropy rule, not something this item introduces — those ids
+  would flag today if the files were under 1 MiB; streaming only makes them
+  visible. Anvil's own gate was already red on these files (SDT-006 coverage
+  failures) and stays red for a different reason; no workflow runs `anvil gate`
+  against this repository, so CI is unaffected. The record-id FP shape is filed
+  as a follow-up rather than suppressed here, because putting a shape into an
+  allowlist without the corpus measuring the detection cost is exactly what
+  SDT-002 exists to prevent.
+- **Not measured:** no pre-streaming throughput baseline was captured, so the
+  in-memory hot-path delta is estimated (single-digit percent, from the
+  ~3.5 ns/byte lockfile figure) rather than measured. Getting an honest number
+  needs a second worktree at the base commit.
 - **Design:** [2026-08-29 streaming secret scan](../specs/2026-08-29-streaming-secret-scan.md)
 
 ---

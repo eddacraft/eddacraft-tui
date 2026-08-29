@@ -1,4 +1,5 @@
 use std::fs;
+use std::io;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 
@@ -6,16 +7,54 @@ use rayon::prelude::*;
 
 use crate::secret::git_scanner::scan_git_history;
 use crate::secret::patterns::compile_custom_patterns;
-use crate::secret::scanner::{ScanStats, scan_content_with_compiled_patterns};
+use crate::secret::scanner::{ScanStats, scan_file_with_compiled_patterns};
 use crate::secret::types::{
     FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding, Suppression,
     partition_skip_extensions,
 };
 
-/// Maximum file size to scan (1 MiB). Files of this size or larger are
-/// skipped to avoid excessive memory usage on binaries or generated artefacts.
-pub const MAX_FILE_SIZE: u64 = 1024 * 1024;
-const _: () = assert!(MAX_FILE_SIZE == 1024 * 1024);
+/// Largest file the scan will read, as a **runaway guard** (8 MiB).
+///
+/// Until SDT-007 this was 1 MiB and it was a *memory* bound: the scan read
+/// the whole file into a `String` and the scanner then collected every line
+/// into a `Vec`, so file size and resident size were the same number. That
+/// is no longer how a file is read — [`crate::secret::scan_file_with_compiled_patterns`]
+/// streams through a bounded reader holding five lines — so memory no longer
+/// sets the value, and leaving the memory-derived number in place would have
+/// left an arbitrary one.
+///
+/// What is left to bound is *time*, so the value is derived from a measured
+/// scan rate. Measured on release builds via
+/// `tests/secret_streaming.rs::measure_streaming_scan_rate`:
+///
+/// | content | rate | 8 MiB costs |
+/// | ------- | ---- | ----------- |
+/// | ordinary source, full catalogue + entropy | ~35 MiB/s | ~230 ms |
+/// | generated lockfile, restricted URL rule   | ~294 MiB/s | ~28 ms |
+///
+/// The slow row sets the guard. 8 MiB is ~230 ms of single-file scan on the
+/// measuring machine and stays inside one second even on hardware four times
+/// slower — the point past which a batch surface reads as hung rather than
+/// busy. It is deliberately **not** derived from ADR-031's interactive
+/// budgets (50 ms buffer / 80 ms save-time): those govern the file a user
+/// just edited, which is kilobytes, and a cap set from them would be *lower*
+/// than the 1 MiB this item exists to raise.
+///
+/// It also clears the population it has to admit — this repository's largest
+/// tracked file is 1.52 MiB and its `pnpm-lock.yaml` 1.22 MiB, and generated
+/// lockfiles in larger monorepos reach several MB — with room before the next
+/// repository rediscovers the unprovable-lockfile defect.
+///
+/// Worst-case *resident* size rises with it, but only for a pathological
+/// file that is a single 8 MiB line: the reader holds one line at a time, so
+/// anything with newlines in it stays at window size regardless of how large
+/// the file is.
+///
+/// Exceeding the guard keeps SDT-006 semantics exactly: the file blocks a
+/// clean pass and is named, because a file nobody read cannot be proven
+/// clean.
+pub const MAX_FILE_SIZE: u64 = 8 * 1024 * 1024;
+const _: () = assert!(MAX_FILE_SIZE == 8 * 1024 * 1024);
 
 /// At most this many paths are named inline in a coverage note. Beyond it the
 /// note says "and N more" — the full list always stays on the result, but a
@@ -101,9 +140,9 @@ pub fn run_secret_check(
         config,
         workspace_root,
         pattern_errors,
-        |content, display_path| {
-            scan_content_with_compiled_patterns(
-                content,
+        |path, display_path| {
+            scan_file_with_compiled_patterns(
+                path,
                 display_path,
                 config,
                 &compiled_custom_patterns,
@@ -111,6 +150,25 @@ pub fn run_secret_check(
             )
         },
     )
+}
+
+/// Will the secret scan actually read this file?
+///
+/// SDT-007: the single scannability predicate. `anvil-cli` used to carry a
+/// copy of this, whose own comment admitted it was "kept in lockstep with
+/// the upstream" — and which had already drifted, because it applied
+/// `skip_extensions` to lockfiles that [`should_skip_file`] deliberately
+/// exempts so they reach the GH #2584 URL-credential scan. A pre-filter that
+/// disagrees with the scanner is a pre-filter that hides files from it, so
+/// there is now one predicate and callers use it.
+///
+/// A file that cannot be stat'd is reported scannable: the scan is the thing
+/// that owns read failures, and it reports them as unscanned coverage rather
+/// than dropping them.
+#[must_use]
+pub fn is_secret_scannable(file: &str, config: &SecretCheckConfig) -> bool {
+    let (skip_extensions, _warnings) = partition_skip_extensions(&config.skip_extensions);
+    !should_skip_file(file, &skip_extensions) && !file_exceeds_size_limit(file)
 }
 
 /// [`run_secret_check`] with the per-file scan supplied by the caller.
@@ -134,7 +192,7 @@ fn run_secret_check_with_scanner<F>(
     scan: F,
 ) -> SecretCheckResult
 where
-    F: Fn(&str, &str) -> (Vec<SecretFinding>, ScanStats) + Sync,
+    F: Fn(&Path, &str) -> io::Result<(Vec<SecretFinding>, ScanStats)> + Sync,
 {
     // A `skip_extensions` entry only narrows the scan if it is a well-formed
     // dotted suffix. An empty entry would match every path (`ends_with("")`)
@@ -209,7 +267,7 @@ fn scan_one_file<F>(
     scan: &F,
 ) -> FileOutcome
 where
-    F: Fn(&str, &str) -> (Vec<SecretFinding>, ScanStats) + Sync,
+    F: Fn(&Path, &str) -> io::Result<(Vec<SecretFinding>, ScanStats)> + Sync,
 {
     if should_skip_file(file, skip_extensions) {
         return FileOutcome::SkippedExtension;
@@ -220,18 +278,23 @@ where
     if file_exceeds_size_limit(file) {
         return FileOutcome::Oversize(display_path);
     }
-    let Ok(content) = fs::read_to_string(file) else {
-        return FileOutcome::Unreadable(display_path);
-    };
+    // SDT-007: the read happens *inside* the scan now, so a read failure
+    // surfaces as an `Err` from it rather than a failed `read_to_string`
+    // before it. The outcome is the same one SDT-006 established — a file
+    // whose bytes were not all read is unscanned, never clean — and partial
+    // findings from a file that failed mid-read are discarded with it, so a
+    // truncated read can never look like a completed one.
+    //
     // SCAN-001: contain panics from custom user regexes so a single bad
     // pattern can't tear down the whole secret scan. SDT-006: containing it
     // is still right; returning nothing was the bug.
-    match catch_unwind(AssertUnwindSafe(|| scan(&content, &display_path))) {
-        Ok((findings, stats)) => FileOutcome::Scanned {
+    match catch_unwind(AssertUnwindSafe(|| scan(Path::new(file), &display_path))) {
+        Ok(Ok((findings, stats))) => FileOutcome::Scanned {
             findings,
             suppressions: stats.suppressions,
             lines_skipped_oversize: stats.lines_skipped_oversize,
         },
+        Ok(Err(_)) => FileOutcome::Unreadable(display_path),
         Err(_) => FileOutcome::Panicked(display_path),
     }
 }
@@ -801,21 +864,32 @@ mod tests {
         let _ = fs::remove_dir_all(temp_dir);
     }
 
+    /// Extend `file` to at least `MAX_FILE_SIZE` bytes without writing them.
+    ///
+    /// SDT-007 raised the guard to 8 MiB, and a test that materialised that
+    /// many bytes per case would trade a real disk cost for nothing: the
+    /// guard reads `metadata().len()`, so the tail is never touched. The head
+    /// still carries a live credential, so a guard that regressed into
+    /// reading the file would produce a finding and fail the test loudly.
+    fn extend_past_guard(path: &std::path::Path, head: &str) {
+        let file = fs::File::create(path).expect("create file");
+        std::io::Write::write_all(&mut &file, head.as_bytes()).expect("write head");
+        let target = super::MAX_FILE_SIZE + u64::try_from(head.len()).expect("head fits u64");
+        file.set_len(target).expect("extend past the guard");
+    }
+
     #[test]
     fn skips_files_exceeding_size_limit() {
         let temp_dir = create_temp_dir("size-limit");
         let file = temp_dir.join("big.ts");
-        // Create a file just over 1 MiB with a secret on the first line.
-        let secret_line = "api_key='abcdEFGH1234567890'\n";
-        let padding = "a".repeat(1024 * 1024);
-        let content = format!("{secret_line}{padding}");
-        fs::write(&file, &content).unwrap();
+        // A file past the runaway guard, with a secret on the first line.
+        extend_past_guard(&file, "api_key='abcdEFGH1234567890'\n");
 
         let file_string = file.to_string_lossy().to_string();
         let files = [file_string.as_str()];
         let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
 
-        // The file is still skipped — SDT-006 does not raise `MAX_FILE_SIZE`.
+        // The file is still skipped — past the guard, SDT-006 semantics hold.
         assert_eq!(result.findings.len(), 0);
         // SDT-006 inverts the old `assert!(result.passed)`. Skipping the file
         // is correct; reporting a clean pass over a file nobody read is not.
@@ -995,13 +1069,12 @@ mod tests {
     fn skips_files_at_exact_size_boundary() {
         let temp_dir = create_temp_dir("boundary");
         let file = temp_dir.join("exact.ts");
-        // Pad to exactly MAX_FILE_SIZE bytes — should be skipped (>= limit).
+        // Exactly MAX_FILE_SIZE bytes — should be skipped (>= limit).
         let secret = "api_key='abcdEFGH1234567890'";
-        let target_len = usize::try_from(super::MAX_FILE_SIZE).unwrap();
-        let padding_len = target_len.saturating_sub(secret.len());
-        let content = format!("{secret}{}", "x".repeat(padding_len));
-        assert_eq!(content.len(), target_len);
-        fs::write(&file, &content).unwrap();
+        let handle = fs::File::create(&file).unwrap();
+        std::io::Write::write_all(&mut &handle, secret.as_bytes()).unwrap();
+        handle.set_len(super::MAX_FILE_SIZE).unwrap();
+        assert_eq!(fs::metadata(&file).unwrap().len(), super::MAX_FILE_SIZE);
 
         let file_string = file.to_string_lossy().to_string();
         let files = [file_string.as_str()];

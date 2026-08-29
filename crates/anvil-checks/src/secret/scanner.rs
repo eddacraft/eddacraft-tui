@@ -1,16 +1,19 @@
+use std::io;
+use std::ops::ControlFlow;
 use std::sync::LazyLock;
 
 use regex::Regex;
 
 use crate::secret::context::{
-    context_window, has_sensitive_binding_context, has_validator_fixture_context, is_benign_context,
+    has_sensitive_binding_context, has_validator_fixture_context, is_benign_context,
 };
 use crate::secret::entropy::{
-    detect_high_entropy_strings_with_line_filter_and_limit, is_path_shaped_document_token,
+    detect_high_entropy_strings_over_source, is_path_shaped_document_token,
 };
 use crate::secret::patterns::{
     CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
 };
+use crate::secret::source::{LineSource, LineWindow, for_each_windowed_line};
 use crate::secret::types::{
     AllowlistProvenance, FindingType, SecretCheckConfig, SecretFinding, Suppression,
 };
@@ -43,31 +46,51 @@ pub fn scan_lockfile_url_credentials(
     file_path: &str,
     limit: usize,
 ) -> Vec<SecretFinding> {
+    scan_lockfile_url_credentials_over_source(&LineSource::Memory(content), file_path, limit)
+        .expect("an in-memory line source cannot fail to read")
+}
+
+/// SDT-007: the lockfile scan over a streamed source. Line-local by
+/// construction — the credential-URL rule needs no context at all — so the
+/// only thing streaming changes is where the bytes come from. This is the
+/// pass that this repository's own `pnpm-lock.yaml` could never reach while
+/// the size cap dropped the file before it was opened.
+fn scan_lockfile_url_credentials_over_source(
+    source: &LineSource<'_>,
+    file_path: &str,
+    limit: usize,
+) -> io::Result<Vec<SecretFinding>> {
     if limit == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     // No custom allowlist: the pattern only fires on `user:pass@` userinfo,
     // which has no benign lockfile form that would need allowlisting.
     let matcher = PatternMatcher::new(&[]);
     let mut findings = Vec::new();
-    for (index, line) in content.lines().enumerate() {
-        for matched in CREDENTIAL_URL_PATTERN.find_iter(line) {
-            let range = matched.range();
-            findings.push(pattern_finding(
-                file_path,
-                index + 1,
-                "Credential URL".to_string(),
-                matcher.redact_secret(&line[range.clone()]),
-                matcher.redact_range_in_line(line, range.start, range.end),
-                range.start,
-                range.end,
-            ));
-            if findings.len() == limit {
-                return findings;
+    for_each_windowed_line(
+        source,
+        |_| false,
+        |window| {
+            let line = window.line();
+            for matched in CREDENTIAL_URL_PATTERN.find_iter(line) {
+                let range = matched.range();
+                findings.push(pattern_finding(
+                    file_path,
+                    window.line_number(),
+                    "Credential URL".to_string(),
+                    matcher.redact_secret(&line[range.clone()]),
+                    matcher.redact_range_in_line(line, range.start, range.end),
+                    range.start,
+                    range.end,
+                ));
+                if findings.len() == limit {
+                    return ControlFlow::Break(());
+                }
             }
-        }
-    }
-    findings
+            ControlFlow::Continue(())
+        },
+    )?;
+    Ok(findings)
 }
 
 /// Reject Credit Card matches that are actually a fragment of a
@@ -245,14 +268,13 @@ fn pattern_skip_reason(
     pattern: &CompiledPattern,
     matcher: &PatternMatcher,
     file_path: &str,
-    lines: &[&str],
-    line_index: usize,
-    line: &str,
+    window: &LineWindow<'_>,
     match_start: usize,
     match_end: usize,
 ) -> Option<SkipReason> {
+    let line = window.line();
     let matched_value = &line[match_start..match_end];
-    let context = context_window(lines, line_index, 2);
+    let context = window.context();
 
     if pattern.name == "Database URL"
         && is_placeholder_database_url_fixture(file_path, &context, line, matched_value)
@@ -280,11 +302,7 @@ fn pattern_skip_reason(
         ));
     }
 
-    if std::path::Path::new(file_path)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
-        && is_inside_rust_cfg_test_module(lines, line_index)
-    {
+    if is_rust_source_path(file_path) && window.in_rust_cfg_test() {
         return Some(SkipReason::Allowlisted(
             AllowlistProvenance::BuiltinBenignFixture,
         ));
@@ -316,33 +334,22 @@ fn pattern_skip_reason(
 /// Decide whether a pattern match should be skipped, recording an allowlist
 /// suppression (with provenance) into `stats` when it is. Returns `true` when
 /// the match must not become a finding (allowlisted *or* heuristic non-match).
-#[allow(clippy::too_many_arguments)] // a focused skip-and-record seam
 fn skip_and_record(
     stats: &mut ScanStats,
     matcher: &PatternMatcher,
     pattern: &CompiledPattern,
     file_path: &str,
-    line: &str,
-    line_number: usize,
+    window: &LineWindow<'_>,
     range: &std::ops::Range<usize>,
-    lines: &[&str],
 ) -> bool {
-    match pattern_skip_reason(
-        pattern,
-        matcher,
-        file_path,
-        lines,
-        line_number.saturating_sub(1),
-        line,
-        range.start,
-        range.end,
-    ) {
+    let line = window.line();
+    match pattern_skip_reason(pattern, matcher, file_path, window, range.start, range.end) {
         Some(SkipReason::Allowlisted(provenance)) => {
             // Don't drop it silently — record what was suppressed and which
             // allowlist tier did it.
             stats.suppressions.push(Suppression {
                 file: file_path.to_string(),
-                line: line_number,
+                line: window.line_number(),
                 rule_name: pattern.name.clone(),
                 redacted_match: matcher.redact_secret(&line[range.clone()]),
                 provenance,
@@ -356,28 +363,22 @@ fn skip_and_record(
 
 /// Boolean form for callers that only need "would this match be skipped?"
 /// (e.g. the entropy line-filter), without recording a suppression.
-#[allow(clippy::too_many_arguments)] // boolean mirror of pattern_skip_reason
 fn should_skip_pattern_match(
     pattern: &CompiledPattern,
     matcher: &PatternMatcher,
     file_path: &str,
-    lines: &[&str],
-    line_index: usize,
-    line: &str,
+    window: &LineWindow<'_>,
     match_start: usize,
     match_end: usize,
 ) -> bool {
-    pattern_skip_reason(
-        pattern,
-        matcher,
-        file_path,
-        lines,
-        line_index,
-        line,
-        match_start,
-        match_end,
-    )
-    .is_some()
+    pattern_skip_reason(pattern, matcher, file_path, window, match_start, match_end).is_some()
+}
+
+/// Only `.rs` files consult the `#[cfg(test)]` fold, so only they pay for it.
+fn is_rust_source_path(file_path: &str) -> bool {
+    std::path::Path::new(file_path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
 }
 
 fn is_placeholder_database_url_fixture(
@@ -404,36 +405,51 @@ fn is_placeholder_database_url_fixture(
     placeholder_userinfo && validator_context
 }
 
-/// True when `line_index` sits inside a `#[cfg(test)] mod … { … }` body.
+/// Tracks whether the line just read sits inside a `#[cfg(test)] mod … { … }`
+/// body.
 ///
-/// The first `#[cfg(test)]` header is not enough: production code after
-/// that module closes must still be scanned.
-fn is_inside_rust_cfg_test_module(lines: &[&str], line_index: usize) -> bool {
-    let mut pending_cfg_test = false;
-    let mut depth = 0i32;
-    for (index, raw) in lines.iter().enumerate() {
-        let inside_before = depth > 0;
+/// The first `#[cfg(test)]` header is not enough: production code after that
+/// module closes must still be scanned.
+///
+/// SDT-007: this is the one part of the pattern pass that is **not**
+/// window-local. Membership at line *n* depends on every line before it, so
+/// the pre-streaming code re-folded the whole file from line 0 on every
+/// candidate match. It is a plain forward fold over two `Copy` fields, so
+/// carrying it incrementally is exactly equivalent — and, incidentally,
+/// turns a per-match O(file) walk into O(1).
+#[derive(Default)]
+struct RustCfgTestTracker {
+    pending_cfg_test: bool,
+    depth: i32,
+}
+
+impl RustCfgTestTracker {
+    /// Fold one more line in and answer for *that* line. Must be called once
+    /// per line, in file order, or the fold is not the fold it replaces.
+    fn advance(&mut self, raw: &str) -> bool {
+        let inside_before = self.depth > 0;
         let mut entered_this_line = false;
         let trimmed = raw.trim_start();
-        if depth > 0 {
-            depth = (depth + rust_line_brace_delta(raw)).max(0);
+        if self.depth > 0 {
+            self.depth = (self.depth + rust_line_brace_delta(raw)).max(0);
         } else if let Some(after_attr) = trimmed.strip_prefix("#[cfg(test)]") {
-            pending_cfg_test = true;
+            self.pending_cfg_test = true;
             entered_this_line = apply_pending_cfg_test_line(
                 raw,
                 after_attr.trim_start(),
-                &mut pending_cfg_test,
-                &mut depth,
+                &mut self.pending_cfg_test,
+                &mut self.depth,
             );
-        } else if pending_cfg_test {
-            entered_this_line =
-                apply_pending_cfg_test_line(raw, trimmed, &mut pending_cfg_test, &mut depth);
+        } else if self.pending_cfg_test {
+            entered_this_line = apply_pending_cfg_test_line(
+                raw,
+                trimmed,
+                &mut self.pending_cfg_test,
+                &mut self.depth,
+            );
         }
-        if index == line_index {
-            return inside_before || entered_this_line || depth > 0;
-        }
+        inside_before || entered_this_line || self.depth > 0
     }
-    false
 }
 
 fn apply_pending_cfg_test_line(
@@ -712,13 +728,67 @@ pub fn scan_content_with_compiled_patterns(
     custom_patterns: &[CompiledPattern],
     limit: usize,
 ) -> (Vec<SecretFinding>, ScanStats) {
+    scan_source_with_compiled_patterns(
+        &LineSource::Memory(content),
+        file_path,
+        config,
+        custom_patterns,
+        limit,
+    )
+    .expect("an in-memory line source cannot fail to read")
+}
+
+/// SDT-007: scan a file **without materialising it**.
+///
+/// The same scan as [`scan_content_with_compiled_patterns`], reading through
+/// a bounded reader instead of a `String` holding the whole file. The size
+/// cap that used to drop large files existed because of this read, not
+/// because of anything the detection needed.
+///
+/// Read errors — a missing file, a directory, non-UTF-8 bytes — are returned
+/// rather than swallowed, because the caller ([`crate::secret::check`]) has
+/// to report a file it could not read as *unscanned*, not as clean.
+pub fn scan_file_with_compiled_patterns(
+    path: &std::path::Path,
+    file_path: &str,
+    config: &SecretCheckConfig,
+    custom_patterns: &[CompiledPattern],
+    limit: usize,
+) -> io::Result<(Vec<SecretFinding>, ScanStats)> {
+    scan_source_with_compiled_patterns(
+        &LineSource::File(path),
+        file_path,
+        config,
+        custom_patterns,
+        limit,
+    )
+}
+
+/// The scan itself, over whichever source the caller supplied.
+///
+/// The structure is deliberately unchanged from the pre-streaming version:
+/// a complete pattern pass, then an entropy pass over the same lines with
+/// the pattern pass's verdicts as its line filter. Interleaving them would
+/// have been one read instead of two, but it would also have reordered
+/// findings and changed which ones survive a `limit` — and this refactor's
+/// whole warrant is that it changes no result. The second walk costs a
+/// re-read; it does not re-run any detection the single-pass version did
+/// not already run twice (the entropy line filter always re-evaluated every
+/// pattern).
+fn scan_source_with_compiled_patterns(
+    source: &LineSource<'_>,
+    file_path: &str,
+    config: &SecretCheckConfig,
+    custom_patterns: &[CompiledPattern],
+    limit: usize,
+) -> io::Result<(Vec<SecretFinding>, ScanStats)> {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
     let default_patterns: &[CompiledPattern] = &DEFAULT_COMPILED_PATTERNS;
     let mut findings = Vec::new();
     let mut stats = ScanStats::default();
 
     if limit == 0 {
-        return (findings, stats);
+        return Ok((findings, stats));
     }
 
     // Lockfiles get a restricted scan: only credentials embedded in URLs, never
@@ -727,95 +797,91 @@ pub fn scan_content_with_compiled_patterns(
     // check`/`gate`/`audit`, and the save-time intercept — treats lockfiles
     // identically without each having to special-case them.
     if crate::filter::is_lockfile(std::path::Path::new(file_path)) {
-        return (
-            scan_lockfile_url_credentials(content, file_path, limit),
+        return Ok((
+            scan_lockfile_url_credentials_over_source(source, file_path, limit)?,
             stats,
-        );
+        ));
     }
 
     let patterns_iter = || default_patterns.iter().chain(custom_patterns.iter());
-    let lines = content.lines().collect::<Vec<_>>();
+    let track_rust_cfg_test = is_rust_source_path(file_path);
 
-    // Tracks lines that were skipped by the length guard. The entropy pass
-    // below honours the same set so a pathological line cannot route around
-    // the guard via the entropy scanner. Lazily allocated — the common case
-    // is no oversize lines, and a missing set means "no skipped lines".
-    let mut oversize_line_indices: Option<std::collections::HashSet<usize>> = None;
+    // Pass 1 — patterns. Line-local apart from the radius-2 context window
+    // and the `#[cfg(test)]` fold, both of which the window carries.
+    let mut cfg_test = RustCfgTestTracker::default();
+    let mut limit_reached = false;
+    for_each_windowed_line(
+        source,
+        |raw| track_rust_cfg_test && cfg_test.advance(raw),
+        |window| {
+            let line = window.line();
+            // SCAN-002: skip lines that exceed the configured byte cap. We use
+            // `len()` (bytes) rather than `chars().count()` because the threat
+            // is regex backtracking, which is bounded by the byte length the
+            // regex engine actually walks — so byte-count is the correct
+            // measure, and it is also O(1).
+            if line.len() > config.max_line_bytes {
+                stats.lines_skipped_oversize += 1;
+                return ControlFlow::Continue(());
+            }
 
-    for (index, line) in lines.iter().copied().enumerate() {
-        // SCAN-002: skip lines that exceed the configured byte cap. We use
-        // `len()` (bytes) rather than `chars().count()` because the threat
-        // is regex backtracking, which is bounded by the byte length the
-        // regex engine actually walks — so byte-count is the correct
-        // measure, and it is also O(1).
-        if line.len() > config.max_line_bytes {
-            stats.lines_skipped_oversize += 1;
-            oversize_line_indices
-                .get_or_insert_with(std::collections::HashSet::new)
-                .insert(index);
-            continue;
-        }
+            let mut line_matches: Vec<(&CompiledPattern, std::ops::Range<usize>)> = Vec::new();
+            for pattern in patterns_iter() {
+                for matched_range in pattern.regex.find_iter(line) {
+                    let range = matched_range.range();
+                    if skip_and_record(&mut stats, &matcher, pattern, file_path, window, &range) {
+                        continue;
+                    }
+                    line_matches.push((pattern, range));
+                }
+            }
 
-        let line_number = index + 1;
-
-        let mut line_matches: Vec<(&CompiledPattern, std::ops::Range<usize>)> = Vec::new();
-        for pattern in patterns_iter() {
-            for matched_range in pattern.regex.find_iter(line) {
-                let range = matched_range.range();
-                if skip_and_record(
-                    &mut stats,
-                    &matcher,
-                    pattern,
-                    file_path,
-                    line,
-                    line_number,
-                    &range,
-                    &lines,
-                ) {
+            for (pattern, range) in &line_matches {
+                if suppressed_by_high_confidence_overlap(pattern, range, &line_matches) {
                     continue;
                 }
-                line_matches.push((pattern, range));
-            }
-        }
 
-        for (pattern, range) in &line_matches {
-            if suppressed_by_high_confidence_overlap(pattern, range, &line_matches) {
-                continue;
+                let matched_value = &line[range.clone()];
+                findings.push(pattern_finding(
+                    file_path,
+                    window.line_number(),
+                    pattern.name.clone(),
+                    matcher.redact_secret(matched_value),
+                    matcher.redact_range_in_line(line, range.start, range.end),
+                    range.start,
+                    range.end,
+                ));
+                if findings.len() == limit {
+                    limit_reached = true;
+                    return ControlFlow::Break(());
+                }
             }
+            ControlFlow::Continue(())
+        },
+    )?;
 
-            let matched_value = &line[range.clone()];
-            findings.push(pattern_finding(
-                file_path,
-                line_number,
-                pattern.name.clone(),
-                matcher.redact_secret(matched_value),
-                matcher.redact_range_in_line(line, range.start, range.end),
-                range.start,
-                range.end,
-            ));
-            if findings.len() == limit {
-                return (findings, stats);
-            }
-        }
+    if limit_reached {
+        return Ok((findings, stats));
     }
 
     if config.enable_entropy {
         let remaining = limit.saturating_sub(findings.len());
         let mut entropy_suppressions = Vec::new();
-        let entropy_findings = detect_high_entropy_strings_with_line_filter_and_limit(
-            content,
+        let mut entropy_cfg_test = RustCfgTestTracker::default();
+        let entropy_findings = detect_high_entropy_strings_over_source(
+            source,
             file_path,
             config,
             remaining,
-            |line_index, line| {
-                // SCAN-002: respect the length-guard skip set — entropy
-                // scanning over the original content already touches every
-                // line, but we must not surface findings on lines the
-                // pattern pass refused to inspect.
-                if oversize_line_indices
-                    .as_ref()
-                    .is_some_and(|set| set.contains(&line_index))
-                {
+            |raw| track_rust_cfg_test && entropy_cfg_test.advance(raw),
+            |window| {
+                // SCAN-002: respect the length guard — entropy scanning walks
+                // every line, but we must not surface findings on lines the
+                // pattern pass refused to inspect. Recomputed rather than
+                // remembered: it is the same O(1) test on the same line, and
+                // pass 1 ran to completion or we would not be here.
+                let line = window.line();
+                if line.len() > config.max_line_bytes {
                     return false;
                 }
                 patterns_iter().all(|pattern| {
@@ -824,9 +890,7 @@ pub fn scan_content_with_compiled_patterns(
                             pattern,
                             &matcher,
                             file_path,
-                            &lines,
-                            line_index,
-                            line,
+                            window,
                             matched_range.start(),
                             matched_range.end(),
                         )
@@ -834,12 +898,12 @@ pub fn scan_content_with_compiled_patterns(
                 })
             },
             &mut entropy_suppressions,
-        );
+        )?;
         findings.extend(entropy_findings);
         stats.suppressions.append(&mut entropy_suppressions);
     }
 
-    (findings, stats)
+    Ok((findings, stats))
 }
 
 /// Legacy limited-scan entry point that drops the SCAN-002 stats.

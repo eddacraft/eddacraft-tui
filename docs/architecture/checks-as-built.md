@@ -1,8 +1,8 @@
 # anvil-checks Pipeline — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                  |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | SCAN  | Live   | Cross-system boundary reviewed 2026-08-20 against the checks registry, CLI check/gate/audit/watch consumers, intercept scan paths, MCP validation, and baseline composition at `f0f834b39` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                          |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | SCAN  | Live   | Size-guard and scannability rows refreshed 2026-08-29 for SDT-007 (streaming secret scan, 8 MiB runaway guard, single `is_secret_scannable` predicate). Cross-system boundary reviewed 2026-08-20 against the checks registry, CLI check/gate/audit/watch consumers, intercept scan paths, MCP validation, and baseline composition at `f0f834b39` |
 
 | Upstream                                                                                                     | Downstream                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -319,7 +319,11 @@ Per-rule false-positive carve-outs in `secret/scanner.rs`:
 
 Performance + DoS guards:
 
-- 1 MiB hard skip per file (`secret/check.rs:15-16`, `MAX_FILE_SIZE`).
+- 8 MiB runaway guard per file (`secret/check.rs:56-57`, `MAX_FILE_SIZE`).
+  SDT-007: files are streamed through a bounded reader (`secret/source.rs`,
+  radius-2 window) instead of being read whole, so the cap is a scan-time bound
+  derived from a measured rate, not the memory bound it was. Past the guard,
+  SDT-006 semantics are unchanged: the file blocks a clean pass and is named.
 - 4 KiB per-line guard (`secret/types.rs:26-43`, `default_max_line_bytes`) —
   SCAN-002 ReDoS hardening; lines longer than the cap are skipped before any
   regex runs and counted in `SecretCheckResult::lines_skipped_oversize`
@@ -766,7 +770,8 @@ ReDoS hardening (SCAN-002, `plans/archive/modules/scan-performance.aps.md`
 
 Size guards:
 
-- 1 MiB hard skip per file in the secret scan (`secret/check.rs:15-16`).
+- 8 MiB runaway guard per file in the secret scan (`secret/check.rs:56-57`); the
+  file itself is streamed, never materialised (SDT-007).
 - 5 MiB cap on a single artefact in `anvil check --artifact`
   (`crates/anvil-cli/src/commands/check.rs:30`).
 - Per-pattern regex compilation is cached behind a `LazyLock`
@@ -950,7 +955,8 @@ daemon-down on Windows in v1. Cross-link
 | `secret/patterns.rs`                             | 21 built-in patterns + default allowlist + `compile_custom_patterns`.                                                                    |
 | `secret/scanner.rs`                              | Per-rule false-positive carve-outs (UUID-credit-card, generic-secret-code-shape).                                                        |
 | `secret/entropy.rs`                              | Shannon entropy + quoted/assignment shape filter.                                                                                        |
-| `secret/check.rs`                                | `run_secret_check` (rayon walk, 1 MiB skip, dedupe, scoring).                                                                            |
+| `secret/source.rs`                               | SDT-007 bounded line sources + the radius-2 window both passes read through.                                                             |
+| `secret/check.rs`                                | `run_secret_check` (rayon walk, 8 MiB runaway guard, dedupe, scoring), `is_secret_scannable`.                                            |
 | `secret/git_scanner.rs`                          | Optional git-history scan (`config.scan_git_history`).                                                                                   |
 | `reasoning/mod.rs`                               | Family surface — `run_reasoning_check`, `run_reasoning_check_with_limit`.                                                                |
 | `reasoning/types.rs`                             | `ReasoningCheckConfig`, `ReasoningCheckResult`.                                                                                          |
