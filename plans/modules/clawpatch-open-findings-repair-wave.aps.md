@@ -193,7 +193,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-008: Make evaluation evidence non-vacuous
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** Default test commands exercise real extraction, calibrated benign
@@ -202,6 +202,7 @@ shared CIB backlog as feature-branch state.
   reproduced by a focused test that then passes under the normal crate command.
 - **Files:** `crates/anvil-checks/tests/conformance_evaluate.rs`,
   `crates/anvil-checks/tests/secret_calibration.rs`,
+  `crates/anvil-checks/tests/corpus/secret/manifest.json`,
   `crates/anvil-cli/tests/ast_followup.rs`,
   `crates/anvil-checks/tests/secret_file_coverage.rs`
 - **Finding IDs:** `fnd_sig-feat-test-suite-3ee4f472b1-6_9d9d7dc190`,
@@ -210,8 +211,9 @@ shared CIB backlog as feature-branch state.
   `fnd_sig-feat-test-suite-f53827d8bc-e_ddafcd834c`
 - **Validation:** the four focused Rust integration targets; `cargo test -p
   eddacraft-anvil-checks`; `cargo test -p eddacraft-anvil --no-fail-fast`
-- **Decision:** needs-dependency-reconciliation — confirm CONF-004 and SDT-002
-  ownership before changing their active test surfaces
+- **Decision:** ready — the owning CONF-004, SDT-002, GTAO-003, and SDT-006
+  pull requests are merged; a fresh branch and worktree check found no live
+  change in the five owned files.
 
 ### CLAWOPEN-009: Resolve supported legacy runtime outcomes
 
@@ -235,7 +237,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-010: Pin docs-shell behaviour and caching
 
-- **Status:** In Progress
+- **Status:** Blocked
 - **Priority:** P3
 - **Risk:** standard
 - **Intent:** User-facing auth recovery and landing-page destinations remain
@@ -252,6 +254,9 @@ shared CIB backlog as feature-branch state.
   `fnd_sig-feat-route-f44022f02c-6068aa_9490310487`
 - **Validation:** focused docs-shell Vitest; docs-shell typecheck and production
   build
+- **Blocker:** The write gate requires exact operator approval to remove the
+  production `force-dynamic` directive because it changes caching and
+  deployment behaviour. The RED harness was removed and no change remains.
 - **Decision:** ready
 
 ### CLAWOPEN-011: Prove OTP attempt caps against PostgreSQL
