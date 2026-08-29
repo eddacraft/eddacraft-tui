@@ -14,9 +14,9 @@ is Ready — promotion remains an operator decision.
 
 ## The problem
 
-SDT-006 made whole-file skips honest: a file anvil could not read now blocks a
+SDT-006 made whole-file skips honest: a file Anvil could not read now blocks a
 clean pass and is named. It did not make them *scanned*. The result is that
-anvil reports, accurately, that it cannot prove its own `pnpm-lock.yaml` clean —
+Anvil reports, accurately, that it cannot prove its own `pnpm-lock.yaml` clean —
 and offers no way to fix that, because lockfiles deliberately bypass
 `skip_extensions` to reach the GH #2584 URL-credential scan. The one file the
 lockfile carve-out exists for is the one file the size cap drops.
@@ -79,7 +79,7 @@ It was rejected anyway, for three reasons:
 
 There is a fourth consideration that would have been solvable but is worth
 recording: a verdict that depends on whether the daemon finished violates
-anvil's stated determinism principle. It is resolvable — make scan state an
+Anvil's stated determinism principle. It is resolvable — make scan state an
 explicit input and let async results only move `parked → clean | finding`,
 never the reverse — but that is a baseline model and would need its own ADR.
 

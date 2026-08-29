@@ -512,7 +512,10 @@ known gap lives.
   only `max_line_bytes` and never `MAX_FILE_SIZE`.
 - **Validation:** `cargo test -p eddacraft-anvil-checks`,
   `cargo test -p eddacraft-anvil-intercept-rules`,
-  `cargo test -p eddacraft-anvil --bins`;
+  `cargo test -p eddacraft-anvil --no-fail-fast` (the documented full
+  primary-CLI recipe per `AGENTS.md` — `--bins` excludes integration tests
+  *and* stops at the first failing binary, so with the known `capsule`
+  environment failures present it can hide real regressions downstream);
   `cargo clippy --workspace --all-targets -- -D warnings`;
   **`pnpm secret:calibrate` shows zero drift** — streaming is
   behaviour-preserving, so any drift is a defect, not a result; the measured
@@ -550,9 +553,11 @@ known gap lives.
 - **Non-scope / do not:** do not force a coverage failure into the
   `AuditIssue` finding vocabulary if it does not fit — a file nobody read is
   not a finding, and mislabelling it trades one honesty defect for another.
-- **Validation:** `cargo test -p eddacraft-anvil --bins`; an unreadable file
-  makes `anvil audit` and `anvil check` exit non-zero and name it; a
-  `skip_extensions` match still does not.
+- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast` (per
+  `AGENTS.md`; this item's surfaces are exercised by integration tests, which
+  `--bins` does not run at all); an unreadable file makes `anvil audit` and
+  `anvil check` exit non-zero and name it; a `skip_extensions` match still
+  does not.
 - **Files:** `crates/anvil-cli/src/commands/audit.rs`,
   `crates/anvil-cli/src/commands/check.rs`
 - **Dependencies:** SDT-006. Not blocked by SDT-007, but lands more cleanly
