@@ -130,7 +130,7 @@ pub struct InsightsArgs {
     /// emits those as `null` instead, so a consumer can tell a
     /// placeholder from a measured zero. The human-readable output says
     /// "not yet measured" either way.
-    #[arg(long, value_name = "VERSION", default_value = "v1")]
+    #[arg(long, value_enum, value_name = "VERSION", default_value_t = InsightsSchema::V1)]
     pub schema: InsightsSchema,
 }
 
@@ -333,6 +333,16 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // INSIGHTS-004: record the view so first-week nudges are suppressed
     // for the remainder of the week (even for --json consumers).
     crate::insights::first_week_hint::record_insights_viewed(&root, now);
+    // `--schema` selects a *wire* document, so it only means anything with
+    // `--json`. Silently ignoring it would contradict the help text and leave a
+    // caller believing they had asked for v3 (review of PR #4205).
+    if !global.json && args.schema != InsightsSchema::V1 {
+        anyhow::bail!(
+            "--schema selects the JSON wire document and needs --json; \
+             the human-readable output reports uninstrumented metrics as \
+             \"not yet measured\" regardless of schema"
+        );
+    }
     if global.json {
         // CIB-367: v1 keeps emitting its placeholder zeros so existing
         // consumers are unaffected; v3 emits them as null instead.
@@ -527,6 +537,13 @@ mod cib_367_tests {
             json["witness_events_observed"], 42,
             "the only instrumented metric must stay a measured number"
         );
+    }
+
+    #[test]
+    fn schema_flag_defaults_to_v1_via_the_enum() {
+        // default_value_t keeps the CLI default coupled to the enum rather
+        // than a string that can drift from it (review of PR #4205).
+        assert_eq!(InsightsSchema::default(), InsightsSchema::V1);
     }
 
     #[test]
