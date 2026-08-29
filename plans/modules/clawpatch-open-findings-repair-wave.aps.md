@@ -93,7 +93,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-003: Recover GitHub device sessions and verified identity
 
-- **Status:** In Progress
+- **Status:** Blocked
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** Durable minted sessions replay without live OAuth credentials, and
@@ -149,11 +149,15 @@ shared CIB backlog as feature-branch state.
   `fnd_sig-feat-route-0fc07f4172-f0ced0_6460acabcb`
 - **Validation:** focused Vitest suites for both routes; affected project
   typechecks
+- **Blocker:** The missing callback suite exposed an unresolved docs-shell
+  Vitest alias seam, then the pre-write validator rejected the test-only
+  correction as a non-retriable context mismatch. The incomplete test was
+  removed and no product or test change remains.
 - **Decision:** ready
 
 ### CLAWOPEN-006: Reject false-valid boundary data
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** Invalid epoch inputs and whitespace-only diagram accessibility
