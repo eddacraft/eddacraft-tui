@@ -72,7 +72,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-002: Restore suspended-account approval
 
-- **Status:** In Progress
+- **Status:** Blocked
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** An operator can reactivate a previously approved suspended
@@ -113,11 +113,14 @@ shared CIB backlog as feature-branch state.
 - **Validation:** `pnpm --dir apps/anvil-api exec vitest run
   src/__tests__/auth-github-device.test.ts src/__tests__/auth-github.test.ts`;
   `pnpm --dir apps/anvil-api typecheck`
+- **Blocker:** The pre-write validator rejected the first RED test patch for a
+  context mismatch and marked the submission non-retriable. No source or test
+  change was applied.
 - **Decision:** ready
 
 ### CLAWOPEN-004: Keep persisted waitlist success truthful
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** A successfully persisted waitlist signup is never reported to the
