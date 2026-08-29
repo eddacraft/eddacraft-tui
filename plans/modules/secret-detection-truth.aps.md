@@ -5,7 +5,7 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | In Progress | 4/8   |
+| SDT | —     | In Progress | 5/8   |
 
 **Last reviewed:** 2026-08-28 (SDT-001 and SDT-002 Merged via
 [#4185](https://github.com/eddacraft/anvil-001/pull/4185), reviewed against
@@ -609,9 +609,10 @@ known gap lives.
 
 ### SDT-008: Report coverage failures on audit and check
 
-- **Status:** In Progress — operator-promoted 2026-08-29 (Proposed → Ready →
-  In Progress on direction). Implemented on
-  `feat/sdt-008-coverage-on-audit-check`.
+- **Status:** Merged — via
+  [#4213](https://github.com/eddacraft/anvil-001/pull/4213) (rebase-merge
+  2026-08-30; ancestor of `main` proven by content at `e5f22b0a7`).
+  Operator-promoted 2026-08-29 (Proposed → Ready → In Progress on direction).
 - **Intent:** `anvil gate` is the only surface that reports coverage failures.
   `anvil audit` and planless `anvil check` exit 0 over files nobody read, so
   the honesty SDT-001 and SDT-006 bought is invisible on two of three surfaces.
