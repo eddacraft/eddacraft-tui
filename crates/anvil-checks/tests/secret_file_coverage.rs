@@ -27,21 +27,38 @@
 //! is where the seam it guards is private.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anvil_checks::secret::{MAX_FILE_SIZE, SecretCheckConfig, run_secret_check};
+use tempfile::TempDir;
 
 /// A throwaway directory. Named per test so parallel runs cannot collide.
-fn temp_dir(label: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "anvil-sdt006-{label}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos())
-    ));
-    fs::create_dir_all(&path).expect("create temp dir");
-    path
+fn temp_dir(label: &str) -> TempDir {
+    tempfile::Builder::new()
+        .prefix(&format!("anvil-sdt006-{label}-"))
+        .tempdir()
+        .expect("create temp dir")
+}
+
+#[test]
+fn temporary_directory_guard_cleans_up_during_unwind() {
+    let (path_tx, path_rx) = std::sync::mpsc::sync_channel(1);
+    let unwind = std::panic::catch_unwind(|| {
+        let dir = temp_dir("unwind-cleanup");
+        write_oversize(dir.path(), "huge.ts");
+        path_tx
+            .send(dir.path().to_path_buf())
+            .expect("record guarded path");
+        panic!("exercise assertion-failure cleanup");
+    });
+
+    assert!(unwind.is_err(), "the cleanup proof must exercise unwinding");
+    let path = path_rx.recv().expect("guarded path was recorded");
+    assert!(
+        !path.exists(),
+        "TempDir must remove the directory while unwinding: {}",
+        path.display()
+    );
 }
 
 /// A credential shape the default catalogue certainly matches, so "no
@@ -94,7 +111,7 @@ fn write_text(dir: &Path, name: &str, body: &str) -> String {
 #[test]
 fn oversize_file_is_not_a_clean_pass() {
     let dir = temp_dir("oversize-file");
-    let file = write_oversize(&dir, "huge.ts");
+    let file = write_oversize(dir.path(), "huge.ts");
     let files = [file.as_str()];
 
     let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
@@ -136,8 +153,6 @@ fn oversize_file_is_not_a_clean_pass() {
         vec![file.clone()],
         "the structured field carries the full list: {result:?}"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// An unreadable or non-UTF-8 file is swallowed by `fs::read_to_string(..).ok()?`.
@@ -145,7 +160,7 @@ fn oversize_file_is_not_a_clean_pass() {
 #[test]
 fn unreadable_file_is_not_a_clean_pass() {
     let dir = temp_dir("unreadable-file");
-    let file = write_unreadable(&dir, "broken.ts");
+    let file = write_unreadable(dir.path(), "broken.ts");
     let files = [file.as_str()];
 
     let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
@@ -171,8 +186,6 @@ fn unreadable_file_is_not_a_clean_pass() {
         vec![file.clone()],
         "{result:?}"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 // ---------------------------------------------------------------------------
@@ -189,10 +202,10 @@ fn unreadable_file_is_not_a_clean_pass() {
 fn configured_skip_extension_never_blocks_a_clean_pass() {
     let dir = temp_dir("skip-ext-advisory");
     let secret = planted_secret();
-    let png = write_text(&dir, "logo.png", &secret);
-    let jpg = write_text(&dir, "photo.jpg", &secret);
-    let minified = write_text(&dir, "bundle.min.js", &secret);
-    let clean = write_text(&dir, "app.ts", "export const x = 1;\n");
+    let png = write_text(dir.path(), "logo.png", &secret);
+    let jpg = write_text(dir.path(), "photo.jpg", &secret);
+    let minified = write_text(dir.path(), "bundle.min.js", &secret);
+    let clean = write_text(dir.path(), "app.ts", "export const x = 1;\n");
     let files = [
         png.as_str(),
         jpg.as_str(),
@@ -229,8 +242,6 @@ fn configured_skip_extension_never_blocks_a_clean_pass() {
             && result.files_skipped_panicked.is_empty(),
         "a configured exclusion must not be filed under a failure cause: {result:?}"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// The motivating file for this whole item, and a trap in the remedy text.
@@ -244,7 +255,7 @@ fn configured_skip_extension_never_blocks_a_clean_pass() {
 #[test]
 fn oversize_lockfile_blocks_and_says_exclusion_will_not_help() {
     let dir = temp_dir("oversize-lockfile");
-    let file = write_oversize(&dir, "pnpm-lock.yaml");
+    let file = write_oversize(dir.path(), "pnpm-lock.yaml");
     let files = [file.as_str()];
 
     // Configured to skip `.yaml` outright — a lockfile still reaches the
@@ -275,8 +286,6 @@ fn oversize_lockfile_blocks_and_says_exclusion_will_not_help() {
         "the caveat must name the file it applies to: {}",
         result.message
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// Blind review (2026-08-28, finding F3): the inline path list is capped at
@@ -290,8 +299,11 @@ fn the_lockfile_caveat_names_its_file_even_past_the_inline_path_cap() {
     // Names chosen so the lockfile sorts last and falls outside the cap.
     let paths: Vec<String> = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"]
         .iter()
-        .map(|name| write_oversize(&dir, name))
-        .chain(std::iter::once(write_oversize(&dir, "pnpm-lock.yaml")))
+        .map(|name| write_oversize(dir.path(), name))
+        .chain(std::iter::once(write_oversize(
+            dir.path(),
+            "pnpm-lock.yaml",
+        )))
         .collect();
     let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
 
@@ -312,8 +324,6 @@ fn the_lockfile_caveat_names_its_file_even_past_the_inline_path_cap() {
         "the lockfile must be named by the caveat even though the capped inline list omits it: {}",
         result.message
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 // ---------------------------------------------------------------------------
@@ -325,14 +335,14 @@ fn the_lockfile_caveat_names_its_file_even_past_the_inline_path_cap() {
 #[test]
 fn every_unscanned_cause_survives_composition() {
     let dir = temp_dir("composition");
-    let oversize = write_oversize(&dir, "huge.ts");
-    let unreadable = write_unreadable(&dir, "broken.ts");
+    let oversize = write_oversize(dir.path(), "huge.ts");
+    let unreadable = write_unreadable(dir.path(), "broken.ts");
     let long_line = write_text(
-        &dir,
+        dir.path(),
         "minified.ts",
         &format!("const k = '{}ghp_{}';\n", "x".repeat(5000), "a".repeat(36)),
     );
-    let skipped = write_text(&dir, "logo.png", &planted_secret());
+    let skipped = write_text(dir.path(), "logo.png", &planted_secret());
     let files = [
         oversize.as_str(),
         unreadable.as_str(),
@@ -363,8 +373,6 @@ fn every_unscanned_cause_survives_composition() {
         result.files_skipped_extension, 1,
         "the advisory count is still recorded alongside the blocking ones: {result:?}"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 // ---------------------------------------------------------------------------
@@ -377,8 +385,8 @@ fn every_unscanned_cause_survives_composition() {
 #[test]
 fn unscanned_file_paths_are_reported_in_a_stable_order() {
     let dir = temp_dir("determinism");
-    let a = write_oversize(&dir, "a-huge.ts");
-    let b = write_oversize(&dir, "b-huge.ts");
+    let a = write_oversize(dir.path(), "a-huge.ts");
+    let b = write_oversize(dir.path(), "b-huge.ts");
 
     let forwards = run_secret_check(
         &[a.as_str(), b.as_str()],
@@ -404,8 +412,6 @@ fn unscanned_file_paths_are_reported_in_a_stable_order() {
         forwards.message, backwards.message,
         "input order must not change the reported message"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// Blind review (2026-08-28, finding F2) mutated the `Oversize` and
@@ -421,13 +427,13 @@ fn unscanned_file_paths_are_reported_in_a_stable_order() {
 #[test]
 fn unscanned_paths_use_the_same_normalisation_as_findings() {
     let dir = temp_dir("normalisation");
-    let huge = write_oversize(&dir, "huge.ts");
+    let huge = write_oversize(dir.path(), "huge.ts");
     let leaky = write_text(
-        &dir,
+        dir.path(),
         "leaky.ts",
         &format!("const t = '{}';\n", planted_secret()),
     );
-    let root = dir.to_string_lossy().to_string();
+    let root = dir.path().to_string_lossy().to_string();
 
     let result = run_secret_check(
         &[huge.as_str(), leaky.as_str()],
@@ -456,6 +462,4 @@ fn unscanned_paths_use_the_same_normalisation_as_findings() {
         "the workspace root must not leak into the message once normalisation applies: {}",
         result.message
     );
-
-    let _ = fs::remove_dir_all(dir);
 }

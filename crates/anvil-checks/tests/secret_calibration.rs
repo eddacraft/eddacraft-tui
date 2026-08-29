@@ -596,6 +596,13 @@ fn secret_calibration_corpus_matches_the_committed_baseline() {
     );
 
     assert!(
+        tally.uncontrolled_benign.is_empty(),
+        "benign case(s) {:?} declare no non-vacuity control and must not count \
+         towards the measured false-positive rate",
+        tally.uncontrolled_benign
+    );
+
+    assert!(
         tally.silent_controls.is_empty(),
         "benign case(s) {:?} are vacuous — their non-vacuity control did not fire, \
          so the scanner was never going to flag them and they measure nothing",

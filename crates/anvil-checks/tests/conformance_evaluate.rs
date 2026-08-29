@@ -13,6 +13,8 @@ use anvil_kernel_types::{
     IntentSourceKind, IntentTier, ScopeAuthority, Severity,
 };
 use std::path::Path;
+use std::process::Command;
+use tempfile::TempDir;
 
 #[test]
 fn explicit_path_scope_covers_exact_and_descendant_paths() {
@@ -625,35 +627,79 @@ fn assert_graph_disposition(
     assert_eq!(report.verdict.coverage[0].disposition, expected_disposition);
 }
 
+fn git(repo: &Path, args: &[&str]) -> String {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()
+        .expect("run git");
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .expect("utf-8 git output")
+        .trim()
+        .to_owned()
+}
+
+fn repository() -> TempDir {
+    let repo = tempfile::tempdir().expect("temporary repository");
+    git(repo.path(), &["init", "-q"]);
+    git(repo.path(), &["config", "user.name", "CONF test"]);
+    git(
+        repo.path(),
+        &["config", "user.email", "conf-test@example.invalid"],
+    );
+    repo
+}
+
+fn commit_file(repo: &Path, path: &str, contents: &str, message: &str) -> String {
+    let full_path = repo.join(path);
+    if let Some(parent) = full_path.parent() {
+        std::fs::create_dir_all(parent).expect("create parent");
+    }
+    std::fs::write(full_path, contents).expect("write fixture");
+    git(repo, &["add", "--", path]);
+    git(repo, &["commit", "-q", "-m", message]);
+    git(repo, &["rev-parse", "HEAD"])
+}
+
 #[test]
-#[ignore = "requires the source repository's full committed history"]
-fn dogfoods_a_merged_conf_commit_from_this_repository() {
-    const DOGFOOD_COMMIT: &str = "6f7c4caa08f762de4e943495ae19a714d3ca8626";
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("canonical repository path");
+fn hermetic_git_extraction_drives_tier0_evaluation() {
+    let repository = repository();
+    let revision = commit_file(
+        repository.path(),
+        "docs/guide.md",
+        "hello\n",
+        "docs(path:docs): add guide",
+    );
     let extractor = GitExtractor::default();
     let identity = extractor
-        .identity_for_repository(&repository, "run-conf-004-dogfood")
+        .identity_for_repository(repository.path(), "run-conf-004-hermetic")
         .expect("derive canonical repository identity");
 
     let extraction = extractor.extract(
-        &repository,
-        GitSelection::Commit(DOGFOOD_COMMIT.into()),
+        repository.path(),
+        GitSelection::Commit("HEAD".into()),
         &identity,
     );
     let GitExtractionOutcome::Evaluated(extraction) = extraction else {
-        panic!("repository-history dogfood must select the pinned commit: {extraction:?}");
+        panic!("hermetic repository must select HEAD: {extraction:?}");
     };
+    assert_eq!(extraction.head_revision, revision);
+    assert_eq!(extraction.commits.len(), 1);
     let GitCommitExtraction::Evaluated(commit) = &extraction.commits[0] else {
-        panic!("pinned conventional commit must be evaluable");
+        panic!("hermetic conventional commit must be evaluable");
     };
 
     let report = evaluate_tier0(&contract_from(commit, vec![]), commit, &[]);
 
-    assert_eq!(commit.commit_revision, DOGFOOD_COMMIT);
-    assert!(!commit.coverage.is_empty());
+    assert_eq!(commit.commit_revision, revision);
+    assert_eq!(commit.coverage.len(), 1);
+    assert_eq!(commit.coverage[0].new_path, "docs/guide.md");
     assert_eq!(report.verdict.outcome, ConformanceOutcome::Conformant);
     assert_eq!(report.verdict.evidence_strength, EvidenceStrength::Complete);
     assert!(report.findings.is_empty());
