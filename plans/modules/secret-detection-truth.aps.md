@@ -5,7 +5,7 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | In Progress | 3/6   |
+| SDT | —     | In Progress | 3/8   |
 
 **Last reviewed:** 2026-08-28 (SDT-001 and SDT-002 Merged via
 [#4185](https://github.com/eddacraft/anvil-001/pull/4185), reviewed against
@@ -485,6 +485,86 @@ known gap lives.
 
 ---
 
+### SDT-007: Stream large files instead of skipping them
+
+- **Status:** Proposed
+- **Intent:** The file-size cap is a memory bound, not a correctness one. A
+  large file should be *scanned*, not excused — SDT-006 made the skip honest,
+  this makes it unnecessary.
+- **Expected Outcome:** `run_secret_check` reads through a bounded reader
+  instead of `fs::read_to_string`, with a radius-2 ring buffer feeding both
+  passes. This is behaviour-preserving by construction: the pattern pass
+  iterates `content.lines()` with no cross-line state, and the entropy pass
+  reaches only `context_window(lines, index, 2)` and `lines.get(index)` — read
+  directly from `is_benign_entropy_fixture`, which touches nothing wider.
+  `MAX_FILE_SIZE` survives **only as a runaway guard**, its value derived from
+  a measured scan-time budget rather than the memory budget that no longer
+  binds; exceeding it keeps SDT-006 semantics (blocks a clean pass, names the
+  file). `anvil-checks` exports one scannability predicate and the `anvil-cli`
+  copy is deleted. The acceptance test is that anvil can prove its own
+  `pnpm-lock.yaml` clean.
+- **Non-scope / do not:** do not touch `max_line_bytes` — it is ReDoS
+  protection against catastrophic backtracking, not a memory bound, and
+  deferring a pathological line does not make it safe. Do not add a queue,
+  daemon dependency or deferred-coverage state; that design was considered and
+  rejected, and the reasoning is recorded in the spec so it is not re-proposed
+  from scratch. Git-history scanning is unaffected — `git_scanner.rs` applies
+  only `max_line_bytes` and never `MAX_FILE_SIZE`.
+- **Validation:** `cargo test -p eddacraft-anvil-checks`,
+  `cargo test -p eddacraft-anvil-intercept-rules`,
+  `cargo test -p eddacraft-anvil --bins`;
+  `cargo clippy --workspace --all-targets -- -D warnings`;
+  **`pnpm secret:calibrate` shows zero drift** — streaming is
+  behaviour-preserving, so any drift is a defect, not a result; the measured
+  scan time at the new guard is recorded here; the dogfood FP delta on the
+  newly-scanned files is reported before default-on.
+- **Files:** `crates/anvil-checks/src/secret/check.rs`,
+  `crates/anvil-checks/src/secret/scanner.rs`,
+  `crates/anvil-checks/src/secret/entropy.rs`,
+  `crates/anvil-cli/src/commands/check.rs`, `crates/anvil-checks/tests/`
+- **Dependencies:** SDT-006
+- **Confidence:** high on the mechanism — both passes were read and confirmed
+  window-local, so the refactor is bounded to the input side; medium on the
+  guard value, which is a measurement not yet taken.
+- **Risks:** two 1.5 MB `plans/audits/*.json` files enter the scan for the
+  first time on this repository alone, so FP volume can rise. That is
+  measurable — the SDT-002 corpus catches regression, `scripts/dogfood/external-fp`
+  measures volume — and must be measured rather than argued. A
+  behaviour-preserving refactor that silently changes detection is the failure
+  mode; the corpus exists to catch exactly that.
+- **Design:** [2026-08-29 streaming secret scan](../specs/2026-08-29-streaming-secret-scan.md)
+
+---
+
+### SDT-008: Report coverage failures on audit and check
+
+- **Status:** Proposed
+- **Intent:** `anvil gate` is the only surface that reports coverage failures.
+  `anvil audit` and planless `anvil check` exit 0 over files nobody read, so
+  the honesty SDT-001 and SDT-006 bought is invisible on two of three surfaces.
+- **Expected Outcome:** Both surfaces consume `coverage_notes` and stop
+  reporting success over unscanned input. `audit.rs` reads only
+  `result.findings` today; planless `check.rs` additionally pre-filters files
+  before the scanner, so it must stop discarding the input whose coverage it
+  needs to report — this is not a matter of reading one more field.
+- **Non-scope / do not:** do not force a coverage failure into the
+  `AuditIssue` finding vocabulary if it does not fit — a file nobody read is
+  not a finding, and mislabelling it trades one honesty defect for another.
+- **Validation:** `cargo test -p eddacraft-anvil --bins`; an unreadable file
+  makes `anvil audit` and `anvil check` exit non-zero and name it; a
+  `skip_extensions` match still does not.
+- **Files:** `crates/anvil-cli/src/commands/audit.rs`,
+  `crates/anvil-cli/src/commands/check.rs`
+- **Dependencies:** SDT-006. Not blocked by SDT-007, but lands more cleanly
+  after its predicate unification.
+- **Confidence:** high — the gap was confirmed by reading both call sites
+  during SDT-006 blind review, which rated it major-advisory.
+- **Risks:** independent of file size, so SDT-007 shrinks its population but
+  cannot close it: unreadable files and the SCAN-001 panic arm produce
+  coverage failures at any size.
+
+---
+
 Ranking is deliberate: SDT-001 is the "claims protected when it fails"
 complaint verbatim and touches nothing else; SDT-002 must exist before
 SDT-004 so breadth lands measured; SDT-003 keeps the licence boundary a
@@ -492,5 +572,7 @@ decision rather than an accident; SDT-005 is the biggest FP lever but the
 only item with an egress question, so it goes last. SDT-006 was added after
 SDT-001 shipped, on blind-review evidence that the same false-clean survives
 at file granularity; it ranks with SDT-001 in kind, and its panic-arm slice
-is the highest-value part. Promoting any item to Ready is an operator
-decision.
+is the highest-value part. SDT-007 and SDT-008 follow from SDT-006's
+as-built: the first removes the skip that SDT-006 could only make honest, the
+second carries that honesty to the two surfaces that still exit 0 over it.
+Promoting any item to Ready is an operator decision.
