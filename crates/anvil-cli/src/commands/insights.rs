@@ -19,6 +19,76 @@ use crate::{
 /// on `anvil.insights.v1` so existing consumers are unaffected.
 pub const INSIGHTS_SCHEMA_VERSION_V2: &str = "anvil.insights.v2";
 
+/// Schema version of the honest weekly document emitted by
+/// `--schema v3 --json`.
+///
+/// CIB-367: six of the seven weekly metric fields are hardcoded to `0`
+/// because they are not instrumented yet. v1 pins them as required
+/// integers, so on the wire a placeholder is indistinguishable from a
+/// measured zero and a consumer records six fabricated results. The human
+/// surface has always said "not yet measured"; the JSON never could.
+///
+/// v3 keeps the v1 shape and types those fields as nullable, emitting
+/// `null`. v1 and v2 are unchanged and remain the default, so existing
+/// consumers are unaffected — the honest document is opt-in until a
+/// future major version can flip the default.
+pub const INSIGHTS_SCHEMA_VERSION_V3: &str = "anvil.insights.v3";
+
+/// Wire selector for the weekly JSON document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default)]
+pub enum InsightsSchema {
+    /// Compatibility document; uninstrumented metrics are emitted as `0`.
+    #[default]
+    V1,
+    /// Uninstrumented metrics are emitted as `null` rather than `0`.
+    V3,
+}
+
+/// The `anvil.insights.v3` wire document: the v1 rolling-window fields
+/// with every uninstrumented metric nullable.
+///
+/// Written as an explicit field list rather than a serde flatten so the
+/// contract is visible in one place, matching the v2 struct's rationale.
+/// A field becomes non-nullable here when it gains real instrumentation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct InsightsV3 {
+    pub schema_version: &'static str,
+    pub window_start: String,
+    pub window_end: String,
+    /// The one instrumented metric — always a number.
+    pub witness_events_observed: u64,
+    pub total_saves_observed: Option<u64>,
+    pub findings_raised: Option<u64>,
+    pub suppressions_applied: Option<u64>,
+    pub suppressions_resolved: Option<u64>,
+    pub baseline_edges_added: Option<u64>,
+    pub daemon_uptime_percentage: Option<u8>,
+}
+
+/// Project a weekly summary into the v3 document.
+///
+/// Every field this maps to `None` is a hardcoded placeholder in
+/// [`aggregator::weekly_summary`]. They are `None` unconditionally, not
+/// "None when zero": a metric that is not instrumented is unmeasured even
+/// on a week when its real value would have been zero, and inferring
+/// "unmeasured" from the value would start lying again the moment one of
+/// them is instrumented.
+#[must_use]
+pub fn insights_v3(weekly: aggregator::WeeklyInsights) -> InsightsV3 {
+    InsightsV3 {
+        schema_version: INSIGHTS_SCHEMA_VERSION_V3,
+        window_start: weekly.window_start,
+        window_end: weekly.window_end,
+        witness_events_observed: weekly.witness_events_observed,
+        total_saves_observed: None,
+        findings_raised: None,
+        suppressions_applied: None,
+        suppressions_resolved: None,
+        baseline_edges_added: None,
+        daemon_uptime_percentage: None,
+    }
+}
+
 /// Default filename the shareable scorecard is written to when
 /// `--output` is not given.
 const DEFAULT_SCORECARD_FILENAME: &str = "anvil-scorecard.html";
@@ -52,6 +122,16 @@ pub struct InsightsArgs {
     /// anvil-scorecard.html in the current directory).
     #[arg(long, requires = "share", value_name = "PATH")]
     pub output: Option<PathBuf>,
+
+    /// Wire schema for the weekly JSON document.
+    ///
+    /// `v1` (the default) emits every metric as an integer, including
+    /// the six that are not instrumented yet and are always `0`. `v3`
+    /// emits those as `null` instead, so a consumer can tell a
+    /// placeholder from a measured zero. The human-readable output says
+    /// "not yet measured" either way.
+    #[arg(long, value_name = "VERSION", default_value = "v1")]
+    pub schema: InsightsSchema,
 }
 
 /// The `anvil.insights.v2` wire document: every v1 rolling-window field
@@ -254,7 +334,14 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // for the remainder of the week (even for --json consumers).
     crate::insights::first_week_hint::record_insights_viewed(&root, now);
     if global.json {
-        println!("{}", serde_json::to_string_pretty(&summary)?);
+        // CIB-367: v1 keeps emitting its placeholder zeros so existing
+        // consumers are unaffected; v3 emits them as null instead.
+        match args.schema {
+            InsightsSchema::V1 => println!("{}", serde_json::to_string_pretty(&summary)?),
+            InsightsSchema::V3 => {
+                println!("{}", serde_json::to_string_pretty(&insights_v3(summary))?);
+            }
+        }
     } else {
         print_plain(&summary);
         // Cumulative scoreboard: surfaced by default on the human view,
@@ -385,6 +472,70 @@ fn uptime_line(pct: u8) -> String {
         "Daemon uptime on this machine: not yet measured".to_string()
     } else {
         format!("Daemon uptime on this machine: {pct}%")
+    }
+}
+
+#[cfg(test)]
+mod cib_367_tests {
+    use super::*;
+
+    // CIB-367. Six of the weekly summary's seven metric fields are hardcoded
+    // to 0 and, on the v1/v2 wire, are indistinguishable from measurements.
+    // The human surface has always said "not yet measured"; the JSON has not.
+    // v3 keeps the v1 shape but types the uninstrumented fields as nullable
+    // and emits null, so a consumer cannot read a placeholder as evidence.
+
+    fn placeholder_weekly() -> aggregator::WeeklyInsights {
+        aggregator::WeeklyInsights {
+            schema_version: aggregator::INSIGHTS_SCHEMA_VERSION,
+            window_start: "2026-08-01T00:00:00Z".to_string(),
+            window_end: "2026-08-08T00:00:00Z".to_string(),
+            witness_events_observed: 42,
+            total_saves_observed: 0,
+            findings_raised: 0,
+            suppressions_applied: 0,
+            suppressions_resolved: 0,
+            baseline_edges_added: 0,
+            daemon_uptime_percentage: 0,
+        }
+    }
+
+    #[test]
+    fn v3_emits_null_for_every_uninstrumented_metric() {
+        let json = serde_json::to_value(insights_v3(placeholder_weekly())).unwrap();
+        assert_eq!(json["schema_version"], "anvil.insights.v3");
+        for field in [
+            "total_saves_observed",
+            "findings_raised",
+            "suppressions_applied",
+            "suppressions_resolved",
+            "baseline_edges_added",
+            "daemon_uptime_percentage",
+        ] {
+            assert!(
+                json[field].is_null(),
+                "{field} is a placeholder and must serialise as null, got {}",
+                json[field]
+            );
+        }
+    }
+
+    #[test]
+    fn v3_keeps_the_one_real_metric_as_a_number() {
+        let json = serde_json::to_value(insights_v3(placeholder_weekly())).unwrap();
+        assert_eq!(
+            json["witness_events_observed"], 42,
+            "the only instrumented metric must stay a measured number"
+        );
+    }
+
+    #[test]
+    fn v1_is_unchanged_so_existing_consumers_keep_working() {
+        // The whole point of a new version: v1 still emits its zeros.
+        let json = serde_json::to_value(placeholder_weekly()).unwrap();
+        assert_eq!(json["schema_version"], "anvil.insights.v1");
+        assert_eq!(json["daemon_uptime_percentage"], 0);
+        assert_eq!(json["total_saves_observed"], 0);
     }
 }
 
@@ -1252,6 +1403,7 @@ mod tests {
             cumulative: false,
             share: true,
             output: None,
+            schema: InsightsSchema::V1,
         };
         let global = GlobalArgs {
             json: true,

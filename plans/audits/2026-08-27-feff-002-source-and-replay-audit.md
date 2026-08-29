@@ -117,15 +117,20 @@ recorded daily so a gap is visible as missing data rather than a low count.
 are **hardcoded to `0`** in the constructor
 (`crates/anvil-cli/src/insights/aggregator.rs:65-77`).
 `daemon_uptime_percentage` is schema-locked at `0` by
-`schemas/anvil-insights.v1.json` and is documented as such; the human surface
-renders it as "not yet measured", but the **JSON wire value is an
-indistinguishable `0`**.
+`schemas/anvil-insights.v1.json` and is documented as such. The human surface is
+honest about all six — `placeholder_metric_line` and `uptime_line` render them
+as "not yet measured" — but the **JSON wire value is an indistinguishable `0`**,
+because v1 pins every field as a required integer.
 
 **Consequence:** a study consuming `anvil insights --json` would record **six**
-fabricated zeros as measured results — the five above plus
-`daemon_uptime_percentage`, whose documented "not yet measured" meaning exists
-only on the human surface. Of the summary's seven metric fields, exactly one —
-`witness_events_observed` — is real. FEFF-004 must not read this surface for any
+fabricated zeros as measured results. Of the summary's seven metric fields,
+exactly one — `witness_events_observed` — is real. The defect is confined to the
+machine-readable surface: the plain-text output already tells the truth.
+
+**Correction (2026-08-29):** an earlier revision of this section claimed the five
+non-uptime placeholders "have no honest render at all". That was wrong — all six
+go through `placeholder_metric_line` / `uptime_line` and render as "not yet
+measured". Only the JSON surface was affected, and CIB-367 is scoped to it. FEFF-004 must not read this surface for any
 study metric; section 3.1's cumulative path is the better route to the one real
 field.
 

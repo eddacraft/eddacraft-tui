@@ -11555,11 +11555,13 @@ hang before opening a supervisor ticket.
   its seven metric fields. `total_saves_observed`, `findings_raised`,
   `suppressions_applied`, `suppressions_resolved`, `baseline_edges_added`, and
   `daemon_uptime_percentage` are hardcoded to `0` in the constructor. Only
-  `witness_events_observed` is real. The human surface renders
-  `daemon_uptime_percentage` honestly as "not yet measured", but the JSON wire
-  value is an indistinguishable `0`, and the other five have no honest render at
-  all. Any consumer reading `anvil insights --json` records six fabricated
-  zeros as measurements.
+  `witness_events_observed` is real. The human surface is honest about all six
+  (`placeholder_metric_line` and `uptime_line` render "not yet measured"); the
+  JSON wire value is an indistinguishable `0`, because v1 pins every field as a
+  required integer. Any consumer reading `anvil insights --json` records six
+  fabricated zeros as measurements. (Corrected 2026-08-29: this item originally
+  said the five non-uptime placeholders had no honest render — they do. The
+  defect is confined to the machine-readable surface.)
 - **Expected Outcome:** The JSON surface distinguishes "not yet measured" from a
   measured zero for every field that is not instrumented, so a consumer cannot
   silently treat a placeholder as evidence.
