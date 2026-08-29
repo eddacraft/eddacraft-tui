@@ -11731,3 +11731,54 @@ hang before opening a supervisor ticket.
   2026-08-27.
 - **Coordinates with:** CIB-370 (do not polish files slated to retire).
 - **Confidence:** high.
+
+### CIB-372: Capsule tests fail under a group-writable umask
+
+- **Status:** Draft
+- **Intent:** Let the capsule suite run on a developer machine whose umask
+  grants group write, without weakening the staging guard it exercises.
+- **Context:** `cargo test -p eddacraft-anvil` fails 39 capsule tests with
+  `output directory staging parent is writable by another OS identity`.
+  Measured cause, not inferred: the failure is governed by **umask**, not by
+  `/tmp`.
+
+  ```console
+  $ (umask 002; cargo test -p eddacraft-anvil --bin anvil capsule)
+  test result: FAILED. 16 passed; 39 failed
+  $ (umask 022; cargo test -p eddacraft-anvil --bin anvil capsule)
+  test result: ok. 55 passed; 0 failed
+  ```
+
+  `validate_staging_parent` (`crates/anvil-capsule/src/format.rs:493`) rejects a
+  staging parent whose mode has any group- or other-write bit
+  (`st_mode & 0o022`). The capsule tests build their output as
+  `tempfile::tempdir()` + `/capsule`, so the validated parent is the tempdir
+  itself. `tempfile` honours the process umask, so under `umask 002` that
+  directory is `0775` and the guard fires. Under `umask 022` it is `0755` and
+  every test passes. `/tmp` being `1777` is a red herring — `mktemp -d` yields
+  `0700` here.
+
+  `umask 002` is the default on Debian/Ubuntu with per-user groups, so this hits
+  a real share of contributors while CI (umask 022) stays green — the failure
+  looks like a broken checkout rather than an environment difference.
+- **Expected Outcome:** The capsule suite passes regardless of the developer's
+  umask, and the guard it exercises is unchanged. The likely fix is in the test
+  harness: create the staging parent with an explicit `0700` mode rather than
+  inheriting umask, so the tests pin the guard's behaviour deliberately instead
+  of depending on ambient permissions.
+- **Non-scope / do not:** do not relax `validate_staging_parent`. Rejecting a
+  group-writable staging parent is the correct production posture; only the
+  fixture is wrong. Do not paper over it by setting a umask inside the test
+  process — that hides the same class of bug from future fixtures.
+- **Open question:** whether the guard should treat a sticky-bit directory
+  (`0o1000`, as `/tmp` has) as acceptable. It does not consider the sticky bit
+  today. Not needed for this fix; recorded so the decision is explicit rather
+  than accidental.
+- **Files:** `crates/anvil-cli/src/commands/capsule.rs` (test fixtures),
+  `crates/anvil-capsule/src/format.rs` (`validate_staging_parent`, for reference)
+- **Validation:** `(umask 002; cargo test -p eddacraft-anvil --bin anvil capsule)`
+  passes, and so does the same command under `umask 022`.
+- **Identified From:** FEFF-002 follow-up work, 2026-08-29; every CIB-364..367
+  PR had to baseline around these 39 failures to tell real regressions apart.
+- **Confidence:** high on the cause (bisected by umask); medium on the exact
+  fixture change.
