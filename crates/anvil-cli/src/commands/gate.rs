@@ -2461,26 +2461,9 @@ fn secret_failure_message(
             locations.join("\n")
         )
     };
-    let coverage_suffix = secret_coverage_suffix(coverage_notes);
+    let coverage_suffix = crate::util::secret_coverage_suffix(coverage_notes);
     format!(
         "{headline}{coverage_suffix}{suppression_suffix}{pattern_errors_suffix}\n{GATE_SECRET_SCAN_DOMAIN}"
-    )
-}
-
-/// SDT-006: render the coverage gaps as their own block, mirroring the shape
-/// [`secret_pattern_errors_suffix`] already uses for unusable config.
-fn secret_coverage_suffix(coverage_notes: &[String]) -> String {
-    if coverage_notes.is_empty() {
-        return String::new();
-    }
-
-    format!(
-        "\n\n⚠ The scan could not cover everything it was asked to:\n{}",
-        coverage_notes
-            .iter()
-            .map(|note| format!("  - {note}"))
-            .collect::<Vec<_>>()
-            .join("\n")
     )
 }
 
@@ -5376,7 +5359,7 @@ mod tests {
         let gate_saw = gate_files.iter().any(|f| std::path::Path::new(f) == deep);
 
         // audit's discovery, through its own public entry point
-        let audit_data = crate::commands::audit::run_audit(tmp.path());
+        let audit_data = crate::commands::audit::run_audit(tmp.path()).data;
         let audit_saw = audit_data
             .issues
             .iter()

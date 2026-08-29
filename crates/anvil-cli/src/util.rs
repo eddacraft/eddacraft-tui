@@ -100,6 +100,32 @@ pub(crate) fn secret_suppression_suffix(
     secret_suppression_note(suppressions).map_or(String::new(), |note| format!("\n\n{note}"))
 }
 
+/// Render a secret scan's coverage gaps as their own block, mirroring the
+/// shape `gate`'s pattern-error suffix already uses for unusable config.
+/// Empty when the scan covered everything it was asked to.
+///
+/// SDT-006 introduced this rendering inside `gate`; SDT-008 moved it here
+/// unchanged so `audit` and planless `check` report a coverage failure in
+/// exactly gate's words. Three surfaces describing the same unread file three
+/// different ways is the same defect class this module exists to remove — an
+/// operator comparing surfaces must not have to work out whether they are
+/// looking at one problem or three.
+#[must_use]
+pub(crate) fn secret_coverage_suffix(coverage_notes: &[String]) -> String {
+    if coverage_notes.is_empty() {
+        return String::new();
+    }
+
+    format!(
+        "\n\n⚠ The scan could not cover everything it was asked to:\n{}",
+        coverage_notes
+            .iter()
+            .map(|note| format!("  - {note}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
+}
+
 /// Resolve the user's home directory, honouring the platform's home
 /// environment variable before the OS known-folder API.
 ///
@@ -1115,6 +1141,27 @@ mod tests {
     use super::*;
     use anvil_checks::secret::{AllowlistProvenance, Suppression};
     use anvil_kernel::watcher::filter::IGNORE_DIRS;
+
+    /// SDT-008: this renderer is now shared by `gate`, `audit` and planless
+    /// `check`, so its exact shape is a cross-surface contract rather than one
+    /// command's formatting choice.
+    #[test]
+    fn secret_coverage_suffix_is_empty_when_the_scan_covered_everything() {
+        assert_eq!(secret_coverage_suffix(&[]), "");
+    }
+
+    #[test]
+    fn secret_coverage_suffix_renders_every_note_as_its_own_bullet() {
+        let rendered = secret_coverage_suffix(&[
+            "1 file(s) could not be read".to_string(),
+            "2 line(s) too long to scan".to_string(),
+        ]);
+        assert_eq!(
+            rendered,
+            "\n\n⚠ The scan could not cover everything it was asked to:\n  \
+             - 1 file(s) could not be read\n  - 2 line(s) too long to scan"
+        );
+    }
 
     #[test]
     fn secret_scan_ext_matching_is_case_insensitive_and_shared() {

@@ -38,12 +38,27 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let mode = OutputMode::from_command_format(args.format, global);
 
-    let data = run_audit(Path::new("."));
+    let AuditRun {
+        data,
+        coverage_notes,
+    } = run_audit(Path::new("."));
 
     match mode {
-        OutputMode::Json => print_json(&data)?,
+        OutputMode::Json => print_json(&data, &coverage_notes)?,
+        // SARIF 2.1.0 carries tool-execution problems in
+        // `invocations[].toolExecutionNotifications`, which `anvil-sarif` does
+        // not model yet. Until it does, a `--format sarif` run reports the
+        // coverage failure through its exit code alone; the document is
+        // unchanged. Emitting a `results[]` entry instead would put "nobody
+        // read this file" into the finding vocabulary, which is the one thing
+        // SDT-008 is barred from doing.
         OutputMode::Sarif => crate::output::json::print(&build_audit_sarif(&data))?,
         OutputMode::Tui => {
+            // The TUI takes the alternate screen, so a coverage block drawn
+            // before it would be wiped and one drawn into it needs a panel
+            // this surface does not have. Report on stderr after the screen is
+            // restored: stdout stays clean, and the operator still sees what
+            // the exit code is about.
             let mut state = AuditState::new(data);
             loop {
                 state = crate::tui::run_surface(state)?;
@@ -62,11 +77,25 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 }
                 break;
             }
+            eprint!("{}", crate::util::secret_coverage_suffix(&coverage_notes));
         }
-        OutputMode::Plain => print_plain(&data),
+        OutputMode::Plain => print_plain(&data, &coverage_notes),
     }
 
-    Ok(())
+    // SDT-008: audit stays advisory about its *findings* — a repository full
+    // of TODOs and hardcoded secrets still exits 0, because audit is a project
+    // overview and warnings-over-blocks is the product posture. Coverage is a
+    // different claim: "I read these files and here is what I found" is false
+    // when some of them were never read, and a surface that cannot tell the
+    // difference is the false-clean SDT-001 and SDT-006 exist to remove. This
+    // is the only condition on which `anvil audit` fails.
+    if coverage_notes.is_empty() {
+        Ok(())
+    } else {
+        // Already rendered above for every mode; `AlreadyReported` exits
+        // non-zero without printing it a second time.
+        Err(crate::output::AlreadyReported.into())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -79,9 +108,28 @@ const SOURCE_EXTS: &[&str] = &["ts", "js", "rs", "py"];
 /// Maximum line count before a file is flagged.
 const MAX_FILE_LINES: usize = 500;
 
+/// One audit run: the surface data, plus what the run could not cover.
+///
+/// SDT-008: the coverage notes live here rather than inside [`AuditData`]
+/// because they are not audit findings and must not be counted, sorted or
+/// severity-ranked as if they were. `AuditData` is the issue model every
+/// renderer consumes; a coverage failure is a statement about the run that
+/// produced it — closer to `total_files` than to `issues[]` — and it is the
+/// only thing that decides this command's exit code.
+pub struct AuditRun {
+    pub data: AuditData,
+    /// Every reason the secret scan could not see all of its input, in the
+    /// scanner's own words. Empty means audit read everything in its domain.
+    pub coverage_notes: Vec<String>,
+}
+
 /// Collect audit data for the current directory (convenience for sub-surface use).
+///
+/// Drops the coverage notes: the callers are in-TUI refreshes that replace an
+/// existing `AuditState.data` and have no exit code to carry. The command
+/// entry point uses [`run_audit`] directly so the notes reach the operator.
 pub fn collect_audit_data() -> AuditData {
-    run_audit(Path::new("."))
+    run_audit(Path::new(".")).data
 }
 
 /// Scan the repository at `root` and return audit data.
@@ -95,7 +143,7 @@ pub fn collect_audit_data() -> AuditData {
 /// panic containment. Findings are then sorted into the deterministic
 /// `(severity, file, line)` order so concurrent collection cannot leak
 /// scheduling into user-visible output.
-pub fn run_audit(root: &Path) -> AuditData {
+pub fn run_audit(root: &Path) -> AuditRun {
     use rayon::prelude::*;
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -167,7 +215,9 @@ pub fn run_audit(root: &Path) -> AuditData {
     // canonical secret-detection check from `anvil_checks::secret` over
     // the same candidate set so its summary cannot disagree with gate
     // on hardcoded secrets.
-    scan_for_hardcoded_secrets(root, &candidates, &mut issues);
+    // SDT-008: the same call now also reports what it could not read. Those
+    // are not issues and never enter `issues[]`.
+    let coverage_notes = scan_for_hardcoded_secrets(root, &candidates, &mut issues);
 
     // Deterministic order: severity descending, then file ascending, line
     // ascending, message ascending — without this the rayon collect order
@@ -181,15 +231,18 @@ pub fn run_audit(root: &Path) -> AuditData {
     });
 
     let historical_scores = load_historical_scores(root);
-    let next_steps = generate_next_steps(&issues);
+    let next_steps = generate_next_steps(&issues, &coverage_notes);
 
-    AuditData {
-        project_name,
-        total_files,
-        security_scope: SECURITY_SCOPE.to_string(),
-        issues,
-        historical_scores,
-        next_steps,
+    AuditRun {
+        data: AuditData {
+            project_name,
+            total_files,
+            security_scope: SECURITY_SCOPE.to_string(),
+            issues,
+            historical_scores,
+            next_steps,
+        },
+        coverage_notes,
     }
 }
 
@@ -264,13 +317,21 @@ fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
 /// pre-computed `rel` also keeps the leading-slash / separator quirks of
 /// `anvil_checks::secret::normalise_file_path` from leaking into audit
 /// output across the secret/non-secret boundary.
+///
+/// Returns the scan's coverage notes — every reason it could not see all of
+/// its input (SDT-008). These are deliberately *not* `AuditIssue` entries: an
+/// issue has a file, a line, a severity and a category, and a file nobody read
+/// has none of those. Forcing one into that shape would report a fabricated
+/// location for a fabricated finding — trading the false-clean this fixes for
+/// a false-positive, which is the trade the item's non-scope forbids. They
+/// travel beside the issues instead, and decide the command's exit code.
 fn scan_for_hardcoded_secrets(
     root: &Path,
     candidates: &[(std::path::PathBuf, String)],
     issues: &mut Vec<AuditIssue>,
-) {
+) -> Vec<String> {
     if candidates.is_empty() {
-        return;
+        return Vec::new();
     }
 
     // Restrict the secret scan to file types gate's `secret-detection` check
@@ -295,7 +356,7 @@ fn scan_for_hardcoded_secrets(
         .collect();
 
     if scannable.is_empty() {
-        return;
+        return Vec::new();
     }
 
     // Index abs-path → rel so each finding can be mapped back to the same
@@ -330,6 +391,15 @@ fn scan_for_hardcoded_secrets(
             fixable: false,
         });
     }
+
+    // Passed through verbatim so all three surfaces describe the same unread
+    // file in the same words. The paths inside them are the ones audit handed
+    // the scanner (`./src/foo.ts` for the usual `root = "."`) rather than the
+    // `rel` form used by `issues[]`: the notes are prose built by
+    // `anvil-checks`, and rewriting paths inside a sentence to gain a two-
+    // character cosmetic match would risk corrupting the remedy the note
+    // exists to deliver.
+    result.coverage_notes
 }
 
 /// Scan a single source file for quality and documentation issues.
@@ -427,8 +497,21 @@ fn load_historical_scores(root: &Path) -> Vec<HistoricalScore> {
 }
 
 /// Generate actionable next steps from the issue list.
-fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
+///
+/// SDT-008: `coverage_notes` is not an issue list, but it is the most
+/// actionable thing a run can produce — the report above it is incomplete
+/// until it is cleared — so it leads, and it suppresses the "nothing to do
+/// here" fallback that would otherwise sit under a failing run.
+fn generate_next_steps(issues: &[AuditIssue], coverage_notes: &[String]) -> Vec<String> {
     let mut steps = Vec::new();
+
+    if !coverage_notes.is_empty() {
+        steps.push(
+            "Restore secret-scan coverage first — this report is not a clean result \
+             while part of audit's scope was never read"
+                .to_string(),
+        );
+    }
 
     let high_count = issues
         .iter()
@@ -528,11 +611,11 @@ const SECURITY_SCOPE: &str = "audit is a project overview. Its security pass fla
      finding counts are not comparable between surfaces and an audit with \
      nothing to report is not a passing `anvil gate`.";
 
-fn print_plain(data: &AuditData) {
-    print!("{}", render_plain(data));
+fn print_plain(data: &AuditData, coverage_notes: &[String]) {
+    print!("{}", render_plain(data, coverage_notes));
 }
 
-fn render_plain(data: &AuditData) -> String {
+fn render_plain(data: &AuditData, coverage_notes: &[String]) -> String {
     use std::fmt::Write as _;
 
     // Writing into a String is infallible; `let _ =` keeps the render
@@ -544,6 +627,17 @@ fn render_plain(data: &AuditData) -> String {
     let _ = writeln!(out, "ANVIL AUDIT — {}\n", data.project_name);
     let _ = writeln!(out, "Total files scanned: {}", data.total_files);
     let _ = writeln!(out, "Issues found: {}", data.issues.len());
+    // SDT-008: the coverage block rides with the count for the same reason
+    // the scope note does. "Issues found: 0" is the line a reader skims, and
+    // it is not a statement about the files this run never read — putting the
+    // correction in a footer would leave the skim wrong.
+    if !coverage_notes.is_empty() {
+        // The shared renderer is built to be *appended* to a gate message, so
+        // it carries its own leading separator. Here it is a standalone
+        // paragraph: strip that separator and set the spacing locally.
+        let block = crate::util::secret_coverage_suffix(coverage_notes);
+        let _ = writeln!(out, "\n{}\n", block.trim_start_matches('\n'));
+    }
     // Sits with the count, not in a footer: the count is what gets
     // skimmed, so the qualifier has to travel with it. Wrapped rather
     // than emitted as one long line — an unbroken paragraph is the
@@ -643,6 +737,14 @@ struct AuditOutput {
     /// `issues[]` remains canonical.
     security_scope: String,
     issues: Vec<IssueOutput>,
+    /// SDT-008: every reason audit's secret pass could not see all of its
+    /// input, in the scanner's own words (cause plus remedy). Kept out of
+    /// `issues[]` on purpose — an issue carries a file, a line and a severity,
+    /// and a file nobody read has none of them, so counting one as an issue
+    /// would be a fabricated finding. Non-empty means this run exited
+    /// non-zero. Absent when audit read everything in its domain.
+    #[serde(rename = "coverageNotes", skip_serializing_if = "Vec::is_empty")]
+    coverage_notes: Vec<String>,
     historical_scores: Vec<ScoreOutput>,
     next_steps: Vec<String>,
     notifications: Vec<Notification>,
@@ -716,7 +818,7 @@ fn severity_rank(severity: IssueSeverity) -> u8 {
     }
 }
 
-fn notifications_for_audit(data: &AuditData) -> Vec<Notification> {
+fn notifications_for_audit(data: &AuditData, coverage_notes: &[String]) -> Vec<Notification> {
     let audit_context = NotificationContext {
         file: None,
         source: Some("audit".to_string()),
@@ -734,6 +836,21 @@ fn notifications_for_audit(data: &AuditData) -> Vec<Notification> {
         .take(MAX_ISSUE_NOTIFICATIONS)
         .map(|(_, issue)| notification_for_issue(issue))
         .collect();
+
+    // SDT-008: one notification per coverage gap, uncapped. There is at most
+    // one per cause (history, oversize line, panicked/unreadable/oversize
+    // file), so the `MAX_ISSUE_NOTIFICATIONS` cap that findings need does not
+    // apply. `Warning`, not `Finding`: nothing was found here — something was
+    // not looked at.
+    notifications.extend(coverage_notes.iter().map(|note| {
+        Notification::new(
+            NotificationClass::Warning,
+            NotificationPriority::High,
+            "Secret scan coverage gap",
+            note.clone(),
+        )
+        .with_context(audit_context.clone())
+    }));
 
     if truncated > 0 {
         notifications.push(
@@ -774,14 +891,30 @@ fn notifications_for_audit(data: &AuditData) -> Vec<Notification> {
             ),
         )
     } else if data.issues.is_empty() {
-        (
-            NotificationClass::Info,
-            NotificationPriority::Low,
-            format!(
-                "No issues in audit's scope across {} files; `anvil gate` runs the full check suite",
-                data.total_files
-            ),
-        )
+        // SDT-008: "No issues in audit's scope across N files" is a claim
+        // about N files, and it is false when some of them were never read.
+        // A subscriber that only reads the summary must not be told the run
+        // was clean when the exit code says it was not.
+        if coverage_notes.is_empty() {
+            (
+                NotificationClass::Info,
+                NotificationPriority::Low,
+                format!(
+                    "No issues in audit's scope across {} files; `anvil gate` runs the full check suite",
+                    data.total_files
+                ),
+            )
+        } else {
+            (
+                NotificationClass::Warning,
+                NotificationPriority::High,
+                // No count: the notes carry per-cause counts and this
+                // function has no honest number of its own to quote.
+                "0 issues found, but part of audit's scope was never read — \
+                 this is not a clean result; see coverageNotes"
+                    .to_string(),
+            )
+        }
     } else {
         (
             NotificationClass::Warning,
@@ -800,7 +933,7 @@ fn notifications_for_audit(data: &AuditData) -> Vec<Notification> {
     notifications
 }
 
-fn build_audit_output(data: &AuditData) -> AuditOutput {
+fn build_audit_output(data: &AuditData, coverage_notes: &[String]) -> AuditOutput {
     AuditOutput {
         project_name: data.project_name.clone(),
         total_files: data.total_files,
@@ -817,6 +950,7 @@ fn build_audit_output(data: &AuditData) -> AuditOutput {
                 fixable: i.fixable,
             })
             .collect(),
+        coverage_notes: coverage_notes.to_vec(),
         historical_scores: data
             .historical_scores
             .iter()
@@ -827,7 +961,7 @@ fn build_audit_output(data: &AuditData) -> AuditOutput {
             })
             .collect(),
         next_steps: data.next_steps.clone(),
-        notifications: notifications_for_audit(data),
+        notifications: notifications_for_audit(data, coverage_notes),
     }
 }
 
@@ -881,8 +1015,8 @@ fn build_audit_sarif(data: &AuditData) -> crate::output::sarif::SarifLog {
     )
 }
 
-fn print_json(data: &AuditData) -> anyhow::Result<()> {
-    let output = build_audit_output(data);
+fn print_json(data: &AuditData, coverage_notes: &[String]) -> anyhow::Result<()> {
+    let output = build_audit_output(data, coverage_notes);
     let json = serde_json::to_string_pretty(&output)?;
     println!("{json}");
     Ok(())
@@ -916,7 +1050,7 @@ mod tests {
     #[test]
     fn empty_dir_produces_zero_issues() {
         let dir = make_temp_dir();
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         assert_eq!(data.issues.len(), 0);
         assert_eq!(data.total_files, 0);
         cleanup(&dir);
@@ -928,7 +1062,7 @@ mod tests {
         let ts_file = dir.join("example.ts");
         std::fs::write(&ts_file, "const x = 1;\nconsole.log(x);\n").unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let console_issues: Vec<_> = data
             .issues
             .iter()
@@ -948,7 +1082,7 @@ mod tests {
         let dir = make_temp_dir();
         std::fs::write(dir.join(".env"), "API_KEY=abc\n").unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let env_issue = data
             .issues
             .iter()
@@ -971,8 +1105,8 @@ mod tests {
         std::fs::write(dir.join(".env"), "API_KEY=abc\n").unwrap();
         std::fs::write(dir.join("example.ts"), "const x = 1;\nconsole.log(x);\n").unwrap();
 
-        let data = run_audit(&dir);
-        let output = build_audit_output(&data);
+        let data = run_audit(&dir).data;
+        let output = build_audit_output(&data, &[]);
 
         let env = output
             .issues
@@ -1018,7 +1152,7 @@ mod tests {
         )
         .unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let issue = data
             .issues
             .iter()
@@ -1045,7 +1179,7 @@ mod tests {
         // A real source file that should be counted.
         std::fs::write(dir.join("app.ts"), "const y = 2;\n").unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         // Only app.ts should be counted.
         assert_eq!(data.total_files, 1);
         // No issues from skipped dirs.
@@ -1075,7 +1209,7 @@ mod tests {
 
         std::fs::write(dir.join("app.ts"), "const y = 2;\n").unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         assert_eq!(data.total_files, 1);
         assert!(data.issues.iter().all(|i| {
             !i.file.contains("dist")
@@ -1094,7 +1228,7 @@ mod tests {
         )
         .unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let todo_issues: Vec<_> = data
             .issues
             .iter()
@@ -1112,7 +1246,7 @@ mod tests {
         std::fs::write(dir.join(".env"), "SECRET=abc123\n").unwrap();
         std::fs::write(dir.join(".env.example"), "SECRET=\n").unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let env_issues: Vec<_> = data
             .issues
             .iter()
@@ -1145,7 +1279,7 @@ mod tests {
         )
         .unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let secret_issues: Vec<_> = data
             .issues
             .iter()
@@ -1174,7 +1308,7 @@ mod tests {
         let content = "fn noop() {}\n".repeat(501);
         std::fs::write(dir.join("big.rs"), content).unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let large_issues: Vec<_> = data
             .issues
             .iter()
@@ -1191,7 +1325,7 @@ mod tests {
         std::fs::write(dir.join(".env"), "KEY=val\n").unwrap();
         std::fs::write(dir.join("app.ts"), "console.log('x');\n").unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         assert!(!data.next_steps.is_empty());
         assert!(data.next_steps.iter().any(|s| s.contains("high/critical")));
         assert!(data.next_steps.iter().any(|s| s.contains("console")));
@@ -1208,7 +1342,7 @@ mod tests {
         let dir = make_temp_dir();
         std::fs::write(dir.join("clean.rs"), "fn main() {}\n").unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         assert_eq!(data.next_steps.len(), 1);
         let step = &data.next_steps[0];
         assert!(
@@ -1230,8 +1364,8 @@ mod tests {
     fn plain_output_discloses_security_scope() {
         let dir = make_temp_dir();
         std::fs::write(dir.join(".env"), "API_KEY=sk-live-abcdefghijklmnop\n").unwrap();
-        let data = run_audit(&dir);
-        let out = render_plain(&data);
+        let data = run_audit(&dir).data;
+        let out = render_plain(&data, &[]);
 
         assert!(
             out.contains("Security scope"),
@@ -1271,8 +1405,8 @@ mod tests {
     fn plain_output_discloses_scope_even_with_no_issues() {
         let dir = make_temp_dir();
         std::fs::write(dir.join("clean.rs"), "fn main() {}\n").unwrap();
-        let data = run_audit(&dir);
-        let out = render_plain(&data);
+        let data = run_audit(&dir).data;
+        let out = render_plain(&data, &[]);
         assert!(
             out.contains("Security scope"),
             "scope disclosure must survive an empty finding list:\n{out}"
@@ -1285,8 +1419,8 @@ mod tests {
     fn json_output_carries_the_security_scope() {
         let dir = make_temp_dir();
         std::fs::write(dir.join(".env"), "API_KEY=sk-live-abcdefghijklmnop\n").unwrap();
-        let data = run_audit(&dir);
-        let value = serde_json::to_value(build_audit_output(&data)).unwrap();
+        let data = run_audit(&dir).data;
+        let value = serde_json::to_value(build_audit_output(&data, &[])).unwrap();
 
         let scope = value["security_scope"]
             .as_str()
@@ -1315,7 +1449,7 @@ mod tests {
             "API_KEY=sk-live-abcdefghijklmnop\nDB_PASSWORD=hunter2hunter2hunter2\n",
         )
         .unwrap();
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
 
         let env_issues: Vec<_> = data.issues.iter().filter(|i| i.file == ".env").collect();
         let file_level = env_issues
@@ -1351,7 +1485,7 @@ mod tests {
     fn security_scope_matches_actual_env_handling() {
         let dir = make_temp_dir();
         std::fs::write(dir.join(".env"), "API_KEY=sk-live-abcdefghijklmnop\n").unwrap();
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         let env_issues: Vec<_> = data.issues.iter().filter(|i| i.file == ".env").collect();
 
         // Copy promises: one file-level flag PLUS one entry per match.
@@ -1407,7 +1541,7 @@ mod tests {
         )
         .unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         assert_eq!(data.historical_scores.len(), 2);
         assert_eq!(data.historical_scores[0].timestamp, "2026-08-17 19:41");
         assert_eq!(data.historical_scores[0].issue_count, 3);
@@ -1429,7 +1563,7 @@ mod tests {
         )
         .unwrap();
 
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         assert!(data.historical_scores.is_empty());
         cleanup(&dir);
     }
@@ -1437,7 +1571,7 @@ mod tests {
     #[test]
     fn no_cache_yields_empty_historical() {
         let dir = make_temp_dir();
-        let data = run_audit(&dir);
+        let data = run_audit(&dir).data;
         assert!(data.historical_scores.is_empty());
         cleanup(&dir);
     }
@@ -1693,7 +1827,7 @@ mod tests {
     /// must qualify the claim and route to the fuller surface.
     #[test]
     fn next_steps_empty_issues() {
-        let steps = generate_next_steps(&[]);
+        let steps = generate_next_steps(&[], &[]);
         assert_eq!(steps.len(), 1);
         assert!(
             steps[0].contains("audit's scope"),
@@ -1713,6 +1847,53 @@ mod tests {
         );
     }
 
+    /// SDT-008: the "nothing to do here" fallback is a clean-result claim, and
+    /// it must not appear under a run that never read part of its scope.
+    #[test]
+    fn next_steps_lead_with_coverage_and_drop_the_clean_fallback() {
+        let notes = vec!["1 file(s) could not be read (src/broken.ts)".to_string()];
+        let steps = generate_next_steps(&[], &notes);
+        assert!(
+            steps[0].contains("Restore secret-scan coverage"),
+            "the coverage failure is the first thing to act on, got: {steps:?}"
+        );
+        assert!(
+            !steps
+                .iter()
+                .any(|s| s.contains("No issues in audit's scope")),
+            "an unread file makes the clean fallback false, got: {steps:?}"
+        );
+    }
+
+    /// The JSON summary notification is the single line a subscriber reads.
+    /// With zero issues and a coverage failure it must not be the `Info`
+    /// "no issues in scope" line — the exit code says the run failed.
+    #[test]
+    fn audit_json_summary_is_not_clean_when_coverage_failed() {
+        let data = empty_audit_data();
+        let notes = vec!["1 file(s) could not be read (src/broken.ts)".to_string()];
+        let output = build_audit_output(&data, &notes);
+        assert_eq!(output.coverage_notes, notes);
+
+        let summary = output
+            .notifications
+            .last()
+            .expect("summary notification is always last");
+        assert_eq!(summary.class, NotificationClass::Warning);
+        assert!(
+            !summary.message.contains("No issues in audit's scope"),
+            "clean-summary copy must not survive a coverage failure, got: {}",
+            summary.message
+        );
+        assert!(
+            output
+                .notifications
+                .iter()
+                .any(|n| n.message.contains("src/broken.ts")),
+            "the unread file must reach notification subscribers"
+        );
+    }
+
     #[test]
     fn next_steps_high_severity_only() {
         let issues = vec![AuditIssue {
@@ -1723,7 +1904,7 @@ mod tests {
             line: 0,
             fixable: false,
         }];
-        let steps = generate_next_steps(&issues);
+        let steps = generate_next_steps(&issues, &[]);
         assert!(steps.iter().any(|s| s.contains("high/critical")));
         assert!(!steps.iter().any(|s| s.contains("console")));
     }
@@ -1738,7 +1919,7 @@ mod tests {
             line: 1,
             fixable: true,
         }];
-        let steps = generate_next_steps(&issues);
+        let steps = generate_next_steps(&issues, &[]);
         assert!(steps.iter().any(|s| s.contains("console")));
         assert!(!steps.iter().any(|s| s.contains("high/critical")));
     }
@@ -1753,7 +1934,7 @@ mod tests {
             line: 600,
             fixable: false,
         }];
-        let steps = generate_next_steps(&issues);
+        let steps = generate_next_steps(&issues, &[]);
         assert!(steps.iter().any(|s| s.contains("large file")));
     }
 
@@ -1767,7 +1948,7 @@ mod tests {
             line: 10,
             fixable: false,
         }];
-        let steps = generate_next_steps(&issues);
+        let steps = generate_next_steps(&issues, &[]);
         assert!(steps.iter().any(|s| s.contains("TODO/FIXME/HACK")));
     }
 
@@ -1799,7 +1980,7 @@ mod tests {
                 fixable: false,
             },
         ];
-        let steps = generate_next_steps(&issues);
+        let steps = generate_next_steps(&issues, &[]);
         assert!(steps.len() >= 3);
         assert!(steps.iter().any(|s| s.contains("high/critical")));
         assert!(steps.iter().any(|s| s.contains("console")));
@@ -1826,7 +2007,7 @@ mod tests {
                 fixable: true,
             },
         ];
-        let steps = generate_next_steps(&issues);
+        let steps = generate_next_steps(&issues, &[]);
         assert!(steps.iter().any(|s| s.contains("2 console")));
     }
 
@@ -1905,7 +2086,7 @@ mod tests {
 
     #[test]
     fn summary_notification_is_info_when_no_issues() {
-        let notifications = notifications_for_audit(&empty_audit_data());
+        let notifications = notifications_for_audit(&empty_audit_data(), &[]);
         assert_eq!(notifications.len(), 1);
         let summary = &notifications[0];
         assert_eq!(summary.class, NotificationClass::Info);
@@ -1916,7 +2097,7 @@ mod tests {
     fn summary_notification_is_failure_when_critical_present() {
         let mut data = empty_audit_data();
         data.issues.push(issue_with(IssueSeverity::Critical));
-        let notifications = notifications_for_audit(&data);
+        let notifications = notifications_for_audit(&data, &[]);
         let summary = notifications.last().unwrap();
         assert_eq!(summary.class, NotificationClass::Failure);
         // Priority is High (not Critical) — Critical is reserved for
@@ -1928,7 +2109,7 @@ mod tests {
     fn summary_notification_is_warning_when_high_present() {
         let mut data = empty_audit_data();
         data.issues.push(issue_with(IssueSeverity::High));
-        let notifications = notifications_for_audit(&data);
+        let notifications = notifications_for_audit(&data, &[]);
         let summary = notifications.last().unwrap();
         assert_eq!(summary.class, NotificationClass::Warning);
         assert_eq!(summary.priority, NotificationPriority::High);
@@ -1938,7 +2119,7 @@ mod tests {
     fn summary_notification_is_warning_when_only_medium_severity() {
         let mut data = empty_audit_data();
         data.issues.push(issue_with(IssueSeverity::Medium));
-        let notifications = notifications_for_audit(&data);
+        let notifications = notifications_for_audit(&data, &[]);
         let summary = notifications.last().unwrap();
         // Previously `Info/Normal` — upgraded to `Warning/Normal` so a non-
         // empty medium-severity rollup is distinguishable from a clean run.
@@ -1951,7 +2132,7 @@ mod tests {
         for severity in [IssueSeverity::Low, IssueSeverity::Info] {
             let mut data = empty_audit_data();
             data.issues.push(issue_with(severity));
-            let notifications = notifications_for_audit(&data);
+            let notifications = notifications_for_audit(&data, &[]);
             let summary = notifications.last().unwrap();
             assert_eq!(
                 summary.class,
@@ -1967,7 +2148,7 @@ mod tests {
         let mut data = empty_audit_data();
         data.issues.push(issue_with(IssueSeverity::Medium));
         data.issues.push(issue_with(IssueSeverity::Low));
-        let output = build_audit_output(&data);
+        let output = build_audit_output(&data, &[]);
         // 2 per-issue notifications + 1 summary
         assert_eq!(output.notifications.len(), 3);
         let json = serde_json::to_value(&output).unwrap();
@@ -1984,7 +2165,7 @@ mod tests {
         for _ in 0..(MAX_ISSUE_NOTIFICATIONS + overflow) {
             data.issues.push(issue_with(IssueSeverity::Low));
         }
-        let notifications = notifications_for_audit(&data);
+        let notifications = notifications_for_audit(&data, &[]);
 
         // cap + 1 truncation + 1 summary
         assert_eq!(
@@ -2017,7 +2198,7 @@ mod tests {
         for _ in 0..3 {
             data.issues.push(issue_with(IssueSeverity::Critical));
         }
-        let notifications = notifications_for_audit(&data);
+        let notifications = notifications_for_audit(&data, &[]);
         let critical_findings = notifications
             .iter()
             .filter(|n| n.class == NotificationClass::Finding && n.title.contains("Critical"))

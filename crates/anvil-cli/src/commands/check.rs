@@ -15,7 +15,7 @@ use anvil_checks::antipattern::{
     AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningReport,
     WarningSeverity, WarningSummary, create_warning_result, run_antipattern_check, scan_artifacts,
 };
-use anvil_checks::secret::{SecretFinding, is_secret_scannable, run_secret_check};
+use anvil_checks::secret::{SecretFinding, run_secret_check};
 
 use crate::GlobalArgs;
 use crate::commands::check_catalog::canonical_check_name;
@@ -44,6 +44,12 @@ const CHECK_OUTPUT_VERSION: &str = "1.0.0";
 /// blocking threshold. Keep this vocabulary severity-neutral: a blocking
 /// finding may have error or warning severity depending on the threshold.
 const BLOCKING_FINDINGS_BANNER: &str = "Blocking findings (severity meets threshold)";
+
+/// SDT-008: the verdict when the secret scan could not read all of its input.
+/// Deliberately `gate`'s wording — the two surfaces describe the same state,
+/// and an operator comparing them must not have to decide whether two
+/// different sentences mean the same thing.
+const SECRET_COVERAGE_BANNER: &str = "Secret scan could not prove these files clean";
 
 /// Hard cap on a single artifact's size for `anvil check --artifact`. PR
 /// descriptions and commit messages are kilobytes; agent outputs can grow
@@ -148,6 +154,15 @@ struct CheckOutput {
     file_extensions: Option<Vec<String>>,
     notifications: Vec<Notification>,
     warnings: Vec<JsonWarning>,
+    /// SDT-008: every reason this run could not see all of its input, in the
+    /// scanner's own words (cause plus remedy). Deliberately **not** folded
+    /// into `warnings[]` or `hasBlockingWarnings`: a file nobody read has no
+    /// line, no pattern and no severity, and dressing it as a finding would
+    /// trade one honesty defect for another. A consumer that wants a single
+    /// pass/fail signal should use the exit code, which is non-zero whenever
+    /// this array is non-empty. Absent when the scan covered everything.
+    #[serde(rename = "coverageNotes", skip_serializing_if = "Vec::is_empty")]
+    coverage_notes: Vec<String>,
     summary: WarningSummary,
     /// SPG-002: rules whose regex failed to compile in the Rust scanner.
     /// Operators can rely on this to distinguish "rule ran, no matches"
@@ -280,6 +295,10 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let mut aggregated_patterns: BTreeSet<String> = BTreeSet::new();
     let mut checks_run: Vec<String> = Vec::new();
     let mut any_files_scanned = false;
+    // SDT-008: reasons this run could not see all of its input. Empty means
+    // "everything asked for was read", which is the only state in which a
+    // clean `check` is a true statement about the files.
+    let mut coverage_notes: Vec<String> = Vec::new();
 
     for check_name in &enabled_checks {
         match *check_name {
@@ -372,21 +391,28 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 let config = crate::util::secret_check_config(std::path::Path::new(
                     workspace_root.as_deref().unwrap_or("."),
                 ));
-                // `run_secret_check` drops files by extension
-                // (`config.skip_extensions`) and by the `MAX_FILE_SIZE`
-                // runaway guard. Pre-filter so the "0 scanned" guard below
-                // stays honest even when every input falls in the skip set.
-                // SDT-007: this asks `anvil-checks` itself rather than a
-                // local copy of its rules, so the pre-filter cannot hide a
-                // file the scanner would have read — the copy had already
-                // drifted on lockfiles.
-                let scannable_files: Vec<String> = files
-                    .iter()
-                    .filter(|f| is_secret_scannable(f, &config))
-                    .cloned()
-                    .collect();
-                if scannable_files.is_empty() {
-                    // No input is in scope for secret-detection — skip
+                // SDT-008: the scanner decides what is in scope, and it does
+                // so by scanning. Planless `check` used to pre-filter with
+                // `is_secret_scannable`, which excludes two different things
+                // for two different reasons — a `skip_extensions` match
+                // (genuinely out of scope) and a file at or over
+                // `MAX_FILE_SIZE` (in scope, and a *coverage failure*). The
+                // second is accounted for inside `run_secret_check`, so
+                // withholding the file from it meant the accounting could
+                // never arrive and `check` exited 0 over a file nobody read.
+                // Reading one more field off the result would not have fixed
+                // that; the input had to stop being discarded.
+                //
+                // So nothing is pre-filtered now. The "no input in scope"
+                // decision is taken *after* the scan from
+                // `files_skipped_extension`, which counts exactly the
+                // deliberate-exclusion arm — one entry per input file — and
+                // never counts a file the scan wanted and did not get.
+                let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+                let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
+                if result.files_skipped_extension >= file_refs.len() {
+                    // Every input is a configured `skip_extensions` match —
+                    // no input is in scope for secret-detection, so skip
                     // without flipping `any_files_scanned`. If antipattern
                     // also produced nothing scannable, the empty-output
                     // guard below renders a clear message.
@@ -394,8 +420,11 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                     continue;
                 }
                 any_files_scanned = true;
-                let file_refs: Vec<&str> = scannable_files.iter().map(String::as_str).collect();
-                let result = run_secret_check(&file_refs, &config, workspace_root.as_deref());
+                // SDT-008: everything the scan could not see. These are not
+                // findings — a file nobody read has no line, no pattern and
+                // no severity — so they travel beside the warnings rather
+                // than inside them, in `gate`'s words.
+                coverage_notes.extend(result.coverage_notes.iter().cloned());
                 for finding in &result.findings {
                     aggregated_warnings.push(secret_finding_to_json(
                         finding,
@@ -463,6 +492,7 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         has_blocking,
         elapsed,
         file_extensions,
+        coverage_notes.clone(),
     );
     // CIB-255: pass discovery extensions for All/Changed so the
     // "Checked N file(s)" line names the domain.
@@ -482,6 +512,15 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     if has_blocking {
         human.push_str(&blocking_banner_line());
     }
+    // SDT-008: the coverage block rides *after* the warning report and the
+    // blocking banner, in gate's exact words. It is not a warning and does not
+    // change the counts above it — it says that some of the input behind those
+    // counts was never read, which is a statement about the report itself.
+    if !coverage_notes.is_empty() {
+        human.push_str(&coverage_banner_line());
+        human.push_str(crate::util::secret_coverage_suffix(&coverage_notes).trim_end());
+        human.push('\n');
+    }
     let sarif_log = (mode == OutputMode::Sarif).then(|| sarif.into_log());
     emit_check_result(
         workspace_root.as_deref(),
@@ -491,7 +530,11 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         sarif_log.as_ref(),
     )?;
 
-    if has_blocking {
+    // SDT-008: unread input fails the command on its own. `check` is
+    // warnings-over-blocks about *findings*, but "I could not read this file"
+    // is not a finding — it is a failure to do the work that was asked for,
+    // and exiting 0 over it is the false-clean this module exists to remove.
+    if has_blocking || !coverage_notes.is_empty() {
         // Signal failure via AlreadyReported so main exits with EXIT_ERROR
         // without reprinting the message.
         Err(output::AlreadyReported.into())
@@ -908,6 +951,10 @@ fn run_non_source_artifact(
         has_blocking,
         elapsed,
         None,
+        // Non-source artifacts (PR descriptions, commit messages, agent
+        // output) never reach the secret scanner, so there is no file-level
+        // coverage to account for on this path.
+        Vec::new(),
     );
     let mut human = render_human(
         &warning_result.warnings,
@@ -1226,6 +1273,17 @@ fn blocking_banner_line() -> String {
     format!("  \u{2717} {BLOCKING_FINDINGS_BANNER}\n")
 }
 
+/// SDT-008: the verdict line for a coverage failure, in the same two-space
+/// glyph shape as the blocking banner.
+///
+/// It exists because the line above it is `✓ No warnings found`, which is
+/// true and misleading in the same breath: no warnings *were* found, and part
+/// of the input was never looked at. A reader who skims one line has to land
+/// on the second fact, not the first.
+fn coverage_banner_line() -> String {
+    format!("  \u{2717} {SECRET_COVERAGE_BANNER}\n")
+}
+
 /// Persist last-run files, then print stdout for this mode.
 fn emit_check_result(
     workspace_root: Option<&str>,
@@ -1272,6 +1330,9 @@ fn empty_output(elapsed: u64, message: &str) -> CheckOutput {
             }),
         ],
         warnings: Vec::new(),
+        // Every caller of this helper returns before any check runs, so
+        // nothing has been scanned and nothing can have failed to scan.
+        coverage_notes: Vec::new(),
         summary: WarningSummary {
             total: 0,
             errors: 0,
@@ -1319,6 +1380,7 @@ fn build_json_output(
     has_blocking: bool,
     elapsed: u64,
     file_extensions: Option<Vec<String>>,
+    coverage_notes: Vec<String>,
 ) -> CheckOutput {
     let notifications: Vec<Notification> = warnings
         .iter()
@@ -1361,6 +1423,7 @@ fn build_json_output(
         file_extensions,
         notifications,
         warnings,
+        coverage_notes,
         summary: summary.clone(),
         diagnostics,
     }
@@ -1631,6 +1694,7 @@ mod tests {
             false,
             1,
             Some(exts.clone()),
+            Vec::new(),
         );
         assert_eq!(out.file_extensions.as_ref(), Some(&exts));
         let value = serde_json::to_value(&out).unwrap();
@@ -1848,6 +1912,7 @@ mod tests {
             false,
             42,
             None,
+            Vec::new(),
         );
 
         assert_eq!(out.warnings.len(), 1);
@@ -2374,37 +2439,50 @@ mod tests {
         assert_eq!(json.file, "/etc/secrets/prod.env");
     }
 
+    /// SDT-008: the in-scope decision is `files_skipped_extension`, so it is
+    /// that counter — not a predicate the dispatcher no longer calls — that
+    /// has to hold the line. A `skip_extensions` match is the *only* thing it
+    /// counts; if a coverage failure ever leaked into it, planless `check`
+    /// would silently treat unread input as out of scope again.
+    ///
+    /// No file needs to exist: `should_skip_file` runs before any I/O, so a
+    /// skipped path never reaches the disk and an unskipped one does.
     #[test]
-    fn is_secret_scannable_rejects_skip_extensions() {
+    fn only_skip_extension_matches_count_as_out_of_scope() {
         let config = SecretCheckConfig::default();
-        assert!(!is_secret_scannable("foo.lock", &config));
-        assert!(!is_secret_scannable("foo.min.js", &config));
-        assert!(!is_secret_scannable("foo.svg", &config));
-        assert!(is_secret_scannable("src/foo.ts", &config));
-        assert!(is_secret_scannable("src/foo.rs", &config));
+        let files = ["foo.lock", "foo.min.js", "foo.svg"];
+        let result = run_secret_check(&files, &config, None);
+        assert_eq!(
+            result.files_skipped_extension, 3,
+            "every input here is a configured exclusion"
+        );
+        assert!(
+            result.coverage_notes.is_empty(),
+            "a deliberate exclusion is not a coverage failure; got {:?}",
+            result.coverage_notes
+        );
     }
 
-    /// SDT-007: the pre-filter is now the scanner's own predicate, so it
-    /// inherits the lockfile carve-out instead of contradicting it.
-    ///
-    /// The deleted local copy applied `skip_extensions` unconditionally, so
-    /// `Cargo.lock` failed its `.lock` test and planless `anvil check` never
-    /// handed the file to a scanner that would have run the GH #2584
-    /// URL-credential rule over it. That is exactly the drift the copy's own
-    /// comment warned about — present before streaming, closed by it.
+    /// SDT-007's lockfile carve-out, re-pinned against the counter SDT-008
+    /// reads. The retired `anvil-cli` predicate copy applied `skip_extensions`
+    /// unconditionally, so `Cargo.lock` was withheld from the scanner that
+    /// runs the GH #2584 URL-credential rule. These paths do not exist, so
+    /// reaching the scanner shows up as an unreadable-file coverage note —
+    /// which is itself the proof that they were not skipped by extension.
     #[test]
-    fn lockfiles_are_scannable_because_the_scanner_carves_them_out() {
+    fn lockfiles_stay_in_scope_because_the_scanner_carves_them_out() {
         let config = SecretCheckConfig::default();
-        assert!(
-            is_secret_scannable("Cargo.lock", &config),
-            "a real lockfile reaches the URL-credential scan; `skip_extensions` \
-             deliberately does not apply to it"
+        let files = ["Cargo.lock", "pnpm-lock.yaml"];
+        let result = run_secret_check(&files, &config, None);
+        assert_eq!(
+            result.files_skipped_extension, 0,
+            "a real lockfile is never a `skip_extensions` match"
         );
-        assert!(is_secret_scannable("pnpm-lock.yaml", &config));
-        assert!(
-            !is_secret_scannable("foo.lock", &config),
-            "a `.lock` file that is not a known lockfile is still an ordinary \
-             `skip_extensions` match"
+        assert_eq!(
+            result.files_skipped_unreadable.len(),
+            2,
+            "both lockfiles reached the scanner; got {:?}",
+            result.files_skipped_unreadable
         );
     }
 

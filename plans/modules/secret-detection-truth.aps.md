@@ -609,7 +609,9 @@ known gap lives.
 
 ### SDT-008: Report coverage failures on audit and check
 
-- **Status:** Proposed
+- **Status:** In Progress — operator-promoted 2026-08-29 (Proposed → Ready →
+  In Progress on direction). Implemented on
+  `feat/sdt-008-coverage-on-audit-check`.
 - **Intent:** `anvil gate` is the only surface that reports coverage failures.
   `anvil audit` and planless `anvil check` exit 0 over files nobody read, so
   the honesty SDT-001 and SDT-006 bought is invisible on two of three surfaces.
@@ -635,6 +637,49 @@ known gap lives.
 - **Risks:** independent of file size, so SDT-007 shrinks its population but
   cannot close it: unreadable files and the SCAN-001 panic arm produce
   coverage failures at any size.
+- **As built (2026-08-29):** `secret_coverage_suffix` moved from `gate.rs` to
+  `util.rs`, so all three surfaces describe an unread file in identical words
+  rather than inventing a second vocabulary. `audit` returns a new
+  `AuditRun { data, coverage_notes }`: a coverage failure is deliberately
+  **not** an `AuditIssue` — it has no file, line or severity, and counting it
+  as an issue would trade one honesty defect for another. It is a property of
+  the run, and the only thing that decides the exit code.
+- **`anvil audit` gains its first non-zero exit, and only for this.** Findings
+  still exit 0 (warnings-over-blocks); "I did not read this file" exits 1.
+  That asymmetry is deliberate and commented in code: a finding is advisory,
+  a failure to do the work asked for is not.
+- **The `check.rs` pre-filter was deleted, not split.** The item anticipated
+  separating the predicate's extension half from its size half. The executor
+  did better: the pre-filter is gone and the in-scope decision now reads
+  `result.files_skipped_extension` — the scanner's own per-file accounting —
+  so `files.len() - files_skipped_extension == 0` is the same test computed
+  by the scanner instead of by a caller reasoning *about* the scanner. There
+  is no second predicate left to drift, which is the hazard SDT-007 found had
+  already gone live once.
+- **Owed, not done:** (a) `anvil_checks::secret::is_secret_scannable` now has
+  **zero production callers** — SDT-007 exported it to unify the CLI copy and
+  this item removed its only consumer. Left in place because changing
+  `anvil-checks` was out of scope, but it is a trap: the next reader will take
+  a public predicate as the way to decide scannability and reintroduce exactly
+  the caller-side reasoning this removed. Retire it or repoint it, and update
+  `crates/anvil-checks/ARCHITECTURE.md` with it. (b) SARIF is content-blind to
+  coverage on both surfaces — the exit code flips, the document does not; the
+  proper home is `invocations[].toolExecutionNotifications` (SARIF 2.1.0
+  §3.20.21), which `anvil-sarif` does not model. (c) `anvil audit --format tui`
+  prints the block to stderr after restoring the screen rather than drawing it;
+  the Project panel is a fixed `Constraint::Length(10)` that would silently
+  clip added lines. (d) `docs/runbooks/cli-surface.md` is owed a sentence —
+  audit's exit codes are unchanged as a list, but the *meaning* of 1 is new.
+- **Validation evidence (2026-08-29):** measured baseline at `e016d40c3`
+  before any change was `4144 passed; 0 failed` (the capsule environment
+  failures had been fixed by a sibling and were genuinely absent, not assumed);
+  after, `4156 passed; 0 failed` across 64 targets, exit 0. Delta is +8
+  integration and +4 unit, with the 2 replaced predicate tests netting zero and
+  no pre-existing test changing behaviour. `cargo test -p eddacraft-anvil-checks`
+  888 passed; `cargo clippy --workspace --all-targets -- -D warnings` exit 0;
+  `cargo fmt` exit 0. End-to-end against the real binary: `anvil audit` and
+  `anvil check` both moved 0 → 1 on an unreadable file and on an oversize file,
+  and both stayed 0 when the only exclusion was a `skip_extensions` match.
 
 ---
 
