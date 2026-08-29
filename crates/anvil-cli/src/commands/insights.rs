@@ -573,9 +573,9 @@ mod cib_367_tests {
             #[command(flatten)]
             insights: InsightsArgs,
         }
-        let mut argv = vec!["insights"];
-        argv.extend_from_slice(args);
-        Harness::parse_from(argv).insights
+        let mut command_line = vec!["insights"];
+        command_line.extend_from_slice(args);
+        Harness::parse_from(command_line).insights
     }
 
     #[test]
