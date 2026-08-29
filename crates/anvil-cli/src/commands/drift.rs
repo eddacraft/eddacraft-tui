@@ -599,6 +599,16 @@ enum DriftCommand {
         /// Give the snapshot a name (e.g. release-1.0).
         #[arg(long)]
         name: Option<String>,
+        /// Compute and print the snapshot without saving it.
+        ///
+        /// Writes nothing under the project root, so no
+        /// `.anvil/snapshots/` entry is created and `drift compare` will
+        /// not see this run. Because there is no durable write, this does
+        /// not need `--touch-project-state` under a non-default
+        /// `ANVIL_HOME`, so a caller can analyse a tree in isolation
+        /// without being granted authority to mutate it.
+        #[arg(long)]
+        no_save: bool,
     },
     /// Compare two snapshots.
     Compare {
@@ -776,7 +786,7 @@ struct SnapshotListEntry {
 
 pub fn run(args: &DriftArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
-        DriftCommand::Snapshot { name } => run_snapshot(name.as_deref(), global),
+        DriftCommand::Snapshot { name, no_save } => run_snapshot(name.as_deref(), *no_save, global),
         DriftCommand::Compare {
             snapshot1,
             snapshot2,
@@ -789,28 +799,41 @@ pub fn run(args: &DriftArgs, global: &GlobalArgs) -> Result<()> {
 
 // ── Snapshot subcommand ─────────────────────────────────────────────
 
-fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
-    // DISTRIB-006 (ADR-060): a drift snapshot persists `.anvil/snapshots/*.json`
-    // that `anvil drift compare` later reads — durable per-project state. Refuse
-    // under a gated ANVIL_HOME; `drift compare` is read-only and unaffected.
-    crate::install_root::ensure_project_write_allowed("drift snapshot")?;
+/// Whether this snapshot run performs the durable per-project write that
+/// [`crate::install_root::ensure_project_write_allowed`] exists to gate.
+///
+/// CIB-366: the gate protects the `.anvil/snapshots/*.json` write, so it is a
+/// property of *saving*, not of computing. With `--no-save` there is nothing to
+/// protect, and requiring `--touch-project-state` there forced an isolated
+/// caller to request write authority it did not want.
+#[must_use]
+const fn snapshot_needs_project_write(no_save: bool) -> bool {
+    !no_save
+}
 
-    let mode = OutputMode::from_global(global);
-    let cwd = std::env::current_dir()?;
-
+/// Compute a drift snapshot for `root` without writing anything.
+///
+/// CIB-366: separated from [`run_snapshot`] so the analysis can run under an
+/// isolated state root without the caller also holding project-write
+/// authority. Every durable write lives in the caller, not here.
+fn build_snapshot(
+    root: &std::path::Path,
+    name: Option<&str>,
+    report_progress: bool,
+) -> Result<DriftSnapshot> {
     // Gather source files.
-    let files = get_source_files(&cwd)?;
-    if mode != OutputMode::Json && global.verbose {
+    let files = get_source_files(root)?;
+    if report_progress {
         output::plain::info(&format!("Scanning {} files...", files.len()));
     }
 
     // Live architecture violations from the yaml/config definition.
     let violations: Vec<SnapshotViolation> = match crate::architecture_source::resolve_architecture(
-        &cwd,
+        root,
     ) {
         Ok(Some((definition, _))) => {
-            let files = anvil_architecture::collect_source_files(&cwd, &definition);
-            let edges = crate::architecture_check::extract_import_edges(&cwd, Some(&files));
+            let files = anvil_architecture::collect_source_files(root, &definition);
+            let edges = crate::architecture_check::extract_import_edges(root, Some(&files));
             let result =
                 anvil_architecture::validate_with_files_and_edges(&definition, &files, &edges);
             result
@@ -839,12 +862,12 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
     };
 
     // Run antipattern scan and collect results.
-    let (antipatterns, suppressions, ap_result) = collect_antipatterns(&files, &cwd);
+    let (antipatterns, suppressions, ap_result) = collect_antipatterns(&files, root);
 
     // SURFSQL-006: capture SQL governance findings so the gate can baseline
     // them and warn only on new edges. Independent walk — SQL migration files
     // are outside the antipattern extension set.
-    let sql_findings = collect_sql_findings(&cwd);
+    let sql_findings = collect_sql_findings(root);
 
     // Build antipattern breakdown.
     let mut breakdown: BTreeMap<String, usize> = BTreeMap::new();
@@ -854,7 +877,7 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
 
     let git_ref = get_git_ref();
 
-    let snapshot = DriftSnapshot {
+    Ok(DriftSnapshot {
         schema_version: current_schema().to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         name: name.map(String::from),
@@ -875,22 +898,45 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
         suppressions,
         sql_findings,
         git_ref,
-    };
+    })
+}
 
-    // Save to .anvil/snapshots/.
-    let filename = save_snapshot(&cwd, &snapshot, name)?;
+fn run_snapshot(name: Option<&str>, no_save: bool, global: &GlobalArgs) -> Result<()> {
+    // DISTRIB-006 (ADR-060): a drift snapshot persists `.anvil/snapshots/*.json`
+    // that `anvil drift compare` later reads — durable per-project state. Refuse
+    // under a gated ANVIL_HOME; `drift compare` is read-only and unaffected, and
+    // so is `--no-save` (CIB-366).
+    if snapshot_needs_project_write(no_save) {
+        crate::install_root::ensure_project_write_allowed("drift snapshot")?;
+    }
+
+    let mode = OutputMode::from_global(global);
+    let cwd = std::env::current_dir()?;
+    let snapshot = build_snapshot(&cwd, name, mode != OutputMode::Json && global.verbose)?;
+
+    // Save to .anvil/snapshots/ — unless the caller asked for a computed
+    // snapshot only (CIB-366).
+    let filename = if no_save {
+        None
+    } else {
+        Some(save_snapshot(&cwd, &snapshot, name)?)
+    };
 
     match mode {
         OutputMode::Json => output::json::print(&snapshot)?,
         OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
-            output::plain::success(&format!("Snapshot saved: {filename}"));
+            match &filename {
+                Some(f) => output::plain::success(&format!("Snapshot saved: {f}")),
+                // Never say "saved" when nothing was written.
+                None => output::plain::success("Snapshot computed (not saved — --no-save)"),
+            }
             output::plain::blank();
             output::plain::section("Metrics");
             output::plain::label("Violations", snapshot.metrics.boundary_violations);
             output::plain::label("Anti-patterns", snapshot.metrics.antipattern_count);
             output::plain::label("Suppressions", snapshot.metrics.suppression_count);
             output::plain::label("Files", snapshot.metrics.files_analysed);
-            if let Some(n) = name {
+            if let (Some(n), Some(_)) = (name, &filename) {
                 output::plain::blank();
                 output::plain::info(&format!("Use 'anvil drift compare {n} <other>' to compare"));
             }
@@ -1170,6 +1216,55 @@ struct SnapshotFileList {
 
 /// [`list_snapshot_files`] with an explicit scan cap, so the count guard is
 /// testable without creating thousands of fixtures.
+#[cfg(test)]
+mod cib_366_tests {
+    use super::*;
+
+    // CIB-366. `--anvil-home` without `--touch-project-state` made
+    // `drift snapshot` refuse outright, so the two flags an isolated caller
+    // wants were mutually exclusive: the only way to get a snapshot under an
+    // isolated state root was to also authorise baseline / witness / cutoff
+    // writes against the real project. `--no-save` computes and prints while
+    // writing nothing under the project root, so isolation no longer requires
+    // granting write authority.
+
+    #[test]
+    fn no_save_does_not_require_the_project_write_opt_in() {
+        // The gate exists to protect the durable `.anvil/snapshots/` write.
+        // With nothing to save there is nothing to protect.
+        assert!(
+            !snapshot_needs_project_write(true),
+            "--no-save must not require the project-write opt-in",
+        );
+        assert!(
+            snapshot_needs_project_write(false),
+            "a saving snapshot must still be gated",
+        );
+    }
+
+    #[test]
+    fn no_save_leaves_the_project_root_untouched() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("a.rs"), "fn main() {}\n").unwrap();
+
+        let before = std::fs::read_dir(root).unwrap().count();
+        let snapshot = build_snapshot(root, None, false).expect("snapshot computes");
+        let after = std::fs::read_dir(root).unwrap().count();
+
+        assert_eq!(
+            before, after,
+            "--no-save must create nothing in the project root"
+        );
+        assert!(
+            !root.join(".anvil").join("snapshots").exists(),
+            "no snapshots directory may be created",
+        );
+        // The analysis still actually ran.
+        assert_eq!(snapshot.schema_version, current_schema().to_string());
+    }
+}
+
 #[cfg(test)]
 fn list_snapshot_files_capped(workspace: &Path, cap: usize) -> Result<Vec<PathBuf>> {
     Ok(list_snapshot_files_capped_report(workspace, cap)?.files)
