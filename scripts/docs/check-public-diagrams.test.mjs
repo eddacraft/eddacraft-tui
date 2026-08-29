@@ -164,6 +164,30 @@ test('annotateSvg relocates Draw.io content off the svg opening tag', async () =
   assert.match(svg.slice(0, 1000), /<svg\s([^>"']|"[^"]*"|'[^']*')*>/);
 });
 
+test('annotateSvg rejects whitespace-only accessibility metadata', async (t) => {
+  const source = await readFile(join(FIXTURE_ROOT, 'sample-flow.drawio'), 'utf8');
+
+  for (const attribute of ['anvil-title', 'anvil-description']) {
+    await t.test(attribute, () => {
+      const invalidSource = source.replace(
+        new RegExp(`${attribute}="[^"]*"`),
+        `${attribute}="   "`
+      );
+
+      assert.throws(
+        () =>
+          annotateSvg({
+            svg: rawSvg(invalidSource),
+            source: invalidSource,
+            sourceName: 'sample-flow.drawio',
+            contract: CONTRACT,
+          }),
+        /non-empty anvil-title and anvil-description/
+      );
+    });
+  }
+});
+
 test('svg opening tag that exceeds the image-size probe fails', async () => {
   const findings = await findingsFor(async ({ familyRoot }) => {
     const path = join(familyRoot, 'sample-flow.svg');

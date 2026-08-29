@@ -184,6 +184,36 @@ describe('findAccountActivityRows', () => {
     expect(rows).toEqual([{ as_of: AS_OF, account_id: null, last_activity_at: null }]);
   });
 
+  it.each([null, false, true, '', '   '])(
+    'rejects coercible non-numeric timestamp epochs %#',
+    async (asOf) => {
+      await expect(
+        findAccountActivityRows(
+          fakeSql([{ as_of: asOf, account_id: null, last_activity_at: null }]),
+          null
+        )
+      ).rejects.toThrow(/non-finite/);
+    }
+  );
+
+  it('preserves finite numbers and non-blank numeric-string epochs', async () => {
+    const cases: Array<{ value: unknown; expected: string }> = [
+      { value: 0, expected: '1970-01-01T00:00:00.000Z' },
+      { value: -1.5, expected: '1969-12-31T23:59:58.500Z' },
+      { value: 0.5, expected: '1970-01-01T00:00:00.500Z' },
+      { value: ' 1.25 ', expected: '1970-01-01T00:00:01.250Z' },
+    ];
+
+    for (const { value, expected } of cases) {
+      const rows = await findAccountActivityRows(
+        fakeSql([{ as_of: value, account_id: null, last_activity_at: null }]),
+        null
+      );
+
+      expect(rows).toEqual([{ as_of: expected, account_id: null, last_activity_at: null }]);
+    }
+  });
+
   it('fails loudly rather than silently misparsing a non-numeric epoch — e.g. a DateStyle=German-shaped timestamp a regressed ::text query might emit', async () => {
     await expect(
       findAccountActivityRows(

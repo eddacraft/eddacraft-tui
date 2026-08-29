@@ -53,7 +53,12 @@ export interface AccountActivityQueryRow {
  * input (e.g. a non-numeric value smuggled through by a query change).
  */
 function epochSecondsToIso(value: unknown): string {
-  const seconds = typeof value === 'number' ? value : Number(value);
+  const seconds =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim().length > 0
+        ? Number(value)
+        : Number.NaN;
   if (!Number.isFinite(seconds)) {
     throw new Error(
       `account activity query returned a non-finite timestamp epoch: ${JSON.stringify(value)}`

@@ -153,8 +153,8 @@ function sourceAccessibility(source) {
   try {
     const { root } = parseDrawioSource(source);
     return {
-      title: root.getAttribute('anvil-title') ?? undefined,
-      description: root.getAttribute('anvil-description') ?? undefined,
+      title: root.getAttribute('anvil-title')?.trim() || undefined,
+      description: root.getAttribute('anvil-description')?.trim() || undefined,
     };
   } catch {
     return {};
