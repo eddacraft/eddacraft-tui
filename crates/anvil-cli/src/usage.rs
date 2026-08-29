@@ -773,13 +773,18 @@ pub fn attach_principal(frame: &mut serde_json::Value) {
     }
 }
 
-/// Whether a present `DO_NOT_TRACK` variable declines collection.
+/// Whether `DO_NOT_TRACK` is present, which declines collection.
 ///
 /// CIB-364(b): this cross-tool control is presence-based. A bare export,
-/// `0`, `false`, or non-UTF-8 value still means the operator set the privacy
-/// hard-off. Collection is enabled only when the variable is absent.
+/// `0`, `false`, or a non-UTF-8 value all still mean the operator set the
+/// privacy hard-off. Collection is enabled only when the variable is absent.
+///
+/// Named for presence rather than value on review of PR #4202: it no longer
+/// inspects the value at all, and a value-shaped name sitting beside
+/// [`anvil_opt_out_value_is_set`] — which really does enforce a literal `1` —
+/// invited passing the wrong switch to the wrong predicate.
 #[must_use]
-pub(crate) fn opt_out_value_is_set(value: Option<&str>) -> bool {
+pub(crate) fn do_not_track_is_present(value: Option<&str>) -> bool {
     value.is_some()
 }
 
@@ -798,7 +803,7 @@ pub(crate) fn usage_collection_disabled_from(
     intercept_disable: Option<&str>,
     usage_disable: Option<&str>,
 ) -> bool {
-    opt_out_value_is_set(do_not_track)
+    do_not_track_is_present(do_not_track)
         || anvil_opt_out_value_is_set(intercept_disable)
         || anvil_opt_out_value_is_set(usage_disable)
 }
@@ -1377,11 +1382,11 @@ mod cib_364_tests {
     fn do_not_track_is_presence_based() {
         for value in ["1", "true", "yes", "0", "false", "", "   "] {
             assert!(
-                opt_out_value_is_set(Some(value)),
+                do_not_track_is_present(Some(value)),
                 "a set DO_NOT_TRACK={value:?} must be honoured as an opt-out",
             );
         }
-        assert!(!opt_out_value_is_set(None), "unset must not opt out");
+        assert!(!do_not_track_is_present(None), "unset must not opt out");
     }
 
     #[test]
