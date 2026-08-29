@@ -36,7 +36,16 @@
 // exactly the staged Markdown, including `plans/**`, which `.markdownlintignore`
 // excludes and so no other staged-file task covers.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  statSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -93,11 +102,25 @@ const { values, positionals } = parseArgs({
 
 const root = resolve(values.root ?? process.cwd());
 
+let canonicalRoot;
 try {
   if (!statSync(root).isDirectory()) throw new Error('not a directory');
+  canonicalRoot = realpathSync(root);
 } catch (err) {
   // The check could not run — say nothing about the corpus (CIB-278).
   console.error(`[${SURFACE}] cannot read ${root}: ${err.message}`);
+  process.exit(2);
+}
+
+const explicitPaths = new Map();
+
+function isInsideRoot(path) {
+  const rel = relative(canonicalRoot, path);
+  return rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+function rejectEscapedPositional() {
+  console.error(`[${SURFACE}] positional path is outside the repository root`);
   process.exit(2);
 }
 
@@ -145,15 +168,22 @@ function listFiles() {
     // Explicit list wins: report paths relative to the root and with forward
     // slashes, so hook output and corpus output read identically.
     return positionals.map((p) => {
-      const rel = relative(root, resolve(root, p));
+      const absolute = resolve(root, p);
+      const rel = relative(root, absolute);
       if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-        // Positional mode is a repository-file boundary. Treat an escaped path
-        // as a tooling failure instead of reading it and presenting the result
-        // as repository content.
-        console.error(`[${SURFACE}] positional path is outside the repository root`);
-        process.exit(2);
+        rejectEscapedPositional();
       }
-      return rel.split(sep).join('/');
+      let canonical = null;
+      try {
+        canonical = realpathSync(absolute);
+      } catch {
+        // Preserve the existing deleted/unreadable positional behaviour: the
+        // scan loop skips it without making a claim about unread content.
+      }
+      if (canonical !== null && !isInsideRoot(canonical)) rejectEscapedPositional();
+      const display = rel.split(sep).join('/');
+      explicitPaths.set(display, canonical);
+      return display;
     });
   }
   const args = ['-C', root, 'ls-files', '-z'];
@@ -164,6 +194,34 @@ function listFiles() {
   return walkFiles(root, '', []);
 }
 
+/**
+ * Read an explicit repository file without trusting lexical containment.
+ * Canonical containment blocks existing symlinks; the open descriptor is
+ * matched back to the post-open canonical inode before any bytes are read,
+ * closing the ancestor-swap gap between validation and use.
+ */
+function readExplicitFile(rel) {
+  const canonical = explicitPaths.get(rel);
+  if (canonical === null || canonical === undefined) return null;
+
+  let fd;
+  try {
+    fd = openSync(canonical, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const opened = fstatSync(fd);
+    const current = realpathSync(canonical);
+    if (!isInsideRoot(current)) rejectEscapedPositional();
+    const currentStat = statSync(current);
+    if (opened.dev !== currentStat.dev || opened.ino !== currentStat.ino) {
+      rejectEscapedPositional();
+    }
+    return readFileSync(fd, 'utf8');
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 const findings = [];
 const optedOutFiles = [];
 let scanned = 0;
@@ -171,7 +229,9 @@ let scanned = 0;
 for (const rel of listFiles()) {
   let text;
   try {
-    text = readFileSync(resolve(root, rel), 'utf8');
+    text =
+      positionals.length > 0 ? readExplicitFile(rel) : readFileSync(resolve(root, rel), 'utf8');
+    if (text === null) continue;
   } catch {
     // Unreadable or binary-ish entries (a deleted-but-indexed path, a symlink
     // to nowhere) carry no signal. Skipping is an honest under-report, never a

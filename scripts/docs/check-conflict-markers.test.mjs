@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -234,6 +234,46 @@ test('explicit positional paths outside the repository are a tooling failure', a
     await rm(outsideRoot, { recursive: true, force: true });
   }
 });
+
+test(
+  'explicit positional file symlinks cannot escape the repository',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const root = await makeRepo({ 'docs/clean.md': '# clean\n' });
+    const outsideRoot = await makeRepo({ 'outside.md': `${OURS} EXTERNAL-PROBE\n` });
+    try {
+      await symlink(join(outsideRoot, 'outside.md'), join(root, 'docs', 'linked.md'));
+      const r = run(root, ['docs/linked.md']);
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /outside the repository root/i);
+      assert.ok(!r.stderr.includes('EXTERNAL-PROBE'), 'must not read external content');
+      assert.ok(!r.stderr.includes(outsideRoot), 'must not echo the escaped target');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outsideRoot, { recursive: true, force: true });
+    }
+  }
+);
+
+test(
+  'explicit positional symlinked ancestors cannot escape the repository',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const root = await makeRepo({ 'placeholder.md': '# clean\n' });
+    const outsideRoot = await makeRepo({ 'a.md': `${BASE} EXTERNAL-PROBE\n` });
+    try {
+      await symlink(outsideRoot, join(root, 'docs'), 'dir');
+      const r = run(root, ['docs/a.md']);
+      assert.equal(r.status, 2, r.stdout + r.stderr);
+      assert.match(r.stderr, /outside the repository root/i);
+      assert.ok(!r.stderr.includes('EXTERNAL-PROBE'), 'must not read external content');
+      assert.ok(!r.stderr.includes(outsideRoot), 'must not echo the escaped target');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outsideRoot, { recursive: true, force: true });
+    }
+  }
+);
 
 test('explicit absolute paths report repo-relative forward-slash paths', async () => {
   const root = await makeRepo({ 'plans/index.aps.md': `| a |\n${BASE} parent of abc (s)\n` });
