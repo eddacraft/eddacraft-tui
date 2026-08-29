@@ -72,7 +72,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-002: Restore suspended-account approval
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** An operator can reactivate a previously approved suspended
