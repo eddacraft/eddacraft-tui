@@ -5426,8 +5426,7 @@ mod tests {
     }
 
     fn write_detectable_env(path: &Path) {
-        let value = "abcd".repeat(10);
-        std::fs::write(path, format!("aws_secret_access_key='{value}'\n")).unwrap();
+        std::fs::write(path, detectable_secret_body()).unwrap();
     }
 
     /// Create a fixture whose *filename* the host filesystem may refuse.
@@ -5456,8 +5455,7 @@ mod tests {
     /// `try_write_exotic_fixture` with the standard detectable-secret body.
     #[must_use]
     fn try_write_detectable_env(path: &Path) -> bool {
-        let value = "abcd".repeat(10);
-        try_write_exotic_fixture(path, &format!("aws_secret_access_key='{value}'\n"))
+        try_write_exotic_fixture(path, &detectable_secret_body())
     }
 
     /// Emit the skip marker used by the exotic-filename tests. Mirrors the
@@ -5470,6 +5468,75 @@ mod tests {
              control characters and the reserved set including `:`), so the path this \
              test exists to scan cannot be created here. Any preceding `git ...` line \
              carries the exact refusal."
+        );
+    }
+
+    fn detectable_secret_body() -> String {
+        let value = "abcd".repeat(10);
+        format!("aws_secret_access_key='{value}'\n")
+    }
+
+    fn init_hook_repo(root: &Path) {
+        git_for_hook_fixture(root, &["init", "--quiet"]);
+    }
+
+    fn commit_hook_fixture(root: &Path) {
+        git_for_hook_fixture(
+            root,
+            &[
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "-m",
+                "fixture",
+            ],
+        );
+    }
+
+    fn add_hook_paths(root: &Path, paths: &[&str]) {
+        let mut args = vec!["add", "-f"];
+        args.extend(paths);
+        git_for_hook_fixture(root, &args);
+    }
+
+    fn run_hook_secret(root: &Path) -> CheckResult {
+        run_hook_secret_plan(root, &std::collections::HashSet::new())
+    }
+
+    fn run_hook_secret_plan(
+        root: &Path,
+        plan_files: &std::collections::HashSet<String>,
+    ) -> CheckResult {
+        run_check_secret_with_hook_mode("secret", root, plan_files, true)
+    }
+
+    fn write_rel(root: &Path, rel: &str, contents: &str) {
+        let path = root.join(rel);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, contents).unwrap();
+    }
+
+    fn assert_finding_qualification(
+        message: &str,
+        needle: &str,
+        want_pre_existing: bool,
+        case: &str,
+    ) {
+        let line = message
+            .lines()
+            .find(|line| line.contains(needle))
+            .unwrap_or_else(|| {
+                panic!("{case}: expected a finding containing {needle:?} in {message}")
+            });
+        assert_eq!(
+            line.contains("pre-existing"),
+            want_pre_existing,
+            "{case}: {needle:?} pre-existing={want_pre_existing} in {line}"
         );
     }
 
@@ -5490,9 +5557,380 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
+    fn hook_secret_check_qualifies_layered_git_findings() {
+        struct Case {
+            name: &'static str,
+            path: &'static str,
+            committed: Option<String>,
+            staged: Option<String>,
+            worktree: Option<String>,
+            extra_committed: Vec<(&'static str, String)>,
+            extra_staged: Vec<(&'static str, String)>,
+            rename_to: Option<&'static str>,
+            expect_passed: Option<bool>,
+            findings: Vec<(&'static str, bool)>,
+            extra_absent: Vec<&'static str>,
+        }
+
+        let secret = detectable_secret_body();
+        let secret_one = format!("aws_secret_access_key='abcd{}wxyz'\n", "1".repeat(32));
+        let secret_two = format!("aws_secret_access_key='abcd{}wxyz'\n", "2".repeat(32));
+        let value = "abcd".repeat(10);
+        let cases = vec![
+            Case {
+                name: "committed_occurrence_pre_existing_after_same_line_comment_edit",
+                path: ".env",
+                committed: Some(format!("aws_secret_access_key='{value}' # committed\n")),
+                staged: Some(format!(
+                    "aws_secret_access_key='{value}' # staged comment\n"
+                )),
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: None,
+                findings: vec![(".env:1", true)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "labels_committed_finding_pre_existing",
+                path: ".env",
+                committed: Some(secret.clone()),
+                staged: None,
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![("clean.rs", "pub const CLEAN: bool = true;\n".to_string())],
+                rename_to: None,
+                expect_passed: Some(false),
+                findings: vec![(".env:1", true)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "classifies_printable_unicode_paths",
+                path: "配置.rs",
+                committed: Some(secret.clone()),
+                staged: None,
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![
+                    ("安全.rs", "pub const SAFE: bool = true;\n".to_string()),
+                    ("秘密.rs", secret.clone()),
+                ],
+                rename_to: None,
+                expect_passed: None,
+                findings: vec![("配置.rs:1", true), ("秘密.rs:1", false)],
+                extra_absent: vec!["staged content unavailable"],
+            },
+            Case {
+                name: "labels_unstaged_finding_pre_existing",
+                path: ".env",
+                committed: Some("SAFE_VALUE=local\n".to_string()),
+                staged: None,
+                worktree: Some(secret.clone()),
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: Some(false),
+                findings: vec![(".env:1", true)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "labels_committed_finding_with_unrelated_staged_edit",
+                path: ".env",
+                committed: Some(secret.clone()),
+                staged: Some(format!(
+                    "aws_secret_access_key='{value}'\nSAFE_VALUE=staged\n"
+                )),
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: Some(false),
+                findings: vec![(".env:1", true)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "labels_unstaged_finding_with_clean_staged_edit",
+                path: ".env",
+                committed: Some("SAFE_VALUE=committed\n".to_string()),
+                staged: Some("SAFE_VALUE=staged\n".to_string()),
+                worktree: Some(format!(
+                    "SAFE_VALUE=staged\naws_secret_access_key='{value}'\n"
+                )),
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: Some(false),
+                findings: vec![(".env:2", true)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "keeps_redaction_collision_staged_change_primary",
+                path: ".env",
+                committed: Some(secret_one),
+                staged: Some(secret_two),
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: None,
+                findings: vec![(".env:1", false)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "maps_identical_staged_and_unstaged_duplicate_occurrences",
+                path: ".env",
+                committed: Some("ANCHOR=before\nANCHOR=after\n".to_string()),
+                staged: Some(format!(
+                    "ANCHOR=before\nSTAGED_CONTEXT=keep\naws_secret_access_key='{value}'\nANCHOR=after\n"
+                )),
+                worktree: Some(format!(
+                    "ANCHOR=before\naws_secret_access_key='{value}'\nSTAGED_CONTEXT=keep\naws_secret_access_key='{value}'\nANCHOR=after\n"
+                )),
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: None,
+                findings: vec![(".env:2", true), (".env:4", false)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "labels_unchanged_staged_rename_pre_existing",
+                path: ".env.old",
+                committed: Some(secret.clone()),
+                staged: None,
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: Some(".env.new"),
+                expect_passed: Some(false),
+                findings: vec![(".env.new:1", true)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "marks_rename_into_scannable_scope_primary",
+                path: "safe.txt",
+                committed: Some(secret.clone()),
+                staged: None,
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: Some(".env"),
+                expect_passed: Some(false),
+                findings: vec![(".env:1", false)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "matches_identical_head_occurrence_by_line",
+                path: ".env",
+                committed: Some(format!(
+                    "ANCHOR=before\naws_secret_access_key='{value}'\nANCHOR=after\n"
+                )),
+                staged: Some(format!(
+                    "aws_secret_access_key='{value}'\nANCHOR=before\naws_secret_access_key='{value}'\nANCHOR=after\n"
+                )),
+                worktree: None,
+                extra_committed: vec![],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: None,
+                findings: vec![(".env:1", false), (".env:3", true)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "blocks_index_only_staged_secret",
+                path: ".env",
+                committed: None,
+                staged: Some(secret.clone()),
+                worktree: Some("SAFE_VALUE=working-tree\n".to_string()),
+                extra_committed: vec![("README.md", "fixture\n".to_string())],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: Some(false),
+                findings: vec![(".env:1", false)],
+                extra_absent: vec![],
+            },
+            Case {
+                name: "keeps_staged_finding_primary",
+                path: ".env.local",
+                committed: None,
+                staged: Some(secret.clone()),
+                worktree: None,
+                extra_committed: vec![("README.md", "fixture\n".to_string())],
+                extra_staged: vec![],
+                rename_to: None,
+                expect_passed: Some(false),
+                findings: vec![(".env.local:1", false)],
+                extra_absent: vec![],
+            },
+        ];
+
+        for case in cases {
+            let tmp = tempfile::TempDir::new().unwrap();
+            let root = tmp.path();
+            init_hook_repo(root);
+
+            let mut committed_paths = Vec::new();
+            for (rel, contents) in &case.extra_committed {
+                write_rel(root, rel, contents);
+                committed_paths.push(*rel);
+            }
+            if let Some(contents) = &case.committed {
+                write_rel(root, case.path, contents);
+                committed_paths.push(case.path);
+            }
+            if !committed_paths.is_empty() {
+                add_hook_paths(root, &committed_paths);
+                commit_hook_fixture(root);
+            }
+
+            let live_path = case.rename_to.unwrap_or(case.path);
+            if let Some(renamed) = case.rename_to {
+                git_for_hook_fixture(root, &["mv", case.path, renamed]);
+            }
+
+            let mut staged_paths = Vec::new();
+            if let Some(contents) = &case.staged {
+                write_rel(root, live_path, contents);
+                staged_paths.push(live_path);
+            }
+            for (rel, contents) in &case.extra_staged {
+                write_rel(root, rel, contents);
+                staged_paths.push(*rel);
+            }
+            if !staged_paths.is_empty() {
+                add_hook_paths(root, &staged_paths);
+            }
+            if let Some(contents) = &case.worktree {
+                write_rel(root, live_path, contents);
+            }
+
+            let result = run_hook_secret(root);
+            if let Some(passed) = case.expect_passed {
+                assert_eq!(
+                    result.passed, passed,
+                    "{}: passed={} message={}",
+                    case.name, result.passed, result.message
+                );
+            }
+            for (needle, want_pre_existing) in case.findings {
+                assert_finding_qualification(&result.message, needle, want_pre_existing, case.name);
+            }
+            for absent in case.extra_absent {
+                assert!(
+                    !result.message.contains(absent),
+                    "{}: message should not contain {absent:?}: {}",
+                    case.name,
+                    result.message
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn hook_secret_check_index_only_scope() {
+        struct Case {
+            name: &'static str,
+            secret_path: &'static str,
+            extra_files: Vec<(&'static str, &'static str)>,
+            worktree: &'static str,
+            plan: &'static [&'static str],
+            expect_passed: bool,
+            must_contain: &'static [&'static str],
+            must_not_contain: &'static [&'static str],
+        }
+
+        let cases = [
+            Case {
+                name: "ignores_index_only_secret_in_ignored_directory",
+                secret_path: "node_modules/package/config.js",
+                extra_files: vec![],
+                worktree: "export const safe = true;\n",
+                plan: &[],
+                expect_passed: true,
+                must_contain: &[],
+                must_not_contain: &["node_modules"],
+            },
+            Case {
+                name: "ignores_index_only_secret_in_skipped_extension",
+                secret_path: "bundle.min.js",
+                extra_files: vec![],
+                worktree: "export const safe = true;\n",
+                plan: &[],
+                expect_passed: true,
+                must_contain: &[],
+                must_not_contain: &["bundle.min.js"],
+            },
+            Case {
+                name: "respects_plan_scope_for_index_only_findings",
+                secret_path: "src/out_of_scope.rs",
+                extra_files: vec![("src/in_scope.rs", "fn safe() {}\n")],
+                worktree: "fn also_safe() {}\n",
+                plan: &["src/in_scope.rs"],
+                expect_passed: true,
+                must_contain: &[],
+                must_not_contain: &["out_of_scope.rs"],
+            },
+            Case {
+                name: "blocks_in_scope_index_only_finding",
+                secret_path: "src/in_scope.rs",
+                extra_files: vec![],
+                worktree: "fn safe() {}\n",
+                plan: &["src/in_scope.rs"],
+                expect_passed: false,
+                must_contain: &["src/in_scope.rs:1"],
+                must_not_contain: &["[staged content unavailable]"],
+            },
+        ];
+
+        for case in cases {
+            let tmp = tempfile::TempDir::new().unwrap();
+            let root = tmp.path();
+            init_hook_repo(root);
+            let mut add_paths = vec![case.secret_path];
+            for (rel, contents) in &case.extra_files {
+                write_rel(root, rel, contents);
+                add_paths.push(*rel);
+            }
+            write_rel(root, case.secret_path, &detectable_secret_body());
+            add_hook_paths(root, &add_paths);
+            write_rel(root, case.secret_path, case.worktree);
+            let plan_files = case
+                .plan
+                .iter()
+                .map(|path| (*path).to_string())
+                .collect::<std::collections::HashSet<_>>();
+            let result = run_hook_secret_plan(root, &plan_files);
+            assert_eq!(
+                result.passed, case.expect_passed,
+                "{}: passed={} message={}",
+                case.name, result.passed, result.message
+            );
+            for needle in case.must_contain {
+                assert!(
+                    result.message.contains(needle),
+                    "{}: expected {needle:?} in {}",
+                    case.name,
+                    result.message
+                );
+            }
+            for needle in case.must_not_contain {
+                assert!(
+                    !result.message.contains(needle),
+                    "{}: unexpected {needle:?} in {}",
+                    case.name,
+                    result.message
+                );
+            }
+        }
+    }
+
+    #[test]
     fn hook_secret_check_fails_closed_when_inventory_is_globally_unavailable() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
 
         let result = run_check_secret_with_hook_mode_and_provenance(
             "secret",
@@ -5726,58 +6164,10 @@ mod tests {
         assert_eq!(index[".env"].len(), 2);
         assert_eq!(index[".env.other"].len(), 1);
     }
-
-    #[test]
-    fn hook_secret_check_keeps_committed_occurrence_pre_existing_after_same_line_comment_edit() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let env_path = tmp.path().join(".env");
-        let value = "abcd".repeat(10);
-        std::fs::write(
-            &env_path,
-            format!("aws_secret_access_key='{value}' # committed\n"),
-        )
-        .unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        std::fs::write(
-            &env_path,
-            format!("aws_secret_access_key='{value}' # staged comment\n"),
-        )
-        .unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(
-            result
-                .message
-                .lines()
-                .any(|line| line.contains(".env:1") && line.contains("pre-existing"))
-        );
-    }
-
     #[test]
     fn hook_secret_check_marks_oversized_head_mapping_indeterminate() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let env_path = tmp.path().join(".env.large-head");
         let value = "abcd".repeat(10);
         let prefix = format!("aws_secret_access_key='{value}'\n");
@@ -5790,28 +6180,11 @@ mod tests {
         )
         .unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.large-head"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         std::fs::write(&env_path, prefix).unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.large-head"]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             result
@@ -5829,23 +6202,11 @@ mod tests {
     #[test]
     fn hook_secret_check_leaves_partially_staged_modified_occurrence_unqualified() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let env_path = tmp.path().join(".env");
         std::fs::write(&env_path, "SAFE_VALUE=committed\n").unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         let staged_value = format!("abcd{}wxyz", "1".repeat(32));
         std::fs::write(
             &env_path,
@@ -5860,12 +6221,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(result.message.contains(".env [staged content unavailable]"));
         assert!(
@@ -5881,17 +6237,12 @@ mod tests {
     #[test]
     fn hook_secret_check_escapes_control_path_in_finding_display() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let exotic_path = ".env\n\u{1b}[31m";
         write_detectable_env(&tmp.path().join(exotic_path));
         git_for_hook_fixture(tmp.path(), &["add", "-f", exotic_path]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(result.message.contains(r".env\n\x1b[31m:1"));
         assert!(!result.message.contains(&format!("{exotic_path}:1")));
@@ -5931,409 +6282,6 @@ mod tests {
         );
         assert!(GIT_PROVENANCE_DIFF_ARGS.contains(&"--no-textconv"));
     }
-
-    #[test]
-    fn hook_secret_check_labels_committed_finding_pre_existing() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        write_detectable_env(&tmp.path().join(".env"));
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        std::fs::write(
-            tmp.path().join("clean.rs"),
-            "pub const CLEAN: bool = true;\n",
-        )
-        .unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "clean.rs"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed, "committed secret must still block the gate");
-        assert!(
-            result
-                .message
-                .lines()
-                .any(|line| line.contains(".env:1") && line.contains("pre-existing")),
-            "committed finding should be qualified in hook output: {}",
-            result.message
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_classifies_printable_unicode_paths() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let committed_path = tmp.path().join("配置.rs");
-        write_detectable_env(&committed_path);
-        git_for_hook_fixture(tmp.path(), &["add", "配置.rs"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        std::fs::write(tmp.path().join("安全.rs"), "pub const SAFE: bool = true;\n").unwrap();
-        write_detectable_env(&tmp.path().join("秘密.rs"));
-        git_for_hook_fixture(tmp.path(), &["add", "安全.rs", "秘密.rs"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        let committed = result
-            .message
-            .lines()
-            .find(|line| line.contains("配置.rs:1"))
-            .expect("committed Unicode-path finding should be rendered");
-        assert!(committed.contains("pre-existing"));
-        let staged = result
-            .message
-            .lines()
-            .find(|line| line.contains("秘密.rs:1"))
-            .expect("staged Unicode-path finding should be rendered");
-        assert!(!staged.contains("pre-existing"));
-        assert!(!result.message.contains("staged content unavailable"));
-    }
-
-    #[test]
-    fn hook_secret_check_labels_unstaged_finding_pre_existing() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        std::fs::write(tmp.path().join(".env"), "SAFE_VALUE=local\n").unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        write_detectable_env(&tmp.path().join(".env"));
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed, "unstaged secret must still block the gate");
-        assert!(
-            result
-                .message
-                .lines()
-                .any(|line| line.contains(".env:1") && line.contains("pre-existing")),
-            "unstaged finding should be qualified in hook output: {}",
-            result.message
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_labels_committed_finding_with_unrelated_staged_edit() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let env_path = tmp.path().join(".env");
-        write_detectable_env(&env_path);
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        let value = "abcd".repeat(10);
-        std::fs::write(
-            &env_path,
-            format!("aws_secret_access_key='{value}'\nSAFE_VALUE=staged\n"),
-        )
-        .unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed);
-        assert!(
-            result
-                .message
-                .lines()
-                .any(|line| line.contains(".env:1") && line.contains("pre-existing")),
-            "a staged path must not make committed debt primary: {}",
-            result.message
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_labels_unstaged_finding_with_clean_staged_edit() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let env_path = tmp.path().join(".env");
-        std::fs::write(&env_path, "SAFE_VALUE=committed\n").unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        std::fs::write(&env_path, "SAFE_VALUE=staged\n").unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        let value = "abcd".repeat(10);
-        std::fs::write(
-            &env_path,
-            format!("SAFE_VALUE=staged\naws_secret_access_key='{value}'\n"),
-        )
-        .unwrap();
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed);
-        assert!(
-            result
-                .message
-                .lines()
-                .any(|line| line.contains(".env:2") && line.contains("pre-existing")),
-            "unstaged debt must not become primary because its path is staged: {}",
-            result.message
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_keeps_redaction_collision_staged_change_primary() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let env_path = tmp.path().join(".env");
-        let committed = format!("aws_secret_access_key='abcd{}wxyz'\n", "1".repeat(32));
-        std::fs::write(&env_path, committed).unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        let staged = format!("aws_secret_access_key='abcd{}wxyz'\n", "2".repeat(32));
-        std::fs::write(&env_path, staged).unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        let finding_line = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env:1"))
-            .expect("changed staged secret should be rendered");
-        assert!(
-            !finding_line.contains("pre-existing"),
-            "a raw staged change hidden by redaction must remain primary: {finding_line}"
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_maps_identical_staged_and_unstaged_duplicate_occurrences() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let env_path = tmp.path().join(".env");
-        std::fs::write(&env_path, "ANCHOR=before\nANCHOR=after\n").unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        let value = "abcd".repeat(10);
-        let staged = format!(
-            "ANCHOR=before\nSTAGED_CONTEXT=keep\naws_secret_access_key='{value}'\nANCHOR=after\n"
-        );
-        std::fs::write(&env_path, &staged).unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        let working = format!(
-            "ANCHOR=before\naws_secret_access_key='{value}'\nSTAGED_CONTEXT=keep\naws_secret_access_key='{value}'\nANCHOR=after\n"
-        );
-        std::fs::write(&env_path, working).unwrap();
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        let unstaged_duplicate = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env:2"))
-            .expect("unstaged duplicate should be rendered");
-        let staged_occurrence = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env:4"))
-            .expect("staged occurrence should be rendered");
-        assert!(
-            unstaged_duplicate.contains("pre-existing"),
-            "unstaged duplicate must not consume staged attribution: {unstaged_duplicate}"
-        );
-        assert!(
-            !staged_occurrence.contains("pre-existing"),
-            "mapped staged occurrence must remain primary: {staged_occurrence}"
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_labels_unchanged_staged_rename_pre_existing() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        write_detectable_env(&tmp.path().join(".env.old"));
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.old"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        git_for_hook_fixture(tmp.path(), &["mv", ".env.old", ".env.new"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed);
-        assert!(
-            result
-                .message
-                .lines()
-                .any(|line| line.contains(".env.new:1") && line.contains("pre-existing")),
-            "an unchanged staged rename must retain HEAD provenance: {}",
-            result.message
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_marks_rename_into_scannable_scope_primary() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        write_detectable_env(&tmp.path().join("safe.txt"));
-        git_for_hook_fixture(tmp.path(), &["add", "safe.txt"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        git_for_hook_fixture(tmp.path(), &["mv", "safe.txt", ".env"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed);
-        let renamed_finding = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env:1"))
-            .expect("renamed finding should be rendered");
-        assert!(
-            !renamed_finding.contains("pre-existing"),
-            "renaming a secret into scan scope introduces gate debt: {renamed_finding}"
-        );
-    }
-
     #[test]
     fn hook_secret_check_treats_excluded_head_rename_as_new_staged_debt() {
         let cases = [
@@ -6359,7 +6307,7 @@ mod tests {
         ];
         for (old_path, new_path, plan_path) in cases {
             let tmp = tempfile::TempDir::new().unwrap();
-            git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+            init_hook_repo(tmp.path());
             std::fs::create_dir_all(tmp.path().join(&old_path).parent().unwrap()).unwrap();
             write_detectable_env(&tmp.path().join(&old_path));
             git_for_hook_fixture(tmp.path(), &["add", "-f", &old_path]);
@@ -6407,35 +6355,18 @@ mod tests {
     #[test]
     fn hook_secret_check_associates_unsafe_old_rename_with_new_path() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let old_path = "source\n.js";
         if !try_write_detectable_env(&tmp.path().join(old_path)) {
             skip_exotic_filename("hook_secret_check_associates_unsafe_old_rename_with_new_path");
             return;
         }
         git_for_hook_fixture(tmp.path(), &["add", old_path]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         git_for_hook_fixture(tmp.path(), &["mv", old_path, "source.js"]);
         std::fs::write(tmp.path().join("source.js"), "export const safe = true;\n").unwrap();
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(!result.passed, "unsafe HEAD attribution must fail closed");
         assert!(result.message.contains("source.js"));
@@ -6445,33 +6376,16 @@ mod tests {
     #[test]
     fn hook_secret_check_ignores_unsafe_new_rename_outside_domain() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         write_detectable_env(&tmp.path().join("source.js"));
         git_for_hook_fixture(tmp.path(), &["add", "source.js"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         if !try_git_for_hook_fixture(tmp.path(), &["mv", "source.js", "notes\n.txt"]) {
             skip_exotic_filename("hook_secret_check_ignores_unsafe_new_rename_outside_domain");
             return;
         }
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             result.passed,
@@ -6484,7 +6398,7 @@ mod tests {
     #[test]
     fn hook_secret_check_isolates_non_utf8_staged_blob() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         std::fs::write(tmp.path().join(".env.invalid"), [0xff]).unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.invalid"]);
         let secret_path = tmp.path().join(".env.secret");
@@ -6492,12 +6406,7 @@ mod tests {
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.secret"]);
         std::fs::write(&secret_path, "SAFE_VALUE=working-tree\n").unwrap();
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(!result.passed, "a readable staged secret must still block");
         assert!(
@@ -6513,18 +6422,13 @@ mod tests {
     #[test]
     fn hook_secret_check_fails_closed_for_uninspectable_staged_blob() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let env_path = tmp.path().join(".env.invalid");
         std::fs::write(&env_path, [0xff]).unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.invalid"]);
         std::fs::write(&env_path, "SAFE_VALUE=working-tree\n").unwrap();
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             !result.passed,
@@ -6542,18 +6446,13 @@ mod tests {
     #[test]
     fn hook_secret_check_leaves_indeterminate_worktree_finding_unqualified() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let env_path = tmp.path().join(".env.invalid");
         std::fs::write(&env_path, [0xff]).unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.invalid"]);
         write_detectable_env(&env_path);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         let worktree_finding = result
             .message
@@ -6569,7 +6468,7 @@ mod tests {
     #[test]
     fn hook_secret_check_batches_git_subprocesses_for_many_files() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         for index in 0..32 {
             std::fs::write(
                 tmp.path().join(format!(".env.{index}")),
@@ -6594,7 +6493,7 @@ mod tests {
     #[test]
     fn hook_secret_check_excludes_oversized_worktree_from_diff_snapshot() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let env_path = tmp.path().join(".env.large-worktree");
         write_detectable_env(&env_path);
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.large-worktree"]);
@@ -6625,22 +6524,10 @@ mod tests {
     #[test]
     fn hook_secret_check_ignores_staged_gitlink_objects() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         std::fs::write(tmp.path().join("README.md"), "fixture\n").unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "README.md"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         let head = std::process::Command::new("git")
             .args(["rev-parse", "HEAD"])
             .current_dir(tmp.path())
@@ -6669,7 +6556,7 @@ mod tests {
     #[test]
     fn hook_secret_check_isolates_newline_path_from_normal_provenance() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let exotic_path = ".env\nexotic";
         if !try_write_detectable_env(&tmp.path().join(exotic_path)) {
             skip_exotic_filename("hook_secret_check_isolates_newline_path_from_normal_provenance");
@@ -6680,12 +6567,7 @@ mod tests {
         write_detectable_env(&normal_path);
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.normal"]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(result.message.contains("[staged content unavailable]"));
         let normal_finding = result
@@ -6702,7 +6584,7 @@ mod tests {
     #[test]
     fn hook_secret_check_indexes_dense_finding_lines_once() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let value = "abcd".repeat(10);
         let finding_line = format!("aws_secret_access_key='{value}'\n");
         let content = finding_line.repeat(512);
@@ -6735,7 +6617,7 @@ mod tests {
     #[test]
     fn hook_secret_check_keeps_smaller_worktree_finding_unqualified_for_oversized_index() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let env_path = tmp.path().join(".env.large");
         std::fs::write(
             &env_path,
@@ -6745,12 +6627,7 @@ mod tests {
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.large"]);
         write_detectable_env(&env_path);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         let worktree_finding = result
             .message
@@ -6773,7 +6650,7 @@ mod tests {
     #[test]
     fn hook_secret_check_skips_oversized_staged_blob_without_discarding_others() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let large_path = tmp.path().join(".env.a-large");
         let value = "abcd".repeat(10);
         let prefix = format!("aws_secret_access_key='{value}'\n");
@@ -6791,12 +6668,7 @@ mod tests {
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.z-secret"]);
         std::fs::write(&secret_path, "SAFE_VALUE=working-tree\n").unwrap();
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             !result.passed,
@@ -6821,33 +6693,16 @@ mod tests {
     #[test]
     fn hook_secret_check_includes_symlink_to_regular_type_change() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         std::fs::write(tmp.path().join("safe.txt"), "SAFE_VALUE=committed\n").unwrap();
         std::os::unix::fs::symlink("safe.txt", tmp.path().join(".env.link")).unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.link", "safe.txt"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         std::fs::remove_file(tmp.path().join(".env.link")).unwrap();
         write_detectable_env(&tmp.path().join(".env.link"));
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.link"]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(!result.passed);
         let finding = result
@@ -6864,7 +6719,7 @@ mod tests {
     #[test]
     fn hook_secret_check_treats_pathspec_magic_filename_literally() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let magic_path = ":(literal).env";
         let env_path = tmp.path().join(magic_path);
         if !try_write_detectable_env(&env_path) {
@@ -6878,12 +6733,7 @@ mod tests {
         let staged = std::fs::read_to_string(&env_path).unwrap();
         std::fs::write(&env_path, format!("SAFE_VALUE=working-tree\n{staged}")).unwrap();
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         let shifted_finding = result
             .message
@@ -6901,7 +6751,7 @@ mod tests {
         use std::fmt::Write as _;
 
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let env_path = tmp.path().join(".env");
         let mut committed = String::new();
         for line in 1..=12 {
@@ -6909,19 +6759,7 @@ mod tests {
         }
         std::fs::write(&env_path, &committed).unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         let value = "abcd".repeat(10);
         let staged = committed.replace(
             "LINE_9=safe\n",
@@ -6937,12 +6775,7 @@ mod tests {
             );
         std::fs::write(&env_path, working).unwrap();
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         let shifted_finding = result
             .message
@@ -6954,175 +6787,16 @@ mod tests {
             "added content must not poison later hunk attribution: {shifted_finding}"
         );
     }
-
-    #[test]
-    fn hook_secret_check_matches_identical_head_occurrence_by_line() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let env_path = tmp.path().join(".env");
-        let value = "abcd".repeat(10);
-        let secret = format!("aws_secret_access_key='{value}'");
-        std::fs::write(
-            &env_path,
-            format!("ANCHOR=before\n{secret}\nANCHOR=after\n"),
-        )
-        .unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        std::fs::write(
-            &env_path,
-            format!("{secret}\nANCHOR=before\n{secret}\nANCHOR=after\n"),
-        )
-        .unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        let inserted = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env:1"))
-            .expect("inserted occurrence should be rendered");
-        let surviving = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env:3"))
-            .expect("surviving occurrence should be rendered");
-        assert!(
-            !inserted.contains("pre-existing"),
-            "the inserted identical occurrence must remain primary: {inserted}"
-        );
-        assert!(
-            surviving.contains("pre-existing"),
-            "the HEAD occurrence must retain provenance after a line shift: {surviving}"
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_blocks_index_only_staged_secret() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        std::fs::write(tmp.path().join("README.md"), "fixture\n").unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "README.md"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        let env_path = tmp.path().join(".env");
-        write_detectable_env(&env_path);
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env"]);
-        std::fs::write(&env_path, "SAFE_VALUE=working-tree\n").unwrap();
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed, "a staged index secret must block the hook");
-        let staged_line = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env:1"))
-            .expect("index-only staged finding should be rendered");
-        assert!(
-            !staged_line.contains("pre-existing"),
-            "index-only staged debt must remain primary: {staged_line}"
-        );
-    }
-
-    #[test]
-    fn hook_secret_check_ignores_index_only_secret_in_ignored_directory() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let ignored_dir = tmp.path().join("node_modules/package");
-        std::fs::create_dir_all(&ignored_dir).unwrap();
-        let ignored_path = ignored_dir.join("config.js");
-        write_detectable_env(&ignored_path);
-        git_for_hook_fixture(tmp.path(), &["add", "-f", "node_modules/package/config.js"]);
-        std::fs::write(&ignored_path, "export const safe = true;\n").unwrap();
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(
-            result.passed,
-            "ignored staged paths must stay outside the gate: {}",
-            result.message
-        );
-        assert!(!result.message.contains("node_modules"));
-    }
-
-    #[test]
-    fn hook_secret_check_ignores_index_only_secret_in_skipped_extension() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        let skipped_path = tmp.path().join("bundle.min.js");
-        write_detectable_env(&skipped_path);
-        git_for_hook_fixture(tmp.path(), &["add", "bundle.min.js"]);
-        std::fs::write(&skipped_path, "export const safe = true;\n").unwrap();
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(
-            result.passed,
-            "skipped extensions must stay outside the gate: {}",
-            result.message
-        );
-        assert!(!result.message.contains("bundle.min.js"));
-    }
-
     #[cfg(unix)]
     #[test]
     fn hook_secret_check_ignores_staged_symlink() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let target = format!("aws_secret_access_key={}", "abcd".repeat(10));
         std::os::unix::fs::symlink(&target, tmp.path().join("linked.js")).unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "linked.js"]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             result.passed,
@@ -7135,22 +6809,10 @@ mod tests {
     #[test]
     fn hook_secret_check_ignores_control_name_staged_gitlink() {
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         std::fs::write(tmp.path().join("README.md"), "fixture\n").unwrap();
         git_for_hook_fixture(tmp.path(), &["add", "README.md"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
+        commit_hook_fixture(tmp.path());
         let head = std::process::Command::new("git")
             .args(["rev-parse", "HEAD"])
             .current_dir(tmp.path())
@@ -7167,12 +6829,7 @@ mod tests {
             return;
         }
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             result.passed,
@@ -7188,7 +6845,7 @@ mod tests {
         use std::os::unix::ffi::OsStrExt as _;
 
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let path = tmp
             .path()
             .join(std::ffi::OsStr::from_bytes(b"linked-\xff.js"));
@@ -7198,12 +6855,7 @@ mod tests {
         }
         git_for_hook_fixture(tmp.path(), &["add", "-A"]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             result.passed,
@@ -7219,7 +6871,7 @@ mod tests {
         use std::os::unix::ffi::OsStrExt as _;
 
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         let path = tmp
             .path()
             .join(std::ffi::OsStr::from_bytes(b"source-\xff.js"));
@@ -7229,12 +6881,7 @@ mod tests {
         }
         git_for_hook_fixture(tmp.path(), &["add", "-A"]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(!result.passed, "unsafe regular paths must fail closed");
         assert!(result.message.contains("[staged content unavailable]"));
@@ -7246,7 +6893,7 @@ mod tests {
         use std::os::unix::ffi::OsStrExt as _;
 
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         // Every path this test needs is exotic: newline in the name, and
         // non-UTF-8 (`\xff`) bytes. macOS APFS rejects the latter with
         // "Illegal byte sequence"; Windows rejects control characters.
@@ -7275,12 +6922,7 @@ mod tests {
         }
         git_for_hook_fixture(tmp.path(), &["add", "-f", "-A"]);
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(
             result.passed,
@@ -7296,7 +6938,7 @@ mod tests {
         use std::os::unix::ffi::OsStrExt as _;
 
         let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
+        init_hook_repo(tmp.path());
         std::fs::create_dir_all(tmp.path().join("src")).unwrap();
         std::fs::write(tmp.path().join("src/in_scope.rs"), "fn safe() {}\n").unwrap();
         if !try_write_exotic_fixture(
@@ -7320,50 +6962,6 @@ mod tests {
         );
         assert!(!result.message.contains("[staged content unavailable]"));
     }
-
-    #[test]
-    fn hook_secret_check_respects_plan_scope_for_index_only_findings() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
-        std::fs::write(tmp.path().join("src/in_scope.rs"), "fn safe() {}\n").unwrap();
-        let out_of_scope = tmp.path().join("src/out_of_scope.rs");
-        write_detectable_env(&out_of_scope);
-        git_for_hook_fixture(tmp.path(), &["add", "src"]);
-        std::fs::write(&out_of_scope, "fn also_safe() {}\n").unwrap();
-        let plan_files = std::collections::HashSet::from(["src/in_scope.rs".to_string()]);
-
-        let result = run_check_secret_with_hook_mode("secret", tmp.path(), &plan_files, true);
-
-        assert!(
-            result.passed,
-            "out-of-scope staged paths must stay outside the gate: {}",
-            result.message
-        );
-        assert!(!result.message.contains("out_of_scope.rs"));
-    }
-
-    #[test]
-    fn hook_secret_check_blocks_in_scope_index_only_finding() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        std::fs::create_dir_all(tmp.path().join("src")).unwrap();
-        let in_scope = tmp.path().join("src/in_scope.rs");
-        write_detectable_env(&in_scope);
-        git_for_hook_fixture(tmp.path(), &["add", "src/in_scope.rs"]);
-        std::fs::write(&in_scope, "fn safe() {}\n").unwrap();
-        let plan_files = std::collections::HashSet::from(["src/in_scope.rs".to_string()]);
-
-        let result = run_check_secret_with_hook_mode("secret", tmp.path(), &plan_files, true);
-
-        assert!(
-            !result.passed,
-            "an in-scope staged secret must block the hook"
-        );
-        assert!(result.message.contains("src/in_scope.rs:1"));
-        assert!(!result.message.contains("[staged content unavailable]"));
-    }
-
     #[test]
     fn hook_secret_check_preserves_unqualified_fallback_without_git_index() {
         let tmp = tempfile::TempDir::new().unwrap();
@@ -7372,12 +6970,7 @@ mod tests {
         std::fs::write(tmp.path().join(".git"), "gitdir: missing-git-dir\n").unwrap();
         write_detectable_env(&tmp.path().join(".env"));
 
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
+        let result = run_hook_secret(tmp.path());
 
         assert!(!result.passed);
         assert!(result.message.lines().any(|line| line.contains(".env:1")));
@@ -7387,48 +6980,6 @@ mod tests {
             result.message
         );
     }
-
-    #[test]
-    fn hook_secret_check_keeps_staged_finding_primary() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        git_for_hook_fixture(tmp.path(), &["init", "--quiet"]);
-        std::fs::write(tmp.path().join("README.md"), "fixture\n").unwrap();
-        git_for_hook_fixture(tmp.path(), &["add", "README.md"]);
-        git_for_hook_fixture(
-            tmp.path(),
-            &[
-                "-c",
-                "user.name=anvil test",
-                "-c",
-                "user.email=anvil@example.invalid",
-                "commit",
-                "--quiet",
-                "-m",
-                "fixture",
-            ],
-        );
-        write_detectable_env(&tmp.path().join(".env.local"));
-        git_for_hook_fixture(tmp.path(), &["add", "-f", ".env.local"]);
-
-        let result = run_check_secret_with_hook_mode(
-            "secret",
-            tmp.path(),
-            &std::collections::HashSet::new(),
-            true,
-        );
-
-        assert!(!result.passed, "staged secret must block the gate");
-        let staged_line = result
-            .message
-            .lines()
-            .find(|line| line.contains(".env.local:1"))
-            .expect("staged finding should be rendered");
-        assert!(
-            !staged_line.contains("pre-existing"),
-            "staged finding must remain primary: {staged_line}"
-        );
-    }
-
     #[test]
     fn non_hook_secret_check_keeps_existing_location_copy() {
         let tmp = tempfile::TempDir::new().unwrap();
