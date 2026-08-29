@@ -273,7 +273,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-012: Complete operational API documentation
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** API operators can discover every required GitHub credential and
