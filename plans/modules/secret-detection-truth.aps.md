@@ -5,7 +5,7 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | In Progress | 3/8   |
+| SDT | —     | In Progress | 4/8   |
 
 **Last reviewed:** 2026-08-28 (SDT-001 and SDT-002 Merged via
 [#4185](https://github.com/eddacraft/anvil-001/pull/4185), reviewed against
@@ -487,8 +487,10 @@ known gap lives.
 
 ### SDT-007: Stream large files instead of skipping them
 
-- **Status:** In Progress — operator-promoted 2026-08-29 (Proposed → Ready →
-  In Progress on direction). Implemented on `feat/sdt-007-stream-large-files`.
+- **Status:** Merged — via
+  [#4211](https://github.com/eddacraft/anvil-001/pull/4211) (rebase-merge
+  2026-08-29; ancestor of `main` proven by content at `78e0fc6f0`).
+  Operator-promoted 2026-08-29 (Proposed → Ready → In Progress on direction).
 - **Intent:** The file-size cap is a memory bound, not a correctness one. A
   large file should be *scanned*, not excused — SDT-006 made the skip honest,
   this makes it unnecessary.

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 297/367  |
+| CIB | —     | In Progress | 297/368  |
 
 ## Purpose
 
@@ -11782,3 +11782,51 @@ hang before opening a supervisor ticket.
   PR had to baseline around these 39 failures to tell real regressions apart.
 - **Confidence:** high on the cause (bisected by umask); medium on the exact
   fixture change.
+
+---
+
+### CIB-373: entropy flags generated record ids as high-entropy strings
+
+- **Status:** Proposed
+- **Priority:** P2 — a measured 96% false-positive rate on the one file class
+  that reliably contains them
+- **Intent:** SDT-007 raised the scan size guard, which brought this
+  repository's own `plans/audits/*.clawpatch-periodic-scan.json` files into
+  the scan for the first time. They produce **50 findings, 48 of them false
+  positives** — all `High Entropy String`, all clawpatch record ids of the
+  shape `fnd_sig-feat-cli-command-00b48c6528-142d_d2c957b4c0` (1522 such ids
+  in one file). This is not a regression SDT-007 introduced: the entropy rule
+  would flag these today if the files were under the old cap. Streaming only
+  made them visible, and the measurement is the useful part.
+- **Expected Outcome:** Generated record identifiers stop reading as
+  credentials. The shape is distinctive — a stable lowercase prefix, dashed
+  segments, a hex tail — and the same family appears in any tool that emits
+  content-addressed ids, so a shape-anchored suppression is likely to
+  generalise beyond clawpatch. Whatever the mechanism, **the corpus decides**:
+  the change ships with a before/after detection and FP figure per SDT-002,
+  and a suppression that costs real detection parks rather than ships.
+- **Non-scope / do not:** do not add a bare `custom_allowlist` entry for this
+  repository and call it fixed — that hides anvil's own dogfood signal without
+  helping any other user, and putting a shape into an allowlist without
+  measuring its detection cost is exactly what SDT-002 exists to prevent. Do
+  not lower the entropy threshold; the threshold is not the problem, the
+  benign-shape recognition is.
+- **Files:** `crates/anvil-checks/src/secret/entropy.rs`,
+  `crates/anvil-checks/src/secret/context.rs` (benign-shape recognition),
+  `crates/anvil-checks/tests/corpus/secret/`
+- **Validation:** `pnpm secret:calibrate` before/after — detection rate must
+  not fall; the two audit JSONs drop from 50 findings toward the 2 genuine
+  ones; `cargo test -p eddacraft-anvil-checks`.
+- **Identified From:** SDT-007 dogfood measurement, 2026-08-29. All 50 findings
+  were classified by hand: 48 record ids, 2 synthetic `ghu_`/`ghp_` example
+  tokens in `"reproduction"` prose which are arguably true positives in kind.
+  Operator decision the same day was to land SDT-007 as-is and file this rather
+  than suppress unmeasured.
+- **Coordinates with:** SDT-002 (the corpus that must measure it), SDT-004
+  (whose Risks already name FP volume as the cost of breadth), CIB-080 (the
+  prior benign-fixture FP tuning, whose provenance-carrying suppression tiers
+  are the mechanism to reuse)
+- **Confidence:** high on the measurement and the shape — 50 findings
+  classified individually against a file carrying 1522 such ids; medium on the
+  right suppression tier, which is a CIB-080-style judgement the corpus has to
+  arbitrate.
