@@ -534,7 +534,8 @@ known gap lives.
 - **Confidence:** high on the mechanism — both passes were read and confirmed
   window-local, so the refactor is bounded to the input side; medium on the
   guard value, which is a measurement not yet taken.
-- **Risks:** two 1.5 MB `plans/audits/*.json` files enter the scan for the
+- **Risks:** the two 1.5 MB `plans/audits/*-clawpatch-periodic-scan.json`
+  files enter the scan for the
   first time on this repository alone, so FP volume can rise. That is
   measurable — the SDT-002 corpus catches regression, `scripts/dogfood/external-fp`
   measures volume — and must be measured rather than argued. A
@@ -583,7 +584,8 @@ known gap lives.
   now scans clean — `passed=true`, score 100, 0 findings, 8.8 ms — so Anvil
   proves its own lockfile clean for the first time, and the gate stops
   reporting any of the three files as unprovable. The two
-  `plans/audits/*.json` files went **0 → 50 findings**, of which 48 are
+  `plans/audits/*-clawpatch-periodic-scan.json` files — the only 2 of 15
+  audit JSONs over the old cap — went **0 → 50 findings**, of which 48 are
   unambiguous false positives: clawpatch record ids of the shape
   `fnd_sig-feat-cli-command-00b48c6528-…` (1522 such ids in one file), all
   flagged as `High Entropy String`. The remaining 2 are synthetic `ghu_`/`ghp_`
