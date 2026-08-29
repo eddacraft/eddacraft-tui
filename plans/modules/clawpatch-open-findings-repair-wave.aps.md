@@ -52,7 +52,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-001: Freeze process-wide flag authority
 
-- **Status:** In Progress
+- **Status:** Blocked
 - **Priority:** P1
 - **Risk:** standard
 - **Intent:** Consumers cannot mutate any validated process-wide flag inventory
@@ -86,6 +86,9 @@ shared CIB backlog as feature-branch state.
 - **Finding ID:** `fnd_sig-feat-route-8799ede6c4-dd3891_c05bd63a20`
 - **Validation:** `pnpm --dir apps/anvil-api exec vitest run src/__tests__/admin.test.ts`;
   `pnpm --dir apps/anvil-api typecheck`
+- **Blocker:** The write gate requires exact operator approval for changes to
+  the production admin transaction that updates account status and creates
+  token and audit rows.
 - **Decision:** ready
 
 ### CLAWOPEN-003: Recover GitHub device sessions and verified identity
