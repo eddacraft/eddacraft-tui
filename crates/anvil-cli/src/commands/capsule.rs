@@ -1260,6 +1260,31 @@ fn refuse_out_inside_git_dir(repo_root: &Path, out: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+
+    /// A temporary directory whose mode is set explicitly to `0700`.
+    ///
+    /// CIB-372: `tempfile::tempdir()` honours the process umask, so under a
+    /// group-writable umask — `002`, the Debian/Ubuntu default with per-user
+    /// groups — it yields `0775`. These tests stage capsule output inside such
+    /// a directory, and `validate_staging_parent` correctly refuses a
+    /// group-writable staging parent, so 39 of them failed on those machines
+    /// while CI (umask `022`) stayed green. The failure read as a broken
+    /// checkout rather than an environment difference.
+    ///
+    /// Setting the mode explicitly makes the fixture pin the guard's behaviour
+    /// deliberately instead of inheriting it from whoever is running the
+    /// suite. The guard itself is unchanged — rejecting a group-writable
+    /// staging parent is the correct production posture.
+    fn private_tempdir() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        dir
+    }
+
     use super::*;
     use anvil_capsule::{
         BASELINE_DIGEST_SCHEMA, COMMITS_SCHEMA, CapsuleManifest, CheckResult, CollectedDigests,
@@ -1291,7 +1316,7 @@ mod tests {
     /// A scratch repo with two commits, an `.anvil.yml` config, and a
     /// policy file. Returns (dir, `base_sha`, `head_sha`).
     fn scratch_repo() -> (tempfile::TempDir, String, String) {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let root = dir.path();
         // `--template=` (empty) keeps host git template hooks out of
         // the fixture; identity/signing pins keep commits deterministic
@@ -1328,7 +1353,7 @@ mod tests {
     #[test]
     fn capsule_create_writes_complete_verifiable_capsule() {
         let (dir, base, head) = scratch_repo();
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
         let out = out_dir.path().join("capsule");
 
         run_create(dir.path(), &format!("{base}..{head}"), &out).unwrap();
@@ -1357,7 +1382,7 @@ mod tests {
     #[test]
     fn capsule_create_unifies_producer_and_rules_identity() {
         let (dir, base, head) = scratch_repo();
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
         let out = out_dir.path().join("capsule");
 
         run_create(dir.path(), &format!("{base}..{head}"), &out).unwrap();
@@ -1377,7 +1402,7 @@ mod tests {
     #[test]
     fn capsule_create_collects_policy_and_commits_evidence() {
         let (dir, base, head) = scratch_repo();
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
         let out = out_dir.path().join("capsule");
 
         run_create(dir.path(), &format!("{base}..{head}"), &out).unwrap();
@@ -1425,7 +1450,7 @@ mod tests {
         )
         .unwrap();
 
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
         let out = out_dir.path().join("capsule");
         run_create(dir.path(), &format!("{base}..{head}"), &out).unwrap();
 
@@ -1465,7 +1490,7 @@ mod tests {
         )
         .unwrap();
 
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
         let out = out_dir.path().join("capsule");
         run_create(dir.path(), &format!("{base}..{head}"), &out).unwrap();
 
@@ -1495,7 +1520,7 @@ mod tests {
     #[test]
     fn capsule_create_rejects_malformed_ranges() {
         let (dir, _, head) = scratch_repo();
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
 
         for bad in [
             "deadbeef",
@@ -1516,7 +1541,7 @@ mod tests {
     #[test]
     fn capsule_create_refuses_non_empty_out_dir() {
         let (dir, base, head) = scratch_repo();
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
         std::fs::write(out_dir.path().join("keep.txt"), "existing").unwrap();
 
         let err = run_create(dir.path(), &format!("{base}..{head}"), out_dir.path()).unwrap_err();
@@ -1540,7 +1565,7 @@ mod tests {
     #[test]
     fn capsule_create_unresolvable_ref_fails_loudly() {
         let (dir, _, head) = scratch_repo();
-        let out_dir = tempfile::tempdir().unwrap();
+        let out_dir = private_tempdir();
 
         let err = run_create(
             dir.path(),
@@ -1681,7 +1706,7 @@ mod tests {
 
     #[test]
     fn capsule_explain_renders_header_from_capsule_files() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
 
@@ -1694,7 +1719,7 @@ mod tests {
 
     #[test]
     fn capsule_explain_golden_pass() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         set_verification(
@@ -1730,7 +1755,7 @@ mod tests {
 
     #[test]
     fn capsule_explain_golden_warn() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         set_verification(
@@ -1762,7 +1787,7 @@ mod tests {
 
     #[test]
     fn capsule_explain_golden_degraded() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         set_verification(
@@ -1790,7 +1815,7 @@ mod tests {
 
     #[test]
     fn capsule_explain_golden_block() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         set_verification(
@@ -1824,7 +1849,7 @@ mod tests {
     /// honest "not yet verified", never a bare verdict with no support.
     #[test]
     fn capsule_explain_unverified_placeholder_says_run_verify() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         // write_capsule already left the degraded placeholder in place.
@@ -1885,7 +1910,7 @@ mod tests {
     /// `absent`/`none`, never a crash or a misleading zero.
     #[test]
     fn capsule_explain_renders_absent_fields() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         absent_capsule(&out);
 
@@ -1909,7 +1934,7 @@ mod tests {
     /// report": explain marks it `missing` and still renders the rest.
     #[test]
     fn capsule_explain_marks_missing_evidence_file() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         std::fs::remove_file(out.join("commits.json")).unwrap();
@@ -1927,7 +1952,7 @@ mod tests {
     /// carries the range and producer, so there is nothing to explain.
     #[test]
     fn capsule_explain_errors_when_manifest_unreadable() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         std::fs::create_dir_all(&out).unwrap();
         // No manifest.json at all.
@@ -1938,7 +1963,7 @@ mod tests {
     /// 1`), and a unique result level pluralises correctly.
     #[test]
     fn capsule_explain_single_seq_window_and_singular_counts() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         let content = CapsuleContent {
             commits: CommitsDocument {
@@ -2001,7 +2026,7 @@ mod tests {
     /// distinguishable from "no baseline at all".
     #[test]
     fn capsule_explain_baseline_present_without_cutoff() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         let baseline = BaselineDigest {
@@ -2026,7 +2051,7 @@ mod tests {
     /// line, no missing terminator.
     #[test]
     fn capsule_explain_ends_with_single_newline() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
 
@@ -2041,7 +2066,7 @@ mod tests {
     /// (explain reports, it does not adjudicate).
     #[test]
     fn capsule_explain_does_not_verify_digests() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         let pass = CapsuleVerification::from_checks(vec![check(
@@ -2071,7 +2096,7 @@ mod tests {
     /// live `Verdict` variant and must not silently drift).
     #[test]
     fn capsule_explain_golden_error() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         set_verification(
@@ -2106,7 +2131,7 @@ mod tests {
     /// detail, so this guards the rendering path directly).
     #[test]
     fn capsule_explain_check_without_detail() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         set_verification(
@@ -2130,7 +2155,7 @@ mod tests {
     /// reassuring window with nothing behind it.
     #[test]
     fn capsule_explain_witness_window_with_missing_chain_says_chain_absent() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out); // manifest records seq 2..4
         std::fs::remove_file(out.join("witness.ndjson")).unwrap();
@@ -2148,7 +2173,7 @@ mod tests {
     #[test]
     fn capsule_explain_witness_unreadable_is_marked() {
         use std::os::unix::fs::PermissionsExt;
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         let chain = out.join("witness.ndjson");
@@ -2169,7 +2194,7 @@ mod tests {
     /// lines under a seq window counts as zero → `chain absent`.
     #[test]
     fn capsule_explain_witness_blank_lines_are_not_counted() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         rewrite_recorded(&out, "witness.ndjson", b"   \n\t\n  \r\n");
@@ -2186,7 +2211,7 @@ mod tests {
     /// breakdown sum.
     #[test]
     fn capsule_explain_diagnostics_counts_suppressed_separately() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         rewrite_recorded(
@@ -2207,7 +2232,7 @@ mod tests {
     /// report of a tampered capsule stays one line per field.
     #[test]
     fn capsule_explain_sanitises_injected_newlines() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         // A hostile policy path carrying a newline + a forged field line.
@@ -2251,7 +2276,7 @@ mod tests {
     /// document fields, so a planted newline in it cannot forge a row.
     #[test]
     fn capsule_explain_sanitises_verdict_parse_error() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         // A schema-mismatched verification.json: `from_json_bytes` echoes
@@ -2321,7 +2346,7 @@ mod tests {
     /// placeholder (degraded, no checks).
     #[test]
     fn capsule_json_explain_summary_is_fully_typed() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
 
@@ -2399,7 +2424,7 @@ mod tests {
     /// section.
     #[test]
     fn capsule_json_explain_reports_recorded_verdict_with_checks() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         set_verification(
@@ -2427,7 +2452,7 @@ mod tests {
     /// misleading omission.
     #[test]
     fn capsule_json_explain_absent_fields_are_typed_states() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         absent_capsule(&out);
 
@@ -2455,7 +2480,7 @@ mod tests {
     /// missing`, and the manifest-backed range still reports.
     #[test]
     fn capsule_json_explain_marks_missing_file() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         std::fs::remove_file(out.join("commits.json")).unwrap();
@@ -2473,7 +2498,7 @@ mod tests {
     /// window logic where it would read as a backed-looking `present`.
     #[test]
     fn capsule_json_explain_witness_file_removed_is_missing() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out); // manifest records seq 2..4
         std::fs::remove_file(out.join("witness.ndjson")).unwrap();
@@ -2487,7 +2512,7 @@ mod tests {
     /// removed-file `missing` case above).
     #[test]
     fn capsule_json_explain_witness_empty_under_window() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out); // manifest records seq 2..4
         // The file is present but holds no records (blank lines only).
@@ -2510,7 +2535,7 @@ mod tests {
     /// is a tampered manifest — reported as `status: malformed`.
     #[test]
     fn capsule_json_explain_malformed_witness_window() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         // Drop one side of the seq window directly in the manifest JSON
@@ -2534,7 +2559,7 @@ mod tests {
     /// forged row, no lossy `one_line` mangling of legitimate data.
     #[test]
     fn capsule_json_explain_escapes_injected_control_chars() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         let hostile = "anvil/policy.yml\n  forged: true";
@@ -2560,7 +2585,7 @@ mod tests {
     /// nothing to summarise.
     #[test]
     fn capsule_json_explain_errors_when_manifest_unreadable() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         std::fs::create_dir_all(&out).unwrap();
         assert!(render_explanation_json(&out).is_err());
@@ -2571,7 +2596,7 @@ mod tests {
     /// `null` value, so the schema carries no nulls in optional payload.
     #[test]
     fn capsule_json_explain_baseline_present_without_cutoff() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         let baseline = BaselineDigest {
@@ -2599,7 +2624,7 @@ mod tests {
     /// (the `commits` missing path is tested separately).
     #[test]
     fn capsule_json_explain_marks_missing_diagnostics() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         std::fs::remove_file(out.join("diagnostics.sarif")).unwrap();
@@ -2613,7 +2638,7 @@ mod tests {
     /// (bytes-not-JSON) on the machine surface.
     #[test]
     fn capsule_json_explain_malformed_exceptions() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         // Valid JSON, wrong shape (object, not the expected array).
@@ -2629,7 +2654,7 @@ mod tests {
     #[test]
     fn capsule_json_explain_witness_unreadable_is_marked() {
         use std::os::unix::fs::PermissionsExt;
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         let chain = out.join("witness.ndjson");
@@ -2650,7 +2675,7 @@ mod tests {
     /// `verification_json_line` together, not just the encoder.
     #[test]
     fn capsule_json_verify_emits_error_verdict_on_corrupt_manifest() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
         // Garbage manifest: the digest root no longer parses.
@@ -2671,7 +2696,7 @@ mod tests {
     /// canonical encoder is a fixed point, so the bytes are stable.
     #[test]
     fn capsule_json_explain_output_is_canonical() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = stage.path().join("capsule");
         rich_capsule(&out);
 
@@ -2715,7 +2740,7 @@ mod tests {
     #[test]
     fn prune_root_outside_repo_is_refused() {
         let (repo, _base, _head) = scratch_repo();
-        let outside = tempfile::tempdir().unwrap();
+        let outside = private_tempdir();
         let err = validate_prune_root(repo.path(), outside.path()).unwrap_err();
         assert!(err.to_string().contains("outside the repository"), "{err}");
     }

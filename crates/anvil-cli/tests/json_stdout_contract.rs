@@ -31,10 +31,31 @@ struct Sandbox {
     home: tempfile::TempDir,
 }
 
+/// A temporary directory whose mode is set explicitly to `0700`.
+///
+/// CIB-372: `tempfile::tempdir()` honours the process umask, so under a
+/// group-writable umask — `002`, the Debian/Ubuntu default with per-user
+/// groups — it yields `0775`. `anvil capsule create` refuses to stage under a
+/// group-writable parent, which is correct, so these tests failed on such a
+/// machine while CI (umask `022`) stayed green.
+///
+/// Setting the mode explicitly makes the fixture independent of whoever runs
+/// the suite. The production guard is unchanged.
+fn private_tempdir(what: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().expect(what);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("set 0700 on the temp dir");
+    }
+    dir
+}
+
 impl Sandbox {
     fn new() -> Self {
-        let repo = tempfile::tempdir().expect("temp repo");
-        let home = tempfile::tempdir().expect("temp home");
+        let repo = private_tempdir("temp repo");
+        let home = private_tempdir("temp home");
         let sandbox = Self { repo, home };
         sandbox.git(&["init", "--initial-branch=main", "."]);
         sandbox.git(&["config", "user.email", "test@example.com"]);
