@@ -235,7 +235,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-010: Pin docs-shell behaviour and caching
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P3
 - **Risk:** standard
 - **Intent:** User-facing auth recovery and landing-page destinations remain
