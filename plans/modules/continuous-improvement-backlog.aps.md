@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 288/365  |
+| CIB | —     | In Progress | 297/366  |
 
 ## Purpose
 
@@ -11229,9 +11229,8 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
 
 ### CIB-359: Antipattern masker must not panic on a multibyte char boundary
 
-- **Status:** Ready — operator-authorised 2026-08-22 after pack-10
-  disposition. Core slice landed in #4129; remaining 3-byte / init-order
-  gaps are on #4167.
+- **Status:** Merged 2026-08-27 via PR #4129 (core slice) and PR #4167
+  (remaining 3-byte / init-order gaps).
 - **Priority:** P1 — `init` / `baseline` / `check <file>` panic exit 101
 - **Intent:** `ends_with_regex_keyword` in
   `crates/anvil-checks/src/antipattern/mask.rs` takes `str::rfind`'s byte
@@ -11445,7 +11444,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-364: `DO_NOT_TRACK` does not reach the save-time and fence producers
 
-- **Status:** Draft
+- **Status:** Merged 2026-08-29 via PR #4196.
 - **Intent:** Make the documented privacy hard-off actually stop every local
   observation producer, at the values users really set.
 - **Context:** Two separate gaps, found while auditing evidence sources for
@@ -11482,7 +11481,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-365: A skipped boundary check reports as a measured pass and a zero
 
-- **Status:** Draft
+- **Status:** Merged 2026-08-29 via PR #4198.
 - **Intent:** Stop anvil presenting "we did not measure this" as "this is
   clean".
 - **Context:** With no architecture configuration present,
@@ -11519,7 +11518,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-366: `anvil drift snapshot` has no read-only mode
 
-- **Status:** Draft
+- **Status:** Merged 2026-08-29 via PR #4201.
 - **Intent:** Let a caller analyse a tree under an isolated state root without
   also granting permission to mutate durable project state.
 - **Context:** `--anvil-home <dir>` without `--touch-project-state` makes
@@ -11547,7 +11546,8 @@ hang before opening a supervisor ticket.
 
 ### CIB-367: `anvil insights` weekly summary emits six placeholder zeros
 
-- **Status:** Draft
+- **Status:** Merged 2026-08-29 via PR #4205 (schema v3) and PR #4206
+  (`--json` defaults to the honest v3 document).
 - **Intent:** Stop the machine-readable insights surface presenting
   never-instrumented fields as measurements.
 - **Context:** `insights::aggregator::weekly_summary`
@@ -11585,7 +11585,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-368: Older CLI must not fail-load a newer AST registry
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-27 via PR #4184.
 - **Priority:** P2 — `anvil check --all` on this repo with the current
   Homebrew `0.9.7-beta` binary errors on PY-010 even though the in-tree
   predicate exists
@@ -11619,7 +11619,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-369: Secret detection must not red anvil-001 for its own corpus
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-27 via PR #4184.
 - **Priority:** P2 — 304/304 listed errors on `anvil check --all` were
   `SECRET-*` self-hits; none looked like live credentials
 - **Intent:** Scanning this repository with anvil is blocked by the detector
@@ -11647,8 +11647,8 @@ hang before opening a supervisor ticket.
 
 ### CIB-370: Retire leftover TypeScript policy, watch, and import-codemod surfaces
 
-- **Status:** Draft — inventory is evidence-backed; deletion needs an
-  operator promotion because it touches package graph and e2e smoke.
+- **Status:** Merged 2026-08-27 via PR #4184; leftover TypeScript-era
+  store rewire followed 2026-08-28 via PR #4191.
 - **Priority:** P3 — not on the product engine path; hygiene and false
   warning load
 - **Intent:** CONTEXT.md already states the shipped product is the Rust
@@ -11692,7 +11692,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-371: Clear live TE/GS/AP boundary casts on remaining product TypeScript
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-27 via PR #4181.
 - **Priority:** P2 — 32 warnings in files that must stay
 - **Intent:** After excluding leftover TS (CIB-370) and `audit.rs` `#[cfg(test)]`
   DD fixtures, the remaining `anvil check --all` warnings on live product
