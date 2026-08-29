@@ -7,16 +7,21 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use crate::canonical_json::canonicalise;
 use crate::catalogue::Catalogue;
-use crate::constraints::{ConstraintError, PolicyBundle, apply_constraints};
+use crate::constraints::{
+    ApprovalEvidence, ConstraintError, PolicyBundle, apply_constraints_with_approvals,
+};
 use crate::envelope::{Envelope, EnvelopeCommand, empty_object};
 use crate::health::{Health, HealthControl, aggregate};
 use crate::redaction::RedactionError;
-use crate::resolver::{Declaration, ResolvedSetting, Resolver};
+use crate::resolver::{Declaration, ResolvedSetting, Resolver, ResolverError};
 use crate::runtime_state::{Attestation, ClassifyInput, RuntimeState, classify_runtime_state};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
+    #[error(transparent)]
+    Resolution(#[from] ResolverError),
     #[error(transparent)]
     Constraint(#[from] ConstraintError),
     #[error(transparent)]
@@ -51,6 +56,7 @@ pub struct SnapshotRequest<'a> {
     pub workspace_root: Option<&'a Path>,
     pub declarations: &'a [Declaration],
     pub bundle: Option<&'a PolicyBundle>,
+    pub approvals: &'a [ApprovalEvidence],
     pub attestations: &'a BTreeMap<String, Attestation>,
     pub now: &'a str,
     pub generated_at: &'a str,
@@ -81,8 +87,13 @@ impl SettingsService {
             }
             None => None,
         };
-        let requested = Resolver::resolve(&self.catalogue, request.declarations);
-        let resolved = apply_constraints(&requested, request.bundle)?;
+        let requested = Resolver::resolve(&self.catalogue, request.declarations)?;
+        let resolved = apply_constraints_with_approvals(
+            &requested,
+            request.bundle,
+            request.approvals,
+            request.now,
+        )?;
         let revision = model_revision(&resolved, discovered.as_deref());
         let mut rows = Vec::new();
         let mut controls = Vec::new();
@@ -166,7 +177,8 @@ impl SettingsService {
 
 fn model_revision(resolved: &[ResolvedSetting], discovered: Option<&str>) -> String {
     let mut hasher = Sha256::new();
-    if let Ok(bytes) = serde_json::to_vec(&revision_payload(resolved, discovered)) {
+    let payload = canonicalise(&revision_payload(resolved, discovered));
+    if let Ok(bytes) = serde_json::to_vec(&payload) {
         hasher.update(bytes);
     }
     hex::encode(hasher.finalize())
@@ -185,6 +197,7 @@ fn revision_payload(resolved: &[ResolvedSetting], discovered: Option<&str>) -> V
 #[cfg(test)]
 mod service_tests {
     use super::*;
+    use crate::constraints::Constraint;
     use crate::resolver::ResolutionEvent;
     use crate::seed::first_release_catalogue;
     use crate::types::Scope;
@@ -198,6 +211,7 @@ mod service_tests {
                 workspace_root: None,
                 declarations: &[],
                 bundle: None,
+                approvals: &[],
                 attestations: &BTreeMap::new(),
                 now: "2026-08-25T00:00:00Z",
                 generated_at: "2026-08-25T00:00:00Z",
@@ -241,6 +255,7 @@ mod service_tests {
                 workspace_root: None,
                 declarations: &declarations,
                 bundle: None,
+                approvals: &[],
                 attestations: &BTreeMap::new(),
                 now: "2026-08-25T00:00:00Z",
                 generated_at: "2026-08-25T00:00:00Z",
@@ -254,5 +269,125 @@ mod service_tests {
             .unwrap();
         assert_eq!(row.resolved, Some(Value::Bool(true)));
         assert_eq!(row.runtime, RuntimeState::Unknown);
+    }
+
+    #[test]
+    fn service_supplies_approval_evidence_to_constraint_evaluation() {
+        let catalogue = first_release_catalogue().expect("seed");
+        let service = SettingsService::new(catalogue);
+        let declarations = [Declaration {
+            key: "interface.compact".into(),
+            scope: Scope::User,
+            source_id: "user".into(),
+            event: ResolutionEvent::Set(Value::Bool(true)),
+        }];
+        let bundle = PolicyBundle {
+            id: "org-1".into(),
+            verifiable: true,
+            expired: false,
+            compatible: true,
+            constraints: vec![Constraint::RequireApproval {
+                key: "interface.compact".into(),
+                authority: "interface-admin".into(),
+            }],
+        };
+        let attestations = BTreeMap::new();
+        let request = |approvals| SnapshotRequest {
+            workspace_root: None,
+            declarations: &declarations,
+            bundle: Some(&bundle),
+            approvals,
+            attestations: &attestations,
+            now: "2026-08-29T00:00:00Z",
+            generated_at: "2026-08-29T00:00:00Z",
+            command: EnvelopeCommand::Show,
+        };
+
+        assert!(matches!(
+            service.snapshot(&request(&[])),
+            Err(SettingsError::Constraint(
+                ConstraintError::ApprovalRequired { key, authority }
+            )) if key == "interface.compact" && authority == "interface-admin"
+        ));
+
+        let wrong_authority = [ApprovalEvidence {
+            bundle_id: "org-1".into(),
+            bundle_digest: bundle.content_digest(),
+            key: "interface.compact".into(),
+            authority: "operations".into(),
+            verified: true,
+            valid_until: "2026-08-29T01:00:00Z".into(),
+        }];
+        assert!(matches!(
+            service.snapshot(&request(&wrong_authority)),
+            Err(SettingsError::Constraint(
+                ConstraintError::ApprovalRequired { .. }
+            ))
+        ));
+
+        let approvals = [ApprovalEvidence {
+            authority: "interface-admin".into(),
+            ..wrong_authority[0].clone()
+        }];
+        let snapshot = service
+            .snapshot(&request(&approvals))
+            .expect("valid approval evidence");
+        assert_eq!(
+            snapshot
+                .rows
+                .iter()
+                .find(|row| row.key == "interface.compact")
+                .and_then(|row| row.resolved.as_ref()),
+            Some(&Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn service_model_revision_canonicalises_nested_object_keys() {
+        let first = vec![ResolvedSetting {
+            key: "interface.compact".into(),
+            requested: None,
+            resolved: Some(serde_json::json!({
+                "outer": {
+                    "alpha": 1,
+                    "beta": 2
+                },
+                "enabled": true
+            })),
+            provenance: vec![],
+        }];
+        let equivalent = vec![ResolvedSetting {
+            key: "interface.compact".into(),
+            requested: None,
+            resolved: Some(serde_json::json!({
+                "enabled": true,
+                "outer": {
+                    "beta": 2,
+                    "alpha": 1
+                }
+            })),
+            provenance: vec![],
+        }];
+        let reordered_list = vec![ResolvedSetting {
+            key: "interface.compact".into(),
+            requested: None,
+            resolved: Some(serde_json::json!({"items": [2, 1]})),
+            provenance: vec![],
+        }];
+
+        assert_eq!(
+            model_revision(&first, None),
+            model_revision(&equivalent, None)
+        );
+        assert_ne!(
+            model_revision(
+                &[ResolvedSetting {
+                    resolved: Some(serde_json::json!({"items": [1, 2]})),
+                    ..reordered_list[0].clone()
+                }],
+                None
+            ),
+            model_revision(&reordered_list, None)
+        );
     }
 }

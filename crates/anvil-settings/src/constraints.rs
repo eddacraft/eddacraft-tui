@@ -5,13 +5,15 @@
 //! higher precedence. Unverifiable, expired or incompatible bundles fail
 //! closed and cannot select their own failure behaviour.
 
+use serde::Serialize;
 use serde_json::Value;
 
+use crate::canonical_json::canonicalise;
 use crate::resolver::ResolvedSetting;
 use crate::types::{Posture, Scope};
 
 /// One constraint on the permitted value space.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum Constraint {
     RequireValue { key: String, value: Value },
     ProhibitValue { key: String, value: Value },
@@ -34,6 +36,31 @@ pub struct PolicyBundle {
     pub constraints: Vec<Constraint>,
 }
 
+impl PolicyBundle {
+    /// Immutable digest of the bundle identity and ordered constraint content.
+    #[must_use]
+    pub fn content_digest(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let payload = serde_json::json!({
+            "id": self.id,
+            "constraints": self.constraints,
+        });
+        let bytes = serde_json::to_vec(&canonicalise(&payload)).unwrap_or_default();
+        hex::encode(Sha256::digest(bytes))
+    }
+}
+
+/// Verified approval evidence supplied at the policy-evaluation boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApprovalEvidence {
+    pub bundle_id: String,
+    pub bundle_digest: String,
+    pub key: String,
+    pub authority: String,
+    pub verified: bool,
+    pub valid_until: String,
+}
+
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ConstraintError {
     #[error("policy bundle {0} is unverifiable")]
@@ -42,6 +69,8 @@ pub enum ConstraintError {
     Expired(String),
     #[error("policy bundle {0} is incompatible")]
     Incompatible(String),
+    #[error("approval required for {key} from {authority}")]
+    ApprovalRequired { key: String, authority: String },
     #[error("constraint violation on {key}: {reason}")]
     Violated { key: String, reason: String },
 }
@@ -53,6 +82,17 @@ pub enum ConstraintError {
 pub fn apply_constraints(
     requested: &[ResolvedSetting],
     bundle: Option<&PolicyBundle>,
+) -> Result<Vec<ResolvedSetting>, ConstraintError> {
+    apply_constraints_with_approvals(requested, bundle, &[], "")
+}
+
+/// Apply constraints with approval evidence already verified by the caller's
+/// trust boundary.
+pub fn apply_constraints_with_approvals(
+    requested: &[ResolvedSetting],
+    bundle: Option<&PolicyBundle>,
+    approvals: &[ApprovalEvidence],
+    now: &str,
 ) -> Result<Vec<ResolvedSetting>, ConstraintError> {
     let Some(bundle) = bundle else {
         return Ok(requested.to_vec());
@@ -67,14 +107,29 @@ pub fn apply_constraints(
         return Err(ConstraintError::Incompatible(bundle.id.clone()));
     }
 
+    let bundle_digest = bundle.content_digest();
     let mut out = requested.to_vec();
     for constraint in &bundle.constraints {
-        apply_one(&mut out, constraint)?;
+        apply_one(
+            &mut out,
+            constraint,
+            &bundle.id,
+            &bundle_digest,
+            approvals,
+            now,
+        )?;
     }
     Ok(out)
 }
 
-fn apply_one(rows: &mut [ResolvedSetting], constraint: &Constraint) -> Result<(), ConstraintError> {
+fn apply_one(
+    rows: &mut [ResolvedSetting],
+    constraint: &Constraint,
+    bundle_id: &str,
+    bundle_digest: &str,
+    approvals: &[ApprovalEvidence],
+    now: &str,
+) -> Result<(), ConstraintError> {
     match constraint {
         Constraint::RequireValue { key, value } => {
             let row = row_mut(rows, key)?;
@@ -156,11 +211,39 @@ fn apply_one(rows: &mut [ResolvedSetting], constraint: &Constraint) -> Result<()
             }
             Ok(())
         }
-        Constraint::RequireApproval { .. } => {
-            // Approval is recorded on the row; SETGOV owns the workflow.
-            Ok(())
+        Constraint::RequireApproval { key, authority } => {
+            row_mut(rows, key)?;
+            if approvals.iter().any(|evidence| {
+                approval_is_current(evidence, bundle_id, bundle_digest, key, authority, now)
+            }) {
+                return Ok(());
+            }
+            Err(ConstraintError::ApprovalRequired {
+                key: key.clone(),
+                authority: authority.clone(),
+            })
         }
     }
+}
+
+fn approval_is_current(
+    evidence: &ApprovalEvidence,
+    bundle_id: &str,
+    bundle_digest: &str,
+    key: &str,
+    authority: &str,
+    now: &str,
+) -> bool {
+    use chrono::DateTime;
+    evidence.verified
+        && evidence.bundle_id == bundle_id
+        && evidence.bundle_digest == bundle_digest
+        && evidence.key == key
+        && evidence.authority == authority
+        && DateTime::parse_from_rfc3339(now)
+            .ok()
+            .zip(DateTime::parse_from_rfc3339(&evidence.valid_until).ok())
+            .is_some_and(|(now, valid_until)| now < valid_until)
 }
 
 fn row_mut<'a>(
@@ -303,5 +386,132 @@ mod constraints_tests {
             }
             other => panic!("expected violated, got {other:?}"),
         }
+    }
+
+    const APPROVAL_NOW: &str = "2026-08-29T00:00:00Z";
+
+    fn approval_bundle() -> PolicyBundle {
+        PolicyBundle {
+            id: "org-1".into(),
+            verifiable: true,
+            expired: false,
+            compatible: true,
+            constraints: vec![Constraint::RequireApproval {
+                key: "privacy.gctx_egress".into(),
+                authority: "security".into(),
+            }],
+        }
+    }
+
+    fn valid_approval() -> ApprovalEvidence {
+        ApprovalEvidence {
+            bundle_id: "org-1".into(),
+            bundle_digest: approval_bundle().content_digest(),
+            key: "privacy.gctx_egress".into(),
+            authority: "security".into(),
+            verified: true,
+            valid_until: "2026-08-29T01:00:00Z".into(),
+        }
+    }
+
+    fn assert_approval_required(evidence: Option<&ApprovalEvidence>) {
+        let requested = vec![row(
+            "privacy.gctx_egress",
+            Value::Bool(false),
+            Scope::Project,
+        )];
+        let bundle = approval_bundle();
+        let approvals: &[ApprovalEvidence] = evidence.map(std::slice::from_ref).unwrap_or_default();
+        assert_eq!(
+            apply_constraints_with_approvals(&requested, Some(&bundle), approvals, APPROVAL_NOW,)
+                .unwrap_err(),
+            ConstraintError::ApprovalRequired {
+                key: "privacy.gctx_egress".into(),
+                authority: "security".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn constraints_reject_missing_or_wrong_authority_approval() {
+        assert_approval_required(None);
+        let mut evidence = valid_approval();
+        evidence.authority = "operations".into();
+        assert_approval_required(Some(&evidence));
+    }
+
+    #[test]
+    fn constraints_reject_expired_or_unverified_approval() {
+        let mut evidence = valid_approval();
+        evidence.valid_until = "2026-08-28T23:59:59Z".into();
+        assert_approval_required(Some(&evidence));
+        evidence.valid_until = "2026-08-29T01:00:00Z".into();
+        evidence.verified = false;
+        assert_approval_required(Some(&evidence));
+    }
+
+    #[test]
+    fn constraints_bind_approval_to_bundle_and_key() {
+        let mut evidence = valid_approval();
+        evidence.bundle_id = "different-bundle".into();
+        assert_approval_required(Some(&evidence));
+        evidence.bundle_id = "org-1".into();
+        evidence.key = "different.key".into();
+        assert_approval_required(Some(&evidence));
+    }
+
+    #[test]
+    fn constraints_accept_verified_current_approval_evidence() {
+        let requested = vec![row(
+            "privacy.gctx_egress",
+            Value::Bool(false),
+            Scope::Project,
+        )];
+        let bundle = approval_bundle();
+        assert!(
+            apply_constraints_with_approvals(
+                &requested,
+                Some(&bundle),
+                &[valid_approval()],
+                APPROVAL_NOW,
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn constraints_bind_approval_to_immutable_bundle_content() {
+        let original = approval_bundle();
+        let evidence = ApprovalEvidence {
+            bundle_digest: original.content_digest(),
+            ..valid_approval()
+        };
+        let mut changed = original;
+        changed.constraints.insert(
+            0,
+            Constraint::RequireValue {
+                key: "privacy.gctx_egress".into(),
+                value: Value::Bool(false),
+            },
+        );
+        let requested = vec![row(
+            "privacy.gctx_egress",
+            Value::Bool(false),
+            Scope::Project,
+        )];
+
+        assert_eq!(
+            apply_constraints_with_approvals(
+                &requested,
+                Some(&changed),
+                &[evidence],
+                APPROVAL_NOW,
+            )
+            .unwrap_err(),
+            ConstraintError::ApprovalRequired {
+                key: "privacy.gctx_egress".into(),
+                authority: "security".into(),
+            }
+        );
     }
 }

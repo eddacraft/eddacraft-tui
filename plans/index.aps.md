@@ -830,7 +830,7 @@ never before, so the surface cannot imply history it has not observed).
 
 | Module | Scope | Slice | Status | Progress | Programme next |
 | ------ | ----- | ----- | ------ | -------- | -------------- |
-| [settings-truth-contract](./modules/settings-truth-contract.aps.md) | SETCON | 0 — truth contract | Done | 11/11 | Contract crate Merged via #4140 (ADR-132). SETINS remains gated on a named release window. |
+| [settings-truth-contract](./modules/settings-truth-contract.aps.md) | SETCON | 0 — truth contract | In Progress | 11/11 | SETCON-012 repairs four current-source contract defects; the original 11 items remain Merged. SETINS remains gated on a named release window. |
 | [settings-inspect-surface](./modules/settings-inspect-surface.aps.md) | SETINS | 1 — inspect | Proposed | 0/10 | Gated on SETCON-008/-010; open a [CLICT](./modules/cli-command-truth.aps.md) slice before any doc claims `anvil settings` exists |
 | [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Proposed | 0/6 | Gated on SETINS; introduces the single authorised write path (Class A only) |
 | [settings-governed-changes](./modules/settings-governed-changes.aps.md) | SETGOV | 3 — governed changes and audit | Draft | 0/9 | Post-v0.1; needs the audit-store reuse decision and an approval-authority model with [ORGHIER](./modules/org-policy-hierarchy.aps.md)/[POLLC](./modules/policy-lifecycle.aps.md) |

@@ -5,13 +5,15 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| SETCON | —     | medium   | Done | 11/11     |
+| SETCON | —     | medium   | In Progress | 11/11     |
 
-**Last reviewed:** 2026-08-27 — module **Done**. SETCON-001..011 Merged via PR
-[#4140](https://github.com/eddacraft/anvil-001/pull/4140) (`07dfb17e2`).
-[ADR-132](../decisions/132-settings-truth-contract.md) accepted. Catalogue home
-is `eddacraft-anvil-settings`; attestation transport is intercept daemon RPC.
-Not a v0.9.8-beta product claim; `/settings` remains SETINS.
+**Last reviewed:** 2026-08-29 — module reopened for SETCON-012, the
+operator-selected repair wave for four current-source settings-truth findings.
+SETCON-001..011 remain Merged via PR
+[#4140](https://github.com/eddacraft/anvil-001/pull/4140) (`07dfb17e2`);
+their 11/11 completion counter is unchanged. [ADR-132](../decisions/132-settings-truth-contract.md)
+remains accepted. This follow-up is not a v0.9.8-beta product claim;
+`/settings` remains SETINS.
 
 > **Activation gate.** SETCON-001 is accepted as ADR-132. Downstream SETINS /
 > SETPREF / SETGOV stay gated on a named release window for the inspect surface,
@@ -330,3 +332,37 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Status:** Merged 2026-08-25 via PR #4140. Ancestor of `origin/main`
   (`07dfb17e2`).
+
+### SETCON-012: Repair settings truth contract defects
+
+- **Intent:** Restore the type, approval, determinism and reset invariants that
+  the landed settings truth contract promises before later settings surfaces
+  depend on them.
+- **Expected Outcome:** The resolver rejects catalogue-typed declaration
+  mismatches before replacement or composite merge; a `Delete` event resets
+  accumulated collection state before later declarations are applied;
+  semantically equivalent nested JSON objects produce identical model revisions
+  and classified digests; and `RequireApproval` accepts only verified,
+  unexpired evidence bound to the immutable applicable bundle content, key and
+  authority, failing closed otherwise.
+- **Findings:**
+  `fnd_sig-feat-library-90c6a94493-3f60_9ee60decc4`,
+  `fnd_sig-feat-library-90c6a94493-a47c_e469ff7b9a`,
+  `fnd_sig-feat-library-90c6a94493-2dae_ac42adc07a`, and
+  `fnd_sig-feat-library-90c6a94493-b99c_8ca9b53256`.
+- **Non-scope:** A `/settings` surface; mutation, approval routing, persistence
+  or audit workflows owned by SETINS / SETPREF / SETGOV; unrelated Clawpatch
+  findings.
+- **Dependencies:** SETCON-002, SETCON-004, SETCON-005, SETCON-010 (all Merged)
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- catalogue`;
+  `cargo test -p eddacraft-anvil-settings -- resolver`;
+  `cargo test -p eddacraft-anvil-settings -- constraints`;
+  `cargo test -p eddacraft-anvil-settings -- runtime_state`;
+  `cargo test -p eddacraft-anvil-settings -- service`;
+  `cargo test -p eddacraft-anvil-settings`;
+  `cargo clippy -p eddacraft-anvil-settings --all-targets -- -D warnings`;
+  `cargo fmt --check`; `pnpm aps:active-lint`; `pnpm aps:index:check`;
+  `pnpm docs:check`
+- **Confidence:** medium
+- **Status:** In Progress 2026-08-29 on
+  `fix/setcon-012-settings-truth`.

@@ -64,6 +64,12 @@ pub enum CatalogueError {
     UnnamespacedExtension(String),
     #[error("evidence-mode none cannot declare activation owner {owner} on {key}")]
     EvidenceNoneWithOwner { key: String, owner: String },
+    #[error("merge semantics {merge:?} are incompatible with {value_type:?} on {key}")]
+    IncompatibleMerge {
+        key: String,
+        value_type: ValueType,
+        merge: MergeSemantics,
+    },
 }
 
 impl Catalogue {
@@ -80,6 +86,7 @@ impl Catalogue {
             return Err(CatalogueError::EmptyKey);
         }
         validate_namespace(key, &entry.owner)?;
+        validate_merge(key, &entry.value_type, entry.merge)?;
         if entry.evidence_mode == EvidenceMode::None
             && let Some(owner) = entry.activation_owner.as_deref()
         {
@@ -127,6 +134,7 @@ impl Catalogue {
     pub fn validate(&self) -> Result<(), CatalogueError> {
         for entry in self.entries.values() {
             validate_namespace(entry.key.as_str(), &entry.owner)?;
+            validate_merge(entry.key.as_str(), &entry.value_type, entry.merge)?;
             if entry.evidence_mode == EvidenceMode::None
                 && let Some(owner) = entry.activation_owner.as_deref()
             {
@@ -148,6 +156,28 @@ fn validate_namespace(key: &str, owner: &str) -> Result<(), CatalogueError> {
         return Err(CatalogueError::UnnamespacedExtension(key.to_owned()));
     }
     Ok(())
+}
+
+fn validate_merge(
+    key: &str,
+    value_type: &ValueType,
+    merge: MergeSemantics,
+) -> Result<(), CatalogueError> {
+    let compatible = match merge {
+        MergeSemantics::Replace => true,
+        MergeSemantics::Append | MergeSemantics::Union => {
+            matches!(value_type, ValueType::List | ValueType::Set)
+        }
+        MergeSemantics::KeyedMerge => matches!(value_type, ValueType::Map),
+    };
+    if compatible {
+        return Ok(());
+    }
+    Err(CatalogueError::IncompatibleMerge {
+        key: key.to_owned(),
+        value_type: value_type.clone(),
+        merge,
+    })
 }
 
 #[cfg(test)]
@@ -213,5 +243,44 @@ mod catalogue_tests {
             .register(entry("bare", "ext.packs"))
             .expect_err("unnamespaced");
         assert_eq!(err, CatalogueError::UnnamespacedExtension("bare".into()));
+    }
+
+    #[test]
+    fn catalogue_rejects_merge_semantics_that_change_the_value_type() {
+        let value_types = [
+            ValueType::Boolean,
+            ValueType::String,
+            ValueType::Integer,
+            ValueType::Enum {
+                allowed: vec!["warn".into(), "enforce".into()],
+            },
+            ValueType::List,
+            ValueType::Map,
+            ValueType::Set,
+        ];
+        let merge_semantics = [
+            MergeSemantics::Replace,
+            MergeSemantics::Append,
+            MergeSemantics::Union,
+            MergeSemantics::KeyedMerge,
+        ];
+
+        for value_type in value_types {
+            for merge in merge_semantics {
+                let mut candidate = entry("protection.checks", "core");
+                candidate.value_type = value_type.clone();
+                candidate.merge = merge;
+                let expected_compatible = merge == MergeSemantics::Replace
+                    || matches!(value_type, ValueType::List | ValueType::Set)
+                        && matches!(merge, MergeSemantics::Append | MergeSemantics::Union)
+                    || value_type == ValueType::Map && merge == MergeSemantics::KeyedMerge;
+                let result = Catalogue::new().register(candidate);
+                assert_eq!(
+                    result.is_ok(),
+                    expected_compatible,
+                    "{value_type:?} + {merge:?}"
+                );
+            }
+        }
     }
 }

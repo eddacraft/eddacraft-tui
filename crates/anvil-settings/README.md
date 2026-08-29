@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner  | Status | Freshness                                                               |
 | ----- | ------------- | ------ | ------ | ----------------------------------------------------------------------- |
-| Crate | Authoritative | SETCON | Live   | Last reviewed 2026-08-25 against ADR-132 and SETCON-001..011 acceptance |
+| Crate | Authoritative | SETCON | Live   | Last reviewed 2026-08-29 against ADR-132 and SETCON-001..012 acceptance |
 
 | Upstream                                                                               | Downstream                                  |
 | -------------------------------------------------------------------------------------- | ------------------------------------------- |
@@ -18,9 +18,11 @@ later).
 
 ## What it owns
 
-- typed catalogue
+- typed catalogue with value-type and merge-strategy compatibility
 - precedence / composite resolution with provenance
-- post-resolution policy constraints
+- post-resolution policy constraints, including approval evidence bound to
+  immutable policy-bundle content
+- canonical model revisions and classified-value digests
 - runtime-state classification (`unknown` / `stale` / `failed` / `drift` /
   `active`)
 - health aggregation

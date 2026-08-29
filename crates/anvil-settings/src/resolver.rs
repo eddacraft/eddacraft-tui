@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::catalogue::Catalogue;
-use crate::types::{MergeSemantics, Scope};
+use crate::types::{MergeSemantics, Scope, ValueType};
 
 /// A configured declaration (or deletion / exclusion) at one scope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,6 +42,17 @@ pub struct ResolvedSetting {
     pub provenance: Vec<ProvenanceEvent>,
 }
 
+/// Deterministic, value-redacting resolution failures.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ResolverError {
+    #[error("invalid value for {key}; expected {expected:?}")]
+    InvalidValue {
+        key: String,
+        source_id: String,
+        expected: ValueType,
+    },
+}
+
 /// Resolves declarations across scopes. Policy constraints are applied later.
 #[derive(Debug, Clone, Copy)]
 pub struct Resolver;
@@ -58,8 +69,10 @@ impl Resolver {
         Scope::Session,
     ];
 
-    #[must_use]
-    pub fn resolve(catalogue: &Catalogue, declarations: &[Declaration]) -> Vec<ResolvedSetting> {
+    pub fn resolve(
+        catalogue: &Catalogue,
+        declarations: &[Declaration],
+    ) -> Result<Vec<ResolvedSetting>, ResolverError> {
         let mut keys = Vec::new();
         for decl in declarations {
             let canonical = catalogue
@@ -82,7 +95,11 @@ impl Resolver {
 }
 
 #[allow(clippy::too_many_lines)]
-fn resolve_one(catalogue: &Catalogue, declarations: &[Declaration], key: &str) -> ResolvedSetting {
+fn resolve_one(
+    catalogue: &Catalogue,
+    declarations: &[Declaration],
+    key: &str,
+) -> Result<ResolvedSetting, ResolverError> {
     let entry = catalogue.get(key);
     let precedence = entry
         .map(|e| e.precedence.as_slice())
@@ -108,21 +125,33 @@ fn resolve_one(catalogue: &Catalogue, declarations: &[Declaration], key: &str) -
             .unwrap_or(usize::MAX)
     });
 
-    let mut provenance = Vec::new();
+    if let Some(entry) = entry {
+        if let Some(value) = default.as_ref() {
+            validate_value(key, "catalogue:default", &entry.value_type, value)?;
+        }
+        for declaration in &ranked {
+            if let ResolutionEvent::Set(value) = &declaration.event {
+                validate_value(key, &declaration.source_id, &entry.value_type, value)?;
+            }
+        }
+    }
+
+    let mut provenance: Vec<ProvenanceEvent> = Vec::new();
     let mut current: Option<Value> = default;
     for (idx, decl) in ranked.iter().enumerate() {
         let is_last = idx + 1 == ranked.len();
         match (&decl.event, merge) {
             (ResolutionEvent::Delete, _) => {
+                for prior in &mut provenance {
+                    prior.overridden = true;
+                }
                 provenance.push(ProvenanceEvent {
                     source_id: decl.source_id.clone(),
                     scope: decl.scope,
                     event: decl.event.clone(),
                     overridden: !is_last,
                 });
-                if is_last {
-                    current = None;
-                }
+                current = None;
             }
             (ResolutionEvent::Exclude(value), MergeSemantics::Union | MergeSemantics::Append) => {
                 provenance.push(ProvenanceEvent {
@@ -131,7 +160,7 @@ fn resolve_one(catalogue: &Catalogue, declarations: &[Declaration], key: &str) -
                     event: decl.event.clone(),
                     overridden: false,
                 });
-                current = Some(exclude_member(current, value));
+                current = exclude_member(current, value);
             }
             (ResolutionEvent::Exclude(value), _) => {
                 provenance.push(ProvenanceEvent {
@@ -180,12 +209,44 @@ fn resolve_one(catalogue: &Catalogue, declarations: &[Declaration], key: &str) -
         }
     }
 
-    ResolvedSetting {
+    if let (Some(entry), Some(value)) = (entry, current.as_ref()) {
+        validate_value(key, "resolver:merged", &entry.value_type, value)?;
+    }
+
+    Ok(ResolvedSetting {
         key: key.to_owned(),
         requested: current.clone(),
         resolved: current,
         provenance,
+    })
+}
+
+fn validate_value(
+    key: &str,
+    source_id: &str,
+    expected: &ValueType,
+    value: &Value,
+) -> Result<(), ResolverError> {
+    let valid = match expected {
+        ValueType::Boolean => value.is_boolean(),
+        ValueType::String => value.is_string(),
+        ValueType::Integer => value
+            .as_number()
+            .is_some_and(|number| number.is_i64() || number.is_u64()),
+        ValueType::Enum { allowed } => value
+            .as_str()
+            .is_some_and(|candidate| allowed.iter().any(|item| item == candidate)),
+        ValueType::List | ValueType::Set => value.is_array(),
+        ValueType::Map => value.is_object(),
+    };
+    if valid {
+        return Ok(());
     }
+    Err(ResolverError::InvalidValue {
+        key: key.to_owned(),
+        source_id: source_id.to_owned(),
+        expected: expected.clone(),
+    })
 }
 
 fn merge_list(base: Option<Value>, incoming: &Value, unique: bool) -> Value {
@@ -224,12 +285,12 @@ fn merge_map(base: Option<Value>, incoming: &Value) -> Value {
     Value::Object(out)
 }
 
-fn exclude_member(base: Option<Value>, member: &Value) -> Value {
+fn exclude_member(base: Option<Value>, member: &Value) -> Option<Value> {
     match base {
-        Some(Value::Array(items)) => {
-            Value::Array(items.into_iter().filter(|item| item != member).collect())
-        }
-        other => other.unwrap_or(Value::Null),
+        Some(Value::Array(items)) => Some(Value::Array(
+            items.into_iter().filter(|item| item != member).collect(),
+        )),
+        other => other,
     }
 }
 
@@ -293,7 +354,8 @@ mod resolver_tests {
                     )])),
                 },
             ],
-        );
+        )
+        .unwrap();
         let row = resolved
             .iter()
             .find(|r| r.key == "protection.checks")
@@ -333,7 +395,8 @@ mod resolver_tests {
                     event: ResolutionEvent::Exclude(Value::String("lint".into())),
                 },
             ],
-        );
+        )
+        .unwrap();
         let row = resolved
             .iter()
             .find(|r| r.key == "protection.checks")
@@ -347,5 +410,208 @@ mod resolver_tests {
                 .iter()
                 .any(|p| matches!(p.event, ResolutionEvent::Exclude(_)))
         );
+    }
+
+    #[test]
+    fn resolver_delete_resets_accumulated_collection_state() {
+        for merge in [MergeSemantics::Append, MergeSemantics::Union] {
+            let mut list = list_entry();
+            list.merge = merge;
+            list.supported_scopes = vec![Scope::Org, Scope::Team, Scope::Project, Scope::User];
+            list.precedence = list.supported_scopes.clone();
+            let mut catalogue = Catalogue::new();
+            catalogue.register(list).unwrap();
+            let list_declarations = [
+                Declaration {
+                    key: "protection.checks".into(),
+                    scope: Scope::Org,
+                    source_id: "org".into(),
+                    event: ResolutionEvent::Set(serde_json::json!(["before-delete"])),
+                },
+                Declaration {
+                    key: "protection.checks".into(),
+                    scope: Scope::Team,
+                    source_id: "team".into(),
+                    event: ResolutionEvent::Delete,
+                },
+                Declaration {
+                    key: "protection.checks".into(),
+                    scope: Scope::Project,
+                    source_id: "project".into(),
+                    event: ResolutionEvent::Exclude(serde_json::json!("irrelevant")),
+                },
+                Declaration {
+                    key: "protection.checks".into(),
+                    scope: Scope::User,
+                    source_id: "user".into(),
+                    event: ResolutionEvent::Set(serde_json::json!(["after-delete"])),
+                },
+            ];
+
+            let list_row = Resolver::resolve(&catalogue, &list_declarations)
+                .unwrap()
+                .pop()
+                .unwrap();
+            assert_eq!(list_row.resolved, Some(serde_json::json!(["after-delete"])));
+            assert!(
+                list_row
+                    .provenance
+                    .iter()
+                    .any(|event| matches!(event.event, ResolutionEvent::Delete))
+            );
+        }
+
+        let mut map = list_entry();
+        map.value_type = ValueType::Map;
+        map.default = Some(serde_json::json!({}));
+        map.merge = MergeSemantics::KeyedMerge;
+        map.supported_scopes = vec![Scope::Org, Scope::Team, Scope::Project];
+        map.precedence = map.supported_scopes.clone();
+        let mut catalogue = Catalogue::new();
+        catalogue.register(map).unwrap();
+        let map_declarations = [
+            Declaration {
+                key: "protection.checks".into(),
+                scope: Scope::Org,
+                source_id: "org".into(),
+                event: ResolutionEvent::Set(serde_json::json!({
+                    "before-delete": true
+                })),
+            },
+            Declaration {
+                key: "protection.checks".into(),
+                scope: Scope::Team,
+                source_id: "team".into(),
+                event: ResolutionEvent::Delete,
+            },
+            Declaration {
+                key: "protection.checks".into(),
+                scope: Scope::Project,
+                source_id: "project".into(),
+                event: ResolutionEvent::Set(serde_json::json!({
+                    "after-delete": true
+                })),
+            },
+        ];
+
+        let map_row = Resolver::resolve(&catalogue, &map_declarations)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(
+            map_row.resolved,
+            Some(serde_json::json!({"after-delete": true}))
+        );
+        assert!(
+            map_row
+                .provenance
+                .iter()
+                .any(|event| matches!(event.event, ResolutionEvent::Delete))
+        );
+    }
+
+    #[test]
+    fn resolver_rejects_values_that_contradict_the_catalogue_type() {
+        let cases = [
+            (ValueType::Boolean, Value::String("true".into())),
+            (ValueType::String, Value::Bool(true)),
+            (ValueType::Integer, serde_json::json!(1.5)),
+            (
+                ValueType::Enum {
+                    allowed: vec!["warn".into(), "enforce".into()],
+                },
+                Value::String("off".into()),
+            ),
+            (ValueType::List, serde_json::json!({"not": "a list"})),
+            (ValueType::Map, serde_json::json!(["not", "a", "map"])),
+            (ValueType::Set, Value::String("not-a-set".into())),
+        ];
+
+        for (value_type, value) in cases {
+            let mut entry = list_entry();
+            entry.value_type = value_type.clone();
+            entry.default = None;
+            entry.merge = MergeSemantics::Replace;
+            let mut catalogue = Catalogue::new();
+            catalogue.register(entry).unwrap();
+            let declaration = Declaration {
+                key: "protection.checks".into(),
+                scope: Scope::Project,
+                source_id: "project".into(),
+                event: ResolutionEvent::Set(value),
+            };
+
+            assert_eq!(
+                Resolver::resolve(&catalogue, &[declaration]).unwrap_err(),
+                ResolverError::InvalidValue {
+                    key: "protection.checks".into(),
+                    source_id: "project".into(),
+                    expected: value_type,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn resolver_accepts_values_that_match_the_catalogue_type() {
+        let cases = [
+            (ValueType::Boolean, Value::Bool(true)),
+            (ValueType::String, Value::String("value".into())),
+            (ValueType::Integer, serde_json::json!(42)),
+            (
+                ValueType::Enum {
+                    allowed: vec!["warn".into(), "enforce".into()],
+                },
+                Value::String("warn".into()),
+            ),
+            (ValueType::List, serde_json::json!(["lint"])),
+            (ValueType::Map, serde_json::json!({"lint": true})),
+            (ValueType::Set, serde_json::json!(["lint"])),
+        ];
+
+        for (value_type, value) in cases {
+            let mut entry = list_entry();
+            entry.value_type = value_type;
+            entry.default = None;
+            entry.merge = MergeSemantics::Replace;
+            let mut catalogue = Catalogue::new();
+            catalogue.register(entry).unwrap();
+            let declaration = Declaration {
+                key: "protection.checks".into(),
+                scope: Scope::Project,
+                source_id: "project".into(),
+                event: ResolutionEvent::Set(value),
+            };
+
+            Resolver::resolve(&catalogue, &[declaration]).expect("matching value type");
+        }
+    }
+
+    #[test]
+    fn resolver_error_display_redacts_path_shaped_source_ids() {
+        let mut entry = list_entry();
+        entry.value_type = ValueType::Boolean;
+        entry.default = None;
+        entry.merge = MergeSemantics::Replace;
+        let mut catalogue = Catalogue::new();
+        catalogue.register(entry).unwrap();
+        let source_id = "/home/alice/private/.anvil.json";
+        let error = Resolver::resolve(
+            &catalogue,
+            &[Declaration {
+                key: "protection.checks".into(),
+                scope: Scope::Project,
+                source_id: source_id.into(),
+                event: ResolutionEvent::Set(Value::String("not-a-boolean".into())),
+            }],
+        )
+        .unwrap_err();
+
+        assert!(!error.to_string().contains(source_id));
+        assert!(error.to_string().contains("protection.checks"));
+        assert!(matches!(
+            error,
+            ResolverError::InvalidValue { source_id: actual, .. } if actual == source_id
+        ));
     }
 }

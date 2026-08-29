@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::canonical_json::canonicalise;
 use crate::types::{EvidenceMode, SettingKey};
 
 /// Transport that produced the evidence. First release: daemon RPC only.
@@ -149,7 +150,7 @@ fn expired(valid_until: Option<&str>, now: &str) -> bool {
 
 fn digest_of(value: &Value) -> String {
     use sha2::{Digest, Sha256};
-    let bytes = serde_json::to_vec(value).unwrap_or_default();
+    let bytes = serde_json::to_vec(&canonicalise(value)).unwrap_or_default();
     hex::encode(Sha256::digest(bytes))
 }
 
@@ -318,6 +319,43 @@ mod runtime_state_tests {
             RuntimeState::Drift
         );
         att.classified_digest = Some(digest_of(&resolved));
+        assert_eq!(
+            classify_runtime_state(Some(&att), &inp),
+            RuntimeState::Active
+        );
+    }
+
+    #[test]
+    fn runtime_state_classified_digest_canonicalises_nested_object_keys() {
+        let first = serde_json::json!({
+            "outer": {
+                "alpha": 1,
+                "beta": 2
+            },
+            "enabled": true
+        });
+        let equivalent = serde_json::json!({
+            "enabled": true,
+            "outer": {
+                "beta": 2,
+                "alpha": 1
+            }
+        });
+        let reordered_list = serde_json::json!({
+            "enabled": true,
+            "outer": [2, 1]
+        });
+
+        assert_eq!(digest_of(&first), digest_of(&equivalent));
+        assert_ne!(
+            digest_of(&serde_json::json!({"outer": [1, 2], "enabled": true})),
+            digest_of(&reordered_list)
+        );
+
+        let mut att = att();
+        att.classified_digest = Some(digest_of(&first));
+        let mut inp = input("rev-1", "2026-08-25T00:30:00Z", &equivalent);
+        inp.evidence_mode = EvidenceMode::ClassifiedDigest;
         assert_eq!(
             classify_runtime_state(Some(&att), &inp),
             RuntimeState::Active

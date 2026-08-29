@@ -1,8 +1,8 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-28 against PR #4194's test-only component freshness closeout for API, docs shell, and intercept; container, component, and context topology and diagrams unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                            |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-29 against SETCON-012 type, reset, revision/digest, and approval-evidence invariant repairs; container, component, and context topology and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                                                         | Downstream                                                                            |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
