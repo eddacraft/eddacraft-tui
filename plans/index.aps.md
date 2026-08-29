@@ -113,7 +113,7 @@ Selection rules:
 | 8 | SDT-001/-002 — secret-detection fail-closed + calibration corpus | Schedule | [secret-detection-truth](./modules/secret-detection-truth.aps.md) | Beta-reported false-clean on the customer-facing gate; honesty fix is small; corpus decomposes detection report before rules change. Not this cut claim. | Operator promotes when ready. |
 | 9 | v0.9.6-beta claim set | Released/Shipped | [release record](./releases/v0.9.6-beta.md) | Field fixes + shell command-safety published 2026-08-18. | None — historical. |
 | 10 | GTAO — gate-time catalogue on always-on surfaces | Schedule | [gate-time-always-on](./modules/gate-time-always-on.aps.md) | AST/MCP check are dark on the golden-path daemon; full gate is opt-in. Operator added a bounded Python AST slice 2026-08-22. Not this cut claim. | Wave 1 Merged via #4084. Wave 2 (GTAO-003/005) Merged via #4168. Next: promote GTAO-004/006/007 when ready. Do not auto-run full `anvil gate` on save; do not convert regex PY-008 to AST. |
-| 11 | CHKLR-001 — persist `anvil check` last-run reports | Merged | [check-last-run](./modules/check-last-run.aps.md), [PR #4197](https://github.com/eddacraft/anvil-001/pull/4197) | Last-run files shipped on `main` 2026-08-28. Not a release claim. | None — historical until a release record lists it. |
+| 11 | CHKLR-001 — persist `anvil check` last-run reports | Merged | [check-last-run](./modules/check-last-run.aps.md), [PR #4197](https://github.com/eddacraft/anvil-001/pull/4197) | Last-run files landed on `main` 2026-08-28. Not a release claim. | None — historical until a release record lists it. |
 ## Release Plan
 
 Releases are themed by what they deliver, not sequenced by version number.
