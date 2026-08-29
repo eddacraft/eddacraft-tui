@@ -92,7 +92,11 @@ waitlist.post('/', async (c) => {
     // Await rather than fire-and-forget: on Vercel Node serverless,
     // c.executionCtx is unavailable and the catch fallback lets the
     // lambda freeze before the Resend HTTP call flushes.
-    await sendWaitlistAdminNotification(entry.email, isNewSignup, emailSent);
+    try {
+      await sendWaitlistAdminNotification(entry.email, isNewSignup, emailSent);
+    } catch {
+      console.error('Waitlist admin notification failed after persistence (non-fatal)');
+    }
 
     return c.json({
       success: true,

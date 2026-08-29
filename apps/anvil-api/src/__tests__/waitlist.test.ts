@@ -192,6 +192,49 @@ describe('waitlist routes', () => {
       });
     });
 
+    it('keeps a persisted signup successful when admin notification rejects', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      waitlistMocks.sql.mockResolvedValue([
+        {
+          id: 1,
+          email: 'person@example.com',
+          created_at: '2026-03-14T00:00:00.000Z',
+          is_new: true,
+        },
+      ]);
+      waitlistMocks.sendWaitlistConfirmation.mockResolvedValue({ sent: true });
+      waitlistMocks.sendWaitlistAdminNotification.mockRejectedValueOnce(
+        new Error('notification unavailable')
+      );
+
+      const response = await request(
+        '/waitlist',
+        JSON.stringify({ email: ' Person@Example.com ' }),
+        {
+          'Content-Type': 'application/json',
+        }
+      );
+
+      expect(waitlistMocks.sql).toHaveBeenCalledTimes(1);
+      expect(waitlistMocks.sendWaitlistAdminNotification).toHaveBeenCalledWith(
+        'person@example.com',
+        true,
+        true
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        success: true,
+        message: 'Added to waitlist',
+        email: 'person@example.com',
+        isNewSignup: true,
+        emailSent: true,
+        emailStatus: 'sent',
+      });
+      expect(consoleError).toHaveBeenCalledWith(
+        'Waitlist admin notification failed after persistence (non-fatal)'
+      );
+    });
+
     it('rejects requests without an application/json content type', async () => {
       const response = await request('/waitlist', '{"email":"person@example.com"}', {
         'Content-Type': 'text/plain',
