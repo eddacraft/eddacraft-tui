@@ -113,9 +113,11 @@ To release the daemon and its PID lock (for example before an upgrade, or when
 anvil intercept stop
 ```
 
-`anvil intercept status` prints the daemon PID and the `anvil intercept stop`
-recovery command, so an operator who only has a terminal can find and stop a
-headless daemon.
+`anvil intercept status` prints the socket path this process connected to, the
+daemon PID, and the `anvil intercept stop` recovery command, so an operator who
+only has a terminal can find and stop a headless daemon. If the daemon was
+started under a different `$XDG_RUNTIME_DIR` (or none), status still finds it;
+`anvil doctor --fix` relocates it to this process's canonical socket.
 
 > **Windows uses forced termination.** On Linux/macOS the daemon receives a
 > signal and shuts down in an orderly way (it unbinds the IPC listener and

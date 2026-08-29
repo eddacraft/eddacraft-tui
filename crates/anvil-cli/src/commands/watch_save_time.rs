@@ -658,7 +658,7 @@ mod socket {
         /// Resolve the canonical per-user socket. `None` when no socket dir can
         /// be resolved (treated by the caller as a permanently-absent daemon).
         pub(crate) fn resolve() -> Option<Self> {
-            ipc::resolve_socket_path()
+            ipc::resolve_live_socket_path()
                 .ok()
                 .map(|socket_path| Self { socket_path })
         }

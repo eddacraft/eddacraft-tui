@@ -274,7 +274,7 @@ fn daemon_symbol_context(
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
     const REQUEST_ID: &str = "mcp-gctx-symbol-context";
 
-    let socket_path = ipc::resolve_socket_path().map_err(|_| DaemonRpcError::Unavailable)?;
+    let socket_path = ipc::resolve_live_socket_path().map_err(|_| DaemonRpcError::Unavailable)?;
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
         return match err {

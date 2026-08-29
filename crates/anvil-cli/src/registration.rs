@@ -519,7 +519,7 @@ fn round_trip(body: &[u8], timeout: Duration) -> Result<String, DaemonRegistrati
 
     use anvil_intercept::ipc;
 
-    let socket_path = ipc::resolve_socket_path()
+    let socket_path = ipc::resolve_live_socket_path()
         .map_err(|err| DaemonRegistrationError::Transport(err.to_string()))?;
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         return match err {

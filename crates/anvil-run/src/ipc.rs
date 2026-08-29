@@ -59,7 +59,7 @@ pub enum ClientError {
 /// when only `$XDG_RUNTIME_DIR` is set.
 #[cfg(unix)]
 pub fn resolve_endpoint() -> Result<PathBuf, ClientError> {
-    anvil_intercept::ipc::resolve_socket_path()
+    anvil_intercept::ipc::resolve_live_socket_path()
         .map_err(|err| ClientError::SocketPath(err.to_string()))
 }
 

@@ -329,7 +329,7 @@ where
     // response cap, sized above any honest reply.
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
 
-    let socket_path = ipc::resolve_socket_path().map_err(|_| DaemonRpcError::Unavailable)?;
+    let socket_path = ipc::resolve_live_socket_path().map_err(|_| DaemonRpcError::Unavailable)?;
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         return match err {
             ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {

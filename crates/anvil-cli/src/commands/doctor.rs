@@ -143,6 +143,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_hooks_installed(),
         check_hook_interpreter(),
         check_witness_append_route(),
+        check_intercept_socket_rendezvous(),
         check_registry_patterns_compile(),
         check_project_id(),
         check_state_boundary(),
@@ -1890,6 +1891,134 @@ fn check_witness_append_route_at(daemon_reachable: bool) -> DiagnosticCheck {
     }
 }
 
+/// Detect an intercept daemon bound under the XDG/state-home sibling
+/// of this process's canonical socket (Grok vs Codex split).
+fn check_intercept_socket_rendezvous() -> DiagnosticCheck {
+    #[cfg(unix)]
+    {
+        match anvil_intercept::ipc::resolve_socket_connect_candidates() {
+            Ok(candidates) => {
+                let Some(canonical) = candidates.first() else {
+                    return intercept_socket_rendezvous_unresolved(
+                        "no intercept socket directory candidate".to_string(),
+                    );
+                };
+                let live = match anvil_intercept::ipc::select_live_socket_path(&candidates) {
+                    Ok(path) => LiveInterceptSocket::At(path),
+                    Err(err) if intercept_socket_not_found(&err) => LiveInterceptSocket::Missing,
+                    Err(err) => LiveInterceptSocket::Invalid(err.to_string()),
+                };
+                check_intercept_socket_rendezvous_from(canonical, live)
+            }
+            Err(err) => intercept_socket_rendezvous_unresolved(err.to_string()),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        DiagnosticCheck {
+            name: "intercept-socket-rendezvous".to_string(),
+            category: "Daemon".to_string(),
+            status: CheckStatus::Pass,
+            message: "named-pipe rendezvous has no XDG/state-home split".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        }
+    }
+}
+
+#[cfg(unix)]
+fn intercept_socket_not_found(err: &anvil_intercept::ipc::IpcError) -> bool {
+    matches!(
+        err,
+        anvil_intercept::ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound
+    )
+}
+
+fn intercept_socket_rendezvous_unresolved(message: String) -> DiagnosticCheck {
+    DiagnosticCheck {
+        name: "intercept-socket-rendezvous".to_string(),
+        category: "Daemon".to_string(),
+        status: CheckStatus::Warn,
+        message,
+        details: None,
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "check $XDG_RUNTIME_DIR / $HOME or set ANVIL_HOME".to_string(),
+            command: None,
+            doc_url: None,
+        },
+    }
+}
+
+#[derive(Debug)]
+enum LiveInterceptSocket {
+    At(PathBuf),
+    Missing,
+    Invalid(String),
+}
+
+fn check_intercept_socket_rendezvous_from(
+    canonical: &Path,
+    live: LiveInterceptSocket,
+) -> DiagnosticCheck {
+    match live {
+        LiveInterceptSocket::At(path) if path == canonical => DiagnosticCheck {
+            name: "intercept-socket-rendezvous".to_string(),
+            category: "Daemon".to_string(),
+            status: CheckStatus::Pass,
+            message: format!("intercept daemon socket at {}", path.display()),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        },
+        LiveInterceptSocket::At(path) => DiagnosticCheck {
+            name: "intercept-socket-rendezvous".to_string(),
+            category: "Daemon".to_string(),
+            status: CheckStatus::Warn,
+            message: format!(
+                "intercept daemon is live at {} but this process expected {}",
+                path.display(),
+                canonical.display()
+            ),
+            details: Some(format!(
+                "GCTX and CLI now probe both paths. `anvil doctor --fix` stops the sibling daemon and starts one at the canonical socket for this environment."
+            )),
+            auto_fixable: true,
+            remediation: Remediation {
+                summary: "stop the sibling-path daemon and start one at this process's canonical socket".to_string(),
+                command: Some("anvil doctor --fix".to_string()),
+                doc_url: None,
+            },
+        },
+        LiveInterceptSocket::Missing => DiagnosticCheck {
+            name: "intercept-socket-rendezvous".to_string(),
+            category: "Daemon".to_string(),
+            status: CheckStatus::Pass,
+            message: format!(
+                "no live intercept socket at canonical or sibling ({})",
+                canonical.display()
+            ),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        },
+        LiveInterceptSocket::Invalid(reason) => DiagnosticCheck {
+            name: "intercept-socket-rendezvous".to_string(),
+            category: "Daemon".to_string(),
+            status: CheckStatus::Warn,
+            message: format!("canonical intercept socket is unusable: {reason}"),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation {
+                summary: "remove a planted symlink or repair socket permissions; do not start a second daemon to 'fix' it".to_string(),
+                command: None,
+                doc_url: None,
+            },
+        },
+    }
+}
+
 /// Soft freshness of the managed `anvil-developer-functions` skill installs.
 fn check_managed_skills() -> DiagnosticCheck {
     let home = crate::util::user_home_dir();
@@ -2264,6 +2393,101 @@ fn default_config_yaml() -> &'static str {
 }
 
 #[cfg(unix)]
+fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: bool) {
+    use anvil_intercept::ensure::{EnsureOutcome, StartCapability};
+    use anvil_intercept::{StopOutcome, request_daemon_stop_at_pid_file};
+
+    let candidates = match anvil_intercept::ipc::resolve_socket_connect_candidates() {
+        Ok(paths) if !paths.is_empty() => paths,
+        Ok(_) | Err(_) => {
+            if speak {
+                eprintln!(
+                    "  Failed to fix intercept-socket-rendezvous: could not resolve socket candidates"
+                );
+            }
+            return;
+        }
+    };
+    let canonical = &candidates[0];
+    let live = match anvil_intercept::ipc::select_live_socket_path(&candidates) {
+        Ok(path) => path,
+        Err(err) => {
+            if speak {
+                eprintln!("  Failed to fix intercept-socket-rendezvous: {err}");
+            }
+            return;
+        }
+    };
+    if live == *canonical {
+        check.status = CheckStatus::Pass;
+        check.message = format!("intercept daemon socket at {}", live.display());
+        check.auto_fixable = false;
+        if speak {
+            println!("  Fixed: intercept-socket-rendezvous — already on the canonical socket");
+        }
+        return;
+    }
+    let Some(parent) = live.parent() else {
+        if speak {
+            eprintln!(
+                "  Failed to fix intercept-socket-rendezvous: socket {} has no parent",
+                live.display()
+            );
+        }
+        return;
+    };
+    let pid_path = parent.join("intercept.pid");
+    match request_daemon_stop_at_pid_file(&pid_path) {
+        Ok(StopOutcome::Signalled { pid }) => {
+            if speak {
+                println!(
+                    "  intercept-socket-rendezvous: sent SIGTERM to sibling daemon (pid {pid})"
+                );
+            }
+        }
+        Ok(StopOutcome::NotRunning | StopOutcome::StaleCleared { .. }) => {}
+        Err(err) => {
+            if speak {
+                eprintln!("  Failed to fix intercept-socket-rendezvous: {err}");
+            }
+            return;
+        }
+    }
+    for _ in 0..20 {
+        if anvil_intercept::ipc::validate_socket_path_for_client(&live).is_err() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    match crate::commands::intercept::launch_save_time_daemon(StartCapability::MaySpawn) {
+        EnsureOutcome::Started | EnsureOutcome::Reused => {
+            check.status = CheckStatus::Pass;
+            check.message = format!("intercept daemon restarted at {}", canonical.display());
+            check.auto_fixable = false;
+            if speak {
+                println!(
+                    "  Fixed: intercept-socket-rendezvous — daemon now at {}",
+                    canonical.display()
+                );
+            }
+        }
+        EnsureOutcome::NoStart { reason } => {
+            if speak {
+                eprintln!(
+                    "  Failed to fix intercept-socket-rendezvous: did not start ({})",
+                    reason.as_str()
+                );
+            }
+        }
+        EnsureOutcome::Failed { recovery } => {
+            if speak {
+                eprintln!("  Failed to fix intercept-socket-rendezvous: {recovery}");
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
 fn apply_produce_locks_fix(check: &mut DiagnosticCheck, speak: bool) {
     match anvil_intercept::snapshot_io::base_store::reap_default_stale_produce_locks() {
         Ok(removed) => {
@@ -2382,6 +2606,10 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
             }
             #[cfg(unix)]
             "produce-locks" => apply_produce_locks_fix(check, speak),
+            #[cfg(unix)]
+            "intercept-socket-rendezvous" => {
+                apply_intercept_socket_rendezvous_fix(check, speak);
+            }
             "plans-dir" => match std::fs::create_dir_all("plans") {
                 Ok(()) => {
                     check.status = CheckStatus::Pass;
@@ -4426,6 +4654,67 @@ mod tests {
             checks.iter().any(|c| c.name == "witness-append-route"),
             "witness-append-route must be registered in run_all_checks",
         );
+    }
+
+    #[test]
+    fn run_all_checks_includes_intercept_socket_rendezvous_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks
+                .iter()
+                .any(|c| c.name == "intercept-socket-rendezvous"),
+            "intercept-socket-rendezvous must be registered in run_all_checks",
+        );
+    }
+
+    #[test]
+    fn intercept_socket_rendezvous_passes_when_canonical_is_live() {
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let check = check_intercept_socket_rendezvous_from(
+            &canonical,
+            LiveInterceptSocket::At(canonical.clone()),
+        );
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(!check.auto_fixable);
+        assert!(check.message.contains(canonical.to_str().unwrap()));
+    }
+
+    #[test]
+    fn intercept_socket_rendezvous_warns_and_is_fixable_on_sibling() {
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
+        let check = check_intercept_socket_rendezvous_from(
+            &canonical,
+            LiveInterceptSocket::At(sibling.clone()),
+        );
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(check.auto_fixable);
+        assert!(check.message.contains(sibling.to_str().unwrap()));
+        assert!(check.message.contains(canonical.to_str().unwrap()));
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil doctor --fix")
+        );
+    }
+
+    #[test]
+    fn intercept_socket_rendezvous_is_quiet_when_daemon_is_absent() {
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let check =
+            check_intercept_socket_rendezvous_from(&canonical, LiveInterceptSocket::Missing);
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(!check.auto_fixable);
+    }
+
+    #[test]
+    fn intercept_socket_rendezvous_does_not_auto_fix_canonical_symlink() {
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let check = check_intercept_socket_rendezvous_from(
+            &canonical,
+            LiveInterceptSocket::Invalid("socket path is a symlink".to_string()),
+        );
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(!check.auto_fixable);
     }
 
     #[test]

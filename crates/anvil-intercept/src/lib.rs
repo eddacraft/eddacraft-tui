@@ -1216,8 +1216,36 @@ fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus)
 /// after removing the stale file. Neither is an error.
 #[cfg(any(unix, windows))]
 pub fn request_daemon_stop() -> Result<StopOutcome> {
-    let path = default_pid_file_path()?;
-    stop_daemon_at(&path)
+    #[cfg(unix)]
+    {
+        let candidates = match crate::ipc::resolve_pid_file_connect_candidates() {
+            Ok(paths) if !paths.is_empty() => paths,
+            _ => vec![default_pid_file_path()?],
+        };
+        let mut last = StopOutcome::NotRunning;
+        for path in candidates {
+            match stop_daemon_at(&path)? {
+                StopOutcome::Signalled { pid } => {
+                    return Ok(StopOutcome::Signalled { pid });
+                }
+                other => last = other,
+            }
+        }
+        Ok(last)
+    }
+    #[cfg(windows)]
+    {
+        let path = default_pid_file_path()?;
+        stop_daemon_at(&path)
+    }
+}
+
+/// Stop the daemon recorded at a specific PID file. Doctor `--fix`
+/// uses this after naming a sibling-runtime daemon so it does not
+/// depend on this process's `XDG_RUNTIME_DIR`.
+#[cfg(any(unix, windows))]
+pub fn request_daemon_stop_at_pid_file(path: &Path) -> Result<StopOutcome> {
+    stop_daemon_at(path)
 }
 
 #[cfg(any(unix, windows))]

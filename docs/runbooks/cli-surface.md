@@ -320,7 +320,12 @@ gh pr view 42 --json body --jq .body | \
 **Class:** User-explicit **Purpose:** Run diagnostic checks on your environment.
 **When to use:** When Anvil is behaving unexpectedly or a setup step failed.
 Also useful as a pre-flight in CI. Doctor also runs daily MCP self-heal (rewrite
-drifted owned entries and poke live children) unless MCP heal is pinned.
+drifted owned entries and poke live children) unless MCP heal is pinned. The
+`intercept-socket-rendezvous` check warns when this process expected
+`$XDG_RUNTIME_DIR/anvil/intercept.sock` but the daemon is live under
+`~/.local/state/anvil` (or the reverse); `--fix` stops that sibling daemon and
+starts one at the canonical socket. It does not follow socket symlinks and does
+not cross an `ANVIL_HOME` prefix.
 
 **Synopsis:** `anvil doctor [--fix]`
 
@@ -955,12 +960,12 @@ the local intercept daemon that enables pre-write MCP validation.
 
 **Subcommands:**
 
-| Subcommand | Description                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| `start`    | Start the intercept daemon in the foreground. `--foreground` is required.                    |
-| `status`   | Print the daemon's status snapshot (sessions, fences, latency).                              |
-| `unblock`  | Clear fence state from the daemon.                                                           |
-| `stop`     | Stop the per-user daemon recorded in the daemon PID file; idempotent when no daemon is live. |
+| Subcommand | Description                                                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start`    | Start the intercept daemon in the foreground. `--foreground` is required.                                                                                         |
+| `status`   | Print the daemon's status snapshot (socket path used, sessions, fences, latency).                                                                                 |
+| `unblock`  | Clear fence state from the daemon.                                                                                                                                |
+| `stop`     | Stop the per-user daemon recorded in the daemon PID file (and the XDG/state-home sibling PID file when `ANVIL_HOME` is unset); idempotent when no daemon is live. |
 
 **When to use (`start`):** To start the intercept daemon in this terminal.
 `--foreground` is required; use `anvil start` or `anvil watch` when you want the

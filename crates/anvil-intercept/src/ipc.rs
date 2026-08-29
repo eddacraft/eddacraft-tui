@@ -579,9 +579,169 @@ fn resolve_socket_dir_with_env(
 
 /// Resolve the absolute Unix socket path used by the daemon. The
 /// socket file itself is named `intercept.sock`.
+///
+/// This is the **bind / PID / start** path. Client connect probes
+/// [`resolve_socket_connect_candidates`] so a daemon started under a
+/// different `XDG_RUNTIME_DIR` (or none) is still found.
 #[cfg(unix)]
 pub fn resolve_socket_path() -> Result<PathBuf, IpcError> {
     Ok(resolve_socket_dir()?.join("intercept.sock"))
+}
+
+/// Client-connect socket paths, canonical first.
+///
+/// When `ANVIL_HOME` is set the list is that prefix only (ADR-060
+/// candidate daemons must not fall through to production). Otherwise
+/// the bind path is first, then the sibling `XDG_RUNTIME_DIR` /
+/// `$HOME/.local/state` path so Grok (runtime-dir) and Codex (state
+/// home) meet the same daemon. Implicit `/run/user/<uid>` is probed
+/// only when `XDG_RUNTIME_DIR` is unset.
+#[cfg(unix)]
+pub fn resolve_socket_connect_candidates() -> Result<Vec<PathBuf>, IpcError> {
+    resolve_socket_connect_candidates_with_env(
+        crate::anvil_home_prefix().map(std::path::PathBuf::into_os_string),
+        std::env::var_os("XDG_RUNTIME_DIR"),
+        std::env::var_os("HOME"),
+        implicit_xdg_runtime_dir(),
+    )
+}
+
+/// Linux default runtime dir used when `$XDG_RUNTIME_DIR` is unset.
+/// Returns `None` when the env is already set (so we do not double
+/// the explicit candidate) or the directory is absent.
+#[cfg(unix)]
+fn implicit_xdg_runtime_dir() -> Option<PathBuf> {
+    if std::env::var_os("XDG_RUNTIME_DIR")
+        .filter(|d| !d.is_empty())
+        .is_some()
+    {
+        return None;
+    }
+    let uid = nix::unistd::Uid::current().as_raw();
+    let path = PathBuf::from(format!("/run/user/{uid}"));
+    path.is_dir().then_some(path)
+}
+
+/// Test seam for [`resolve_socket_connect_candidates`].
+#[cfg(unix)]
+pub fn resolve_socket_connect_candidates_with_env(
+    anvil_home: Option<std::ffi::OsString>,
+    xdg_runtime_dir: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+    implicit_runtime_dir: Option<PathBuf>,
+) -> Result<Vec<PathBuf>, IpcError> {
+    let dirs = resolve_socket_connect_dirs_with_env(
+        anvil_home,
+        xdg_runtime_dir,
+        home,
+        implicit_runtime_dir,
+    )?;
+    Ok(dirs
+        .into_iter()
+        .map(|dir| dir.join("intercept.sock"))
+        .collect())
+}
+
+#[cfg(unix)]
+fn resolve_socket_connect_dirs_with_env(
+    anvil_home: Option<std::ffi::OsString>,
+    xdg_runtime_dir: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+    implicit_runtime_dir: Option<PathBuf>,
+) -> Result<Vec<PathBuf>, IpcError> {
+    let anvil_home_set = anvil_home.as_ref().is_some_and(|d| !d.is_empty());
+    let canonical = resolve_socket_dir_with_env(anvil_home, xdg_runtime_dir.clone(), home.clone())?;
+    if anvil_home_set {
+        return Ok(vec![canonical]);
+    }
+    let mut dirs = Vec::with_capacity(3);
+    push_unique_dir(&mut dirs, canonical);
+    if let Some(dir) = home.filter(|d| !d.is_empty()) {
+        push_unique_dir(&mut dirs, PathBuf::from(dir).join(".local/state/anvil"));
+    }
+    if let Some(dir) = xdg_runtime_dir.filter(|d| !d.is_empty()) {
+        push_unique_dir(&mut dirs, PathBuf::from(dir).join("anvil"));
+    } else if let Some(dir) = implicit_runtime_dir.filter(|d| !d.as_os_str().is_empty()) {
+        push_unique_dir(&mut dirs, dir.join("anvil"));
+    }
+    Ok(dirs)
+}
+
+#[cfg(unix)]
+fn push_unique_dir(dirs: &mut Vec<PathBuf>, next: PathBuf) {
+    if !dirs.iter().any(|existing| existing == &next) {
+        dirs.push(next);
+    }
+}
+
+/// Live owner-only intercept socket for **client** connect.
+///
+/// Bind/start keep [`resolve_socket_path`]. Callers that only need
+/// to talk to a daemon already running under either XDG runtime or
+/// the state-home fallback should use this.
+#[cfg(unix)]
+pub fn resolve_live_socket_path() -> Result<PathBuf, IpcError> {
+    select_live_socket_path(&resolve_socket_connect_candidates()?)
+}
+
+/// PID files paired with [`resolve_socket_connect_candidates`].
+/// Used by stop so a Grok session with `XDG_RUNTIME_DIR` can still
+/// SIGTERM a daemon whose PID file landed under `~/.local/state`.
+#[cfg(unix)]
+pub fn resolve_pid_file_connect_candidates() -> Result<Vec<PathBuf>, IpcError> {
+    let dirs = resolve_socket_connect_dirs_with_env(
+        crate::anvil_home_prefix().map(std::path::PathBuf::into_os_string),
+        std::env::var_os("XDG_RUNTIME_DIR"),
+        std::env::var_os("HOME"),
+        implicit_xdg_runtime_dir(),
+    )?;
+    Ok(dirs
+        .into_iter()
+        .map(|dir| dir.join("intercept.pid"))
+        .collect())
+}
+
+/// First candidate whose metadata is an owner-only intercept socket.
+///
+/// Canonical (index 0) errors other than `NotFound` are fatal — a
+/// planted symlink at the expected path must not fall through to a
+/// sibling. Missing canonical may fall through. Sibling symlinks are
+/// skipped.
+#[cfg(unix)]
+pub fn select_live_socket_path(candidates: &[PathBuf]) -> Result<PathBuf, IpcError> {
+    select_live_socket_path_with(candidates, validate_socket_path_for_client)
+}
+
+#[cfg(unix)]
+fn select_live_socket_path_with(
+    candidates: &[PathBuf],
+    validate: impl Fn(&Path) -> Result<(), IpcError>,
+) -> Result<PathBuf, IpcError> {
+    if candidates.is_empty() {
+        return Err(IpcError::NoSocketDirCandidate);
+    }
+    let mut last_not_found: Option<IpcError> = None;
+    for (index, path) in candidates.iter().enumerate() {
+        match validate(path) {
+            Ok(()) => return Ok(path.clone()),
+            Err(err) if ipc_error_is_not_found(&err) => {
+                last_not_found = Some(err);
+            }
+            Err(err) if index == 0 => return Err(err),
+            Err(_) => {}
+        }
+    }
+    Err(last_not_found.unwrap_or_else(|| {
+        IpcError::Io(io::Error::new(
+            io::ErrorKind::NotFound,
+            "no intercept daemon socket among connect candidates",
+        ))
+    }))
+}
+
+#[cfg(unix)]
+fn ipc_error_is_not_found(err: &IpcError) -> bool {
+    matches!(err, IpcError::Io(io) if io.kind() == io::ErrorKind::NotFound)
 }
 
 /// Validate the client side of the Unix daemon rendezvous before a peer
@@ -8953,6 +9113,110 @@ mod tests {
     fn resolve_socket_dir_errors_when_no_candidate() {
         let err = resolve_socket_dir_with_env(None, None, None).unwrap_err();
         assert!(matches!(err, IpcError::NoSocketDirCandidate));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn connect_candidates_with_xdg_and_home_are_runtime_then_state() {
+        let paths = resolve_socket_connect_candidates_with_env(
+            None,
+            Some("/run/user/1000".into()),
+            Some("/home/somebody".into()),
+            None,
+        )
+        .expect("resolve");
+        assert_eq!(
+            paths,
+            vec![
+                PathBuf::from("/run/user/1000/anvil/intercept.sock"),
+                PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock"),
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn connect_candidates_without_xdg_probe_implicit_runtime_after_state() {
+        let paths = resolve_socket_connect_candidates_with_env(
+            None,
+            None,
+            Some("/home/somebody".into()),
+            Some(PathBuf::from("/run/user/1000")),
+        )
+        .expect("resolve");
+        assert_eq!(
+            paths,
+            vec![
+                PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock"),
+                PathBuf::from("/run/user/1000/anvil/intercept.sock"),
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn connect_candidates_anvil_home_is_exclusive() {
+        let paths = resolve_socket_connect_candidates_with_env(
+            Some("/opt/anvil-beta".into()),
+            Some("/run/user/1000".into()),
+            Some("/home/somebody".into()),
+            Some(PathBuf::from("/run/user/1000")),
+        )
+        .expect("resolve");
+        assert_eq!(paths, vec![PathBuf::from("/opt/anvil-beta/intercept.sock")]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn connect_candidates_dedupe_when_only_home() {
+        let paths = resolve_socket_connect_candidates_with_env(
+            None,
+            None,
+            Some("/home/somebody".into()),
+            None,
+        )
+        .expect("resolve");
+        assert_eq!(
+            paths,
+            vec![PathBuf::from(
+                "/home/somebody/.local/state/anvil/intercept.sock"
+            )]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_live_falls_through_not_found_canonical_to_sibling() {
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
+        let chosen = select_live_socket_path_with(&[canonical, sibling.clone()], |path| {
+            if path.ends_with("state/anvil/intercept.sock") {
+                Ok(())
+            } else {
+                Err(IpcError::Io(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "missing",
+                )))
+            }
+        })
+        .expect("sibling");
+        assert_eq!(chosen, sibling);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_live_does_not_fall_through_canonical_symlink() {
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
+        let err = select_live_socket_path_with(&[canonical.clone(), sibling], |path| {
+            if path == &canonical {
+                Err(IpcError::SocketPathIsSymlink(path.to_path_buf()))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err();
+        assert!(matches!(err, IpcError::SocketPathIsSymlink(path) if path == canonical));
     }
 
     #[cfg(windows)]

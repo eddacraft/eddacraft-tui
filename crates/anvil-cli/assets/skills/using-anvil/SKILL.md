@@ -244,7 +244,13 @@ If `ready_restart_required` persists:
 - If the daemon is unreachable, run `anvil intercept start --foreground` in
   another terminal and retry verification.
 - Run `anvil intercept status` to distinguish daemon-down, stale, and
-  unenforced-worktree states.
+  unenforced-worktree states. The `socket:` line is the path this process
+  actually connected to.
+- If graph-context tools return `unavailable` while `ps` shows `anvil intercept`
+  running, the client and daemon disagree on `$XDG_RUNTIME_DIR` vs
+  `~/.local/state/anvil`. `anvil doctor` names that split; `anvil doctor --fix`
+  stops the sibling daemon and restarts it at this process's canonical socket.
+  Do not symlink the socket.
 - If a worktree is fenced, follow anvil's unblock guidance instead of deleting
   state blindly.
 

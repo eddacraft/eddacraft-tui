@@ -75,6 +75,14 @@ engineering maintenance are recorded in the
   while the tap formula is `anvil`. Copy-paste of the v0.9.7-beta release-notes
   line would not resolve. (#4077)
 
+- **GCTX and `anvil intercept status` find a daemon bound under the other Unix
+  socket path.** A client with `XDG_RUNTIME_DIR` set no longer reports
+  `unavailable` when the intercept daemon was started without that variable (and
+  vice versa). `anvil intercept status` prints the socket it actually used.
+  `anvil doctor` warns on the split; `anvil doctor --fix` stops the sibling-path
+  daemon and starts one at this process's canonical socket. `ANVIL_HOME`
+  prefixes stay exclusive. Socket paths that are symlinks are still refused.
+
 - **`anvil policy eval-regression` detects rules that go silent on frozen
   fixtures.** A finding that appears or disappears now reports that the fixture
   output changed, rather than calling a disappearing finding an improvement.

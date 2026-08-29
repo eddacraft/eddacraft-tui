@@ -10,6 +10,8 @@ use anvil_intercept::{ForegroundOpts, Shutdown, config, run_foreground, wait_for
 use anvil_intercept_proto::status::DaemonStatusV1;
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
+#[cfg(unix)]
+use std::path::PathBuf;
 
 use crate::GlobalArgs;
 
@@ -425,6 +427,9 @@ fn run_unblock_all(dry_run: bool, json_mode: bool) -> Result<()> {
 }
 
 fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
+    #[cfg(unix)]
+    let (snapshot, socket_path) = query_daemon_status_located()?;
+    #[cfg(not(unix))]
     let snapshot = query_daemon_status()?;
     // The subcommand-local `--json` shares its clap id with the global flag,
     // which stops clap propagating the global into this subcommand; the `||`
@@ -434,6 +439,8 @@ fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
             .context("failed to serialise daemon status as JSON")?;
         println!("{json}");
     } else {
+        #[cfg(unix)]
+        println!("socket:    {}", socket_path.display());
         print!(
             "{}",
             render_status_lines_with_pid(&snapshot, daemon_pid_for_display())
@@ -496,11 +503,38 @@ fn stale_produce_lock_status_lines(
 /// they can act on.
 #[cfg(unix)]
 pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
+    Ok(query_daemon_status_located()?.0)
+}
+
+/// Like [`query_daemon_status`], but also returns the socket that
+/// answered so `anvil intercept status` can name it. Probes the
+/// canonical bind path first, then the XDG / state-home sibling.
+#[cfg(unix)]
+pub(crate) fn query_daemon_status_located() -> Result<(DaemonStatusV1, PathBuf)> {
     use anvil_intercept::ipc;
 
-    let socket_path =
-        ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
-    query_daemon_status_at(&socket_path)
+    let candidates = ipc::resolve_socket_connect_candidates()
+        .context("failed to resolve intercept daemon socket path")?;
+    match ipc::select_live_socket_path(&candidates) {
+        Ok(socket_path) => {
+            let status = query_daemon_status_at(&socket_path)?;
+            Ok((status, socket_path))
+        }
+        Err(ipc::IpcError::Io(io)) if io.kind() == std::io::ErrorKind::NotFound => {
+            let probed = candidates
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+            anyhow::bail!(
+                "anvil intercept daemon is not running (no socket at {probed}). \
+                 Start it with `anvil intercept start --foreground`.",
+            )
+        }
+        Err(other) => Err(anyhow::anyhow!(
+            "anvil intercept daemon socket is unavailable: {other}",
+        )),
+    }
 }
 
 /// MLP2-051f: like [`query_daemon_status`] but with a caller-chosen
@@ -515,8 +549,8 @@ pub(crate) fn query_daemon_status_with_timeout(
     {
         use anvil_intercept::ipc;
 
-        let socket_path =
-            ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
+        let socket_path = ipc::resolve_live_socket_path()
+            .context("failed to resolve intercept daemon socket path")?;
         query_daemon_status_at_with_timeout(&socket_path, timeout)
     }
     #[cfg(windows)]
@@ -990,8 +1024,8 @@ fn dispatch_unblock_cascade(worktree: &std::path::Path) -> Result<bool> {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
     const UNBLOCK_REQUEST_ID: &str = "anvil-cli-intercept-unblock-cascade";
 
-    let socket_path =
-        ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
+    let socket_path = ipc::resolve_live_socket_path()
+        .context("failed to resolve intercept daemon socket path")?;
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         return match err {
             ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
@@ -1081,8 +1115,8 @@ fn dispatch_unblock_worktree(worktree: &std::path::Path) -> Result<bool> {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
     const UNBLOCK_WORKTREE_REQUEST_ID: &str = "anvil-cli-intercept-unblock-worktree";
 
-    let socket_path =
-        ipc::resolve_socket_path().context("failed to resolve intercept daemon socket path")?;
+    let socket_path = ipc::resolve_live_socket_path()
+        .context("failed to resolve intercept daemon socket path")?;
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         return match err {
             ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {

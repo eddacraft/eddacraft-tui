@@ -251,7 +251,7 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
     fn query_protection_claim(&self, workspace_root: &Path) -> Option<ProtectionClaim> {
         #[cfg(unix)]
         {
-            let socket_path = ipc::resolve_socket_path().ok()?;
+            let socket_path = ipc::resolve_live_socket_path().ok()?;
             SocketDaemonValidationClient { socket_path }.query_protection_claim(workspace_root)
         }
         // MLP2-075: resolve the canonical per-user pipe (install-root
