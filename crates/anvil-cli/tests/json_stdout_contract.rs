@@ -47,7 +47,12 @@ fn private_tempdir(what: &str) -> tempfile::TempDir {
     {
         use std::os::unix::fs::PermissionsExt as _;
         std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
-            .expect("set 0700 on the temp dir");
+            .unwrap_or_else(|error| {
+                panic!(
+                    "could not set 0700 on the {what} at {}: {error}",
+                    dir.path().display()
+                )
+            });
     }
     dir
 }

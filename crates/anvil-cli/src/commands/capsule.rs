@@ -1276,11 +1276,17 @@ mod tests {
     /// suite. The guard itself is unchanged — rejecting a group-writable
     /// staging parent is the correct production posture.
     fn private_tempdir() -> tempfile::TempDir {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("create a temporary directory for the fixture");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt as _;
-            std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+            std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "could not set 0700 on the fixture directory at {}: {error}",
+                        dir.path().display()
+                    )
+                });
         }
         dir
     }
