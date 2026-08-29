@@ -37,7 +37,8 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use anvil_checks::secret::{
-    AllowlistProvenance, SECRET_PATTERNS, SecretCheckConfig, Suppression, scan_content_with_stats,
+    AllowlistProvenance, SECRET_PATTERNS, SecretCheckConfig, SecretFinding, Suppression,
+    scan_content_with_stats,
 };
 use serde::Deserialize;
 
@@ -100,6 +101,7 @@ struct CaseConfig {
 /// it as a false positive avoided.
 #[derive(Deserialize)]
 struct Control {
+    expected_rule: String,
     #[serde(default)]
     scan_path: Option<String>,
     #[serde(default)]
@@ -151,6 +153,22 @@ fn read_case(root: &Path, case: &Case) -> String {
     })
 }
 
+fn control_added_expected_finding(
+    baseline: &[SecretFinding],
+    control: &[SecretFinding],
+    expected_rule: &str,
+) -> bool {
+    let baseline_count = baseline
+        .iter()
+        .filter(|finding| finding.pattern_name == expected_rule)
+        .count();
+    control
+        .iter()
+        .filter(|finding| finding.pattern_name == expected_rule)
+        .count()
+        > baseline_count
+}
+
 fn measure(root: &Path, case: &Case) -> Outcome {
     let content = read_case(root, case);
     let config = case_config(case);
@@ -177,7 +195,7 @@ fn measure(root: &Path, case: &Case) -> Outcome {
         let control_path = control.scan_path.as_deref().unwrap_or(&case.scan_path);
         let (control_findings, _) =
             scan_content_with_stats(&control_content, control_path, &config);
-        !control_findings.is_empty()
+        control_added_expected_finding(&findings, &control_findings, &control.expected_rule)
     });
 
     Outcome {
@@ -672,4 +690,26 @@ fn corpus_metadata_stays_clean_under_the_scanner() {
              values; canaries belong in cases/*.corpus. Reported: {reported:?}"
         );
     }
+}
+
+#[test]
+fn control_requires_expected_rule_delta() {
+    let finding = |pattern_name: &str| SecretFinding {
+        pattern_name: pattern_name.to_owned(),
+        ..SecretFinding::default()
+    };
+    let baseline = vec![finding("High Entropy String")];
+    let unchanged_control = vec![finding("High Entropy String")];
+    let intended_control = vec![finding("High Entropy String"), finding("API Key")];
+
+    assert!(!control_added_expected_finding(
+        &baseline,
+        &unchanged_control,
+        "API Key",
+    ));
+    assert!(control_added_expected_finding(
+        &baseline,
+        &intended_control,
+        "API Key",
+    ));
 }

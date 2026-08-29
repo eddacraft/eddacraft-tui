@@ -10,9 +10,9 @@
 **Last reviewed:** 2026-08-29 — operator selected the 24 findings that remain
 after SETCON-012 from the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
-for a bounded repair wave. CLAWOPEN-001 is the first executable slice.
-CLAWOPEN-007, -008, -009, and -011 retain explicit design or dependency
-checkpoints; the remaining clusters are Ready under the acceptance boundaries
+for a bounded repair wave. Five clusters are locally implemented and
+independently verified; CLAWOPEN-007, -009, and -011 retain explicit design
+checkpoints, while four other clusters retain the named write-gate blockers
 below.
 
 > **Exclusive module.** The wave orchestrator is the only plan writer.
@@ -52,7 +52,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-001: Freeze process-wide flag authority
 
-- **Status:** Blocked
+- **Status:** In Progress
 - **Priority:** P1
 - **Risk:** standard
 - **Intent:** Consumers cannot mutate any validated process-wide flag inventory
@@ -302,8 +302,8 @@ shared CIB backlog as feature-branch state.
 2. Run CLAWOPEN-004 and -005 next; the API-auth work from -002/-003 must land
    before rebasing any overlapping API test helpers.
 3. Run Ready clusters CLAWOPEN-006, -010, and -012 by owning package.
-4. Reconcile CLAWOPEN-008 dependencies and pass CLAWOPEN-007, -009, and -011
-   through their design membranes before implementation.
+4. Pass CLAWOPEN-007, -009, and -011 through their design membranes before
+   implementation.
 5. Re-run the full 24-finding acceptance matrix, independent verification, and
    Council before publication.
 

@@ -653,6 +653,13 @@ fn repository() -> TempDir {
         repo.path(),
         &["config", "user.email", "conf-test@example.invalid"],
     );
+    git(repo.path(), &["config", "commit.gpgsign", "false"]);
+    let empty_hooks = repo.path().join("empty-hooks");
+    std::fs::create_dir_all(&empty_hooks).expect("create empty hooks directory");
+    git(
+        repo.path(),
+        &["config", "core.hooksPath", &empty_hooks.to_string_lossy()],
+    );
     repo
 }
 
