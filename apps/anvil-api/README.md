@@ -1,8 +1,8 @@
 # anvil API
 
-| Type   | Authority     | Owner | Status | Freshness                                                                                            |
-| ------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------- |
-| README | Authoritative | APGOV | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/index.ts`, `src/routes/**`, and `ARCHITECTURE.md` |
+| Type   | Authority     | Owner | Status | Freshness                                                                         |
+| ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------- |
+| README | Authoritative | APGOV | Live   | Last reviewed 2026-08-29 against `854be61ec`, `src/**`, and `infra/src/vercel.ts` |
 
 | Upstream                                                                                    | Downstream                                              |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
@@ -57,8 +57,13 @@ and history record. Authentication authority stays with BAUTH's
 | POST   | `/api/v1/admin/approve`        | Admin | Approve waitlist user              |
 | POST   | `/api/v1/admin/revoke`         | Admin | Revoke token(s)                    |
 | GET    | `/api/v1/admin/user/:email`    | Admin | Lookup user + tokens               |
+| GET    | `/api/v1/admin/fleet`          | Admin | Fleet telemetry overview           |
 | POST   | `/api/v1/admin/broadcast`      | Admin | Preview/send broadcast mail        |
 | POST   | `/api/v1/admin/send-migration` | Admin | Migration-mail shim over broadcast |
+
+The fleet endpoint returns a current and historical anonymous snapshot of
+adoption and usage. Its unverified beacons are directional evidence, not
+audit-grade data, and the response omits install IDs.
 
 > **Deprecation:** `/auth/verify` and `/auth/license/refresh` still work but new
 > integrations should use the device code or OTP flows above.
@@ -112,6 +117,23 @@ the equivalent broadcast call (`template: waitlist-migration`,
 | `RESEND_BETA_AUDIENCE_ID`     | No       | Resend audience ID for beta users                                            |
 | `CRON_SECRET`                 | Yes      | Bearer token for cron endpoint authentication                                |
 | `ACTIVATE_URL`                | No       | Device code confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
+| `GITHUB_CLIENT_ID`            | Yes      | `eddacraft Docs` GitHub OAuth app ID for `/api/v1/auth/github/callback`      |
+| `GITHUB_CLIENT_SECRET`        | Yes      | Same app's API-only secret for callback exchange and token revocation        |
+| `GITHUB_CLI_CLIENT_ID`        | Yes      | `Anvil CLI` GitHub OAuth app ID for the `/auth/github-device` broker         |
+| `GITHUB_CLI_CLIENT_SECRET`    | Yes      | `Anvil CLI` GitHub OAuth app secret for broker-side token revocation         |
+
+EddaCraft-managed deployments source the hosted `eddacraft Docs` pair from Azure
+Key Vault secrets `github-oauth-client-id` and `github-oauth-client-secret`, and
+the dedicated `Anvil CLI` pair from `github-cli-client-id` and
+`github-cli-client-secret`. The hosted pair owns
+`POST /api/v1/auth/github/callback`; the CLI pair owns
+`POST /api/v1/auth/github-device/start` and
+`POST /api/v1/auth/github-device/poll`. The CLI app must have Device Flow
+enabled, and its secret remains broker-side for token revocation rather than the
+public-client exchange. See the
+[auth as-built](../../docs/architecture/auth-as-built.md) and
+[GitHub device-flow runbook](../../docs/runbooks/github-device-flow.md) for the
+complete trust boundary and rotation procedure.
 
 ### Per-Operator Admin Keys
 
