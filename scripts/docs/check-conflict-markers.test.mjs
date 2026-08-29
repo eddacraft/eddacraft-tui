@@ -286,3 +286,43 @@ test('explicit absolute paths report repo-relative forward-slash paths', async (
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('corpus mode does not read through a symlink that escapes the repository', async () => {
+  // Review of PR #4203: corpus mode read via `readFileSync`, which follows
+  // symlinks, so a tracked link pointing outside the tree could have its bytes
+  // read and echoed in a finding snippet.
+  //
+  // This MUST use a real git repository. The non-git fallback walk filters on
+  // `Dirent.isFile()`, which is false for a symlink, so the link is never even
+  // enumerated there — a fixture without `git ls-files` passes against the
+  // vulnerable reader and proves nothing.
+  const outside = await mkdtemp(join(tmpdir(), 'cm-outside-'));
+  const root = await makeRepo({ 'docs/keep.md': '# clean\n' });
+  try {
+    const secret = join(outside, 'secret.md');
+    await writeFile(secret, `${OURS} SENSITIVE-CONTENT-FROM-OUTSIDE\n`, 'utf8');
+    await symlink(secret, join(root, 'docs', 'leak.md'));
+
+    const git = (...a) => spawnSync('git', ['-C', root, ...a], { encoding: 'utf8' });
+    git('init', '--quiet');
+    git('config', 'user.email', 't@example.com');
+    git('config', 'user.name', 'T');
+    git('add', '-A');
+    const tracked = git('ls-files').stdout;
+    assert.ok(
+      tracked.includes('docs/leak.md'),
+      `fixture invalid: git must track the symlink, got: ${tracked}`
+    );
+
+    const r = run(root);
+    const all = r.stdout + r.stderr;
+    assert.ok(
+      !all.includes('SENSITIVE-CONTENT-FROM-OUTSIDE'),
+      `outside bytes must never be echoed: ${all}`
+    );
+    assert.equal(r.status, 0, `escaping symlink must not produce a finding: ${all}`);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});

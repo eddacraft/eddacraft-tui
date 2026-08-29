@@ -222,15 +222,54 @@ function readExplicitFile(rel) {
   }
 }
 
+/// Read a tracked corpus file, refusing to follow a symlink out of the repo.
+///
+/// The positional reader above rejects an escape as a tooling failure, because
+/// an explicit argument naming an outside path is a caller error. Corpus mode
+/// is different: a repository may legitimately track a symlink pointing
+/// outward, and failing the whole gate over one would be wrong. So an escaping
+/// entry is skipped rather than fatal — but it is counted and named in the
+/// summary, because silently reading nothing and reporting "no markers" would
+/// be the same false-clean this surface exists to prevent.
+///
+/// Without this, `readFileSync` followed symlinks, so a tracked link out of the
+/// tree could have its bytes read and echoed in a finding snippet (review of
+/// PR #4203).
+function readTrackedFile(rel, escaped) {
+  const absolute = resolve(root, rel);
+  let fd;
+  try {
+    fd = openSync(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const opened = fstatSync(fd);
+    const current = realpathSync(absolute);
+    if (!isInsideRoot(current)) {
+      escaped.push(rel);
+      return null;
+    }
+    const currentStat = statSync(current);
+    if (opened.dev !== currentStat.dev || opened.ino !== currentStat.ino) {
+      escaped.push(rel);
+      return null;
+    }
+    return readFileSync(fd, 'utf8');
+  } catch {
+    // O_NOFOLLOW makes a symlinked entry fail to open, which is the
+    // conservative outcome: no bytes read, nothing reported as clean.
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 const findings = [];
 const optedOutFiles = [];
+const escapedFiles = [];
 let scanned = 0;
 
 for (const rel of listFiles()) {
   let text;
   try {
-    text =
-      positionals.length > 0 ? readExplicitFile(rel) : readFileSync(resolve(root, rel), 'utf8');
+    text = positionals.length > 0 ? readExplicitFile(rel) : readTrackedFile(rel, escapedFiles);
     if (text === null) continue;
   } catch {
     // Unreadable or binary-ish entries (a deleted-but-indexed path, a symlink
@@ -266,6 +305,9 @@ if (findings.length > 0) {
 
 console.log(
   `[${SURFACE}] ok: no conflict markers in ${scanned} scanned file(s)` +
+    (escapedFiles.length > 0
+      ? `; ${escapedFiles.length} skipped as symlinks outside the repository (${escapedFiles.join(', ')})`
+      : '') +
     (optedOutFiles.length > 0
       ? `; ${optedOutFiles.length} file(s) opted out (${optedOutFiles.join(', ')})`
       : '') +
