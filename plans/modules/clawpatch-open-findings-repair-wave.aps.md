@@ -136,7 +136,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-005: Pin security-sensitive route decisions
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** Route-level tests fail when OAuth callback or early-access
