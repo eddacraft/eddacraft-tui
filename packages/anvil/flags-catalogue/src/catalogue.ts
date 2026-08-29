@@ -1,4 +1,4 @@
-import type { FeatureFlagDefinition } from '@eddacraft/anvil-contracts';
+import type { ReadonlyFeatureFlagDefinition } from '@eddacraft/anvil-contracts';
 import { featureFlagManifest, flagAudiences } from './manifest.js';
 
 // Flag key constants — preserved as named exports so existing `*_KEY` imports
@@ -14,12 +14,12 @@ export type ApiScopeName = (typeof API_SCOPE_NAMES)[number];
 /** Scopes granted by default on admin-issued access tokens. */
 export const DEFAULT_APPROVAL_SCOPES: readonly ApiScopeName[] = ['beta'];
 
-const FLAGS_BY_KEY: ReadonlyMap<string, FeatureFlagDefinition> = new Map(
+const FLAGS_BY_KEY: ReadonlyMap<string, ReadonlyFeatureFlagDefinition> = new Map(
   featureFlagManifest().flags.map((flag) => [flag.key, flag])
 );
 
 /** Look up a flag definition by key, throwing if it is not in the manifest. */
-export function flagByKey(key: string): FeatureFlagDefinition {
+export function flagByKey(key: string): ReadonlyFeatureFlagDefinition {
   const flag = FLAGS_BY_KEY.get(key);
   if (flag === undefined) {
     throw new Error(`[anvil-flags-catalogue] no flag with key "${key}" in the manifest`);
@@ -28,7 +28,7 @@ export function flagByKey(key: string): FeatureFlagDefinition {
 }
 
 /** Look up a flag definition by key, returning undefined if absent. */
-export function tryFlagByKey(key: string): FeatureFlagDefinition | undefined {
+export function tryFlagByKey(key: string): ReadonlyFeatureFlagDefinition | undefined {
   return FLAGS_BY_KEY.get(key);
 }
 
@@ -38,19 +38,20 @@ function apiScopeKey(name: ApiScopeName): string {
 
 // Typed accessors for every shipped flag. Shapes are byte-compatible with the
 // per-surface modules these will replace (FLAGCAT-003/-005).
-export const CLI_LICENCE_GATE: FeatureFlagDefinition = flagByKey(CLI_LICENCE_GATE_KEY);
-export const DOCS_ACCESS_FLAG: FeatureFlagDefinition = flagByKey(DOCS_ACCESS_FLAG_KEY);
-export const GCTX_EGRESS_FLAG: FeatureFlagDefinition = flagByKey(GCTX_EGRESS_FLAG_KEY);
+export const CLI_LICENCE_GATE: ReadonlyFeatureFlagDefinition = flagByKey(CLI_LICENCE_GATE_KEY);
+export const DOCS_ACCESS_FLAG: ReadonlyFeatureFlagDefinition = flagByKey(DOCS_ACCESS_FLAG_KEY);
+export const GCTX_EGRESS_FLAG: ReadonlyFeatureFlagDefinition = flagByKey(GCTX_EGRESS_FLAG_KEY);
 
-export const API_SCOPE_FLAGS: Readonly<Record<ApiScopeName, FeatureFlagDefinition>> = Object.freeze(
-  API_SCOPE_NAMES.reduce(
-    (acc, name) => {
-      acc[name] = flagByKey(apiScopeKey(name));
-      return acc;
-    },
-    {} as Record<ApiScopeName, FeatureFlagDefinition>
-  )
-);
+export const API_SCOPE_FLAGS: Readonly<Record<ApiScopeName, ReadonlyFeatureFlagDefinition>> =
+  Object.freeze(
+    API_SCOPE_NAMES.reduce(
+      (acc, name) => {
+        acc[name] = flagByKey(apiScopeKey(name));
+        return acc;
+      },
+      {} as Record<ApiScopeName, ReadonlyFeatureFlagDefinition>
+    )
+  );
 
 /** True when the given string is a known API scope name. */
 export function isApiScopeName(value: string): value is ApiScopeName {

@@ -23,7 +23,7 @@ function targetingValues(value: unknown): string[] {
 describe('FLAGCAT-006 cross-manifest references', () => {
   const flags = featureFlagManifest().flags;
   const audienceIds = new Set(flagAudiences().audiences.map((a) => a.id));
-  const envIds = new Set(flagEnvironments().environments.map((e) => e.id));
+  const envIds = new Set<string>(flagEnvironments().environments.map((e) => e.id));
 
   it('every canonical-audience targeting value exists in audiences.json', () => {
     for (const flag of flags) {

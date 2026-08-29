@@ -1,4 +1,4 @@
-import type { EvaluationContext, FeatureFlagDefinition } from '@eddacraft/anvil-contracts';
+import type { EvaluationContext, ReadonlyFeatureFlagDefinition } from '@eddacraft/anvil-contracts';
 import {
   resolveFlag,
   type FlagOverrides,
@@ -33,7 +33,7 @@ export {
   type ApiScopeName,
 };
 
-export function apiScopeFlagFor(scope: string): FeatureFlagDefinition | undefined {
+export function apiScopeFlagFor(scope: string): ReadonlyFeatureFlagDefinition | undefined {
   if (!isApiScopeName(scope)) return undefined;
   return API_SCOPE_FLAGS[scope];
 }

@@ -1,8 +1,8 @@
 # @eddacraft/anvil-flags-catalogue
 
-| Type   | Authority | Owner   | Status | Freshness                                                                                                                                                       |
-| ------ | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Derived   | FLAGCAT | Live   | Reviewed 2026-08-25 against FLAGCAT-015 plan availability, `flags/*.json`, FLAGCAT-012 host completeness, the contracts schemas, and the package implementation |
+| Type   | Authority | Owner   | Status | Freshness                                                                                                       |
+| ------ | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| README | Derived   | FLAGCAT | Live   | Reviewed 2026-08-29 against CLAWOPEN-001, `flags/*.json`, the contracts schemas, and the package implementation |
 
 | Upstream                                                                                | Downstream                                                   |
 | --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -10,8 +10,8 @@
 
 Validated accessors for anvil's operational feature flags and product catalogue.
 The package imports the repository-root `flags/*.json` files, validates them
-against `@eddacraft/anvil-contracts` at module load, and exports typed read-only
-accessors.
+against `@eddacraft/anvil-contracts` at module load, recursively freezes the
+validated inventories, and exports typed deep-readonly accessors.
 
 ## Sources (`flags/` at the repo root)
 
@@ -32,10 +32,15 @@ import {
   productCatalogue,
 } from '@eddacraft/anvil-flags-catalogue';
 
-const flag = flagByKey('docs.access');
-const manifest = featureFlagManifest(); // validated FeatureFlagManifest
+const flag = flagByKey('docs.access'); // frozen ReadonlyFeatureFlagDefinition
+const manifest = featureFlagManifest(); // frozen ReadonlyFeatureFlagManifest
 const catalogue = productCatalogue(); // authoritative ProductCatalogueManifest v2
 ```
+
+The operational manifest, group, audience, and environment inventories are
+validated and recursively frozen once at module load. `flagByKey()`, named flag
+exports, and API-scope definitions reference those same frozen definitions, so
+consumer import order cannot change later catalogue decisions.
 
 `productCatalogue()` is the authoritative accessor for product feature groups,
 product features, delivery surfaces, reviewed internal-plumbing exclusions, and
@@ -59,6 +64,7 @@ once, synchronously, at module load.
 
 ```bash
 pnpm exec nx test flags-catalogue --skip-nx-cache
+pnpm exec tsc -p packages/anvil/flags-catalogue/tsconfig.spec.json --noEmit
 ```
 
 ## Scope

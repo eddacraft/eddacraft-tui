@@ -23,6 +23,24 @@ import {
   tryFlagByKey,
 } from '../src/index.js';
 
+function assertOperationalInventoryMutationsAreRejected(): void {
+  const manifest = featureFlagManifest();
+  // @ts-expect-error the authoritative manifest collection is deeply readonly
+  manifest.flags.push(manifest.flags[0]!);
+  const groups = flagGroups();
+  // @ts-expect-error nested group defaults are deeply readonly
+  groups.groups[0]!.defaultAudiences.push('tampered');
+  const audiences = flagAudiences();
+  // @ts-expect-error audience entries are deeply readonly
+  audiences.audiences[0]!.name = 'tampered';
+  const environments = flagEnvironments();
+  // @ts-expect-error environment entries are deeply readonly
+  environments.environments[0]!.name = 'tampered';
+  const flag = flagByKey(manifest.flags[0]!.key);
+  // @ts-expect-error derived flag definitions keep readonly nested arrays
+  flag.variants.push(flag.variants[0]!);
+}
+
 describe('flags catalogue manifest', () => {
   it('validates against FeatureFlagManifestSchema', () => {
     expect(FeatureFlagManifestSchema.safeParse(featureFlagManifest()).success).toBe(true);
@@ -152,5 +170,58 @@ describe('gating-model inventories', () => {
         expect(audienceIds.has(aud), `${group.id} -> ${aud}`).toBe(true);
       }
     }
+  });
+});
+
+describe('read-only operational inventories', () => {
+  it('rejects nested mutation before derived flag lookup', () => {
+    const manifest = featureFlagManifest();
+    const groups = flagGroups();
+    const audiences = flagAudiences();
+    const environments = flagEnvironments();
+    const flag = manifest.flags[0]!;
+    const group = groups.groups[0]!;
+    const audience = audiences.audiences[0]!;
+    const environment = environments.environments[0]!;
+    const before = {
+      manifest: JSON.stringify(manifest),
+      groups: JSON.stringify(groups),
+      audiences: JSON.stringify(audiences),
+      environments: JSON.stringify(environments),
+      flag: JSON.stringify(flagByKey(flag.key)),
+    };
+
+    for (const value of [
+      manifest,
+      manifest.flags,
+      flag,
+      flag.variants,
+      flag.variants[0],
+      groups,
+      groups.groups,
+      group,
+      group.defaultAudiences,
+      audiences,
+      audiences.audiences,
+      audience,
+      environments,
+      environments.environments,
+      environment,
+    ]) {
+      expect(Object.isFrozen(value)).toBe(true);
+    }
+
+    expect(Reflect.set(flag.variants[0]!, 'key', 'tampered')).toBe(false);
+    expect(() => Array.prototype.push.call(group.defaultAudiences, 'tampered')).toThrow(TypeError);
+    expect(Reflect.set(audience, 'name', 'tampered')).toBe(false);
+    expect(Reflect.set(environment, 'name', 'tampered')).toBe(false);
+
+    expect(JSON.stringify(featureFlagManifest())).toBe(before.manifest);
+    expect(JSON.stringify(flagGroups())).toBe(before.groups);
+    expect(JSON.stringify(flagAudiences())).toBe(before.audiences);
+    expect(JSON.stringify(flagEnvironments())).toBe(before.environments);
+    expect(JSON.stringify(flagByKey(flag.key))).toBe(before.flag);
+    expect(flagByKey(flag.key)).toBe(flag);
+    expect(assertOperationalInventoryMutationsAreRejected).toBeTypeOf('function');
   });
 });

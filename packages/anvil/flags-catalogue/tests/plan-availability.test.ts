@@ -4,17 +4,13 @@ import {
   CANONICAL_PLAN_AXIS_AUDIENCE_IDS,
   type CanonicalPlanAxisAudienceId,
   type PlanAvailabilityDisposition,
+  type ReadonlyFeatureFlagDefinition,
 } from '@eddacraft/anvil-contracts';
 import { featureFlagManifest, flagAudiences, productCatalogue } from '../src/index.js';
 
 const PLAN_DISPOSITIONS: PlanAvailabilityDisposition[] = ['available', 'unavailable', 'undecided'];
 
-function planTargets(flag: {
-  targeting?: Array<{
-    variant?: string;
-    conditions: Array<{ attribute: string; operator?: string; value: unknown }>;
-  }>;
-}): Set<CanonicalPlanAxisAudienceId> {
+function planTargets(flag: ReadonlyFeatureFlagDefinition): Set<CanonicalPlanAxisAudienceId> {
   const found = new Set<CanonicalPlanAxisAudienceId>();
   for (const rule of flag.targeting ?? []) {
     if (rule.variant !== undefined && rule.variant !== 'enabled') continue;

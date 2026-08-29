@@ -6,6 +6,7 @@ import {
   ProductCatalogueManifestSchema,
   ProductCatalogueV1Schema,
   normaliseProductCatalogueV1,
+  type DeepReadonly,
   type FeatureFlagManifest,
   type FlagAudienceManifest,
   type FlagEnvironmentManifest,
@@ -16,13 +17,11 @@ import {
 import { productCatalogueV1Migration } from './compatibility/product-catalogue-v1-migration.js';
 import productCatalogueV1Json from './compatibility/product-catalogue-v1.json' with { type: 'json' };
 
-export type DeepReadonly<T> =
-  T extends ReadonlyArray<infer Item>
-    ? ReadonlyArray<DeepReadonly<Item>>
-    : T extends object
-      ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
-      : T;
-
+export type { DeepReadonly, ReadonlyFeatureFlagDefinition } from '@eddacraft/anvil-contracts';
+export type ReadonlyFeatureFlagManifest = DeepReadonly<FeatureFlagManifest>;
+export type ReadonlyFlagAudienceManifest = DeepReadonly<FlagAudienceManifest>;
+export type ReadonlyFlagEnvironmentManifest = DeepReadonly<FlagEnvironmentManifest>;
+export type ReadonlyFlagGroupManifest = DeepReadonly<FlagGroupManifest>;
 export type ReadonlyProductCatalogue = DeepReadonly<ProductCatalogueManifest>;
 export type ReadonlyProductCatalogueV1 = DeepReadonly<ProductCatalogueV1>;
 
@@ -73,6 +72,12 @@ const ENVIRONMENTS: FlagEnvironmentManifest = parseOrThrow(
   FlagEnvironmentManifestSchema,
   environmentsJson
 );
+
+deepFreeze(MANIFEST);
+deepFreeze(GROUPS);
+deepFreeze(AUDIENCES);
+deepFreeze(ENVIRONMENTS);
+
 /**
  * Internal structural normalisation for supported catalogue documents.
  *
@@ -191,22 +196,22 @@ function assertCrossInventoryIntegrity(): void {
 assertCrossInventoryIntegrity();
 
 /** The validated feature-flag manifest. Validated once at module load. */
-export function featureFlagManifest(): FeatureFlagManifest {
+export function featureFlagManifest(): ReadonlyFeatureFlagManifest {
   return MANIFEST;
 }
 
 /** The validated primary-group inventory. */
-export function flagGroups(): FlagGroupManifest {
+export function flagGroups(): ReadonlyFlagGroupManifest {
   return GROUPS;
 }
 
 /** The validated audience inventory. */
-export function flagAudiences(): FlagAudienceManifest {
+export function flagAudiences(): ReadonlyFlagAudienceManifest {
   return AUDIENCES;
 }
 
 /** The validated environment inventory. */
-export function flagEnvironments(): FlagEnvironmentManifest {
+export function flagEnvironments(): ReadonlyFlagEnvironmentManifest {
   return ENVIRONMENTS;
 }
 

@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+export type DeepReadonly<T> =
+  T extends ReadonlyArray<infer Item>
+    ? ReadonlyArray<DeepReadonly<Item>>
+    : T extends object
+      ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+      : T;
+
 export const FEATURE_FLAG_SCHEMA_VERSION = 1;
 export const PRODUCT_CATALOGUE_SCHEMA_VERSION = 2;
 
@@ -247,6 +254,7 @@ export const FeatureFlagDefinitionSchema = z
   });
 
 export type FeatureFlagDefinition = z.infer<typeof FeatureFlagDefinitionSchema>;
+export type ReadonlyFeatureFlagDefinition = DeepReadonly<FeatureFlagDefinition>;
 
 // =============================================================================
 // Feature Flag Manifest

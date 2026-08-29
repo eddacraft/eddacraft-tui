@@ -1,7 +1,8 @@
 import type {
+  DeepReadonly,
   EvaluationContext,
-  FeatureFlagDefinition,
   FlagClass,
+  ReadonlyFeatureFlagDefinition,
   TargetingCondition,
   TargetingRule,
 } from '@eddacraft/anvil-contracts';
@@ -44,7 +45,7 @@ export interface FlagOverrides {
 // =============================================================================
 
 export function resolveFlag(
-  flag: FeatureFlagDefinition,
+  flag: ReadonlyFeatureFlagDefinition,
   context: EvaluationContext,
   overrides?: FlagOverrides
 ): ResolutionDetails {
@@ -128,7 +129,10 @@ export function resolveFlag(
   return resolveDefault(flag, 'default');
 }
 
-function resolveDefault(flag: FeatureFlagDefinition, reason: ResolutionReason): ResolutionDetails {
+function resolveDefault(
+  flag: ReadonlyFeatureFlagDefinition,
+  reason: ResolutionReason
+): ResolutionDetails {
   const variant = flag.variants.find((v) => v.key === flag.defaultVariant);
   if (variant) {
     return {
@@ -165,11 +169,14 @@ function failClosedValue(_flagClass: FlagClass): boolean {
 // Rule Evaluation
 // =============================================================================
 
-function evaluateRule(rule: TargetingRule, context: EvaluationContext): boolean {
+function evaluateRule(rule: DeepReadonly<TargetingRule>, context: EvaluationContext): boolean {
   return rule.conditions.every((c) => evaluateCondition(c, context));
 }
 
-function evaluateCondition(condition: TargetingCondition, context: EvaluationContext): boolean {
+function evaluateCondition(
+  condition: DeepReadonly<TargetingCondition>,
+  context: EvaluationContext
+): boolean {
   const actual = resolveAttribute(condition.attribute, context);
 
   switch (condition.operator) {

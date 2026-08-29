@@ -469,9 +469,9 @@ describe('current host inventory', () => {
   });
 
   it('does not catalogue protocol constants absent from daemon dispatch', () => {
-    const daemonMethods = productCatalogue()
-      .deliverySurfaces.filter((surface) => surface.locator.kind === 'daemon-rpc')
-      .map((surface) => surface.locator.method);
+    const daemonMethods = productCatalogue().deliverySurfaces.flatMap((surface) =>
+      surface.locator.kind === 'daemon-rpc' ? [surface.locator.method] : []
+    );
     expect(daemonMethods).not.toEqual(
       expect.arrayContaining([
         'publishDiagnostics',

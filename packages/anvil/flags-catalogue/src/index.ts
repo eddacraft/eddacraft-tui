@@ -19,6 +19,11 @@ export {
   mustAlwaysBeOpenDeliverySurfaces,
   mustAlwaysBeOpenSurfaces,
   type DeepReadonly,
+  type ReadonlyFeatureFlagDefinition,
+  type ReadonlyFeatureFlagManifest,
+  type ReadonlyFlagAudienceManifest,
+  type ReadonlyFlagEnvironmentManifest,
+  type ReadonlyFlagGroupManifest,
   type ReadonlyProductCatalogue,
   type ReadonlyProductCatalogueV1,
 } from './manifest.js';
