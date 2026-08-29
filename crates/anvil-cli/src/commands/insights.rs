@@ -29,18 +29,24 @@ pub const INSIGHTS_SCHEMA_VERSION_V2: &str = "anvil.insights.v2";
 /// surface has always said "not yet measured"; the JSON never could.
 ///
 /// v3 keeps the v1 shape and types those fields as nullable, emitting
-/// `null`. v1 and v2 are unchanged and remain the default, so existing
-/// consumers are unaffected — the honest document is opt-in until a
-/// future major version can flip the default.
+/// `null`, and is the default for `--json`.
+///
+/// It shipped opt-in first, which left the defect in play for anyone using
+/// the default. A search for consumers of the six placeholder fields found
+/// none — every reference in the tree is documentation, planning, or this
+/// producer, and `first_week_hint` explicitly avoids the zero-filled field.
+/// With no consumer to protect and the product pre-1.0, defaulting to the
+/// honest document is the correct trade. `--schema v1` still emits the old
+/// shape for anyone pinned to it.
 pub const INSIGHTS_SCHEMA_VERSION_V3: &str = "anvil.insights.v3";
 
 /// Wire selector for the weekly JSON document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default)]
 pub enum InsightsSchema {
     /// Compatibility document; uninstrumented metrics are emitted as `0`.
-    #[default]
     V1,
     /// Uninstrumented metrics are emitted as `null` rather than `0`.
+    #[default]
     V3,
 }
 
@@ -125,12 +131,12 @@ pub struct InsightsArgs {
 
     /// Wire schema for the weekly JSON document.
     ///
-    /// `v1` (the default) emits every metric as an integer, including
-    /// the six that are not instrumented yet and are always `0`. `v3`
-    /// emits those as `null` instead, so a consumer can tell a
-    /// placeholder from a measured zero. The human-readable output says
-    /// "not yet measured" either way.
-    #[arg(long, value_enum, value_name = "VERSION", default_value_t = InsightsSchema::V1)]
+    /// `v3` (the default) emits the six metrics that are not instrumented
+    /// yet as `null`, so a consumer can tell an unmeasured metric from a
+    /// measured zero. `v1` is the older document that emits them as `0`,
+    /// kept for anyone pinned to that shape. The human-readable output
+    /// says "not yet measured" either way.
+    #[arg(long, value_enum, value_name = "VERSION", default_value_t = InsightsSchema::V3)]
     pub schema: InsightsSchema,
 }
 
@@ -336,7 +342,7 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // `--schema` selects a *wire* document, so it only means anything with
     // `--json`. Silently ignoring it would contradict the help text and leave a
     // caller believing they had asked for v3 (review of PR #4205).
-    if !global.json && args.schema != InsightsSchema::V1 {
+    if !global.json && args.schema != InsightsSchema::default() {
         anyhow::bail!(
             "--schema selects the JSON wire document and needs --json; \
              the human-readable output reports uninstrumented metrics as \
@@ -540,10 +546,19 @@ mod cib_367_tests {
     }
 
     #[test]
-    fn schema_flag_defaults_to_v1_via_the_enum() {
-        // default_value_t keeps the CLI default coupled to the enum rather
-        // than a string that can drift from it (review of PR #4205).
-        assert_eq!(InsightsSchema::default(), InsightsSchema::V1);
+    fn schema_flag_defaults_to_v3_via_the_enum() {
+        // The honest document is the default. Shipping v3 opt-in left every
+        // default consumer reading six fabricated zeros, which is the defect
+        // CIB-367 exists to remove.
+        assert_eq!(InsightsSchema::default(), InsightsSchema::V3);
+    }
+
+    #[test]
+    fn v1_remains_reachable_for_anyone_pinned_to_the_old_shape() {
+        // Flipping the default must not delete the old document.
+        let json = serde_json::to_value(placeholder_weekly()).unwrap();
+        assert_eq!(json["schema_version"], "anvil.insights.v1");
+        assert_eq!(json["total_saves_observed"], 0);
     }
 
     #[test]
