@@ -678,8 +678,9 @@ pub struct DriftSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotMetrics {
     pub boundary_violations: usize,
-    /// CIB-365 — true when no readable architecture definition was resolved,
-    /// so the boundary state was never analysed.
+    /// CIB-365 boundary-analysis coverage: `Some(true)` means no readable
+    /// architecture definition was resolved, `Some(false)` means analysis ran,
+    /// and `None` preserves the unknown state of pre-v1.2.0 snapshots.
     ///
     /// Without this, both the missing-definition and unreadable-definition
     /// outcomes produce an empty violation list and the snapshot reports
@@ -688,12 +689,12 @@ pub struct SnapshotMetrics {
     /// value would record perfect architectural health for a repository that
     /// was never checked.
     ///
-    /// Additive-optional: absent from JSON when false, and defaulted to false
-    /// on load so pre-v1.2.0 snapshots remain readable. Their absent field
-    /// cannot reconstruct whether the historical run actually analysed
-    /// boundaries.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub boundary_analysis_skipped: bool,
+    /// Additive-optional: every new v1.2.0 snapshot writes an explicit boolean.
+    /// Absence deserialises to `None` and re-serialises as absence, so loading or
+    /// migrating a legacy zero can never launder unknown coverage into a
+    /// measured-clean result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boundary_analysis_skipped: Option<bool>,
     pub antipattern_count: usize,
     pub suppression_count: usize,
     pub expired_suppressions: usize,
@@ -913,7 +914,7 @@ fn build_snapshot(
         name: name.map(String::from),
         metrics: SnapshotMetrics {
             boundary_violations: violations.len(),
-            boundary_analysis_skipped,
+            boundary_analysis_skipped: Some(boundary_analysis_skipped),
             antipattern_count: antipatterns.len(),
             suppression_count: suppressions.len(),
             expired_suppressions: 0, // Expiry tracking not yet implemented.
@@ -1336,6 +1337,10 @@ mod cib_366_tests {
 
         let snapshot = build_snapshot(root, None, false).expect("snapshot computes");
         assert_eq!(snapshot.git_ref.as_deref(), Some(expected.as_str()));
+    }
+}
+
+#[cfg(test)]
 mod cib_365_drift_tests {
     use super::*;
 
@@ -1348,7 +1353,7 @@ mod cib_365_drift_tests {
     fn unmeasured_boundary_state_is_flagged_not_reported_as_zero() {
         let metrics = SnapshotMetrics {
             boundary_violations: 0,
-            boundary_analysis_skipped: true,
+            boundary_analysis_skipped: Some(true),
             antipattern_count: 3,
             suppression_count: 0,
             expired_suppressions: 0,
@@ -1362,27 +1367,23 @@ mod cib_365_drift_tests {
     }
 
     #[test]
-    fn a_measured_clean_repo_does_not_carry_the_flag() {
+    fn a_measured_clean_repo_carries_an_explicit_false() {
         let metrics = SnapshotMetrics {
             boundary_violations: 0,
-            boundary_analysis_skipped: false,
+            boundary_analysis_skipped: Some(false),
             antipattern_count: 0,
             suppression_count: 0,
             expired_suppressions: 0,
             files_analysed: 12,
         };
         let json = serde_json::to_value(&metrics).unwrap();
-        assert!(
-            json.get("boundary_analysis_skipped").is_none(),
-            "additive-optional: absent when the analysis really ran: {json}"
-        );
+        assert_eq!(json["boundary_analysis_skipped"], false);
     }
 
     #[test]
-    fn an_older_snapshot_without_the_field_uses_the_compatibility_default() {
+    fn an_older_snapshot_without_the_field_remains_unknown() {
         // Backward compatibility: a v1.1.0 snapshot predates the signal.
-        // Defaulting to false preserves readability, but cannot reconstruct
-        // whether that historical run actually analysed boundaries.
+        // Absence must remain unknown rather than being interpreted as clean.
         let older = serde_json::json!({
             "boundary_violations": 0,
             "antipattern_count": 1,
@@ -1391,7 +1392,7 @@ mod cib_365_drift_tests {
             "files_analysed": 5
         });
         let metrics: SnapshotMetrics = serde_json::from_value(older).unwrap();
-        assert!(!metrics.boundary_analysis_skipped);
+        assert_eq!(metrics.boundary_analysis_skipped, None);
     }
 
     #[test]
@@ -1938,7 +1939,7 @@ mod tests {
             name: Some(name.to_string()),
             metrics: SnapshotMetrics {
                 boundary_violations: violations,
-                boundary_analysis_skipped: false,
+                boundary_analysis_skipped: Some(false),
                 antipattern_count: aps,
                 suppression_count: sups,
                 expired_suppressions: 0,
@@ -2165,6 +2166,39 @@ mod tests {
         // The upgraded file now carries the current schema version.
         let upgraded = load_snapshot_file(&path).unwrap();
         assert_eq!(upgraded.schema_version, current_schema().to_string());
+    }
+
+    #[test]
+    fn legacy_v1_1_absence_remains_unknown_after_load_and_migration() {
+        fn assert_unknown(value: Option<bool>) {
+            assert_eq!(value, None, "legacy boundary coverage must remain unknown");
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "legacy", "1.1.0");
+        let mut legacy: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        legacy["metrics"]
+            .as_object_mut()
+            .unwrap()
+            .remove("boundary_analysis_skipped");
+        std::fs::write(&path, serde_json::to_string_pretty(&legacy).unwrap()).unwrap();
+
+        let before = load_snapshot_file(&path).unwrap();
+        assert_unknown(before.metrics.boundary_analysis_skipped);
+
+        migrate_snapshots(dir.path(), false).unwrap();
+
+        let migrated: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(
+            migrated["metrics"]
+                .get("boundary_analysis_skipped")
+                .is_none(),
+            "migration must not invent a measured or skipped result: {migrated}"
+        );
+        let after = load_snapshot_file(&path).unwrap();
+        assert_unknown(after.metrics.boundary_analysis_skipped);
     }
 
     #[test]

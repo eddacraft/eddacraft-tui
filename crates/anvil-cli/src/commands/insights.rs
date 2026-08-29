@@ -573,7 +573,7 @@ mod tests {
             name: None,
             metrics: SnapshotMetrics {
                 boundary_violations: edge_ids.len(),
-                boundary_analysis_skipped: false,
+                boundary_analysis_skipped: Some(false),
                 antipattern_count: 0,
                 suppression_count: 0,
                 expired_suppressions: 0,
