@@ -66,8 +66,12 @@ confidence check on top of it.
    >
    > ```bash
    > # Keep the SARIF *and* the reason, and let the upload run either way.
+   > # Both anvil calls need a guard: a GitHub Actions `run:` block is
+   > # `bash -eo pipefail`, so under `pipefail` the second command's *pipeline*
+   > # inherits anvil's non-zero status and `set -e` kills the step before the
+   > # upload — the one thing this snippet exists to prevent.
    > anvil audit --format sarif > anvil.sarif || audit_status=$?
-   > anvil audit --format json | jq -r '.coverageNotes[]?'  # why it failed
+   > anvil audit --format json | jq -r '.coverageNotes[]?' || true  # why it failed
    > # …upload anvil.sarif…
    > exit "${audit_status:-0}"   # drop this line to treat coverage as advisory
    > ```
