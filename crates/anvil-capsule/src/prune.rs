@@ -245,6 +245,7 @@ fn head_committer_time(repo_root: &Path, head: &str) -> Option<i64> {
 mod tests {
     use super::*;
     use crate::manifest::{CapsuleRange, Producer};
+    use crate::test_support::private_tempdir;
     use std::process::Command;
 
     fn git(dir: &Path, args: &[&str]) {
@@ -300,7 +301,7 @@ mod tests {
     }
 
     fn repo() -> tempfile::TempDir {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = private_tempdir();
         git(tmp.path(), &["init", "-q"]);
         tmp
     }

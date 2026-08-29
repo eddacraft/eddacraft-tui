@@ -11,6 +11,9 @@
 //! `anvil-witness::WitnessLine`, rule identity stays
 //! `anvil_rules::rules_sha`.
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 pub mod canonical;
 pub mod collect;
 pub mod collect_diagnostics;

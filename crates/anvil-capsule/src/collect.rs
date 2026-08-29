@@ -291,6 +291,7 @@ fn git_stdout_bytes(repo_root: &Path, args: &[&str]) -> Result<Vec<u8>, CapsuleE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::private_tempdir;
 
     /// Run `git` in `dir`, panicking on failure — test scaffolding only.
     fn git(dir: &Path, args: &[&str]) -> String {
@@ -336,7 +337,7 @@ mod tests {
     /// A scratch repo with two linear commits on top of a root commit.
     /// Returns (dir, `root_sha`, `mid_sha`, `head_sha`).
     fn linear_repo() -> (tempfile::TempDir, String, String, String) {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let root = dir.path();
         git(root, &["init", "-q"]);
 
@@ -592,7 +593,7 @@ mod tests {
     fn collect_commits_refuses_shallow_clone() {
         let (dir, _, _, head_sha) = linear_repo();
 
-        let clone_dir = tempfile::tempdir().unwrap();
+        let clone_dir = private_tempdir();
         let clone_path = clone_dir.path().join("shallow");
         git(
             dir.path(),

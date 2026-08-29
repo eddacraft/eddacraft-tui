@@ -120,6 +120,7 @@ fn relative(repo_root: &Path, path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::private_tempdir;
     use anvil_witness::{
         GenesisAnchor, RolloverPolicy, WitnessWriter, compute_line_hash, verify_chain_dag,
     };
@@ -164,7 +165,7 @@ mod tests {
 
     #[test]
     fn collect_witness_empty_tree_is_present_but_empty() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let collected = collect_witness(dir.path(), &shas(&["whatever"])).unwrap();
         assert!(collected.ndjson.is_empty(), "no witness tree → empty chain");
         assert_eq!(collected.seq_start, None);
@@ -173,7 +174,7 @@ mod tests {
 
     #[test]
     fn collect_witness_concatenates_whole_chain_across_archive_and_active() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         // 5 lines, rollover every 3 → archive holds seq 1-3, active 4-5.
         let commits = [Some("c1"), Some("c2"), Some("c3"), Some("c4"), Some("c5")];
         build_chain(dir.path(), &commits, 3);
@@ -193,7 +194,7 @@ mod tests {
     /// with identical line count and tip — no re-modelled extract.
     #[test]
     fn collect_witness_is_verify_chain_dag_equivalent_to_segments() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let commits = [Some("c1"), Some("c2"), Some("c3"), Some("c4"), Some("c5")];
         build_chain(dir.path(), &commits, 3);
 
@@ -213,7 +214,7 @@ mod tests {
 
     #[test]
     fn collect_witness_marks_seq_window_of_range_commits() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let commits = [Some("c1"), Some("c2"), Some("c3"), Some("c4"), Some("c5")];
         build_chain(dir.path(), &commits, 3);
 
@@ -225,7 +226,7 @@ mod tests {
 
     #[test]
     fn collect_witness_window_is_none_when_no_range_commit_witnessed() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let commits = [Some("c1"), Some("c2"), Some("c3")];
         build_chain(dir.path(), &commits, 10);
 
@@ -240,7 +241,7 @@ mod tests {
     /// `commit_sha` and must never widen the window.
     #[test]
     fn collect_witness_ignores_lines_without_commit_sha() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let commits = [None, Some("c2"), None, Some("c4")];
         build_chain(dir.path(), &commits, 10);
 
@@ -253,7 +254,7 @@ mod tests {
     /// is a `Collect` error, never silently dropped from the chain.
     #[test]
     fn collect_witness_corrupt_line_is_collect_error() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         build_chain(dir.path(), &[Some("c1")], 10);
         let active = dir.path().join("anvil/witness/active.ndjson");
         std::fs::write(&active, "{not valid json\n").unwrap();
@@ -266,7 +267,7 @@ mod tests {
 
     #[test]
     fn collect_witness_is_deterministic() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let commits = [Some("c1"), Some("c2"), Some("c3"), Some("c4")];
         build_chain(dir.path(), &commits, 3);
 
@@ -282,7 +283,7 @@ mod tests {
     /// `CapsuleRange` doc states the window is not exclusively the PR's).
     #[test]
     fn collect_witness_window_spans_non_contiguous_range_commits() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let commits = [
             Some("c1"),
             Some("other2"),
@@ -301,7 +302,7 @@ mod tests {
     /// the window spans the first and last occurrence.
     #[test]
     fn collect_witness_window_spans_duplicate_commit_sha() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let commits = [Some("c1"), Some("c2"), Some("c1")];
         build_chain(dir.path(), &commits, 10);
 
@@ -315,7 +316,7 @@ mod tests {
     /// is skipped, the archived chain still collects whole.
     #[test]
     fn collect_witness_skips_empty_active_beside_archive() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         build_chain(dir.path(), &[Some("c1"), Some("c2"), Some("c3")], 2);
         // Force the present-but-empty active shape.
         let active = dir.path().join("anvil/witness/active.ndjson");
@@ -337,7 +338,7 @@ mod tests {
     /// the original line endings survive into the verbatim bytes.
     #[test]
     fn collect_witness_tolerates_crlf_segment() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let witness_dir = dir.path().join("anvil/witness");
         std::fs::create_dir_all(&witness_dir).unwrap();
         let l = line(1, GenesisAnchor::Fresh.anchor_string(), Some("c1"));

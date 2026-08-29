@@ -723,6 +723,7 @@ fn bytes_match(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::private_tempdir;
     use std::collections::BTreeSet;
     use std::process::Command;
 
@@ -755,7 +756,7 @@ mod tests {
     /// witness chain attesting head, so a capsule built from it verifies
     /// `pass`. Returns (dir, base, head).
     fn scratch_repo() -> (tempfile::TempDir, String, String) {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let root = dir.path();
         git(root, &["init", "-q", "--template="]);
         for (k, v) in [
@@ -848,7 +849,7 @@ mod tests {
     #[test]
     fn verify_passes_on_a_fresh_intact_capsule() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -860,7 +861,7 @@ mod tests {
     #[test]
     fn verify_blocks_on_digest_tamper() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -877,7 +878,7 @@ mod tests {
     #[test]
     fn verify_degrades_on_missing_recorded_file() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -894,7 +895,7 @@ mod tests {
         // empty → witness-chain degrades, never passes.
         let (dir, base, head) = scratch_repo();
         std::fs::remove_dir_all(dir.path().join("anvil/witness")).unwrap();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -906,7 +907,7 @@ mod tests {
 
     #[test]
     fn verify_errors_when_manifest_is_unreadable() {
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         std::fs::create_dir_all(&out).unwrap();
         // No manifest.json at all.
@@ -918,7 +919,7 @@ mod tests {
     #[test]
     fn verify_degrades_when_repo_moved_on() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -953,7 +954,7 @@ mod tests {
             anvil_policy::exceptions::WriteOutcome::Written
         ));
 
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
         let bytes = std::fs::read(out.join("exceptions.json")).unwrap();
@@ -987,7 +988,7 @@ mod tests {
             anvil_policy::exceptions::WriteOutcome::Written
         ));
 
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1028,7 +1029,7 @@ mod tests {
     fn exceptions_grant_missing_from_live_store_degrades_verify() {
         let (dir, base, head) = scratch_repo();
         let now = Utc::now();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
         // Plant a snapshot grant the live (absent) store never had.
@@ -1064,7 +1065,7 @@ mod tests {
             anvil_policy::exceptions::WriteOutcome::Written
         ));
 
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
         let v = verify_capsule_at(&out, dir.path(), now);
@@ -1106,7 +1107,7 @@ mod tests {
         let mut store = anvil_policy::exceptions::ExceptionStore::empty();
         store.add(applied_exception(now)).unwrap();
         let _ = store.save(dir.path()).unwrap();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1129,7 +1130,7 @@ mod tests {
     #[test]
     fn verify_blocks_on_a_revoked_applied_exception() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1159,7 +1160,7 @@ mod tests {
     #[test]
     fn verify_degrades_on_an_unattributed_applied_exception() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1185,7 +1186,7 @@ mod tests {
     #[test]
     fn verify_is_deterministic() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
         let now = Utc::now();
@@ -1198,7 +1199,7 @@ mod tests {
     #[test]
     fn verify_warns_on_unexpected_file_not_in_manifest() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
         std::fs::write(out.join("stowaway.txt"), b"foreign").unwrap();
@@ -1212,7 +1213,7 @@ mod tests {
     #[test]
     fn verify_blocks_on_path_traversal_in_manifest() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1241,7 +1242,7 @@ mod tests {
     #[test]
     fn verify_blocks_on_symlinked_manifest_evidence_file() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1283,7 +1284,7 @@ mod tests {
     #[test]
     fn verify_errors_on_unparseable_exceptions() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
         rewrite_recorded(&out, "exceptions.json", b"{not json");
@@ -1307,7 +1308,7 @@ mod tests {
     #[test]
     fn verify_blocks_on_witness_chain_tamper() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1351,7 +1352,7 @@ mod tests {
     #[test]
     fn verify_degrades_on_missing_witness_after_tamper() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1374,7 +1375,7 @@ mod tests {
     #[test]
     fn verify_blocks_on_witness_prev_hash_tamper() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1427,7 +1428,7 @@ mod tests {
         git(dir.path(), &["commit", "-q", "-m", "other"]);
         let other = git(dir.path(), &["rev-parse", "HEAD"]).trim().to_string();
 
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1467,7 +1468,7 @@ mod tests {
     #[test]
     fn verify_degrades_when_witness_chain_attests_no_range_commit() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1498,7 +1499,7 @@ mod tests {
     #[test]
     fn verify_degrades_when_witness_seq_pointers_mismatch_range() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1528,7 +1529,7 @@ mod tests {
     #[test]
     fn verify_degrades_when_witness_seq_pointers_are_unpaired() {
         let (dir, base, head) = scratch_repo();
-        let stage = tempfile::tempdir().unwrap();
+        let stage = private_tempdir();
         let out = out_dir(&stage);
         build_capsule(dir.path(), &base, &head, &out);
 
@@ -1557,7 +1558,7 @@ mod tests {
     /// and must not clobber a pre-arranged occupant.
     #[test]
     fn staging_refuses_to_overwrite_existing_file_in_injected_temp_dir() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let occupant = dir.path().join("occupied.tmp");
         std::fs::write(&occupant, b"keep-me").unwrap();
 
@@ -1583,7 +1584,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn staging_refuses_symlink_collision_in_injected_temp_dir() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let outside = dir.path().join("outside");
         std::fs::write(&outside, b"hostile").unwrap();
         let occupied = dir.path().join("occupied.tmp");
@@ -1616,7 +1617,7 @@ mod tests {
 
     #[test]
     fn staging_writes_unique_payload_files_under_injected_temp_dir() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let first = stage_bytes_for_verify_in(dir.path(), "witness", b"alpha").unwrap();
         let second = stage_bytes_for_verify_in(dir.path(), "witness", b"beta").unwrap();
         assert_ne!(first.path(), second.path());

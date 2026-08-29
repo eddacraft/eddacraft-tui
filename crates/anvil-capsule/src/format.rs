@@ -834,6 +834,7 @@ mod tests {
         RULES_DIGEST_SCHEMA, RulesDigest,
     };
     use crate::manifest::REQUIRED_FILES;
+    use crate::test_support::private_tempdir;
     use crate::verification::Verdict;
 
     fn empty_exceptions() -> CollectedExceptions {
@@ -881,7 +882,7 @@ mod tests {
 
     #[test]
     fn write_capsule_writes_every_required_file_plus_manifest() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         let manifest = write_capsule(&out, &sample_content()).unwrap();
@@ -897,7 +898,7 @@ mod tests {
     /// contract a verifier will enforce.
     #[test]
     fn write_capsule_manifest_digests_match_disk_bytes() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         let manifest = write_capsule(&out, &sample_content()).unwrap();
@@ -916,7 +917,7 @@ mod tests {
     /// verdict, never silence (ADR-072 §4).
     #[test]
     fn write_capsule_verification_placeholder_is_degraded() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         write_capsule(&out, &sample_content()).unwrap();
@@ -933,7 +934,7 @@ mod tests {
     /// emitter).
     #[test]
     fn write_capsule_diagnostics_is_valid_empty_sarif_document() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         write_capsule(&out, &sample_content()).unwrap();
@@ -951,7 +952,7 @@ mod tests {
     /// are recorded in the manifest (GITGOV-007).
     #[test]
     fn write_capsule_embeds_witness_chain_and_seq_window() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         let mut content = sample_content();
@@ -977,7 +978,7 @@ mod tests {
     /// range pointers (absent, never `null`).
     #[test]
     fn write_capsule_empty_witness_is_present_but_empty() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         let manifest = write_capsule(&out, &sample_content()).unwrap();
@@ -990,7 +991,7 @@ mod tests {
 
     #[test]
     fn write_capsule_is_deterministic_for_same_content() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out_a = dir.path().join("a");
         let out_b = dir.path().join("b");
 
@@ -1006,7 +1007,7 @@ mod tests {
 
     #[test]
     fn write_capsule_refuses_non_empty_out_dir() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
         std::fs::create_dir_all(&out).unwrap();
         std::fs::write(out.join("keep.txt"), "existing").unwrap();
@@ -1026,8 +1027,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn write_capsule_refuses_symlinked_out_dir() {
-        let target = tempfile::tempdir().unwrap();
-        let staging = tempfile::tempdir().unwrap();
+        let target = private_tempdir();
+        let staging = private_tempdir();
         let out = staging.path().join("capsule");
         std::os::unix::fs::symlink(target.path(), &out).unwrap();
 
@@ -1043,8 +1044,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn publish_refuses_destination_swapped_to_symlink() {
-        let parent = tempfile::tempdir().unwrap();
-        let target = tempfile::tempdir().unwrap();
+        let parent = private_tempdir();
+        let target = private_tempdir();
         let out = parent.path().join("capsule");
         let mut staging = create_staging_dir(&out).unwrap();
         staging.write_file("manifest.json", b"staged").unwrap();
@@ -1063,8 +1064,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn staging_path_swap_cannot_redirect_evidence_writes() {
-        let parent = tempfile::tempdir().unwrap();
-        let outside = tempfile::tempdir().unwrap();
+        let parent = private_tempdir();
+        let outside = private_tempdir();
         let out = parent.path().join("capsule");
         let mut staging = create_staging_dir(&out).unwrap();
         let staging_path = staging.path.clone();
@@ -1095,7 +1096,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn staging_directory_substitution_before_open_is_refused() {
-        let parent = tempfile::tempdir().unwrap();
+        let parent = private_tempdir();
         let out = parent.path().join("capsule");
         let moved = parent.path().join("created-staging");
 
@@ -1123,7 +1124,7 @@ mod tests {
 
     #[test]
     fn write_capsule_accepts_existing_empty_dir() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
         std::fs::create_dir_all(&out).unwrap();
 
@@ -1155,7 +1156,7 @@ mod tests {
     /// off for digest-dense evidence and would miss it).
     #[test]
     fn write_capsule_secret_in_exception_reason_fails_creation() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
         let mut content = sample_content();
         content
@@ -1191,7 +1192,7 @@ mod tests {
     /// offending file.
     #[test]
     fn write_capsule_tamper_secret_in_evidence_fails_creation() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         let err = write_capsule(&out, &content_with_secret_in_a_changed_path()).unwrap_err();
@@ -1207,7 +1208,7 @@ mod tests {
     /// never reaches a tracked write (the GITGOV-012 invariant).
     #[test]
     fn write_capsule_tamper_secret_never_reaches_disk() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         let _ = write_capsule(&out, &content_with_secret_in_a_changed_path()).unwrap_err();
@@ -1225,7 +1226,7 @@ mod tests {
     /// capsules.
     #[test]
     fn write_capsule_tamper_clean_evidence_is_not_refused() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = private_tempdir();
         let out = dir.path().join("capsule");
 
         // A normal commit with hex SHAs and a plain path — no secret.
