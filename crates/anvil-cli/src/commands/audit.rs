@@ -40,18 +40,21 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let AuditRun {
         data,
-        coverage_notes,
+        mut coverage_notes,
+        mut unread_files,
     } = run_audit(Path::new("."));
 
     match mode {
         OutputMode::Json => print_json(&data, &coverage_notes)?,
         // SARIF 2.1.0 carries tool-execution problems in
         // `invocations[].toolExecutionNotifications`, which `anvil-sarif` does
-        // not model yet. Until it does, a `--format sarif` run reports the
-        // coverage failure through its exit code alone; the document is
-        // unchanged. Emitting a `results[]` entry instead would put "nobody
-        // read this file" into the finding vocabulary, which is the one thing
-        // SDT-008 is barred from doing.
+        // not model yet. Until it does, a `--format sarif` run reports a
+        // file-level coverage failure through its exit code alone; the
+        // document is unchanged, and a line-level skip is invisible to a SARIF
+        // consumer entirely. Emitting a `results[]` entry instead would put
+        // "nobody read this file" into the finding vocabulary, which is the
+        // one thing SDT-008 is barred from doing. Documented as a known gap in
+        // `docs/runbooks/sarif-code-scanning-upload.md`.
         OutputMode::Sarif => crate::output::json::print(&build_audit_sarif(&data))?,
         OutputMode::Tui => {
             // The TUI takes the alternate screen, so a coverage block drawn
@@ -68,7 +71,17 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                         apply_fix_request(&request, None),
                         FixOutcome::Applied { .. }
                     ) {
-                        state.data = collect_audit_data();
+                        // Re-scan through `run_audit`, not `collect_audit_data`:
+                        // the refresh is what the exit code and the stderr
+                        // block below are computed from, so dropping the
+                        // coverage half here would report the pre-fix state.
+                        // The TUI itself still shows only `data` — rendering
+                        // the notes inside the surface needs a panel it does
+                        // not have (see the comment above).
+                        let refreshed = run_audit(Path::new("."));
+                        state.data = refreshed.data;
+                        coverage_notes = refreshed.coverage_notes;
+                        unread_files = refreshed.unread_files;
                         state.selected_item =
                             selected.min(state.data.issues.len().saturating_sub(1));
                         state.expanded = false;
@@ -87,14 +100,46 @@ pub fn run(args: &AuditArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // overview and warnings-over-blocks is the product posture. Coverage is a
     // different claim: "I read these files and here is what I found" is false
     // when some of them were never read, and a surface that cannot tell the
-    // difference is the false-clean SDT-001 and SDT-006 exist to remove. This
-    // is the only condition on which `anvil audit` fails.
-    if coverage_notes.is_empty() {
-        Ok(())
-    } else {
+    // difference is the false-clean SDT-001 and SDT-006 exist to remove.
+    //
+    // ── The asymmetry, and why it is not an inconsistency ──────────────
+    //
+    // Only *file*-level coverage failures fail this command. A line-level
+    // skip (`lines_skipped_oversize`) is reported in full — in the human
+    // block, in `coverageNotes`, in the notifications and in the next steps —
+    // but contributes nothing to the exit code. This is deliberate, and it
+    // differs from what `gate` and planless `check` do with the same note:
+    //
+    //   * `anvil gate` is diff-scoped. A long line in the change under review
+    //     is the author's own line, and asking them about it is actionable.
+    //   * planless `anvil check <files>` is argument-scoped. The operator
+    //     named the file, so a line inside it that the scan could not read is
+    //     an answer to a question they actually asked.
+    //   * `anvil audit` is neither. It walks the whole tree un-scoped, and
+    //     every real checkout carries long lines nobody wrote and nobody can
+    //     fix: vendored bundles, `coverage-final.json`, `node_modules` inside
+    //     nested worktrees. Measured on the anvil repository itself, all of
+    //     the long lines came from exactly those. An exit code that is 1 on
+    //     every checkout tells an operator nothing, and a red with no
+    //     available action is the unactionable-red failure SDT-001 recorded
+    //     against itself — the same defect class as the false clean, pointing
+    //     the other way.
+    //
+    // File-level failures are not in that population: an unreadable file, a
+    // scan that panicked, or a file over the size limit is a bounded, named,
+    // fixable set on any surface. So they still fail here.
+    //
+    // Do NOT "tidy" this into uniformity in either direction: dropping the
+    // note would restore the silence, and failing on it would restore the
+    // noise. The split is tested both ways in
+    // `crates/anvil-cli/tests/secret_coverage_surfaces.rs`
+    // (operator decision, 2026-08-29).
+    if unread_files {
         // Already rendered above for every mode; `AlreadyReported` exits
         // non-zero without printing it a second time.
         Err(crate::output::AlreadyReported.into())
+    } else {
+        Ok(())
     }
 }
 
@@ -114,20 +159,42 @@ const MAX_FILE_LINES: usize = 500;
 /// because they are not audit findings and must not be counted, sorted or
 /// severity-ranked as if they were. `AuditData` is the issue model every
 /// renderer consumes; a coverage failure is a statement about the run that
-/// produced it — closer to `total_files` than to `issues[]` — and it is the
-/// only thing that decides this command's exit code.
+/// produced it — closer to `total_files` than to `issues[]` — and unread
+/// *files* among them are the only thing that decides this command's exit
+/// code.
 pub struct AuditRun {
     pub data: AuditData,
     /// Every reason the secret scan could not see all of its input, in the
     /// scanner's own words. Empty means audit read everything in its domain.
+    ///
+    /// Reported in full on every output mode. **Not** the exit-code
+    /// predicate — see `unread_files`.
     pub coverage_notes: Vec<String>,
+    /// True when at least one whole *file* in audit's domain went unread: it
+    /// could not be opened as text, its scan panicked, or it was over the size
+    /// limit. This — not `coverage_notes` — decides audit's exit code.
+    ///
+    /// The two are separate because they answer different questions.
+    /// `coverage_notes` answers "what could this run not see?", which the
+    /// operator always wants. `unread_files` answers "is that a failure *on
+    /// this surface*?", which is a judgement about audit's un-scoped walk and
+    /// is made once, in [`run`]. A line-level skip sets the first and not the
+    /// second; every file-level cause sets both.
+    pub unread_files: bool,
 }
 
 /// Collect audit data for the current directory (convenience for sub-surface use).
 ///
-/// Drops the coverage notes: the callers are in-TUI refreshes that replace an
-/// existing `AuditState.data` and have no exit code to carry. The command
-/// entry point uses [`run_audit`] directly so the notes reach the operator.
+/// Drops the coverage notes. The remaining caller is `commands::welcome`'s
+/// embedded audit surface, which has no exit code to carry and no place to
+/// draw them: `anvil_tui::surfaces::audit::AuditState` models only
+/// [`AuditData`], and giving it the notes means adding a field in the
+/// `anvil-tui` crate plus a panel — the Project panel is a fixed
+/// `Constraint::Length(10)` — which is TUI work this repair deliberately
+/// leaves. Consequence, stated rather than hidden: coverage gaps are invisible
+/// inside `anvil` → Run audit. `anvil audit` itself uses [`run_audit`]
+/// directly on both the first scan and the post-fix refresh, so the notes and
+/// the exit code always reach the operator there.
 pub fn collect_audit_data() -> AuditData {
     run_audit(Path::new(".")).data
 }
@@ -217,7 +284,10 @@ pub fn run_audit(root: &Path) -> AuditRun {
     // on hardcoded secrets.
     // SDT-008: the same call now also reports what it could not read. Those
     // are not issues and never enter `issues[]`.
-    let coverage_notes = scan_for_hardcoded_secrets(root, &candidates, &mut issues);
+    let SecretCoverage {
+        notes: coverage_notes,
+        unread_files,
+    } = scan_for_hardcoded_secrets(root, &candidates, &mut issues);
 
     // Deterministic order: severity descending, then file ascending, line
     // ascending, message ascending — without this the rayon collect order
@@ -243,6 +313,7 @@ pub fn run_audit(root: &Path) -> AuditRun {
             next_steps,
         },
         coverage_notes,
+        unread_files,
     }
 }
 
@@ -318,20 +389,38 @@ fn check_env_file(path: &Path, rel: &str, issues: &mut Vec<AuditIssue>) {
 /// `anvil_checks::secret::normalise_file_path` from leaking into audit
 /// output across the secret/non-secret boundary.
 ///
+/// What audit's secret pass could not see: the operator-facing prose, and
+/// whether any of it was a whole unread file.
+///
+/// The classification is read off the scanner's own structured accounting
+/// (`files_skipped_unreadable` / `_panicked` / `_oversize`, plus
+/// `history_scan_errors`) rather than by matching text in the notes. Prose is
+/// for operators; a predicate that parses it would break the first time a note
+/// is reworded, and silently — in the direction of exiting 0.
+#[derive(Default)]
+struct SecretCoverage {
+    /// Every reason the scan could not see all of its input, in the scanner's
+    /// own words. Always reported in full.
+    notes: Vec<String>,
+    /// True when at least one whole file went unread. See [`AuditRun`] for why
+    /// this is tracked apart from `notes`.
+    unread_files: bool,
+}
+
 /// Returns the scan's coverage notes — every reason it could not see all of
 /// its input (SDT-008). These are deliberately *not* `AuditIssue` entries: an
 /// issue has a file, a line, a severity and a category, and a file nobody read
 /// has none of those. Forcing one into that shape would report a fabricated
 /// location for a fabricated finding — trading the false-clean this fixes for
 /// a false-positive, which is the trade the item's non-scope forbids. They
-/// travel beside the issues instead, and decide the command's exit code.
+/// travel beside the issues instead.
 fn scan_for_hardcoded_secrets(
     root: &Path,
     candidates: &[(std::path::PathBuf, String)],
     issues: &mut Vec<AuditIssue>,
-) -> Vec<String> {
+) -> SecretCoverage {
     if candidates.is_empty() {
-        return Vec::new();
+        return SecretCoverage::default();
     }
 
     // Restrict the secret scan to file types gate's `secret-detection` check
@@ -356,7 +445,7 @@ fn scan_for_hardcoded_secrets(
         .collect();
 
     if scannable.is_empty() {
-        return Vec::new();
+        return SecretCoverage::default();
     }
 
     // Index abs-path → rel so each finding can be mapped back to the same
@@ -392,14 +481,36 @@ fn scan_for_hardcoded_secrets(
         });
     }
 
-    // Passed through verbatim so all three surfaces describe the same unread
-    // file in the same words. The paths inside them are the ones audit handed
-    // the scanner (`./src/foo.ts` for the usual `root = "."`) rather than the
-    // `rel` form used by `issues[]`: the notes are prose built by
-    // `anvil-checks`, and rewriting paths inside a sentence to gain a two-
-    // character cosmetic match would risk corrupting the remedy the note
-    // exists to deliver.
-    result.coverage_notes
+    // Every cause that means a whole file went unread, as opposed to a line
+    // inside a file audit did read. Taken from the scanner's per-cause vectors
+    // so the two halves of the exit-code decision cannot drift from the prose:
+    // if `anvil-checks` grows a fifth blocking cause, this line stops
+    // compiling to a lie only if someone extends it — so the destructure is
+    // spelled out rather than folded into a helper, to put the choice in front
+    // of whoever adds the field.
+    //
+    // `files_skipped_extension` is absent on purpose: it is a configured
+    // operator exclusion, never a failure, and it never reaches
+    // `coverage_notes` either.
+    let unread_files = !result.files_skipped_unreadable.is_empty()
+        || !result.files_skipped_panicked.is_empty()
+        || !result.files_skipped_oversize.is_empty()
+        // A git-history scan that failed did not read the revisions it was
+        // asked for. Off by default (`scan_git_history: false`), but it is a
+        // failure to do the work, not a bound on it, so it belongs here.
+        || !result.history_scan_errors.is_empty();
+
+    SecretCoverage {
+        // Passed through verbatim so all three surfaces describe the same
+        // unread file in the same words. The paths inside them are the ones
+        // audit handed the scanner (`./src/foo.ts` for the usual `root = "."`)
+        // rather than the `rel` form used by `issues[]`: the notes are prose
+        // built by `anvil-checks`, and rewriting paths inside a sentence to
+        // gain a two-character cosmetic match would risk corrupting the remedy
+        // the note exists to deliver.
+        notes: result.coverage_notes,
+        unread_files,
+    }
 }
 
 /// Scan a single source file for quality and documentation issues.
@@ -741,8 +852,14 @@ struct AuditOutput {
     /// input, in the scanner's own words (cause plus remedy). Kept out of
     /// `issues[]` on purpose — an issue carries a file, a line and a severity,
     /// and a file nobody read has none of them, so counting one as an issue
-    /// would be a fabricated finding. Non-empty means this run exited
-    /// non-zero. Absent when audit read everything in its domain.
+    /// would be a fabricated finding. Absent when audit read everything in its
+    /// domain.
+    ///
+    /// Non-empty does **not** imply a non-zero exit: on `audit` only unread
+    /// *files* fail the command, while an unscanned long *line* is reported
+    /// here on a passing run (operator decision, 2026-08-29 — see [`run`]).
+    /// Consumers deciding whether coverage is complete must read this field
+    /// rather than infer it from the exit code.
     #[serde(rename = "coverageNotes", skip_serializing_if = "Vec::is_empty")]
     coverage_notes: Vec<String>,
     historical_scores: Vec<ScoreOutput>,
@@ -892,9 +1009,11 @@ fn notifications_for_audit(data: &AuditData, coverage_notes: &[String]) -> Vec<N
         )
     } else if data.issues.is_empty() {
         // SDT-008: "No issues in audit's scope across N files" is a claim
-        // about N files, and it is false when some of them were never read.
+        // about N files, and it is false when part of them was never read.
         // A subscriber that only reads the summary must not be told the run
-        // was clean when the exit code says it was not.
+        // was clean when it was not — and that holds for a line-level skip
+        // too, which no longer fails the command but still leaves lines this
+        // run cannot prove clean.
         if coverage_notes.is_empty() {
             (
                 NotificationClass::Info,
@@ -1867,7 +1986,8 @@ mod tests {
 
     /// The JSON summary notification is the single line a subscriber reads.
     /// With zero issues and a coverage failure it must not be the `Info`
-    /// "no issues in scope" line — the exit code says the run failed.
+    /// "no issues in scope" line — part of the scope was never read, whether
+    /// or not that failed the command.
     #[test]
     fn audit_json_summary_is_not_clean_when_coverage_failed() {
         let data = empty_audit_data();

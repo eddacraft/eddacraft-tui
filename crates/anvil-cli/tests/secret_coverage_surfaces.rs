@@ -56,6 +56,19 @@ fn write_clean(dir: &Path, rel: &str) {
     fs::write(dir.join(rel), "export const answer = 42;\n").expect("write fixture");
 }
 
+/// A file whose only coverage problem is one line over `max_line_bytes`
+/// (4096 by default). The file itself is opened and read end to end — this is
+/// the *line*-level skip, the arm that must not decide `anvil audit`'s exit
+/// code (operator decision, 2026-08-29).
+fn write_long_line(dir: &Path, rel: &str) {
+    let filler = "a".repeat(5000);
+    fs::write(
+        dir.join(rel),
+        format!("export const answer = 42;\nexport const filler = \"{filler}\";\n"),
+    )
+    .expect("write fixture");
+}
+
 /// Extend a file past `MAX_FILE_SIZE` (8 MiB) without writing the bytes.
 fn write_oversize(dir: &Path, rel: &str) {
     let path = dir.join(rel);
@@ -162,6 +175,140 @@ fn audit_stays_green_when_the_only_exclusion_is_a_skip_extension_match() {
     assert!(
         !stdout.contains("could not cover everything"),
         "a `skip_extensions` match must not raise a coverage failure; stdout:\n{stdout}"
+    );
+}
+
+/// The mixed-input case: a deliberate `skip_extensions` exclusion sitting in
+/// the same tree as a file the scan genuinely could not read. The exclusion
+/// must not buy the unread file an amnesty.
+///
+/// Its sibling on `check` (below) is the test that catches an in-scope guard
+/// written as "any file was skipped" rather than "every file was skipped";
+/// this one pins the same property on the surface that has no such guard, so
+/// one is never introduced here either.
+#[test]
+fn audit_fails_when_a_skip_extension_match_shares_the_tree_with_unread_input() {
+    let dir = temp_workdir("audit-mixed");
+    fs::write(dir.join("src/logo.png"), "not really a png\n").expect("write fixture");
+    fs::write(
+        dir.join("src/app.min.js"),
+        "const a=1;const b=\"sk-not-a-real-key-0123456789abcdef\";\n",
+    )
+    .expect("write fixture");
+    write_clean(&dir, "src/ok.ts");
+    write_unreadable(&dir, "src/broken.ts");
+
+    let out = anvil(&dir)
+        .args(["--no-tui", "audit"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = stdout_of(&out);
+
+    assert!(
+        !out.status.success(),
+        "an excluded file elsewhere in the tree must not suppress the coverage \
+         failure for one that could not be read; exit={:?}\nstdout:\n{stdout}",
+        out.status.code()
+    );
+    assert!(
+        stdout.contains("broken.ts"),
+        "audit must still name the unreadable file; stdout:\n{stdout}"
+    );
+}
+
+// ── audit: line skips are reported but do not fail (2026-08-29) ─────
+
+/// Operator decision, 2026-08-29. `anvil audit` walks the whole tree
+/// un-scoped, so a long line anywhere below it — vendored bundles, coverage
+/// JSON, `node_modules` inside nested worktrees — would redden every real
+/// checkout. An exit code that is 1 everywhere carries no signal, which is the
+/// unactionable-red failure SDT-001 recorded against itself. The note stays;
+/// only its contribution to the exit code goes.
+#[test]
+fn audit_reports_a_line_skip_without_failing() {
+    let dir = temp_workdir("audit-long-line");
+    write_long_line(&dir, "src/wide.ts");
+    write_clean(&dir, "src/ok.ts");
+
+    let out = anvil(&dir)
+        .args(["--no-tui", "audit"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = stdout_of(&out);
+
+    assert!(
+        out.status.success(),
+        "a line-level skip must not fail `anvil audit` — it is un-scoped, so \
+         this reddens every real checkout; exit={:?}\nstdout:\n{stdout}",
+        out.status.code()
+    );
+    // The other half of the decision: reported, not dropped. Dropping it would
+    // reintroduce exactly the silence SDT-001 removed.
+    assert!(
+        stdout.contains("too long to scan"),
+        "audit must still report the line skip it did not fail on; stdout:\n{stdout}"
+    );
+}
+
+/// The same tree in JSON: `coverageNotes` still carries the line skip, so a
+/// consumer that reads the document rather than the exit code loses nothing.
+#[test]
+fn audit_json_carries_a_line_skip_on_a_passing_run() {
+    let dir = temp_workdir("audit-long-line-json");
+    write_long_line(&dir, "src/wide.ts");
+
+    let out = anvil(&dir)
+        .args(["--no-tui", "audit", "--format", "json"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = stdout_of(&out);
+    let doc: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
+        panic!("audit --format json must emit one JSON document ({e}):\n{stdout}")
+    });
+
+    let notes = doc
+        .get("coverageNotes")
+        .and_then(serde_json::Value::as_array)
+        .unwrap_or_else(|| panic!("audit JSON must carry `coverageNotes`; got:\n{stdout}"));
+    assert!(
+        notes
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .any(|note| note.contains("too long to scan")),
+        "a passing run must still publish its line skip; got:\n{stdout}"
+    );
+    assert!(
+        out.status.success(),
+        "a line-level skip must not fail audit; exit={:?}",
+        out.status.code()
+    );
+}
+
+/// The asymmetry, pinned from the other side: a line skip in the same tree as
+/// a *file*-level failure must not launder the file-level one into a pass.
+/// Without this, "line skips do not fail audit" could be implemented as "any
+/// coverage note is advisory" and nothing would notice.
+#[test]
+fn audit_still_fails_when_a_file_level_failure_joins_a_line_skip() {
+    let dir = temp_workdir("audit-mixed-coverage");
+    write_long_line(&dir, "src/wide.ts");
+    write_unreadable(&dir, "src/broken.ts");
+
+    let out = anvil(&dir)
+        .args(["--no-tui", "audit"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = stdout_of(&out);
+
+    assert!(
+        !out.status.success(),
+        "a file nobody read still fails audit, whatever else the run reports; \
+         exit={:?}\nstdout:\n{stdout}",
+        out.status.code()
+    );
+    assert!(
+        stdout.contains("broken.ts") && stdout.contains("too long to scan"),
+        "both coverage causes must be reported; stdout:\n{stdout}"
     );
 }
 
@@ -302,5 +449,74 @@ fn check_over_only_skipped_extensions_reports_nothing_in_scope() {
     assert!(
         !stdout.contains("could not cover everything"),
         "an excluded-only invocation must not raise a coverage failure; stdout:\n{stdout}"
+    );
+}
+
+/// **The negative test for the in-scope guard.** Every other green-path case
+/// above feeds `check` homogeneous input — all-excluded, or excluded plus
+/// clean — so all of them pass just as happily under
+/// `files_skipped_extension > 0` as under `>= file_refs.len()`. Under that
+/// weaker guard one `.png` in the argument list suppresses secret-detection
+/// for the whole invocation, and this command reports
+/// "No analysable files found (0 scanned)" and exits 0 over an unreadable
+/// file — the exact false clean SDT-008 exists to remove.
+///
+/// Mixed input is what separates the two predicates: one input is excluded,
+/// the other is a real coverage failure, so "some were skipped" and "all were
+/// skipped" disagree.
+#[test]
+fn check_fails_when_a_skip_extension_match_is_mixed_with_unread_input() {
+    let dir = temp_workdir("check-mixed");
+    fs::write(dir.join("src/logo.png"), "not really a png\n").expect("write fixture");
+    write_unreadable(&dir, "src/broken.ts");
+
+    let out = anvil(&dir)
+        .args(["--no-tui", "check", "src/logo.png", "src/broken.ts"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = stdout_of(&out);
+
+    assert!(
+        !out.status.success(),
+        "one excluded argument must not take the whole invocation out of scope; \
+         exit={:?}\nstdout:\n{stdout}",
+        out.status.code()
+    );
+    assert!(
+        !stdout.contains("No analysable files found"),
+        "a mixed argument list is not an empty one — the unreadable file was in \
+         scope and was not read; stdout:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("broken.ts") && stdout.contains("could not be read"),
+        "check must name the file it could not read; stdout:\n{stdout}"
+    );
+}
+
+/// The asymmetry guard for planless `check`. Audit stopped failing on
+/// line-level skips on 2026-08-29 because it is un-scoped; `check` is not —
+/// the operator named these files, so a line the scan could not read in one
+/// of them is actionable and still fails. A future tidy-up that makes the two
+/// surfaces uniform has to delete this test to do it.
+#[test]
+fn check_still_fails_over_a_line_skip() {
+    let dir = temp_workdir("check-long-line");
+    write_long_line(&dir, "src/wide.ts");
+
+    let out = anvil(&dir)
+        .args(["--no-tui", "check", "src/wide.ts"])
+        .output()
+        .expect("failed to invoke anvil");
+    let stdout = stdout_of(&out);
+
+    assert!(
+        !out.status.success(),
+        "an explicitly named file with an unscanned line is actionable and must \
+         still fail `anvil check`; exit={:?}\nstdout:\n{stdout}",
+        out.status.code()
+    );
+    assert!(
+        stdout.contains("too long to scan"),
+        "check must name the cause; stdout:\n{stdout}"
     );
 }

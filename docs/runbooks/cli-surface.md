@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                   |
-| ------- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-27 command review via `cargo test -p eddacraft-anvil --test impact_gate` (5 passed) for the IMPV-002 default-off `impact.view` gate against `flags/manifest.json`, `crates/anvil-cli/src/feature_flags.rs`, and `crates/anvil-cli/src/commands/impact.rs`; prior targeted review: 2026-08-24 `anvil impact` mouse support; not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-29 command review via `cargo test -p eddacraft-anvil --test secret_coverage_surfaces` (14 passed) for the SDT-008 coverage exit codes on `anvil audit` and planless `anvil check` against `crates/anvil-cli/src/commands/audit.rs` and `crates/anvil-cli/src/commands/check.rs`; prior targeted review: 2026-08-27 IMPV-002 default-off `impact.view` gate; not a full CLI-surface review |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -85,10 +85,27 @@ all source files.
 
 **Exit codes:** 0 (success), 1 (error), 3 (auth required)
 
+Since SDT-008, exit 1 also covers a **secret-scan coverage failure**: `audit`
+exits non-zero when a file inside its scan domain went unread — it could not be
+opened as text, its scan panicked, or it was over the 8 MiB scan limit — and
+names the file in a "could not cover everything it was asked to" block. Findings
+stay advisory: a repository full of hardcoded secrets and TODOs still exits 0,
+because `audit` is a project overview. The claim that fails is not "this code is
+bad", it is "this report is incomplete".
+
+An unscanned **line** (one over `max_line_bytes`, default 4096) is reported in
+that same block and in `coverageNotes` but does **not** change `audit`'s exit
+code. `audit` walks the whole tree un-scoped, so that population is dominated by
+vendored bundles and generated JSON nobody can act on. On `anvil gate`
+(diff-scoped) and planless `anvil check <files>` (argument-scoped) a long line
+_is_ actionable and does fail. Read `coverageNotes` rather than the exit code to
+decide whether coverage was complete.
+
 **Common errors:**
 
-- `--format sarif` not yet wired: SARIF output for `audit` is pending — use
-  `check` or `gate` for SARIF today.
+- `--format sarif` is coverage-blind: a coverage failure flips the exit code,
+  but the SARIF document is unchanged and says nothing about it. See
+  [sarif-code-scanning-upload.md](sarif-code-scanning-upload.md).
 
 **Examples:**
 
@@ -163,6 +180,16 @@ dependency checks use `anvil gate`.
 
 **Exit codes:** 0 (no blocking findings), 1 (blocked or error), 2 (gate check
 failed), 3 (auth required)
+
+Since SDT-008, exit 1 also covers a **secret-scan coverage failure**, which is
+separate from a blocking finding: `check` exits non-zero when any file it was
+asked to scan went unread (unreadable, panicked, or over the 8 MiB limit), or
+when a line in one of them was over `max_line_bytes`. Unlike `anvil audit`, a
+line-level skip _does_ fail `check` — you named the files, so a line the scan
+could not read is an answer to a question you asked. A configured
+`skip_extensions` match (`.png`, `.lock`, `.min.js`, …) is a deliberate
+exclusion and never fails; an argument list containing both an excluded file and
+an unread one still fails, and names the unread one.
 
 **Examples:**
 

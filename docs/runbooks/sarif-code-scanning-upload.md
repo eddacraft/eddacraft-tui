@@ -1,8 +1,8 @@
 # SARIF → GitHub Code Scanning Upload Runbook
 
-| Type    | Authority | Owner    | Status | Freshness                                                       |
-| ------- | --------- | -------- | ------ | --------------------------------------------------------------- |
-| Runbook | Advisory  | SARIFOUT | Live   | Created 2026-05-29 for SARIFOUT-006 against the SARIFOUT module |
+| Type    | Authority | Owner    | Status | Freshness                                                                                                                                                                                                                                                                                                                            |
+| ------- | --------- | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Advisory  | SARIFOUT | Live   | Updated 2026-08-29 for SDT-008: `anvil audit` gained a coverage-failure exit code that the SARIF document does not carry, verified via `cargo test -p eddacraft-anvil --test secret_coverage_surfaces` (14 passed) against `crates/anvil-cli/src/commands/audit.rs`; created 2026-05-29 for SARIFOUT-006 against the SARIFOUT module |
 
 | Upstream                                                                                        | Downstream                                    |
 | ----------------------------------------------------------------------------------------------- | --------------------------------------------- |
@@ -42,6 +42,41 @@ confidence check on top of it.
    `--format sarif` is exit-code-neutral for `check`/`gate` (a blocking finding
    still exits non-zero), so capture stdout explicitly and don't gate the upload
    on the exit code.
+
+   > **`anvil audit` can now exit 1 here, and the SARIF will not say why.**
+   > Since SDT-008, a secret-scan coverage failure — a file inside audit's scan
+   > domain that could not be read, whose scan panicked, or that was over the 8
+   > MiB limit — makes `anvil audit` exit 1. Under `set -e` (the default in a
+   > GitHub Actions `run:` block) the step above then fails, while `anvil.sarif`
+   > is byte-for-byte what a passing run would have written. The pipeline goes
+   > red with nothing in the artefact explaining it, and the explanation only
+   > exists on stdout, which the redirect has already swallowed.
+   >
+   > **Known gap, SARIF side.** Coverage failures have no home in `results[]` by
+   > design — a file nobody read has no location, no rule and no severity, so
+   > emitting one would be a fabricated finding. Their proper home is
+   > `invocations[].toolExecutionNotifications` (SARIF 2.1.0 §3.20.21), which
+   > `anvil-sarif` does not model yet. Until it does, **SARIF output is
+   > coverage-blind on every surface**: the exit code moves, the document does
+   > not.
+   >
+   > In CI, capture the human explanation alongside the document rather than
+   > discarding it, and decide deliberately whether an incomplete scan should
+   > fail the job:
+   >
+   > ```bash
+   > # Keep the SARIF *and* the reason, and let the upload run either way.
+   > anvil audit --format sarif > anvil.sarif || audit_status=$?
+   > anvil audit --format json | jq -r '.coverageNotes[]?'  # why it failed
+   > # …upload anvil.sarif…
+   > exit "${audit_status:-0}"   # drop this line to treat coverage as advisory
+   > ```
+   >
+   > Note that `.coverageNotes` is the honest signal and the exit code is not:
+   > on `audit` an unscanned long _line_ is reported there on a run that exits 0
+   > (it is un-scoped, so long lines in vendored files would redden every
+   > checkout), while on `check` and `gate` the same note does fail. See
+   > [cli-surface.md](cli-surface.md).
 
 2. Sanity-check the document locally before upload:
 

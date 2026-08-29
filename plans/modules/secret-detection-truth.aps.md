@@ -640,22 +640,57 @@ known gap lives.
 - **As built (2026-08-29):** `secret_coverage_suffix` moved from `gate.rs` to
   `util.rs`, so all three surfaces describe an unread file in identical words
   rather than inventing a second vocabulary. `audit` returns a new
-  `AuditRun { data, coverage_notes }`: a coverage failure is deliberately
-  **not** an `AuditIssue` — it has no file, line or severity, and counting it
-  as an issue would trade one honesty defect for another. It is a property of
-  the run, and the only thing that decides the exit code.
+  `AuditRun { data, coverage_notes, unread_files }`: a coverage failure is
+  deliberately **not** an `AuditIssue` — it has no file, line or severity, and
+  counting it as an issue would trade one honesty defect for another. It is a
+  property of the run, and unread *files* among the notes are the only thing
+  that decides the exit code.
 - **`anvil audit` gains its first non-zero exit, and only for this.** Findings
   still exit 0 (warnings-over-blocks); "I did not read this file" exits 1.
   That asymmetry is deliberate and commented in code: a finding is advisory,
   a failure to do the work asked for is not.
 - **The `check.rs` pre-filter was deleted, not split.** The item anticipated
   separating the predicate's extension half from its size half. The executor
-  did better: the pre-filter is gone and the in-scope decision now reads
+  went further: the pre-filter is gone and the in-scope decision now reads
   `result.files_skipped_extension` — the scanner's own per-file accounting —
-  so `files.len() - files_skipped_extension == 0` is the same test computed
-  by the scanner instead of by a caller reasoning *about* the scanner. There
-  is no second predicate left to drift, which is the hazard SDT-007 found had
-  already gone live once.
+  instead of a caller reasoning *about* the scanner, so there is no second
+  predicate left to drift, which is the hazard SDT-007 found had already gone
+  live once. State the equivalence precisely, because an earlier draft of this
+  note overclaimed it: `files.len() - files_skipped_extension == 0` reproduces
+  the old predicate **on its extension arm only**. Its size arm was not
+  reproduced — it was deliberately dropped, and that divergence *is* the fix.
+  The old predicate excluded oversize files from the scan, so their coverage
+  accounting could never arrive; the new one lets them through and reports the
+  gap. The two tests are equivalent where they should be and differ exactly
+  where the bug was.
+- **Blind-review repairs (2026-08-29):** three findings, all fixed on the same
+  branch. (1) *The in-scope guard was unguarded.* Sabotaging
+  `files_skipped_extension >= file_refs.len()` to `> 0` left all eight
+  integration tests green, because every green-path case fed `check`
+  homogeneous input; one `.png` in the argument list then suppressed
+  secret-detection entirely and returned "No analysable files found (0
+  scanned)", exit 0, over an unreadable file. The guard was always correct;
+  the missing test was the mixed-input case, now
+  `check_fails_when_a_skip_extension_match_is_mixed_with_unread_input`, proven
+  RED against that exact mutation. An audit-side equivalent was added; audit
+  has no such guard, and the test exists so one is never introduced.
+  (2) *Line skips no longer fail `anvil audit`* — see the operator decision
+  below. (3) Both owed docs were written.
+- **Line skips are advisory on `audit` only (operator decision, 2026-08-29).**
+  A `lines_skipped_oversize` note is still reported in audit's human block, in
+  `coverageNotes`, in its notifications and in its next steps, but no longer
+  contributes to the exit code; file-level failures (unreadable, panicked,
+  oversize) still exit 1. Reason: `audit` walks the whole tree un-scoped, and
+  the 19 long lines blind review measured on this repository were **all** in
+  untracked paths — `coverage/coverage-final.json` and `@github/copilot`
+  bundles inside nested `.worktrees/*/node_modules`. An exit code that is 1 on
+  every real checkout carries no signal, which is the unactionable-red failure
+  SDT-001 recorded against itself. `gate` (diff-scoped) and planless `check`
+  (argument-scoped) are **unchanged**: there a long line is in something the
+  operator asked about, so it is actionable and still fails. The split is read
+  off the scanner's structured per-cause vectors, never off the note text, and
+  is pinned from both sides by tests so a future tidy-up toward uniformity has
+  to delete a test to do it.
 - **Owed, not done:** (a) `anvil_checks::secret::is_secret_scannable` now has
   **zero production callers** — SDT-007 exported it to unify the CLI copy and
   this item removed its only consumer. Left in place because changing
@@ -665,11 +700,17 @@ known gap lives.
   `crates/anvil-checks/ARCHITECTURE.md` with it. (b) SARIF is content-blind to
   coverage on both surfaces — the exit code flips, the document does not; the
   proper home is `invocations[].toolExecutionNotifications` (SARIF 2.1.0
-  §3.20.21), which `anvil-sarif` does not model. (c) `anvil audit --format tui`
-  prints the block to stderr after restoring the screen rather than drawing it;
-  the Project panel is a fixed `Constraint::Length(10)` that would silently
-  clip added lines. (d) `docs/runbooks/cli-surface.md` is owed a sentence —
-  audit's exit codes are unchanged as a list, but the *meaning* of 1 is new.
+  §3.20.21), which `anvil-sarif` does not model. Now documented as a known gap
+  in `docs/runbooks/sarif-code-scanning-upload.md` rather than left to be
+  discovered as a red pipeline with an unexplained artefact, but not fixed.
+  (c) `anvil audit --format tui` prints the block to stderr after restoring the
+  screen rather than drawing it; the Project panel is a fixed
+  `Constraint::Length(10)` that would silently clip added lines. The same panel
+  limit is why `commands::welcome`'s embedded audit surface still shows no
+  coverage state at all — `collect_audit_data()` drops the notes for it
+  deliberately, and giving them a home means `anvil-tui` work. `anvil audit`'s
+  own post-fix refresh was repointed at `run_audit`, so the notes and exit code
+  there follow the latest scan rather than the first one.
 - **Validation evidence (2026-08-29):** measured baseline at `e016d40c3`
   before any change was `4144 passed; 0 failed` (the capsule environment
   failures had been fixed by a sibling and were genuinely absent, not assumed);
@@ -680,6 +721,38 @@ known gap lives.
   `cargo fmt` exit 0. End-to-end against the real binary: `anvil audit` and
   `anvil check` both moved 0 → 1 on an unreadable file and on an oversize file,
   and both stayed 0 when the only exclusion was a `skip_extensions` match.
+- **Validation evidence after the blind-review repairs (2026-08-29):**
+  `cargo test -p eddacraft-anvil --no-fail-fast` → **4164 passed; 0 failed**
+  across 64 targets, exit 0. `tests/secret_coverage_surfaces.rs` went 8 → 14
+  tests; the pre-repair workspace total was not re-measured on this branch, so
+  no delta against the 4156 above is claimed. The known parallel-execution
+  flake `partial_report_propagates_to_kindling_observation` (module
+  `commands::audit_chain::tests`) **passed** under the full run here.
+  `cargo test -p eddacraft-anvil-checks` exit 0, 0 failed across 34 targets;
+  `cargo clippy --workspace --all-targets -- -D warnings` exit 0;
+  `cargo fmt -p eddacraft-anvil -- --check` exit 0; `pnpm docs:check` exit 0,
+  15/15 surfaces passed; `node scripts/docs/check-docs-owed.mjs --since
+  origin/main --fail-on-owed` exit 0 (2 owed, both advisory-by-directory and
+  pre-existing; neither is one of the two docs updated here).
+- **Mutation evidence.** Each repair's test was proven RED against the
+  production line it guards. Weakening the `check.rs` in-scope guard from
+  `files_skipped_extension >= file_refs.len()` to `> 0` fails exactly one test,
+  the new mixed-input one, with the observed output `No analysable files found
+  (0 scanned)` and exit 0 — the blind-review defect reproduced verbatim.
+  Audit's exit predicate was mutated both ways: replacing `unread_files` with
+  `!coverage_notes.is_empty()` reddens only the two line-skip tests, and
+  replacing it with `false` reddens only the four file-level tests. Neither
+  direction of the asymmetry can be broken silently.
+- **End-to-end, real binary, after the repairs.** `audit` over a long-line-only
+  tree → **exit 0** with the note printed; `audit` over an unreadable file →
+  **exit 1**; `check src/logo.png src/broken.ts` → **exit 1** naming
+  `src/broken.ts`; `check src/logo.png` alone → **exit 0**;
+  `check src/wide.ts` (long line) → **exit 1**; `gate` over a staged long line
+  → `secret-detection FAIL`, exit 2, unchanged (`gate.rs` is byte-identical
+  across the repairs). `audit --format sarif` over the unreadable file exits 1
+  and emits valid SARIF 2.1.0 with `results: []` and no `invocations` — the
+  coverage-blindness now documented in the SARIF runbook, measured rather than
+  assumed.
 
 ---
 
