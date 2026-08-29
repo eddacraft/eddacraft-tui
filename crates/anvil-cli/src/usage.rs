@@ -773,18 +773,6 @@ pub fn attach_principal(frame: &mut serde_json::Value) {
     }
 }
 
-/// Whether the operator has opted out of CLI usage collection.
-///
-/// 094a: the CLI `command.invoked` producer ([`record_invocation`]) is the
-/// one usage producer with no kill-switch — the daemon DPO producers honour
-/// `ANVIL_INTERCEPT_DISABLE_OBSERVATION`, but that never reached the CLI
-/// path. This consults, in order, the dedicated CLI opt-out
-/// (`ANVIL_USAGE_DISABLE`), the cross-cutting whole-observation break-glass
-/// (`ANVIL_INTERCEPT_DISABLE_OBSERVATION`, so a single toggle silences both
-/// the daemon and the CLI), and the cross-tool `DO_NOT_TRACK` consent
-/// convention. Any of them set to a non-empty value other than `0`/`false`
-/// declines collection (CIB-364(b) widened this from an exact `"1"` match).
-/// Read fresh each call so an operator can flip it without a code change.
 /// Whether one opt-out variable's value declines collection.
 ///
 /// CIB-364(b): every switch used to match the exact string `"1"`, so
@@ -801,7 +789,7 @@ pub fn attach_principal(frame: &mut serde_json::Value) {
 pub(crate) fn opt_out_value_is_set(value: Option<&str>) -> bool {
     value.is_some_and(|v| {
         let v = v.trim();
-        !v.is_empty() && !matches!(v.to_ascii_lowercase().as_str(), "0" | "false")
+        !v.is_empty() && !v.eq_ignore_ascii_case("0") && !v.eq_ignore_ascii_case("false")
     })
 }
 
@@ -842,6 +830,18 @@ fn opt_out_env(var: &str) -> Option<String> {
     env::var_os(var).map(|v| v.into_string().unwrap_or_else(|_| "1".to_string()))
 }
 
+/// Whether the operator has opted out of local usage collection.
+///
+/// This gates the CLI `command.invoked` producer through
+/// [`record_invocation`]. The daemon save-time and fence producers reuse the
+/// same value rule through [`observation_producers_disabled`], so all three
+/// paths honour `DO_NOT_TRACK`, `ANVIL_INTERCEPT_DISABLE_OBSERVATION`, and
+/// `ANVIL_USAGE_DISABLE`. Any variable set to a non-empty value other than
+/// `0`/`false` declines collection (CIB-364 widened this from an exact
+/// `"1"` match).
+///
+/// Values are read fresh on every call so an operator can change the setting
+/// without a code change.
 #[must_use]
 pub fn usage_collection_disabled() -> bool {
     usage_collection_disabled_from(
@@ -1301,12 +1301,14 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
 /// `(None, None, false)` so a daemon on a host without a resolvable state
 /// dir still starts.
 ///
-/// Whole-DPO kill-switch (council J): when
-/// `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1` is set, this returns
-/// `(None, None, false)` with a `tracing::warn!` — no producers are wired
-/// at all, mirroring the `ANVIL_INTERCEPT_DISABLE_SYMBOL_PARSER`
-/// break-glass for the verdict path. This is the single env toggle that
-/// silences both the save-time `gate_evaluated` and the fence
+/// Whole-DPO opt-out (council J / CIB-364): when `DO_NOT_TRACK`,
+/// `ANVIL_INTERCEPT_DISABLE_OBSERVATION`, or `ANVIL_USAGE_DISABLE` is set
+/// to a non-empty value other than `0`/`false`, this returns
+/// `(None, None, false)` with a `tracing::warn!` — no producers are wired.
+/// `ANVIL_INTERCEPT_DISABLE_OBSERVATION` remains the observation-specific
+/// break-glass equivalent of `ANVIL_INTERCEPT_DISABLE_SYMBOL_PARSER`, while
+/// the other two controls keep CLI and daemon collection aligned. All three
+/// silence both the save-time `gate_evaluated` and fence
 /// `constraint_applied` producers without a redeploy.
 #[must_use]
 pub fn daemon_observation_producers() -> (
