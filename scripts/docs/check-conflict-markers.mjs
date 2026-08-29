@@ -38,7 +38,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, relative, resolve, sep } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 import process from 'node:process';
 
@@ -144,7 +144,17 @@ function listFiles() {
   if (positionals.length > 0) {
     // Explicit list wins: report paths relative to the root and with forward
     // slashes, so hook output and corpus output read identically.
-    return positionals.map((p) => relative(root, resolve(root, p)).split(sep).join('/'));
+    return positionals.map((p) => {
+      const rel = relative(root, resolve(root, p));
+      if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+        // Positional mode is a repository-file boundary. Treat an escaped path
+        // as a tooling failure instead of reading it and presenting the result
+        // as repository content.
+        console.error(`[${SURFACE}] positional path is outside the repository root`);
+        process.exit(2);
+      }
+      return rel.split(sep).join('/');
+    });
   }
   const args = ['-C', root, 'ls-files', '-z'];
   if (!values['all-text']) args.push('--', '*.md');

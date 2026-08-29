@@ -218,6 +218,23 @@ test('explicit positional paths scan only those files', async () => {
   }
 });
 
+test('explicit positional paths outside the repository are a tooling failure', async () => {
+  const root = await makeRepo({ 'docs/clean.md': '# clean\n' });
+  const outsideRoot = await makeRepo({
+    'outside.md': `${OURS} HEAD\n`,
+  });
+  try {
+    const outside = join(outsideRoot, 'outside.md');
+    const r = run(root, [outside]);
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+    assert.match(r.stderr, /outside the repository root/i);
+    assert.ok(!r.stderr.includes(outside), 'must not echo the escaped absolute path');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outsideRoot, { recursive: true, force: true });
+  }
+});
+
 test('explicit absolute paths report repo-relative forward-slash paths', async () => {
   const root = await makeRepo({ 'plans/index.aps.md': `| a |\n${BASE} parent of abc (s)\n` });
   try {
