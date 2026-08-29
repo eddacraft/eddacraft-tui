@@ -4075,7 +4075,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
 /// user-facing string would silently disable strict-mode config-gap
 /// detection.
 fn check_is_skipped_for_missing_config(name: &str, message: &str, skipped: bool) -> bool {
-    if skipped {
+    if skipped && matches!(name, "architecture" | "policy" | "command-safety") {
         // Host tooling absence is not a project-config gap, whichever way the
         // skip was signalled.
         return !(name == "policy" && message.contains("OPA not installed"));
@@ -8807,6 +8807,10 @@ mod tests {
         assert!(
             !check_is_skipped_for_missing_config("policy", "OPA not installed. Skipping.", true),
             "host-tooling gaps stay excluded even when structurally skipped",
+        );
+        assert!(
+            !check_is_skipped_for_missing_config("secret", "No files in scope", true),
+            "structured skips outside config-dependent checks must not become config gaps",
         );
     }
 
