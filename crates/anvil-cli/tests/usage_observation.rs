@@ -304,10 +304,38 @@ fn usage_disable_env_suppresses_the_cli_producer() {
 }
 
 #[test]
-fn do_not_track_env_suppresses_the_cli_producer() {
-    // 094a: the cross-tool `DO_NOT_TRACK=1` consent convention is honoured
-    // as an alias for the dedicated opt-out, so an operator who already
-    // sets it gets no usage collection without an Anvil-specific knob.
+fn do_not_track_presence_suppresses_the_cli_producer() {
+    // CIB-364: DO_NOT_TRACK is presence-based. Values that look false and a
+    // bare export are still an explicit privacy choice; only absence permits
+    // collection.
+    for value in ["1", "true", "0", "false", ""] {
+        let home = tempdir().expect("anvil home");
+        let mut cmd = Command::new(ANVIL_BIN);
+        cmd.args(["version"])
+            .current_dir(home.path())
+            .env("ANVIL_HOME", home.path())
+            .env("HOME", home.path())
+            .env("USERPROFILE", home.path())
+            .env("ANVIL_DEV", "1")
+            .env("ANVIL_SKIP_WELCOME", "1")
+            .env("DO_NOT_TRACK", value);
+        cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+        cmd.env_remove("TRACEPARENT");
+        let out = cmd.output().expect("spawn anvil");
+        assert!(out.status.success());
+        assert!(
+            !usage_log(home.path()).exists(),
+            "no usage sidecar may be written when DO_NOT_TRACK={value:?}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn non_utf8_do_not_track_suppresses_the_cli_producer() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
     let home = tempdir().expect("anvil home");
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.args(["version"])
@@ -317,14 +345,17 @@ fn do_not_track_env_suppresses_the_cli_producer() {
         .env("USERPROFILE", home.path())
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
-        .env("DO_NOT_TRACK", "1");
+        .env("DO_NOT_TRACK", OsString::from_vec(vec![0xff]));
     cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
     cmd.env_remove("TRACEPARENT");
     let out = cmd.output().expect("spawn anvil");
-    assert!(out.status.success());
+    assert!(
+        out.status.success(),
+        "version must still succeed with a non-UTF-8 opt-out"
+    );
     assert!(
         !usage_log(home.path()).exists(),
-        "no usage sidecar may be written when DO_NOT_TRACK=1"
+        "a non-UTF-8 DO_NOT_TRACK value must fail closed",
     );
 }
 

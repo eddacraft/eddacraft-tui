@@ -83,7 +83,8 @@ anvil --json telemetry
 ```
 
 `ANVIL_TELEMETRY=off` and `DO_NOT_TRACK=1` always override persisted consent.
-`DO_NOT_TRACK=1` also disables the local usage-observation surface.
+For the local usage-observation surface, any present `DO_NOT_TRACK` value —
+including a bare export, `0`, or `false` — is a privacy hard-off.
 
 ## Storage and retention
 

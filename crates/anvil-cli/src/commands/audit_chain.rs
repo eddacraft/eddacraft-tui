@@ -267,6 +267,13 @@ pub(crate) fn emit_audit_kindling_row(
     report: &AuditReport,
     duration_ms: u64,
 ) -> Result<()> {
+    // CIB-364: this is a direct local observation producer, so it must share
+    // the same privacy hard-off as CLI, daemon-command, save-time, and fence
+    // observations. An opt-out is a successful no-op.
+    if crate::usage::usage_collection_disabled() {
+        return Ok(());
+    }
+
     // DISTRIB-006 (ADR-060): the kindling observation row is appended under the
     // project root (`anvil/kindling/`). Skip it under a gated ANVIL_HOME so a
     // candidate does not write a real project's audit sidecar — the audit output
@@ -1255,6 +1262,34 @@ mod tests {
         assert_eq!(rows[0]["kind"], "gate_evaluated");
         assert_eq!(rows[0]["gate_id"], AUDIT_CHAIN_GATE_ID);
         assert_eq!(rows[0]["duration_ms"], 42);
+    }
+
+    #[test]
+    fn do_not_track_suppresses_the_audit_kindling_row() {
+        let tmp = TempDir::new().unwrap();
+        write_minimal_chain(tmp.path(), &["aaa", "bbb"]);
+        let report = run_audit_chain(tmp.path(), "HEAD", None, 5);
+
+        temp_env::with_vars(
+            [
+                ("DO_NOT_TRACK", Some("true")),
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None),
+                ("ANVIL_USAGE_DISABLE", None),
+            ],
+            || {
+                emit_audit_kindling_row(tmp.path(), &report, 42)
+                    .expect("privacy opt-out is a successful no-op");
+            },
+        );
+
+        assert!(
+            !tmp.path()
+                .join("anvil")
+                .join("kindling")
+                .join(KINDLING_AUDIT_NDJSON)
+                .exists(),
+            "DO_NOT_TRACK must prevent the direct audit-chain producer from writing",
+        );
     }
 
     #[test]
