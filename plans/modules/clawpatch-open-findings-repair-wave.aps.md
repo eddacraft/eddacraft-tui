@@ -93,7 +93,7 @@ shared CIB backlog as feature-branch state.
 
 ### CLAWOPEN-003: Recover GitHub device sessions and verified identity
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** Durable minted sessions replay without live OAuth credentials, and
