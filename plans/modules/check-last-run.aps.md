@@ -5,12 +5,12 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| CHKLR | —     | In Progress | 0/1      |
+| CHKLR | —     | Merged | 1/1      |
 
-**Last reviewed:** 2026-08-28 — design approved in-thread; spec
-[`2026-08-28-check-last-run-report.md`](../specs/2026-08-28-check-last-run-report.md)
-accepted. Exclusive module: feature PRs update only this item's status;
-stored `N/M` is reconciled separately under ADR-053. Not a release claim.
+**Last reviewed:** 2026-08-29 — CHKLR-001 Merged via
+[#4197](https://github.com/eddacraft/anvil-001/pull/4197) (`4f84527c9` on
+`main`). Exclusive module: stored `N/M` is reconciled separately under
+ADR-053. Not a release claim.
 
 ## Purpose
 
@@ -61,7 +61,7 @@ terminal scrollback.
 
 ### CHKLR-001: Persist last-run report files for `anvil check`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-28 via PR #4197
 - **Intent:** Every `anvil check` run that produces a result overwrites a
   human last-run file and a JSON last-run file under `.anvil/`.
 - **Expected Outcome:**
@@ -83,6 +83,9 @@ terminal scrollback.
   `plans/specs/2026-08-28-check-last-run-report.md`
 - **Validation:**
   `cargo test -p eddacraft-anvil --no-fail-fast last_run`
+- **Evidence:** Merged via
+  [#4197](https://github.com/eddacraft/anvil-001/pull/4197); merge commit
+  `4f84527c9` is an ancestor of `origin/main`.
 - **Dependencies:** —
 - **Confidence:** high
 - **Design:** [check last-run report](../specs/2026-08-28-check-last-run-report.md)
