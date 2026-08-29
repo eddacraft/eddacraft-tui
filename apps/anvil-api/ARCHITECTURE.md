@@ -1,8 +1,8 @@
 # anvil API architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                           |
-| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-28 against PR #4194's `apps/anvil-api/src/__tests__/auth-github.test.ts` key-generation timeout; HTTP composition, routes, authentication, and persistence topology unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                         |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-29 against CLAWOPEN-003's verified-email fallback and minted device-session replay; BAUTH detail updated, while the component request/persistence diagram remains unchanged |
 
 | Upstream                                                                                    | Downstream                                       |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------ |

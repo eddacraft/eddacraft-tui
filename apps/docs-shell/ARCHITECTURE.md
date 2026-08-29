@@ -1,8 +1,8 @@
 # anvil documentation shell architecture
 
-| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                          |
-| ------------ | --------- | --------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-28 against PR #4194's `apps/docs-shell/proxy.test.ts` valid-session fixture correction; routing, trust boundaries, failure behaviour, and diagrams unchanged |
+| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                             |
+| ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-29 against CLAWOPEN-005 callback-route coverage and Vitest alias wiring; production routing, trust boundaries, failure behaviour, and diagrams remain unchanged |
 
 | Upstream                                                                                                                                          | Downstream                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |

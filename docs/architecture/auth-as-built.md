@@ -1,20 +1,22 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                      |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-28 against PR #4194's test-only API key-generation timeout and docs-shell valid-session fixture correction; authentication contracts, trust boundaries, lifecycle, and diagram unchanged |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                               |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-29 against CLAWOPEN-003's verified-secondary canonical fallback and minted device-session replay before live GitHub credentials; authentication diagram unchanged |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `apps/anvil-api`, `apps/docs-shell/app/auth`, `apps/docs-shell/lib`, and ADR-018 | anvil CLI and docs-shell authentication consumers |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-08-20 targeted `TOKEN_PEPPER`
-> and neighbouring auth-claim review at `97899b00a`; 2026-07-02 as-built drift
-> sweep against main `d1fded280` (G-08 admin-actor attribution + `index.ts`
-> re-anchor); 2026-06-11 against the device-flow cutover (GHCLIAUTH-010); GitHub
-> OAuth delta (GHCLIAUTH-003) against main `45dd1047a`; full review 2026-04-23
-> against `v0.6.0-beta` **Service:** `apps/anvil-api` (Hono on Vercel)
-> **Database:** Neon Postgres (`beta_users`, `access_tokens`, `audit_log`)
+> **Status:** Live (beta) **Last reviewed:** 2026-08-29 against CLAWOPEN-003's
+> GitHub identity and minted-session recovery changes; 2026-08-20 targeted
+> `TOKEN_PEPPER` and neighbouring auth-claim review at `97899b00a`; 2026-07-02
+> as-built drift sweep against main `d1fded280` (G-08 admin-actor attribution +
+> `index.ts` re-anchor); 2026-06-11 against the device-flow cutover
+> (GHCLIAUTH-010); GitHub OAuth delta (GHCLIAUTH-003) against main `45dd1047a`;
+> full review 2026-04-23 against `v0.6.0-beta` **Service:** `apps/anvil-api`
+> (Hono on Vercel) **Database:** Neon Postgres (`beta_users`, `access_tokens`,
+> `audit_log`)
 
 ## Overview
 
@@ -131,7 +133,9 @@ credentialed upstream calls (ADR-066). Route
    opened **on any device**; there is no email prompt and no website activation
    page
 3. CLI polls `POST /api/v1/auth/github-device/poll` with `pollToken`, honouring
-   `interval` and the upstream `slow_down` back-off
+   `interval` and the upstream `slow_down` back-off. A poll for an already
+   minted session replays that encrypted session before consulting live GitHub
+   CLI credentials; only unfinished exchanges require those credentials
 4. The poll exchanges the stored `device_code` with GitHub, derives the user
    **solely** from the resulting token (`fetchGitHubUser` → `github_id` linking,
    GHCLIAUTH-003), revokes the GitHub token immediately, runs the active-status
@@ -166,9 +170,9 @@ Operator topology, health signals, and incident triage for this flow live in the
    (`apps/anvil-api/src/routes/auth-github.ts:99`). CSRF/state validation lives
    entirely in the docs-shell layer — the API trusts the caller to have
    validated the state (`auth-github.ts:92-98`)
-2. The API exchanges the code with GitHub, fetches the verified primary email
-   plus the full verified-email set, then immediately revokes the upstream
-   GitHub token
+2. The API exchanges the code with GitHub, fetches a canonical verified email
+   (verified primary preferred, otherwise the first verified secondary) plus the
+   full verified-email set, then immediately revokes the upstream GitHub token
 3. `linkOrCreateGitHubUser` resolves the `beta_users` row: match on `github_id`;
    else first-link an active invited row via any verified email (ADR-066); else
    create a new row with `status = 'pending'`
