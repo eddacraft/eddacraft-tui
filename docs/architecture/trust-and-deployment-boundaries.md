@@ -1,8 +1,8 @@
 # Trust and deployment boundaries
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                       |
-| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-28 against PR #4194's test-only API, docs-shell, and intercept freshness closeout; trust and deployment boundaries and diagrams unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                           |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-29 against CLAWOPEN-003/-005 auth recovery, coverage, and component dispositions; macro trust and deployment boundaries and diagram unchanged |
 
 | Upstream                                                                                                                                                                                                                                                                                                           | Downstream                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
