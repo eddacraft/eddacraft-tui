@@ -875,7 +875,7 @@ fn build_snapshot(
         *breakdown.entry(ap.id.clone()).or_insert(0) += 1;
     }
 
-    let git_ref = get_git_ref();
+    let git_ref = get_git_ref(root);
 
     Ok(DriftSnapshot {
         schema_version: current_schema().to_string(),
@@ -1262,6 +1262,49 @@ mod cib_366_tests {
         );
         // The analysis still actually ran.
         assert_eq!(snapshot.schema_version, current_schema().to_string());
+    }
+
+    #[test]
+    fn snapshot_git_ref_comes_from_the_requested_root() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("a.rs"), "fn main() {}\n").unwrap();
+
+        let git = |args: &[&str]| {
+            Command::new("git")
+                .arg("-C")
+                .arg(root)
+                .args(args)
+                .output()
+                .expect("git must run for the fixture")
+        };
+
+        assert!(git(&["init", "--quiet"]).status.success());
+        assert!(git(&["add", "a.rs"]).status.success());
+        let commit = Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args([
+                "-c",
+                "user.name=anvil test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--quiet",
+                "--no-gpg-sign",
+                "-m",
+                "fixture",
+            ])
+            .output()
+            .expect("git commit must run");
+        assert!(commit.status.success());
+        let expected = String::from_utf8(git(&["rev-parse", "HEAD"]).stdout)
+            .unwrap()
+            .trim()
+            .to_owned();
+
+        let snapshot = build_snapshot(root, None, false).expect("snapshot computes");
+        assert_eq!(snapshot.git_ref.as_deref(), Some(expected.as_str()));
     }
 }
 
@@ -1697,8 +1740,10 @@ fn read_created_at(path: &Path) -> Option<chrono::DateTime<chrono::FixedOffset>>
     chrono::DateTime::parse_from_rfc3339(&snap.created_at).ok()
 }
 
-fn get_git_ref() -> Option<String> {
+fn get_git_ref(root: &Path) -> Option<String> {
     Command::new("git")
+        .arg("-C")
+        .arg(root)
         .args(["rev-parse", "HEAD"])
         .output()
         .ok()
