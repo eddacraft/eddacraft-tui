@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 297/366  |
+| CIB | —     | In Progress | 297/367  |
 
 ## Purpose
 
