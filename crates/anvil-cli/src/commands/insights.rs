@@ -129,15 +129,20 @@ pub struct InsightsArgs {
     #[arg(long, requires = "share", value_name = "PATH")]
     pub output: Option<PathBuf>,
 
-    /// Wire schema for the weekly JSON document.
+    /// Wire schema for the weekly JSON document. Defaults to `v3`.
     ///
-    /// `v3` (the default) emits the six metrics that are not instrumented
-    /// yet as `null`, so a consumer can tell an unmeasured metric from a
+    /// `v3` emits the six metrics that are not instrumented yet as
+    /// `null`, so a consumer can tell an unmeasured metric from a
     /// measured zero. `v1` is the older document that emits them as `0`,
     /// kept for anyone pinned to that shape. The human-readable output
     /// says "not yet measured" either way.
-    #[arg(long, value_enum, value_name = "VERSION", default_value_t = InsightsSchema::V3)]
-    pub schema: InsightsSchema,
+    ///
+    /// Deliberately `Option` with no clap default: `None` means the flag
+    /// was not given, which is what the `--json` guard below actually
+    /// needs to know, and it leaves `InsightsSchema`'s `#[default]` as the
+    /// single source of truth for what the default is.
+    #[arg(long, value_enum, value_name = "VERSION")]
+    pub schema: Option<InsightsSchema>,
 }
 
 /// The `anvil.insights.v2` wire document: every v1 rolling-window field
@@ -342,7 +347,11 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // `--schema` selects a *wire* document, so it only means anything with
     // `--json`. Silently ignoring it would contradict the help text and leave a
     // caller believing they had asked for v3 (review of PR #4205).
-    if !global.json && args.schema != InsightsSchema::default() {
+    // Any explicit `--schema` without `--json` is refused, not just a
+    // non-default one: comparing against the default silently accepted
+    // `--schema v3` once v3 became the default, contradicting this very
+    // message (review of PR #4206).
+    if !global.json && args.schema.is_some() {
         anyhow::bail!(
             "--schema selects the JSON wire document and needs --json; \
              the human-readable output reports uninstrumented metrics as \
@@ -352,7 +361,7 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.json {
         // CIB-367: v1 keeps emitting its placeholder zeros so existing
         // consumers are unaffected; v3 emits them as null instead.
-        match args.schema {
+        match args.schema.unwrap_or_default() {
             InsightsSchema::V1 => println!("{}", serde_json::to_string_pretty(&summary)?),
             InsightsSchema::V3 => {
                 println!("{}", serde_json::to_string_pretty(&insights_v3(summary))?);
@@ -553,12 +562,54 @@ mod cib_367_tests {
         assert_eq!(InsightsSchema::default(), InsightsSchema::V3);
     }
 
+    /// Parse `insights` args exactly as the CLI does, so these tests
+    /// exercise flag parsing and selection rather than asserting on a
+    /// struct the flag never touched (review of PR #4206).
+    fn parse(args: &[&str]) -> InsightsArgs {
+        use clap::Parser as _;
+
+        #[derive(clap::Parser)]
+        struct Harness {
+            #[command(flatten)]
+            insights: InsightsArgs,
+        }
+        let mut argv = vec!["insights"];
+        argv.extend_from_slice(args);
+        Harness::parse_from(argv).insights
+    }
+
     #[test]
-    fn v1_remains_reachable_for_anyone_pinned_to_the_old_shape() {
-        // Flipping the default must not delete the old document.
-        let json = serde_json::to_value(placeholder_weekly()).unwrap();
+    fn omitting_the_flag_selects_v3_through_the_real_parser() {
+        let args = parse(&[]);
+        assert!(
+            args.schema.is_none(),
+            "no flag given means None, not a default"
+        );
+        assert_eq!(args.schema.unwrap_or_default(), InsightsSchema::V3);
+    }
+
+    #[test]
+    fn v1_remains_reachable_through_the_cli_selection_path() {
+        // Flipping the default must not delete the old document, and the
+        // flag must actually select it — serialising the aggregator struct
+        // alone would pass even if `--schema` were ignored entirely.
+        let args = parse(&["--schema", "v1"]);
+        assert_eq!(args.schema, Some(InsightsSchema::V1));
+
+        let weekly = placeholder_weekly();
+        let json = match args.schema.unwrap_or_default() {
+            InsightsSchema::V1 => serde_json::to_value(weekly).unwrap(),
+            InsightsSchema::V3 => serde_json::to_value(insights_v3(weekly)).unwrap(),
+        };
         assert_eq!(json["schema_version"], "anvil.insights.v1");
         assert_eq!(json["total_saves_observed"], 0);
+    }
+
+    #[test]
+    fn explicitly_selecting_v3_is_still_an_explicit_selection() {
+        // The `--json` guard keys off "was the flag given", so `--schema v3`
+        // must not look identical to omitting it.
+        assert_eq!(parse(&["--schema", "v3"]).schema, Some(InsightsSchema::V3));
     }
 
     #[test]
@@ -1435,7 +1486,7 @@ mod tests {
             cumulative: false,
             share: true,
             output: None,
-            schema: InsightsSchema::V1,
+            schema: None,
         };
         let global = GlobalArgs {
             json: true,

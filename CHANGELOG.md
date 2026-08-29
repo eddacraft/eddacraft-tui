@@ -11,16 +11,6 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
-### Changed
-
-- **`anvil insights --json` now defaults to `anvil.insights.v3`.** Six of the
-  seven weekly metrics are not instrumented and were emitted as `0`,
-  indistinguishable from a measured zero, so any consumer of the default
-  document recorded six fabricated results. v3 emits those fields as `null`
-  instead. Pass `--schema v1` for the previous document if you are pinned to
-  that shape. The human-readable output is unchanged — it has always said "not
-  yet measured".
-
 ### Added
 
 - **`anvil check` writes last-run reports under `.anvil/`.** Every run that
@@ -58,6 +48,14 @@ engineering maintenance are recorded in the
   `patterns/compiled/registry.json`. Set `ANVIL_REGISTRY_PATH` (or provide an
   explicit API path) to replace it; a cloned repository no longer changes what
   anvil flags merely because that file is present.
+
+- **`anvil insights --json` now defaults to `anvil.insights.v3`.** Six of the
+  seven weekly metrics are not instrumented and were emitted as `0`,
+  indistinguishable from a measured zero, so any consumer of the default
+  document recorded six fabricated results. v3 emits those fields as `null`
+  instead. Pass `--schema v1` for the previous document if you are pinned to
+  that shape. The human-readable output is unchanged — it has always said "not
+  yet measured".
 
 ### Fixed
 
