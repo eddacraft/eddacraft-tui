@@ -94,6 +94,14 @@ fn sha256(bytes: &[u8]) -> String {
         })
 }
 
+fn path_identity(domain: &[u8], path: &Path) -> String {
+    let mut preimage = b"anvil.git.identity.v1\0".to_vec();
+    preimage.extend_from_slice(domain);
+    preimage.push(0);
+    preimage.extend_from_slice(path.as_os_str().as_encoded_bytes());
+    sha256(&preimage)
+}
+
 fn identity(repository: &Path) -> GitEvaluationIdentity {
     GitExtractor::default()
         .identity_for_repository(repository, "run-conf-003")
@@ -208,6 +216,51 @@ fn forged_matching_identity_cannot_bypass_repository_admission() {
         panic!("unadmitted matching identity must not extract: {outcome:?}");
     };
     assert_eq!(failure.reason, "identity.not-admitted");
+    assert_eq!(failure.stage, "identity");
+}
+
+#[test]
+fn admitted_identity_cannot_be_transplanted_across_repositories() {
+    let source = repository();
+    commit_file(
+        source.path(),
+        "docs/source.md",
+        "source\n",
+        "docs: add source",
+    );
+    let mut transplanted = identity(source.path());
+
+    let target = repository();
+    let target_head = commit_file(
+        target.path(),
+        "docs/target.md",
+        "target\n",
+        "docs: add target",
+    );
+    let target_worktree = target
+        .path()
+        .canonicalize()
+        .expect("canonical target worktree");
+    let target_common_dir = target_worktree
+        .join(".git")
+        .canonicalize()
+        .expect("canonical target common directory");
+    let target_info = target_common_dir.join("info");
+    std::fs::create_dir_all(&target_info).expect("create target Git info directory");
+    std::fs::write(target_info.join("grafts"), format!("{target_head}\n"))
+        .expect("create target administration state before any target admission");
+
+    transplanted.repository_id = path_identity(b"repository", &target_common_dir);
+    transplanted.canonical_worktree_id = path_identity(b"worktree", &target_worktree);
+    let outcome = GitExtractor::default().extract_footprint(
+        target.path(),
+        GitSelection::Commit("HEAD".to_owned()),
+        &transplanted,
+    );
+    let GitFootprintExtractionOutcome::NotEvaluated(failure) = outcome else {
+        panic!("source admission must not authorise the target repository: {outcome:?}");
+    };
+    assert_eq!(failure.reason, "identity.repository-mismatch");
     assert_eq!(failure.stage, "identity");
 }
 

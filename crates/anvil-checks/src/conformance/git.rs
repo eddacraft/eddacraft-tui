@@ -67,6 +67,16 @@ pub enum GitSelection {
     Range { base: String, head: String },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GitAdmissionSeal {
+    run_id: String,
+    repository_id: String,
+    canonical_worktree_id: String,
+    run_started: Instant,
+    run_timeout: Duration,
+    administrative_state: Arc<EmptyGlobalConfig>,
+}
+
 /// Stable caller-owned identities for one evaluation run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitEvaluationIdentity {
@@ -76,7 +86,7 @@ pub struct GitEvaluationIdentity {
     /// Monotonic start retained by the caller across all stages of this evaluation run.
     pub run_started: Instant,
     run_timeout: Duration,
-    admitted: bool,
+    admission_seal: Option<GitAdmissionSeal>,
     administrative_state: Arc<EmptyGlobalConfig>,
 }
 
@@ -108,9 +118,45 @@ impl GitEvaluationIdentity {
             canonical_worktree_id: canonical_worktree_id.into(),
             run_started: Instant::now(),
             run_timeout,
-            admitted: false,
+            admission_seal: None,
             administrative_state: Arc::new(EmptyGlobalConfig::create()?),
         })
+    }
+
+    fn verify_admission_seal(&self) -> Result<(), GitNonEvaluation> {
+        let Some(seal) = &self.admission_seal else {
+            return Err(not_evaluated(
+                "identity.not-admitted",
+                "identity",
+                "identity was not returned by repository admission".to_owned(),
+            ));
+        };
+        if self.repository_id != seal.repository_id {
+            return Err(not_evaluated(
+                "identity.repository-mismatch",
+                "identity",
+                "repository identity differs from the admitted repository".to_owned(),
+            ));
+        }
+        if self.canonical_worktree_id != seal.canonical_worktree_id {
+            return Err(not_evaluated(
+                "identity.worktree-mismatch",
+                "identity",
+                "worktree identity differs from the admitted worktree".to_owned(),
+            ));
+        }
+        if self.run_id != seal.run_id
+            || self.run_started != seal.run_started
+            || self.run_timeout != seal.run_timeout
+            || !Arc::ptr_eq(&self.administrative_state, &seal.administrative_state)
+        {
+            return Err(not_evaluated(
+                "identity.admission-mismatch",
+                "identity",
+                "evaluation run state differs from the admitted run".to_owned(),
+            ));
+        }
+        Ok(())
     }
 
     /// Check the shared monotonic deadline at a non-Git evaluation stage.
@@ -537,13 +583,7 @@ impl GitExtractor {
         identity: &GitEvaluationIdentity,
     ) -> Result<PreparedExtraction, GitNonEvaluation> {
         let started = identity.run_started;
-        if !identity.admitted {
-            return Err(not_evaluated(
-                "identity.not-admitted",
-                "identity",
-                "identity was not returned by repository admission".to_owned(),
-            ));
-        }
+        identity.verify_admission_seal()?;
         let repository = repository.canonicalize().map_err(|error| {
             not_evaluated("repository.invalid", "repository", error.to_string())
         })?;
@@ -809,13 +849,24 @@ impl GitExtractor {
         let common_dir = Path::new(&common_dir).canonicalize().map_err(|error| {
             not_evaluated("identity.common-dir-invalid", "identity", error.to_string())
         })?;
+        let repository_id = opaque_path_identity(b"repository", &common_dir);
+        let canonical_worktree_id = opaque_path_identity(b"worktree", repository);
+        let run_timeout = self.limits.run_timeout;
+        let admission_seal = GitAdmissionSeal {
+            run_id: run_id.clone(),
+            repository_id: repository_id.clone(),
+            canonical_worktree_id: canonical_worktree_id.clone(),
+            run_started: started,
+            run_timeout,
+            administrative_state: Arc::clone(empty_config),
+        };
         Ok(GitEvaluationIdentity {
             run_id,
-            repository_id: opaque_path_identity(b"repository", &common_dir),
-            canonical_worktree_id: opaque_path_identity(b"worktree", repository),
+            repository_id,
+            canonical_worktree_id,
             run_started: started,
-            run_timeout: self.limits.run_timeout,
-            admitted: true,
+            run_timeout,
+            admission_seal: Some(admission_seal),
             administrative_state: Arc::clone(empty_config),
         })
     }
