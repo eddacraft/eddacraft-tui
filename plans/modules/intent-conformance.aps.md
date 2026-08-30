@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress |
 | ---- | ------ | ----------- | -------- |
-| CONF | @aneki | In Progress | 5/10      |
+| CONF | @aneki | In Progress | 6/11      |
 
 **Last reviewed:** 2026-08-31 — CONF-011 external PR declaration check Merged
 via [#4245](https://github.com/eddacraft/anvil-001/pull/4245) as the first
