@@ -49,7 +49,7 @@ Full operator guide:
 > the same change as adding one. Prefer `pnpm ci-log:append` /
 > `pnpm ci-log:harvest` over hand-editing.
 
-> **Last triaged:** 2026-08-20
+> **Last triaged:** 2026-08-30
 ## Template
 
 ```md
@@ -5561,3 +5561,13 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Improvement:** Make Council atomic writes fail non-zero on temp-file failure and consider cursor-based raw-record parsing to reduce malformed-input pointer amplification
 - **Follow-up:** theme:council-write-honesty-and-bounded-raw-record-parsing
 
+
+### 2026-08-31 — claude
+
+- **Task:** CI-log triage — harvest, review since the 2026-08-20 watermark, disposition into CIB, advance the watermark
+- **Outcome:** 35 notes harvested (424 → 459 entries, pending 0); 193 entries reviewed; CIB-375..378 promoted; watermark 2026-08-20 → 2026-08-30
+- **Worked:** Extracting only the Friction/Improvement/Follow-up fields reduced 193 entries to 133 actionable ones and made thematic clustering tractable without reading every entry in full. Checking CIB for existing coverage before promoting kept the promotion set to four genuinely unowned, repo-wide items: validate_write worktree rejection (16 existing mentions) and Copilot-threads-block-merge (10) were already owned and absorbed rather than re-filed.
+- **Failed:** The `triage-ci-log` workflow returned in 5.5s having made zero tool calls — its agent reported that no task content reached it beyond environment context, and nothing on disk changed. The whole triage was done directly instead.
+- **Friction:** The pending queue understated the backlog by more than 5x — 35 pending notes hid 193 untriaged tracked entries behind a five-week-old watermark, and `ci-log:status` reports only the pending count, so the real size is invisible until `ci-log:since` runs.
+- **Improvement:** Report the since-watermark entry count alongside the pending count in `ci-log:status`, so the triage debt is visible at session start rather than only after harvesting. Fix the named workflow's argument wiring or drop the skill's instruction to invoke it.
+- **Follow-up:** CIB-375 (set-watermark guard), CIB-376 (docs-owed ancestry), CIB-377 (diagram freshness cascade), CIB-378 (ADR number allocation)

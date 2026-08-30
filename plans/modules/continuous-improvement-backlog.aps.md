@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 297/369  |
+| CIB | —     | In Progress | 297/373  |
 
 ## Purpose
 
@@ -11883,3 +11883,130 @@ hang before opening a supervisor ticket.
   classified individually against a file carrying 1522 such ids; medium on the
   right suppression tier, which is a CIB-080-style judgement the corpus has to
   arbitrate.
+
+### CIB-375: `ci-log:set-watermark` can advance over an un-harvested queue
+
+- **Status:** Proposed
+- **Priority:** P2 — the watermark is the only record of what has been
+  triaged, so a wrong one silently retires evidence rather than producing a
+  wrong verdict
+- **Intent:** `pnpm ci-log:set-watermark -- --today` stamps the Last-triaged
+  date unconditionally. It does not check that the pending queue is empty, nor
+  that the tracked log matches `origin/main`. Both states were live on
+  2026-08-31: the watermark read 2026-08-20 while **35 notes sat unharvested**
+  in `.git/anvil/ci-log-pending` and **193 tracked entries** had accumulated
+  behind it. Anyone stamping the watermark in that state would have retired
+  five weeks of untriaged evidence in one command, with nothing to show it had
+  happened — the pending notes are untracked, so they would simply never appear
+  in a `ci-log:since` window again.
+- **Expected Outcome:** `set-watermark` refuses, or at minimum warns loudly and
+  requires an explicit override, when the pending directory is non-empty or the
+  tracked log differs from `origin/main`. The message names the recovery
+  (`pnpm ci-log:harvest`, then commit) rather than only reporting the state.
+- **Non-scope / do not:** do not make the check network-dependent in a way that
+  breaks offline use — compare against the local `origin/main` ref, and degrade
+  to the pending-queue check alone when the ref is unavailable. Do not
+  auto-harvest as a side effect of stamping; harvest is a commit-producing
+  action and must stay explicit.
+- **Files:** `scripts/ci-log/set-watermark.mjs`, `scripts/ci-log/lib.mjs`
+- **Validation:** stamping with a non-empty pending directory exits non-zero
+  and names `ci-log:harvest`; stamping with an empty queue and a log matching
+  `origin/main` still succeeds; the override path is covered.
+- **Identified From:** CI-log triage, 2026-08-31. Found by running the triage
+  itself: `ci-log:status` reported 35 pending against a 2026-08-20 watermark,
+  and nothing in the tooling would have prevented advancing it.
+- **Coordinates with:** the `triage-ci-log` skill, whose phase order already
+  assumes harvest precedes watermark but cannot enforce it
+- **Confidence:** high — the failure mode was observed directly, and the guard
+  is a precondition check in one script
+
+### CIB-376: `docs-owed` compares commit timestamps, so a rebase equal-stamps rewritten commits
+
+- **Status:** Proposed
+- **Priority:** P2 — produces both false demands and false clears on a gate
+  that is otherwise load-bearing for documentation truth
+- **Intent:** The docs-owed freshness comparison uses committer timestamps
+  (`%ct`) to decide whether an upstream moved after a document was reviewed. A
+  rebase rewrites every replayed commit with a new committer date, so a
+  document and its upstream can come out of a rebase carrying the *same*
+  timestamp even though one genuinely preceded the other. The comparison then
+  reads "not newer" and clears, or ties and demands a re-date depending on
+  which side wins the equality. Ancestry is the fact the gate actually wants:
+  whether the upstream commit is reachable from the document's last review
+  commit.
+- **Expected Outcome:** The freshness comparison asks git whether one commit is
+  an ancestor of the other rather than comparing dates. Rebasing a branch does
+  not change any docs-owed verdict on it.
+- **Non-scope / do not:** do not change the review-date authoring convention or
+  the granularity rules (file vs directory upstreams) in the same pass — this
+  is the comparison only. Do not silence the gate while it is being fixed.
+- **Files:** the docs-owed implementation under `scripts/docs/`
+- **Validation:** a branch that passes docs-owed still passes after
+  `git rebase origin/main` with no content change; a genuinely stale document
+  is still reported; `pnpm docs:check` stays 15/15 on a clean tree.
+- **Identified From:** CI-log entry, 2026-08 window. Consistent with the known
+  behaviour that docs-owed reads committed dates and so passes on a dirty tree
+  but fails in CI, and that re-dating cascades one level per run.
+- **Coordinates with:** CIB-377 (the diagram freshness chain, same gate family)
+- **Confidence:** medium-high on the diagnosis — the mechanism is specific and
+  reproducible; the fix location needs a read of the current implementation
+
+### CIB-377: diagram freshness cascades through mermaid chains and pulls unrelated owners
+
+- **Status:** Proposed
+- **Priority:** P3 — a review-routing and churn cost, not a wrong verdict
+- **Intent:** `diagram-review-owed` walks declared upstreams, so a code-only
+  API fix pulls in every mermaid-bearing document that lists the touched
+  architecture file as an upstream — including owners with nothing to review.
+  The converse also bites: when a freshness bump *is* owed, it must be applied
+  to the whole chain in one commit, because bumping only the direct downstream
+  leaves the next hop demanding a re-date on the following run. Two separate
+  CI-log entries describe the same shape from opposite ends.
+- **Expected Outcome:** Metadata-only freshness movement is distinguishable
+  from content movement, so a code-only change does not route mermaid owners
+  into a review they have no material stake in; and the owed set for a genuine
+  bump is computed over the transitive chain rather than one hop at a time.
+- **Non-scope / do not:** do not drop upstream declarations to make the gate
+  quiet — the declarations are the routing data. Do not fold in the separate
+  rename-endpoint and infra-upstream gaps already tracked as issues #4115 and
+  #4116; this is the cascade behaviour only.
+- **Files:** the diagram-impact / diagram-review-owed implementation under
+  `scripts/docs/`
+- **Validation:** a code-only change to a declared upstream does not demand a
+  re-date of unrelated mermaid documents; a genuine content change still
+  reports the full chain in one run rather than one level per run.
+- **Identified From:** two CI-log entries in the 2026-08 window, recorded from
+  opposite ends of the same cascade.
+- **Coordinates with:** issues #4115 / #4116 (diagram-impact enforcement gaps),
+  CIB-376 (same gate family)
+- **Confidence:** medium — the behaviour is well described twice, but the right
+  cut between "metadata-only" and "content" movement is a judgement the
+  implementation has to settle
+
+### CIB-378: ADR numbers collide when parallel branches allocate at branch-cut time
+
+- **Status:** Proposed
+- **Priority:** P3 — caught by the canonical lint, so the cost is rework and a
+  late rebase, not a wrong decision record
+- **Intent:** Two exclusive items running in parallel both read the highest ADR
+  number at branch-cut time and both write `ADR-NNN`. The collision surfaces
+  only when the second one merges, by which point the number is embedded in the
+  file name, the DECISION-LOG row, and every reference to it. Two CI-log
+  entries independently arrived at the same rule: pick the number after
+  rebasing onto current `origin/main`, and check sibling worktrees before
+  writing. That rule currently lives only in those notes.
+- **Expected Outcome:** The ADR process names the allocation point explicitly
+  (after rebase onto current `origin/main`, not at branch cut), and the
+  existing canonical lint's duplicate-number message points at that rule so the
+  recovery is obvious. Optionally a helper that reports the next free number
+  across the repo and any sibling worktrees.
+- **Non-scope / do not:** do not build a reservation registry or a lock — the
+  cost of a rare renumber is lower than a stateful allocator, and the same
+  judgement already applies to APS work-item ids. Do not renumber merged ADRs.
+- **Files:** `docs/guides/adr-process.md`, the canonical APS/ADR lint message
+- **Validation:** the guide states the allocation point; the duplicate-number
+  lint message names it; a deliberate collision still fails the lint.
+- **Identified From:** two CI-log entries in the 2026-08 window.
+- **Coordinates with:** the same-shaped APS work-item id collision convention
+  (renumber yours, check `gh pr list --search <ID>` first)
+- **Confidence:** high on the rule, medium on whether a helper earns its keep
