@@ -1226,9 +1226,13 @@ pub fn request_daemon_stop() -> Result<StopOutcome> {
         for path in candidates {
             match stop_daemon_at(&path)? {
                 StopOutcome::Signalled { pid } => {
-                    return Ok(StopOutcome::Signalled { pid });
+                    last = StopOutcome::Signalled { pid };
                 }
-                other => last = other,
+                other => {
+                    if matches!(last, StopOutcome::NotRunning) {
+                        last = other;
+                    }
+                }
             }
         }
         Ok(last)
