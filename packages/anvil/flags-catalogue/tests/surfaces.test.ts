@@ -328,6 +328,7 @@ describe('current host inventory', () => {
       'cli.audit',
       'cli.auth-whoami',
       'cli.check',
+      'cli.conformance',
       'cli.drift',
       'cli.ensure',
       'cli.export',
