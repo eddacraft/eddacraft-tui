@@ -678,7 +678,7 @@ fn secret_calibration_corpus_matches_the_committed_baseline() {
         "the corpus baseline was measured against vendored ruleset {:?} but the tree now \
          carries {:?}. A ruleset refresh moves detection and false-positive rate, so re-run \
          `pnpm secret:calibrate`, update `vendored_ruleset` and `expected` in manifest.json, \
-         and record the before/after in plans/modules/secret-detection-truth.aps.md (SDT-004).",
+         and record the before/after in plans/archive/modules/secret-detection-truth.aps.md (SDT-004).",
         manifest.vendored_ruleset,
         VENDORED_RULESET_VERSION.as_str(),
     );
@@ -710,7 +710,7 @@ fn secret_calibration_corpus_matches_the_committed_baseline() {
          This is not a failure to paper over: a rules change moved detection or \
          false-positive rate. Update `expected` and the affected `expect` fields \
          in manifest.json in the SAME change, and record the before/after in \
-         plans/modules/secret-detection-truth.aps.md (SDT-002).",
+         plans/archive/modules/secret-detection-truth.aps.md (SDT-002).",
         if tally.drift.is_empty() {
             "(aggregates only)".to_string()
         } else {
