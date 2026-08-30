@@ -2470,14 +2470,35 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                 return false;
             }
         }
-        if anvil_intercept::ipc::validate_socket_path_for_client(sibling).is_ok() {
-            if speak {
-                eprintln!(
-                    "  Failed to fix intercept-socket-rendezvous: sibling socket {} still live; not starting a second daemon",
-                    sibling.display()
-                );
+        // Every arm that reaches here has proven the sibling process is gone:
+        // signalled-and-waited, never running, or a stale PID file. Its socket
+        // inode can outlive it — the daemon unlinks on clean shutdown only, and
+        // `StaleCleared` removes the PID file, never the socket — and a stat of
+        // that leftover still passes every owner-only check. Re-deriving
+        // liveness from metadata here dead-ended `--fix` on exactly the crash
+        // case it exists for, permanently and with no operator guidance. Unlink
+        // the proven-stale socket instead, mirroring `IpcListener::bind`'s own
+        // stale-socket handling.
+        match std::fs::remove_file(sibling) {
+            Ok(()) => {
+                if speak {
+                    println!(
+                        "  intercept-socket-rendezvous: removed stale sibling socket {}",
+                        sibling.display()
+                    );
+                }
             }
-            return false;
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => {
+                if speak {
+                    eprintln!(
+                        "  Failed to fix intercept-socket-rendezvous: could not remove stale \
+                         sibling socket {}: {err}",
+                        sibling.display()
+                    );
+                }
+                return false;
+            }
         }
     }
     true
@@ -4819,6 +4840,54 @@ mod tests {
         );
         assert_eq!(check.status, CheckStatus::Warn);
         assert!(!check.auto_fixable);
+    }
+
+    /// MF-3: the crashed-sibling shape — no PID file (or a stale one), but the
+    /// socket inode left behind by a daemon that never got to unlink it.
+    ///
+    /// The old code re-derived liveness from `validate_socket_path_for_client`,
+    /// which passes on that leftover, and aborted with "sibling socket still
+    /// live; not starting a second daemon" on every run, forever. That is the
+    /// single most realistic trigger of a socket split, so `--fix` could never
+    /// heal the case it exists for. Reverting the unlink in
+    /// `stop_sibling_intercept_sockets` turns this test red.
+    #[cfg(unix)]
+    #[test]
+    fn stop_sibling_sockets_clears_a_crash_orphaned_socket() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime = dir.path().join("anvil");
+        std::fs::create_dir_all(&runtime).expect("runtime dir");
+        std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o700))
+            .expect("0700 runtime dir");
+        let socket = runtime.join("intercept.sock");
+
+        // Bind and drop: the listener goes away, the socket file survives —
+        // exactly what a SIGKILLed daemon leaves behind. No PID file is written,
+        // so the stop reports NotRunning (the process is proven gone).
+        let listener = std::os::unix::net::UnixListener::bind(&socket).expect("bind socket");
+        drop(listener);
+        std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
+            .expect("0600 socket");
+
+        // Precondition: the metadata-only check the old code trusted says this
+        // orphan is a perfectly good socket.
+        assert!(
+            anvil_intercept::ipc::validate_socket_path_for_client(&socket).is_ok(),
+            "the crash-orphaned socket must still pass the stat-only check, \
+             otherwise this test is not reproducing the reported failure",
+        );
+
+        let siblings = vec![socket.clone()];
+        assert!(
+            stop_sibling_intercept_sockets(&siblings, false),
+            "a proven-dead sibling must not block the fix",
+        );
+        assert!(
+            !socket.exists(),
+            "the proven-stale socket must be unlinked so a canonical daemon can start",
+        );
     }
 
     #[test]
