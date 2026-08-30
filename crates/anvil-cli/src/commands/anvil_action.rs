@@ -1,13 +1,16 @@
-//! Inlined GitHub Actions workflow template for per-PR L4 validation.
+//! Inlined GitHub Actions workflow template for per-PR L4 validation
+//! plus the CI merge gate (`anvil gate --profile ci`).
 //!
 //! Copied into `.github/workflows/anvil.yml` at adoption; ADR-037 default-on.
 
-/// Inlined template for the per-PR L4-validation GitHub workflow.
+/// Inlined template for the per-PR L4-validation plus CI merge-gate
+/// GitHub workflow.
 ///
 /// Public so the activation orchestrator (`anvil start` / `anvil
 /// baseline`) can copy it into `.github/workflows/anvil.yml` at
 /// adoption time. ADR-037 §D-5: active by default; operator
 /// disables by commenting out the `pull_request` trigger.
+/// ADR-127 / GTAO-006: L4 and `anvil gate --profile ci` are not substitutes.
 ///
 /// `#[allow(dead_code)]` because the call site lives in the
 /// activation orchestrator (deferred follow-up). The template is
@@ -132,6 +135,69 @@ mod tests {
         assert!(
             !t.contains("contents: write"),
             "template must not grant write access to repo contents",
+        );
+    }
+
+    /// GTAO-006 / ADR-127: the adopter pull-request template must run the
+    /// full merge gate in CI *in addition to* L4 pre-push. The two jobs
+    /// are distinct layers, not substitutes. The L5 audit sibling does
+    /// not share this hole (nightly `anvil audit-chain`).
+    #[test]
+    fn anvil_workflow_template_runs_ci_gate_in_addition_to_l4() {
+        let t = anvil_workflow_template();
+        assert!(
+            t.contains("anvil gate --profile ci"),
+            "template must invoke anvil gate --profile ci as the merge judgement",
+        );
+        assert!(
+            t.contains("anvil hook pre-push"),
+            "L4 pre-push job must remain a separate layer",
+        );
+        assert!(
+            t.contains("\n  validate:\n") && t.contains("\n  gate:\n"),
+            "L4 (validate) and merge gate (gate) must be separate jobs",
+        );
+        let lower = t.to_ascii_lowercase();
+        assert!(
+            lower.contains("not substitutes") || lower.contains("not a substitute"),
+            "template comments must state the two jobs are not substitutes",
+        );
+        let validate_job = t
+            .split_once("\n  validate:")
+            .and_then(|(_, rest)| rest.split_once("\n  gate:"))
+            .map(|(job, _)| job)
+            .unwrap_or("");
+        let gate_job = t
+            .split_once("\n  gate:")
+            .map(|(_, rest)| rest)
+            .unwrap_or("");
+        assert!(
+            !validate_job.contains("anvil gate --profile ci"),
+            "merge gate must not be folded into the L4 validate job",
+        );
+        assert!(
+            validate_job.contains("anvil hook pre-push"),
+            "L4 pre-push must live in the validate job",
+        );
+        assert!(
+            validate_job.contains("replace with eddacraft/anvil-action@v1"),
+            "Marketplace L4 swap belongs on the validate install step",
+        );
+        assert!(
+            gate_job.contains("anvil gate --profile ci"),
+            "merge gate command must live in the gate job",
+        );
+        assert!(
+            !gate_job.contains("anvil hook pre-push"),
+            "L4 pre-push must not be folded into the gate job",
+        );
+        assert!(
+            !gate_job.contains("replace with eddacraft/anvil-action@v1"),
+            "Marketplace L4 action must not be the gate install swap",
+        );
+        assert!(
+            gate_job.contains("ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}"),
+            "gate job must bind ANVIL_LICENSE via env; anvil gate is licence-gated",
         );
     }
 }
