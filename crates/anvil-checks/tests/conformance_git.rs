@@ -101,12 +101,8 @@ fn identity(repository: &Path) -> GitEvaluationIdentity {
 }
 
 fn unbound_identity() -> GitEvaluationIdentity {
-    GitEvaluationIdentity {
-        run_id: "run-conf-003".to_owned(),
-        repository_id: "repo-fixture".to_owned(),
-        canonical_worktree_id: "worktree-fixture".to_owned(),
-        run_started: std::time::Instant::now(),
-    }
+    GitEvaluationIdentity::from_unverified_parts("run-conf-003", "repo-fixture", "worktree-fixture")
+        .expect("create unverified identity")
 }
 
 #[test]
@@ -1003,6 +999,40 @@ fn shared_run_timeout_git_wrapper(directory: &Path) {
 }
 
 #[cfg(unix)]
+fn administrative_mutation_git_wrapper(
+    directory: &Path,
+    repository: &Path,
+    head: &str,
+    mutation: &str,
+) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let real_git = real_git_program();
+    let marker = directory.join("administration-checked");
+    let target = match mutation {
+        "shallow" => repository.join(".git/shallow"),
+        "graft" => repository.join(".git/info/grafts"),
+        _ => panic!("unknown administrative mutation"),
+    };
+    let script = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --is-shallow-repository '*)\n    '{}' \"$@\"\n    status=$?\n    if [ -e '{}' ]; then printf '%s\\n' '{}' > '{}'; else : > '{}'; fi\n    exit $status\n    ;;\nesac\nexec '{}' \"$@\"\n",
+        real_git.display(),
+        marker.display(),
+        head,
+        target.display(),
+        marker.display(),
+        real_git.display()
+    );
+    let path = directory.join("git");
+    std::fs::write(&path, script).expect("write administrative mutation Git wrapper");
+    let mut permissions = std::fs::metadata(&path)
+        .expect("wrapper metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).expect("make Git wrapper executable");
+}
+
+#[cfg(unix)]
 fn scripted_diff_git_wrapper(directory: &Path, mode: &str) {
     use std::os::unix::fs::PermissionsExt;
 
@@ -1099,12 +1129,12 @@ fn canonical_worktree_boundary_child() {
     let Some(repository) = std::env::var_os("ANVIL_CONF_CANONICAL_REPO") else {
         return;
     };
-    let expected = GitEvaluationIdentity {
-        run_id: "run-conf-003".to_owned(),
-        repository_id: std::env::var("ANVIL_CONF_REPOSITORY_ID").expect("repository identity"),
-        canonical_worktree_id: std::env::var("ANVIL_CONF_WORKTREE_ID").expect("worktree identity"),
-        run_started: Instant::now(),
-    };
+    let expected = GitEvaluationIdentity::from_unverified_parts(
+        "run-conf-003",
+        std::env::var("ANVIL_CONF_REPOSITORY_ID").expect("repository identity"),
+        std::env::var("ANVIL_CONF_WORKTREE_ID").expect("worktree identity"),
+    )
+    .expect("create expected identity");
     let outcome = GitExtractor::default().extract(
         Path::new(&repository),
         GitSelection::Commit("HEAD".into()),
@@ -1355,6 +1385,64 @@ fn shared_run_timeout_child() {
     };
     assert_eq!(failure.reason, "budget.run-timeout");
     assert_eq!(failure.stage, "revision");
+}
+
+#[cfg(unix)]
+#[test]
+fn repository_administration_mutation_cannot_change_evaluation_graph() {
+    for mutation in ["shallow", "graft"] {
+        let repo = repository();
+        commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");
+        let head = commit_file(repo.path(), "docs/head.md", "head\n", "docs: add head");
+        std::fs::create_dir_all(repo.path().join(".git/info")).expect("create Git info directory");
+        let wrapper = tempfile::tempdir().expect("wrapper directory");
+        administrative_mutation_git_wrapper(wrapper.path(), repo.path(), &head, mutation);
+
+        let status = Command::new(std::env::current_exe().expect("current test executable"))
+            .args([
+                "--exact",
+                "administrative_mutation_isolation_child",
+                "--nocapture",
+            ])
+            .env("ANVIL_CONF_ADMIN_MUTATION_REPO", repo.path())
+            .env("PATH", wrapper.path())
+            .status()
+            .expect("run administrative mutation child");
+        assert!(
+            status.success(),
+            "{mutation} mutation changed the evaluated graph"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn administrative_mutation_isolation_child() {
+    let Some(repository) = std::env::var_os("ANVIL_CONF_ADMIN_MUTATION_REPO") else {
+        return;
+    };
+    let repository = Path::new(&repository);
+    let extractor = GitExtractor::default();
+    let identity = extractor
+        .identity_for_repository(repository, "run-conf-011")
+        .expect("derive identity before mutation");
+    let outcome = extractor.extract_footprint(
+        repository,
+        GitSelection::Commit("HEAD".to_owned()),
+        &identity,
+    );
+    let GitFootprintExtractionOutcome::Evaluated(extraction) = outcome else {
+        panic!("administrative mutation must not prevent evaluation: {outcome:?}");
+    };
+    let GitFootprintCommitExtraction::Evaluated(commit) = &extraction.commits[0] else {
+        panic!("administrative mutation must not replace the commit graph");
+    };
+    let paths: Vec<&str> = commit
+        .coverage
+        .iter()
+        .map(|member| member.new_path.as_str())
+        .collect();
+    assert_eq!(paths, ["docs/head.md"]);
 }
 
 #[test]

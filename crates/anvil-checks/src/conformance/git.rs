@@ -10,13 +10,13 @@ use regex::Regex;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::OpenOptions;
+use std::fs::{DirBuilder, OpenOptions};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::LazyLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, LazyLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -69,6 +69,24 @@ pub struct GitEvaluationIdentity {
     pub canonical_worktree_id: String,
     /// Monotonic start retained by the caller across all stages of this evaluation run.
     pub run_started: Instant,
+    administrative_state: Arc<EmptyGlobalConfig>,
+}
+
+impl GitEvaluationIdentity {
+    /// Construct an unverified identity for callers that need mismatch diagnostics.
+    pub fn from_unverified_parts(
+        run_id: impl Into<String>,
+        repository_id: impl Into<String>,
+        canonical_worktree_id: impl Into<String>,
+    ) -> Result<Self, GitNonEvaluation> {
+        Ok(Self {
+            run_id: run_id.into(),
+            repository_id: repository_id.into(),
+            canonical_worktree_id: canonical_worktree_id.into(),
+            run_started: Instant::now(),
+            administrative_state: Arc::new(EmptyGlobalConfig::create()?),
+        })
+    }
 }
 
 /// One unclassified raw Git coverage record.
@@ -200,7 +218,7 @@ struct PreparedCommit {
 
 struct PreparedExtraction {
     repository: PathBuf,
-    empty_config: EmptyGlobalConfig,
+    empty_config: Arc<EmptyGlobalConfig>,
     started: Instant,
     base_revision: String,
     head_revision: String,
@@ -257,7 +275,7 @@ impl GitExtractor {
         let repository = repository
             .canonicalize()
             .map_err(|error| not_evaluated("repository.invalid", "identity", error.to_string()))?;
-        let empty_config = EmptyGlobalConfig::create()?;
+        let empty_config = Arc::new(EmptyGlobalConfig::create()?);
         let repository = self.resolve_canonical_worktree(&repository, &empty_config, started)?;
         self.reject_replacement_state(&repository, &empty_config, started)?;
         self.derive_repository_identity(&repository, &empty_config, run_id.into(), started)
@@ -401,7 +419,7 @@ impl GitExtractor {
         let repository = repository.canonicalize().map_err(|error| {
             not_evaluated("repository.invalid", "repository", error.to_string())
         })?;
-        let empty_config = EmptyGlobalConfig::create()?;
+        let empty_config = Arc::clone(&identity.administrative_state);
         let repository = self.resolve_canonical_worktree(&repository, &empty_config, started)?;
         self.reject_replacement_state(&repository, &empty_config, started)?;
         let verified_identity = self.derive_repository_identity(
@@ -566,7 +584,7 @@ impl GitExtractor {
                 "legacy info/grafts is present".to_owned(),
             ));
         }
-        let shallow = self.run_git(
+        let shallow = self.run_git_observing_repository_administration(
             repository,
             empty_config,
             &["rev-parse", "--is-shallow-repository"],
@@ -625,7 +643,7 @@ impl GitExtractor {
     fn derive_repository_identity(
         &self,
         repository: &Path,
-        empty_config: &EmptyGlobalConfig,
+        empty_config: &Arc<EmptyGlobalConfig>,
         run_id: String,
         started: Instant,
     ) -> Result<GitEvaluationIdentity, GitNonEvaluation> {
@@ -647,6 +665,7 @@ impl GitExtractor {
             repository_id: opaque_path_identity(b"repository", &common_dir),
             canonical_worktree_id: opaque_path_identity(b"worktree", repository),
             run_started: started,
+            administrative_state: Arc::clone(empty_config),
         })
     }
 
@@ -1130,6 +1149,53 @@ impl GitExtractor {
         output_limit: usize,
         overflow_reason: &'static str,
     ) -> Result<Vec<u8>, GitNonEvaluation> {
+        self.run_git_with_administrative_state(
+            repository,
+            empty_config,
+            args,
+            started,
+            stage,
+            output_limit,
+            overflow_reason,
+            true,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_git_observing_repository_administration(
+        &self,
+        repository: &Path,
+        empty_config: &EmptyGlobalConfig,
+        args: &[&str],
+        started: Instant,
+        stage: &'static str,
+        output_limit: usize,
+        overflow_reason: &'static str,
+    ) -> Result<Vec<u8>, GitNonEvaluation> {
+        self.run_git_with_administrative_state(
+            repository,
+            empty_config,
+            args,
+            started,
+            stage,
+            output_limit,
+            overflow_reason,
+            false,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    fn run_git_with_administrative_state(
+        &self,
+        repository: &Path,
+        empty_config: &EmptyGlobalConfig,
+        args: &[&str],
+        started: Instant,
+        stage: &'static str,
+        output_limit: usize,
+        overflow_reason: &'static str,
+        pin_administrative_state: bool,
+    ) -> Result<Vec<u8>, GitNonEvaluation> {
         if started.elapsed() >= self.limits.run_timeout {
             return Err(over_budget(
                 "budget.run-timeout",
@@ -1146,7 +1212,13 @@ impl GitExtractor {
             .env("TZ", "UTC")
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .env("GIT_CONFIG_GLOBAL", &empty_config.path)
-            .env("GIT_OPTIONAL_LOCKS", "0")
+            .env("GIT_OPTIONAL_LOCKS", "0");
+        if pin_administrative_state {
+            command
+                .env("GIT_SHALLOW_FILE", &empty_config.shallow_file)
+                .env("GIT_GRAFT_FILE", &empty_config.graft_file);
+        }
+        command
             .arg("--no-replace-objects")
             .arg("-c")
             .arg("diff.renames=true")
@@ -1958,28 +2030,48 @@ fn terminate_process_tree(child: &mut Child) {
     let _ = child.wait();
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct EmptyGlobalConfig {
+    directory: PathBuf,
     path: PathBuf,
+    shallow_file: PathBuf,
+    graft_file: PathBuf,
 }
 
 impl EmptyGlobalConfig {
     fn create() -> Result<Self, GitNonEvaluation> {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        let path =
-            std::env::temp_dir().join(format!("anvil-conf-gitconfig-{}-{id}", std::process::id()));
-        OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&path)
+        let directory =
+            std::env::temp_dir().join(format!("anvil-conf-git-state-{}-{id}", std::process::id()));
+        let mut builder = DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder
+            .create(&directory)
             .map_err(|error| not_evaluated("git.environment", "git", error.to_string()))?;
-        Ok(Self { path })
+        let path = directory.join("config");
+        if let Err(error) = OpenOptions::new().create_new(true).write(true).open(&path) {
+            let _ = std::fs::remove_dir(&directory);
+            return Err(not_evaluated("git.environment", "git", error.to_string()));
+        }
+        Ok(Self {
+            shallow_file: directory.join("shallow-disabled"),
+            graft_file: directory.join("grafts-disabled"),
+            directory,
+            path,
+        })
     }
 }
 
 impl Drop for EmptyGlobalConfig {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
+        let _ = std::fs::remove_file(&self.shallow_file);
+        let _ = std::fs::remove_file(&self.graft_file);
+        let _ = std::fs::remove_dir(&self.directory);
     }
 }
