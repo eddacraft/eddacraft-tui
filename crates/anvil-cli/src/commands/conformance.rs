@@ -495,7 +495,18 @@ fn materialise_report_with_limit(
     run_started: Instant,
     run_timeout: Duration,
 ) -> Result<Vec<u8>> {
-    let failure = if run_started.elapsed() >= run_timeout {
+    let failure = if report_is_run_timeout(report) {
+        match materialise_report_once(report, mode, max_bytes)? {
+            Some(bytes) => return Ok(bytes),
+            None => Some(report_budget_failure(
+                "budget.report-bytes",
+                "report-materialisation",
+                max_bytes.saturating_add(1),
+                max_bytes,
+                report.selected_commit_count,
+            )),
+        }
+    } else if run_started.elapsed() >= run_timeout {
         Some(report_budget_failure(
             "budget.run-timeout",
             "report-materialisation",
@@ -532,6 +543,13 @@ fn materialise_report_with_limit(
     materialise_report_once(&fallback, mode, max_bytes)?.ok_or_else(|| {
         anyhow::anyhow!("bounded conformance fallback exceeds its materialisation limit")
     })
+}
+
+fn report_is_run_timeout(report: &ConformanceCheckReport) -> bool {
+    report
+        .git_evaluation_non_evaluation
+        .as_ref()
+        .is_some_and(|failure| failure.reason == "budget.run-timeout")
 }
 
 fn materialise_report_once(
@@ -1017,6 +1035,58 @@ mod tests {
     }
 
     #[test]
+    fn blocked_pr_body_timeout_keeps_its_input_stage_in_every_final_format() {
+        let (release_sender, release_receiver) = std::sync::mpsc::sync_channel(1);
+        let run_started = Instant::now();
+        let timeout = Duration::from_millis(50);
+        let input = read_pr_body_task_with_deadline(
+            move || {
+                release_receiver.recv().expect("release blocked reader");
+                Ok(PrBodyInput::Body("too late".to_owned()))
+            },
+            run_started,
+            timeout,
+        )
+        .expect("deadline is a semantic non-evaluation");
+        release_sender.send(()).expect("release reader task");
+        let report = immediate_pr_body_timeout_report(&input, run_started, timeout)
+            .expect("input timeout report");
+
+        for mode in [RenderMode::Plain, RenderMode::Json, RenderMode::Sarif] {
+            let bytes =
+                materialise_report_with_limit(&report, mode, 64 * 1024, run_started, timeout)
+                    .expect("one bounded final report");
+            assert_eq!(bytes.last(), Some(&b'\n'));
+            let rendered = String::from_utf8(bytes).expect("UTF-8 final report");
+            assert!(!rendered.contains("stage=report-materialisation"));
+
+            match mode {
+                RenderMode::Plain => {
+                    assert_eq!(rendered.matches("Conformance check:").count(), 1);
+                    assert!(rendered.contains("stage=pr-body-input"));
+                }
+                RenderMode::Json => {
+                    let json: serde_json::Value =
+                        serde_json::from_str(&rendered).expect("one complete JSON document");
+                    assert_eq!(json["gitEvaluationNonEvaluation"]["stage"], "pr-body-input");
+                    assert_eq!(
+                        json["gitEvaluationNonEvaluation"]["budget"]["elapsedMillis"],
+                        json["gitEvaluationNonEvaluation"]["observed"]
+                    );
+                }
+                RenderMode::Sarif => {
+                    let sarif: serde_json::Value =
+                        serde_json::from_str(&rendered).expect("one complete SARIF document");
+                    assert_eq!(
+                        sarif["runs"][0]["properties"]["gitEvaluationNonEvaluation"]["stage"],
+                        "pr-body-input"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn json_report_retains_safe_budget_diagnostics_without_raw_detail() {
         let failure = GitCommitNonEvaluation {
             commit_revision: Some("b".repeat(40).into_boxed_str()),
@@ -1195,6 +1265,54 @@ mod tests {
     }
 
     #[test]
+    fn preexisting_evaluation_timeout_keeps_exact_count_and_safe_diagnostics() {
+        let failure = GitNonEvaluation {
+            commit_revision: Some("d".repeat(40).into_boxed_str()),
+            reason: "budget.run-timeout",
+            stage: "evaluation",
+            observed: 300_001,
+            limit: Some(300_000),
+            detail: "must not be reported".into(),
+            raw_digest: Some("sha256:evaluation".into()),
+            budget: Some(Box::new(GitBudgetDiagnostics {
+                configured_limit: 300_000,
+                elapsed_millis: Some(300_001),
+                commits: Some(17),
+                records: Some(42),
+                rename_sources: Some(3),
+                rename_targets: Some(4),
+                raw_bytes: Some(4096),
+                decoded_bytes: Some(2048),
+                raw_output_digest: Some("sha256:evaluation".into()),
+            })),
+        };
+        let report = ConformanceCheckReport::not_evaluated_with_git_failure(
+            vec!["budget.run-timeout".to_owned()],
+            failure,
+        );
+        let bytes = materialise_report_with_limit(
+            &report,
+            RenderMode::Json,
+            64 * 1024,
+            Instant::now(),
+            Duration::ZERO,
+        )
+        .expect("bounded original timeout report");
+        let json: serde_json::Value =
+            serde_json::from_slice(&bytes).expect("one complete JSON document");
+
+        assert_eq!(json["notEvaluatedCommitCount"], 17);
+        let failure = &json["gitEvaluationNonEvaluation"];
+        assert_eq!(failure["stage"], "evaluation");
+        assert_eq!(failure["rawDigest"], "sha256:evaluation");
+        assert_eq!(failure["budget"]["commits"], 17);
+        assert_eq!(failure["budget"]["records"], 42);
+        assert_eq!(failure["budget"]["rawBytes"], 4096);
+        assert_eq!(failure["budget"]["decodedBytes"], 2048);
+        assert!(!json.to_string().contains("must not be reported"));
+    }
+
+    #[test]
     fn all_renderers_replace_oversized_or_timed_out_reports_atomically() {
         let failures = (0..64)
             .map(|index| GitCommitNonEvaluation {
@@ -1248,6 +1366,10 @@ mod tests {
         assert_eq!(
             json["gitEvaluationNonEvaluation"]["reason"],
             "budget.run-timeout"
+        );
+        assert_eq!(
+            json["gitEvaluationNonEvaluation"]["stage"],
+            "report-materialisation"
         );
         assert_eq!(json["notEvaluatedCommitCount"], 64);
     }
