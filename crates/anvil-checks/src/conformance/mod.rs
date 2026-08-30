@@ -6,7 +6,7 @@ pub mod pr_body;
 
 pub use evaluate::{
     BoundGraphDelta, CONFORMANCE_CLAIM_TABLE_VERSION, ClaimEvaluation, ConformanceEvaluation,
-    evaluate_tier0,
+    evaluate_pr_declaration, evaluate_tier0,
 };
 pub use git::{
     ConventionalCommitEvidence, ConventionalCommitHeader, GitBudgetDiagnostics,

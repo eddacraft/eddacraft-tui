@@ -11,13 +11,18 @@ use anvil_graph_cache::GraphDelta;
 use anvil_kernel_types::conformance::RawGitChangeRecord;
 use anvil_kernel_types::diagnostics::KnownMode;
 use anvil_kernel_types::{
-    Category, ClaimKind, ConformanceClaim, ConformanceContract, ConformanceOutcome,
-    ConformanceVerdict, CoverageMember, DeclaredScope, Diagnostic, DiagnosticSource,
-    EvidenceDisposition, EvidenceGrade, EvidenceStrength, GitChangeStatus, GraphEvidenceBinding,
-    IntentSource, IntentSourceKind, IntentTier, Location, Mode, ScopeAuthority, Severity,
+    CONFORMANCE_SCHEMA_VERSION, Category, ClaimKind, ConformanceClaim, ConformanceContract,
+    ConformanceOutcome, ConformanceVerdict, CoverageMember, DeclaredScope, Diagnostic,
+    DiagnosticSource, EvaluationBinding, EvidenceDisposition, EvidenceGrade, EvidenceStrength,
+    GitChangeStatus, GraphEvidenceBinding, IntentSource, IntentSourceKind, IntentTier, Location,
+    Mode, ScopeAuthority, Severity,
 };
 
-use super::git::{ConventionalCommitEvidence, GitCoverageMember};
+use super::git::{
+    ConventionalCommitEvidence, GitCommitExtraction, GitCoverageMember, GitEvaluationIdentity,
+    GitExtraction,
+};
+use super::pr_body::PrBodyContractParts;
 
 /// Version of the closed Tier-0 claim table implemented here.
 pub const CONFORMANCE_CLAIM_TABLE_VERSION: u32 = 1;
@@ -54,6 +59,86 @@ pub struct ConformanceEvaluation {
     pub findings: Vec<Diagnostic>,
 }
 
+/// Evaluate one complete Git range against an extracted pull-request declaration.
+#[must_use]
+pub fn evaluate_pr_declaration(
+    declaration: &PrBodyContractParts,
+    extraction: &GitExtraction,
+    identity: &GitEvaluationIdentity,
+) -> ConformanceEvaluation {
+    let contract = ConformanceContract {
+        schema_version: CONFORMANCE_SCHEMA_VERSION.to_owned(),
+        binding: EvaluationBinding {
+            run_id: identity.run_id.clone(),
+            repository_id: identity.repository_id.clone(),
+            canonical_worktree_id: identity.canonical_worktree_id.clone(),
+            base_revision: extraction.base_revision.clone(),
+            head_revision: extraction.head_revision.clone(),
+            commit_revision: extraction.head_revision.clone(),
+        },
+        sources: vec![declaration.source.clone()],
+        declared_scopes: declaration.declared_scopes.clone(),
+        claimed_changes: declaration.claims.clone(),
+        acceptance_assertions: Vec::new(),
+        graph_evidence: Vec::new(),
+    };
+    if let Err(error) = contract.validate() {
+        return invalid_evaluation(&contract, format!("contract.{}", error.code()));
+    }
+    if let Err(reason) = validate_pr_git_extraction(extraction, identity) {
+        return invalid_evaluation(&contract, reason);
+    }
+
+    let mut coverage = Vec::new();
+    let mut policy_sources = BTreeSet::new();
+    for commit in &extraction.commits {
+        if let GitCommitExtraction::Evaluated(commit) = commit {
+            coverage.extend(commit.coverage.iter().cloned());
+            policy_sources.extend(commit.contributing_base_config_paths.iter().cloned());
+        }
+    }
+
+    evaluate_bound_contract(&contract, &coverage, &policy_sources, &[])
+}
+
+fn validate_pr_git_extraction(
+    extraction: &GitExtraction,
+    identity: &GitEvaluationIdentity,
+) -> Result<(), String> {
+    if extraction.commits.is_empty() {
+        return Err("selection.range-empty".to_owned());
+    }
+
+    for result in &extraction.commits {
+        let commit = match result {
+            GitCommitExtraction::Evaluated(commit) => commit,
+            GitCommitExtraction::NotEvaluated(failure) => {
+                return Err(format!("git.commit-not-evaluated.{}", failure.reason));
+            }
+        };
+        if commit.binding.run_id != identity.run_id {
+            return Err("binding.run-id-mismatch".to_owned());
+        }
+        if commit.binding.repository_id != identity.repository_id {
+            return Err("binding.repository-mismatch".to_owned());
+        }
+        if commit.binding.canonical_worktree_id != identity.canonical_worktree_id {
+            return Err("binding.worktree-mismatch".to_owned());
+        }
+        if commit.binding.base_revision != extraction.base_revision {
+            return Err("binding.base-revision-mismatch".to_owned());
+        }
+        if commit.binding.head_revision != extraction.head_revision {
+            return Err("binding.head-revision-mismatch".to_owned());
+        }
+        if commit.binding.commit_revision != commit.commit_revision {
+            return Err("binding.commit-revision-mismatch".to_owned());
+        }
+    }
+
+    Ok(())
+}
+
 /// Evaluate one CONF-003 extracted commit against its canonical contract.
 #[must_use]
 pub fn evaluate_tier0(
@@ -68,18 +153,27 @@ pub fn evaluate_tier0(
         return invalid_evaluation(contract, "binding.extracted-commit-mismatch".to_owned());
     }
 
-    let mut claims = contract.claimed_changes.clone();
-    claims.sort_by(claim_order);
     let policy_sources = contributing_policy_sources(
         &contract.declared_scopes,
         &commit.contributing_base_config_paths,
     );
-    let mut raw_coverage = commit.coverage.clone();
+    evaluate_bound_contract(contract, &commit.coverage, &policy_sources, graph)
+}
+
+fn evaluate_bound_contract(
+    contract: &ConformanceContract,
+    coverage: &[GitCoverageMember],
+    policy_sources: &BTreeSet<String>,
+    graph: &[BoundGraphDelta<'_>],
+) -> ConformanceEvaluation {
+    let mut claims = contract.claimed_changes.clone();
+    claims.sort_by(claim_order);
+    let mut raw_coverage = coverage.to_vec();
     raw_coverage.sort_by(coverage_order);
 
     let mut claim_results: Vec<_> = claims
         .into_iter()
-        .map(|claim| evaluate_claim(contract, &claim, &raw_coverage, &policy_sources, graph))
+        .map(|claim| evaluate_claim(contract, &claim, &raw_coverage, policy_sources, graph))
         .collect();
     let (sources, source_index_map) = canonical_sources(contract);
     for result in &mut claim_results {
@@ -119,7 +213,7 @@ pub fn evaluate_tier0(
     }
     sort_deduplicate(&mut reasons);
 
-    let coverage = aggregate_coverage(&raw_coverage, &claim_results, &policy_sources);
+    let coverage = aggregate_coverage(&raw_coverage, &claim_results, policy_sources);
     let verdict = ConformanceVerdict {
         claim_table_version: CONFORMANCE_CLAIM_TABLE_VERSION,
         binding: contract.binding.clone(),
