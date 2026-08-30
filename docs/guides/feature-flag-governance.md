@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                                                                     |
 | ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-30 against ADR-136 listed-implies-on, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/listed.ts`, and the operational inventories |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-30 against ADR-137 listed-implies-on, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/listed.ts`, and the operational inventories |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                     | Downstream                                                                                                                      |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -62,7 +62,7 @@ Apply these rules when maintaining the catalogue:
   migration.
 - Product-feature and exclusion owners are existing APS module identifiers.
 - Delivery surfaces are listed by default (`listed` omitted or true). A listed
-  CLI surface must be default-on (ADR-136). Unfinished CLI-only invocation gates
+  CLI surface must be default-on (ADR-137). Unfinished CLI-only invocation gates
   set `listed: false` and clap `hide` until the controlling flag is default-on.
 - Effective access is the delivery-surface override when present, otherwise the
   product-feature-group default. Audience references are valid only for `staff`

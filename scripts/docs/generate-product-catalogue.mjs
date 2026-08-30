@@ -96,7 +96,7 @@ function render() {
     '',
     '| Type  | Authority | Owner   | Status | Freshness |',
     '| ----- | --------- | ------- | ------ | --------- |',
-    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-136 listed-implies-on |',
+    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-137 listed-implies-on |',
     '',
     '| Upstream | Downstream |',
     '| -------- | ---------- |',
@@ -160,7 +160,7 @@ function render() {
     '',
     'CLI surfaces hidden from `--help` while their invocation flag is default-off.',
     'They remain invokable. Promote by flipping `listed` to true in the same change',
-    'as the controlling flag becoming default-on (ADR-136).',
+    'as the controlling flag becoming default-on (ADR-137).',
     '',
     '| Key | Locator |',
     '| --- | ------- |'

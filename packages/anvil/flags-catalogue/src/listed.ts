@@ -36,7 +36,7 @@ function featureBooleanFlags(
 }
 
 /**
- * CLI invocation default for FLAGCAT-019 / ADR-136.
+ * CLI invocation default for FLAGCAT-019 / ADR-137.
  *
  * Unflagged features are on. Linked boolean flags whose default variant is
  * false turn a CLI-only feature off (the clap command is an incantation).

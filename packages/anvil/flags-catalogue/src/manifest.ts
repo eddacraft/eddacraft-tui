@@ -196,7 +196,7 @@ function assertCrossInventoryIntegrity(): void {
   const listedViolations = listedImpliesOnViolations(PRODUCT_CATALOGUE, MANIFEST.flags);
   if (listedViolations.length > 0) {
     throw new Error(
-      `[anvil-flags-catalogue] listed CLI surfaces must be default-on (ADR-136): ${listedViolations.join(', ')}`
+      `[anvil-flags-catalogue] listed CLI surfaces must be default-on (ADR-137): ${listedViolations.join(', ')}`
     );
   }
 }
