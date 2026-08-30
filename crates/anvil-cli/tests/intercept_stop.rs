@@ -123,10 +123,16 @@ fn stop_with_unresolved_sibling_is_a_partial_failure() {
         String::from_utf8_lossy(&out.stderr),
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("stop is incomplete"), "stdout was: {stdout}");
+    assert!(
+        stdout.contains("stop is incomplete"),
+        "stdout was: {stdout}"
+    );
     assert!(stdout.contains("skipped"), "stdout was: {stdout}");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("candidate(s) unresolved"), "stderr was: {stderr}");
+    assert!(
+        stderr.contains("candidate(s) unresolved"),
+        "stderr was: {stderr}"
+    );
 }
 
 #[test]

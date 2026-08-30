@@ -199,9 +199,7 @@ fn stop_result_json(
             let (candidate_outcome, candidate_pid, error) = match &report.outcome {
                 Ok(StopOutcome::Signalled { pid }) => ("signalled", Some(*pid), None),
                 Ok(StopOutcome::NotRunning) => ("not-running", None, None),
-                Ok(StopOutcome::StaleCleared { pid }) => {
-                    ("stale-cleared", Some(*pid), None)
-                }
+                Ok(StopOutcome::StaleCleared { pid }) => ("stale-cleared", Some(*pid), None),
                 Err(error) => ("unresolved", None, Some(error.as_str())),
             };
             serde_json::json!({
