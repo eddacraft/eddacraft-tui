@@ -5,9 +5,16 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | high     | In Progress | 15/18    |
+| FLAGCAT | —     | high     | In Progress | 15/19    |
 
-**Last reviewed:** 2026-08-25 — FLAGCAT-011 Merged via PR #4111 with the
+**Last reviewed:** 2026-08-30 — filed **FLAGCAT-019** Draft from
+[`2026-08-30-listed-surfaces-default-on.md`](../specs/2026-08-30-listed-surfaces-default-on.md):
+delivery-surface `listed` plus the listed-implies-on static check (a listed
+surface requires its linked flag default-on, or the feature unflagged). Clap
+hide of the first unlisted-and-off CLI surfaces is the proof consumer in the
+same change. FLAGCAT-008, FLAGCAT-017, and FLAGCAT-018 remain Draft.
+
+**Earlier — 2026-08-25** — FLAGCAT-011 Merged via PR #4111 with the
 strict product-catalogue v2 shape, immutable delivery identities, an explicit
 delivery-surface migration ledger, and the deprecated v1 compatibility
 projection specified in
@@ -174,6 +181,11 @@ prose views are generated from it.
   shipped features, product feature groups, delivery surfaces, dependencies, and
   declared access posture; add host-specific completeness gates and generated
   human-readable views rather than a second manual list
+- Delivery-surface `listed` boolean and the listed-implies-on static check
+  (FLAGCAT-019): a `listed: true` surface requires its product feature to be
+  on (linked operational flag default-on, or unflagged). On/off is derived
+  from FLAGCAT-013 linkage, not copied onto the surface. Visible `--help`
+  must match `listed`. Generated views include the unlisted-and-off set.
 - Referential integrity between operational flags and the features they
   control, while permitting explicitly unflagged features
 
@@ -198,6 +210,10 @@ prose views are generated from it.
 - Treating `.clawpatch/features/*.json` as source of truth, runtime input, or a
   CI gate — Clawpatch output is advisory discovery data only; FLAGCAT remains
   human-curated and APS-governed
+- A second operational flag per surface for help listing; on/off copied onto
+  the delivery surface; a markdown hidden-commands index; runtime cascade-off
+  (ADR-076 §5 still deferred); deriving `CLI_GATED_COMMANDS` from the
+  catalogue (FLAGCAT-009 still deferred)
 - Deciding the commercial boundary between Individual, Teams, and Enterprise
   before FLAGCAT-015; the catalogue supplies the evidence and entitlement
   mapping but does not invent the product decision
@@ -1081,3 +1097,68 @@ Status promoted Draft → **Ready** 2026-05-28.
   `pnpm validate:changed`.
 - **Risk:** critical — daemon entitlement enforcement and dispatch-authority
   consolidation with a strict zero-hot-path-regression requirement.
+
+### FLAGCAT-019: Listed delivery surfaces require the feature to be on
+
+- **Status:** Draft
+- **Intent:** A listed delivery surface cannot outrun its feature: `--help`
+  names it only when the linked flag is default-on or the feature is unflagged.
+- **Expected Outcome:**
+  - `DeliverySurfaceSchema` carries `listed` (boolean, default `true`).
+  - On/off is derived from FLAGCAT-013 `flagLinkage` plus
+    `flags/manifest.json` `defaultVariant` (unflagged counts as on). It is not
+    stored on the surface and is not a second operational flag.
+  - CI fails `listed && !on`. Visible clap `--help` matches `listed`; hidden
+    commands remain in the FLAGCAT-012 completeness set.
+  - Generated catalogue views (FLAGCAT-014) include the unlisted-and-off set
+    as the operator list of unfinished surfaces.
+  - First proof: `cli.impact`, `cli.dashboard-web`, and `cli.plan-dashboard`
+    are `listed: false`; clap hides those paths (and `anvil plan` if it has no
+    remaining visible child). `impact.view`, `dashboard.web`, and
+    `tui-dashboard.aps-dashboard` stay default-off. MCP `anvil_impact_of_change`
+    stays listed. Known names plus `ANVIL_DEV=1` / existing env still invoke.
+- **Design Source:**
+  [`2026-08-30-listed-surfaces-default-on.md`](../specs/2026-08-30-listed-surfaces-default-on.md).
+  Operator-approved 2026-08-30. Durable rule is an ADR in the same
+  implementation change (next free number); IMPV-002 listing is superseded,
+  the `impact.view` gate is not.
+- **Files:** `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`,
+  `packages/anvil/flags-catalogue/`, `flags/surfaces.json`,
+  `scripts/docs/generate-product-catalogue.mjs`,
+  `docs/guides/product-feature-catalogue.md`,
+  `crates/anvil-cli/src/main.rs`, `crates/anvil-cli/src/commands/impact.rs`,
+  `crates/anvil-cli/src/commands/dashboard/mod.rs`,
+  `crates/anvil-cli/src/commands/plan.rs`,
+  `crates/anvil-cli/tests/help_alignment.rs`, `crates/anvil-cli/src/help_layout.rs`,
+  `docs/runbooks/cli-surface.md`, `plans/decisions/`
+- **Dependencies:** FLAGCAT-012, FLAGCAT-013, FLAGCAT-014 Merged.
+- **Non-scope:** Ungating the three surfaces; runtime cascade-off; deriving
+  `CLI_GATED_COMMANDS` from the catalogue; a listing operational flag;
+  GTAO-004/006/007; hiding working terminal `anvil dashboard`.
+- **Readiness Gate:** Remains Draft until the operator promotes. Spec is
+  accepted; ADR is the first implementation checkpoint, not a blocker to
+  promotion.
+- **Validation:** `pnpm exec nx test flags-catalogue --skip-nx-cache`;
+  `pnpm exec nx test contracts --skip-nx-cache`;
+  `cargo test -p eddacraft-anvil --test help_alignment --no-fail-fast`;
+  `cargo test -p eddacraft-anvil --test impact_gate --no-fail-fast`;
+  `pnpm docs:check`; `pnpm adr:check`; `pnpm format:check`.
+- **Risk:** standard — catalogue contract plus clap visibility; no daemon or
+  entitlement change.
+- **Confidence:** high — join keys exist; the illegal state is already in the
+  tree (`anvil impact` listed, `impact.view` default-off).
+
+### 1. ADR and `listed` schema exist
+
+- **Checkpoint:** ADR indexed; `listed` on delivery surfaces; `listed && !on` fails CI
+- **Validate:** `pnpm adr:check`; `pnpm exec nx test flags-catalogue --skip-nx-cache`
+
+### 2. First unlisted-and-off CLI surfaces match `--help`
+
+- **Checkpoint:** impact, dashboard --web, and plan dashboard absent from visible help
+- **Validate:** `cargo test -p eddacraft-anvil --test help_alignment --no-fail-fast`
+
+### 3. Generated view lists unlisted-and-off surfaces
+
+- **Checkpoint:** product-feature catalogue names the three hidden CLI surfaces
+- **Validate:** `pnpm docs:check`
