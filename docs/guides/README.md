@@ -1,8 +1,8 @@
 # Development Guides
 
-| Type   | Authority | Owner | Status | Freshness                                                                                                                                                  |
-| ------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | AICON | Live   | Last reviewed 2026-08-25 for FLAGCAT-012 documentation-governance freshness against ADR-123, `docs/guides/documentation-governance.md`, and `docs/guides/` |
+| Type   | Authority | Owner | Status | Freshness                                                                                                                                                            |
+| ------ | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | AICON | Live   | Last reviewed 2026-08-30 for work-item claim-issue documentation-governance freshness against ADR-123, `docs/guides/documentation-governance.md`, and `docs/guides/` |
 
 | Upstream                                  | Downstream                |
 | ----------------------------------------- | ------------------------- |

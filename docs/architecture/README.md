@@ -1,8 +1,8 @@
 # Architecture Documentation
 
-| Type   | Authority | Owner | Status | Freshness                                                                                                                                |
-| ------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-29 to point kernel discovery at `crates/anvil-graph-cache/ARCHITECTURE.md`; architecture index otherwise unchanged |
+| Type   | Authority | Owner | Status | Freshness                                                                                                                     |
+| ------ | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-30 for work-item claim-issue documentation-governance freshness; architecture index otherwise unchanged |
 
 | Upstream                                                                  | Downstream                      |
 | ------------------------------------------------------------------------- | ------------------------------- |
