@@ -68,11 +68,11 @@ policy vocabulary:
   events for watch consumers.
 
 The semantic graph is deliberately a sibling component. The kernel re-exports
-`anvil_graph_cache` as `graph`, while
-[the graph-cache architecture](../anvil-graph-cache/ARCHITECTURE.md) owns graph
+`anvil_graph_cache` as `graph`. The `anvil-graph-cache` crate owns graph
 mutation, dependency resolution, trust annotation, bounded certification, hot
 reads, overlays, composition, persistence snapshots, and the multi-workspace
-registry. The cross-component shape is described by the
+registry; [the graph-cache architecture](../anvil-graph-cache/ARCHITECTURE.md)
+is the pointer for those details. The cross-component shape is described by the
 [Rust architecture overview](../../docs/architecture/rust-architecture-overview.md);
 save-time graph use belongs to the
 [intercept architecture](../anvil-intercept/ARCHITECTURE.md).
