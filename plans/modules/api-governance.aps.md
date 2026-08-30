@@ -11,7 +11,8 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | APGOV  | —     | Ready     |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-08-31 — APGOV-008 Draft filed for bounded Neon HTTP
+connect retry after production ingest timeouts (#4238).
 
 ## Purpose
 
@@ -35,6 +36,7 @@ deprecation policy, or consistent error shapes.
 - **Error contract:** Consistent error shapes across all endpoints
 - **Health/readiness:** `/health` endpoint for monitoring, dependency checks
 - **Endpoint lifecycle:** Draft → Active → Deprecated → Removed
+- **Neon client resiliency:** bounded retry on connect-class failures (APGOV-008)
 
 ## Out of Scope
 
@@ -42,6 +44,8 @@ deprecation policy, or consistent error shapes.
 - WebSocket API design (covered by real-time-validation)
 - Authentication implementation (covered by beta-auth-streamline)
 - Database schema governance (covered by schema-contracts)
+- Neon observability dashboards and alert thresholds (OBS-002)
+- Raising the shared ingest rate limit (APGOV-003 already ships the 60/min limiter)
 
 ## Interfaces
 
@@ -149,3 +153,35 @@ deprecation policy, or consistent error shapes.
 - **Intent:** Document and configure CORS origins as integrations grow
 - **Expected Outcome:** CORS policy documented in docs/guides/
 - **Validation:** `cat docs/guides/cors-policy.md | grep -q "origins"`
+
+### APGOV-008: Bounded Neon HTTP connect retry
+
+- **Status:** Draft
+- **Identified From:** Production 5xx spike 2026-08-30 on
+  `POST /api/v1/account/activity` (`NeonDbError` / `fetch failed` /
+  `ETIMEDOUT` ~750ms).
+  [#4238](https://github.com/eddacraft/anvil-001/pull/4238) stopped the hosted
+  SLO page by returning 202 after persist failure and preferring IPv4 DNS; it
+  did not retry the write.
+- **Intent:** Survive a single Neon HTTP connect timeout without dropping an
+  otherwise valid write.
+- **Expected Outcome:** The shared Neon client retries once on connect-class
+  failures (`ETIMEDOUT`, `fetch failed`). A successful retry completes the
+  original query. Two consecutive connect failures still surface to the
+  caller. Fire-and-forget account-activity ingest remains 202 after exhausted
+  retries (#4238). Non-connect SQL errors are not retried.
+- **Scope:** Shared Neon client used by anvil-api; regression tests; a runbook
+  note that connect-class retries exist.
+- **Non-scope:** Raising the shared 60 req/min limiter; OBS dashboards and
+  alert thresholds (OBS-002); `/health` contract shape (APGOV-006); retrying
+  constraint or query errors; CLI-side retries (already fire-and-forget).
+- **Coordinates with:** OBS-002 (visibility of remaining failures, not retry);
+  TEXT-004 (connection contract tests — complementary, not a blocker).
+- **Dependencies:** none. #4238 is already on `main`.
+- **Files:** `apps/anvil-api/src/db/client.ts`,
+  `apps/anvil-api/src/__tests__/neon-client-retry.test.ts`,
+  `apps/anvil-api/src/__tests__/account-activity.test.ts`,
+  `docs/runbooks/neon-db-operations.md`
+- **Confidence:** high — failure class and ingest contract are known from
+  production evidence.
+- **Validation:** `cd apps/anvil-api && pnpm exec vitest run src/__tests__/neon-client-retry.test.ts src/__tests__/account-activity.test.ts`

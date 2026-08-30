@@ -130,6 +130,8 @@ Change status to **Ready** when:
   - `docs/runbooks/neon-db-operations.md` (exists — extend with health signals + thresholds)
   - `apps/anvil-api/src/db/` (instrumentation hooks, when implemented)
 - **Dependencies:** OBS-001 (signal contract).
+- **Coordinates with:** APGOV-008 owns bounded Neon HTTP connect retry; this
+  item stays visibility and telemetry only.
 - **Confidence:** medium — Neon client surface and runbook exist; the failure-mode telemetry wiring is new.
 - **Validation:** `rg -n "Neon|DATABASE_URL|latency|transaction" docs/runbooks/*.md`
 
