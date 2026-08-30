@@ -10,6 +10,7 @@ use crate::activation::agent_registry::{AgentClientId, InstallScope};
 
 const PRODUCT_CLI_PATHS: &[&str] = &[
     "check",
+    "conformance",
     "audit",
     "gate",
     "gate-config",
@@ -106,6 +107,7 @@ const COLLAPSED_CLI_PREFIXES: &[&str] = &[
     "config convert",
     "config set",
     "config show",
+    "conformance check",
     "drift compare",
     "drift list",
     "drift migrate",

@@ -1,8 +1,8 @@
 # anvil-checks
 
-| Type   | Authority     | Owner | Status | Freshness                                                                                                                        |
-| ------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-005 PR-body extraction, ADR-134, `src/conformance/**`, `src/lib.rs`, and `ARCHITECTURE.md` |
+| Type   | Authority     | Owner | Status | Freshness                                                                                                                                        |
+| ------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-011 range-level PR declaration evaluation, ADR-134, `src/conformance/**`, its tests, and `ARCHITECTURE.md` |
 
 | Upstream                                                  | Downstream                                              |
 | --------------------------------------------------------- | ------------------------------------------------------- |
@@ -40,10 +40,12 @@ compatibility and history record.
 - **`command_safety`** — shell command safety analysis.
 - **`conformance`** — bounded, replacement-disabled Tier-0 Git extraction,
   deterministic weak-grade PR-body declaration extraction, and advisory
-  claim-versus-effect evaluation. Opaque repository/worktree identities and
-  structured budget diagnostics keep failures observable without leaking local
-  paths. Raw Git records stay distinct from canonical per-path coverage and
-  evaluator-owned evidence dispositions.
+  claim-versus-effect evaluation. Its range-level entry point aggregates every
+  selected commit for production callers such as `anvil conformance check`; an
+  empty, partial, or identity-mismatched range remains not evaluated. Opaque
+  repository/worktree identities and structured budget diagnostics keep failures
+  observable without leaking local paths. Raw Git records stay distinct from
+  canonical per-path coverage and evaluator-owned evidence dispositions.
 
 ## Intent-conformance claim table v1
 

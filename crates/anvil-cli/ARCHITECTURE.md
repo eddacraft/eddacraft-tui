@@ -1,8 +1,8 @@
 # anvil CLI architecture
 
-| Type         | Authority | Owner          | Status | Freshness                                                                                                                                          |
-| ------------ | --------- | -------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/activation/**`, `src/mcp/**`, `src/tui.rs`, their tests, ADR-092, ADR-106, ADR-113, and ADR-123 |
+| Type         | Authority | Owner          | Status | Freshness                                                                                                                                                                            |
+| ------------ | --------- | -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-30 against CONF-011 `src/commands/conformance.rs` and its process tests; the existing CLI-to-checks dependency covers the new caller, so topology is unchanged |
 
 | Upstream                                                                                      | Downstream                                                                                              |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -10,11 +10,14 @@
 
 ## Scope and boundaries
 
-This document owns three CLI implementation concerns:
+This document owns four CLI implementation concerns:
 
 - activation orchestration under [`src/activation/`](src/activation);
 - the in-binary MCP server under [`src/mcp/`](src/mcp); and
-- terminal lifecycle and event-loop integration in [`src/tui.rs`](src/tui.rs).
+- terminal lifecycle and event-loop integration in [`src/tui.rs`](src/tui.rs);
+  and
+- the external intent-conformance adapter in
+  [`src/commands/conformance.rs`](src/commands/conformance.rs).
 
 Command-specific product behaviour remains with the command module. The kernel,
 checks, intercept protocol, and TUI component own their internal contracts. The
@@ -22,6 +25,18 @@ cross-system [architecture overview](../../docs/architecture/overview.md),
 [auth map](../../docs/architecture/auth-as-built.md), and
 [MCP server specification](../../docs/architecture/rust-mcp-server-spec.md)
 remain the authorities for their wider concerns.
+
+## Intent-conformance adapter
+
+`anvil conformance check` is a thin command adapter over `anvil-checks`. It
+reads one bounded PR body, supplies an immutable source reference and explicit
+Git range, and renders the canonical advisory result as plain, JSON, or SARIF
+output. Raw author prose does not enter output or persistent state.
+
+The adapter performs on-demand bounded Git work only. It introduces no resident
+graph, daemon, storage, or GitHub-specific integration. Graph-semantic claims
+remain not evaluated until a separately governed revision-bound evidence adapter
+exists.
 
 ## Activation orchestration
 

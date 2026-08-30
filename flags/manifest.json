@@ -93,6 +93,7 @@
         "audit",
         "auth",
         "check",
+        "conformance",
         "drift",
         "ensure",
         "export",

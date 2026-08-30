@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-30 review for SDT-004: the entire change under `crates/anvil-cli/` is one field in a `mod tests` fixture in `commands/check.rs` (`SecretFinding::ruleset_version`), verified by diff; no command, flag, exit code, or output shape moved, and `ruleset_version` reaches no CLI JSON surface (recorded as a named gap on SDT-004). Verified with `cargo test -p eddacraft-anvil --no-fail-fast` (0 failures). Prior review 2026-08-29 via `cargo test -p eddacraft-anvil --test secret_coverage_surfaces` (14 passed) for the SDT-008 coverage exit codes on `anvil audit` and planless `anvil check` against `crates/anvil-cli/src/commands/audit.rs` and `crates/anvil-cli/src/commands/check.rs`; prior targeted review: 2026-08-27 IMPV-002 default-off `impact.view` gate; not a full CLI-surface review |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-30 CONF-011 review of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs` and its process contract tests. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -198,6 +198,75 @@ $ anvil check src/main.rs
 $ anvil check --staged
 $ anvil check --all --format json
 $ anvil check --since main --severity warning
+```
+
+---
+
+## anvil conformance
+
+**Class:** User-explicit **Purpose:** Check a Verified Change Declaration
+against the exact Git range proposed for review. **When to use:** External
+review or CI where the author wants intent-and-claim integrity without APS or
+another planning system.
+
+**Synopsis:**
+`anvil conformance check --base <REV> --head <REV> --pr-body-file <PATH|-> --source-ref <REF> [--format <fmt>]`
+
+**Subcommands:**
+
+| Subcommand | Description                                                  |
+| ---------- | ------------------------------------------------------------ |
+| `check`    | Evaluate one bounded PR declaration against one exact range. |
+
+**Flags:**
+
+| Flag                  | Description                                                                  |
+| --------------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
+| `--base <REV>`        | Exclusive base revision; resolved to a full immutable commit ID.             |
+| `--head <REV>`        | Inclusive head revision; resolved to a full immutable commit ID.             |
+| `--pr-body-file <PATH | ->`                                                                          | PR body file, or `-` for bounded stdin. |
+| `--source-ref <REF>`  | Caller-supplied immutable identity for the exact body version being checked. |
+| `--format <fmt>`      | Output format: `auto`, `plain`, `json`, or `sarif`.                          |
+
+`auto` is plain output. The global `--json` flag is an alias for `--format json`
+in either global placement; an explicit local `--format` wins.
+
+The report schema is `anvil.conformance-check.v1`. Declaration evidence grade
+and evaluation evidence strength are separate fields. Complete Git evidence can
+evaluate `documentation-only`, `test-only`, and explicit `path:` scopes.
+`no-behaviour-change` and `refactor-only` remain reason-coded `not-evaluated`;
+the command does not infer graph semantics from a clean path diff.
+
+**Exit codes:** 0 (advisory result, including `non-conformant` and
+`not-evaluated`), 1 (operational or input error), 3 (auth required)
+
+The command retains only the declaration digest and supplied immutable source
+reference in its canonical evidence. It never emits or persists the raw PR body.
+Missing, malformed, partial, over-budget, or mismatched evidence cannot become
+conformant.
+
+This is an on-demand Git check. It starts no resident graph, daemon, or service,
+and has no GitHub-specific dependency; callers provide the body and immutable
+reference. SARIF emits warning results for each non-conformance or
+non-evaluation reason and an empty result set for a conformant declaration.
+
+**Examples:**
+
+```bash
+anvil conformance check \
+  --base <base-sha> \
+  --head <head-sha> \
+  --pr-body-file pr-body.md \
+  --source-ref forge:change:42:body:sha256:<digest> \
+  --format json
+
+gh pr view 42 --json body --jq .body | \
+  anvil conformance check \
+    --base <base-sha> \
+    --head <head-sha> \
+    --pr-body-file - \
+    --source-ref github:pull-request:42:body:sha256:<digest> \
+    --format sarif
 ```
 
 ---

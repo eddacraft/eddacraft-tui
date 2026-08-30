@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------ | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against SDT-004's vendored tier-1 secret ruleset — `src/secret/vendored.rs`, `src/secret/vendor/gitleaks/`, `src/secret/patterns.rs` (`DEFAULT_COMPILED_PATTERNS` now built-ins + vendored, `CompiledPattern::secret_group`), `src/secret/types.rs` (`SecretFinding::ruleset_version`), and the `first_match_range` call sites in `src/secret/git_scanner.rs` and `src/surface/env/scanner.rs`; the family set, evaluation flow, and diagram are unchanged. Previously reviewed 2026-08-30 against CONF-005's deterministic `src/conformance/pr_body.rs` source adapter; the existing conformance family flow and diagram are unchanged. Previously reviewed 2026-08-29 against SDT-007's streaming secret scan — `src/secret/source.rs`, `src/secret/scanner.rs`, `src/secret/entropy.rs`, `src/secret/check.rs` (`MAX_FILE_SIZE` as a runaway guard, `is_secret_scannable`) and `tests/secret_streaming.rs`. Previously reviewed 2026-08-28 against PR #4194's test-only `src/secret/git_scanner.rs` temporary-repository isolation; check families, filtering, results, boundaries, and diagrams unchanged. Previously reviewed against `src/secret/check.rs`, `src/secret/types.rs`, `tests/secret_file_coverage.rs`, ADR-134, and `src/conformance/**` for SDT-006 and conformance flow; against `src/secret/scanner.rs` for CIB-369; and 2026-08-27 against SDT-001, SDT-002, `src/antipattern/mask.rs`, `src/antipattern/registry_loader.rs`, and ADR-131 |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-011's range-level PR declaration evaluator in `src/conformance/evaluate.rs`; the diagram makes the production PR declaration plus exact Git range input explicit. Previously reviewed 2026-08-30 against SDT-004's vendored tier-1 secret ruleset and CONF-005's deterministic PR-body adapter. |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -43,6 +43,7 @@ flowchart LR
     Families --> Surface[env, SQL, Dockerfile, GitHub Actions, shell]
     Families --> Command[command safety]
     Families --> Conformance[intent conformance]
+    PR[PR declaration + exact Git range] --> Conformance
     Anti --> Results[typed findings and diagnostics]
     Secret --> Results
     Reason --> Results
@@ -88,11 +89,11 @@ path. Ordinary CLI callers may use the disk-reading wrapper.
   [`command_safety/rules/`](src/command_safety/rules).
 - [`conformance/`](src/conformance) owns bounded Tier-0 Git evidence extraction,
   deterministic PR-body declaration extraction, the versioned closed claim
-  table, claim-versus-effect evaluation, and canonical advisory finding
-  construction. It consumes the shared contract from `anvil-kernel-types`;
-  callers still own repository selection, immutable PR source-reference
-  construction, graph production, baseline policy, enforcement, and
-  presentation.
+  table, per-commit and complete-range claim-versus-effect evaluation, and
+  canonical advisory finding construction. It consumes the shared contract from
+  `anvil-kernel-types`; callers still own repository selection, immutable PR
+  source-reference construction, graph production, baseline policy, enforcement,
+  and presentation.
 - [`filter.rs`](src/filter.rs) owns shared directory, suffix, binary, and
   always-scan classification. Callers still own discovery and decide which
   candidate paths enter this filter.
@@ -113,6 +114,10 @@ orchestration from leaking into the reusable check engine.
   family score or fail that family.
 - Result order and path rendering are deterministic so JSON and diagnostic
   callers can compare runs.
+- Range-level PR evaluation accepts only a non-empty extraction whose selected
+  commits share the requested repository, canonical worktree, run, base, head,
+  and per-commit revision bindings. Any not-evaluated commit or binding mismatch
+  makes the aggregate not evaluated; partial evidence cannot become conformant.
 - Intent-conformance extraction disables replacement objects, rejects
   replacement/graft and shallow state, clears ambient Git configuration, and
   applies per-command and whole-run resource budgets. Every selected commit

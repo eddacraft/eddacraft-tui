@@ -1,8 +1,8 @@
 # SARIF → GitHub Code Scanning Upload Runbook
 
-| Type    | Authority | Owner    | Status | Freshness                                                                                                                                                                                                                                                                                                                            |
-| ------- | --------- | -------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runbook | Advisory  | SARIFOUT | Live   | Updated 2026-08-29 for SDT-008: `anvil audit` gained a coverage-failure exit code that the SARIF document does not carry, verified via `cargo test -p eddacraft-anvil --test secret_coverage_surfaces` (14 passed) against `crates/anvil-cli/src/commands/audit.rs`; created 2026-05-29 for SARIFOUT-006 against the SARIFOUT module |
+| Type    | Authority | Owner    | Status | Freshness                                                                                                                                                       |
+| ------- | --------- | -------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Advisory  | SARIFOUT | Live   | Updated 2026-08-30 for CONF-011's advisory `anvil conformance check --format sarif`; previously updated 2026-08-29 for SDT-008 audit coverage-failure semantics |
 
 | Upstream                                                                                        | Downstream                                    |
 | ----------------------------------------------------------------------------------------------- | --------------------------------------------- |
@@ -10,10 +10,10 @@
 
 ## What this is
 
-`anvil check`, `anvil gate`, and `anvil audit` can emit SARIF 2.1.0 with
-`--format sarif` (SARIFOUT). This runbook records the **manual, out-of-band**
-smoke check that the emitted SARIF is accepted by GitHub Code Scanning and that
-findings render in the Security tab.
+`anvil check`, `anvil gate`, `anvil audit`, and `anvil conformance check` can
+emit SARIF 2.1.0 with `--format sarif` (SARIFOUT). This runbook records the
+**manual, out-of-band** smoke check that the emitted SARIF is accepted by GitHub
+Code Scanning and that findings render in the Security tab.
 
 It is deliberately **not** a CI test: uploading to Code Scanning depends on
 network access and GitHub's ingest behaviour, which are non-deterministic. The
@@ -37,11 +37,23 @@ confidence check on top of it.
    anvil check --all --format sarif > anvil.sarif
    # or: anvil audit --format sarif > anvil.sarif
    # or: anvil gate  --format sarif > anvil.sarif
+   # or:
+   anvil conformance check \
+     --base <base-sha> --head <head-sha> \
+     --pr-body-file pr-body.md \
+     --source-ref forge:change:42:body:sha256:<digest> \
+     --format sarif > anvil.sarif
    ```
 
    `--format sarif` is exit-code-neutral for `check`/`gate` (a blocking finding
    still exits non-zero), so capture stdout explicitly and don't gate the upload
    on the exit code.
+
+   `anvil conformance check` is deliberately advisory: conformant,
+   non-conformant, and not-evaluated reports all exit 0. Inspect the JSON
+   `outcome`/`reasons` when policy needs to branch; its SARIF contains warning
+   results for non-conformance and non-evaluation, and no result when
+   conformant.
 
    > **`anvil audit` can now exit 1 here, and the SARIF will not say why.**
    > Since SDT-008, a secret-scan coverage failure — a file inside audit's scan
@@ -117,10 +129,11 @@ confidence check on top of it.
 
 ## Known limitation
 
-`anvil gate` findings are per-check aggregates with **no physical location**, so
-their SARIF results omit `locations[]`. GitHub Code Scanning may not surface
-results without a location. `check` and `audit` results carry file/line
-locations and render normally. Record the observed behaviour below.
+`anvil gate` findings and conformance reasons are aggregates with **no physical
+location**, so their SARIF results omit `locations[]`. GitHub Code Scanning may
+not surface results without a location. The conformance JSON report remains the
+authoritative machine-readable decision. `check` and `audit` results carry
+file/line locations and render normally. Record the observed behaviour below.
 
 ## Verification record
 

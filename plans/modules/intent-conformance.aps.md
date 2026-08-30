@@ -4,7 +4,9 @@
 | ---- | ------ | ----------- | -------- |
 | CONF | @aneki | In Progress | 1/9      |
 
-**Last reviewed:** 2026-08-30 — CONF-005 Verified Change Declarations Merged via
+**Last reviewed:** 2026-08-30 — CONF-011 external PR declaration check is
+In Progress as the first production consumer of CONF-004/005. CONF-005 Verified
+Change Declarations Merged via
 [#4222](https://github.com/eddacraft/anvil-001/pull/4222) after implementation
 Council `council-11195af4` converged with a binding PASS.
 CONF-001 Merged via [#4174](https://github.com/eddacraft/anvil-001/pull/4174),
@@ -45,8 +47,9 @@ generically useful with zero planning format and gets richer when one exists:
 | 2    | Plan documents via adapters (APS first; OpenSpec, BMAD, SpecKit, issues) | Opt-in |
 
 Conventional Commit extraction/evaluation is the first Tier-0 implementation
-slice (CONF-003/004). Deterministic PR-body patterns remain Tier 0 but land
-later under CONF-005.
+slice (CONF-003/004). Deterministic PR-body patterns landed under CONF-005;
+CONF-011 exposes them through an advisory, planless CLI check over an explicit
+Git range.
 
 The first non-APS public use case is **Intent & Claim Integrity**: external
 authors publish Verified Change Declarations under the machine tag
@@ -346,3 +349,31 @@ Change status to **Ready** when:
 - **Validation:** focused conformance/CEG parity, mismatch and completeness tests
 - **Dependencies:** CONF-004, CEG-005
 - **Confidence:** low
+
+### CONF-011: External PR declaration check
+
+- **Status:** In Progress
+- **Intent:** Give external, non-APS authors a production CLI surface that
+  checks one Verified Change Declaration against the exact Git range proposed
+  for review.
+- **Expected Outcome:** `anvil conformance check` accepts explicit base and
+  head revisions, a bounded PR-body file or stdin, and an immutable source
+  reference. It runs CONF-005 extraction and the CONF-004 Git evaluator,
+  reporting advisory plain, JSON, or SARIF output with separate declaration
+  grade and evidence strength. `documentation-only`, `test-only`, and
+  explicit path scopes can evaluate from complete Git evidence;
+  `no-behaviour-change` and `refactor-only` stay reason-coded
+  `not-evaluated`. Missing, malformed, partial, over-budget, or mismatched
+  evidence never becomes conformant.
+- **Files:** `crates/anvil-checks/src/conformance/`,
+  `crates/anvil-checks/tests/`, `crates/anvil-cli/src/commands/conformance.rs`,
+  `crates/anvil-cli/src/{commands/mod.rs,main.rs}`,
+  `crates/anvil-cli/tests/`, component documentation, the authoritative CLI
+  references, the product feature catalogue, and this module
+- **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`; `cargo clippy -p
+  eddacraft-anvil-checks -p eddacraft-anvil --all-targets -- -D warnings`;
+  `pnpm docs:check`; `pnpm format:check`; `pnpm aps:active-lint`;
+  `pnpm aps:index:check`
+- **Dependencies:** CONF-004, CONF-005
+- **Confidence:** high

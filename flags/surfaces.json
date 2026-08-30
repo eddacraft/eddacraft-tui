@@ -83,6 +83,24 @@
       }
     },
     {
+      "key": "conformance",
+      "name": "anvil conformance",
+      "groupKey": "governance",
+      "owner": "CONF",
+      "status": "active",
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "linked",
+        "flagKeys": ["cli.licence-gate"]
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
+      }
+    },
+    {
       "key": "audit",
       "name": "anvil audit",
       "groupKey": "governance",
@@ -1492,6 +1510,13 @@
       "key": "cli.check",
       "featureKey": "check",
       "locator": { "kind": "cli", "commandPath": ["check"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
+      "status": "active"
+    },
+    {
+      "key": "cli.conformance",
+      "featureKey": "conformance",
+      "locator": { "kind": "cli", "commandPath": ["conformance"] },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
       "status": "active"
     },
