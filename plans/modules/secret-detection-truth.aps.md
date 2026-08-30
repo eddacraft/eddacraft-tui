@@ -581,6 +581,23 @@ entropy-adjacent; `generic-api-key` and its family are tier 2 by construction.
     precedent. **Not regenerated** — the generated blocks come from dependency
     manifests and would never carry it (ADR-136 §5), and regenerating churns the
     Node rows.
+  - **The vendored rules cost ~50x the built-ins to compile, and that cost had
+    to move off the request path.** `DEFAULT_COMPILED_PATTERNS` is a
+    `LazyLock`, so whoever touches it first pays the whole catalogue:
+    **76 ms release / 496 ms debug** for the 27 vendored rules against
+    **1.5 ms / 16 ms** for the 21 built-ins (upstream provider regexes carry
+    long bounded prefix gates and alternations). Left alone, the first
+    `scan_buffer` in a daemon process paid that inside the 2 s
+    `SCAN_BUFFER_TIMEOUT` — which is exactly how it surfaced, as a CI timeout
+    in `jsonrpc_conformance.rs`, **not** as a benchmark regression:
+    `benches/midedit_roundtrip.rs` force-initialises the lazy in its own
+    warm-up, so the benchmark was structurally incapable of seeing it. Fixed by
+    forcing the lazy in `ScanBufferService::with_timeout`, guarded by
+    `crates/anvil-intercept/tests/pattern_warm.rs` (a deliberately
+    single-test binary — a second test there could warm the lazy and make the
+    guard pass vacuously). Removing the warm line reddens it at 495 ms against
+    a 5 ms bound.
+
 - **Known gaps (named, not blocking):**
   - ADR-136 §5's **monthly scheduled cadence** (a workflow that compares the pin
     against the latest upstream release and opens an issue) is **not built**.

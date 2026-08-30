@@ -209,6 +209,23 @@ impl ScanBufferService {
     /// [`Self::new`].
     #[must_use]
     pub fn with_timeout(pipeline: EnforcementPipeline, timeout: Duration) -> Self {
+        // SDT-004: compile the shared secret-pattern set here, at service
+        // construction, so no request pays for it.
+        //
+        // `DEFAULT_COMPILED_PATTERNS` is a `LazyLock`, so without this the
+        // *first* `scan_buffer` in the process compiles the whole catalogue
+        // inside the 2s `SCAN_BUFFER_TIMEOUT` — measured at 76 ms release /
+        // 496 ms debug once the vendored tier-1 rules joined it, against
+        // 1.5 ms / 16 ms for the built-ins alone. The upstream provider
+        // regexes carry long bounded prefix gates and alternations, so they
+        // cost ~50x what the built-in shapes do to compile, once.
+        //
+        // The benchmark harness already forced this lazy for exactly this
+        // reason (`benches/midedit_roundtrip.rs`), which meant the cost was
+        // invisible to the benchmark and live only in production and in the
+        // conformance suite. Warming here closes that gap rather than moving
+        // it.
+        std::sync::LazyLock::force(&anvil_checks::secret::patterns::DEFAULT_COMPILED_PATTERNS);
         Self {
             pipeline: Arc::new(pipeline),
             permits: Arc::new(Semaphore::new(MAX_CONCURRENT_SCAN_BUFFERS)),
