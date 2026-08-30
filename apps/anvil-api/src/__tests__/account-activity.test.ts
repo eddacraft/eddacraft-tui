@@ -157,4 +157,24 @@ describe('POST /account/activity (BACT-005)', () => {
 
     consoleErrorSpy.mockRestore();
   });
+
+  it('returns 202 when feature-touch upsert fails (best-effort ingest)', async () => {
+    // Regression: Neon connect timeouts (fetch failed / ETIMEDOUT) must not
+    // 500 this fire-and-forget route. A 5xx trips the hosted SLO; the CLI
+    // already ignores the body. Skip stamp — the same DB is unreachable.
+    mocks.upsertAccountFeatureTouch.mockRejectedValue(
+      new Error('Error connecting to database: TypeError: fetch failed')
+    );
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const res = await post({ features: ['watch'] }, 'Bearer good');
+
+    expect(res.status).toBe(202);
+    const body = await res.json();
+    expect(body).toEqual({ accepted: true, features: ['watch'] });
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });

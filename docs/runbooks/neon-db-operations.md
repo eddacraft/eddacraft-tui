@@ -82,6 +82,13 @@ Expected: JSON success response, no 5xx.
    - Recovery: set env var, redeploy, re-check `/health`.
 
 2. **Connection/timeout spikes**
+   - Look for
+     `NeonDbError: Error connecting to database: TypeError: fetch failed` with
+     `ETIMEDOUT` / `internalConnectMultiple`, especially on
+     `POST /api/v1/account/activity` (~750ms). Node Happy Eyeballs can
+     black-hole Neon IPv6 from Vercel; the API client prefers IPv4 DNS results.
+   - Account-activity ingest is best-effort (202 + log) on persist failure;
+     `/health` still reports `db: unreachable` when `SELECT 1` fails.
    - Recovery: reduce traffic, inspect long-running queries, verify connection
      limits.
 

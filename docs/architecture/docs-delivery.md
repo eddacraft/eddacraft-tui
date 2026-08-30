@@ -1,8 +1,8 @@
 # Documentation delivery
 
-| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                          |
-| ----- | ------------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-30 against CLAWOPEN-010 docs-shell landing cache and auth page coverage; source, build, deployment, request topology, and diagrams unchanged |
+| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                                            |
+| ----- | ------------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-30 against CLAWOPEN-010 and anvil-api account-activity best-effort ingest on Neon timeout; source, build, deployment, request topology, and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                                                                                       | Downstream                                                                                  |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

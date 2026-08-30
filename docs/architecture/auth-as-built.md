@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-30 against CLAWOPEN-002 suspended-account reactivation in `apps/anvil-api/src/routes/admin.ts` and CLAWOPEN-003 GitHub identity/session recovery; authentication diagram unchanged |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                        |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-30 against CLAWOPEN-002, CLAWOPEN-003, and anvil-api account-activity best-effort ingest on Neon timeout; authentication diagram unchanged |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |

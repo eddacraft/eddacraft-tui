@@ -1,3 +1,4 @@
+import { setDefaultResultOrder } from 'node:dns';
 import { neon } from '@neondatabase/serverless';
 import { createDebugger } from '../lib/debug.js';
 
@@ -8,6 +9,10 @@ export type NeonClient = ReturnType<typeof neon>;
 let _client: NeonClient | null = null;
 
 export function getClient(): NeonClient {
+  // Vercel + Node Happy Eyeballs can black-hole Neon IPv6 and fail the
+  // HTTP fetch at ~750ms (`ETIMEDOUT` / `internalConnectMultiple`). Prefer
+  // A records so the serverless driver reaches Neon over IPv4.
+  setDefaultResultOrder('ipv4first');
   if (!_client) {
     const url = process.env['DATABASE_URL'];
     if (!url) {

@@ -14,8 +14,9 @@ import {
  *
  * Requires a valid licence JWT (same identity as product session). Payload is
  * a closed allowlist of feature keys only — never free-form argv/paths.
- * Failures on the client are expected to be fire-and-forget; this route still
- * returns clear 4xx/5xx for operators and tests.
+ * Failures on the client are fire-and-forget. Auth and payload errors stay
+ * 4xx. Persistence failures after a valid payload are logged and still return
+ * 202 so a Neon connect timeout cannot 500 the hosted SLO.
  */
 export const accountActivity = new Hono();
 
@@ -91,7 +92,10 @@ accountActivity.post('/', async (c) => {
     }
   } catch (err) {
     console.error('account activity upsert failed:', err);
-    return c.json({ error: 'Failed to record activity' }, 500);
+    // Same best-effort contract as stampUserActivity below: the CLI ignores
+    // the body, and a 500 on a connect timeout is what paged production
+    // (Neon fetch ETIMEDOUT ~750ms). Skip the stamp — same DB is down.
+    return c.json({ accepted: true, features: accepted }, 202);
   }
 
   // BACT-008 / ADR-121 decision 4: an accepted feature-touch is account

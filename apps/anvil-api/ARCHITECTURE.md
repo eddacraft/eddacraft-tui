@@ -108,6 +108,12 @@ operator authority.
   `invalid`/`unconfigured` states gate overall health. A Resend or network probe
   result of `unverifiable` is explicit but non-gating, so it can coexist with
   overall `status: ok`.
+- Authenticated account-activity ingest
+  ([`account-activity.ts`](src/routes/account-activity.ts)) is fire-and-forget
+  after a valid licence and allowlisted payload. A Neon connect or write failure
+  is logged and still returns 202; it must not 500. Auth and payload errors
+  remain 4xx. The Neon client prefers IPv4 DNS results to avoid Happy Eyeballs
+  connect timeouts from Vercel.
 - Persistence migrations remain governed by the
   [database migration runbook](../../docs/runbooks/db-migrations.md), not this
   component map.
