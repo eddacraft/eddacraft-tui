@@ -4,15 +4,14 @@
 | ---- | ------ | ----------- | -------- |
 | CONF | @aneki | In Progress | 1/9      |
 
-**Last reviewed:** 2026-08-30 — CONF-001 Merged via
-[#4174](https://github.com/eddacraft/anvil-001/pull/4174).
-[ADR-134](../decisions/134-intent-conformance-gating.md) is accepted and pins
-the deterministic Git, evidence-binding, and fail-honest outcome contract. The
-CONF-002..004 implementation and executor proof Merged via
-[#4190](https://github.com/eddacraft/anvil-001/pull/4190). CONF-005 Verified
-Change Declarations Merged via
+**Last reviewed:** 2026-08-30 — CONF-005 Verified Change Declarations Merged via
 [#4222](https://github.com/eddacraft/anvil-001/pull/4222) after implementation
 Council `council-11195af4` converged with a binding PASS.
+CONF-001 Merged via [#4174](https://github.com/eddacraft/anvil-001/pull/4174),
+and CONF-002..004 implementation and executor proof Merged via
+[#4190](https://github.com/eddacraft/anvil-001/pull/4190).
+[ADR-134](../decisions/134-intent-conformance-gating.md) is accepted and pins
+the deterministic Git, evidence-binding, and fail-honest outcome contract.
 [ADR-135](../decisions/135-bounded-change-evidence-and-conformance-projections.md)
 is accepted after scoped Council repair re-review `council-599eaa64`; the
 [CEG design](../specs/2026-08-30-change-evidence-graph.md), graph-semantic
