@@ -520,7 +520,10 @@ mod tests {
             .find(|arg| arg.get_long() == Some("web"))
             .expect("--web remains invokable");
         assert!(web.is_hide_set(), "--web must be hidden from --help");
-        let help = web.get_help().expect("--web keeps a help string").to_string();
+        let help = web
+            .get_help()
+            .expect("--web keeps a help string")
+            .to_string();
         assert!(
             help.contains("Cannot be combined with a dashboard name"),
             "expected --web help to name the NAME exclusivity, got:\n{help}"
