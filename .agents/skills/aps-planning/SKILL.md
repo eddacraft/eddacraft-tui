@@ -131,6 +131,20 @@ Return this report before branch or code:
 Implementation MUST NOT begin from a stale, ambiguous, unauthorised, or blocked
 APS item.
 
+## Work-item claim
+
+When `plans/project-context.md` defines work-item claim issues, apply that rule
+**before** implementation writes for an APS work item:
+
+1. Search private issues and PRs for the APS ID.
+2. Reuse an open issue if one exists; otherwise create one titled
+   `<ID>: <title>` and assign it.
+3. Put `Fixes #<n>` on the implementing PR.
+
+Do not create the issue when drafting the APS item. Do not create a
+module-level issue. Full rule:
+`plans/project-context.md#work-item-claim-issues`.
+
 ## During Work -- Passive Awareness
 
 While the user works on code, maintain quiet awareness of APS relevance

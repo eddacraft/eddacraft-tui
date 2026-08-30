@@ -60,3 +60,6 @@ Rules:
 - If only one item, still use the section for consistency
 - Do not add APS references to the PR title -- keep titles concise
 - If no work items match, omit the section entirely
+- When a work-item claim issue exists, the PR body MUST include `Fixes #<n>` so
+  merge auto-closes it. Do not use `Relates to` when the issue is fully
+  resolved by the PR. See `plans/project-context.md#work-item-claim-issues`.

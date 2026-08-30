@@ -45,11 +45,13 @@ Before implementation:
 4. Mark work `In Progress` only on **exclusive** modules. Do **not** edit shared
    multi-writer APS modules (for example CIB) from feature PRs — see
    `plans/project-context.md#keeping-plans-current`.
+5. When starting an APS work item, open or reuse a private GitHub claim issue.
+   See `plans/project-context.md#work-item-claim-issues`.
 
 Standard lifecycle:
 
 ```text
-APS Ready -> Worktrunk branch -> Code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> Complete
+APS Ready -> claim issue -> Worktrunk branch -> Code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> Complete
 ```
 
 Use Worktrunk-managed worktrees from `main` for task branches. See

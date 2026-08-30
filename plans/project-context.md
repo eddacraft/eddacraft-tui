@@ -2,11 +2,11 @@
 
 | Type  | Authority     | Owner  | Status | Freshness                                                                            |
 | ----- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------ |
-| Guide | Authoritative | AICON  | Live   | Last reviewed 2026-08-05 against `AGENTS.md`, `.claude/rules/aps-index.md`, and `plans/modules/continuous-improvement-backlog.aps.md` |
+| Guide | Authoritative | AICON  | Live   | Last reviewed 2026-08-30 against `AGENTS.md`, `plans/specs/2026-05-28-issue-triage-and-aps-authority.md`, and work-item claim issues |
 
 | Upstream                                                  | Downstream                                      |
 | --------------------------------------------------------- | ----------------------------------------------- |
-| `plans/aps-rules.md`, `AGENTS.md`, `docs/guides/documentation-governance.md`, `docs/guides/repository-operations.md` | `AGENTS.md`, `plans/aps-rules.md`, agents using APS |
+| `plans/aps-rules.md`, `AGENTS.md`, `docs/guides/documentation-governance.md`, `docs/guides/repository-operations.md`, `plans/specs/2026-05-28-issue-triage-and-aps-authority.md` | `AGENTS.md`, agents using APS |
 
 This file records Anvil-specific planning, execution, release, and documentation
 rules that deliberately sit outside portable APS guidance. Keep
@@ -20,7 +20,7 @@ local operating-model context here.
   layout.
 - `plans/project-context.md` is anvil-owned context: Worktrunk branching,
   Council review, release lifecycle prose, feature flags, documentation
-  governance, and repository-specific validation.
+  governance, work-item claim issues, and repository-specific validation.
 - `AGENTS.md` remains the top-level agent contract and links to both files.
 - Source code, schemas, tests, and generated artefacts remain implementation
   truth.
@@ -88,7 +88,7 @@ Rules for using extensions:
 anvil work follows this lifecycle:
 
 ```text
-APS (Ready) -> Worktrunk Branch -> Code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> Complete
+APS (Ready) -> claim issue -> Worktrunk Branch -> Code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> Complete
 ```
 
 Key rules:
@@ -103,10 +103,60 @@ Key rules:
    comments.
 7. Offer local worktree cleanup only when local state is clean and review fixes
    are not expected.
+8. When starting an APS work item, open or reuse a private GitHub claim issue
+   (see [Work-item claim issues](#work-item-claim-issues)).
 
 Authoritative details live in `AGENTS.md`,
 [`docs/guides/branching-strategy.md`](../docs/guides/branching-strategy.md), and
 [`docs/guides/worktree-policy.md`](../docs/guides/worktree-policy.md).
+
+## Work-item claim issues
+
+When starting an APS work item, open a private GitHub issue on
+`eddacraft/anvil-001` (or reuse the existing issue for that APS ID) so the
+claim is visible immediately. The implementing PR closes it with `Fixes #N`.
+
+This is a **claim lock**, not a second backlog. APS remains planning truth.
+`In Progress` on a feature branch is invisible on `main` until merge; the
+issue is visible as soon as it exists.
+
+Do **not** put this procedure in [`plans/aps-rules.md`](aps-rules.md). Portable
+APS has no GitHub contract.
+
+Rules:
+
+1. **Grain is the work item**, not the module.
+2. **Search before creating.** Look for an open private issue or PR whose
+   title contains the APS ID (`CIB-191`, `FEFF-001`). If one exists, that is
+   the claim — assign the issue and stop. Do not open a second issue.
+3. **Create at start of work**, not when the APS item is written as
+   `Draft` / `Ready`. Title: `<ID>: <work item title>`. Label
+   `tracked:promoted-to-aps`. Assign it to whoever is doing the work.
+4. **Private `anvil-001` only.** Never open claim issues on public
+   `eddacraft/anvil`.
+5. **The PR uses `Fixes #<n>`** so merge auto-closes the issue. Do not use
+   `Relates to` when the PR fully resolves the claim. Keep the `APS:` commit
+   trailer and the APS Work Items PR section.
+6. **Small-fix work** that is already a GitHub issue reuses that issue. Do
+   not add a second claim ticket.
+7. **Exclusive modules** still mark `In Progress` in the module file where
+   helpful. The issue does not replace that status flip.
+8. **Shared multi-writer modules** (CIB today) do not flip APS status on the
+   feature PR. The GitHub issue is the live claim until bookkeeping
+   reconciles the module file.
+9. **Release the claim if you abandon the work.** Unassign and comment, or
+   close the issue, so someone else can pick it up. Do not leave a zombie
+   open issue that blocks others.
+
+Search:
+
+```text
+gh issue list --search "<ID> in:title state:open"
+gh pr list --search "<ID>"
+```
+
+Authority consistency:
+[`plans/specs/2026-05-28-issue-triage-and-aps-authority.md`](specs/2026-05-28-issue-triage-and-aps-authority.md).
 
 
 
@@ -245,6 +295,9 @@ Rules:
 4. Agents may record `ready to reconcile: ITEM-ID → Merged via PR #N` (or
    `promote: CIB`) in the pending CI-log follow-up; they must not patch the
    shared backlog on the feature branch.
+5. The live claim is the private GitHub issue from
+   [Work-item claim issues](#work-item-claim-issues), not an `In Progress`
+   edit on the shared module file.
 
 ### Exclusive modules
 
@@ -252,7 +305,8 @@ When a module has a single active work stream (one feature branch owning the
 items being implemented):
 
 1. Before starting substantive implementation, mark the work item `In Progress`
-   where helpful.
+   where helpful, and open or reuse the claim issue
+   ([Work-item claim issues](#work-item-claim-issues)).
 2. After completing a work item, update its `Status:` and closeout evidence in
    the module file — do **not** bump stored `N/M` counts (ADR-053).
 3. Reconcile stored progress counts with `pnpm aps:index` when the rollup should

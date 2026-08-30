@@ -2,7 +2,7 @@
 
 | Type | Authority     | Owner | Status | Freshness                                                                 |
 | ---- | ------------- | ----- | ------ | ------------------------------------------------------------------------- |
-| Spec | Authoritative | CIB   | Live   | Created 2026-05-28 from planning discussion and Planning Council feedback |
+| Spec | Authoritative | CIB   | Live   | Last reviewed 2026-08-30 for work-item claim issues against `plans/project-context.md` |
 
 | Upstream                                                | Downstream                                                          |
 | ------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -28,11 +28,26 @@ small-fix rationale, CIB item, APS work item, or emergency-hotfix declaration.
 | Surface | Role | Authority |
 | ------- | ---- | --------- |
 | Public `eddacraft/anvil` GitHub issues | Publicly identified bugs, discussion, support signal, public reproduction evidence | Intake and public evidence only |
-| Private `eddacraft/anvil-001` GitHub issues | Internal triage for true bugs, high-priority defects, small fixes, private agent/dev evidence | Intake plus small-fix authority when the exemption applies |
+| Private `eddacraft/anvil-001` GitHub issues | Internal triage for true bugs, high-priority defects, small fixes, private agent/dev evidence, and work-item claim tokens at pickup | Intake plus small-fix authority when the exemption applies. Claim issues do not authorise work |
 | `plans/modules/continuous-improvement-backlog.aps.md` | Standing intake for concrete cross-cutting improvements | APS-backed execution authority for small/medium internal improvements |
 | Dedicated APS modules | Product, platform, release, architecture, or workflow work with sequencing and validation needs | Execution authority |
 | ADRs | Durable architectural or process decisions | Decision authority |
 | `RELEASE-PLAN.md` | Current release cut and release-blocker context | Release-slate authority |
+
+## Work-item claim issues
+
+Private `eddacraft/anvil-001` issues may be used as **claim tokens** when an
+APS work item is started. That usage is not planning truth.
+
+- The APS work item remains the execution authority and backlog.
+- The GitHub issue makes the claim visible immediately (`In Progress` often
+  lives only on the feature branch until merge).
+- Create or reuse the issue at start of work, not when the APS item is written.
+- One open issue per APS ID. Search before creating.
+- The implementing PR uses `Fixes #<n>`.
+
+Authoritative procedure:
+[`plans/project-context.md#work-item-claim-issues`](../project-context.md#work-item-claim-issues).
 
 ## Issue Triage Outcomes
 

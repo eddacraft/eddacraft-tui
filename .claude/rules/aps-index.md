@@ -16,6 +16,10 @@ any `.aps.md` file.
 - **Exclusive modules:** before starting work, mark the work item **In Progress**
   where helpful; after completing it, update its status only — do **not** bump
   the module header or index `N/M` count in feature PRs (ADR-053)
+- When starting a work item, search for an existing private GitHub issue or PR
+  for that APS ID; if none, create one, assign it, and put `Fixes #N` on the PR.
+  Grain is the work item, not the module. Do not create issues at APS-item
+  creation. See `plans/project-context.md#work-item-claim-issues`.
 - After all items done on an exclusive module, update module status to **Done**
 - Reconcile stored `N/M` counts with `pnpm aps:index` when a refresh is needed
 - Archive completed modules with `git mv` to `plans/archive/modules/`
