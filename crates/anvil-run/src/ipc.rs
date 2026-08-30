@@ -55,12 +55,19 @@ pub enum ClientError {
 
 /// Resolve the per-user daemon socket path (Unix) or pipe name
 /// (Windows). Mirrors the canonical algorithm used by the daemon
-/// itself so the launcher cannot drift onto a different rendezvous
-/// when only `$XDG_RUNTIME_DIR` is set.
+/// itself, then probes the XDG/state-home sibling so a Grok/Codex
+/// split still finds one live daemon.
 #[cfg(unix)]
 pub fn resolve_endpoint() -> Result<PathBuf, ClientError> {
-    anvil_intercept::ipc::resolve_live_socket_path()
-        .map_err(|err| ClientError::SocketPath(err.to_string()))
+    match anvil_intercept::ipc::resolve_live_socket_path() {
+        Ok(path) => Ok(path),
+        Err(err) if anvil_intercept::ipc::live_socket_absent(&err) => {
+            let path = anvil_intercept::ipc::resolve_socket_path()
+                .unwrap_or_else(|_| PathBuf::from("intercept.sock"));
+            Err(ClientError::DaemonNotRunning { path })
+        }
+        Err(err) => Err(ClientError::SocketPath(err.to_string())),
+    }
 }
 
 #[cfg(windows)]

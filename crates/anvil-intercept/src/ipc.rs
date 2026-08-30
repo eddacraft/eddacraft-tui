@@ -741,6 +741,15 @@ fn ipc_error_is_not_found(err: &IpcError) -> bool {
     matches!(err, IpcError::Io(io) if io.kind() == io::ErrorKind::NotFound)
 }
 
+/// True when a live-socket probe found no daemon (missing socket or no
+/// directory candidate). Canonical symlink / mode failures return false
+/// so callers fail closed instead of treating a planted inode as absent.
+#[cfg(unix)]
+#[must_use]
+pub fn live_socket_absent(err: &IpcError) -> bool {
+    ipc_error_is_not_found(err) || matches!(err, IpcError::NoSocketDirCandidate)
+}
+
 /// Validate the client side of the Unix daemon rendezvous before a peer
 /// sends proposed file content to the socket. Mirrors the listener's
 /// owner-only posture without creating or unlinking anything.
