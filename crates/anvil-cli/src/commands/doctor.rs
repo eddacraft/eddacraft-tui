@@ -1260,7 +1260,9 @@ fn git_at(root: &Path) -> Command {
 /// or paths under `anvil/` (durable governance evidence) are gitignored.
 /// `anvil/exceptions/.lock` (EXCEPT-007) and `anvil/witness/.chain-initialised`
 /// (CIB-126) are exempt — sanctioned runtime artefacts inside the tracked
-/// governance tree. Warn, never
+/// governance tree, and that list is the whole of it: there is no suppression
+/// surface, and a deviation recorded in ADR-073 keeps warning (CIB-380). Warn,
+/// never
 /// Fail: the boundary is a posture, and a repo may carry a recorded,
 /// justified deviation (ADR-073's dogfood note). Like every other doctor
 /// check, this is rooted at the process cwd — doctor's contract is "run at
@@ -1394,6 +1396,32 @@ fn state_boundary_warn(
         }
         Some(cmd)
     };
+    // CIB-380: on the ignored-durable arm the best doctor can offer is the
+    // rule-locating diagnostic above — there is no one-liner that edits
+    // `.gitignore` for you. Say so, so an operator who runs it and sees no
+    // change reads that as expected rather than as doctor being broken.
+    let diagnostic_command = tracked_runtime.is_empty() && command.is_some();
+
+    // CIB-380: the remediation must not offer an action that cannot change the
+    // outcome. Recording a deviation (ADR-073's dogfood note) is a
+    // documentation act this check cannot read — the exempt list below is
+    // fixed in code — so a recorded deviation keeps warning, by design.
+    let mut summary = String::from(
+        "Untrack the listed `.anvil/` runtime paths (verify each is truly runtime \
+         state first) and keep `.anvil/` gitignored; remove the `.gitignore` rules \
+         that swallow durable `anvil/` evidence, or move that state under `.anvil/` \
+         if it is genuinely local. This check has no suppression surface: a \
+         deviation recorded in ADR-073 keeps warning by design — justify it at the \
+         ignore rule and leave the warning standing. Only `anvil/exceptions/.lock` \
+         (EXCEPT-007) and `anvil/witness/.chain-initialised` (CIB-126) are exempt, \
+         and that list is fixed in code.",
+    );
+    if diagnostic_command {
+        summary.push_str(
+            " The command below is diagnostic: `git check-ignore -v` names the rule \
+             and line that swallow the path, it changes nothing.",
+        );
+    }
 
     DiagnosticCheck {
         name: "state-boundary".to_string(),
@@ -1407,13 +1435,7 @@ fn state_boundary_warn(
         details: Some(details.trim_end().to_string()),
         auto_fixable: false,
         remediation: Remediation {
-            summary: "Untrack the listed `.anvil/` runtime paths (verify each is truly \
-                      runtime state first) and keep `.anvil/` gitignored; remove \
-                      `.gitignore` rules that swallow durable `anvil/` evidence (or record \
-                      the deviation as a justified exception per ADR-073). \
-                      `anvil/exceptions/.lock` (EXCEPT-007) and \
-                      `anvil/witness/.chain-initialised` (CIB-126) are exempt."
-                .to_string(),
+            summary,
             command,
             doc_url: None,
         },
@@ -3919,6 +3941,78 @@ mod tests {
                 .contains("check-ignore"),
             "remediation offers the rule-locating command: {:?}",
             check.remediation.command
+        );
+    }
+
+    /// CIB-380: on the ignored-durable arm the only command doctor can offer
+    /// is `git check-ignore -v`, which names the swallowing rule and mutates
+    /// nothing. The remediation must say so, and must not offer recording a
+    /// deviation as a resolution — ADR-073's dogfood deviation is already
+    /// recorded and this check cannot read it, so following that advice leaves
+    /// the output byte-identical.
+    #[test]
+    fn state_boundary_remediation_marks_the_diagnostic_command_as_diagnostic() {
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::write(tmp.path().join(".gitignore"), "anvil/kindling/\n").unwrap();
+        std::fs::create_dir_all(tmp.path().join("anvil/kindling")).unwrap();
+        std::fs::write(tmp.path().join("anvil/kindling/audit-chain.ndjson"), "{}").unwrap();
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check
+                .remediation
+                .command
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("git check-ignore"),
+            "this arm surfaces the rule-locating command: {:?}",
+            check.remediation.command
+        );
+        let summary = check.remediation.summary.as_str();
+        assert!(
+            summary.contains("diagnostic"),
+            "remediation labels the command diagnostic: {summary:?}"
+        );
+        assert!(
+            summary.contains("no suppression surface"),
+            "remediation says a recorded deviation keeps warning: {summary:?}"
+        );
+        assert!(
+            !summary.contains("justified exception"),
+            "remediation no longer offers exception-recording as a resolution: {summary:?}"
+        );
+    }
+
+    /// CIB-380 guard on the other arm: when runtime state is tracked the
+    /// command is a real `git rm --cached`, so the diagnostic caveat must not
+    /// be attached to it.
+    #[test]
+    fn state_boundary_tracked_arm_keeps_an_actionable_command() {
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/gates.json"), "{}").unwrap();
+        git_in(tmp.path(), &["add", ".anvil/gates.json"]);
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check
+                .remediation
+                .command
+                .as_deref()
+                .unwrap_or("")
+                .starts_with("git rm --cached"),
+            "tracked-runtime arm offers the untrack command: {:?}",
+            check.remediation.command
+        );
+        assert!(
+            !check
+                .remediation
+                .summary
+                .contains("The command below is diagnostic"),
+            "the diagnostic caveat is not attached to an actionable command: {:?}",
+            check.remediation.summary
         );
     }
 
