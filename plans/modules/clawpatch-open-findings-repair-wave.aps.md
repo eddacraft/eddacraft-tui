@@ -5,17 +5,18 @@
 
 | ID       | Owner | Priority | Status      | Progress |
 | -------- | ----- | -------- | ----------- | -------- |
-| CLAWOPEN | —     | P1       | In Progress | 0/12     |
+| CLAWOPEN | —     | P1       | In Progress | 7/12     |
 
-**Last reviewed:** 2026-08-30 — operator approved a bounded first delivery of
-the seven implemented clusters covering 14 of the 24 findings that remain after
-SETCON-012. The other ten findings retain their Blocked or Proposed state and
-are not claimed by this delivery. The source set remains the
+**Last reviewed:** 2026-08-30 — the bounded first delivery of seven clusters
+covering 14 of the 24 findings that remain after SETCON-012 merged via
+[#4216](https://github.com/eddacraft/anvil-001/pull/4216) (`965a9e7f4`). The
+other ten findings retain their Blocked or Proposed state and are not claimed
+by this delivery. The source set remains the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
 selected for this repair wave. CLAWOPEN-001, -003, -004, -005, -006, -008, and
--012 are implemented locally; CLAWOPEN-007, -009, and -011 retain explicit
-design checkpoints; CLAWOPEN-002 and -010 retain the named operator-approval
-blockers below.
+-012 are Merged; CLAWOPEN-007, -009, and -011 retain explicit design
+checkpoints; CLAWOPEN-002 and -010 retain the named operator-approval blockers
+below.
 
 > **Exclusive module.** The wave orchestrator is the only plan writer.
 > Parallel executors own isolated code/test workspaces and do not edit this
@@ -66,7 +67,8 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-001: Freeze process-wide flag authority
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
 - **Priority:** P1
 - **Risk:** standard
 - **Intent:** Consumers cannot mutate any validated process-wide flag inventory
@@ -107,7 +109,8 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-003: Recover GitHub device sessions and verified identity
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** Durable minted sessions replay without live OAuth credentials, and
@@ -132,7 +135,8 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-004: Keep persisted waitlist success truthful
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** A successfully persisted waitlist signup is never reported to the
@@ -148,7 +152,8 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-005: Pin security-sensitive route decisions
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** Route-level tests fail when OAuth callback or early-access
@@ -165,7 +170,8 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-006: Reject false-valid boundary data
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** Invalid epoch inputs and whitespace-only diagram accessibility
@@ -201,7 +207,8 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-008: Make evaluation evidence non-vacuous
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** Default test commands exercise real extraction, calibrated benign
@@ -286,7 +293,8 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-012: Complete operational API documentation
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** API operators can discover every required GitHub credential and

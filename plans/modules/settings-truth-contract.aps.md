@@ -5,15 +5,15 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| SETCON | —     | medium   | In Progress | 11/11     |
+| SETCON | —     | medium   | Merged | 12/12     |
 
-**Last reviewed:** 2026-08-29 — module reopened for SETCON-012, the
-operator-selected repair wave for four current-source settings-truth findings.
-SETCON-001..011 remain Merged via PR
-[#4140](https://github.com/eddacraft/anvil-001/pull/4140) (`07dfb17e2`);
-their 11/11 completion counter is unchanged. [ADR-132](../decisions/132-settings-truth-contract.md)
-remains accepted. This follow-up is not a v0.9.8-beta product claim;
-`/settings` remains SETINS.
+**Last reviewed:** 2026-08-30 — SETCON-012 and its four current-source
+settings-truth repairs merged via
+[#4216](https://github.com/eddacraft/anvil-001/pull/4216) (`965a9e7f4`). All 12
+SETCON work items are now Merged; SETCON-001..011 landed via
+[#4140](https://github.com/eddacraft/anvil-001/pull/4140) (`07dfb17e2`).
+[ADR-132](../decisions/132-settings-truth-contract.md) remains accepted. This
+closeout is not a v0.9.8-beta product claim; `/settings` remains SETINS.
 
 > **Activation gate.** SETCON-001 is accepted as ADR-132. Downstream SETINS /
 > SETPREF / SETGOV stay gated on a named release window for the inspect surface,
@@ -364,5 +364,5 @@ Change status to **Ready** when:
   `cargo fmt --check`; `pnpm aps:active-lint`; `pnpm aps:index:check`;
   `pnpm docs:check`
 - **Confidence:** medium
-- **Status:** In Progress 2026-08-29 on
-  `fix/setcon-012-settings-truth`.
+- **Status:** Merged 2026-08-30 via PR #4216. Ancestor of `origin/main`
+  (`965a9e7f4`).
