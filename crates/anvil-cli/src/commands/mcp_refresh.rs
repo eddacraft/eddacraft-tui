@@ -438,9 +438,8 @@ fn force_recycle(hooks: &dyn DaemonRecycleHooks) -> DaemonRecycleOutcome {
 }
 
 fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> DaemonRecycleOutcome {
-    let pid = match hooks.stop_daemon() {
-        Ok(Some(pid)) => pid,
-        Ok(None) => {
+    let stop = match hooks.stop_daemon() {
+        Ok(stop) if stop.signalled_pids.is_empty() && stop.candidate_errors.is_empty() => {
             return if hooks.running_daemon().is_none() {
                 DaemonRecycleOutcome::NotRunning
             } else {
@@ -452,6 +451,7 @@ fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> Daem
                 }
             };
         }
+        Ok(stop) => stop,
         Err(recovery) => {
             return DaemonRecycleOutcome::Failed {
                 before: Some(before),
@@ -459,10 +459,20 @@ fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> Daem
             };
         }
     };
-    if let Err(recovery) = hooks.wait_for_pid_exit(pid) {
+    let mut stop_failures = Vec::new();
+    for pid in stop.signalled_pids {
+        if let Err(recovery) = hooks.wait_for_pid_exit(pid) {
+            stop_failures.push(recovery);
+        }
+    }
+    stop_failures.extend(stop.candidate_errors);
+    if !stop_failures.is_empty() {
         return DaemonRecycleOutcome::Failed {
             before: Some(before),
-            recovery,
+            recovery: format!(
+                "could not safely stop every daemon candidate: {}",
+                stop_failures.join("; ")
+            ),
         };
     }
     match hooks.start_current_binary() {
@@ -600,8 +610,8 @@ impl DaemonRecycleHooks for UnsupportedDaemonHooks {
     fn running_daemon(&self) -> Option<crate::commands::daemon_recycle::RunningDaemon> {
         None
     }
-    fn stop_daemon(&self) -> Result<Option<u32>, String> {
-        Ok(None)
+    fn stop_daemon(&self) -> Result<crate::commands::daemon_recycle::DaemonStopBatch, String> {
+        Ok(crate::commands::daemon_recycle::DaemonStopBatch::default())
     }
     fn wait_for_pid_exit(&self, _pid: u32) -> Result<(), String> {
         Ok(())
@@ -615,7 +625,7 @@ impl DaemonRecycleHooks for UnsupportedDaemonHooks {
 mod tests {
     use std::cell::RefCell;
 
-    use crate::commands::daemon_recycle::{DaemonRecycleHooks, RunningDaemon};
+    use crate::commands::daemon_recycle::{DaemonRecycleHooks, DaemonStopBatch, RunningDaemon};
     use crate::commands::mcp_inventory::{ProcessMode, ProcessSignalSink};
 
     use super::{DaemonMode, refresh_daemon};
@@ -629,7 +639,7 @@ mod tests {
 
     struct RecordingHooks {
         running: Option<RunningDaemon>,
-        stop_pid: Option<u32>,
+        stop_pids: Vec<u32>,
         start_after: Result<String, String>,
         calls: RefCell<Vec<RecycleCall>>,
     }
@@ -640,7 +650,7 @@ mod tests {
                 running: Some(RunningDaemon {
                     version: "0.5.1-beta".into(),
                 }),
-                stop_pid: Some(4242),
+                stop_pids: vec![4242],
                 start_after: Ok("0.9.2-beta".into()),
                 calls: RefCell::new(Vec::new()),
             }
@@ -651,7 +661,7 @@ mod tests {
                 running: Some(RunningDaemon {
                     version: "0.9.2-beta".into(),
                 }),
-                stop_pid: Some(4242),
+                stop_pids: vec![4242],
                 start_after: Ok("0.9.2-beta".into()),
                 calls: RefCell::new(Vec::new()),
             }
@@ -667,9 +677,12 @@ mod tests {
             self.running.clone()
         }
 
-        fn stop_daemon(&self) -> Result<Option<u32>, String> {
+        fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
             self.calls.borrow_mut().push(RecycleCall::Stop);
-            Ok(self.stop_pid)
+            Ok(DaemonStopBatch {
+                signalled_pids: self.stop_pids.clone(),
+                candidate_errors: Vec::new(),
+            })
         }
 
         fn wait_for_pid_exit(&self, pid: u32) -> Result<(), String> {

@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                       |
-| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-30 for SDT-004's construction-time secret-pattern warm and dual-path Unix client rendezvous; prior 2026-08-29 graph-cache link; lanes, transport, admission, egress, save-time, peer-admission topology, and diagrams otherwise unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                   |
+| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for live-probed dual-path Unix rendezvous, watch reconnect, and locked daemon lifecycle repair; transport, admission, egress, save-time, peer-admission topology, and diagrams otherwise unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -16,20 +16,20 @@ as a dated compatibility and history record.
 
 The local transport boundary differs by platform. On Unix, the daemon relies on
 an owner-only `0700` directory and `0600` socket; it does not compare a Unix
-caller UID after accept. Clients connect to the first candidate whose socket
-file passes an owner-only stat check, among the bind path and the XDG/state-home
-sibling (`ANVIL_HOME` alone when set); that check is metadata only, so a socket
-left behind by an ungracefully killed daemon is not distinguished from a live
-one until the connect itself fails. Dual-path is a client rendezvous, not a
-second listener, and it covers the intercept socket and PID file only — the
-save-time driver registry, the watch driver log, the graph cache, and egress
-consent remain single-path. Unix clients validate the connected daemon UID
-before sending proposed content, while the Linux listener also obtains the peer
-PID used by optional lineage checks. Windows uses an owner-only named-pipe DACL
-and the server explicitly compares the connected peer's SID with the pipe
-owner's SID. Save-time `validate_paths` requests then pass workspace admission
-before guarded reads and validation. `scan_buffer` is the caller-buffer lane for
-both MidEdit and PreWrite requests and has a separate, platform-dependent
+caller UID after accept. Clients connect to the first candidate that passes the
+owner-only metadata gate, accepts a connection, and presents a same-user peer,
+among the bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when
+set). A missing or connection-refused candidate may fall through; unsafe
+canonical metadata remains fatal. Dual-path is a client rendezvous, not a second
+listener, and it covers the intercept socket and PID file only — the save-time
+driver registry, the watch driver log, the graph cache, and egress consent
+remain single-path. Unix clients validate the connected daemon UID before
+sending proposed content, while the Linux listener also obtains the peer PID
+used by optional lineage checks. Windows uses an owner-only named-pipe DACL and
+the server explicitly compares the connected peer's SID with the pipe owner's
+SID. Save-time `validate_paths` requests then pass workspace admission before
+guarded reads and validation. `scan_buffer` is the caller-buffer lane for both
+MidEdit and PreWrite requests and has a separate, platform-dependent
 cross-check. A fence is a separate durable safety state triggered by spoof
 detection, an interrupt that cannot safely complete, or an unattributed or
 unregistered change. Cascade engages only after repeated fence events; degraded
@@ -163,6 +163,13 @@ owns their cross-component client and capability relationship.
 - Unix IPC relies on its owner-only `0700` directory and `0600` socket to limit
   access. The daemon does not perform a server-side Unix caller-UID comparison;
   clients instead validate the connected daemon UID before sending content.
+- Long-lived Unix watch clients retain the ordered candidate set and repeat the
+  live-listener selection on every connection, including after fallback, so a
+  daemon relocation does not pin the process to an obsolete endpoint.
+- Doctor socket cleanup holds the per-install start lock across stop and then
+  the PID lock across the final liveness probe and unlink. A live or rebound
+  socket is never removed. Version recycle waits every signalled candidate PID
+  and refuses restart if any candidate stop result is unsafe.
 - Windows IPC uses an owner-only pipe DACL and the server compares the connected
   peer SID with the pipe-owner SID before dispatch.
 - The production `scan_buffer` session-ownership and environment-tag spoof

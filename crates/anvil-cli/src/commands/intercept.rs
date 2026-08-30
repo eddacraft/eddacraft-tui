@@ -132,6 +132,53 @@ pub fn run(args: &InterceptArgs, global: &GlobalArgs) -> Result<()> {
 /// signalling/termination and PID-file semantics) and renders the outcome.
 /// Idempotent: a missing or stale PID file exits zero with an
 /// informational line, matching the `unblock` no-op convention.
+#[cfg(unix)]
+#[derive(Debug)]
+struct CandidateRegistrationSnapshot {
+    runtime_dir: PathBuf,
+    registered: Option<Vec<PathBuf>>,
+}
+
+#[cfg(unix)]
+fn snapshot_candidate_registrations() -> Vec<CandidateRegistrationSnapshot> {
+    anvil_intercept::ipc::resolve_socket_connect_candidates()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|socket_path| {
+            let runtime_dir = socket_path.parent()?.to_path_buf();
+            let registered = query_daemon_status_at(&socket_path)
+                .ok()
+                .map(|status| status.registered_worktrees());
+            Some(CandidateRegistrationSnapshot {
+                runtime_dir,
+                registered,
+            })
+        })
+        .collect()
+}
+
+#[cfg(unix)]
+fn stopped_registration_impact(
+    snapshots: &[CandidateRegistrationSnapshot],
+    reports: &[anvil_intercept::StopReport],
+) -> Option<usize> {
+    let mut worktrees = std::collections::BTreeSet::new();
+    for report in reports {
+        if !matches!(
+            report.outcome,
+            Ok(anvil_intercept::StopOutcome::Signalled { .. })
+        ) {
+            continue;
+        }
+        let runtime_dir = report.pid_file.parent()?;
+        let snapshot = snapshots
+            .iter()
+            .find(|snapshot| snapshot.runtime_dir == runtime_dir)?;
+        worktrees.extend(snapshot.registered.as_ref()?.iter().cloned());
+    }
+    Some(worktrees.len())
+}
+
 #[cfg(any(unix, windows))]
 fn run_stop(json_mode: bool) -> Result<()> {
     use anvil_intercept::StopOutcome;
@@ -139,7 +186,12 @@ fn run_stop(json_mode: bool) -> Result<()> {
     // ACTMO-017: best-effort query the registered set BEFORE stopping, so we
     // can warn how many worktrees are about to lose protection. A daemon that
     // is already down (or unreachable) reports nothing, which is correct.
-    let registered = query_daemon_status().map_or(0, |status| status.registered_worktrees().len());
+    #[cfg(unix)]
+    let registration_snapshots = snapshot_candidate_registrations();
+    #[cfg(windows)]
+    let registered = query_daemon_status()
+        .ok()
+        .map(|status| status.registered_worktrees().len());
 
     // On Unix the stop spans both PID-file candidates. Summarise to the
     // canonical outcome for the existing surfaces, but keep every report so a
@@ -151,6 +203,8 @@ fn run_stop(json_mode: bool) -> Result<()> {
     let outcome = anvil_intercept::summarise_stop_reports(&reports);
     #[cfg(not(unix))]
     let outcome = anvil_intercept::request_daemon_stop()?;
+    #[cfg(unix)]
+    let registered = stopped_registration_impact(&registration_snapshots, &reports);
     if json_mode {
         // Issue #3947: one document per outcome; the lose-protection
         // warning rides as a count field.
@@ -163,18 +217,27 @@ fn run_stop(json_mode: bool) -> Result<()> {
             "outcome": label,
             "pid": pid,
             "registered_losing_protection":
-                matches!(outcome, StopOutcome::Signalled { .. }).then_some(registered),
+                if matches!(outcome, StopOutcome::Signalled { .. }) {
+                    registered
+                } else {
+                    None
+                },
         }))?;
         return Ok(());
     }
     match outcome {
         StopOutcome::Signalled { pid } => {
             println!("{}", stop_success_line(pid));
-            if registered > 0 {
-                println!(
+            match registered {
+                Some(registered) if registered > 0 => println!(
                     "  {registered} worktree(s) registered will lose protection — \
                      re-register with `anvil workspace register` or run `anvil start`.",
-                );
+                ),
+                None => println!(
+                    "  registration impact is unknown for one or more stopped daemons — \
+                     run `anvil start` and re-register affected worktrees.",
+                ),
+                Some(_) => {}
             }
         }
         StopOutcome::NotRunning => {
@@ -1843,6 +1906,61 @@ mod tests {
             telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stopped_registration_impact_deduplicates_across_daemons() {
+        use anvil_intercept::{StopOutcome, StopReport};
+
+        let runtime = PathBuf::from("/runtime/anvil");
+        let state = PathBuf::from("/home/me/.local/state/anvil");
+        let snapshots = vec![
+            CandidateRegistrationSnapshot {
+                runtime_dir: runtime.clone(),
+                registered: Some(vec![
+                    PathBuf::from("/work/a"),
+                    PathBuf::from("/work/shared"),
+                ]),
+            },
+            CandidateRegistrationSnapshot {
+                runtime_dir: state.clone(),
+                registered: Some(vec![
+                    PathBuf::from("/work/shared"),
+                    PathBuf::from("/work/b"),
+                ]),
+            },
+        ];
+        let reports = vec![
+            StopReport {
+                pid_file: runtime.join("intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 100 }),
+            },
+            StopReport {
+                pid_file: state.join("intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 200 }),
+            },
+        ];
+
+        assert_eq!(stopped_registration_impact(&snapshots, &reports), Some(3));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stopped_registration_impact_is_unknown_for_an_unqueried_stopped_daemon() {
+        use anvil_intercept::{StopOutcome, StopReport};
+
+        let runtime = PathBuf::from("/runtime/anvil");
+        let snapshots = vec![CandidateRegistrationSnapshot {
+            runtime_dir: runtime.clone(),
+            registered: None,
+        }];
+        let reports = vec![StopReport {
+            pid_file: runtime.join("intercept.pid"),
+            outcome: Ok(StopOutcome::Signalled { pid: 100 }),
+        }];
+
+        assert_eq!(stopped_registration_impact(&snapshots, &reports), None);
     }
 
     /// **Contract pin (demo runbook §1.5):** with traffic the line

@@ -84,6 +84,15 @@ engineering maintenance are recorded in the
   starts one at this process's canonical socket. `ANVIL_HOME` prefixes stay
   exclusive. Socket paths that are symlinks are still refused.
 
+- **Unix daemon rendezvous now follows live listeners through their full
+  lifecycle.** Stale socket inodes no longer hide a live sibling daemon, and a
+  long-running `anvil watch` re-resolves the candidate paths after fallback or
+  daemon relocation. Doctor holds the start and PID locks before removing a
+  proven-stale socket. Version recycling waits every daemon it signalled and
+  refuses a partial stop; `anvil intercept stop` reports the deduplicated
+  worktrees losing protection across all stopped daemons, or says the impact is
+  unknown when it cannot query one safely.
+
 - **`anvil policy eval-regression` detects rules that go silent on frozen
   fixtures.** A finding that appears or disappears now reports that the fixture
   output changed, rather than calling a disappearing finding an improvement.

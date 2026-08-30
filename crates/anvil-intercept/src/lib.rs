@@ -937,6 +937,18 @@ fn acquire_pid_file_lock(path: &Path) -> Result<File> {
     Ok(lock)
 }
 
+/// Hold the daemon PID lock after a stop has completed. Callers may then inspect
+/// or remove stale endpoint state without racing a foreground daemon bind.
+///
+/// # Errors
+///
+/// Returns an error when the lock file cannot be opened or another daemon
+/// lifecycle already holds the lock.
+#[cfg(unix)]
+pub fn acquire_stopped_daemon_pid_lock(path: &Path) -> Result<File> {
+    acquire_pid_file_lock(path)
+}
+
 impl Drop for PidFileGuard {
     fn drop(&mut self) {
         if !self.identity.matches_path(&self.path) {

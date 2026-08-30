@@ -1070,6 +1070,14 @@ fn save_time_client_applies(
         && !no_daemon
 }
 
+fn save_time_transport_is_retained(
+    mode: crate::commands::watch_save_time::DaemonRoutingMode,
+    initial_status_available: bool,
+) -> bool {
+    mode == crate::commands::watch_save_time::DaemonRoutingMode::ForcedOn
+        || initial_status_available
+}
+
 #[cfg(unix)]
 fn build_save_time_client(
     action: &str,
@@ -1085,9 +1093,9 @@ fn build_save_time_client(
         return None;
     }
     let transport = SocketSaveTimeTransport::resolve()?;
-    if mode == DaemonRoutingMode::DefaultOnWhenLive
-        && transport.workspace_status(workspace_root).is_err()
-    {
+    let initial_status_available =
+        mode == DaemonRoutingMode::ForcedOn || transport.workspace_status(workspace_root).is_ok();
+    if !save_time_transport_is_retained(mode, initial_status_available) {
         return None;
     }
     Some(std::sync::Mutex::new(WatchSaveTimeClient::new(
@@ -1111,9 +1119,9 @@ fn build_save_time_client(
         return None;
     }
     let transport = WindowsPipeSaveTimeTransport::resolve()?;
-    if mode == DaemonRoutingMode::DefaultOnWhenLive
-        && transport.workspace_status(workspace_root).is_err()
-    {
+    let initial_status_available =
+        mode == DaemonRoutingMode::ForcedOn || transport.workspace_status(workspace_root).is_ok();
+    if !save_time_transport_is_retained(mode, initial_status_available) {
         return None;
     }
     Some(std::sync::Mutex::new(WatchSaveTimeClient::new(
@@ -2387,6 +2395,20 @@ mod tests {
             "check",
             DaemonRoutingMode::ForcedOn,
             true,
+        ));
+    }
+
+    #[test]
+    fn forced_on_keeps_save_time_transport_when_daemon_is_initially_absent() {
+        use crate::commands::watch_save_time::DaemonRoutingMode;
+
+        assert!(save_time_transport_is_retained(
+            DaemonRoutingMode::ForcedOn,
+            false,
+        ));
+        assert!(!save_time_transport_is_retained(
+            DaemonRoutingMode::DefaultOnWhenLive,
+            false,
         ));
     }
 

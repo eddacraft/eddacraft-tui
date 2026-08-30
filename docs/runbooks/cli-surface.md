@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-31 CONF-011 Council repair review of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed intercept-socket-rendezvous canonical versus sibling wording against `crates/anvil-cli/src/commands/doctor.rs`. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -326,7 +326,9 @@ drifted owned entries and poke live children) unless MCP heal is pinned. The
 `$HOME/.local/state/anvil/intercept.sock`) is missing but a sibling under the
 other prefix is live; `--fix` stops that sibling daemon and starts one at the
 canonical socket. It does not follow socket symlinks and does not cross an
-`ANVIL_HOME` prefix.
+`ANVIL_HOME` prefix. Cleanup holds the daemon start and PID locks and re-probes
+before unlinking, so a live or concurrently rebound socket blocks the fix
+instead of being removed.
 
 **Synopsis:** `anvil doctor [--fix]`
 
@@ -961,12 +963,12 @@ the local intercept daemon that enables pre-write MCP validation.
 
 **Subcommands:**
 
-| Subcommand | Description                                                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `start`    | Start the intercept daemon in the foreground. `--foreground` is required.                                                                                         |
-| `status`   | Print the daemon's status snapshot (socket path used, sessions, fences, latency).                                                                                 |
-| `unblock`  | Clear fence state from the daemon.                                                                                                                                |
-| `stop`     | Stop the per-user daemon recorded in the daemon PID file (and the XDG/state-home sibling PID file when `ANVIL_HOME` is unset); idempotent when no daemon is live. |
+| Subcommand | Description                                                                                                                                                                                                                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start`    | Start the intercept daemon in the foreground. `--foreground` is required.                                                                                                                                                                                                                 |
+| `status`   | Print the daemon's status snapshot (socket path used, sessions, fences, latency).                                                                                                                                                                                                         |
+| `unblock`  | Clear fence state from the daemon.                                                                                                                                                                                                                                                        |
+| `stop`     | Stop every per-user daemon recorded in the XDG/state-home PID candidates (`ANVIL_HOME` stays exclusive); idempotent when none is live. Reports the deduplicated registered-worktree impact across stopped daemons, or reports it as unknown when any stopped daemon could not be queried. |
 
 **When to use (`start`):** To start the intercept daemon in this terminal.
 `--foreground` is required; use `anvil start` or `anvil watch` when you want the
@@ -1590,7 +1592,10 @@ $ anvil gate-config --disable antipattern-scan
 **Class:** User-explicit **Purpose:** Watch files and report save-time findings
 after the baseline scan. **When to use:** During active development as a
 real-time save-time feedback loop. Falls back gracefully when MCP pre-write
-validation is not available.
+validation is not available. Unix save-time requests re-resolve the live socket
+candidate each time, so watch reconnects after a daemon moves between the
+XDG/state-home paths. Explicit `ANVIL_WATCH_DAEMON=1` retains the client even
+when no daemon is present initially, allowing a later daemon start to reconnect.
 
 **Synopsis:**
 `anvil watch [--file <path>] [--action <action>] [--plans] [--source] [--all] [--patterns <globs>] [--exclude <globs>] [--debounce <ms>]`

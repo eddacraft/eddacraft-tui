@@ -387,6 +387,19 @@ fn acquire_ensure_lock(lock_path: &Path) -> io::Result<std::fs::File> {
     Ok(file)
 }
 
+/// Hold the per-install daemon-start lock while an operator repairs endpoint
+/// state. This serialises cleanup with every background start path.
+///
+/// # Errors
+///
+/// Returns an I/O error when the owner-only runtime directory or advisory lock
+/// cannot be opened or locked.
+#[cfg(unix)]
+pub fn acquire_daemon_start_lock_for_pid_file(pid_path: &Path) -> io::Result<std::fs::File> {
+    let runtime_dir = pid_path.parent().unwrap_or_else(|| Path::new("."));
+    acquire_ensure_lock(&runtime_dir.join("intercept.ensure.lock"))
+}
+
 // ---------------------------------------------------------------------------
 // Real Unix probe + launcher
 // ---------------------------------------------------------------------------

@@ -698,15 +698,15 @@ pub fn resolve_pid_file_connect_candidates() -> Result<Vec<PathBuf>, IpcError> {
         .collect())
 }
 
-/// First candidate whose metadata is an owner-only intercept socket.
+/// First candidate that accepts an owner-only intercept connection.
 ///
-/// Canonical (index 0) errors other than `NotFound` are fatal — a
-/// planted symlink at the expected path must not fall through to a
-/// sibling. Missing canonical may fall through. Sibling symlinks are
-/// skipped.
+/// Canonical (index 0) errors other than endpoint absence
+/// (`NotFound`/`ConnectionRefused`) are fatal — a planted symlink at the
+/// expected path must not fall through to a sibling. An absent canonical may
+/// fall through. Sibling symlinks are skipped.
 #[cfg(unix)]
 pub fn select_live_socket_path(candidates: &[PathBuf]) -> Result<PathBuf, IpcError> {
-    select_live_socket_path_with(candidates, validate_socket_path_for_client)
+    select_live_socket_path_with(candidates, probe_socket_path_for_client)
 }
 
 #[cfg(unix)]
@@ -717,18 +717,18 @@ fn select_live_socket_path_with(
     if candidates.is_empty() {
         return Err(IpcError::NoSocketDirCandidate);
     }
-    let mut last_not_found: Option<IpcError> = None;
+    let mut last_absent: Option<IpcError> = None;
     for (index, path) in candidates.iter().enumerate() {
         match validate(path) {
             Ok(()) => return Ok(path.clone()),
-            Err(err) if ipc_error_is_not_found(&err) => {
-                last_not_found = Some(err);
+            Err(err) if ipc_error_is_absent_endpoint(&err) => {
+                last_absent = Some(err);
             }
             Err(err) if index == 0 => return Err(err),
             Err(_) => {}
         }
     }
-    Err(last_not_found.unwrap_or_else(|| {
+    Err(last_absent.unwrap_or_else(|| {
         IpcError::Io(io::Error::new(
             io::ErrorKind::NotFound,
             "no intercept daemon socket among connect candidates",
@@ -737,17 +737,38 @@ fn select_live_socket_path_with(
 }
 
 #[cfg(unix)]
-fn ipc_error_is_not_found(err: &IpcError) -> bool {
-    matches!(err, IpcError::Io(io) if io.kind() == io::ErrorKind::NotFound)
+fn ipc_error_is_absent_endpoint(err: &IpcError) -> bool {
+    matches!(
+        err,
+        IpcError::Io(io)
+            if matches!(
+                io.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
+            )
+    )
 }
 
-/// True when a live-socket probe found no daemon (missing socket or no
-/// directory candidate). Canonical symlink / mode failures return false
-/// so callers fail closed instead of treating a planted inode as absent.
+/// True when a live-socket probe found no daemon (missing/refused socket or no
+/// directory candidate). Canonical symlink / mode failures return false so
+/// callers fail closed instead of treating a planted inode as absent.
 #[cfg(unix)]
 #[must_use]
 pub fn live_socket_absent(err: &IpcError) -> bool {
-    ipc_error_is_not_found(err) || matches!(err, IpcError::NoSocketDirCandidate)
+    ipc_error_is_absent_endpoint(err) || matches!(err, IpcError::NoSocketDirCandidate)
+}
+
+/// Validate a socket path and prove that a same-user listener currently accepts
+/// connections. A stale socket inode therefore cannot win candidate selection.
+///
+/// # Errors
+///
+/// Returns an IPC trust error for unsafe metadata or peer credentials, and an
+/// I/O error when the endpoint is absent, stale, or cannot be connected.
+#[cfg(unix)]
+pub fn probe_socket_path_for_client(path: &Path) -> Result<(), IpcError> {
+    validate_socket_path_for_client(path)?;
+    let stream = std::os::unix::net::UnixStream::connect(path)?;
+    validate_connected_peer_for_client(&stream)
 }
 
 /// Validate the client side of the Unix daemon rendezvous before a peer
@@ -9206,6 +9227,25 @@ mod tests {
             }
         })
         .expect("sibling");
+        assert_eq!(chosen, sibling);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn select_live_falls_through_refused_canonical_to_sibling() {
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
+        let chosen = select_live_socket_path_with(&[canonical, sibling.clone()], |path| {
+            if path.ends_with("state/anvil/intercept.sock") {
+                Ok(())
+            } else {
+                Err(IpcError::Io(io::Error::new(
+                    io::ErrorKind::ConnectionRefused,
+                    "stale socket",
+                )))
+            }
+        })
+        .expect("live sibling");
         assert_eq!(chosen, sibling);
     }
 

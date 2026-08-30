@@ -2168,6 +2168,7 @@ mod tests {
             [
                 ("ANVIL_HOME", None::<&str>),
                 ("XDG_RUNTIME_DIR", Some(runtime.path().to_str().unwrap())),
+                ("HOME", Some(runtime.path().to_str().unwrap())),
             ],
             || {
                 let mut sup = SuppressionLog::new();

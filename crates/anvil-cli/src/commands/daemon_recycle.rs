@@ -20,6 +20,13 @@ pub(crate) struct RunningDaemon {
     pub version: String,
 }
 
+/// Complete result of stopping every per-user daemon candidate.
+#[derive(Debug, Default)]
+pub(crate) struct DaemonStopBatch {
+    pub(crate) signalled_pids: Vec<u32>,
+    pub(crate) candidate_errors: Vec<String>,
+}
+
 /// Successful stop → wait → start recycle, with versions for operator report.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DaemonRecycleReport {
@@ -68,7 +75,7 @@ impl SaveTimeDaemonOutcome {
 /// Injected probe + lifecycle so recycle is unit-testable without a real daemon.
 pub(crate) trait DaemonRecycleHooks {
     fn running_daemon(&self) -> Option<RunningDaemon>;
-    fn stop_daemon(&self) -> Result<Option<u32>, String>;
+    fn stop_daemon(&self) -> Result<DaemonStopBatch, String>;
     fn wait_for_pid_exit(&self, pid: u32) -> Result<(), String>;
     fn start_current_binary(&self) -> Result<String, String>;
 }
@@ -92,9 +99,8 @@ pub(crate) fn recycle_daemon_if_version_skew(
     }
 
     let before = running.version;
-    let pid = match hooks.stop_daemon() {
-        Ok(Some(pid)) => pid,
-        Ok(None) => {
+    let stop = match hooks.stop_daemon() {
+        Ok(stop) if stop.signalled_pids.is_empty() && stop.candidate_errors.is_empty() => {
             // Race: the daemon can exit between the version probe and stop.
             // Re-probe; if it is gone, fall through to ordinary ensure.
             return if hooks.running_daemon().is_none() {
@@ -108,6 +114,7 @@ pub(crate) fn recycle_daemon_if_version_skew(
                 }
             };
         }
+        Ok(stop) => stop,
         Err(recovery) => {
             return DaemonRecycleOutcome::Failed {
                 before: Some(before),
@@ -116,10 +123,20 @@ pub(crate) fn recycle_daemon_if_version_skew(
         }
     };
 
-    if let Err(recovery) = hooks.wait_for_pid_exit(pid) {
+    let mut stop_failures = Vec::new();
+    for pid in stop.signalled_pids {
+        if let Err(recovery) = hooks.wait_for_pid_exit(pid) {
+            stop_failures.push(recovery);
+        }
+    }
+    stop_failures.extend(stop.candidate_errors);
+    if !stop_failures.is_empty() {
         return DaemonRecycleOutcome::Failed {
             before: Some(before),
-            recovery,
+            recovery: format!(
+                "could not safely stop every daemon candidate: {}",
+                stop_failures.join("; ")
+            ),
         };
     }
 
@@ -179,13 +196,39 @@ impl DaemonRecycleHooks for LiveDaemonRecycleHooks {
         })
     }
 
-    fn stop_daemon(&self) -> Result<Option<u32>, String> {
+    fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
         use anvil_intercept::StopOutcome;
 
-        match anvil_intercept::request_daemon_stop() {
-            Ok(StopOutcome::Signalled { pid } | StopOutcome::StaleCleared { pid }) => Ok(Some(pid)),
-            Ok(StopOutcome::NotRunning) => Ok(None),
-            Err(err) => Err(format!("{err:#}")),
+        #[cfg(unix)]
+        {
+            let reports =
+                anvil_intercept::request_daemon_stop_all().map_err(|err| format!("{err:#}"))?;
+            let mut pids = Vec::new();
+            let mut errors = Vec::new();
+            for report in reports {
+                match report.outcome {
+                    Ok(StopOutcome::Signalled { pid }) => pids.push(pid),
+                    Ok(StopOutcome::StaleCleared { .. } | StopOutcome::NotRunning) => {}
+                    Err(err) => errors.push(format!("{}: {err}", report.pid_file.display())),
+                }
+            }
+            Ok(DaemonStopBatch {
+                signalled_pids: pids,
+                candidate_errors: errors,
+            })
+        }
+        #[cfg(windows)]
+        {
+            match anvil_intercept::request_daemon_stop() {
+                Ok(StopOutcome::Signalled { pid }) => Ok(DaemonStopBatch {
+                    signalled_pids: vec![pid],
+                    candidate_errors: Vec::new(),
+                }),
+                Ok(StopOutcome::StaleCleared { .. } | StopOutcome::NotRunning) => {
+                    Ok(DaemonStopBatch::default())
+                }
+                Err(err) => Err(format!("{err:#}")),
+            }
         }
     }
 
@@ -250,8 +293,9 @@ mod tests {
 
     struct RecordingHooks {
         running: Option<RunningDaemon>,
-        stop_pid: Option<u32>,
+        stop_pids: Vec<u32>,
         stop_err: Option<String>,
+        stop_candidate_errors: Vec<String>,
         wait_ok: bool,
         gone_after_stop: bool,
         start_after: Result<String, String>,
@@ -262,8 +306,9 @@ mod tests {
         fn default() -> Self {
             Self {
                 running: None,
-                stop_pid: None,
+                stop_pids: Vec::new(),
                 stop_err: None,
+                stop_candidate_errors: Vec::new(),
                 wait_ok: false,
                 gone_after_stop: false,
                 start_after: Err("start not configured".into()),
@@ -278,7 +323,7 @@ mod tests {
                 running: Some(RunningDaemon {
                     version: "0.5.1-beta".into(),
                 }),
-                stop_pid: Some(4242),
+                stop_pids: vec![4242],
                 wait_ok: true,
                 start_after: Ok("0.9.2-beta".into()),
                 ..Self::default()
@@ -307,12 +352,15 @@ mod tests {
             self.running.clone()
         }
 
-        fn stop_daemon(&self) -> Result<Option<u32>, String> {
+        fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
             self.calls.borrow_mut().push(RecycleCall::Stop);
             if let Some(err) = &self.stop_err {
                 return Err(err.clone());
             }
-            Ok(self.stop_pid)
+            Ok(DaemonStopBatch {
+                signalled_pids: self.stop_pids.clone(),
+                candidate_errors: self.stop_candidate_errors.clone(),
+            })
         }
 
         fn wait_for_pid_exit(&self, pid: u32) -> Result<(), String> {
@@ -352,6 +400,37 @@ mod tests {
     }
 
     #[test]
+    fn recycle_waits_for_every_signalled_daemon_before_restart() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.stop_pids = vec![4242, 4343];
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(matches!(outcome, DaemonRecycleOutcome::Recycled { .. }));
+        assert_eq!(
+            hooks.calls(),
+            vec![
+                RecycleCall::Stop,
+                RecycleCall::Wait(4242),
+                RecycleCall::Wait(4343),
+                RecycleCall::Start,
+            ],
+        );
+    }
+
+    #[test]
+    fn recycle_waits_for_signalled_daemons_then_rejects_a_candidate_stop_error() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.stop_pids = vec![4242];
+        hooks.stop_candidate_errors = vec!["sibling PID was unproven".into()];
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(matches!(outcome, DaemonRecycleOutcome::Failed { .. }));
+        assert_eq!(
+            hooks.calls(),
+            vec![RecycleCall::Stop, RecycleCall::Wait(4242)],
+            "every delivered signal must be reaped, but a partial stop must never restart",
+        );
+    }
+
+    #[test]
     fn matching_versions_skip_recycle() {
         let hooks = RecordingHooks::matching();
         let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
@@ -379,7 +458,7 @@ mod tests {
     #[test]
     fn stop_none_when_daemon_already_gone_is_not_running() {
         let mut hooks = RecordingHooks::skewed();
-        hooks.stop_pid = None;
+        hooks.stop_pids.clear();
         hooks.gone_after_stop = true;
         let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
         assert_eq!(outcome, DaemonRecycleOutcome::NotRunning);
@@ -389,7 +468,7 @@ mod tests {
     #[test]
     fn stop_none_while_daemon_still_visible_fails() {
         let mut hooks = RecordingHooks::skewed();
-        hooks.stop_pid = None;
+        hooks.stop_pids.clear();
         let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
         assert!(
             matches!(outcome, DaemonRecycleOutcome::Failed { .. }),
@@ -429,6 +508,23 @@ mod tests {
         assert_eq!(
             hooks.calls(),
             vec![RecycleCall::Stop, RecycleCall::Wait(4242)]
+        );
+    }
+
+    #[test]
+    fn recycle_attempts_every_pid_wait_when_one_daemon_sticks() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.stop_pids = vec![4242, 4343];
+        hooks.wait_ok = false;
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(matches!(outcome, DaemonRecycleOutcome::Failed { .. }));
+        assert_eq!(
+            hooks.calls(),
+            vec![
+                RecycleCall::Stop,
+                RecycleCall::Wait(4242),
+                RecycleCall::Wait(4343),
+            ],
         );
     }
 

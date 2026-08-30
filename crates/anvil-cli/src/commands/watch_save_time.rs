@@ -650,33 +650,53 @@ mod socket {
     const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
     /// Production [`SaveTimeTransport`]: JSON-RPC over the per-user Unix socket.
+    #[derive(Clone)]
     pub(crate) struct SocketSaveTimeTransport {
-        socket_path: PathBuf,
+        socket_candidates: Vec<PathBuf>,
     }
 
     impl SocketSaveTimeTransport {
-        /// Resolve the canonical per-user socket. `None` when no socket dir can
-        /// be resolved (treated by the caller as a permanently-absent daemon).
+        /// Resolve every per-user socket candidate. Endpoint liveness is checked
+        /// on each request so a long-lived watch can follow daemon relocation.
         pub(crate) fn resolve() -> Option<Self> {
-            ipc::resolve_live_socket_path()
-                .ok()
-                .map(|socket_path| Self { socket_path })
+            let socket_candidates = ipc::resolve_socket_connect_candidates().ok()?;
+            (!socket_candidates.is_empty()).then_some(Self { socket_candidates })
         }
 
         #[cfg(test)]
         pub(crate) fn with_socket_path(socket_path: impl Into<PathBuf>) -> Self {
             Self {
-                socket_path: socket_path.into(),
+                socket_candidates: vec![socket_path.into()],
             }
+        }
+
+        #[cfg(test)]
+        pub(crate) fn with_socket_candidates(
+            socket_candidates: impl IntoIterator<Item = PathBuf>,
+        ) -> Self {
+            Self {
+                socket_candidates: socket_candidates.into_iter().collect(),
+            }
+        }
+
+        fn live_socket_path(&self) -> Result<PathBuf, SaveTimeClientError> {
+            ipc::select_live_socket_path(&self.socket_candidates)
+                .map_err(|_| SaveTimeClientError::Unavailable)
+        }
+
+        #[cfg(test)]
+        pub(crate) fn live_socket_path_for_test(&self) -> Option<PathBuf> {
+            self.live_socket_path().ok()
         }
 
         /// Open a validated, peer-checked, timeout-bounded connection. Any
         /// failure maps to `Unavailable` (absent / dead daemon → fallback).
         fn connect(&self) -> Result<UnixStream, SaveTimeClientError> {
-            ipc::validate_socket_path_for_client(&self.socket_path)
+            let socket_path = self.live_socket_path()?;
+            ipc::validate_socket_path_for_client(&socket_path)
                 .map_err(|_| SaveTimeClientError::Unavailable)?;
-            let stream = UnixStream::connect(&self.socket_path)
-                .map_err(|_| SaveTimeClientError::Unavailable)?;
+            let stream =
+                UnixStream::connect(&socket_path).map_err(|_| SaveTimeClientError::Unavailable)?;
             ipc::validate_connected_peer_for_client(&stream)
                 .map_err(|_| SaveTimeClientError::Unavailable)?;
             stream
@@ -729,9 +749,8 @@ mod socket {
             let Ok(params) = serde_json::to_value(&request) else {
                 return Ok(());
             };
-            let socket_path = self.socket_path.clone();
+            let transport = self.clone();
             std::thread::spawn(move || {
-                let transport = SocketSaveTimeTransport { socket_path };
                 let _ = transport.round_trip(
                     ANVIL_REQUEST_FULL_SCAN,
                     framing::FULL_SCAN_REQUEST_ID,
@@ -1671,6 +1690,48 @@ mod tests {
             Err(SaveTimeClientError::Unavailable),
             "a daemon that does not serve save-time must degrade to the scoped fallback",
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn socket_transport_re_resolves_candidates_after_daemon_relocation() {
+        use std::os::unix::fs::PermissionsExt;
+
+        use super::SocketSaveTimeTransport;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let canonical_dir = dir.path().join("runtime");
+        let sibling_dir = dir.path().join("state");
+        for candidate_dir in [&canonical_dir, &sibling_dir] {
+            std::fs::create_dir(candidate_dir).expect("candidate dir");
+            std::fs::set_permissions(candidate_dir, std::fs::Permissions::from_mode(0o700))
+                .expect("0700 candidate dir");
+        }
+        let canonical = canonical_dir.join("intercept.sock");
+        let sibling = sibling_dir.join("intercept.sock");
+        let transport =
+            SocketSaveTimeTransport::with_socket_candidates([canonical.clone(), sibling.clone()]);
+
+        let canonical_listener =
+            std::os::unix::net::UnixListener::bind(&canonical).expect("canonical listener");
+        std::fs::set_permissions(&canonical, std::fs::Permissions::from_mode(0o600))
+            .expect("0600 canonical socket");
+        assert_eq!(
+            transport.live_socket_path_for_test().as_deref(),
+            Some(canonical.as_path()),
+        );
+
+        drop(canonical_listener);
+        let sibling_listener =
+            std::os::unix::net::UnixListener::bind(&sibling).expect("sibling listener");
+        std::fs::set_permissions(&sibling, std::fs::Permissions::from_mode(0o600))
+            .expect("0600 sibling socket");
+        assert_eq!(
+            transport.live_socket_path_for_test().as_deref(),
+            Some(sibling.as_path()),
+            "the same long-lived transport must follow the relocated daemon",
+        );
+        drop(sibling_listener);
     }
 
     #[test]
