@@ -214,7 +214,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-004: Surface background findings without blocking the write
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4252
 - **Intent:** Operators can see AST follow-up findings without a terminal wash
   or a blocked save.
 - **Expected Outcome:** Follow-up findings appear on one existing surface
