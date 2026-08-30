@@ -623,6 +623,33 @@ entropy-adjacent; `generic-api-key` and its family are tier 2 by construction.
     time.
   - The two malformed canaries above mean the committed corpus understates what
     tier 1 detects. Left that way on purpose; see the note.
+  - ~~22 of the 27 vendored rules had no evidence they fire on anything.~~
+    **Closed 2026-08-30** by
+    `crates/anvil-checks/tests/secret_vendored_tier1_coverage.rs`: a well-formed
+    canary per rule, scanned end to end through the real scanner so the
+    false-positive stack is in the path, plus a completeness assertion so a rule
+    added to the tier without a canary fails rather than shipping unproved.
+    **All 27 fire.** The tier shipped with the SDT-002 corpus exercising five of
+    them; the other 22 rested on the converter's structural gates, none of which
+    asks whether a rule detects anything. That failure is silent by
+    construction — a rule that never fires costs no false positives and appears
+    in no report.
+  - **Measured 2026-08-30: 5 of the 27 rules are keyword-gated, not
+    prefix-only.** The three New Relic and two Mailgun rules carry an upstream
+    `[\w.-]{0,50}?(?:newrelic|mailgun)` gate before the credential, so they fire
+    only when the provider name sits within ~50 characters. A well-formed
+    `NRAK-` key on a line with no `newrelic` token falls through to the entropy
+    backstop; a bare Mailgun `key-` falls to the built-in `API Key` rule. This
+    is upstream's design, vendored verbatim as ADR-136 requires, and it bounds
+    what tier 1 delivers: prefix-anchored **and** contextually gated, not
+    prefix-anchored alone. Recorded because the module's own framing of tier 1
+    ("prefix-anchored, the match is the credential") is true of 22 of the 27,
+    not all of them.
+  - **The two malformed canaries are now proved so by measurement, not by
+    counting characters** (2026-08-30). `dop_v1_` + 63 hex fires nothing;
+    + 64 hex fires `digitalocean-pat`. `NRAK-` + 28 falls to entropy; + 27 fires
+    `new-relic-user-api-key`. The rules are correct and the canaries are wrong.
+    Correcting them remains an operator call and would read 15/20 = 75.0%.
   - **`ruleset_version` reaches no CLI JSON surface.** It is on
     `SecretFinding`, in the calibration report header, and pinned in
     `manifest.json`, but `anvil audit --json` flattens findings to its own
@@ -637,7 +664,25 @@ entropy-adjacent; `generic-api-key` and its family are tier 2 by construction.
 
 ### SDT-005: Opt-in live verification (severity by verifiability)
 
-- **Status:** Proposed
+- **Status:** Ready — operator-promoted 2026-08-30. Dependencies SDT-003 and
+  SDT-004 are both Merged, so the licence boundary is a decision (ADR-136,
+  Accepted) and the catalogue is no longer the binding constraint.
+- **Note added on promotion (2026-08-30):** SDT-004 changed what this item is
+  *for*. The false-positive rate did not move — it is still **1/13 = 7.7%**, and
+  the single residual is a Google Drive id caught by entropy, not by a provider
+  rule. So live verification is no longer the "strongest FP lever available"
+  against the current corpus; the vendored tier added detection without adding
+  noise, and there is little provider-rule noise left for verification to
+  suppress. Two things that *did* emerge are better targets:
+  **(a)** 5 of the 27 vendored rules (3 New Relic, 2 Mailgun) are
+  keyword-gated — a well-formed `NRAK-` key with no `newrelic` token within
+  ~50 characters falls through to the entropy backstop, measured 2026-08-30.
+  Verification would rescue exactly that shape, because a bare high-entropy
+  string is where "looks like" is weakest.
+  **(b)** CIB-373's entropy false positives (48 of 50 findings on one file
+  class) are unverifiable by construction — they are generated record ids, not
+  credentials for any provider — so this item cannot help them and should not
+  be sold as if it could. Scope the flag's claim accordingly.
 - **Intent:** Convert "looks like a secret" into "is a secret" for checkable
   providers, as the strongest FP lever available — without making a
   local-first governance tool phone home by default.

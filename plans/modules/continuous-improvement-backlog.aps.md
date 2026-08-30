@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 297/368  |
+| CIB | —     | In Progress | 297/369  |
 
 ## Purpose
 
@@ -11784,6 +11784,59 @@ hang before opening a supervisor ticket.
   fixture change.
 
 ---
+
+### CIB-374: vendored ruleset provenance never reaches a machine-readable surface
+
+- **Status:** Proposed
+- **Priority:** P2 — a shipped field that no consumer can read; the cost is
+  triage time and a refresh nobody can audit, not a wrong verdict
+- **Intent:** SDT-004 added `SecretFinding::ruleset_version` so a reader can
+  tell a vendored detection from a built-in one and knows which catalogue
+  version produced it. The governing work item asked for exactly that:
+  "ruleset version appears in finding provenance". It does — on the Rust type,
+  in the `pnpm secret:calibrate` report header, and pinned in the corpus
+  `manifest.json` as `vendored_ruleset`. It reaches **no CLI surface at all**.
+  `anvil audit --json` flattens findings to its own
+  `{category, file, line, message, severity, fixable}` shape, and
+  `secret_finding_to_json` in `crates/anvil-cli/src/commands/check.rs` does not
+  carry the field either. So an operator reading machine output cannot tell
+  whether a finding came from one of the 21 built-ins or one of the 27 vendored
+  gitleaks rules, and cannot tell which ruleset version to re-check after a
+  refresh. Verified 2026-08-30: `grep -rn ruleset_version crates/anvil-cli/src`
+  returns exactly one hit, a test fixture.
+- **Expected Outcome:** A vendored finding is distinguishable from a built-in
+  one on every machine-readable surface that already carries per-finding
+  provenance. The field is `Option<String>` with
+  `skip_serializing_if = "Option::is_none"`, so built-in findings are
+  byte-identical to today and only vendored findings gain a key — the wire
+  change is additive by construction.
+- **Non-scope / do not:** do not add it to human-readable output as a matter of
+  course. The terminal line is already dense and a rule id plus a ruleset
+  version is triage detail, not scan-time detail; the anvil MCP wall-of-text
+  work established that full detail is an opt-in, and the same judgement applies
+  here. Do not invent a second provenance vocabulary — the value is
+  `VENDORED_RULESET_VERSION` verbatim (`gitleaks@v8.30.1 tier1`), the same
+  string the corpus manifest pins, so a refresh that moves the pin is greppable
+  across report, corpus and output.
+- **Files:** `crates/anvil-cli/src/commands/check.rs` (`secret_finding_to_json`),
+  `crates/anvil-cli/src/commands/audit.rs`, and the SARIF writer if the same
+  pass takes it
+- **Validation:** a vendored finding's JSON carries the ruleset version and a
+  built-in finding's does not; existing JSON-surface contract tests stay green
+  (the field is skipped when `None`, so no snapshot should move);
+  `cargo test -p eddacraft-anvil --no-fail-fast`.
+- **Identified From:** SDT-004 landing review, 2026-08-30. Found while re-dating
+  `docs/runbooks/cli-surface.md`, which the docs-owed gate demanded because
+  SDT-004 touched `crates/anvil-cli/src/commands/`. Checking what had actually
+  changed on the CLI surface — one field in a `mod tests` fixture — is what
+  surfaced that the field reaches no CLI surface at all. Recorded rather than
+  counted as satisfied: the item's acceptance holds at the type and the corpus,
+  not at the CLI.
+- **Coordinates with:** SDT-004 (which added the field), SDT-008 (whose SARIF
+  coverage-blindness is the same surface-blindness class and may share a pass),
+  ADR-136 §5 (the refresh cadence this provenance exists to make auditable)
+- **Confidence:** high — the gap is a grep, the fix is additive, and the
+  serialisation contract already makes it safe
 
 ### CIB-373: entropy flags generated record ids as high-entropy strings
 

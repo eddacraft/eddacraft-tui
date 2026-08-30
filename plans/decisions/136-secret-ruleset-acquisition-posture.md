@@ -72,51 +72,58 @@ boundary.
 ### 1. Vendor the gitleaks ruleset as data; the engine stays Anvil's
 
 SDT-004 vendors the [gitleaks](https://github.com/gitleaks/gitleaks) ruleset,
-which is MIT-licensed, converting each upstream rule into Anvil's existing
-`SecretPatternDef` form. The rules become data compiled into the current
-scanner. No third-party engine, binary, or runtime enters the product.
+which is MIT-licensed, converting each upstream rule into a **repo-owned
+compiled pattern alongside the built-in catalogue** — the same seam
+`SECRET_PATTERNS` uses, so a vendored rule can carry the confidence its
+prefix-anchored shape warrants. The operator-facing `SecretPatternDef` config
+type is deliberately **not** the conversion target and is deliberately **not**
+extended with a confidence field: it is `Serialize`/`Deserialize`, so such a
+field would become a config switch for opting arbitrary `.anvilrc` regexes out
+of the false-positive filters with no provenance behind the claim. The rules
+become data compiled into the current scanner. No third-party engine, binary, or
+runtime enters the product.
 
 Anvil's allowlist and suppression layer applies to vendored rules exactly as it
 does to built-ins. MIT is already on the licence allow-list, so vendoring
 gitleaks rules requires no licence-policy change.
 
-#### Amendment proposed by SDT-004 (2026-08-30) — *Proposed, not yet accepted*
+#### Amendment history — §1 conversion target (Accepted 2026-08-30, operator)
 
-The sentence above naming `SecretPatternDef` as the conversion target is
-**unimplementable for a confidence-bearing tier**, and SDT-004 hit it before
-writing any rule. `SecretPatternDef` is `{ name, pattern }`; it carries no
-confidence, and `compile_custom_patterns` hardcodes `high_confidence: false`
-because "the scanner cannot know whether a hand-written regex is structurally
-unambiguous". Routed through that form, every prefix-anchored vendored rule
-would inherit the fuzzy false-positive stack — the `example`/`test` keyword
-allowlist and `looks_like_code` — which is precisely what defeated textbook
-credentials in issue #1800 and eats camelCase bindings in CIB-363.
+The paragraph above is the amended text. As originally accepted, §1 named
+Anvil's existing `SecretPatternDef` form as the conversion target. SDT-004 hit
+that before writing a single rule and it does not survive contact with a
+confidence-bearing tier.
 
-The proposed replacement wording for the first paragraph of §1:
+`SecretPatternDef` is `{ name, pattern }`; it carries no confidence, and
+`compile_custom_patterns` hardcodes `high_confidence: false` because "the
+scanner cannot know whether a hand-written regex is structurally unambiguous".
+That reasoning is correct *about operator regexes* and false about a vendored,
+prefix-anchored provider rule where the match **is** the credential. Routed
+through `SecretPatternDef`, every tier-1 rule would have inherited the fuzzy
+false-positive stack — the `example`/`test` keyword allowlist and
+`looks_like_code` — which is precisely what defeated textbook credentials in
+issue #1800 and eats camelCase bindings in CIB-363. Tier 1 is entirely
+prefix-anchored, so it would have hit all of it.
 
-> SDT-004 vendors the gitleaks ruleset, which is MIT-licensed, converting each
-> upstream rule into a **repo-owned compiled pattern alongside the built-in
-> catalogue** — the same seam `SECRET_PATTERNS` uses, so a vendored rule can
-> carry the confidence its prefix-anchored shape warrants. The operator-facing
-> `SecretPatternDef` config type is deliberately **not** the conversion target
-> and is deliberately **not** extended with a confidence field: it is
-> `Serialize`/`Deserialize`, so such a field would become a config switch for
-> opting arbitrary `.anvilrc` regexes out of the false-positive filters with no
-> provenance behind the claim. The rules become data compiled into the current
-> scanner. No third-party engine, binary, or runtime enters the product.
+Extending `SecretPatternDef` with a confidence field was considered and rejected
+on a second, independent ground: it is `Serialize`/`Deserialize` and
+operator-facing, so the field becomes a config switch letting any `.anvilrc`
+custom pattern opt itself out of the false-positive filters with no provenance
+behind the claim — a privilege escalation on exactly the boundary issue #1800
+established. The fix is to stop treating vendored rules as operator regexes, not
+to weaken the rule about operator regexes.
 
-Everything else in §1 stands unchanged, including the sentence about the
-allowlist and suppression layer — which the chosen implementation makes true by
-construction rather than by convention, because the vendored rules are appended
-to the single `DEFAULT_COMPILED_PATTERNS` set that every scan surface already
-consults.
+The rest of §1 stands unchanged, including the sentence about the allowlist and
+suppression layer — which the shipped implementation makes true **by
+construction** rather than by convention, because the vendored rules are
+appended to the single `DEFAULT_COMPILED_PATTERNS` set that the file scan, the
+git-history scan, the env-surface scan and the MCP pre-write redactor all
+already consult.
 
-Accepting or rejecting this amendment is an operator decision. It is recorded
-here so the divergence between the accepted text and the shipped code is
-visible in the ADR itself rather than only in the work item. Evidence:
-`plans/modules/secret-detection-truth.aps.md` (SDT-004) and
-`crates/anvil-checks/tests/secret_vendored_tier1.rs`, which demonstrates the
-fuzzy stack eating three tier-1 credential shapes.
+Evidence: `crates/anvil-checks/tests/secret_vendored_tier1.rs` demonstrates the
+fuzzy stack eating three tier-1 credential shapes rather than asserting it, and
+`plans/modules/secret-detection-truth.aps.md` (SDT-004) records the blocker as
+it was found.
 
 ### 2. Engine replacement is rejected
 
