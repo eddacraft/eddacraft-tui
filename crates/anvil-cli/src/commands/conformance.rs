@@ -236,7 +236,8 @@ fn exact_selected_commit_count(failure: &GitNonEvaluation) -> Option<usize> {
         failure.stage,
         "range-aggregation" | "evaluation" | "report-materialisation"
     ) || (failure.stage == "revision-list"
-        && failure.reason == "budget.commits");
+        && failure.reason == "budget.commits")
+        || failure.reason == "budget.run-timeout";
     has_exact_count
         .then(|| failure.budget.as_deref().and_then(|budget| budget.commits))
         .flatten()
@@ -340,10 +341,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 }
             }
         }
-        (Ok(_), Err(git_failure)) => ConformanceCheckReport::not_evaluated_with_git_failure(
-            vec![git_failure.reason.to_owned()],
-            git_failure,
-        ),
+        (Ok(_), Err(git_failure)) => git_failure_report(&[], git_failure),
         (Err(non_evaluation), Ok((identity, extraction))) => {
             let selected_commit_count = extraction.commits.len();
             let git_non_evaluations = pr_git_footprint_non_evaluations(&extraction, &identity);
@@ -362,19 +360,24 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 git_non_evaluations,
             )
         }
-        (Err(non_evaluation), Err(git_failure)) => {
-            let mut reasons: Vec<String> = non_evaluation
-                .iter()
-                .map(|reason| (*reason).to_owned())
-                .collect();
-            reasons.push(git_failure.reason.to_owned());
-            reasons.sort();
-            reasons.dedup();
-            ConformanceCheckReport::not_evaluated_with_git_failure(reasons, git_failure)
-        }
+        (Err(non_evaluation), Err(git_failure)) => git_failure_report(&non_evaluation, git_failure),
     };
 
     render_report(&report, args.render_mode(global), run_started, RUN_TIMEOUT)
+}
+
+fn git_failure_report(
+    declaration_non_evaluations: &[&str],
+    git_failure: GitNonEvaluation,
+) -> ConformanceCheckReport {
+    let mut reasons: Vec<String> = declaration_non_evaluations
+        .iter()
+        .map(|reason| (*reason).to_owned())
+        .collect();
+    reasons.push(git_failure.reason.to_owned());
+    reasons.sort();
+    reasons.dedup();
+    ConformanceCheckReport::not_evaluated_with_git_failure(reasons, git_failure)
 }
 
 fn immediate_pr_body_timeout_report(
@@ -974,7 +977,7 @@ mod tests {
     };
 
     use super::{
-        ConformanceCheckReport, PrBodyInput, RenderMode, build_sarif,
+        ConformanceCheckReport, PrBodyInput, RenderMode, build_sarif, git_failure_report,
         immediate_pr_body_timeout_report, materialise_report_with_limit,
         read_pr_body_task_with_deadline,
     };
@@ -1310,6 +1313,81 @@ mod tests {
         assert_eq!(failure["budget"]["rawBytes"], 4096);
         assert_eq!(failure["budget"]["decodedBytes"], 2048);
         assert!(!json.to_string().contains("must not be reported"));
+    }
+
+    #[test]
+    fn terminal_extraction_timeout_survives_valid_and_invalid_declaration_final_outputs() {
+        for declaration_reasons in [Vec::new(), vec!["claim.pr-body.declaration-invalid"]] {
+            for mode in [RenderMode::Plain, RenderMode::Json, RenderMode::Sarif] {
+                let failure = GitNonEvaluation {
+                    commit_revision: Some("e".repeat(40).into_boxed_str()),
+                    reason: "budget.run-timeout",
+                    stage: "diff-preflight",
+                    observed: 300_001,
+                    limit: Some(300_000),
+                    detail: "must not be reported".into(),
+                    raw_digest: Some("sha256:terminal-extraction".into()),
+                    budget: Some(Box::new(GitBudgetDiagnostics {
+                        configured_limit: 300_000,
+                        elapsed_millis: Some(300_001),
+                        commits: Some(2),
+                        records: Some(7),
+                        rename_sources: None,
+                        rename_targets: None,
+                        raw_bytes: Some(4096),
+                        decoded_bytes: Some(2048),
+                        raw_output_digest: Some("sha256:terminal-extraction".into()),
+                    })),
+                };
+                let report = git_failure_report(&declaration_reasons, failure);
+                let bytes = materialise_report_with_limit(
+                    &report,
+                    mode,
+                    64 * 1024,
+                    Instant::now(),
+                    Duration::ZERO,
+                )
+                .expect("one bounded terminal report");
+                assert_eq!(bytes.last(), Some(&b'\n'));
+                let rendered = String::from_utf8(bytes).expect("UTF-8 final report");
+                assert!(!rendered.contains("stage=report-materialisation"));
+                assert!(!rendered.contains("stage=evaluation"));
+                assert!(!rendered.contains("must not be reported"));
+                if !declaration_reasons.is_empty() {
+                    assert!(rendered.contains("claim.pr-body.declaration-invalid"));
+                }
+
+                match mode {
+                    RenderMode::Plain => {
+                        assert_eq!(rendered.matches("Conformance check:").count(), 1);
+                        assert!(rendered.contains("Not-evaluated commits: 2"));
+                        assert!(rendered.contains("stage=diff-preflight"));
+                        assert!(rendered.contains("raw-digest=sha256:terminal-extraction"));
+                    }
+                    RenderMode::Json => {
+                        let json: serde_json::Value =
+                            serde_json::from_str(&rendered).expect("one complete JSON document");
+                        assert_eq!(json["notEvaluatedCommitCount"], 2);
+                        let failure = &json["gitEvaluationNonEvaluation"];
+                        assert_eq!(failure["stage"], "diff-preflight");
+                        assert_eq!(failure["rawDigest"], "sha256:terminal-extraction");
+                        assert_eq!(failure["budget"]["commits"], 2);
+                        assert_eq!(failure["budget"]["records"], 7);
+                    }
+                    RenderMode::Sarif => {
+                        let sarif: serde_json::Value =
+                            serde_json::from_str(&rendered).expect("one complete SARIF document");
+                        let properties = &sarif["runs"][0]["properties"];
+                        assert_eq!(properties["notEvaluatedCommitCount"], 2);
+                        let failure = &properties["gitEvaluationNonEvaluation"];
+                        assert_eq!(failure["stage"], "diff-preflight");
+                        assert_eq!(failure["rawDigest"], "sha256:terminal-extraction");
+                        assert_eq!(failure["budget"]["commits"], 2);
+                        assert_eq!(failure["budget"]["records"], 7);
+                    }
+                }
+            }
+        }
     }
 
     #[test]

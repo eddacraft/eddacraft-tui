@@ -1467,6 +1467,80 @@ fn scripted_diff_failure_child() {
 
 #[cfg(unix)]
 #[test]
+fn per_commit_run_timeout_is_terminal_with_original_provenance() {
+    let repo = repository();
+    commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");
+    let head = commit_file(repo.path(), "docs/head.md", "head\n", "docs: add head");
+    let wrapper = tempfile::tempdir().expect("wrapper directory");
+    scripted_diff_git_wrapper(wrapper.path(), "preflight-timeout");
+
+    let status = Command::new(std::env::current_exe().expect("current test executable"))
+        .args([
+            "--exact",
+            "per_commit_run_timeout_terminal_child",
+            "--nocapture",
+        ])
+        .env("ANVIL_CONF_TERMINAL_TIMEOUT_REPO", repo.path())
+        .env("ANVIL_CONF_TERMINAL_TIMEOUT_HEAD", head)
+        .env("PATH", wrapper.path())
+        .status()
+        .expect("run isolated terminal-timeout child");
+    assert!(status.success(), "per-commit run timeout was not terminal");
+}
+
+#[cfg(unix)]
+#[test]
+fn per_commit_run_timeout_terminal_child() {
+    let Some(repository) = std::env::var_os("ANVIL_CONF_TERMINAL_TIMEOUT_REPO") else {
+        return;
+    };
+    let expected_head =
+        std::env::var("ANVIL_CONF_TERMINAL_TIMEOUT_HEAD").expect("expected head revision");
+    let extractor = GitExtractor::with_limits(GitExtractionLimits {
+        git_timeout: Duration::from_secs(2),
+        run_timeout: Duration::from_millis(500),
+        ..GitExtractionLimits::default()
+    });
+    let identity = extractor
+        .identity_for_repository(Path::new(&repository), "run-conf-011-terminal-timeout")
+        .expect("identity stage stays within the shared deadline");
+    let outcome = extractor.extract_footprint(
+        Path::new(&repository),
+        GitSelection::Commit("HEAD".to_owned()),
+        &identity,
+    );
+    let GitFootprintExtractionOutcome::NotEvaluated(failure) = outcome else {
+        panic!("per-commit run timeout must escape extraction: {outcome:?}");
+    };
+
+    assert_eq!(failure.reason, "budget.run-timeout");
+    assert_eq!(failure.stage, "diff-preflight");
+    assert_eq!(
+        failure.commit_revision.as_deref(),
+        Some(expected_head.as_str())
+    );
+    assert!(
+        failure
+            .raw_digest
+            .as_deref()
+            .is_some_and(|digest| digest.starts_with("sha256:"))
+    );
+    let budget = failure
+        .budget
+        .as_ref()
+        .expect("terminal timeout diagnostics");
+    assert_eq!(budget.commits, Some(1));
+    assert_eq!(budget.records, Some(1));
+    assert_eq!(budget.decoded_bytes, Some("docs/partial.md".len()));
+    assert!(budget.raw_bytes.is_some_and(|bytes| bytes > 0));
+    assert_eq!(
+        budget.raw_output_digest.as_deref(),
+        failure.raw_digest.as_deref()
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn revision_and_ancestry_preserve_git_and_run_timeout_reasons_and_stages() {
     let repo = repository();
     let base = commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");

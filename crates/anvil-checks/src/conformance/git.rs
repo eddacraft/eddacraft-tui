@@ -476,7 +476,16 @@ impl GitExtractor {
                     }),
                 Err(failure) => Err(failure.clone()),
             };
-            let (result, next_usage) = retain_commit_result(result, &commit);
+            let (result, next_usage) = match result {
+                Err(failure) if failure.reason == "budget.run-timeout" => {
+                    return Err(terminal_commit_timeout(
+                        failure,
+                        &commit,
+                        selected_commit_count,
+                    ));
+                }
+                result => retain_commit_result(result, &commit),
+            };
             usage.accumulate(next_usage);
             self.check_evaluation_usage(usage, selected_commit_count, &commit)?;
             commits.push(result);
@@ -525,7 +534,16 @@ impl GitExtractor {
                         prepared.started,
                     )
                 });
-            let (result, next_usage) = retain_footprint_result(result, &commit);
+            let (result, next_usage) = match result {
+                Err(failure) if failure.reason == "budget.run-timeout" => {
+                    return Err(terminal_commit_timeout(
+                        failure,
+                        &commit,
+                        selected_commit_count,
+                    ));
+                }
+                result => retain_footprint_result(result, &commit),
+            };
             usage.accumulate(next_usage);
             self.check_evaluation_usage(usage, selected_commit_count, &commit)?;
             commits.push(result);
@@ -1710,6 +1728,18 @@ fn retain_commit_result(
             )
         }
     }
+}
+
+fn terminal_commit_timeout(
+    mut failure: GitNonEvaluation,
+    commit: &str,
+    selected_commits: usize,
+) -> GitNonEvaluation {
+    failure.commit_revision = Some(commit.into());
+    if let Some(budget) = failure.budget.as_mut() {
+        budget.commits = Some(selected_commits);
+    }
+    failure
 }
 
 fn retain_footprint_result(
