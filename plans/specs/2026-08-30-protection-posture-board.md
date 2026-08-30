@@ -93,7 +93,9 @@ Every row has **configured**, **resolved**, and **active**.
 - **Resolved** is the value after defaults, stricter-wins, and policy
   constraints (SETCON requested → resolved).
 - **Active** is SETCON-strict: the value current evidence from the activation
-  owner proves. Otherwise `unknown` / `stale` / `failed`. YAML is never proof.
+  owner proves (`active`). The full SETCON `RuntimeState` set is `active`,
+  `drift` (attested evidence disagrees with Resolved), `unknown`, `stale`, and
+  `failed`. YAML is never proof.
 
 ### Last action
 
