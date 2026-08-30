@@ -19,7 +19,7 @@ use anvil_kernel_types::{
 };
 
 use super::git::{
-    ConventionalCommitEvidence, GitCoverageMember, GitEvaluationIdentity,
+    ConventionalCommitEvidence, GitBudgetDiagnostics, GitCoverageMember, GitEvaluationIdentity,
     GitFootprintCommitExtraction, GitFootprintExtraction,
 };
 use super::pr_body::PrBodyContractParts;
@@ -57,6 +57,19 @@ pub struct ConformanceEvaluation {
     pub verdict: ConformanceVerdict,
     pub claim_results: Vec<ClaimEvaluation>,
     pub findings: Vec<Diagnostic>,
+    pub git_non_evaluations: Vec<GitCommitNonEvaluation>,
+}
+
+/// Safe per-commit audit record for a footprint that could not be evaluated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitCommitNonEvaluation {
+    pub commit_revision: Option<Box<str>>,
+    pub reason: &'static str,
+    pub stage: &'static str,
+    pub observed: usize,
+    pub limit: Option<usize>,
+    pub raw_digest: Option<Box<str>>,
+    pub budget: Option<Box<GitBudgetDiagnostics>>,
 }
 
 /// Evaluate one complete Git range against an extracted pull-request declaration.
@@ -85,9 +98,10 @@ pub fn evaluate_pr_declaration(
     if let Err(error) = contract.validate() {
         return invalid_evaluation(&contract, format!("contract.{}", error.code()));
     }
+    let git_non_evaluations = pr_git_footprint_non_evaluations(extraction);
     let failures = pr_git_footprint_failures(extraction, identity);
     if !failures.is_empty() {
-        return invalid_evaluation_reasons(&contract, failures);
+        return invalid_evaluation_reasons(&contract, failures, git_non_evaluations);
     }
 
     let mut coverage = Vec::new();
@@ -98,6 +112,31 @@ pub fn evaluate_pr_declaration(
     }
 
     evaluate_bound_contract(&contract, &coverage, &BTreeSet::new(), &[])
+}
+
+/// Retain every per-commit extraction failure without unsafe diagnostic detail.
+#[must_use]
+pub fn pr_git_footprint_non_evaluations(
+    extraction: &GitFootprintExtraction,
+) -> Vec<GitCommitNonEvaluation> {
+    let mut failures: Vec<_> = extraction
+        .commits
+        .iter()
+        .filter_map(|result| match result {
+            GitFootprintCommitExtraction::Evaluated(_) => None,
+            GitFootprintCommitExtraction::NotEvaluated(failure) => Some(GitCommitNonEvaluation {
+                commit_revision: failure.commit_revision.clone(),
+                reason: failure.reason,
+                stage: failure.stage,
+                observed: failure.observed,
+                limit: failure.limit,
+                raw_digest: failure.raw_digest.clone(),
+                budget: failure.budget.clone(),
+            }),
+        })
+        .collect();
+    failures.sort_by(|left, right| left.commit_revision.cmp(&right.commit_revision));
+    failures
 }
 
 /// Return every deterministic reason a PR footprint cannot be trusted.
@@ -239,6 +278,7 @@ fn evaluate_bound_contract(
         verdict,
         claim_results,
         findings,
+        git_non_evaluations: Vec::new(),
     }
 }
 
@@ -684,12 +724,13 @@ fn contract_matches_commit(
 }
 
 fn invalid_evaluation(contract: &ConformanceContract, reason: String) -> ConformanceEvaluation {
-    invalid_evaluation_reasons(contract, vec![reason])
+    invalid_evaluation_reasons(contract, vec![reason], Vec::new())
 }
 
 fn invalid_evaluation_reasons(
     contract: &ConformanceContract,
     mut reasons: Vec<String>,
+    git_non_evaluations: Vec<GitCommitNonEvaluation>,
 ) -> ConformanceEvaluation {
     sort_deduplicate(&mut reasons);
     let (sources, source_index_map) = canonical_sources(contract);
@@ -711,6 +752,7 @@ fn invalid_evaluation_reasons(
         verdict,
         claim_results: Vec::new(),
         findings,
+        git_non_evaluations,
     }
 }
 

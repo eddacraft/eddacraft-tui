@@ -5,8 +5,9 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 
 use anvil_checks::conformance::{
-    GitExtractor, GitFootprintExtractionOutcome, GitSelection, PR_BODY_MAX_BYTES,
-    evaluate_pr_declaration, extract_pr_body_claims, pr_git_footprint_failures,
+    ConformanceEvaluation, GitBudgetDiagnostics, GitCommitNonEvaluation, GitExtractor,
+    GitFootprintExtractionOutcome, GitSelection, PR_BODY_MAX_BYTES, evaluate_pr_declaration,
+    extract_pr_body_claims, pr_git_footprint_failures, pr_git_footprint_non_evaluations,
 };
 use anvil_kernel_types::{ConformanceOutcome, ConformanceVerdict, EvidenceGrade, EvidenceStrength};
 use anyhow::{Context, Result};
@@ -88,6 +89,32 @@ impl CheckArgs {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct GitBudgetDiagnosticsReport {
+    configured_limit: usize,
+    elapsed_millis: Option<usize>,
+    commits: Option<usize>,
+    records: Option<usize>,
+    rename_sources: Option<usize>,
+    rename_targets: Option<usize>,
+    raw_bytes: Option<usize>,
+    decoded_bytes: Option<usize>,
+    raw_output_digest: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCommitNonEvaluationReport {
+    commit_revision: Option<String>,
+    reason: &'static str,
+    stage: &'static str,
+    observed: usize,
+    limit: Option<usize>,
+    raw_digest: Option<String>,
+    budget: Option<GitBudgetDiagnosticsReport>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ConformanceCheckReport {
     schema_version: &'static str,
     advisory: bool,
@@ -97,11 +124,21 @@ struct ConformanceCheckReport {
     resolved_base: Option<String>,
     resolved_head: Option<String>,
     reasons: Vec<String>,
+    not_evaluated_commit_count: usize,
+    git_non_evaluations: Vec<GitCommitNonEvaluationReport>,
     verdict: Option<ConformanceVerdict>,
 }
 
 impl ConformanceCheckReport {
     fn not_evaluated(reasons: Vec<String>) -> Self {
+        Self::not_evaluated_with_failures(reasons, Vec::new())
+    }
+
+    fn not_evaluated_with_failures(
+        reasons: Vec<String>,
+        git_non_evaluations: Vec<GitCommitNonEvaluation>,
+    ) -> Self {
+        let not_evaluated_commit_count = git_non_evaluations.len();
         Self {
             schema_version: REPORT_SCHEMA,
             advisory: true,
@@ -111,6 +148,11 @@ impl ConformanceCheckReport {
             resolved_base: None,
             resolved_head: None,
             reasons,
+            not_evaluated_commit_count,
+            git_non_evaluations: git_non_evaluations
+                .into_iter()
+                .map(GitCommitNonEvaluationReport::from)
+                .collect(),
             verdict: None,
         }
     }
@@ -119,14 +161,21 @@ impl ConformanceCheckReport {
         reasons: Vec<String>,
         resolved_base: String,
         resolved_head: String,
+        git_non_evaluations: Vec<GitCommitNonEvaluation>,
     ) -> Self {
-        let mut report = Self::not_evaluated(reasons);
+        let mut report = Self::not_evaluated_with_failures(reasons, git_non_evaluations);
         report.resolved_base = Some(resolved_base);
         report.resolved_head = Some(resolved_head);
         report
     }
 
-    fn from_verdict(verdict: ConformanceVerdict) -> Self {
+    fn from_evaluation(evaluation: ConformanceEvaluation) -> Self {
+        let ConformanceEvaluation {
+            verdict,
+            git_non_evaluations,
+            ..
+        } = evaluation;
+        let not_evaluated_commit_count = git_non_evaluations.len();
         Self {
             schema_version: REPORT_SCHEMA,
             advisory: true,
@@ -136,7 +185,42 @@ impl ConformanceCheckReport {
             resolved_base: Some(verdict.binding.base_revision.clone()),
             resolved_head: Some(verdict.binding.head_revision.clone()),
             reasons: verdict.reasons.clone(),
+            not_evaluated_commit_count,
+            git_non_evaluations: git_non_evaluations
+                .into_iter()
+                .map(GitCommitNonEvaluationReport::from)
+                .collect(),
             verdict: Some(verdict),
+        }
+    }
+}
+
+impl From<GitCommitNonEvaluation> for GitCommitNonEvaluationReport {
+    fn from(value: GitCommitNonEvaluation) -> Self {
+        Self {
+            commit_revision: value.commit_revision.map(|revision| revision.to_string()),
+            reason: value.reason,
+            stage: value.stage,
+            observed: value.observed,
+            limit: value.limit,
+            raw_digest: value.raw_digest.map(|digest| digest.to_string()),
+            budget: value.budget.map(|budget| (*budget).into()),
+        }
+    }
+}
+
+impl From<GitBudgetDiagnostics> for GitBudgetDiagnosticsReport {
+    fn from(value: GitBudgetDiagnostics) -> Self {
+        Self {
+            configured_limit: value.configured_limit,
+            elapsed_millis: value.elapsed_millis,
+            commits: value.commits,
+            records: value.records,
+            rename_sources: value.rename_sources,
+            rename_targets: value.rename_targets,
+            raw_bytes: value.raw_bytes,
+            decoded_bytes: value.decoded_bytes,
+            raw_output_digest: value.raw_output_digest.map(|digest| digest.to_string()),
         }
     }
 }
@@ -170,10 +254,11 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let report = match (declaration, git_evidence) {
         (Ok(declaration), Ok((identity, extraction))) => {
             let evaluation = evaluate_pr_declaration(&declaration, &extraction, &identity);
-            ConformanceCheckReport::from_verdict(evaluation.verdict)
+            ConformanceCheckReport::from_evaluation(evaluation)
         }
         (Ok(_), Err(git_reason)) => ConformanceCheckReport::not_evaluated(vec![git_reason]),
         (Err(non_evaluation), Ok((identity, extraction))) => {
+            let git_non_evaluations = pr_git_footprint_non_evaluations(&extraction);
             let mut reasons: Vec<String> = non_evaluation
                 .reasons()
                 .iter()
@@ -186,6 +271,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 reasons,
                 extraction.base_revision,
                 extraction.head_revision,
+                git_non_evaluations,
             )
         }
         (Err(non_evaluation), Err(git_reason)) => {
@@ -289,5 +375,57 @@ fn evidence_strength_label(strength: EvidenceStrength) -> &'static str {
         EvidenceStrength::Complete => "complete",
         EvidenceStrength::Partial => "partial",
         EvidenceStrength::Absent => "absent",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anvil_checks::conformance::{GitBudgetDiagnostics, GitCommitNonEvaluation};
+
+    use super::ConformanceCheckReport;
+
+    #[test]
+    fn json_report_retains_safe_budget_diagnostics_without_raw_detail() {
+        let failure = GitCommitNonEvaluation {
+            commit_revision: Some("b".repeat(40).into_boxed_str()),
+            reason: "budget.records",
+            stage: "diff",
+            observed: 101,
+            limit: Some(100),
+            raw_digest: Some("sha256:safe".into()),
+            budget: Some(Box::new(GitBudgetDiagnostics {
+                configured_limit: 100,
+                elapsed_millis: Some(9),
+                commits: Some(2),
+                records: Some(101),
+                rename_sources: Some(3),
+                rename_targets: Some(4),
+                raw_bytes: Some(4096),
+                decoded_bytes: Some(2048),
+                raw_output_digest: Some("sha256:safe".into()),
+            })),
+        };
+
+        let report = ConformanceCheckReport::not_evaluated_with_failures(
+            vec!["git.commit-not-evaluated.budget.records".to_owned()],
+            vec![failure],
+        );
+        let json = serde_json::to_value(report).expect("serialise safe report");
+
+        assert_eq!(json["notEvaluatedCommitCount"], 1);
+        assert_eq!(json["gitNonEvaluations"][0]["observed"], 101);
+        assert_eq!(json["gitNonEvaluations"][0]["limit"], 100);
+        assert_eq!(json["gitNonEvaluations"][0]["rawDigest"], "sha256:safe");
+        assert_eq!(
+            json["gitNonEvaluations"][0]["budget"]["configuredLimit"],
+            100
+        );
+        assert_eq!(json["gitNonEvaluations"][0]["budget"]["records"], 101);
+        assert_eq!(json["gitNonEvaluations"][0]["budget"]["rawBytes"], 4096);
+        assert_eq!(
+            json["gitNonEvaluations"][0]["budget"]["rawOutputDigest"],
+            "sha256:safe"
+        );
+        assert!(!json.to_string().contains("detail"));
     }
 }

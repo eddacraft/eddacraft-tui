@@ -49,12 +49,13 @@ impl GitFixture {
     }
 
     #[cfg(unix)]
-    fn add_invalid_utf8_path_commit(&mut self) {
+    fn add_invalid_utf8_path_commit(&mut self, suffix: u8) {
         use std::os::unix::ffi::OsStringExt as _;
 
-        let path = self.dir.path().join(std::ffi::OsString::from_vec(
-            b"docs/invalid-\xff.md".to_vec(),
-        ));
+        let mut relative = b"docs/invalid-".to_vec();
+        relative.push(suffix);
+        relative.extend_from_slice(b".md");
+        let path = self.dir.path().join(std::ffi::OsString::from_vec(relative));
         std::fs::write(path, "invalid path fixture\n").expect("write invalid UTF-8 path");
         commit_all(self.dir.path(), "Add path Git cannot decode");
         self.head = rev_parse(self.dir.path(), "HEAD");
@@ -192,7 +193,8 @@ fn non_conventional_docs_only_range_is_conformant_from_pr_declaration() {
 fn invalid_declaration_and_git_footprint_report_both_reason_sets() {
     let mut fixture = GitFixture::docs_only_non_conventional_range();
     fixture.base = fixture.head.clone();
-    fixture.add_invalid_utf8_path_commit();
+    fixture.add_invalid_utf8_path_commit(0xff);
+    fixture.add_invalid_utf8_path_commit(0xfe);
     let body = fixture.body_file("```anvil-claims\nclaim: unknown-claim\n```\n");
     let output = run_anvil(
         fixture.dir.path(),
@@ -222,6 +224,28 @@ fn invalid_declaration_and_git_footprint_report_both_reason_sets() {
             "git.commit-not-evaluated.git.path-invalid-utf8"
         ])
     );
+    assert_eq!(report["notEvaluatedCommitCount"], 2);
+    let failures = report["gitNonEvaluations"]
+        .as_array()
+        .expect("structured per-commit failures");
+    assert_eq!(failures.len(), 2);
+    assert!(
+        failures
+            .iter()
+            .all(|failure| failure["reason"] == "git.path-invalid-utf8")
+    );
+    assert!(failures.iter().all(|failure| failure["stage"] == "diff"));
+    assert!(
+        failures
+            .iter()
+            .all(|failure| failure["commitRevision"].as_str().is_some())
+    );
+    let revisions: Vec<_> = failures
+        .iter()
+        .map(|failure| failure["commitRevision"].as_str().expect("revision"))
+        .collect();
+    assert!(revisions.windows(2).all(|pair| pair[0] <= pair[1]));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("detail"));
 }
 
 #[test]

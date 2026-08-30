@@ -1,5 +1,5 @@
 use anvil_checks::conformance::{
-    GitCoverageMember, GitEvaluationIdentity, GitFootprintCommitEvidence,
+    GitBudgetDiagnostics, GitCoverageMember, GitEvaluationIdentity, GitFootprintCommitEvidence,
     GitFootprintCommitExtraction, GitFootprintExtraction, GitNonEvaluation, PrBodyContractParts,
     evaluate_pr_declaration, extract_pr_body_claims,
 };
@@ -134,16 +134,16 @@ fn incomplete_or_mismatched_range_is_reason_coded_not_evaluated() {
 }
 
 #[test]
-fn every_per_commit_failure_is_reported_once_in_canonical_order() {
+fn every_per_commit_failure_is_retained_with_safe_diagnostics_in_canonical_order() {
     let declaration = docs_declaration();
     let identity = identity();
     let extraction = GitFootprintExtraction {
         base_revision: "a".repeat(40),
         head_revision: "d".repeat(40),
         commits: vec![
-            footprint_failure("b", "git.path-invalid-utf8"),
-            footprint_failure("c", "budget.records"),
-            footprint_failure("d", "git.path-invalid-utf8"),
+            budget_footprint_failure("d", 12, 10, "sha256:d"),
+            footprint_failure("c", "git.path-invalid-utf8"),
+            budget_footprint_failure("b", 11, 10, "sha256:b"),
         ],
     };
 
@@ -158,6 +158,40 @@ fn every_per_commit_failure_is_reported_once_in_canonical_order() {
             "git.commit-not-evaluated.git.path-invalid-utf8",
         ]
     );
+    assert_eq!(report.git_non_evaluations.len(), 3);
+    assert_eq!(
+        report
+            .git_non_evaluations
+            .iter()
+            .map(|failure| failure.commit_revision.as_deref())
+            .collect::<Vec<_>>(),
+        vec![
+            Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+            Some("cccccccccccccccccccccccccccccccccccccccc"),
+            Some("dddddddddddddddddddddddddddddddddddddddd"),
+        ]
+    );
+    let failures_with_same_reason: Vec<_> = report
+        .git_non_evaluations
+        .iter()
+        .filter(|failure| failure.reason == "budget.records")
+        .collect();
+    assert_eq!(failures_with_same_reason.len(), 2);
+    assert_eq!(failures_with_same_reason[0].stage, "diff");
+    assert_eq!(failures_with_same_reason[0].observed, 11);
+    assert_eq!(failures_with_same_reason[0].limit, Some(10));
+    assert_eq!(
+        failures_with_same_reason[0].raw_digest.as_deref(),
+        Some("sha256:b")
+    );
+    let budget = failures_with_same_reason[0]
+        .budget
+        .as_deref()
+        .expect("safe budget diagnostics");
+    assert_eq!(budget.configured_limit, 10);
+    assert_eq!(budget.records, Some(11));
+    assert_eq!(budget.raw_bytes, Some(101));
+    assert_eq!(budget.raw_output_digest.as_deref(), Some("sha256:b"));
 }
 
 #[test]
@@ -229,6 +263,34 @@ fn footprint_failure(revision_seed: &str, reason: &'static str) -> GitFootprintC
         detail: "fixture failure".into(),
         raw_digest: None,
         budget: None,
+    })
+}
+
+fn budget_footprint_failure(
+    revision_seed: &str,
+    observed: usize,
+    limit: usize,
+    digest: &str,
+) -> GitFootprintCommitExtraction {
+    GitFootprintCommitExtraction::NotEvaluated(GitNonEvaluation {
+        commit_revision: Some(revision_seed.repeat(40).into_boxed_str()),
+        reason: "budget.records",
+        stage: "diff",
+        observed,
+        limit: Some(limit),
+        detail: "unsafe raw detail must not escape".into(),
+        raw_digest: Some(digest.into()),
+        budget: Some(Box::new(GitBudgetDiagnostics {
+            configured_limit: limit,
+            elapsed_millis: Some(7),
+            commits: Some(3),
+            records: Some(observed),
+            rename_sources: Some(2),
+            rename_targets: Some(1),
+            raw_bytes: Some(101),
+            decoded_bytes: Some(89),
+            raw_output_digest: Some(digest.into()),
+        })),
     })
 }
 
