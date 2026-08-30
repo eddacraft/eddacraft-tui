@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 297/373  |
+| CIB | —     | In Progress | 297/374  |
 
 ## Purpose
 
@@ -12010,3 +12010,53 @@ hang before opening a supervisor ticket.
 - **Coordinates with:** the same-shaped APS work-item id collision convention
   (renumber yours, check `gh pr list --search <ID>` first)
 - **Confidence:** high on the rule, medium on whether a helper earns its keep
+
+### CIB-379: DEVACC benchmark automation is opt-in and unowned after the module archived
+
+- **Status:** Proposed
+- **Priority:** P3 — nothing is broken today; the cost is that benchmark
+  regressions are only ever caught by someone choosing to run the suite
+- **Intent:** `dev-acceleration-benchmarks` archived at 10/12 (via PR #4243).
+  The two items left behind, DEVACC-011 and DEVACC-012, were both `Proposed`
+  and both recorded in the module as opt-in and **"not required for Complete;
+  not enabled"** — so archiving retired them rather than leaving them
+  unfinished. They are re-filed here so the decision stays visible instead of
+  disappearing with the module.
+
+  - **DEVACC-011 — opt-in nightly schedule.** A workflow running a bounded
+    DEVACC slice on a schedule or `workflow_dispatch`, disabled by default so
+    no automatic nightly cost is incurred. Depended on DEVACC-002 (Tier A
+    minimum), plus DEVACC-007 if the nightly were to include Tier B.
+  - **DEVACC-012 — opt-in CI / PR gate.** PR or required-check wiring for a
+    cheap Tier A subset, off by default so PRs do not gain a blocking or noisy
+    gate without an explicit decision. Depended on DEVACC-003. Its own notes
+    say to prefer report-only before any hard-fail posture, aligning with
+    ADR-002 and the EVALCI phasing lessons.
+
+  The Tier A spine both depend on is shipped and agent-free, so neither is
+  blocked on missing capability — only on a decision about cost and noise.
+- **Expected Outcome:** An explicit decision, recorded rather than implied: run
+  the benchmarks on a cadence, gate them on PRs report-only, or leave the suite
+  on-demand and accept that acceleration regressions are found by hand. If the
+  answer is "leave it", this item closes as a documented choice and the two
+  DEVACC ids stay retired.
+- **Non-scope / do not:** do not enable a nightly or a PR gate by default as
+  part of resolving this — that is the exact posture both original items were
+  written to avoid, and it cuts against the standing CI-cost position that
+  matrices are nightly-only and heavy legs are dispatch-gated. Do not re-open
+  the archived DEVACC module; if the work is taken up, it lands under this CIB
+  id or a fresh module, not by resurrecting an archived one.
+- **Files:** `.github/workflows/` (only if the decision is to enable),
+  `crates/anvil-bench/`
+- **Validation:** with the opt-in off, `pnpm validate` and the Rust CI path are
+  unchanged; with it on, a Tier A smoke slice runs and reports without
+  blocking.
+- **Identified From:** APS archive sweep, 2026-08-31 (PR #4243). Raised while
+  archiving DEVACC at 10/12: the two remaining items are deliberately optional,
+  but archiving them silently would have retired an unmade decision as if it
+  had been made.
+- **Coordinates with:** the archived `dev-acceleration-benchmarks` module
+  (DEVACC-011, DEVACC-012), ADR-002, and the CI-cost posture that keeps heavy
+  matrices off per-PR runs
+- **Confidence:** high on the framing — the two items are small, well specified
+  in the archived module, and blocked only on a cost/noise judgement
