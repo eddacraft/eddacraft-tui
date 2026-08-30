@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Derived | APS modules named below | Live | 2026-08-27 — CONF-001/ADR-134 and current release/NBI references reconciled |
+| Spec | Derived | APS modules named below | Live | 2026-08-30 — CONF-002..004 merge and approved Intent & Claim Integrity/CEG design reconciled |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -21,7 +21,7 @@ leads care about, without inventing a second product:
 
 | # | Question | Module | Wave-1 claim |
 | - | -------- | ------ | ------------ |
-| 1 | Did this change match what was claimed? | [CONF](../modules/intent-conformance.aps.md) | Tier 0: per-commit claims vs pinned Git coverage + claim-appropriate bound evidence, advisory |
+| 1 | Did this change match what was claimed? | [CONF](../modules/intent-conformance.aps.md) + proposed [CEG](../modules/change-evidence-graph.aps.md) | Tier 0: commit/PR declarations vs exact pinned Git evidence; graph semantics remain not evaluated until CEG graduates |
 | 2 | Where is this symbol used, exactly? | [LSPNAV](../modules/lsp-graph-navigation.aps.md) | One language/client: exact graph-backed `textDocument/references` |
 | 3 | Did review leave a durable gate trail? | [CGBDG](../modules/council-gate-bridge.aps.md) | Council verdict → anvil-shaped evidence (prefer thin witness lines) |
 | 4 | What may this agent attempt? | [POLCAP](../modules/policy-capability-discovery.aps.md) | Advisory `anvil policy capabilities` signed view |
@@ -37,7 +37,7 @@ programme is not a claim of the active provisional `v0.9.8-beta` window.
 | Track | Work | Mode today | Outcome that clears Wave 1 |
 | ----- | ---- | ---------- | -------------------------- |
 | **CGBDG** | CGBDG-001..006 discovery | **Ready** — execute | Discovery report + follow-on implement/spec or explicit park |
-| **CONF** | CONF-002..004 Tier-0 implementation | **In Progress**; CONF-001 Merged via #4174 | Implement/prove ADR-134's Git, base-tree scope-authority, and evidence-binding contract; keep CONF-005..009 Proposed |
+| **CONF/CEG** | CONF-005 deterministic PR declarations + CEG design | CONF-002..004 Merged via #4190; CONF-005 In Progress; CEG Proposed | Scoped Council design PASS, then implement CONF-005 while keeping graph-semantic claims fail honest |
 | **POLCAP** | POLCAP-001 ADR + Planning Council | Proposed | Accepted ADR; AD-3/AD-4 reconciled with ADR-098 |
 | **SCA** | SCA-001 design (one ecosystem + graph shape) | Proposed | Design doc; edge-type home decided |
 | **LSPNAV** | RTAI-005 diagnostics-only + ADR-111 Accept | Proposed | RTAI-005 production boundary + ADR-111 Accepted |
@@ -46,7 +46,7 @@ programme is not a claim of the active provisional `v0.9.8-beta` window.
 
 | Track | First executable slice | Explicitly out of Wave 1 |
 | ----- | ---------------------- | ------------------------ |
-| CONF | CONF-002..004 (minimal contract + commit claims vs claim-appropriate evidence) | ILGOV session ledger; Tier-2 APS adapters; PR-body claims; symbol-level claims beyond bound GV2 support |
+| CONF | CONF-005 Verified Change Declarations using Git-evaluable documentation/test/path predicates | CEG implementation; ILGOV session ledger; Tier-2 adapters; behavioural/refactor equivalence |
 | CGBDG | Follow-on implement only if CGBDG-006 warrants it | PocketFlow re-platform of council; LLM on enforcement path |
 | POLCAP | Schema + 3–5 recipes + CLI (advisory) | Daemon IPC optional stretch; asymmetric signing; dashboard |
 | SCA | One ecosystem SBOM → baseline → new-edge warn | Multi-ecosystem; hosted vuln DB; SLSA release attestation |
@@ -54,8 +54,9 @@ programme is not a claim of the active provisional `v0.9.8-beta` window.
 
 ### Wave 2 — Close the loops
 
-- CONF-005..007 and CONF-009 (PR claims, correlation join, closeout, and
-  minimised/privacy-reviewed capsule grading)
+- CEG-001..006 only after ADR-135 and the scoped Council gate; CONF-010 consumes
+  graduated predicate-specific evidence
+- CONF-006..009 (correlation join, closeout, adapters and capsule grading)
 - POLCAP daemon IPC + witness `cap_id` binding
 - SCA release-time attestation (optional)
 - LSPNAV promotion evidence and soak
@@ -102,10 +103,11 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
 
 ### Cleared for APS Option B (execute or promote)
 
-| Module | Disposition (2026-08-27) |
+| Module | Disposition (2026-08-30) |
 | ------ | ------------------------ |
 | **CGBDG** | **Ready**; NBI rank 3. Discovery may start without further status promotion. |
-| **CONF** | CONF-001 **Merged via #4174**; ADR-134 is accepted. CONF-002..004 remain **In Progress** until merge, with implementation and executor proof complete on `feat/conf-002-004-tier0`. Existing `GraphDelta.file` alone is not sufficient evidence; exact Git extraction and claim-appropriate binding are now proved by focused tests. |
+| **CONF** | CONF-001..004 are **Merged** (#4174/#4190). CONF-005 is **In Progress** with an operator-approved deterministic grammar and scoped Council PASS. |
+| **CEG** | **Proposed**. ADR-135 is Accepted; the design spec and CEG-001..006 record the boundary. No implementation, persistence or default-on authority exists. |
 | POLCAP / SCA / LSPNAV | **Not** Ready. Clearance steps in §6 still apply. |
 
 ## 6. Clearance checklist (to unlock the rest)
@@ -129,7 +131,12 @@ CGBDG, CONF, POLCAP, and SCA do not block each other. LSPNAV waits on RTAI-005
 - [x] Implement and prove exact Git extraction plus repository/worktree,
       revision/blob, graph-schema, generation, and run binding in CONF-002..004;
       enforce base-tree mapping authority and `policy-change` dispositions
-- [x] Leave CONF-005..009 Proposed until later-wave dogfood
+- [x] Merge CONF-002..004 via PR #4190
+- [x] Approve the CONF-005 one-block `anvil-claims` grammar, closed vocabulary,
+      source-reference+digest privacy posture and Git-only evaluable predicates
+- [x] Clear ADR-135/CEG design through the single scoped Council
+      re-review before CONF-005 implementation
+- [x] Keep CEG and CONF-006..010 Proposed
 
 ### LSPNAV — Graph-backed references
 

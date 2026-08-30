@@ -1,8 +1,8 @@
 # anvil-checks
 
-| Type   | Authority     | Owner | Status | Freshness                                                                                           |
-| ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------- |
-| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-28 against ADR-134, `src/conformance/**`, `src/lib.rs`, and `ARCHITECTURE.md` |
+| Type   | Authority     | Owner | Status | Freshness                                                                                                                        |
+| ------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-005 PR-body extraction, ADR-134, `src/conformance/**`, `src/lib.rs`, and `ARCHITECTURE.md` |
 
 | Upstream                                                  | Downstream                                              |
 | --------------------------------------------------------- | ------------------------------------------------------- |
@@ -38,11 +38,12 @@ compatibility and history record.
   `# @anvil-ignore SURFENV-001`, plus SQL, Dockerfile, GitHub Actions, and shell
   source-specific checks.
 - **`command_safety`** — shell command safety analysis.
-- **`conformance`** — bounded, replacement-disabled Tier-0 Git extraction and
-  advisory claim-versus-effect evaluation. Opaque repository/worktree identities
-  and structured budget diagnostics keep failures observable without leaking
-  local paths. Raw Git records stay distinct from canonical per-path coverage
-  and evaluator-owned evidence dispositions.
+- **`conformance`** — bounded, replacement-disabled Tier-0 Git extraction,
+  deterministic weak-grade PR-body declaration extraction, and advisory
+  claim-versus-effect evaluation. Opaque repository/worktree identities and
+  structured budget diagnostics keep failures observable without leaking local
+  paths. Raw Git records stay distinct from canonical per-path coverage and
+  evaluator-owned evidence dispositions.
 
 ## Intent-conformance claim table v1
 
@@ -56,6 +57,37 @@ The closed v1 table recognises:
 - an explicit `path:<prefix>` scope, or a versioned
   `intent_conformance.scope_mappings` entry loaded only from the evaluated base
   tree.
+
+A PR description may carry exactly one fenced declaration:
+
+````markdown
+```anvil-claims
+claim: documentation-only
+claim: test-only
+claim: no-behaviour-change
+claim: refactor-only
+scope: path:crates/anvil-checks
+```
+````
+
+The member vocabulary and spacing are exact. Members use canonical kind/value
+ordering and are deduplicated after extraction. Only a top-level fence counts;
+examples inside another Markdown fence or HTML comment are ignored. A missing,
+empty, unclosed, or second block, an unknown claim, or a malformed/invalid-scope
+member yields stable `claim.pr-body.*` reasons and a not-evaluated source while
+preserving any known members. Provenance is weak-grade `PullRequest` intent and
+retains only the caller-supplied immutable source reference plus a SHA-256
+digest over the exact raw body bytes; the body itself is never retained. Git may
+evaluate the documentation, test, and explicit-path claims. The two
+graph-semantic claims remain not evaluated under the existing claim table until
+complete graduated CEG evidence is admitted.
+
+Extraction-limit version 1 admits at most 256 KiB of body, a 4 KiB source
+reference, 256 non-empty members, 1 KiB per member, 128 distinct scopes, and 512
+bytes per scope. Budget failures are reason-coded and cannot release contract
+parts. An over-limit body is neither parsed nor hashed; its source uses the
+explicit `sha256:unavailable-body-over-limit` sentinel. An over-limit reference
+is not retained.
 
 The v1 mapping shape is:
 

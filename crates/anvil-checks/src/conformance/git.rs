@@ -1,5 +1,6 @@
 //! Bounded Tier-0 extraction from Git commit objects.
 
+use super::valid_path_prefix;
 use anvil_config::{DISCOVER_PRECEDENCE, MAX_CONFIG_FILE_BYTES, canonical_json_bytes, parse_str};
 use anvil_kernel_types::{
     ClaimKind, ConformanceClaim, DeclaredScope, EvaluationBinding, EvidenceGrade, GitChangeStatus,
@@ -1626,21 +1627,6 @@ fn parse_header(
     }
 
     Ok((header, declared_scope, claims))
-}
-
-fn valid_path_prefix(prefix: &str) -> bool {
-    !prefix.is_empty()
-        && !prefix.starts_with('/')
-        && !prefix.ends_with('/')
-        && !prefix.contains('\\')
-        && !prefix.contains('\0')
-        && !prefix.contains('*')
-        && !prefix.contains('?')
-        && !prefix.contains('[')
-        && !prefix.contains(']')
-        && prefix
-            .split('/')
-            .all(|segment| !segment.is_empty() && segment != "." && segment != "..")
 }
 
 fn mapping_invalid(detail: String) -> GitNonEvaluation {

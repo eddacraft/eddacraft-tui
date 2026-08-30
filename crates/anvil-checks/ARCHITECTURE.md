@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------ | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-29 against SDT-007's streaming secret scan — `src/secret/source.rs`, `src/secret/scanner.rs`, `src/secret/entropy.rs`, `src/secret/check.rs` (`MAX_FILE_SIZE` as a runaway guard, `is_secret_scannable`) and `tests/secret_streaming.rs`. Previously reviewed 2026-08-28 against PR #4194's test-only `src/secret/git_scanner.rs` temporary-repository isolation; check families, filtering, results, boundaries, and diagrams unchanged. Previously reviewed against `src/secret/check.rs`, `src/secret/types.rs`, `tests/secret_file_coverage.rs`, ADR-134, and `src/conformance/**` for SDT-006 and conformance flow; against `src/secret/scanner.rs` for CIB-369; and 2026-08-27 against SDT-001, SDT-002, `src/antipattern/mask.rs`, `src/antipattern/registry_loader.rs`, and ADR-131 |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-005's deterministic `src/conformance/pr_body.rs` source adapter; the existing conformance family flow and diagram are unchanged. Previously reviewed 2026-08-29 against SDT-007's streaming secret scan — `src/secret/source.rs`, `src/secret/scanner.rs`, `src/secret/entropy.rs`, `src/secret/check.rs` (`MAX_FILE_SIZE` as a runaway guard, `is_secret_scannable`) and `tests/secret_streaming.rs`. Previously reviewed 2026-08-28 against PR #4194's test-only `src/secret/git_scanner.rs` temporary-repository isolation; check families, filtering, results, boundaries, and diagrams unchanged. Previously reviewed against `src/secret/check.rs`, `src/secret/types.rs`, `tests/secret_file_coverage.rs`, ADR-134, and `src/conformance/**` for SDT-006 and conformance flow; against `src/secret/scanner.rs` for CIB-369; and 2026-08-27 against SDT-001, SDT-002, `src/antipattern/mask.rs`, `src/antipattern/registry_loader.rs`, and ADR-131 |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -83,10 +83,12 @@ path. Ordinary CLI callers may use the disk-reading wrapper.
   filesystem, Git, and shell rules live under
   [`command_safety/rules/`](src/command_safety/rules).
 - [`conformance/`](src/conformance) owns bounded Tier-0 Git evidence extraction,
-  the versioned closed claim table, claim-versus-effect evaluation, and
-  canonical advisory finding construction. It consumes the shared contract from
-  `anvil-kernel-types`; callers still own repository selection, graph
-  production, baseline policy, enforcement, and presentation.
+  deterministic PR-body declaration extraction, the versioned closed claim
+  table, claim-versus-effect evaluation, and canonical advisory finding
+  construction. It consumes the shared contract from `anvil-kernel-types`;
+  callers still own repository selection, immutable PR source-reference
+  construction, graph production, baseline policy, enforcement, and
+  presentation.
 - [`filter.rs`](src/filter.rs) owns shared directory, suffix, binary, and
   always-scan classification. Callers still own discovery and decide which
   candidate paths enter this filter.
@@ -135,6 +137,15 @@ orchestration from leaking into the reusable check engine.
   paths are `policy-change` regardless of the claim's scope form. Raw Git paths
   retain legal UTF-8 metacharacters that the stricter authority-prefix grammar
   forbids.
+- PR-body extraction accepts exactly one `anvil-claims` fence and the closed v1
+  member vocabulary at top-level Markdown scope; quoted examples and HTML
+  comments are not declarations. It shares the strict path-prefix authority
+  grammar, canonicalises/deduplicates understood members, and fails honest on
+  missing, ambiguous, malformed, unknown, or versioned-budget-exceeded input.
+  Only an `Extracted` result can release contract parts; bounded understood
+  members in a `NotEvaluated` result remain diagnostic. Admitted input retains
+  only an immutable source reference and exact-body digest. Raw PR prose never
+  enters the output.
 - Conformance outcome and evidence strength are independent and aggregate
   monotonically: incomplete evidence cannot pass, while a proven violation
   cannot disappear behind missing evidence. Graph bindings are checked across

@@ -4,18 +4,21 @@
 | ---- | ------ | ----------- | -------- |
 | CONF | @aneki | In Progress | 1/9      |
 
-**Last reviewed:** 2026-08-28 — CONF-001 Merged via
+**Last reviewed:** 2026-08-30 — CONF-001 Merged via
 [#4174](https://github.com/eddacraft/anvil-001/pull/4174).
 [ADR-134](../decisions/134-intent-conformance-gating.md) is accepted and pins
 the deterministic Git, evidence-binding, and fail-honest outcome contract. The
-existing GV2 per-file channel is **not** implementation clearance until
-revision/schema/generation binding is proved. Tier 0 does not wait on the full
-ILGOV rescope. CONF-002..004 remain **In Progress** until merge; their
-dependency-ordered Wave-1 implementation and executor proof are complete on
-`feat/conf-002-004-tier0`, the scoped Council repair review converged with all
-findings fixed, and review continues in
-[#4190](https://github.com/eddacraft/anvil-001/pull/4190). CONF-005..009 remain
-Proposed.
+CONF-002..004 implementation and executor proof Merged via
+[#4190](https://github.com/eddacraft/anvil-001/pull/4190). CONF-005 implementation
+is verified under the operator-approved Verified Change Declaration grammar;
+implementation Council `council-11195af4` converged with a binding PASS and
+the item remains **In Progress** until integration.
+[ADR-135](../decisions/135-bounded-change-evidence-and-conformance-projections.md)
+is accepted after scoped Council repair re-review `council-599eaa64`; the
+[CEG design](../specs/2026-08-30-change-evidence-graph.md), graph-semantic
+implementation and CONF-006..010 remain Proposed and default-off.
+Stored progress is intentionally unreconciled on this feature branch per
+ADR-053.
 
 > **Origin (2026-06-11):** Product direction set during the graphify gap
 > analysis: plan gates return as a conformance lint — "did the agent build
@@ -48,6 +51,10 @@ Conventional Commit extraction/evaluation is the first Tier-0 implementation
 slice (CONF-003/004). Deterministic PR-body patterns remain Tier 0 but land
 later under CONF-005.
 
+The first non-APS public use case is **Intent & Claim Integrity**: external
+authors publish Verified Change Declarations under the machine tag
+`intent-claim-integrity`.
+
 All tiers normalise into one canonical conformance contract; policy predicates
 ("touched outside declared scope", "claimed X, delta shows Y") operate on the
 contract, never on a source format. APS is the richest producer, not a
@@ -60,7 +67,9 @@ value with no plan at all.
   assertions, source provenance with evidence grading
   ([ADR-062](../decisions/062-policy-evidence-drift-as-evidence.md))
 - Tier-0 claim extraction staged as Conventional Commits first (CONF-003/004)
-  and deterministic PR-body patterns later (CONF-005)
+  and one deterministic PR-body `anvil-claims` block later (CONF-005), with
+  `documentation-only`, `test-only`, `no-behaviour-change`,
+  `refactor-only`, and `scope: path:<prefix>` vocabulary
 - Conformance evaluation over the ADR-134 per-commit Git coverage contract:
   Git evidence for closed path/file-class claims; revision-bound GV2 evidence
   for graph-semantic claims
@@ -123,7 +132,9 @@ Change status to **Ready** when:
 - [x] CONF-002..004 implement and prove exact Git extraction plus
       repository/worktree, revision/blob, schema, generation, and run binding;
       each dependency boundary has focused tests and full affected-crate proof
-- [x] CONF-005..009 remain Proposed for later waves
+- [x] CONF-002..004 Merged via PR #4190
+- [x] CONF-005 promoted under the approved deterministic grammar
+- [x] CONF-006..010 remain Proposed for later waves
 
 ## Work Items
 
@@ -157,7 +168,7 @@ Change status to **Ready** when:
 
 ### CONF-002: Canonical conformance contract
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-28 via PR #4190
 - **Intent:** One Rust contract all tiers normalise into: declared scope,
   claimed changes, acceptance assertions, source provenance + evidence grade.
 - **Expected Outcome:** Contract type in `anvil-kernel-types` with serde JSON
@@ -180,7 +191,7 @@ Change status to **Ready** when:
 
 ### CONF-003: Tier-0 claim extraction — conventional commits
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-28 via PR #4190
 - **Intent:** Deterministically parse commit `type(scope)` and trailers into
   conformance contract claims as the first executable Tier-0 source.
 - **Expected Outcome:** Each selected commit is bound to its own exact raw Git
@@ -209,7 +220,7 @@ Change status to **Ready** when:
 
 ### CONF-004: Tier-0 conformance check — claims vs delta
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-28 via PR #4190
 - **Intent:** Evaluate Tier-0 claims against the change delta and emit
   advisory findings.
 - **Expected Outcome:** Closed path/file-class claims evaluate from Git;
@@ -235,15 +246,36 @@ Change status to **Ready** when:
 
 ### CONF-005: Tier-0 claim extraction — PR bodies
 
-- **Status:** Proposed
-- **Intent:** Extract deterministic claim patterns ("test-only", "no behaviour
-  change", "refactor only") from PR descriptions as weak-graded claims.
-- **Expected Outcome:** PR-body claims enter the contract with low evidence
-  grade under ADR-134's source-reference+digest privacy rule; unrecognised prose
-  yields no claim. This is later Tier 0 and is not part of CONF-003/004.
-- **Validation:** `cargo test -p anvil-checks`
+- **Status:** In Progress
+- **Intent:** Extract a single, explicit Verified Change Declaration from a PR
+  description as weak-graded Tier-0 intent.
+- **Expected Outcome:** Exactly one fenced `anvil-claims` block admits the
+  closed vocabulary `claim: documentation-only`, `claim: test-only`,
+  `claim: no-behaviour-change`, `claim: refactor-only`, and
+  `scope: path:<prefix>`. Members are deterministically ordered and
+  deduplicated. A second block makes the source not evaluated. Unknown or
+  malformed members preserve any known extracted members but make the source
+  reason-coded not evaluated. Extraction exits 0 and retains
+  `IntentSourceKind::PullRequest`, an immutable source reference and body
+  digest only — never the raw body. Documentation, test and direct-path
+  predicates may evaluate from Git; no-behaviour/refactor predicates remain
+  not evaluated until sufficient CEG evidence graduates under CONF-010.
+- **Files:** `crates/anvil-checks/src/conformance/mod.rs`,
+  `crates/anvil-checks/src/conformance/pr_body.rs`,
+  `crates/anvil-checks/tests/conformance_pr_body.rs`,
+  `crates/anvil-checks/README.md`, and
+  `crates/anvil-checks/ARCHITECTURE.md`
+- **Evidence:** Implementation Council `council-11195af4` converged with a
+  binding PASS after scoped repairs for top-level Markdown/HTML-comment
+  context, versioned body/reference/member/scope budgets, and fail-honest
+  contract admission. Eleven focused extractor tests prove the closed
+  vocabulary, exact-body digest binding, canonical ordering and deduplication,
+  ambiguous/malformed source handling, nested-example isolation, every resource
+  limit, and refusal to admit not-evaluated evidence. The full affected crate
+  suite and strict all-target Clippy pass.
+- **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast`
 - **Dependencies:** CONF-002
-- **Confidence:** medium
+- **Confidence:** high
 
 ### CONF-006: Correlation join across the git substrate
 
@@ -297,3 +329,19 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p anvil-checks`
 - **Dependencies:** CONF-004, CONF-008
 - **Confidence:** medium
+
+### CONF-010: CEG-backed graph-semantic predicates
+
+- **Status:** Proposed
+- **Intent:** Consume only graduated CEG evidence for exact graph-semantic
+  declarations without broadening author prose into behavioural claims.
+- **Expected Outcome:** CONF can evaluate
+  `public-symbol-surface-unchanged`, `dependency-shape-unchanged`, and
+  `privilege-surface-unchanged` only with a complete trusted snapshot vector.
+  Unsupported, stale, mismatched, partial or budget-exceeded evidence is
+  reason-coded not evaluated. `no-behaviour-change` and `refactor-only`
+  remain not evaluated unless a later decision deliberately narrows them to a
+  supported predicate.
+- **Validation:** focused conformance/CEG parity, mismatch and completeness tests
+- **Dependencies:** CONF-004, CEG-005
+- **Confidence:** low

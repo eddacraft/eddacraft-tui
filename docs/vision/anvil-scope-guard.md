@@ -1,8 +1,8 @@
 # Anvil Scope Guard
 
-| Type  | Authority     | Owner  | Status | Freshness                                                                                             |
-| ----- | ------------- | ------ | ------ | ----------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | VISION | Live   | Decision framework reconciled to ADR-002; intent-conformance boundary added via ADR-134 on 2026-08-27 |
+| Type  | Authority     | Owner  | Status | Freshness                                                                         |
+| ----- | ------------- | ------ | ------ | --------------------------------------------------------------------------------- |
+| Guide | Authoritative | VISION | Live   | Intent & Claim Integrity/CEG boundary reviewed via accepted ADR-135 on 2026-08-30 |
 
 | Upstream     | Downstream                                     |
 | ------------ | ---------------------------------------------- |
@@ -130,16 +130,17 @@ When evaluating a feature, apply:
 
 ## Allowed vs Not Allowed Examples
 
-| Scenario                                                                | Decision    | Reason                                                    |
-| ----------------------------------------------------------------------- | ----------- | --------------------------------------------------------- |
-| Blocking insecure Terraform config before apply                         | Allowed     | Direct prevention                                         |
-| Suggesting better architecture patterns                                 | Not allowed | Advisory, not enforcement                                 |
-| Enforcing repo structure via policy                                     | Allowed     | Deterministic control                                     |
-| Checking a deterministic claim against complete git/GV2 change evidence | Allowed     | Gate-time conformance with enforceable findings (ADR-134) |
-| Searching or indexing plans/docs to infer what an author intended       | Not allowed | Planning/retrieval product, not deterministic conformance |
-| Generating boilerplate code                                             | Not allowed | Productivity, not safety                                  |
-| Capturing decision provenance                                           | Allowed     | Core requirement                                          |
-| Dashboard showing violations                                            | Conditional | Only if tied to enforcement                               |
+| Scenario                                                            | Decision    | Reason                                                        |
+| ------------------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| Blocking insecure Terraform config before apply                     | Allowed     | Direct prevention                                             |
+| Suggesting better architecture patterns                             | Not allowed | Advisory, not enforcement                                     |
+| Enforcing repo structure via policy                                 | Allowed     | Deterministic control                                         |
+| Checking a deterministic claim against complete Git/CEG evidence    | Allowed     | Gate-time conformance with enforceable findings (ADR-134/135) |
+| Searching or indexing plans/docs to infer what an author intended   | Not allowed | Planning/retrieval product, not deterministic conformance     |
+| Inferring platform support or behaviour from prose/observed absence | Not allowed | Incomplete evidence cannot prove conformance                  |
+| Generating boilerplate code                                         | Not allowed | Productivity, not safety                                      |
+| Capturing decision provenance                                       | Allowed     | Core requirement                                              |
+| Dashboard showing violations                                        | Conditional | Only if tied to enforcement                                   |
 
 ## Guiding Principle
 
