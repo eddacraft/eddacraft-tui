@@ -220,13 +220,13 @@ another planning system.
 
 **Flags:**
 
-| Flag                  | Description                                                                  |
-| --------------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
-| `--base <REV>`        | Exclusive base revision; resolved to a full immutable commit ID.             |
-| `--head <REV>`        | Inclusive head revision; resolved to a full immutable commit ID.             |
-| `--pr-body-file <PATH | ->`                                                                          | PR body file, or `-` for bounded stdin. |
-| `--source-ref <REF>`  | Caller-supplied immutable identity for the exact body version being checked. |
-| `--format <fmt>`      | Output format: `auto`, `plain`, `json`, or `sarif`.                          |
+| Flag                    | Description                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `--base <REV>`          | Exclusive base revision; resolved to a full immutable commit ID.             |
+| `--head <REV>`          | Inclusive head revision; resolved to a full immutable commit ID.             |
+| `--pr-body-file <PATH>` | PR body file, or `-` for bounded stdin.                                      |
+| `--source-ref <REF>`    | Caller-supplied immutable identity for the exact body version being checked. |
+| `--format <fmt>`        | Output format: `auto`, `plain`, `json`, or `sarif`.                          |
 
 `auto` is plain output. The global `--json` flag is an alias for `--format json`
 in either global placement; an explicit local `--format` wins.
