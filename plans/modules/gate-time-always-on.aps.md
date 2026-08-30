@@ -253,7 +253,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-006: Adopter CI template runs `anvil gate --profile ci`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR #4254
 - **Intent:** Pull-request automation, not a human or agent, is what runs the
   full merge gate.
 - **Expected Outcome:** `crates/anvil-cli/src/templates/anvil-workflow.yml`
@@ -378,5 +378,5 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 GTAO-001, GTAO-002, and GTAO-008 are Merged 2026-08-22 via PR #4084.
 GTAO-003 and GTAO-005 (Wave 2) are Merged 2026-08-27 via PR #4168.
-Remaining items: GTAO-006 In Progress; GTAO-007 (Wave 3) and GTAO-009/-010
-(Wave 4) stay Draft. Do not convert PY-008 to `detection: ast`.
+Remaining items stay Draft: GTAO-007 (Wave 3) and GTAO-009/-010
+(Wave 4). Do not convert PY-008 to `detection: ast`.
