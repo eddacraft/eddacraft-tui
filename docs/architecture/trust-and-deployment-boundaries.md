@@ -1,8 +1,8 @@
 # Trust and deployment boundaries
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                           |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-30 against CLAWOPEN-002 suspended-account reactivation and CLAWOPEN-010 docs-shell landing cache; macro trust and deployment boundaries and diagram unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                            |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-30 against the intercept ARCHITECTURE graph-cache pointer, CLAWOPEN-002 suspended-account reactivation, and CLAWOPEN-010 docs-shell landing cache; macro trust and deployment boundaries and diagram unchanged |
 
 | Upstream                                                                                                                                                                                                                                                                                                           | Downstream                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |

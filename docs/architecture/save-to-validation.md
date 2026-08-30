@@ -1,8 +1,8 @@
 # Save to validation
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                    |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-28 against PR #4194's intercept test-only egress fixture and component freshness closeout; caller-buffer, post-save, and validation sequence unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                    |
+| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-30 against the intercept ARCHITECTURE graph-cache pointer; caller-buffer, post-save, and validation sequence unchanged |
 
 | Upstream                                                                                                                                                                                         | Downstream                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
