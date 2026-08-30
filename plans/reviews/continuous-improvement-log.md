@@ -5211,3 +5211,353 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Improvement:** table-first convention for permutation families so the next similar cluster does not grow another 40 fns
 - **Follow-up:** none
 
+### 2026-08-29 — grok
+
+- **Task:** broad APS reconcile and bookkeeping PR for landed CIB items
+- **Outcome:** opened #4209; CIB-359 and CIB-364..371 marked Merged; harvested 142 pending notes; progress 288/365 to 297/366
+- **Worked:** ancestor-proven merge commits before status flips; aps:index write on bookkeeping branch only
+- **Failed:** none
+- **Friction:** pnpm ci-log:status in a fresh worktree raced post-start install; node scripts/ci-log/status.mjs is the reliable path
+- **Improvement:** when mergeStateStatus is BLOCKED with green checks, inspect reviewThreads; harvest with node script if pnpm install is still settling
+- **Follow-up:** owned: CIB-363
+
+### 2026-08-29 — codex
+
+- **Task:** Repair Council C-001 through C-003 for the CLAWOPEN wave
+- **Outcome:** Committed eb535f6b9; independent verification passed; Council council-0c01b4a2 converged with all three findings fixed
+- **Worked:** Parallel finding analysis, hostile-policy RED/GREEN probes, expected-rule multiplicity regression, and exact-diff adversarial verification
+- **Failed:** none
+- **Friction:** Hostile global Git probes require absolute config paths because git -C changes relative path resolution
+- **Improvement:** Calibration controls should identify the expected rule and prove its finding multiplicity increases over baseline; any-finding predicates can pass on residual findings
+- **Follow-up:** owned: CLAWOPEN
+
+### 2026-08-29 — grok
+
+- **Task:** Continue CLAWOPEN wave from Codex stop
+- **Outcome:** Finished Council C-002 hostile-host proof, implemented CLAWOPEN-003 minted-session replay plus verified-email fallback, and landed CLAWOPEN-005 route tests for docs-shell callback and website early-access install.
+- **Worked:** Retrying write-gate context mismatches with smaller patches: vitest resolve.alias for @/, and session lookup before credential fetch.
+- **Failed:** Anvil graph-context daemon was absent in the worktree; pre-write validation still ran.
+- **Friction:** Codex parked CLAWOPEN-003/-005 as non-retriable context mismatches; both were retryable.
+- **Improvement:** Treat anvil write-gate context mismatch on test-only alias/config patches as retryable with a smaller payload, not as a product blocker.
+- **Follow-up:** none
+
+### 2026-08-29 — grok
+
+- **Task:** Bring internal graph documentation in line with the live semantic graph
+- **Outcome:** Added the missing anvil-graph-cache README and ARCHITECTURE, and pointed kernel, CONTEXT, intercept, GCTX, and GV2 docs at that authority instead of the deprecated kernel as-built.
+- **Worked:** Treating graph-cache as the component-doc authority (DOCRB disposition already required README + ARCHITECTURE) avoided a second central as-built.
+- **Failed:** none
+- **Friction:** anvil_validate_write patch apply failed on the linked worktree; full proposedContent succeeded. format:check must run from the worktree cwd, not the main checkout.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-29 — codex
+
+- **Task:** Design CONF-005 and graph-backed agent acceleration surfaces
+- **Outcome:** Approved CEG plus contract-authority, test-evidence, and build-platform graph candidates; bounded their performance posture before implementation
+- **Worked:** Compared proposals with the live Graph v2 hot-path, persistence, GCTX, and DEVACC contracts
+- **Failed:** none
+- **Friction:** The anvil daemon was not wired in this checkout, so source-backed graph architecture evidence was used
+- **Improvement:** Measure graph query token savings and runtime cost together through DEVACC and resource benchmarks
+- **Follow-up:** owned: CONF-005
+
+### 2026-08-29 — codex
+
+- **Task:** Council validation of four-graph performance boundary
+- **Outcome:** Council BLOCK: direction is viable but design lacks binding authority, completeness, privacy, lifecycle, egress and numeric graduation contracts
+- **Worked:** Five specialist reviewers, per-output supervision, retry-corrected operations review, binding judge synthesis and persisted Council findings
+- **Failed:** The initial performance boundary was too qualitative to support a no-significant-cost claim
+- **Friction:** No persisted new graph specification existed, so Council reviewed the approved design against existing architecture authorities
+- **Improvement:** Require snapshot-vector consistency, trusted external evidence receipts and per-surface cold/degraded benchmarks in graph design gates
+- **Follow-up:** owned: CONF-005
+
+### 2026-08-29 — grok
+
+- **Task:** Intercept socket XDG/state-home split: dual-path client connect, doctor check, --fix relocate
+- **Outcome:** Implemented on feat/intercept-socket-rendezvous; tests green for candidates, doctor check, intercept_stop
+- **Worked:** Per-uid dual-path connect (ANVIL_HOME exclusive, symlink fail-closed); doctor intercept-socket-rendezvous; --fix SIGTERM sibling pid file then ensure canonical
+- **Failed:** none
+- **Friction:** GCTX still unavailable in this Grok session until MCP children re-exec the new binary
+- **Improvement:** Doctor should name the socket path split; do not symlink intercept.sock
+- **Follow-up:** promote: CIB
+
+### 2026-08-29 — codex — CLAWOPEN publication gate
+
+- **Task:** Gate CLAWOPEN exact-head publication and landing
+- **Outcome:** Council blocked publication before push because the full-wave APS contract is incomplete, owning docs contradict repaired behaviour, and the changed website test fails TypeScript.
+- **Worked:** Parallel exact-head general, security, adversarial, supervisor, and judge review plus focused TypeScript, Rust, docs, diagram, and APS validation exposed contract and implementation gaps before hosted publication.
+- **Failed:** The initial security advisory stalled and was replaced with a bounded local security review; package test scripts did not expose the website TypeScript failure.
+- **Friction:** The CLAWOPEN module combines a full-wave publication gate with deliberately Blocked and Proposed clusters, leaving a completed subset unable to publish without an explicit scope decision.
+- **Improvement:** Require every wave plan to state whether verified subsets may publish, and give apps/website an explicit typecheck script included in changed-scope validation.
+- **Follow-up:** session:council-b87b5fee
+
+### 2026-08-30 — codex
+
+- **Task:** Repair and land bounded Clawpatch findings
+- **Outcome:** Merged PR #4216 and APS lifecycle PR #4217; 18 of 28 reviewed findings are fixed and ten remain gated.
+- **Worked:** Parallel Council review caught raw-error and provider-message privacy leaks; provider-realistic credential regression tests drove the bounded structured logging fix.
+- **Failed:** The normal gh rebase merge completed on GitHub but local branch cleanup failed because main was checked out in another worktree; hosted state and integration ancestry had to be verified separately.
+- **Friction:** The user-level Worktrunk path template initially created the bookkeeping worktree outside the writable session root, so the clean empty worktree was safely recreated under the repository.
+- **Improvement:** Use provider-realistic credential shapes in observability regression tests, and treat hosted merge success and local cleanup as separate verification boundaries.
+- **Follow-up:** none
+
+### 2026-08-30 — codex
+
+- **Task:** Investigate Vercel anvil-api database-connectivity anomaly
+- **Outcome:** Confirmed recurring Neon ETIMEDOUT failures on account-activity ingest across three deployments; current traffic recovered
+- **Worked:** Vercel runtime error clusters, exact logs, deployment provenance, live-source comparison, and provider status checks separated downstream failure from deployment regression
+- **Failed:** Neon project-region metrics and provider-side request traces were not available in this session
+- **Friction:** Vercel seven-day route aggregation timed out once; anvil graph was usable but stale after scan timeout
+- **Improvement:** Document and alert separately for auxiliary account-activity ingest, including Neon support evidence and an explicit fail-open versus durable-delivery decision
+- **Follow-up:** theme:anvil-api-db-connectivity
+
+### 2026-08-30 — grok
+
+- **Task:** Persist protection posture board spec
+- **Outcome:** Design approved; spec written on docs/protection-posture-board; APS not filed
+- **Worked:** Grill closed on Status-panel board; isolated via wt-new; anvil_validate_write allow; pnpm docs:check 15/15 in the worktree
+- **Failed:** none
+- **Friction:** Main-tree pnpm docs:check failed on skip-worktree .envrc; worktree check was clean
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** File POSBRD and open plan PR
+- **Outcome:** PR #4218 opened with spec, POSBRD module, index row
+- **Worked:** Exclusive module Proposed 0/5; aps lint and docs:check green; gh pr create
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Implement approved CLAWOPEN-002 and CLAWOPEN-010
+- **Outcome:** Suspended-account reactivation uses a status=suspended claim; docs-shell landing no longer exports force-dynamic.
+- **Worked:** Operator named the exact production writes; TDD first; anvil_apply_patch allowed both.
+- **Failed:** docs-shell and anvil-api tsc --noEmit already fail on this worktree/main dist mix; recorded as inherited.
+- **Friction:** Worktree flags-catalogue dist was stale until contracts+catalogue rebuild.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — codex — CONF-005 Verified Change Declarations
+
+- **Task:** CONF-005 Verified Change Declarations
+- **Outcome:** Implementation Council PASS and local validation green.
+- **Worked:** Scoped Council exposed nested-fence, resource-budget, and contract-admission gaps before PR; focused regression coverage closed each one.
+- **Failed:** Initial strict Clippy found a large error variant and an overlong extractor; boxed diagnostic errors and factored source construction resolved them.
+- **Friction:** Council prose results required manual session evidence registration because reviewers did not persist finding IDs.
+- **Improvement:** Keep parser-context, explicit input-budget, and fail-honest admission checks in conformance extractor review prompts.
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Design: listed surfaces must work; hide until default-on; track via catalogue helpListing
+- **Outcome:** Design approved. Spec at plans/specs/2026-08-30-listed-surfaces-default-on.md. List is flags/surfaces.json helpListing, not a markdown index.
+- **Worked:** Grill to a promotion test (claim + expectation), listing-is-default, hide-until-default-on. Catalogue already has cli.impact / cli.dashboard-web / cli.plan-dashboard.
+- **Failed:** none
+- **Friction:** IMPV-002 left anvil impact visible then refused; that listing is superseded.
+- **Improvement:** Delivery-surface helpListing (listed | pending-default-on | unlisted) so hidden-until-default-on is queryable without a shadow list.
+- **Follow-up:** session: plan-ready / APS + ADR for hide slice; GTAO-004/006/007 stay GTAO
+
+### 2026-08-30 — other — grok
+
+- **Task:** Land PR #4219 rebase merge on green (CLAWOPEN-002/-010)
+- **Outcome:** Merged #4219 into origin/main (dfee50d73 / product 6e728c0f7). APS reconcile opened as #4224 with rebase auto-merge.
+- **Worked:** Reran failed unit tests after vitest forks timeout on packages/edda-stack/src/ember/proposal-store.test.ts (untouched; first product-commit unit run had passed). Required Test check then ran as a 13s no-op.
+- **Failed:** none terminal
+- **Friction:** Hosted unit tests flaked once on proposal-store.test.ts worker timeout; Rust Test queued behind the one-machine runner.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — codex
+
+- **Task:** Investigate Cloudflare resilience options for waitlist intake
+- **Outcome:** Compared Queues, D1, Workers, and Workflows against eventual-consistency and no-data-loss requirements.
+- **Worked:** Official Cloudflare documentation exposed delivery guarantees, retention limits, direct HTTP publishing, and D1 uniqueness and location controls.
+- **Failed:** none
+- **Friction:** Queue retention is bounded, so queue-only wording can overstate losslessness.
+- **Improvement:** Require a durable intake ledger whenever product language promises no data loss beyond queue retention.
+- **Follow-up:** session:waitlist-resilience-design
+
+### 2026-08-30 — grok
+
+- **Task:** Draft FLAGCAT-019 listed-implies-on
+- **Outcome:** FLAGCAT-019 Draft filed; spec recreated; index 15/19
+- **Worked:** Surface listed boolean; on/off derived from flag; clap hide as proof consumer
+- **Failed:** none
+- **Friction:** First spec/module writes did not persist; rewritten and verified on disk
+- **Improvement:** none
+- **Follow-up:** session: operator promote FLAGCAT-019 then ADR + implementation
+
+### 2026-08-30 — grok
+
+- **Task:** Land graph-cache architecture docs PR rebase-on-green
+- **Outcome:** Merged #4223 by rebase onto main after checks went green.
+- **Worked:** Resolving the Copilot thread (crate owns graph logic, doc is the pointer) unblocked required_review_thread_resolution.
+- **Failed:** CI Docs corpus failed until diagram-impact and docs-owed freshness chains were closed; rebase onto main then needed format of overview.md.
+- **Friction:** Changing intercept ARCHITECTURE or ai-context-delivery triggers a freshness cascade through DEVACC spec and evidence notes. Local docs:check can pass while CI fails because --since uses committed range only.
+- **Improvement:** When adding a component ARCHITECTURE, bump freshness on every mermaid-bearing and docs-owed downstream of declared upstreams in the same commit.
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Rebase-merge POSBRD plan PR on green
+- **Outcome:** PR #4218 rebase-merged; 2f1ca2669 ancestor of origin/main
+- **Worked:** Waited for required checks; auto-merge rebase already enabled; no admin bypass
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Open and rebase-merge FLAGCAT-019 draft PR
+- **Outcome:** PR #4226 rebase-merged to main at 0becbcccd
+- **Worked:** Worktree from origin/main; auto-merge re-armed after Copilot owner-link follow-up
+- **Failed:** none
+- **Friction:** First auto-merge dropped after a follow-up commit; re-enabled. Local docs:check retired-claims tooling on .envrc did not block CI.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** address-reviews: rebase-merge current open PRs on green
+- **Outcome:** merged 4204 4225 4223 4218 4226 4227; 4215 awaiting council:reviewed after protected ipc.rs CI fixes
+- **Worked:** CI-first on 4215; GraphQL reply-then-resolve Copilot threads; rebase --force-with-lease only when DIRTY; no admin merge
+- **Failed:** 4215 council:reviewed dismissed on ipc.rs follow-up; 4223 auto-merged before ownership wording so follow-up 4227
+- **Friction:** required_review_thread_resolution blocks rebase-merge until Copilot threads are resolved; council label auto-dismiss on new commits to protected paths
+- **Improvement:** When auto-merge is already enabled, land review wording before resolving the last Copilot thread so the merge cannot race the fix
+- **Follow-up:** session: 4215 needs council:reviewed on head 704576dce after unix test gating
+
+### 2026-08-30 — codex
+
+- **Task:** Assess whether anvil-api should migrate from Vercel to Cloudflare Workers
+- **Outcome:** Compared live Vercel deployment topology, current Hono and Neon dependencies, Cloudflare Workers compatibility, and compute-only versus database migration risk.
+- **Worked:** Live deployment metadata and official platform documentation showed the API is portable but already multi-region; the observed failure remains a shared Neon dependency.
+- **Failed:** none
+- **Friction:** A compute migration can appear to solve resilience while leaving the failing database dependency unchanged.
+- **Improvement:** Frame hosting migrations as separate compute, persistence, ingress, and asynchronous-delivery decisions before selecting a platform.
+- **Follow-up:** session:api-resilience-design
+
+### 2026-08-30 — grok
+
+- **Task:** Broad worktree and branch cleanup
+- **Outcome:** Removed 12 merged worktrees and 27 leftover local branches; kept live and dirty trees
+- **Worked:** Used git cherry vs origin/main; force-removed squash/rebase leftovers including POSBRD
+- **Failed:** none
+- **Friction:** wt-cleanup-sweep skipped everything due to .anvil/.agent-bus ignored dirs
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Implement FLAGCAT-019 listed-implies-on
+- **Outcome:** PR #4229 opened with rebase auto-merge; ADR-136; hide impact/plan/--web
+- **Worked:** listed field, load-time listed&&!on, clap hide, generated unlisted view
+- **Failed:** none
+- **Friction:** Worktrees vanished; commit on feature branch then HEAD tracked main
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — codex
+
+- **Task:** Repair CONF-011 per-commit non-evaluation reporting
+- **Outcome:** Added deterministic per-commit audit records and safe CLI budget diagnostics; full checks and CLI suites green
+- **Worked:** Vertical-slice RED/GREEN regressions exposed the duplicate-reason collapse and protected invalid-declaration composition
+- **Failed:** none
+- **Friction:** Stale graph affected-test data required explicit package suites
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — codex
+
+- **Task:** Repair CONF011-V3 binding and renderer residuals
+- **Outcome:** Added per-commit binding mismatch records plus plain and SARIF commit-level reporting; full suites green
+- **Worked:** Public-interface evaluator and process regressions exposed each residual before implementation
+- **Failed:** none
+- **Friction:** Stale graph affected-test data required explicit package suites
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Continue leftover worktree cleanup
+- **Outcome:** Removed CIB-363 (merged #4170); dropped 3 superseded stashes; kept live/dirty trees
+- **Worked:** Reclassified vs origin/main after other sessions added trees
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — other — grok
+
+- **Task:** Rebase-merge FLAGCAT-019 PR #4229 on green (no admin)
+- **Outcome:** Merged to main at 0cd2a688e; ADR renumbered 136→137 after collision with SDT-003; Copilot threads resolved; FLAGCAT-019 status follow-up PR #4235
+- **Worked:** Rebase onto origin/main; take next free ADR-137; force-with-lease of the feature branch; required_review_thread_resolution via Copilot nits; rebase auto-merge without admin
+- **Failed:** First CI watcher used invalid gh field merged and exited; Docs corpus failed on duplicate ADR-136 until rebase+renumber
+- **Friction:** GitHub PR CI sees both ADRs on the merge result; ADR numbers race when two PRs file 136 from the same next-available; gh pr view --json merged is not a field on this gh
+- **Improvement:** Pick the next ADR number after rebasing onto current origin/main, not at branch-cut time
+- **Follow-up:** session: merge or leave #4235 FLAGCAT-019 Merged status; bookkeeping: pnpm aps:index for FLAGCAT 15/19
+
+### 2026-08-30 — grok
+
+- **Task:** Drop closed PR local branches
+- **Outcome:** Deleted attrib-025 (#4083 closed) and website-pitch-copy (#3689 closed)
+- **Worked:** Left merged and open PR branches
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — codex
+
+- **Task:** Complete CONF-011 external PR declaration check through verification and Council
+- **Outcome:** Implementation and independent verification passed; Council blocked on nine de-duplicated findings pending operator approval.
+- **Worked:** Exact-head verification plus general, security, and adversarial Council review exposed contract gaps despite green suites.
+- **Failed:** Initial coverage missed ambient Git discovery, multi-scope union semantics, top-level failure diagnostics, PR-body byte boundaries, per-commit successful evidence, cumulative timeout, SARIF metadata, and Git administrative-state races.
+- **Friction:** The planned repair budget was exhausted before Council, so further changes require an explicit operator decision.
+- **Improvement:** Add a contract-matrix adversarial test checklist before Council for each output format and every external Git trust boundary.
+- **Follow-up:** session:council-c6695499
+
+### 2026-08-30 — other
+
+- **Task:** Stop anvil-api 5xx spike on POST /api/v1/account/activity from Neon ETIMEDOUT
+- **Outcome:** Implemented best-effort 202 on persist failure plus IPv4 DNS preference; tests green; not committed
+- **Worked:** Vercel runtime errors pinpointed Neon fetch ETIMEDOUT at ~750ms after valid licence; existing stamp path already best-effort
+- **Failed:** none
+- **Friction:** check-diagram-impact required a freshness-bump cascade through auth-as-built, docs-shell ARCHITECTURE, and docs-delivery for an ingest-policy change
+- **Improvement:** diagram-review-owed walks declared upstreams; a code-only API fix still pulls unrelated mermaid owners unless the check treats metadata-only freshness as review
+- **Follow-up:** none
+
+### 2026-08-30 — other — grok
+
+- **Task:** Codify APS work-item GitHub claim issues in project-context
+- **Outcome:** Rule lives in plans/project-context.md; pointers in AGENTS.md, issue-triage spec, and aps-planning skill. Claim issue #4241. Portable aps-rules unchanged.
+- **Worked:** Authority split already answered the location question: anvil operating context, not portable APS.
+- **Failed:** none
+- **Friction:** Shared CIB cannot take the item on this feature PR.
+- **Improvement:** none
+- **Follow-up:** promote: CIB
+
+### 2026-08-30 — codex
+
+- **Task:** Address CI and review state on PR #4215
+- **Outcome:** Rebased and validated exact head acaee1bd; full Council persisted five major no-contract recommendations, so no Council label or further patch was applied without per-finding decisions
+- **Worked:** Exact force-with-lease, narrow plus full local gates, and pinned full Council review kept base/head evidence honest
+- **Failed:** Initial full Rust suite in the restricted sibling worktree hit read-only temp-workspace failures; the identical suite passed with worktree write authority
+- **Friction:** Rapid main movement required repeated rebases; protected-path CI invalidates Council attestation on every new head
+- **Improvement:** none
+- **Follow-up:** session:PR-4215 Council finding decisions
+
+### 2026-08-30 — codex
+
+- **Task:** CONF-011
+- **Outcome:** Implemented and locally verified; awaiting explicit GitHub publication authority
+- **Worked:** Fresh Worktrunk, test-first repairs, independent verify-loop, same-pack Council review, and exact-head full suites
+- **Failed:** Sibling Worktrunk sandbox initially produced read-only temp-workspace failures; Council atomic write wrapper can report shell success after a failed temp-file write
+- **Friction:** Final review found proof-transplant and nested-timeout provenance gaps after the first verification pass
+- **Improvement:** Make Council atomic writes fail non-zero on temp-file failure and consider cursor-based raw-record parsing to reduce malformed-input pointer amplification
+- **Follow-up:** theme:council-write-honesty-and-bounded-raw-record-parsing
+
