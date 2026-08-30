@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic';
-
 const COPYRIGHT_YEAR = new Date().getFullYear();
 
 type SectionAccent = 'structure' | 'anvil';

@@ -998,6 +998,95 @@ describe('admin endpoints', () => {
       expect(vi.mocked(sendBetaInvite)).toHaveBeenCalledTimes(1);
     });
 
+    it('reactivates a suspended account without reclaiming the waitlist row', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'suspended',
+        notes: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-02T00:00:00.000Z',
+      });
+      mockSql.transaction.mockResolvedValue([[{ email: 'alice@example.com' }]]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        approved: [{ email: 'alice@example.com', expiresAt: expect.any(String) }],
+      });
+      expect(mockSql.transaction).toHaveBeenCalledTimes(1);
+      const approvalCall = mockSql.mock.calls[0] as unknown[];
+      const sqlText = (approvalCall[0] as TemplateStringsArray).join(' ');
+      expect(sqlText).toContain('UPDATE beta_users');
+      expect(sqlText).toContain('INSERT INTO access_tokens');
+      expect(sqlText).toContain('INSERT INTO audit_log');
+      expect(sqlText).not.toContain('approved_at IS NULL');
+      expect(approvalCall).toContain('suspended');
+      expect(approvalCall).toContain('active');
+      expect(vi.mocked(sendBetaInvite)).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects concurrent reactivation once the suspended row is claimed', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'suspended',
+        notes: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-02T00:00:00.000Z',
+      });
+      mockSql.transaction
+        .mockResolvedValueOnce([[{ email: 'alice@example.com' }]])
+        .mockResolvedValueOnce([[]]);
+
+      const [first, second] = await Promise.all([
+        request('POST', '/admin/approve', { email: 'alice@example.com' }, ADMIN_KEY),
+        request('POST', '/admin/approve', { email: 'alice@example.com' }, ADMIN_KEY),
+      ]);
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(409);
+      expect(mockSql.transaction).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(sendBetaInvite)).toHaveBeenCalledTimes(1);
+    });
+
+    it('still rejects a duplicate approval of an active account', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      vi.mocked(findUserByEmail).mockResolvedValue({
+        id: 'user-1',
+        email: 'alice@example.com',
+        name: null,
+        status: 'active',
+        notes: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-02T00:00:00.000Z',
+      });
+      mockSql.transaction.mockResolvedValue([[]]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'Email is already approved' });
+      const sqlText = (mockSql.mock.calls[0]?.[0] as TemplateStringsArray).join(' ');
+      expect(sqlText).toContain('approved_at IS NULL');
+      expect(vi.mocked(sendBetaInvite)).not.toHaveBeenCalled();
+    });
+
     it('leaves login and activity stamps untouched — plan defaults via the column DEFAULT (BACT-008)', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       mockSql.transaction.mockResolvedValue([

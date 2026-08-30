@@ -509,6 +509,54 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     const hash = hashToken(rawToken);
     const tokenExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
+    if (existingUser?.status === 'suspended') {
+      const reactivationStatement = sql`
+      WITH claimed AS (
+        UPDATE beta_users
+        SET status = ${'active'}, updated_at = NOW()
+        WHERE email = ${normalizedEmail}
+          AND status = ${'suspended'}
+        RETURNING id, email
+      ),
+      granted_token AS (
+        INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+        SELECT id, ${hash}, ${grantedScopes}, ${tokenExpiry.toISOString()}
+        FROM claimed
+        RETURNING id
+      ),
+      approval_audit AS (
+        INSERT INTO audit_log (action, actor, metadata, auth_method)
+        SELECT ${'user.approved'}, ${actor},
+          ${JSON.stringify({ email: normalizedEmail, reactivation: true })}, ${authMethod}
+        FROM claimed
+        RETURNING id
+      ),
+      dropped_scopes_audit AS (
+        INSERT INTO audit_log (action, actor, metadata, auth_method)
+        SELECT ${'user.approve.scopes_dropped'}, ${actor},
+          ${JSON.stringify({ email: normalizedEmail, droppedScopes, grantedScopes })},
+          ${authMethod}
+        FROM claimed
+        WHERE ${droppedScopes.length > 0}
+        RETURNING id
+      )
+      SELECT email FROM claimed
+    `;
+      const reactivationResult = await sql.transaction([reactivationStatement]);
+      const reactivatedRows = (reactivationResult as unknown[][])[0] ?? [];
+      if (reactivatedRows.length === 0) {
+        throw new Error(`already_approved:${normalizedEmail}`);
+      }
+
+      moveToApprovedAudience(normalizedEmail).catch((err) => {
+        console.error('Failed to move audience (non-fatal):', err);
+      });
+      await sendBetaInvite(normalizedEmail).catch((err) => {
+        console.error('Failed to send invite email (non-fatal):', err);
+      });
+      return { email: normalizedEmail, expiresAt: tokenExpiry.toISOString() };
+    }
+
     const approvalStatement = sql`
       WITH claimed AS (
         UPDATE waitlist

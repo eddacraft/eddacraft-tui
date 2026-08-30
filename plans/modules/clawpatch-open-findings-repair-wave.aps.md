@@ -15,8 +15,8 @@ by this delivery. The source set remains the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
 selected for this repair wave. CLAWOPEN-001, -003, -004, -005, -006, -008, and
 -012 are Merged; CLAWOPEN-007, -009, and -011 retain explicit design
-checkpoints; CLAWOPEN-002 and -010 retain the named operator-approval blockers
-below.
+checkpoints; CLAWOPEN-002 and -010 are In Progress after operator approval of
+the production admin transaction and docs-shell static-landing change.
 
 > **Exclusive module.** The wave orchestrator is the only plan writer.
 > Parallel executors own isolated code/test workspaces and do not edit this
@@ -88,7 +88,7 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-002: Restore suspended-account approval
 
-- **Status:** Blocked
+- **Status:** In Progress
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** An operator can reactivate a previously approved suspended
@@ -102,9 +102,6 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 - **Finding ID:** `fnd_sig-feat-route-8799ede6c4-dd3891_c05bd63a20`
 - **Validation:** `pnpm --dir apps/anvil-api exec vitest run src/__tests__/admin.test.ts`;
   `pnpm --dir apps/anvil-api typecheck`
-- **Blocker:** The write gate requires exact operator approval for changes to
-  the production admin transaction that updates account status and creates
-  token and audit rows.
 - **Decision:** ready
 
 ### CLAWOPEN-003: Recover GitHub device sessions and verified identity
@@ -252,7 +249,7 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ### CLAWOPEN-010: Pin docs-shell behaviour and caching
 
-- **Status:** Blocked
+- **Status:** In Progress
 - **Priority:** P3
 - **Risk:** standard
 - **Intent:** User-facing auth recovery and landing-page destinations remain
@@ -262,16 +259,17 @@ that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
   classifies the root route as static or deliberately revalidated.
 - **Files:** `apps/docs-shell/app/auth/error/page.tsx`,
   `apps/docs-shell/app/auth/pending/page.tsx`,
-  `apps/docs-shell/app/page.tsx`, and focused tests
+  `apps/docs-shell/app/page.tsx`,
+  `apps/docs-shell/app/auth/error/page.test.ts`,
+  `apps/docs-shell/app/auth/pending/page.test.ts`,
+  `apps/docs-shell/app/page.test.ts`,
+  `apps/docs-shell/vitest.config.ts`
 - **Finding IDs:** `fnd_sig-feat-route-9eb65fea2f-a2ad37_77eb4d489d`,
   `fnd_sig-feat-route-ea68cde701-4d56a1_c1562065ab`,
   `fnd_sig-feat-route-f44022f02c-73c870_78633640ed`,
   `fnd_sig-feat-route-f44022f02c-6068aa_9490310487`
 - **Validation:** focused docs-shell Vitest; docs-shell typecheck and production
   build
-- **Blocker:** The write gate requires exact operator approval to remove the
-  production `force-dynamic` directive because it changes caching and
-  deployment behaviour. The RED harness was removed and no change remains.
 - **Decision:** ready
 
 ### CLAWOPEN-011: Prove OTP attempt caps against PostgreSQL
