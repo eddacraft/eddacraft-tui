@@ -1,7 +1,7 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                         |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-30 CONF-011 review of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs` and its process contract tests. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
@@ -235,14 +235,21 @@ The report schema is `anvil.conformance-check.v1`. Declaration evidence grade
 and evaluation evidence strength are separate fields. Complete Git evidence can
 evaluate `documentation-only`, `test-only`, and explicit `path:` scopes. Git
 footprint extraction is claim-agnostic, so commit messages do not need to use
-Conventional Commit syntax for a PR declaration to be evaluated.
+Conventional Commit syntax for a PR declaration to be evaluated. Multiple
+explicit prefixes in one declaration are one authorised union. A successful JSON
+verdict retains `gitCommits`: the binding, parent, canonical raw records, and
+coverage indices for each evaluated commit; range records and coverage are
+derived summaries.
 
-Every format counts and identifies each Git commit that could not be evaluated.
-JSON exposes `notEvaluatedCommitCount` and `gitNonEvaluations`; plain output
-lists the same commit records, and SARIF emits one result per failed commit.
-Records retain the immutable commit revision, reason, stage, observed and
-configured limits, and safe budget/digest diagnostics. Free-form Git failure
-detail and raw output are never emitted.
+After Git has enumerated the range, every format counts and identifies each
+commit that could not be evaluated. JSON exposes `notEvaluatedCommitCount` and
+`gitNonEvaluations`; plain output lists the same records, and SARIF emits one
+result per failed commit. If repository identity or range selection fails before
+enumeration, the count is `null`/“unknown” rather than zero and the distinct
+`gitEvaluationNonEvaluation` object retains reason, stage, observed/configured
+limits, and safe budget/digest diagnostics. Plain and SARIF keep that top-level
+failure distinct too. Free-form Git failure detail and raw output are never
+emitted.
 
 `no-behaviour-change` and `refactor-only` remain reason-coded `not-evaluated`;
 the command does not infer graph semantics from a clean path diff.
@@ -250,15 +257,31 @@ the command does not infer graph semantics from a clean path diff.
 **Exit codes:** 0 (advisory result, including `non-conformant` and
 `not-evaluated`), 1 (operational or input error), 3 (auth required)
 
+The PR body is read as at most 256 KiB plus one detection byte. An over-budget
+body or invalid UTF-8 is a reason-coded advisory `not-evaluated` result in
+plain, JSON, and SARIF output; opening or reading the selected file/stream is an
+operational error.
+
 The command retains only the declaration digest and supplied immutable source
-reference in its canonical evidence. It never emits or persists the raw PR body.
-Missing, malformed, partial, over-budget, or mismatched evidence cannot become
-conformant.
+reference in its canonical evidence under the forge-neutral
+`pull-request-body.anvil-claims.v1` producer schema. It never emits or persists
+the raw PR body. Missing, malformed, partial, over-budget, or mismatched
+evidence cannot become conformant.
 
 This is an on-demand Git check. It starts no resident graph, daemon, or service,
 and has no GitHub-specific dependency; callers provide the body and immutable
-reference. SARIF emits warning results for each non-conformance or
-non-evaluation reason and an empty result set for a conformant declaration.
+reference. Repository discovery, identity, and extraction all run through the
+closed Git environment. Identity and extraction share one five-minute deadline;
+after rejecting pre-existing replacement, graft, or shallow state, later Git
+commands use private run-owned shallow/graft sentinels so a concurrent
+administrative mutation cannot change ancestry.
+
+SARIF emits warning results for each non-conformance or non-evaluation reason
+and an empty result set for a conformant declaration. Every run, including that
+empty conformant run, has structured `properties` for `schemaVersion`,
+`advisory`, `outcome`, `declarationEvidenceGrade`, `evidenceStrength`,
+`resolvedBase`, `resolvedHead`, `notEvaluatedCommitCount`, and
+`gitEvaluationNonEvaluation`.
 
 **Examples:**
 

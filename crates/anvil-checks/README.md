@@ -48,6 +48,9 @@ compatibility and history record.
   repository/worktree identities and structured budget diagnostics keep failures
   observable without leaking local paths. Raw Git records stay distinct from
   canonical per-path coverage and evaluator-owned evidence dispositions.
+  Successful range verdicts retain that canonical record/coverage envelope for
+  every commit, including its parent and exact object binding; range summaries
+  remain derived views rather than a replacement for per-commit proof.
 
 ## Intent-conformance claim table v1
 
@@ -81,10 +84,12 @@ empty, unclosed, or second block, an unknown claim, or a malformed/invalid-scope
 member yields stable `claim.pr-body.*` reasons and a not-evaluated source while
 preserving any known members. Provenance is weak-grade `PullRequest` intent and
 retains only the caller-supplied immutable source reference plus a SHA-256
-digest over the exact raw body bytes; the body itself is never retained. Git may
-evaluate the documentation, test, and explicit-path claims. The two
-graph-semantic claims remain not evaluated under the existing claim table until
-complete graduated CEG evidence is admitted.
+digest over the exact raw body bytes under the forge-neutral
+`pull-request-body.anvil-claims.v1` producer schema; the body itself is never
+retained. Git may evaluate the documentation, test, and explicit-path claims.
+All explicit path prefixes from that one declaration source form one authorised
+union. The two graph-semantic claims remain not evaluated under the existing
+claim table until complete graduated CEG evidence is admitted.
 
 Extraction-limit version 1 admits at most 256 KiB of body, a 4 KiB source
 reference, 256 non-empty members, 1 KiB per member, 128 distinct scopes, and 512
@@ -124,6 +129,10 @@ is resolved once to a canonical absolute executable; relative or empty `PATH`
 entries cannot change the invoked program after the working directory changes.
 Every invocation runs in an isolated process tree, which is terminated as a unit
 on timeout or output overflow, and pipe capture has its own bounded shutdown.
+Identity and extraction share one caller-owned five-minute deadline. After an
+initial real-state rejection check, every Git subprocess uses one private
+run-owned global config plus absent shallow/graft sentinels, so concurrent
+repository-administration mutation cannot change ancestry during evaluation.
 Repository subdirectories resolve to the same canonical Git top-level identity,
 while bare repositories are not evaluated.
 

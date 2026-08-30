@@ -1,7 +1,7 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                             |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-011's range-level PR declaration evaluator in `src/conformance/evaluate.rs`; the diagram makes the production PR declaration plus exact Git range input explicit. Previously reviewed 2026-08-30 against SDT-004's vendored tier-1 secret ruleset and CONF-005's deterministic PR-body adapter. |
 
 | Upstream                                                                                        | Downstream                                                                |
@@ -118,10 +118,15 @@ orchestration from leaking into the reusable check engine.
   commits share the requested repository, canonical worktree, run, base, head,
   and per-commit revision bindings. Any not-evaluated commit or binding mismatch
   makes the aggregate not evaluated; partial evidence cannot become conformant.
+  A successful verdict retains each commit's binding, parent, raw records, and
+  coverage indices; range records and coverage are deterministic derived views.
 - Intent-conformance extraction disables replacement objects, rejects
   replacement/graft and shallow state, clears ambient Git configuration, and
-  applies per-command and whole-run resource budgets. Every selected commit
-  remains represented as evaluated or reason-coded not-evaluated. Repository and
+  applies per-command and one caller-owned whole-run resource budget across
+  identity and extraction. After checking the real repository state, all later
+  Git commands use private run-owned shallow/graft sentinels so concurrent
+  administrative mutation cannot alter ancestry. Every selected commit remains
+  represented as evaluated or reason-coded not-evaluated. Repository and
   canonical-worktree identities are derived from the canonical Git common
   directory and top-level respectively, re-verified at extraction, and emitted
   only as opaque digests. Bare repositories are rejected, while any directory
@@ -142,10 +147,10 @@ orchestration from leaking into the reusable check engine.
   bounded no-renames preflight and rename-enabled final diff must name identical
   endpoint sets.
 - File-class and prefix matching are case-exact. Every prefix in a selected
-  base-tree mapping forms one authority union. Contributing base configuration
-  paths are `policy-change` regardless of the claim's scope form. Raw Git paths
-  retain legal UTF-8 metacharacters that the stricter authority-prefix grammar
-  forbids.
+  base-tree mapping, and every explicit prefix from one declaration source,
+  forms one authority union. Contributing base configuration paths are
+  `policy-change` regardless of the claim's scope form. Raw Git paths retain
+  legal UTF-8 metacharacters that the stricter authority-prefix grammar forbids.
 - PR-body extraction accepts exactly one `anvil-claims` fence and the closed v1
   member vocabulary at top-level Markdown scope; quoted examples and HTML
   comments are not declarations. It shares the strict path-prefix authority
@@ -153,8 +158,9 @@ orchestration from leaking into the reusable check engine.
   missing, ambiguous, malformed, unknown, or versioned-budget-exceeded input.
   Only an `Extracted` result can release contract parts; bounded understood
   members in a `NotEvaluated` result remain diagnostic. Admitted input retains
-  only an immutable source reference and exact-body digest. Raw PR prose never
-  enters the output.
+  only an immutable source reference and exact-body digest under the
+  forge-neutral `pull-request-body.anvil-claims.v1` producer schema. Raw PR
+  prose never enters the output.
 - Conformance outcome and evidence strength are independent and aggregate
   monotonically: incomplete evidence cannot pass, while a proven violation
   cannot disappear behind missing evidence. Graph bindings are checked across

@@ -31,12 +31,18 @@ remain the authorities for their wider concerns.
 `anvil conformance check` is a thin command adapter over `anvil-checks`. It
 reads one bounded PR body, supplies an immutable source reference and explicit
 Git range, and renders the canonical advisory result as plain, JSON, or SARIF
-output. Raw author prose does not enter output or persistent state.
+output. Repository discovery is delegated to the extractor's closed Git
+environment so ambient `GIT_DIR` and `GIT_WORK_TREE` cannot redirect the
+evaluation. Invalid byte encoding and body-size failures remain semantic
+non-evaluations; filesystem and stream failures remain operational. Raw author
+prose does not enter output or persistent state.
 
 The adapter performs on-demand bounded Git work only. It introduces no resident
 graph, daemon, storage, or GitHub-specific integration. Graph-semantic claims
 remain not evaluated until a separately governed revision-bound evidence adapter
-exists.
+exists. Structured formats retain top-level Git failures separately from
+per-commit failures, and SARIF run properties carry report metadata even when a
+conformant result list is empty.
 
 ## Activation orchestration
 

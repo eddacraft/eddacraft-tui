@@ -62,8 +62,14 @@ choose plain, JSON, or SARIF output.
 
 The result is advisory. Semantic outcomes, including non-conformant and
 not-evaluated, exit 0 so a caller can decide policy from the structured report;
-operational failures still fail. The command runs the bounded Git evaluator on
-demand and does not start a resident graph or service. See the
+an over-budget or invalid UTF-8 body is therefore reason-coded not evaluated,
+while an unreadable input remains an operational failure. JSON preserves
+structured top-level and per-commit Git diagnostics. SARIF carries the same
+report identity, outcome, evidence grades, resolved revisions, and honest commit
+cardinality in the run property bag even when a conformant run has no results.
+
+The command runs the bounded Git evaluator on demand and does not start a
+resident graph or service. See the
 [CLI surface reference](../../docs/runbooks/cli-surface.md#anvil-conformance)
 for the exact contract.
 
