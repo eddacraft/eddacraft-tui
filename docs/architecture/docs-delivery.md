@@ -1,7 +1,7 @@
 # Documentation delivery
 
-| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                                            |
-| ----- | ------------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Type  | Authority     | Owner           | Status | Freshness                                                                                                                                                                                                                                           |
+| ----- | ------------- | --------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-30 against CLAWOPEN-010, anvil-api account-activity best-effort ingest on Neon timeout, and docs-shell ARCHITECTURE freshness for work-item claim issues; source, build, deployment, request topology, and diagrams unchanged |
 
 | Upstream                                                                                                                                                                                                                                                       | Downstream                                                                                  |

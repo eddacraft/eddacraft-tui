@@ -1,7 +1,7 @@
 # anvil documentation shell architecture
 
-| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                                               |
-| ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                                                                                                          |
+| ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-30 against CLAWOPEN-010, anvil-api account-activity best-effort ingest on Neon timeout, and documentation-governance work-item claim-issue freshness; production routing, trust boundaries, failure behaviour, and diagrams remain unchanged |
 
 | Upstream                                                                                                                                          | Downstream                                    |
