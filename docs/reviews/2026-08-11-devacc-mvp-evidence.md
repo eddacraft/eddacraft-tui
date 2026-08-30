@@ -4,8 +4,8 @@
 | ----- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Advisory  | DEVACC | Live   | Last reviewed 2026-08-30 against `docs/architecture/dev-acceleration-benchmark-spec.md` — graph-cache pointer freshness only, not spec content, so this evidence note is unaffected. Prior review 2026-08-16 for #3915 (metadata-only re-date). Same finding on 2026-08-13 for DOCFRESH-005 |
 
-| Upstream                                                                                                                                                                               | Downstream                                         |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Upstream                                                                                                                                                                               | Downstream                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | [`dev-acceleration-benchmark-spec.md`](../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..010 (no live agent yet) `docs/architecture/dev-acceleration-benchmark-spec.md` | `plans/archive/modules/dev-acceleration-benchmarks.aps.md` |
 
 ## What this note covers (no headless-agent choice required)

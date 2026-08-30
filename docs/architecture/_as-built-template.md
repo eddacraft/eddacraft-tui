@@ -1,7 +1,7 @@
 # Component Documentation Guide and Template
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                       |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                               |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-20 against ADR-123, `docs/guides/documentation-governance.md`, and `plans/archive/modules/docs-rebaseline.aps.md` |
 
 | Upstream                                                                                                                 | Downstream                                                                                       |
