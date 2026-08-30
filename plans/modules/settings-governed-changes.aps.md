@@ -66,7 +66,7 @@ successful write is never reported as active enforcement.
 
 **Depends on:**
 
-- [settings-truth-contract](./settings-truth-contract.aps.md) (SETCON) —
+- [settings-truth-contract](../archive/modules/settings-truth-contract.aps.md) (SETCON) —
   consequence classes, constraints, revisions, runtime evidence, redaction
 - [settings-safe-preferences](./settings-safe-preferences.aps.md) (SETPREF) —
   atomic write, scope validation and concurrency detection plumbing

@@ -8,7 +8,7 @@
 | DEVACC | @aneki | medium   | Done   | 10/12    |
 
 **Last reviewed:** 2026-08-11 — Tier A + agent-free Tier B surface landed on `feat/devacc-complete` (dry-run, planning, claims). Live model runs deferred. Design at
-[`docs/architecture/dev-acceleration-benchmark-spec.md`](../../docs/architecture/dev-acceleration-benchmark-spec.md);
+[`docs/architecture/dev-acceleration-benchmark-spec.md`](../../../docs/architecture/dev-acceleration-benchmark-spec.md);
 first wave DEVACC-001..006 promoted **Ready**. Measures assistant-facing
 **Developer Acceleration** (graph context + pre-write validation + skill loop)
 for token efficiency and task success **with Anvil on vs off**. Distinct from
@@ -36,7 +36,7 @@ task-level suite and do not make DEVACC a default CI gate.
 
 Developer Acceleration is the public loop: graph context in, pre-write
 validation on agent edits, skill-guided tool use, and a fast save-time path
-([tutorial](../../docs/public/anvil/tutorials/developer-acceleration.md)).
+([tutorial](../../../docs/public/anvil/tutorials/developer-acceleration.md)).
 
 GCTX-031 (`token_reduction` in `anvil-bench`) already proves identity-only
 impact payloads are ~87% smaller than neighbourhood file reads on synthetic
@@ -76,7 +76,7 @@ This module implements the task-level suite specified in the architecture doc.
 - `anvil-developer-functions` skill bundle
 - `crates/anvil-bench` harness patterns + `estimate_gctx_tokens` (GCTX-020)
 - Design authority:
-  [`docs/architecture/dev-acceleration-benchmark-spec.md`](../../docs/architecture/dev-acceleration-benchmark-spec.md)
+  [`docs/architecture/dev-acceleration-benchmark-spec.md`](../../../docs/architecture/dev-acceleration-benchmark-spec.md)
 
 **Coordinates with:**
 

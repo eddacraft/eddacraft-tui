@@ -2,7 +2,11 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 26/26    |
+| TCOV | @eddacraft | Done        | 26/26    |
+
+**Last reviewed:** 2026-08-31 — all 26 items are Done; TCOV-026 closed the last
+one Merged 2026-08-11 via [#3730](https://github.com/eddacraft/anvil-001/pull/3730).
+Module flipped In Progress -> Done and archived; no work item remained open.
 
 ## Progress (as of 2026-08-11)
 

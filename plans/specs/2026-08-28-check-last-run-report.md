@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Operator design (2026-08-28): editor-then-agent last-run files; [ADR-056](../decisions/056-format-flag-output-selector.md); `crates/anvil-cli/src/commands/check.rs`; `insights --output` write hardening | [CHKLR-001](../modules/check-last-run.aps.md); public `anvil check` docs in the same change |
+| Operator design (2026-08-28): editor-then-agent last-run files; [ADR-056](../decisions/056-format-flag-output-selector.md); `crates/anvil-cli/src/commands/check.rs`; `insights --output` write hardening | [CHKLR-001](../archive/modules/check-last-run.aps.md); public `anvil check` docs in the same change |
 
 **Design approved 2026-08-28.** Execution authority is CHKLR-001. This
 specification does not authorise product code on its own.

@@ -6,7 +6,7 @@ Date: 2026-08-03
 Module: `ATTRIB` (adds ATTRIB-018..-024; follow-on to ATTRIB-017)
 Status: Accepted
 Coordinates with:
-[`plans/modules/acknowledgements-kit-hardening.aps.md`](../modules/acknowledgements-kit-hardening.aps.md),
+[`plans/archive/modules/acknowledgements-kit-hardening.aps.md`](../archive/modules/acknowledgements-kit-hardening.aps.md),
 [`plans/archive/modules/acknowledgements-starter-releases.aps.md`](../archive/modules/acknowledgements-starter-releases.aps.md),
 [`plans/specs/2026-06-08-acknowledgements-starter-releases.md`](./2026-06-08-acknowledgements-starter-releases.md),
 [`docs/runbooks/acknowledgements-starter-release.md`](../../docs/runbooks/acknowledgements-starter-release.md),

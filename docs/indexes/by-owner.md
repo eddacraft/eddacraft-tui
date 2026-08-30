@@ -168,11 +168,11 @@
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----- | --------- | ------ | ------ |
 | [DEVACC MVP evidence note (Tier A + dry-run B)](../../docs/reviews/2026-08-11-devacc-mvp-evidence.md) | `docs/reviews/2026-08-11-devacc-mvp-evidence.md` | Guide | Advisory  | DEVACC | Live   |
 
-## DEVACC (plans/modules/dev-acceleration-benchmarks.aps.md)
+## DEVACC (plans/archive/modules/dev-acceleration-benchmarks.aps.md)
 
-| Document                                                                                               | Path                                                   | Type | Authority | Owner                                                     | Status |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ---- | --------- | --------------------------------------------------------- | ------ |
-| [Dev Acceleration Benchmark Specification](../../docs/architecture/dev-acceleration-benchmark-spec.md) | `docs/architecture/dev-acceleration-benchmark-spec.md` | Spec | Derived   | DEVACC (plans/modules/dev-acceleration-benchmarks.aps.md) | Live   |
+| Document                                                                                               | Path                                                   | Type | Authority | Owner                                                             | Status |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ---- | --------- | ----------------------------------------------------------------- | ------ |
+| [Dev Acceleration Benchmark Specification](../../docs/architecture/dev-acceleration-benchmark-spec.md) | `docs/architecture/dev-acceleration-benchmark-spec.md` | Spec | Derived   | DEVACC (plans/archive/modules/dev-acceleration-benchmarks.aps.md) | Live   |
 
 ## DEVENV
 

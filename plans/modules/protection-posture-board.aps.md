@@ -48,7 +48,7 @@ Status tab. This module does not ship `/settings` or `anvil settings`.
 
 **Depends on:**
 
-- [SETCON](./settings-truth-contract.aps.md) / [ADR-132](../decisions/132-settings-truth-contract.md) — catalogue, resolver, runtime-state vocabulary
+- [SETCON](../archive/modules/settings-truth-contract.aps.md) / [ADR-132](../decisions/132-settings-truth-contract.md) — catalogue, resolver, runtime-state vocabulary
 - [ADR-098](../decisions/098-policy-enforcement-reset-gate.md) AD-3 — `EnforcementMode` and `ControlDecision`
 - [ADR-129](../decisions/129-policy-surface-inventory-and-precedence.md) — surface inventory and MCP vs daemon absent-key split
 - `crates/anvil-cli/src/commands/status.rs` and `crates/anvil-tui/src/surfaces/status` — existing status surfaces

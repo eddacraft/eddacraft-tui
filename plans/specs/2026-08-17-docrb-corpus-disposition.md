@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCRB-002 inventory | [DOCRB](../modules/docs-rebaseline.aps.md) | Ready | Original inventory source-pinned 2026-08-17 to `4588f1be8`; DOCRB-005 dispositions reconciled 2026-08-20 against `f0f834b39` and current component source |
+| Spec | Authoritative for DOCRB-002 inventory | [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Ready | Original inventory source-pinned 2026-08-17 to `4588f1be8`; DOCRB-005 dispositions reconciled 2026-08-20 against `f0f834b39` and current component source |
 
 | Upstream | Downstream |
 | -------- | ---------- |

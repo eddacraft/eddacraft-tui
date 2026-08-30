@@ -12,9 +12,9 @@
 rebase-merge receipt `93f543e671b0ddcf4ec0481eaf1539a3006a9f82`, the repository
 component/documentation inventory at `0a0f00c20`, current
 DOCFRESH/DOCSYNC/DSITE/DOCDEF ownership, the operator-approved
-[documentation re-baseline design](../specs/2026-08-16-docs-rebaseline.md),
+[documentation re-baseline design](../../specs/2026-08-16-docs-rebaseline.md),
 and the
-[definition-layer design](../specs/2026-08-19-anvil-docs-definition-layer.md)
+[definition-layer design](../../specs/2026-08-19-anvil-docs-definition-layer.md)
 (DOCRB-011 live-nav split).
 
 > **Exclusive module.** DOCRB owns the documentation-authority and diagram
@@ -44,7 +44,7 @@ may progress independently of release work. `RELEASE-PLAN.md` remains unchanged.
 ## Approved Model
 
 The authoritative design source is
-[`2026-08-16-docs-rebaseline.md`](../specs/2026-08-16-docs-rebaseline.md).
+[`2026-08-16-docs-rebaseline.md`](../../specs/2026-08-16-docs-rebaseline.md).
 Its governing decisions are:
 
 1. component `README.md`/`ARCHITECTURE.md` files own local truth;

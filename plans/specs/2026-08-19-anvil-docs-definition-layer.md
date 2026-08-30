@@ -2,11 +2,11 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../modules/docs-rebaseline.aps.md) | Accepted | 2026-08-30 — documentation-governance freshness bump for work-item claim issues; IA/nav diagrams unchanged |
+| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-08-30 — documentation-governance freshness bump for work-item claim issues; IA/nav diagrams unchanged |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| `docs/guides/documentation-governance.md`; [ADR-123](../decisions/123-documentation-authority-and-diagram-model.md); [ADR-108](../decisions/108-policy-authoring-lint-and-agent-guidance.md); `apps/anvil-docs-private/sidebars/anvil.ts`; `scripts/docs/generate-anvil-public-reference.mjs`; `docs/architecture/quality-model.md`; `crates/anvil-cli/src/commands/check_catalog.rs`; `plans/specs/2026-08-16-docs-rebaseline.md` | `plans/modules/docs-definition-layer.aps.md`; `plans/modules/docs-rebaseline.aps.md` (DOCRB-011); `docs/public/anvil/**`; `apps/anvil-docs-private/sidebars/anvil.ts` |
+| `docs/guides/documentation-governance.md`; [ADR-123](../decisions/123-documentation-authority-and-diagram-model.md); [ADR-108](../decisions/108-policy-authoring-lint-and-agent-guidance.md); `apps/anvil-docs-private/sidebars/anvil.ts`; `scripts/docs/generate-anvil-public-reference.mjs`; `docs/architecture/quality-model.md`; `crates/anvil-cli/src/commands/check_catalog.rs`; `plans/specs/2026-08-16-docs-rebaseline.md` | `plans/modules/docs-definition-layer.aps.md`; `plans/archive/modules/docs-rebaseline.aps.md` (DOCRB-011); `docs/public/anvil/**`; `apps/anvil-docs-private/sidebars/anvil.ts` |
 
 **Execution authority** is the DOCDEF work-item set plus DOCRB-011. This
 specification records the approved information architecture and product

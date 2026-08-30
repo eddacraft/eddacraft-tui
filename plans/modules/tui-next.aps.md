@@ -804,7 +804,7 @@ a subcommand and `--config` path handoff.
   `rataflow` (node-based flow graphs for ratatui 0.30, MIT), so consumers get
   interactive dependency/boundary graphs without taking a direct `rataflow`
   dependency. Reuse gate satisfied 2026-08-22: the anvil impact view
-  ([IMPV-001](./tui-impact-view.aps.md)) is the first consumer, and the
+  ([IMPV-001](../archive/modules/tui-impact-view.aps.md)) is the first consumer, and the
   operator has declared a second — planned use of the widget in APS tooling.
   Validation evidence: the `spike-flow` spike (PRs #4074/#4081) proved
   rendering, interaction, container-boundary layout, and theming feasibility

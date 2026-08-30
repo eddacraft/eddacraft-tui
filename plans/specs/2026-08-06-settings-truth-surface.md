@@ -5,7 +5,7 @@
 | Status | Final (spec v1.1, 2026-08-06) — Slice 0 contract is [ADR-132](../decisions/132-settings-truth-contract.md) |
 | Date | 2026-08-06 |
 | Source | Operator-supplied product specification, imported verbatim below |
-| APS | [SETCON](../modules/settings-truth-contract.aps.md), [SETINS](../modules/settings-inspect-surface.aps.md), [SETPREF](../modules/settings-safe-preferences.aps.md), [SETGOV](../modules/settings-governed-changes.aps.md), [SETNL](../modules/settings-nl-proposals.aps.md) |
+| APS | [SETCON](../archive/modules/settings-truth-contract.aps.md), [SETINS](../modules/settings-inspect-surface.aps.md), [SETPREF](../modules/settings-safe-preferences.aps.md), [SETGOV](../modules/settings-governed-changes.aps.md), [SETNL](../modules/settings-nl-proposals.aps.md) |
 
 > **Planning note (2026-08-06; deltas noted 2026-08-13, ADR 2026-08-25).** This
 > document is the imported product specification, kept verbatim as the reference

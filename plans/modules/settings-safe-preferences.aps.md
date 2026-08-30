@@ -65,7 +65,7 @@ on changes that cannot weaken protection.
 
 **Depends on:**
 
-- [settings-truth-contract](./settings-truth-contract.aps.md) (SETCON) — target
+- [settings-truth-contract](../archive/modules/settings-truth-contract.aps.md) (SETCON) — target
   writer identification, scope validation, consequence class, service boundary
 - [settings-inspect-surface](./settings-inspect-surface.aps.md) (SETINS) — rows,
   detail panel and footer affordances the edit flow attaches to

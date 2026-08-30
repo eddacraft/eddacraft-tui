@@ -154,7 +154,7 @@ must not be read as 510 newly confirmed defects.
 - **Evidence:**
   [constraint evaluator](../../crates/anvil-settings/src/constraints.rs),
   [resolved setting shape](../../crates/anvil-settings/src/resolver.rs), and
-  [SETCON-005](../../plans/modules/settings-truth-contract.aps.md#setcon-005-policy-constraint-layer).
+  [SETCON-005](../../plans/archive/modules/settings-truth-contract.aps.md#setcon-005-policy-constraint-layer).
 - **Assessment:** RequireApproval returns success without evaluating approval
   state, and ResolvedSetting carries no approval evidence. This is a genuine
   settings contract gap, but not an active shipped exploit because the governed

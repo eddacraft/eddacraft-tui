@@ -13,7 +13,7 @@
   - All three production documentation applications build, and the two curated public journey diagrams are inspected on their mounted routes in light and dark modes.
   - Residual gaps are recorded as bounded follow-up proposals rather than repaired or silently accepted inside DOCRB-010; the operator separately authorised #4114, #4115, and #4116 on 2026-08-24.
 - **Dependencies:** DOCRB-009 is Merged via PR #4099 and its reconciliation is Merged via PR #4102 on the pinned starting receipt `abe6be8b657b8be68565aace3aada6056323ae61`.
-- **Scope:** Exactly four repository paths: `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`, this action plan, and `plans/reviews/2026-08-23-docrb-010-clean-room-verification.md`.
+- **Scope:** Exactly four repository paths: `plans/archive/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`, this action plan, and `plans/reviews/2026-08-23-docrb-010-clean-room-verification.md`.
 - **Capacity exception:** On 2026-08-23 the operator approved one additional DOCRB-010 Worktrunk after the conservative cleanup dry-run found zero eligible removals. No existing worktree may be force-cleaned or removed by this item.
 - **Risk:** High. This verification decides whether the DOCRB programme can be called complete; it requires fresh independent verification and Council review.
 - **Non-scope:** Product, documentation, diagram, checker, build, or workflow repairs; new diagrams; changing DOCFRESH, DOCSYNC, DOCDEF, DSITE, or another module's lifecycle; release claims or release gating; automatic GitHub/APS follow-up creation; administrator or policy bypass. A discovered gap blocks completion until it is reported and separately authorised.

@@ -39,7 +39,7 @@ terminal scrollback.
 
 - `crates/anvil-cli/src/commands/check.rs` — existing `render_human` and
   `CheckOutput` JSON
-- [ADR-056](../decisions/056-format-flag-output-selector.md) — `--format`
+- [ADR-056](../../decisions/056-format-flag-output-selector.md) — `--format`
   remains the stdout selector
 - `insights --output` write hardening (symlink refuse, `0o600`, overwrite
   regular file) as the file-write pattern
@@ -53,7 +53,7 @@ terminal scrollback.
 
 - [x] Design approved 2026-08-28
 - [x] Spec accepted at
-      [`plans/specs/2026-08-28-check-last-run-report.md`](../specs/2026-08-28-check-last-run-report.md)
+      [`plans/specs/2026-08-28-check-last-run-report.md`](../../specs/2026-08-28-check-last-run-report.md)
 - [x] CHKLR-001 has observable outcomes and exact validation commands
 - [x] Gate/audit last-run and `--output` remain out of scope
 
@@ -88,4 +88,4 @@ terminal scrollback.
   `4f84527c9` is an ancestor of `origin/main`.
 - **Dependencies:** —
 - **Confidence:** high
-- **Design:** [check last-run report](../specs/2026-08-28-check-last-run-report.md)
+- **Design:** [check last-run report](../../specs/2026-08-28-check-last-run-report.md)

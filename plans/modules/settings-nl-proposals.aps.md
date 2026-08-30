@@ -47,7 +47,7 @@ with the same consequence analysis, confirmations, approvals and audit.
 
 - [settings-governed-changes](./settings-governed-changes.aps.md) (SETGOV) —
   proposal contract, consequence analysis, approval routing, audit
-- [settings-truth-contract](./settings-truth-contract.aps.md) (SETCON) —
+- [settings-truth-contract](../archive/modules/settings-truth-contract.aps.md) (SETCON) —
   catalogue, aliases, redaction
 
 **Exposes:**

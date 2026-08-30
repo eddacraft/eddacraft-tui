@@ -12,7 +12,7 @@ settings-truth repairs merged via
 [#4216](https://github.com/eddacraft/anvil-001/pull/4216) (`965a9e7f4`). All 12
 SETCON work items are now Merged; SETCON-001..011 landed via
 [#4140](https://github.com/eddacraft/anvil-001/pull/4140) (`07dfb17e2`).
-[ADR-132](../decisions/132-settings-truth-contract.md) remains accepted. This
+[ADR-132](../../decisions/132-settings-truth-contract.md) remains accepted. This
 closeout is not a v0.9.8-beta product claim; `/settings` remains SETINS.
 
 > **Activation gate.** SETCON-001 is accepted as ADR-132. Downstream SETINS /
@@ -64,10 +64,10 @@ The governing invariant this module encodes (spec §1):
 - Audit storage and material-event recording (SETGOV)
 - Natural-language intent handling (SETNL)
 - Replacing `.anvilrc` / config file formats — SETCON reads what
-  [UCFG](../archive/modules/unified-config-format.aps.md) defines; it does not redesign it
+  [UCFG](./unified-config-format.aps.md) defines; it does not redesign it
 - Building a new policy engine — constraints evaluate over the existing policy
-  surfaces ([POLLC](./policy-lifecycle.aps.md),
-  [ORGHIER](./org-policy-hierarchy.aps.md)); SETCON defines how a constraint
+  surfaces ([POLLC](../../modules/policy-lifecycle.aps.md),
+  [ORGHIER](../../modules/org-policy-hierarchy.aps.md)); SETCON defines how a constraint
   reaches a settings row, not how policy is authored
 
 ## Interfaces
@@ -92,13 +92,13 @@ The governing invariant this module encodes (spec §1):
 
 **Coordinates with:**
 
-- [unified-config-format](../archive/modules/unified-config-format.aps.md) (UCFG) — source
+- [unified-config-format](./unified-config-format.aps.md) (UCFG) — source
   discovery and file layout
-- [org-policy-hierarchy](./org-policy-hierarchy.aps.md) (ORGHIER) — org →
+- [org-policy-hierarchy](../../modules/org-policy-hierarchy.aps.md) (ORGHIER) — org →
   team → project resolution feeding the constraint layer
-- [feature-flag-catalogue](./feature-flag-catalogue.aps.md) (FLAGCAT) — flags are
+- [feature-flag-catalogue](../../modules/feature-flag-catalogue.aps.md) (FLAGCAT) — flags are
   catalogue entries, not a parallel registry
-- [cli-command-truth](./cli-command-truth.aps.md) (CLICT) — `anvil settings`
+- [cli-command-truth](../../modules/cli-command-truth.aps.md) (CLICT) — `anvil settings`
   gets a command-truth slice before docs claim it exists
 
 ## Constraints
@@ -131,7 +131,7 @@ The governing invariant this module encodes (spec §1):
 
 Change status to **Ready** when:
 
-- [x] SETCON-001 ADR accepted (terminology, runtime-state model, service boundary) — [ADR-132](../decisions/132-settings-truth-contract.md)
+- [x] SETCON-001 ADR accepted (terminology, runtime-state model, service boundary) — [ADR-132](../../decisions/132-settings-truth-contract.md)
 - [x] Catalogue home crate decided — new `eddacraft-anvil-settings` (`crates/anvil-settings`), `anvil-config` remains the loader
 - [x] Attestation transport decided — reuse intercept daemon RPC (ADR-132 §5)
 - [ ] Programme scheduled against a named release window — implementation may merge; `/settings` remains SETINS and is not a v0.9.8-beta claim

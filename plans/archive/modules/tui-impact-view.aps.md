@@ -113,13 +113,13 @@ only after the graduation question in Out of Scope is decided.
   snapshot format.
 - Promoting a graph widget into `eddacraft-tui` behind an off-by-default feature
   flag. That is a possible follow-up and belongs to
-  [TUIN](./tui-next.aps.md) (`eddacraft-tui` crate contract), pinned exact like
+  [TUIN](../../modules/tui-next.aps.md) (`eddacraft-tui` crate contract), pinned exact like
   the `animate` dependency, and only after this surface has a second consumer or
   a demonstrated reuse case.
 - Web dashboard architecture graphs — owned by
-  [DASHARCH](./dashboard-architecture-views.aps.md).
+  [DASHARCH](../../modules/dashboard-architecture-views.aps.md).
 - Editor-side projection of the same graph — owned by
-  [LSPNAV](./lsp-graph-navigation.aps.md).
+  [LSPNAV](../../modules/lsp-graph-navigation.aps.md).
 
 ## Interfaces
 
@@ -131,8 +131,8 @@ only after the graduation question in Out of Scope is decided.
   `eddacraft-tui` lifecycle/theme conventions apply as they do for the other
   shipped surfaces.
 - `rataflow` 0.1 (MIT) — rendering engine; validated in PR #4074.
-- [`plans/specs/anvil-ultimate-ui/`](../specs/anvil-ultimate-ui/00-index.md) and
-  [`plans/specs/2026-08-07-two-track-ui-strategy.md`](../specs/2026-08-07-two-track-ui-strategy.md)
+- [`plans/specs/anvil-ultimate-ui/`](../../specs/anvil-ultimate-ui/00-index.md) and
+  [`plans/specs/2026-08-07-two-track-ui-strategy.md`](../../specs/2026-08-07-two-track-ui-strategy.md)
   — the ultimate-ui track this surface informs. Ultimate UI itself is a gated
   research track in a separate repository; nothing here waits on it.
 
@@ -168,6 +168,9 @@ only after the graduation question in Out of Scope is decided.
 - **Files:** `crates/anvil-tui/`, `crates/anvil-cli/`, `Cargo.toml`,
   `ACKNOWLEDGEMENTS.md`
 - **Dependencies:** —
+- **Validation Evidence:** Validation passed: `cargo test -p eddacraft-anvil-tui`
+  re-run on 2026-08-31 against `main` — 987 passed, 0 failed. Delivery CI is the
+  contemporaneous record: PR #4097 merged 2026-08-22.
 - **Delivered:** PR #4097 (2026-08-22) — `anvil impact` surface in `crates/anvil-tui` + CLI entry, consuming the `eddacraft-tui` `flow` feature (TUIN-014, ADR-128); read lenses, named degraded states, snapshot tests, kindling recipe, runbook entry, rataflow/rust-sugiyama attribution.
 - **Confidence:** medium-high — rendering, data source, write-side intent
   semantics, and the two-lens view split (Sugiyama dependency lens vs

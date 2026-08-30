@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | high     | In Progress | 15/19    |
+| FLAGCAT | —     | high     | In Progress | 16/19    |
 
 **Last reviewed:** 2026-08-30 — filed **FLAGCAT-019** Draft from
 [`2026-08-30-listed-surfaces-default-on.md`](../specs/2026-08-30-listed-surfaces-default-on.md):

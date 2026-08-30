@@ -58,7 +58,7 @@ journeys and it is not a release claim.
 
 **Depends on:**
 
-- [docs-rebaseline](./docs-rebaseline.aps.md) (DOCRB-011) — live IA/nav
+- [docs-rebaseline](../archive/modules/docs-rebaseline.aps.md) (DOCRB-011) — live IA/nav
 - [documentation-sync](./documentation-sync.aps.md) — existing journey pages
 - [cli-command-truth](./cli-command-truth.aps.md) — CLI command truth
 - [unified-config-format](../archive/modules/unified-config-format.aps.md) — config writers/readers

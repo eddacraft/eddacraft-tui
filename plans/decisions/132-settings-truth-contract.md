@@ -202,7 +202,7 @@ intact.
 - Related ADRs: [ADR-120](120-config-surface-consolidation.md) (config
   discovery), [ADR-002](002-warnings-over-blocks.md) (warnings vs blocks),
   [ADR-088](088-dpo-observation-kind-taxonomy.md) (observation kinds)
-- APS modules: [SETCON](../modules/settings-truth-contract.aps.md),
+- APS modules: [SETCON](../archive/modules/settings-truth-contract.aps.md),
   [SETINS](../modules/settings-inspect-surface.aps.md),
   [SETPREF](../modules/settings-safe-preferences.aps.md),
   [SETGOV](../modules/settings-governed-changes.aps.md)

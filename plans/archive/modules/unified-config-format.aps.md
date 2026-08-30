@@ -100,7 +100,7 @@ must correlate all of them to understand configuration.
 
 **Coordinates with:**
 
-- [settings-truth-contract](../../modules/settings-truth-contract.aps.md) (SETCON) —
+- [settings-truth-contract](./settings-truth-contract.aps.md) (SETCON) —
   reads the file layout this module fixes
 - [settings-safe-preferences](../../modules/settings-safe-preferences.aps.md) (SETPREF) —
   writer behaviour contract

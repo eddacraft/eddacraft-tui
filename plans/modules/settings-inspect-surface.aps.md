@@ -65,7 +65,7 @@ Audit tab would imply historical coverage Anvil cannot evidence.
 
 **Depends on:**
 
-- [settings-truth-contract](./settings-truth-contract.aps.md) (SETCON) —
+- [settings-truth-contract](../archive/modules/settings-truth-contract.aps.md) (SETCON) —
   catalogue, resolver, constraints, runtime state, health, redaction, envelope,
   exit codes, read model
 - `crates/anvil-tui` — surface host, theming and snapshot-test harness

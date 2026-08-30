@@ -2,11 +2,11 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCRB design | [DOCRB](../modules/docs-rebaseline.aps.md) | Accepted | 2026-08-16 — operator-approved hybrid documentation model |
+| Spec | Authoritative for DOCRB design | [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-08-16 — operator-approved hybrid documentation model |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Repository component and documentation inventory at `c4fd624ce`; `docs/guides/documentation-governance.md`; `docs/guides/architecture-diagrams.md`; `plans/decisions/119-documentation-freshness-from-declared-upstream.md` | `plans/modules/docs-rebaseline.aps.md`; future documentation-authority ADR; component-local documentation; central architecture docs; public documentation assets |
+| Repository component and documentation inventory at `c4fd624ce`; `docs/guides/documentation-governance.md`; `docs/guides/architecture-diagrams.md`; `plans/decisions/119-documentation-freshness-from-declared-upstream.md` | `plans/archive/modules/docs-rebaseline.aps.md`; future documentation-authority ADR; component-local documentation; central architecture docs; public documentation assets |
 
 **Execution authority** is the DOCRB work-item set. This specification records
 the approved direction and initial assessment; it does not authorise product

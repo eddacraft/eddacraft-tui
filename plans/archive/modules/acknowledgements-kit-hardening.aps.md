@@ -15,7 +15,7 @@ Released/Shipped via `v1.2.2`.
 **Last reviewed (history):** 2026-08-14 — Node cold-adopt of shipped `v1.2.0`
 against `@eddacraft/nxrust` confirmed the generator core and failed the
 documented first-copy path. ATTRIB-027..-034 authorised the same day (spec
-[`2026-08-14-acknowledgements-cold-adopt.md`](../specs/2026-08-14-acknowledgements-cold-adopt.md)).
+[`2026-08-14-acknowledgements-cold-adopt.md`](../../specs/2026-08-14-acknowledgements-cold-adopt.md)).
 
 **Last reviewed (history):** 2026-08-03 — opened from a full read-through of the shipped
 kit (`v1.0.0`, unchanged since 2026-06-08). Two splice-integrity defects and one
@@ -37,7 +37,7 @@ was taken against the published artifact rather than `main`. The lesson is
 recorded on that item: verifying `main` is not verifying what shipped.
 
 Status tokens follow
-[`plans/project-context.md`](../project-context.md#project-status-extensions):
+[`plans/project-context.md`](../../project-context.md#project-status-extensions):
 the items whose deliverable is inside the released kit — ATTRIB-018, -019, -020
 and -022 — read **Released/Shipped via kit `v1.1.0`**. ATTRIB-021 (a CI matrix
 change) and ATTRIB-023 (recorded decisions, no kit code) stay **Merged**,
@@ -46,8 +46,8 @@ read **Released/Shipped via kit `v1.2.2`**. ATTRIB-025 reads **Released/Shipped
 via kit `v1.3.0`**. Module is **Done**.
 
 Design contracts:
-[`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../specs/2026-08-03-acknowledgements-kit-hardening.md),
-[`plans/specs/2026-08-14-acknowledgements-cold-adopt.md`](../specs/2026-08-14-acknowledgements-cold-adopt.md).
+[`plans/specs/2026-08-03-acknowledgements-kit-hardening.md`](../../specs/2026-08-03-acknowledgements-kit-hardening.md),
+[`plans/specs/2026-08-14-acknowledgements-cold-adopt.md`](../../specs/2026-08-14-acknowledgements-cold-adopt.md).
 
 ## Purpose
 
@@ -68,9 +68,9 @@ rule it already documents, verifies a property it already claims, or adds a
 purely additive flag.
 This module retains the **ATTRIB lineage** (continuing after ATTRIB-017) rather
 than re-opening the archived
-[`attribution-pipeline-v3`](../archive/modules/attribution-pipeline-v3.aps.md)
+[`attribution-pipeline-v3`](./attribution-pipeline-v3.aps.md)
 or
-[`acknowledgements-starter-releases`](../archive/modules/acknowledgements-starter-releases.aps.md)
+[`acknowledgements-starter-releases`](./acknowledgements-starter-releases.aps.md)
 modules, both of which are genuinely Complete — the same precedent
 ATTRIB-017 set.
 
@@ -95,7 +95,7 @@ ATTRIB-017 set.
   **minor** bump — see decision 4 in the design contract for why the two new
   gates are read as fixes rather than breaks.
 - SBOM / CycloneDX / attestation — owned by
-  [`supply-chain-attestation`](./supply-chain-attestation.aps.md).
+  [`supply-chain-attestation`](../../modules/supply-chain-attestation.aps.md).
 - The release and mirror workflows themselves
   (`.github/workflows/release-acknowledgements-starter.yml`,
   `.github/workflows/mirror-acknowledgements-starter.yml`) — verified working

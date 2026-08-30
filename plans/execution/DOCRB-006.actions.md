@@ -42,7 +42,7 @@ component internals.
 
 ## File map
 
-- `plans/modules/docs-rebaseline.aps.md` — exact item contract and lifecycle.
+- `plans/archive/modules/docs-rebaseline.aps.md` — exact item contract and lifecycle.
 - `plans/index.aps.md` — current NBI wording only.
 - `plans/execution/DOCRB-006.actions.md` — this execution sequence.
 - `plans/specs/2026-08-17-docrb-corpus-disposition.md` — final diagram dispositions.
