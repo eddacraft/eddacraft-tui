@@ -1,8 +1,8 @@
 # anvil-cli
 
-| Type   | Authority     | Owner          | Status | Freshness                                                                                                         |
-| ------ | ------------- | -------------- | ------ | ----------------------------------------------------------------------------------------------------------------- |
-| README | Authoritative | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-30 against CONF-011 `src/commands/conformance.rs`, its process tests, and `ARCHITECTURE.md` |
+| Type   | Authority     | Owner          | Status | Freshness                                                                                                                                      |
+| ------ | ------------- | -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-31 against CONF-011 `src/commands/conformance.rs`, its bounded-input and timeout-provenance tests, and `ARCHITECTURE.md` |
 
 | Upstream                                                                 | Downstream                                                         |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |

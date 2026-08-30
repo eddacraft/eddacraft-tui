@@ -1,8 +1,8 @@
 # anvil-checks
 
-| Type   | Authority     | Owner | Status | Freshness                                                                                                                                        |
-| ------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-011 range-level PR declaration evaluation, ADR-134, `src/conformance/**`, its tests, and `ARCHITECTURE.md` |
+| Type   | Authority     | Owner | Status | Freshness                                                                                                                                                                              |
+| ------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | SCAN  | Live   | Last reviewed 2026-08-31 against CONF-011 range-level PR declaration evaluation, ADR-134, ADR-138 one-way repository admission, `src/conformance/**`, its tests, and `ARCHITECTURE.md` |
 
 | Upstream                                                  | Downstream                                              |
 | --------------------------------------------------------- | ------------------------------------------------------- |
