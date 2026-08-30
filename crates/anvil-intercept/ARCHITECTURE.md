@@ -16,9 +16,14 @@ as a dated compatibility and history record.
 
 The local transport boundary differs by platform. On Unix, the daemon relies on
 an owner-only `0700` directory and `0600` socket; it does not compare a Unix
-caller UID after accept. Clients connect to the first live owner-only socket
-among the bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when
-set); dual-path is a client rendezvous, not a second listener. Unix clients
+caller UID after accept. Clients connect to the first candidate whose socket
+file passes an owner-only stat check, among the bind path and the
+XDG/state-home sibling (`ANVIL_HOME` alone when set); that check is metadata
+only, so a socket left behind by an ungracefully killed daemon is not
+distinguished from a live one until the connect itself fails. Dual-path is a
+client rendezvous, not a second listener, and it covers the intercept socket
+and PID file only — the save-time driver registry, the watch driver log, the
+graph cache, and egress consent remain single-path. Unix clients
 validate the connected daemon UID before sending proposed content, while the
 Linux listener also obtains the peer PID used by optional lineage checks.
 Windows uses an owner-only named-pipe DACL and the server explicitly compares
