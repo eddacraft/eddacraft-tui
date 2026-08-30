@@ -12060,3 +12060,56 @@ hang before opening a supervisor ticket.
   matrices off per-PR runs
 - **Confidence:** high on the framing — the two items are small, well specified
   in the archived module, and blocked only on a cost/noise judgement
+
+### CIB-380: `state-boundary` offers a remediation that provably changes nothing
+
+- **Status:** Proposed
+- **Priority:** P3 — copy, not verdict. The check's finding is correct and its
+  warn here is by design; the cost is an operator following the remediation,
+  observing no change, and learning to distrust doctor's remediation slot.
+- **Intent:** the GITGOV-014 `state-boundary` check (ADR-073) offers two
+  actions on its ignored-durable arm, and in this repository both are dead
+  ends. **(a)** The remediation summary says "… or record the deviation as a
+  justified exception per ADR-073". That deviation is *already recorded*:
+  ADR-073 carries a "Dogfood deviation (recorded)" block naming
+  `anvil/witness/` and `anvil/kindling/` verbatim, and `.gitignore` repeats the
+  justification at the rule itself. The check can read neither — its exemption
+  list is two hardcoded string comparisons (`anvil/exceptions/.lock`,
+  `anvil/witness/.chain-initialised`) at
+  `crates/anvil-cli/src/commands/doctor.rs:1479`, and it consults no exception
+  record anywhere. An operator who does exactly what the remediation says sees
+  byte-identical output. **(b)** When only durable paths are ignored (no
+  tracked `.anvil/` paths), the `command` the TUI renders under `run:` is
+  `git check-ignore -v <path>` (`doctor.rs:1385`) — a diagnostic that prints
+  the matching rule and mutates nothing. Observed 2026-08-31: `anvil doctor`
+  warned on `anvil/kindling` and `anvil/kindling/audit-chain.ndjson` — the
+  sidecar `anvil audit-chain run` appends to (3 rows, 2026-05-21..06-19), which
+  is what turned a long-silent deviation into a visible warn — and running the
+  suggested command changed nothing.
+- **Expected Outcome:** the remediation says what is true: a deviation recorded
+  in ADR-073 stays a warning, the check has no suppression surface, and the
+  `git check-ignore` line is diagnostic. An operator can tell "documented, keep
+  warning" from "act on this" without reading doctor's source.
+- **Non-scope / do not:** do not add a suppression surface. Making the check
+  read a machine-readable deviation record is a governance change — the
+  exception store is keyed by `policy_id` / `file_pattern` for policy rules,
+  not doctor checks — and needs an ADR, not a copy fix. Do not quiet the
+  dogfood warn by extending the hardcoded exemption list to `anvil/kindling/`:
+  ADR-073 states the warn here is honest, and permanent silence is the outcome
+  it warns against. Do not touch the check's verdict, its sweep, or the
+  `git rm --cached` arm.
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs` (`state_boundary_warn`,
+  the check's doc comment, and the state-boundary tests)
+- **Validation:** with only a durable path ignored, the remediation summary
+  names the command as diagnostic and no longer offers exception-recording as a
+  resolution; `every_check_fail_or_warn_branch_carries_remediation` stays
+  green; `cargo test -p eddacraft-anvil --no-fail-fast state_boundary`.
+- **Identified From:** operator dogfood run 2026-08-31 — `anvil doctor` warned
+  on `anvil/kindling`, the operator ran the suggested command and reported that
+  it did not fix it. Both dead ends were traced in that session.
+- **Coordinates with:** ADR-073 (which records the deviation the check cannot
+  see), CIB-053 (which dispositioned the tracked `.anvil/` side and left this
+  arm warning), GITGOV-014 (the check's origin), EXCEPT-007 and CIB-126 (the
+  two sanctioned exemptions)
+- **Confidence:** high — both claims are greps: the exemption list is two
+  literals, and the diagnostic command is the `tracked_runtime.is_empty()` arm.
