@@ -12113,3 +12113,59 @@ hang before opening a supervisor ticket.
   two sanctioned exemptions)
 - **Confidence:** high — both claims are greps: the exemption list is two
   literals, and the diagnostic command is the `tracked_runtime.is_empty()` arm.
+
+### CIB-381: the kindling spawn log grows without bound on a host with no daemon binary
+
+- **Status:** Proposed
+- **Priority:** P2 — unbounded disk growth in a user's home on every host that
+  never installs kindling; no wrong verdict and no data loss, but it is silent
+  and it never stops
+- **Intent:** KDS-005 flipped the default sink `ndjson` → `daemon` (#2949). On a
+  host where the `kindling` binary was never installed, every emit therefore
+  takes the daemon path, fails to connect, and calls `spawner.spawn()`, which
+  fails `ENOENT`. `kindling-client` records that failure with
+  `append_spawn_log` (`crates/kindling-client/src/config.rs:281`), a bare
+  `OpenOptions::create(true).append(true)` plus one `writeln!` — **no size
+  check, no age check, no rotation, no dedup**. `ensure_connected`
+  (`transport.rs:163`) spawns once per connection attempt, so the file gains
+  one line per emit, forever. Measured on this dev host 2026-08-31:
+  `~/.kindling/spawn.log` is **4.06 MB across 45,924 lines**, spanning
+  2026-06-23 → 2026-08-31, every line
+  `failed to spawn kindling daemon: No such file or directory (os error 2)`.
+  KDS-005 recorded exactly this as an ops follow-up ("`~/.kindling/spawn.log`
+  rotation on no-kindling hosts") and it was never picked up.
+- **Expected Outcome:** the spawn log is bounded on a host that never gains the
+  binary. The precedent is in the same crate and the same release: KDS-005
+  capped the spool at 7d/64 MiB via `SpoolConfig::with_max_bytes` /
+  `with_max_age_ms`, and the spool on this host is behaving correctly as a
+  result (494 records, 392 KB, oldest 2026-08-24). The spawn log wants the same
+  treatment, or a repeat-suppression counter — the 45,924 lines carry exactly
+  one distinct message.
+- **Non-scope / do not:** do not "fix" this by disabling the daemon sink.
+  `ANVIL_KINDLING_SINK=off` is the documented operator rollback and it does stop
+  the growth, but the default path has to be safe on a host that never installs
+  kindling — that is the common case for an adopter, not an edge case. Do not
+  silently delete or truncate an existing spawn log as part of the change; it is
+  the only record of why observations are not landing. Do not add a second
+  provenance or diagnostics surface — `anvil kindling usage` already carries the
+  degrade note.
+- **Ownership / routing:** the writer is upstream in `kindling-client`, not in
+  anvil — anvil passes `spawn_log_path: None`
+  (`kindling_daemon_sink.rs:469,485`, `commands/kindling.rs:400`) and inherits
+  `default_spawn_log_path()`. Per the KDS-004 precedent (internal issue #2910),
+  file the upstream ask from **private** anvil-001 and let the owner route scope
+  to kindling; do **not** open this on the public kindling repo. An anvil-side
+  mitigation (skip the spawn attempt when the binary is absent) is a reasonable
+  interim, but the durable fix is the cap in `append_spawn_log`.
+- **Files:** upstream `crates/kindling-client/src/config.rs` (`append_spawn_log`)
+  and `crates/kindling-client/src/transport.rs` (`ensure_connected`); anvil-side
+  interim, if taken, `crates/anvil-cli/src/kindling_daemon_sink.rs`
+- **Validation:** on a host with no `kindling` binary, a long run leaves the
+  spawn log bounded by the configured cap rather than growing per emit; the
+  existing degrade note and the spool's own cap are unchanged;
+  `cargo test -p eddacraft-anvil --no-fail-fast`.
+- **Confidence:** high on the measurement and the mechanism — the file, the line
+  count, the single distinct message and the unbounded append in
+  `append_spawn_log` were all read directly; medium on the remediation shape,
+  since a byte/age cap and a repeat-counter are both defensible and that is an
+  upstream call.
