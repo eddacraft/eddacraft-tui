@@ -19,6 +19,7 @@ pub struct PlanArgs {
 #[derive(Debug, Subcommand)]
 enum PlanCommand {
     /// Show active APS work in a read-only dashboard.
+    #[command(hide = true)]
     Dashboard(DashboardArgs),
 }
 

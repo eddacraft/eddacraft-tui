@@ -1207,6 +1207,9 @@ See
 to use:** Internal developers browsing active APS work items and module status
 in a read-only dashboard while dogfooding Anvil.
 
+**Listing (ADR-136):** hidden from `--help` until default-on. Known names plus
+`ANVIL_DEV=1` or `ANVIL_ADMIN_KEY` still invoke it.
+
 **Access (CIB-046):** the APS dashboard is gated behind the
 `tui-dashboard.aps-dashboard` feature flag (catalogue group `tui-dashboard`,
 audience `staff-internal-developer`) and is **default-disabled**. It opens for a
@@ -1242,6 +1245,10 @@ $ ANVIL_DEV=1 anvil plan dashboard --json
 local Anvil state. **When to use:** To browse architecture health, drift
 snapshots, or suppression state in an interactive TUI.
 
+**Listing (ADR-136):** `anvil dashboard --web` is hidden from `--help` until
+default-on. Known flag plus `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1` still
+serves the browser host. Terminal `anvil dashboard` stays listed.
+
 **Synopsis:** `anvil dashboard [<name>]`
 
 **Flags:**
@@ -1271,6 +1278,9 @@ warm graph snapshot, with drill-down into a crate's direct neighbourhood or its
 internal module graph. **When to use:** To read the repository's real dependency
 structure (imports actually used, not Cargo declarations), scope the blast
 radius of a change, or orient in an unfamiliar codebase.
+
+**Listing (ADR-136):** hidden from `--help` until default-on. Known name plus
+`ANVIL_IMPACT=1` or `ANVIL_DEV=1` still invokes it.
 
 **Availability:** Default-off behind the `impact.view` rollout flag while the
 customer experience is hardened. Opt in for one process or shell with

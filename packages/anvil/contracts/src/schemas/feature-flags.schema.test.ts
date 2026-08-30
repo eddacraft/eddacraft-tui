@@ -94,6 +94,7 @@ function validProductCatalogue(overrides: Record<string, unknown> = {}) {
           mustAlwaysBeOpen: false,
         },
         status: 'active',
+        listed: true as boolean,
       },
     ],
     excludedDeliverySurfaces: [],
@@ -103,6 +104,17 @@ function validProductCatalogue(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ProductCatalogueManifestSchema', () => {
+  it('defaults omitted listed to true', () => {
+    const parsed = ProductCatalogueManifestSchema.parse(validProductCatalogue());
+    expect(parsed.deliverySurfaces[0]?.listed).toBe(true);
+  });
+
+  it('accepts listed false', () => {
+    const catalogue = validProductCatalogue();
+    catalogue.deliverySurfaces[0]!.listed = false;
+    expect(ProductCatalogueManifestSchema.safeParse(catalogue).success).toBe(true);
+  });
+
   it('rejects missing or malformed flag linkage', () => {
     const missingLinkage = validProductCatalogue();
     delete missingLinkage.productFeatures[0]!.flagLinkage;
@@ -527,6 +539,7 @@ describe('normaliseProductCatalogueV1', () => {
         mustAlwaysBeOpen: false,
       },
       status: 'active',
+      listed: true,
     });
     expect(normalised.excludedDeliverySurfaces).toEqual([]);
     expect(normalised.productFeatures.some((feature) => feature.key === 'config')).toBe(true);

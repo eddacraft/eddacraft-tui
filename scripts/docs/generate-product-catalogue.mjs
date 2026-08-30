@@ -96,7 +96,7 @@ function render() {
     '',
     '| Type  | Authority | Owner   | Status | Freshness |',
     '| ----- | --------- | ------- | ------ | --------- |',
-    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-28 against `flags/surfaces.json`, `flags/manifest.json`, and the generator Windows launcher repair; catalogue semantics unchanged |',
+    '| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-136 listed-implies-on |',
     '',
     '| Upstream | Downstream |',
     '| -------- | ---------- |',
@@ -143,13 +143,30 @@ function render() {
     '',
     '## Delivery surfaces',
     '',
-    '| Key | Feature | Locator | Status |',
-    '| --- | ------- | ------- | ------ |'
+    '| Key | Feature | Locator | Listed | Status |',
+    '| --- | ------- | ------- | ------ | ------ |'
   );
   for (const surface of deliveries) {
+    const listed = surface.listed === false ? 'no' : 'yes';
     lines.push(
-      `| \`${escapeCell(surface.key)}\` | \`${escapeCell(surface.featureKey)}\` | ${escapeCell(locatorLabel(surface.locator))} | ${escapeCell(surface.status)} |`
+      `| \`${escapeCell(surface.key)}\` | \`${escapeCell(surface.featureKey)}\` | ${escapeCell(locatorLabel(surface.locator))} | ${listed} | ${escapeCell(surface.status)} |`
     );
+  }
+
+  const unlistedAndOff = deliveries.filter((surface) => surface.listed === false);
+  lines.push(
+    '',
+    '## Unlisted until default-on',
+    '',
+    'CLI surfaces hidden from `--help` while their invocation flag is default-off.',
+    'They remain invokable. Promote by flipping `listed` to true in the same change',
+    'as the controlling flag becoming default-on (ADR-136).',
+    '',
+    '| Key | Locator |',
+    '| --- | ------- |'
+  );
+  for (const surface of unlistedAndOff) {
+    lines.push(`| \`${escapeCell(surface.key)}\` | ${escapeCell(locatorLabel(surface.locator))} |`);
   }
 
   lines.push(

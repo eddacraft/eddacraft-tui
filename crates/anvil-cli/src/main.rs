@@ -280,6 +280,7 @@ enum Commands {
     /// Initialise anvil configuration for a project.
     Init(commands::init::InitArgs),
     /// Open an interactive boundary/impact graph of this repository (crate-level used imports from the warm graph snapshot, with drill-down into a crate's neighbourhood or internals).
+    #[command(hide = true)]
     Impact(commands::impact::ImpactArgs),
     /// Show local-only weekly activity insights.
     Insights(commands::insights::InsightsArgs),
@@ -333,6 +334,7 @@ enum Commands {
     /// Install and verify bundled Agent Skills.
     Skill(commands::skill::SkillArgs),
     /// Inspect APS planning state.
+    #[command(hide = true)]
     Plan(commands::plan::PlanArgs),
     /// Open a native read-only dashboard over local anvil state.
     Dashboard(commands::dashboard::DashboardArgs),

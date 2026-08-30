@@ -1100,7 +1100,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-019: Listed delivery surfaces require the feature to be on
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** A listed delivery surface cannot outrun its feature: `--help`
   names it only when the linked flag is default-on or the feature is unflagged.
 - **Expected Outcome:**

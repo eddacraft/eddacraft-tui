@@ -26,8 +26,8 @@ engineering maintenance are recorded in the
   out. Keyboard and mouse navigation are supported; `--json` and `--no-tui`
   provide non-interactive output. It needs a warm graph snapshot and names cold
   or unrenderable states instead of showing an empty canvas. The command is
-  default-off while that experience is hardened; opt in with `ANVIL_IMPACT=1` or
-  `ANVIL_DEV=1`.
+  default-off and hidden from `--help` until that experience is hardened; opt in
+  with `ANVIL_IMPACT=1` or `ANVIL_DEV=1`.
 
 - **Gate-time Python scans catch multiline swallowed exceptions.** The new
   `PY-010` rule flags a named `except` handler whose body is only `pass`. MCP
@@ -36,6 +36,12 @@ engineering maintenance are recorded in the
   remains regex-only.
 
 ### Changed
+
+- **`--help` no longer advertises unfinished opt-in commands.** `anvil impact`,
+  `anvil plan`, and `anvil dashboard --web` stay in the binary and stay
+  default-off; they leave the visible list until they can be default-on. Known
+  names plus `ANVIL_IMPACT=1`, `ANVIL_DASHBOARD_WEB=1`, or `ANVIL_DEV=1` still
+  invoke them. MCP `anvil_impact_of_change` is unchanged.
 
 - **`anvil start` help bar leads with arrows and hides dead Enter.** Consent and
   the result screen advertise `↑/↓` and, when there is more than one consent

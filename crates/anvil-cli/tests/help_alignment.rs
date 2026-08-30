@@ -148,3 +148,29 @@ fn mcp_serve_help_describes_stdio_server_not_client_config() {
         "mcp serve WHEN TO USE must describe serving, not client install:\n{stdout}"
     );
 }
+
+#[test]
+fn root_help_omits_default_off_invocation_commands() {
+    let stdout = help(&[]);
+    assert!(
+        !stdout
+            .lines()
+            .any(|line| line.trim_start().starts_with("impact ")),
+        "root help must not list impact until it is default-on:\n{stdout}"
+    );
+    assert!(
+        !stdout
+            .lines()
+            .any(|line| line.trim_start().starts_with("plan ")),
+        "root help must not list plan until the APS dashboard is default-on:\n{stdout}"
+    );
+}
+
+#[test]
+fn dashboard_help_omits_web_flag() {
+    let stdout = help(&["dashboard"]);
+    assert!(
+        !stdout.contains("--web"),
+        "dashboard help must not advertise --web until it is default-on:\n{stdout}"
+    );
+}

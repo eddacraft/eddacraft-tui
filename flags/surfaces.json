@@ -1044,8 +1044,8 @@
       "status": "active",
       "requires": [],
       "flagLinkage": {
-        "disposition": "linked",
-        "flagKeys": ["gctx.egress"]
+        "disposition": "unflagged",
+        "reason": "The CLI is the opt-in control surface; gctx.egress gates snippet content, not whether anvil gctx exists."
       },
       "planAvailability": {
         "plan-free": "undecided",
@@ -1687,7 +1687,8 @@
         "invocation": "user",
         "mustAlwaysBeOpen": false
       },
-      "status": "active"
+      "status": "active",
+      "listed": false
     },
     {
       "key": "cli.dashboard-architecture",
@@ -2125,7 +2126,8 @@
       "featureKey": "impact",
       "locator": { "kind": "cli", "commandPath": ["impact"] },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
-      "status": "active"
+      "status": "active",
+      "listed": false
     },
     {
       "key": "cli.telemetry",
@@ -2181,7 +2183,8 @@
       "featureKey": "dashboard.web",
       "locator": { "kind": "cli", "commandPath": ["dashboard", "--web"] },
       "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
-      "status": "active"
+      "status": "active",
+      "listed": false
     },
     {
       "key": "api.waitlist-submit",

@@ -15,6 +15,7 @@ import {
   type ProductCatalogueV1,
 } from '@eddacraft/anvil-contracts';
 import { productCatalogueV1Migration } from './compatibility/product-catalogue-v1-migration.js';
+import { listedImpliesOnViolations } from './listed.js';
 import productCatalogueV1Json from './compatibility/product-catalogue-v1.json' with { type: 'json' };
 
 export type { DeepReadonly, ReadonlyFeatureFlagDefinition } from '@eddacraft/anvil-contracts';
@@ -190,6 +191,13 @@ function assertCrossInventoryIntegrity(): void {
         );
       }
     }
+  }
+
+  const listedViolations = listedImpliesOnViolations(PRODUCT_CATALOGUE, MANIFEST.flags);
+  if (listedViolations.length > 0) {
+    throw new Error(
+      `[anvil-flags-catalogue] listed CLI surfaces must be default-on (ADR-136): ${listedViolations.join(', ')}`
+    );
   }
 }
 

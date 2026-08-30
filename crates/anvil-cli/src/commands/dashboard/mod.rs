@@ -34,15 +34,15 @@ pub struct DashboardArgs {
     /// Cannot be combined with a dashboard name; named dashboards are
     /// terminal-only. Gated by the `dashboard.web` feature flag (default-off);
     /// set `ANVIL_DASHBOARD_WEB=1` or `ANVIL_DEV=1` to enable.
-    #[arg(long, conflicts_with = "name")]
+    #[arg(long, hide = true, conflicts_with = "name")]
     pub web: bool,
 
     /// Port for `--web`. Omit to let the operating system pick a free one.
-    #[arg(long, value_name = "PORT", requires = "web")]
+    #[arg(long, hide = true, value_name = "PORT", requires = "web")]
     pub port: Option<u16>,
 
     /// Do not open a browser window for `--web`; just print the URL.
-    #[arg(long, requires = "web")]
+    #[arg(long, hide = true, requires = "web")]
     pub no_open: bool,
 }
 

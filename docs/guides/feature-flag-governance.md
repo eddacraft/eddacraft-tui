@@ -1,8 +1,8 @@
 # Feature Flag Governance
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-30 at `5a9a261b8` against `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/catalogue.ts`, and `packages/anvil/runtime/src/feature-flags/resolver.ts`; operational inventories are recursively frozen and public contracts are deep-readonly, while lifecycle and evaluation policy remain unchanged |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                                                                     |
+| ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-30 against ADR-136 listed-implies-on, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/listed.ts`, and the operational inventories |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                     | Downstream                                                                                                                      |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,6 +61,9 @@ Apply these rules when maintaining the catalogue:
   targets exist and are active, and a source key cannot be reused by another
   migration.
 - Product-feature and exclusion owners are existing APS module identifiers.
+- Delivery surfaces are listed by default (`listed` omitted or true). A listed
+  CLI surface must be default-on (ADR-136). Unfinished CLI-only invocation gates
+  set `listed: false` and clap `hide` until the controlling flag is default-on.
 - Effective access is the delivery-surface override when present, otherwise the
   product-feature-group default. Audience references are valid only for `staff`
   or `admin-key` access.

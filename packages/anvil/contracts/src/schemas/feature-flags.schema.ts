@@ -741,6 +741,7 @@ export const DeliverySurfaceSchema = z
     locator: DeliverySurfaceLocatorSchema,
     posture: DeliverySurfacePostureSchema,
     status: ProductCatalogueLifecycleSchema,
+    listed: z.boolean().default(true),
   })
   .strict();
 export type DeliverySurface = z.infer<typeof DeliverySurfaceSchema>;

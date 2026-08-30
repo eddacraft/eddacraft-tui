@@ -1,8 +1,8 @@
 # Product feature catalogue
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                                                               |
-| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-28 against `flags/surfaces.json`, `flags/manifest.json`, and the generator Windows launcher repair; catalogue semantics unchanged |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                    |
+| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------ |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-136 listed-implies-on |
 
 | Upstream                                                                                    | Downstream                            |
 | ------------------------------------------------------------------------------------------- | ------------------------------------- |
@@ -34,281 +34,293 @@ operational flags.
 
 ## Product features
 
-| Key                      | Name                                 | Group                 | Owner     | Status | Flag linkage                                                                                     | Plan availability                                                                             |
-| ------------------------ | ------------------------------------ | --------------------- | --------- | ------ | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `account-activity`       | Account activity reporting           | Foundational plumbing | BACT      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `admin.credential`       | anvil admin credential configuration | Foundational plumbing | ADMINCLI  | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `admin.operations`       | anvil admin operations               | Admin operations      | ADMINCLI  | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `anvil-docs`             | anvil product documentation          | Documentation         | DOCSAUTH  | active | docs.access (entitlement)                                                                        | plan-free: unavailable; plan-beta: available; plan-pro: available; plan-enterprise: available |
-| `aps-docs`               | APS documentation                    | Documentation         | DOCS      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `architecture`           | anvil architecture                   | Governance engine     | ARCH      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `audit`                  | anvil audit                          | Governance engine     | RCLI      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `audit-chain`            | anvil audit-chain                    | Governance engine     | MLP       | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `auth`                   | anvil authentication                 | Foundational plumbing | GHCLIAUTH | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `baseline`               | anvil baseline                       | Governance engine     | MLP2      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `blog`                   | Product blog                         | Documentation         | DOCS      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `capsule`                | anvil capsule                        | Local tools           | GITGOV    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `check`                  | anvil check                          | Governance engine     | RCLI2     | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `config`                 | anvil config                         | Foundational plumbing | WATCHUX   | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.api-contract` | Dashboard API contract               | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.aps`          | anvil plan dashboard                 | Terminal dashboards   | CIB       | active | tui-dashboard.aps-dashboard (entitlement)                                                        | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.architecture` | anvil dashboard architecture         | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.drift`        | anvil dashboard drift                | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.gates`        | Gate dashboard                       | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.plans`        | Plan dashboard                       | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.protection`   | Protection dashboard                 | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.saved`        | anvil dashboard saved specifications | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.suppressions` | anvil dashboard suppressions         | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.warnings`     | Warning dashboard                    | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `dashboard.web`          | Web dashboard host                   | Terminal dashboards   | DASH      | active | dashboard.web (rollout)                                                                          | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `docs-shell`             | Documentation shell                  | Documentation         | DOCSAUTH  | active | docs.access (entitlement)                                                                        | plan-free: unavailable; plan-beta: available; plan-pro: available; plan-enterprise: available |
-| `doctor`                 | anvil doctor                         | Foundational plumbing | RCLI      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `drift`                  | anvil drift                          | Governance engine     | DRIFT     | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `edda`                   | anvil edda                           | Local tools           | EDDA      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `ember`                  | Ember memory tools                   | Local tools           | EDDA      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `ensure`                 | anvil bare ensure                    | Setup and onboarding  | ONSW      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `exception`              | Policy exceptions                    | Governance engine     | POLENG    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `export`                 | anvil export                         | Governance engine     | RCLI      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gate`                   | anvil gate                           | Governance engine     | RCLI      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gate-config`            | anvil gate-config                    | Governance engine     | RCLI2     | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx-control`           | Graph-context egress control         | MCP integration       | GCTX      | active | gctx.egress (rollout)                                                                            | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.affected-tests`    | Graph affected-test analysis         | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.find-callers`      | Graph caller discovery               | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.find-dependents`   | Graph dependent discovery            | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.graph-edges`       | Graph edge inventory                 | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.graph-stats`       | Graph statistics                     | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.impact-of-change`  | Graph change-impact analysis         | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.search-symbols`    | Graph symbol search                  | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.snippets`          | Graph source snippets                | MCP integration       | GCTX      | active | gctx.egress (rollout)                                                                            | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `gctx.symbol-context`    | Bounded symbol context               | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `hook`                   | anvil hook                           | Git hooks             | GHOOK     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `hooks`                  | anvil hooks                          | Git hooks             | GHOOK     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `impact`                 | Change impact                        | Governance engine     | IMPV      | active | gv2.reverse-impact-depth (entitlement), impact.view (rollout)                                    | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `init`                   | anvil init                           | Setup and onboarding  | RCLI      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `insights`               | anvil insights                       | Local tools           | INSIGHTS  | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `intercept`              | anvil intercept                      | Save-time validation  | INTD      | active | daemon.persist-graph (rollout)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `kindling`               | anvil kindling                       | Local tools           | KFIT      | active | kindling.embedded-runtime (rollout)                                                              | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `l4-validate`            | anvil l4-validate                    | Governance engine     | MLP2      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `licenses`               | anvil licences                       | Foundational plumbing | RUSTNX    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `lsp`                    | Language server                      | Save-time validation  | RTAI      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `mcp.apply-patch`        | MCP validated patch application      | Governance engine     | RMCPF     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `mcp.config`             | anvil mcp-config                     | MCP integration       | MCPX      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `mcp.fix`                | MCP finding repair                   | Governance engine     | RMCPF     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `mcp.install`            | anvil mcp install                    | MCP integration       | MCPX      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `mcp.pin`                | MCP configuration pinning            | MCP integration       | MCPLH     | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `mcp.serve`              | anvil mcp serve                      | MCP integration       | RMCPF     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `migrate`                | anvil migrate                        | Foundational plumbing | UCFG      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `new`                    | anvil new                            | Setup and onboarding  | RCLI      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `policy`                 | anvil policy                         | Governance engine     | POLENG    | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `report-fp`              | False-positive reporting             | Governance engine     | OPSUP     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `skill`                  | Agent skill installation             | Setup and onboarding  | SKPKG     | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `start`                  | anvil start                          | Setup and onboarding  | LAUNCH    | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `status`                 | Project and service status           | Foundational plumbing | ADTRUST   | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `telemetry`              | Telemetry ingestion                  | Foundational plumbing | FLEET     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `tutorial`               | anvil tutorial                       | Foundational plumbing | TUTOR     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `uninstall`              | anvil uninstall                      | Foundational plumbing | ADOPT     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `update`                 | anvil update                         | Foundational plumbing | DISTRIB   | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `validate`               | anvil validate                       | Governance engine     | RCLI3     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `version`                | anvil version                        | Foundational plumbing | DISTRIB   | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `waitlist`               | Waitlist registration                | Setup and onboarding  | BAUTH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `watch`                  | anvil watch                          | Save-time validation  | DSV       | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `welcome`                | anvil welcome                        | Setup and onboarding  | RCLI      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `wizard`                 | anvil wizard                         | Setup and onboarding  | RCLI      | active | cli.licence-gate (entitlement)                                                                   | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `workspace`              | anvil workspace                      | Foundational plumbing | INTD      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| Key                      | Name                                 | Group                 | Owner     | Status | Flag linkage                                                                                                         | Plan availability                                                                             |
+| ------------------------ | ------------------------------------ | --------------------- | --------- | ------ | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `account-activity`       | Account activity reporting           | Foundational plumbing | BACT      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `admin.credential`       | anvil admin credential configuration | Foundational plumbing | ADMINCLI  | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `admin.operations`       | anvil admin operations               | Admin operations      | ADMINCLI  | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `anvil-docs`             | anvil product documentation          | Documentation         | DOCSAUTH  | active | docs.access (entitlement)                                                                                            | plan-free: unavailable; plan-beta: available; plan-pro: available; plan-enterprise: available |
+| `aps-docs`               | APS documentation                    | Documentation         | DOCS      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `architecture`           | anvil architecture                   | Governance engine     | ARCH      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `audit`                  | anvil audit                          | Governance engine     | RCLI      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `audit-chain`            | anvil audit-chain                    | Governance engine     | MLP       | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `auth`                   | anvil authentication                 | Foundational plumbing | GHCLIAUTH | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `baseline`               | anvil baseline                       | Governance engine     | MLP2      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `blog`                   | Product blog                         | Documentation         | DOCS      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `capsule`                | anvil capsule                        | Local tools           | GITGOV    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `check`                  | anvil check                          | Governance engine     | RCLI2     | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `config`                 | anvil config                         | Foundational plumbing | WATCHUX   | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.api-contract` | Dashboard API contract               | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.aps`          | anvil plan dashboard                 | Terminal dashboards   | CIB       | active | tui-dashboard.aps-dashboard (entitlement)                                                                            | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.architecture` | anvil dashboard architecture         | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.drift`        | anvil dashboard drift                | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.gates`        | Gate dashboard                       | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.plans`        | Plan dashboard                       | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.protection`   | Protection dashboard                 | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.saved`        | anvil dashboard saved specifications | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.suppressions` | anvil dashboard suppressions         | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.warnings`     | Warning dashboard                    | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `dashboard.web`          | Web dashboard host                   | Terminal dashboards   | DASH      | active | dashboard.web (rollout)                                                                                              | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `docs-shell`             | Documentation shell                  | Documentation         | DOCSAUTH  | active | docs.access (entitlement)                                                                                            | plan-free: unavailable; plan-beta: available; plan-pro: available; plan-enterprise: available |
+| `doctor`                 | anvil doctor                         | Foundational plumbing | RCLI      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `drift`                  | anvil drift                          | Governance engine     | DRIFT     | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `edda`                   | anvil edda                           | Local tools           | EDDA      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `ember`                  | Ember memory tools                   | Local tools           | EDDA      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `ensure`                 | anvil bare ensure                    | Setup and onboarding  | ONSW      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `exception`              | Policy exceptions                    | Governance engine     | POLENG    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `export`                 | anvil export                         | Governance engine     | RCLI      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gate`                   | anvil gate                           | Governance engine     | RCLI      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gate-config`            | anvil gate-config                    | Governance engine     | RCLI2     | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx-control`           | Graph-context egress control         | MCP integration       | GCTX      | active | unflagged — The CLI is the opt-in control surface; gctx.egress gates snippet content, not whether anvil gctx exists. | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.affected-tests`    | Graph affected-test analysis         | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.find-callers`      | Graph caller discovery               | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.find-dependents`   | Graph dependent discovery            | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.graph-edges`       | Graph edge inventory                 | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.graph-stats`       | Graph statistics                     | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.impact-of-change`  | Graph change-impact analysis         | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.search-symbols`    | Graph symbol search                  | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.snippets`          | Graph source snippets                | MCP integration       | GCTX      | active | gctx.egress (rollout)                                                                                                | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `gctx.symbol-context`    | Bounded symbol context               | MCP integration       | GCTX      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `hook`                   | anvil hook                           | Git hooks             | GHOOK     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `hooks`                  | anvil hooks                          | Git hooks             | GHOOK     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `impact`                 | Change impact                        | Governance engine     | IMPV      | active | gv2.reverse-impact-depth (entitlement), impact.view (rollout)                                                        | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `init`                   | anvil init                           | Setup and onboarding  | RCLI      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `insights`               | anvil insights                       | Local tools           | INSIGHTS  | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `intercept`              | anvil intercept                      | Save-time validation  | INTD      | active | daemon.persist-graph (rollout)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `kindling`               | anvil kindling                       | Local tools           | KFIT      | active | kindling.embedded-runtime (rollout)                                                                                  | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `l4-validate`            | anvil l4-validate                    | Governance engine     | MLP2      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `licenses`               | anvil licences                       | Foundational plumbing | RUSTNX    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `lsp`                    | Language server                      | Save-time validation  | RTAI      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `mcp.apply-patch`        | MCP validated patch application      | Governance engine     | RMCPF     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `mcp.config`             | anvil mcp-config                     | MCP integration       | MCPX      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `mcp.fix`                | MCP finding repair                   | Governance engine     | RMCPF     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `mcp.install`            | anvil mcp install                    | MCP integration       | MCPX      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `mcp.pin`                | MCP configuration pinning            | MCP integration       | MCPLH     | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `mcp.serve`              | anvil mcp serve                      | MCP integration       | RMCPF     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `migrate`                | anvil migrate                        | Foundational plumbing | UCFG      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `new`                    | anvil new                            | Setup and onboarding  | RCLI      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `policy`                 | anvil policy                         | Governance engine     | POLENG    | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `report-fp`              | False-positive reporting             | Governance engine     | OPSUP     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `skill`                  | Agent skill installation             | Setup and onboarding  | SKPKG     | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `start`                  | anvil start                          | Setup and onboarding  | LAUNCH    | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `status`                 | Project and service status           | Foundational plumbing | ADTRUST   | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `telemetry`              | Telemetry ingestion                  | Foundational plumbing | FLEET     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `tutorial`               | anvil tutorial                       | Foundational plumbing | TUTOR     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `uninstall`              | anvil uninstall                      | Foundational plumbing | ADOPT     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `update`                 | anvil update                         | Foundational plumbing | DISTRIB   | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `validate`               | anvil validate                       | Governance engine     | RCLI3     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `version`                | anvil version                        | Foundational plumbing | DISTRIB   | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `waitlist`               | Waitlist registration                | Setup and onboarding  | BAUTH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `watch`                  | anvil watch                          | Save-time validation  | DSV       | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `welcome`                | anvil welcome                        | Setup and onboarding  | RCLI      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `wizard`                 | anvil wizard                         | Setup and onboarding  | RCLI      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `workspace`              | anvil workspace                      | Foundational plumbing | INTD      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 
 ## Delivery surfaces
 
-| Key                                | Feature                  | Locator                               | Status |
-| ---------------------------------- | ------------------------ | ------------------------------------- | ------ |
-| `api.account-activity`             | `account-activity`       | POST /api/v1/account/activity         | active |
-| `api.admin-activity`               | `admin.operations`       | GET /api/v1/admin/activity            | active |
-| `api.admin-approve`                | `admin.operations`       | POST /api/v1/admin/approve            | active |
-| `api.admin-audit`                  | `admin.operations`       | GET /api/v1/admin/audit               | active |
-| `api.admin-broadcast`              | `admin.operations`       | POST /api/v1/admin/broadcast          | active |
-| `api.admin-email-send`             | `admin.operations`       | POST /api/v1/admin/email-send         | active |
-| `api.admin-fleet`                  | `admin.operations`       | GET /api/v1/admin/fleet               | active |
-| `api.admin-invite`                 | `admin.operations`       | POST /api/v1/admin/invite             | active |
-| `api.admin-revoke`                 | `admin.operations`       | POST /api/v1/admin/revoke             | active |
-| `api.admin-send-migration`         | `admin.operations`       | POST /api/v1/admin/send-migration     | active |
-| `api.admin-user-by-email`          | `admin.operations`       | GET /api/v1/admin/user/:email         | active |
-| `api.admin-user-email-update`      | `admin.operations`       | POST /api/v1/admin/user/email-update  | active |
-| `api.admin-user-name-update`       | `admin.operations`       | POST /api/v1/admin/user/name-update   | active |
-| `api.admin-users`                  | `admin.operations`       | GET /api/v1/admin/users               | active |
-| `api.admin-waitlist`               | `admin.operations`       | GET /api/v1/admin/waitlist            | active |
-| `api.auth-device-poll`             | `auth`                   | POST /api/v1/auth/device/poll         | active |
-| `api.auth-device-start`            | `auth`                   | POST /api/v1/auth/device/start        | active |
-| `api.auth-github-callback`         | `auth`                   | POST /api/v1/auth/github/callback     | active |
-| `api.auth-github-device-poll`      | `auth`                   | POST /api/v1/auth/github-device/poll  | active |
-| `api.auth-github-device-start`     | `auth`                   | POST /api/v1/auth/github-device/start | active |
-| `api.auth-license-refresh`         | `auth`                   | POST /api/v1/auth/license/refresh     | active |
-| `api.auth-otp-request`             | `auth`                   | POST /api/v1/auth/otp/request         | active |
-| `api.auth-otp-verify`              | `auth`                   | POST /api/v1/auth/otp/verify          | active |
-| `api.auth-session-refresh`         | `auth`                   | POST /api/v1/auth/session/refresh     | active |
-| `api.auth-verify`                  | `auth`                   | POST /api/v1/auth/verify              | active |
-| `api.health`                       | `status`                 | GET /api/v1/health                    | active |
-| `api.telemetry-ingest`             | `telemetry`              | POST /api/v1/telemetry                | active |
-| `api.waitlist-resend`              | `waitlist`               | POST /api/v1/waitlist/resend          | active |
-| `api.waitlist-submit`              | `waitlist`               | POST /api/v1/waitlist                 | active |
-| `cli.admin-credential`             | `admin.credential`       | cli admin auth                        | active |
-| `cli.admin-operations`             | `admin.operations`       | cli admin                             | active |
-| `cli.architecture`                 | `architecture`           | cli architecture                      | active |
-| `cli.audit`                        | `audit`                  | cli audit                             | active |
-| `cli.audit-chain`                  | `audit-chain`            | cli audit-chain                       | active |
-| `cli.auth`                         | `auth`                   | cli auth                              | active |
-| `cli.auth-login`                   | `auth`                   | cli auth login                        | active |
-| `cli.auth-logout`                  | `auth`                   | cli auth logout                       | active |
-| `cli.auth-refresh`                 | `auth`                   | cli auth refresh                      | active |
-| `cli.auth-whoami`                  | `auth`                   | cli auth whoami                       | active |
-| `cli.baseline`                     | `baseline`               | cli baseline                          | active |
-| `cli.capsule`                      | `capsule`                | cli capsule                           | active |
-| `cli.check`                        | `check`                  | cli check                             | active |
-| `cli.config`                       | `config`                 | cli config                            | active |
-| `cli.dashboard-architecture`       | `dashboard.architecture` | cli dashboard architecture            | active |
-| `cli.dashboard-drift`              | `dashboard.drift`        | cli dashboard drift                   | active |
-| `cli.dashboard-saved`              | `dashboard.saved`        | cli dashboard                         | active |
-| `cli.dashboard-suppressions`       | `dashboard.suppressions` | cli dashboard suppressions            | active |
-| `cli.dashboard-web`                | `dashboard.web`          | cli dashboard --web                   | active |
-| `cli.doctor`                       | `doctor`                 | cli doctor                            | active |
-| `cli.drift`                        | `drift`                  | cli drift                             | active |
-| `cli.edda`                         | `edda`                   | cli edda                              | active |
-| `cli.ember`                        | `ember`                  | cli ember                             | active |
-| `cli.ensure`                       | `ensure`                 | cli                                   | active |
-| `cli.exception`                    | `exception`              | cli exception                         | active |
-| `cli.export`                       | `export`                 | cli export                            | active |
-| `cli.gate`                         | `gate`                   | cli gate                              | active |
-| `cli.gate-config`                  | `gate-config`            | cli gate-config                       | active |
-| `cli.gctx-egress`                  | `gctx-control`           | cli gctx egress                       | active |
-| `cli.hook`                         | `hook`                   | cli hook                              | active |
-| `cli.hooks`                        | `hooks`                  | cli hooks                             | active |
-| `cli.impact`                       | `impact`                 | cli impact                            | active |
-| `cli.init`                         | `init`                   | cli init                              | active |
-| `cli.insights`                     | `insights`               | cli insights                          | active |
-| `cli.intercept`                    | `intercept`              | cli intercept                         | active |
-| `cli.kindling`                     | `kindling`               | cli kindling                          | active |
-| `cli.l4-validate`                  | `l4-validate`            | cli l4-validate                       | active |
-| `cli.licenses`                     | `licenses`               | cli licenses                          | active |
-| `cli.login-alias`                  | `auth`                   | cli login                             | active |
-| `cli.logout-alias`                 | `auth`                   | cli logout                            | active |
-| `cli.lsp`                          | `lsp`                    | cli lsp                               | active |
-| `cli.mcp-config`                   | `mcp.config`             | cli mcp-config                        | active |
-| `cli.mcp-install`                  | `mcp.install`            | cli mcp install                       | active |
-| `cli.mcp-pin`                      | `mcp.pin`                | cli mcp pin                           | active |
-| `cli.mcp-refresh`                  | `mcp.install`            | cli mcp refresh                       | active |
-| `cli.mcp-serve`                    | `mcp.serve`              | cli mcp serve                         | active |
-| `cli.mcp-unpin`                    | `mcp.pin`                | cli mcp unpin                         | active |
-| `cli.migrate`                      | `migrate`                | cli migrate                           | active |
-| `cli.new`                          | `new`                    | cli new                               | active |
-| `cli.plan-dashboard`               | `dashboard.aps`          | cli plan dashboard                    | active |
-| `cli.policy`                       | `policy`                 | cli policy                            | active |
-| `cli.report-fp`                    | `report-fp`              | cli report-fp                         | active |
-| `cli.skill-install`                | `skill`                  | cli skill install                     | active |
-| `cli.start`                        | `start`                  | cli start                             | active |
-| `cli.status`                       | `status`                 | cli status                            | active |
-| `cli.telemetry`                    | `telemetry`              | cli telemetry                         | active |
-| `cli.tutorial`                     | `tutorial`               | cli tutorial                          | active |
-| `cli.uninstall`                    | `uninstall`              | cli uninstall                         | active |
-| `cli.update`                       | `update`                 | cli update                            | active |
-| `cli.validate`                     | `validate`               | cli validate                          | active |
-| `cli.version`                      | `version`                | cli version                           | active |
-| `cli.watch`                        | `watch`                  | cli watch                             | active |
-| `cli.welcome`                      | `welcome`                | cli welcome                           | active |
-| `cli.whoami-alias`                 | `auth`                   | cli whoami                            | active |
-| `cli.wizard`                       | `wizard`                 | cli wizard                            | active |
-| `cli.workspace`                    | `workspace`              | cli workspace                         | active |
-| `daemon.gctx-affected-tests`       | `gctx.affected-tests`    | daemon anvil/gctx/affected_tests      | active |
-| `daemon.gctx-find-callers`         | `gctx.find-callers`      | daemon anvil/gctx/find_callers        | active |
-| `daemon.gctx-find-dependents`      | `gctx.find-dependents`   | daemon anvil/gctx/find_dependents     | active |
-| `daemon.gctx-get-snippet`          | `gctx.snippets`          | daemon anvil/gctx/get_snippet         | active |
-| `daemon.gctx-graph-edges`          | `gctx.graph-edges`       | daemon anvil/gctx/graph_edges         | active |
-| `daemon.gctx-graph-stats`          | `gctx.graph-stats`       | daemon anvil/gctx/graph_stats         | active |
-| `daemon.gctx-impact-of-change`     | `gctx.impact-of-change`  | daemon anvil/gctx/impact_of_change    | active |
-| `daemon.gctx-search-symbols`       | `gctx.search-symbols`    | daemon anvil/gctx/search_symbols      | active |
-| `daemon.gctx-symbol-context`       | `gctx.symbol-context`    | daemon anvil/gctx/symbol_context      | active |
-| `daemon.list-sessions`             | `status`                 | daemon session.list                   | active |
-| `daemon.request-full-scan`         | `watch`                  | daemon anvil/request_full_scan        | active |
-| `daemon.scan-buffer`               | `watch`                  | daemon anvil/scan_buffer              | active |
-| `daemon.status-query`              | `status`                 | daemon anvil/status/query             | active |
-| `daemon.unblock-cascade`           | `intercept`              | daemon unblock-cascade                | active |
-| `daemon.unblock-worktree`          | `intercept`              | daemon unblock-worktree               | active |
-| `daemon.validate-paths`            | `watch`                  | daemon anvil/validate_paths           | active |
-| `daemon.witness-append`            | `hook`                   | daemon anvil/witness/append           | active |
-| `daemon.workspace-status`          | `status`                 | daemon anvil/workspace_status         | active |
-| `dashboard.api-patterns`           | `dashboard.warnings`     | dashboard /api/v1/patterns            | active |
-| `dashboard.api-plan-detail`        | `dashboard.plans`        | dashboard /api/v1/plans/{id}          | active |
-| `dashboard.api-plans`              | `dashboard.plans`        | dashboard /api/v1/plans               | active |
-| `dashboard.api-protection`         | `dashboard.protection`   | dashboard /api/v1/protection          | active |
-| `dashboard.api-protection-history` | `dashboard.protection`   | dashboard /api/v1/protection/history  | active |
-| `dashboard.gate-detail`            | `dashboard.gates`        | dashboard /gates/$id                  | active |
-| `dashboard.gates`                  | `dashboard.gates`        | dashboard /gates                      | active |
-| `dashboard.healthz`                | `status`                 | dashboard /healthz                    | active |
-| `dashboard.openapi`                | `dashboard.api-contract` | dashboard /openapi.json               | active |
-| `dashboard.plan-detail`            | `dashboard.plans`        | dashboard /plans/$id                  | active |
-| `dashboard.plans`                  | `dashboard.plans`        | dashboard /plans                      | active |
-| `dashboard.protection-overview`    | `dashboard.protection`   | dashboard /                           | active |
-| `dashboard.warning-breakdown`      | `dashboard.warnings`     | dashboard /warnings/breakdown         | active |
-| `dashboard.warning-patterns`       | `dashboard.warnings`     | dashboard /warnings/patterns          | active |
-| `dashboard.warnings`               | `dashboard.warnings`     | dashboard /warnings                   | active |
-| `docs.anvil`                       | `anvil-docs`             | docs /anvil                           | active |
-| `docs.aps`                         | `aps-docs`               | docs /aps                             | active |
-| `docs.auth-callback`               | `docs-shell`             | docs /auth/callback                   | active |
-| `docs.auth-error`                  | `docs-shell`             | docs /auth/error                      | active |
-| `docs.auth-login`                  | `docs-shell`             | docs /auth/login                      | active |
-| `docs.auth-logout`                 | `docs-shell`             | docs /auth/logout                     | active |
-| `docs.auth-pending`                | `docs-shell`             | docs /auth/pending                    | active |
-| `docs.blog`                        | `blog`                   | docs /blog                            | active |
-| `docs.edda-stack`                  | `edda`                   | docs /edda-stack                      | active |
-| `docs.kindling`                    | `kindling`               | docs /kindling                        | active |
-| `docs.llms`                        | `docs-shell`             | docs /llms.txt                        | active |
-| `docs.robots`                      | `docs-shell`             | docs /robots.txt                      | active |
-| `docs.shell-landing`               | `docs-shell`             | docs /                                | active |
-| `hook.post-commit`                 | `hook`                   | hook post-commit                      | active |
-| `hook.post-merge`                  | `hook`                   | hook post-merge                       | active |
-| `hook.post-rewrite`                | `hook`                   | hook post-rewrite                     | active |
-| `hook.pre-commit`                  | `hook`                   | hook pre-commit                       | active |
-| `hook.pre-push`                    | `hook`                   | hook pre-push                         | active |
-| `integration.antigravity.mcp`      | `mcp.serve`              | integration antigravity/mcp           | active |
-| `integration.claude-code.mcp`      | `mcp.serve`              | integration claude-code/mcp           | active |
-| `integration.claude-code.skill`    | `skill`                  | integration claude-code/skill         | active |
-| `integration.codex.mcp`            | `mcp.serve`              | integration codex/mcp                 | active |
-| `integration.codex.skill`          | `skill`                  | integration codex/skill               | active |
-| `integration.copilot-cli.mcp`      | `mcp.serve`              | integration copilot-cli/mcp           | active |
-| `integration.copilot-cli.skill`    | `skill`                  | integration copilot-cli/skill         | active |
-| `integration.cursor.mcp`           | `mcp.serve`              | integration cursor/mcp                | active |
-| `integration.cursor.skill`         | `skill`                  | integration cursor/skill              | active |
-| `integration.gemini-cli.mcp`       | `mcp.serve`              | integration gemini-cli/mcp            | active |
-| `integration.gemini-cli.skill`     | `skill`                  | integration gemini-cli/skill          | active |
-| `integration.grok.mcp`             | `mcp.serve`              | integration grok/mcp                  | active |
-| `integration.openclaw.mcp`         | `mcp.serve`              | integration openclaw/mcp              | active |
-| `integration.openclaw.skill`       | `skill`                  | integration openclaw/skill            | active |
-| `integration.opencode.mcp`         | `mcp.serve`              | integration opencode/mcp              | active |
-| `integration.opencode.skill`       | `skill`                  | integration opencode/skill            | active |
-| `integration.vscode.mcp`           | `mcp.serve`              | integration vscode/mcp                | active |
-| `integration.warp.mcp`             | `mcp.serve`              | integration warp/mcp                  | active |
-| `integration.zed.mcp`              | `mcp.serve`              | integration zed/mcp                   | active |
-| `mcp-resource.baseline`            | `baseline`               | mcp-resource anvil://baseline         | active |
-| `mcp-resource.boundaries`          | `architecture`           | mcp-resource anvil://boundaries       | active |
-| `mcp-resource.config`              | `config`                 | mcp-resource anvil://config           | active |
-| `mcp-resource.constraints`         | `export`                 | mcp-resource anvil://constraints      | active |
-| `mcp-resource.drift`               | `drift`                  | mcp-resource anvil://drift            | active |
-| `mcp-resource.graph-edges`         | `gctx.graph-edges`       | mcp-resource graph://edges            | active |
-| `mcp-resource.graph-stats`         | `gctx.graph-stats`       | mcp-resource graph://stats            | active |
-| `mcp-resource.graph-symbols`       | `gctx.search-symbols`    | mcp-resource graph://symbols          | active |
-| `mcp-resource.patterns`            | `check`                  | mcp-resource anvil://patterns         | active |
-| `mcp-resource.suppressions`        | `policy`                 | mcp-resource anvil://suppressions     | active |
-| `mcp-tool.affected-tests`          | `gctx.affected-tests`    | mcp-tool anvil_affected_tests         | active |
-| `mcp-tool.apply-patch`             | `mcp.apply-patch`        | mcp-tool anvil_apply_patch            | active |
-| `mcp-tool.check`                   | `check`                  | mcp-tool anvil_check                  | active |
-| `mcp-tool.find-callers`            | `gctx.find-callers`      | mcp-tool anvil_find_callers           | active |
-| `mcp-tool.find-dependents`         | `gctx.find-dependents`   | mcp-tool anvil_find_dependents        | active |
-| `mcp-tool.fix`                     | `mcp.fix`                | mcp-tool anvil_fix                    | active |
-| `mcp-tool.gate`                    | `gate`                   | mcp-tool anvil_gate                   | active |
-| `mcp-tool.impact-of-change`        | `gctx.impact-of-change`  | mcp-tool anvil_impact_of_change       | active |
-| `mcp-tool.query-boundary`          | `architecture`           | mcp-tool anvil_query_boundary         | active |
-| `mcp-tool.search-symbols`          | `gctx.search-symbols`    | mcp-tool anvil_search_symbols         | active |
-| `mcp-tool.status`                  | `status`                 | mcp-tool anvil_status                 | active |
-| `mcp-tool.suppress`                | `policy`                 | mcp-tool anvil_suppress               | active |
-| `mcp-tool.symbol-context`          | `gctx.symbol-context`    | mcp-tool anvil_symbol_context         | active |
-| `mcp-tool.validate-write`          | `check`                  | mcp-tool anvil_validate_write         | active |
+| Key                                | Feature                  | Locator                               | Listed | Status |
+| ---------------------------------- | ------------------------ | ------------------------------------- | ------ | ------ |
+| `api.account-activity`             | `account-activity`       | POST /api/v1/account/activity         | yes    | active |
+| `api.admin-activity`               | `admin.operations`       | GET /api/v1/admin/activity            | yes    | active |
+| `api.admin-approve`                | `admin.operations`       | POST /api/v1/admin/approve            | yes    | active |
+| `api.admin-audit`                  | `admin.operations`       | GET /api/v1/admin/audit               | yes    | active |
+| `api.admin-broadcast`              | `admin.operations`       | POST /api/v1/admin/broadcast          | yes    | active |
+| `api.admin-email-send`             | `admin.operations`       | POST /api/v1/admin/email-send         | yes    | active |
+| `api.admin-fleet`                  | `admin.operations`       | GET /api/v1/admin/fleet               | yes    | active |
+| `api.admin-invite`                 | `admin.operations`       | POST /api/v1/admin/invite             | yes    | active |
+| `api.admin-revoke`                 | `admin.operations`       | POST /api/v1/admin/revoke             | yes    | active |
+| `api.admin-send-migration`         | `admin.operations`       | POST /api/v1/admin/send-migration     | yes    | active |
+| `api.admin-user-by-email`          | `admin.operations`       | GET /api/v1/admin/user/:email         | yes    | active |
+| `api.admin-user-email-update`      | `admin.operations`       | POST /api/v1/admin/user/email-update  | yes    | active |
+| `api.admin-user-name-update`       | `admin.operations`       | POST /api/v1/admin/user/name-update   | yes    | active |
+| `api.admin-users`                  | `admin.operations`       | GET /api/v1/admin/users               | yes    | active |
+| `api.admin-waitlist`               | `admin.operations`       | GET /api/v1/admin/waitlist            | yes    | active |
+| `api.auth-device-poll`             | `auth`                   | POST /api/v1/auth/device/poll         | yes    | active |
+| `api.auth-device-start`            | `auth`                   | POST /api/v1/auth/device/start        | yes    | active |
+| `api.auth-github-callback`         | `auth`                   | POST /api/v1/auth/github/callback     | yes    | active |
+| `api.auth-github-device-poll`      | `auth`                   | POST /api/v1/auth/github-device/poll  | yes    | active |
+| `api.auth-github-device-start`     | `auth`                   | POST /api/v1/auth/github-device/start | yes    | active |
+| `api.auth-license-refresh`         | `auth`                   | POST /api/v1/auth/license/refresh     | yes    | active |
+| `api.auth-otp-request`             | `auth`                   | POST /api/v1/auth/otp/request         | yes    | active |
+| `api.auth-otp-verify`              | `auth`                   | POST /api/v1/auth/otp/verify          | yes    | active |
+| `api.auth-session-refresh`         | `auth`                   | POST /api/v1/auth/session/refresh     | yes    | active |
+| `api.auth-verify`                  | `auth`                   | POST /api/v1/auth/verify              | yes    | active |
+| `api.health`                       | `status`                 | GET /api/v1/health                    | yes    | active |
+| `api.telemetry-ingest`             | `telemetry`              | POST /api/v1/telemetry                | yes    | active |
+| `api.waitlist-resend`              | `waitlist`               | POST /api/v1/waitlist/resend          | yes    | active |
+| `api.waitlist-submit`              | `waitlist`               | POST /api/v1/waitlist                 | yes    | active |
+| `cli.admin-credential`             | `admin.credential`       | cli admin auth                        | yes    | active |
+| `cli.admin-operations`             | `admin.operations`       | cli admin                             | yes    | active |
+| `cli.architecture`                 | `architecture`           | cli architecture                      | yes    | active |
+| `cli.audit`                        | `audit`                  | cli audit                             | yes    | active |
+| `cli.audit-chain`                  | `audit-chain`            | cli audit-chain                       | yes    | active |
+| `cli.auth`                         | `auth`                   | cli auth                              | yes    | active |
+| `cli.auth-login`                   | `auth`                   | cli auth login                        | yes    | active |
+| `cli.auth-logout`                  | `auth`                   | cli auth logout                       | yes    | active |
+| `cli.auth-refresh`                 | `auth`                   | cli auth refresh                      | yes    | active |
+| `cli.auth-whoami`                  | `auth`                   | cli auth whoami                       | yes    | active |
+| `cli.baseline`                     | `baseline`               | cli baseline                          | yes    | active |
+| `cli.capsule`                      | `capsule`                | cli capsule                           | yes    | active |
+| `cli.check`                        | `check`                  | cli check                             | yes    | active |
+| `cli.config`                       | `config`                 | cli config                            | yes    | active |
+| `cli.dashboard-architecture`       | `dashboard.architecture` | cli dashboard architecture            | yes    | active |
+| `cli.dashboard-drift`              | `dashboard.drift`        | cli dashboard drift                   | yes    | active |
+| `cli.dashboard-saved`              | `dashboard.saved`        | cli dashboard                         | yes    | active |
+| `cli.dashboard-suppressions`       | `dashboard.suppressions` | cli dashboard suppressions            | yes    | active |
+| `cli.dashboard-web`                | `dashboard.web`          | cli dashboard --web                   | no     | active |
+| `cli.doctor`                       | `doctor`                 | cli doctor                            | yes    | active |
+| `cli.drift`                        | `drift`                  | cli drift                             | yes    | active |
+| `cli.edda`                         | `edda`                   | cli edda                              | yes    | active |
+| `cli.ember`                        | `ember`                  | cli ember                             | yes    | active |
+| `cli.ensure`                       | `ensure`                 | cli                                   | yes    | active |
+| `cli.exception`                    | `exception`              | cli exception                         | yes    | active |
+| `cli.export`                       | `export`                 | cli export                            | yes    | active |
+| `cli.gate`                         | `gate`                   | cli gate                              | yes    | active |
+| `cli.gate-config`                  | `gate-config`            | cli gate-config                       | yes    | active |
+| `cli.gctx-egress`                  | `gctx-control`           | cli gctx egress                       | yes    | active |
+| `cli.hook`                         | `hook`                   | cli hook                              | yes    | active |
+| `cli.hooks`                        | `hooks`                  | cli hooks                             | yes    | active |
+| `cli.impact`                       | `impact`                 | cli impact                            | no     | active |
+| `cli.init`                         | `init`                   | cli init                              | yes    | active |
+| `cli.insights`                     | `insights`               | cli insights                          | yes    | active |
+| `cli.intercept`                    | `intercept`              | cli intercept                         | yes    | active |
+| `cli.kindling`                     | `kindling`               | cli kindling                          | yes    | active |
+| `cli.l4-validate`                  | `l4-validate`            | cli l4-validate                       | yes    | active |
+| `cli.licenses`                     | `licenses`               | cli licenses                          | yes    | active |
+| `cli.login-alias`                  | `auth`                   | cli login                             | yes    | active |
+| `cli.logout-alias`                 | `auth`                   | cli logout                            | yes    | active |
+| `cli.lsp`                          | `lsp`                    | cli lsp                               | yes    | active |
+| `cli.mcp-config`                   | `mcp.config`             | cli mcp-config                        | yes    | active |
+| `cli.mcp-install`                  | `mcp.install`            | cli mcp install                       | yes    | active |
+| `cli.mcp-pin`                      | `mcp.pin`                | cli mcp pin                           | yes    | active |
+| `cli.mcp-refresh`                  | `mcp.install`            | cli mcp refresh                       | yes    | active |
+| `cli.mcp-serve`                    | `mcp.serve`              | cli mcp serve                         | yes    | active |
+| `cli.mcp-unpin`                    | `mcp.pin`                | cli mcp unpin                         | yes    | active |
+| `cli.migrate`                      | `migrate`                | cli migrate                           | yes    | active |
+| `cli.new`                          | `new`                    | cli new                               | yes    | active |
+| `cli.plan-dashboard`               | `dashboard.aps`          | cli plan dashboard                    | no     | active |
+| `cli.policy`                       | `policy`                 | cli policy                            | yes    | active |
+| `cli.report-fp`                    | `report-fp`              | cli report-fp                         | yes    | active |
+| `cli.skill-install`                | `skill`                  | cli skill install                     | yes    | active |
+| `cli.start`                        | `start`                  | cli start                             | yes    | active |
+| `cli.status`                       | `status`                 | cli status                            | yes    | active |
+| `cli.telemetry`                    | `telemetry`              | cli telemetry                         | yes    | active |
+| `cli.tutorial`                     | `tutorial`               | cli tutorial                          | yes    | active |
+| `cli.uninstall`                    | `uninstall`              | cli uninstall                         | yes    | active |
+| `cli.update`                       | `update`                 | cli update                            | yes    | active |
+| `cli.validate`                     | `validate`               | cli validate                          | yes    | active |
+| `cli.version`                      | `version`                | cli version                           | yes    | active |
+| `cli.watch`                        | `watch`                  | cli watch                             | yes    | active |
+| `cli.welcome`                      | `welcome`                | cli welcome                           | yes    | active |
+| `cli.whoami-alias`                 | `auth`                   | cli whoami                            | yes    | active |
+| `cli.wizard`                       | `wizard`                 | cli wizard                            | yes    | active |
+| `cli.workspace`                    | `workspace`              | cli workspace                         | yes    | active |
+| `daemon.gctx-affected-tests`       | `gctx.affected-tests`    | daemon anvil/gctx/affected_tests      | yes    | active |
+| `daemon.gctx-find-callers`         | `gctx.find-callers`      | daemon anvil/gctx/find_callers        | yes    | active |
+| `daemon.gctx-find-dependents`      | `gctx.find-dependents`   | daemon anvil/gctx/find_dependents     | yes    | active |
+| `daemon.gctx-get-snippet`          | `gctx.snippets`          | daemon anvil/gctx/get_snippet         | yes    | active |
+| `daemon.gctx-graph-edges`          | `gctx.graph-edges`       | daemon anvil/gctx/graph_edges         | yes    | active |
+| `daemon.gctx-graph-stats`          | `gctx.graph-stats`       | daemon anvil/gctx/graph_stats         | yes    | active |
+| `daemon.gctx-impact-of-change`     | `gctx.impact-of-change`  | daemon anvil/gctx/impact_of_change    | yes    | active |
+| `daemon.gctx-search-symbols`       | `gctx.search-symbols`    | daemon anvil/gctx/search_symbols      | yes    | active |
+| `daemon.gctx-symbol-context`       | `gctx.symbol-context`    | daemon anvil/gctx/symbol_context      | yes    | active |
+| `daemon.list-sessions`             | `status`                 | daemon session.list                   | yes    | active |
+| `daemon.request-full-scan`         | `watch`                  | daemon anvil/request_full_scan        | yes    | active |
+| `daemon.scan-buffer`               | `watch`                  | daemon anvil/scan_buffer              | yes    | active |
+| `daemon.status-query`              | `status`                 | daemon anvil/status/query             | yes    | active |
+| `daemon.unblock-cascade`           | `intercept`              | daemon unblock-cascade                | yes    | active |
+| `daemon.unblock-worktree`          | `intercept`              | daemon unblock-worktree               | yes    | active |
+| `daemon.validate-paths`            | `watch`                  | daemon anvil/validate_paths           | yes    | active |
+| `daemon.witness-append`            | `hook`                   | daemon anvil/witness/append           | yes    | active |
+| `daemon.workspace-status`          | `status`                 | daemon anvil/workspace_status         | yes    | active |
+| `dashboard.api-patterns`           | `dashboard.warnings`     | dashboard /api/v1/patterns            | yes    | active |
+| `dashboard.api-plan-detail`        | `dashboard.plans`        | dashboard /api/v1/plans/{id}          | yes    | active |
+| `dashboard.api-plans`              | `dashboard.plans`        | dashboard /api/v1/plans               | yes    | active |
+| `dashboard.api-protection`         | `dashboard.protection`   | dashboard /api/v1/protection          | yes    | active |
+| `dashboard.api-protection-history` | `dashboard.protection`   | dashboard /api/v1/protection/history  | yes    | active |
+| `dashboard.gate-detail`            | `dashboard.gates`        | dashboard /gates/$id                  | yes    | active |
+| `dashboard.gates`                  | `dashboard.gates`        | dashboard /gates                      | yes    | active |
+| `dashboard.healthz`                | `status`                 | dashboard /healthz                    | yes    | active |
+| `dashboard.openapi`                | `dashboard.api-contract` | dashboard /openapi.json               | yes    | active |
+| `dashboard.plan-detail`            | `dashboard.plans`        | dashboard /plans/$id                  | yes    | active |
+| `dashboard.plans`                  | `dashboard.plans`        | dashboard /plans                      | yes    | active |
+| `dashboard.protection-overview`    | `dashboard.protection`   | dashboard /                           | yes    | active |
+| `dashboard.warning-breakdown`      | `dashboard.warnings`     | dashboard /warnings/breakdown         | yes    | active |
+| `dashboard.warning-patterns`       | `dashboard.warnings`     | dashboard /warnings/patterns          | yes    | active |
+| `dashboard.warnings`               | `dashboard.warnings`     | dashboard /warnings                   | yes    | active |
+| `docs.anvil`                       | `anvil-docs`             | docs /anvil                           | yes    | active |
+| `docs.aps`                         | `aps-docs`               | docs /aps                             | yes    | active |
+| `docs.auth-callback`               | `docs-shell`             | docs /auth/callback                   | yes    | active |
+| `docs.auth-error`                  | `docs-shell`             | docs /auth/error                      | yes    | active |
+| `docs.auth-login`                  | `docs-shell`             | docs /auth/login                      | yes    | active |
+| `docs.auth-logout`                 | `docs-shell`             | docs /auth/logout                     | yes    | active |
+| `docs.auth-pending`                | `docs-shell`             | docs /auth/pending                    | yes    | active |
+| `docs.blog`                        | `blog`                   | docs /blog                            | yes    | active |
+| `docs.edda-stack`                  | `edda`                   | docs /edda-stack                      | yes    | active |
+| `docs.kindling`                    | `kindling`               | docs /kindling                        | yes    | active |
+| `docs.llms`                        | `docs-shell`             | docs /llms.txt                        | yes    | active |
+| `docs.robots`                      | `docs-shell`             | docs /robots.txt                      | yes    | active |
+| `docs.shell-landing`               | `docs-shell`             | docs /                                | yes    | active |
+| `hook.post-commit`                 | `hook`                   | hook post-commit                      | yes    | active |
+| `hook.post-merge`                  | `hook`                   | hook post-merge                       | yes    | active |
+| `hook.post-rewrite`                | `hook`                   | hook post-rewrite                     | yes    | active |
+| `hook.pre-commit`                  | `hook`                   | hook pre-commit                       | yes    | active |
+| `hook.pre-push`                    | `hook`                   | hook pre-push                         | yes    | active |
+| `integration.antigravity.mcp`      | `mcp.serve`              | integration antigravity/mcp           | yes    | active |
+| `integration.claude-code.mcp`      | `mcp.serve`              | integration claude-code/mcp           | yes    | active |
+| `integration.claude-code.skill`    | `skill`                  | integration claude-code/skill         | yes    | active |
+| `integration.codex.mcp`            | `mcp.serve`              | integration codex/mcp                 | yes    | active |
+| `integration.codex.skill`          | `skill`                  | integration codex/skill               | yes    | active |
+| `integration.copilot-cli.mcp`      | `mcp.serve`              | integration copilot-cli/mcp           | yes    | active |
+| `integration.copilot-cli.skill`    | `skill`                  | integration copilot-cli/skill         | yes    | active |
+| `integration.cursor.mcp`           | `mcp.serve`              | integration cursor/mcp                | yes    | active |
+| `integration.cursor.skill`         | `skill`                  | integration cursor/skill              | yes    | active |
+| `integration.gemini-cli.mcp`       | `mcp.serve`              | integration gemini-cli/mcp            | yes    | active |
+| `integration.gemini-cli.skill`     | `skill`                  | integration gemini-cli/skill          | yes    | active |
+| `integration.grok.mcp`             | `mcp.serve`              | integration grok/mcp                  | yes    | active |
+| `integration.openclaw.mcp`         | `mcp.serve`              | integration openclaw/mcp              | yes    | active |
+| `integration.openclaw.skill`       | `skill`                  | integration openclaw/skill            | yes    | active |
+| `integration.opencode.mcp`         | `mcp.serve`              | integration opencode/mcp              | yes    | active |
+| `integration.opencode.skill`       | `skill`                  | integration opencode/skill            | yes    | active |
+| `integration.vscode.mcp`           | `mcp.serve`              | integration vscode/mcp                | yes    | active |
+| `integration.warp.mcp`             | `mcp.serve`              | integration warp/mcp                  | yes    | active |
+| `integration.zed.mcp`              | `mcp.serve`              | integration zed/mcp                   | yes    | active |
+| `mcp-resource.baseline`            | `baseline`               | mcp-resource anvil://baseline         | yes    | active |
+| `mcp-resource.boundaries`          | `architecture`           | mcp-resource anvil://boundaries       | yes    | active |
+| `mcp-resource.config`              | `config`                 | mcp-resource anvil://config           | yes    | active |
+| `mcp-resource.constraints`         | `export`                 | mcp-resource anvil://constraints      | yes    | active |
+| `mcp-resource.drift`               | `drift`                  | mcp-resource anvil://drift            | yes    | active |
+| `mcp-resource.graph-edges`         | `gctx.graph-edges`       | mcp-resource graph://edges            | yes    | active |
+| `mcp-resource.graph-stats`         | `gctx.graph-stats`       | mcp-resource graph://stats            | yes    | active |
+| `mcp-resource.graph-symbols`       | `gctx.search-symbols`    | mcp-resource graph://symbols          | yes    | active |
+| `mcp-resource.patterns`            | `check`                  | mcp-resource anvil://patterns         | yes    | active |
+| `mcp-resource.suppressions`        | `policy`                 | mcp-resource anvil://suppressions     | yes    | active |
+| `mcp-tool.affected-tests`          | `gctx.affected-tests`    | mcp-tool anvil_affected_tests         | yes    | active |
+| `mcp-tool.apply-patch`             | `mcp.apply-patch`        | mcp-tool anvil_apply_patch            | yes    | active |
+| `mcp-tool.check`                   | `check`                  | mcp-tool anvil_check                  | yes    | active |
+| `mcp-tool.find-callers`            | `gctx.find-callers`      | mcp-tool anvil_find_callers           | yes    | active |
+| `mcp-tool.find-dependents`         | `gctx.find-dependents`   | mcp-tool anvil_find_dependents        | yes    | active |
+| `mcp-tool.fix`                     | `mcp.fix`                | mcp-tool anvil_fix                    | yes    | active |
+| `mcp-tool.gate`                    | `gate`                   | mcp-tool anvil_gate                   | yes    | active |
+| `mcp-tool.impact-of-change`        | `gctx.impact-of-change`  | mcp-tool anvil_impact_of_change       | yes    | active |
+| `mcp-tool.query-boundary`          | `architecture`           | mcp-tool anvil_query_boundary         | yes    | active |
+| `mcp-tool.search-symbols`          | `gctx.search-symbols`    | mcp-tool anvil_search_symbols         | yes    | active |
+| `mcp-tool.status`                  | `status`                 | mcp-tool anvil_status                 | yes    | active |
+| `mcp-tool.suppress`                | `policy`                 | mcp-tool anvil_suppress               | yes    | active |
+| `mcp-tool.symbol-context`          | `gctx.symbol-context`    | mcp-tool anvil_symbol_context         | yes    | active |
+| `mcp-tool.validate-write`          | `check`                  | mcp-tool anvil_validate_write         | yes    | active |
+
+## Unlisted until default-on
+
+CLI surfaces hidden from `--help` while their invocation flag is default-off.
+They remain invokable. Promote by flipping `listed` to true in the same change
+as the controlling flag becoming default-on (ADR-136).
+
+| Key                  | Locator             |
+| -------------------- | ------------------- |
+| `cli.dashboard-web`  | cli dashboard --web |
+| `cli.impact`         | cli impact          |
+| `cli.plan-dashboard` | cli plan dashboard  |
 
 ## Excluded internal plumbing
 
@@ -338,7 +350,7 @@ operational flags.
 | `daemon.persist-graph`        | rollout     | intercept                                                                                                                                                            | active |
 | `dashboard.web`               | rollout     | dashboard.web                                                                                                                                                        | active |
 | `docs.access`                 | entitlement | anvil-docs, docs-shell                                                                                                                                               | active |
-| `gctx.egress`                 | rollout     | gctx.snippets, gctx-control                                                                                                                                          | active |
+| `gctx.egress`                 | rollout     | gctx.snippets                                                                                                                                                        | active |
 | `gv2.reverse-impact-depth`    | entitlement | impact                                                                                                                                                               | active |
 | `impact.view`                 | rollout     | impact                                                                                                                                                               | active |
 | `kindling.embedded-runtime`   | rollout     | kindling                                                                                                                                                             | active |

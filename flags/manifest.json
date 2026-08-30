@@ -215,7 +215,7 @@
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Default-off (PV-9 CE-1): identity-only graph context is always on; source-text snippets ride only when this flag is enabled AND the request asserts include_source. Operator opt-in via ANVIL_GCTX_EGRESS=1; ANVIL_GCTX_EGRESS=0 is the kill-switch that disables all GCTX egress.",
       "primaryGroup": "daemon",
-      "controlsProductFeatures": ["gctx.snippets", "gctx-control"]
+      "controlsProductFeatures": ["gctx.snippets"]
     },
     {
       "key": "gv2.reverse-impact-depth",

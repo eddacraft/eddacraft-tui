@@ -83,6 +83,7 @@ describe('product catalogue compatibility reader', () => {
           mustAlwaysBeOpen: surface.mustAlwaysBeOpen,
         },
         status: surface.status,
+        listed: true,
       });
     }
 
