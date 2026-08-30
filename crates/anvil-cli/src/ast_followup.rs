@@ -78,15 +78,10 @@ pub(crate) fn findings_from_check_json(stdout: &[u8]) -> Vec<FollowupFinding> {
             warnings
                 .iter()
                 .filter_map(|warning| {
-                    let id = warning.get("id").and_then(serde_json::Value::as_str)?;
-                    let file = warning.get("file").and_then(serde_json::Value::as_str)?;
-                    if id.is_empty() || file.is_empty() {
-                        return None;
-                    }
-                    Some(FollowupFinding {
-                        id: id.to_string(),
-                        file: file.to_string(),
-                    })
+                    let id = display_token(warning.get("id").and_then(serde_json::Value::as_str)?)?;
+                    let file =
+                        display_token(warning.get("file").and_then(serde_json::Value::as_str)?)?;
+                    Some(FollowupFinding { id, file })
                 })
                 .collect()
         })
@@ -103,6 +98,20 @@ pub(crate) fn format_followup_advisory(findings: &[FollowupFinding]) -> Option<S
         "anvil: {count} AST follow-up {noun} (save allowed) — {} in {}",
         first.id, first.file
     ))
+}
+
+/// Keep the advisory one line even if check JSON smuggles controls into id/file.
+fn display_token(value: &str) -> Option<String> {
+    let cleaned: String = value
+        .chars()
+        .filter(|c| *c >= ' ' && *c != '\u{7f}')
+        .take(80)
+        .collect();
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned)
+    }
 }
 
 #[must_use]
@@ -676,5 +685,15 @@ mod tests {
             Some(line),
             "anvil: 1 AST follow-up warning (save allowed) — RS-002 in src/lib.rs"
         ));
+    }
+
+    #[test]
+    fn crafted_newline_in_id_does_not_split_the_advisory() {
+        let line =
+            advisory_from_check_json(br#"{"warnings":[{"id":"RS-001\nPWN","file":"src/lib.rs"}]}"#)
+                .expect("warning");
+        assert_eq!(line.lines().count(), 1);
+        assert!(!line.contains('\n'));
+        assert!(line.contains("RS-001PWN"), "{line}");
     }
 }

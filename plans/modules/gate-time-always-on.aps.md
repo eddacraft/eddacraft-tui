@@ -378,5 +378,5 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 GTAO-001, GTAO-002, and GTAO-008 are Merged 2026-08-22 via PR #4084.
 GTAO-003 and GTAO-005 (Wave 2) are Merged 2026-08-27 via PR #4168.
-Remaining items stay Draft: GTAO-004/006/007 (Wave 3) and GTAO-009/-010
+Remaining items stay Draft: GTAO-006/007 (Wave 3) and GTAO-009/-010
 (Wave 4). Do not convert PY-008 to `detection: ast`.
