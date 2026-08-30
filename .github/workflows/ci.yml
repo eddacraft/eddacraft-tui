@@ -295,7 +295,18 @@ jobs:
 
   docs-lint-tooling:
     name: Docs tooling
-    timeout-minutes: 15
+    # Measured 2026-08-30, not guessed: this job needs ~15 min and was budgeted
+    # at exactly 15, so it was a coin flip on every PR and every push to main.
+    # Five consecutive observations: 14m47s pass, 14m51s pass, 15m01s killed,
+    # 15m11s killed, 15m18s killed. Every step in the killed runs had either
+    # succeeded or was still making progress — no hang, no runner loss, just a
+    # budget set to the job's own median.
+    #
+    # `Run docs-check fixture tests` is ~12 of those minutes and does not vary
+    # with the PR: it self-tests the docs tooling against fixtures. Making that
+    # suite cheaper is the better fix and is owed; widening the budget to the
+    # job's actual cost stops it flipping unrelated merges in the meantime.
+    timeout-minutes: 25
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
