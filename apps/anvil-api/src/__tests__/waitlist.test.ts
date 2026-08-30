@@ -193,7 +193,11 @@ describe('waitlist routes', () => {
     });
 
     it('keeps a persisted signup successful when admin notification rejects', async () => {
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const consoleInfo = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+      const notificationError = new Error(
+        'notification unavailable for person@example.com with re_live_REDACTME'
+      );
+      notificationError.name = 'ResendError';
       waitlistMocks.sql.mockResolvedValue([
         {
           id: 1,
@@ -203,9 +207,7 @@ describe('waitlist routes', () => {
         },
       ]);
       waitlistMocks.sendWaitlistConfirmation.mockResolvedValue({ sent: true });
-      waitlistMocks.sendWaitlistAdminNotification.mockRejectedValueOnce(
-        new Error('notification unavailable')
-      );
+      waitlistMocks.sendWaitlistAdminNotification.mockRejectedValueOnce(notificationError);
 
       const response = await request(
         '/waitlist',
@@ -230,9 +232,13 @@ describe('waitlist routes', () => {
         emailSent: true,
         emailStatus: 'sent',
       });
-      expect(consoleError).toHaveBeenCalledWith(
-        'Waitlist admin notification failed after persistence (non-fatal)'
-      );
+      const logOutput = consoleInfo.mock.calls.flat().join('\n');
+      expect(logOutput).toContain('"event":"waitlist.admin_notification"');
+      expect(logOutput).toContain('"outcome":"failed_after_persistence"');
+      expect(logOutput).toContain('"errorClass":"ResendError"');
+      expect(logOutput).not.toContain('notification unavailable');
+      expect(logOutput).not.toContain('person@example.com');
+      expect(logOutput).not.toContain('re_live_REDACTME');
     });
 
     it('rejects requests without an application/json content type', async () => {

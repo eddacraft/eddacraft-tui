@@ -4,9 +4,11 @@ import { getClient } from '../db/client.js';
 import { upsertWaitlistEntry } from '../db/queries.js';
 import { sendWaitlistConfirmation, sendWaitlistAdminNotification } from '../lib/email.js';
 import { addToWaitlistAudience } from '../lib/audience.js';
+import { createInfoLogger } from '../lib/debug.js';
 import { waitlistEmailThrottle } from '../middleware/waitlist-throttle.js';
 
 export const waitlist = new Hono();
+const info = createInfoLogger('api');
 
 const EMAIL_REGEX =
   /^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
@@ -94,8 +96,12 @@ waitlist.post('/', async (c) => {
     // lambda freeze before the Resend HTTP call flushes.
     try {
       await sendWaitlistAdminNotification(entry.email, isNewSignup, emailSent);
-    } catch {
-      console.error('Waitlist admin notification failed after persistence (non-fatal)');
+    } catch (error: unknown) {
+      const errorClass = error instanceof Error ? error.name : typeof error;
+      info('waitlist.admin_notification', {
+        outcome: 'failed_after_persistence',
+        errorClass,
+      });
     }
 
     return c.json({
