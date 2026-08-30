@@ -33,6 +33,38 @@ fn stop_in_home(home: &Path) -> Output {
         .expect("run anvil intercept stop")
 }
 
+fn stop_with_unresolved_sibling(root: &Path, json: bool) -> Output {
+    use std::os::unix::fs::PermissionsExt;
+
+    let runtime = root.join("runtime");
+    let canonical_dir = runtime.join("anvil");
+    let home = root.join("home");
+    let sibling_dir = home.join(".local/state/anvil");
+    fs::create_dir_all(&canonical_dir).expect("canonical runtime dir");
+    fs::create_dir_all(&sibling_dir).expect("sibling runtime dir");
+    for dir in [&canonical_dir, &sibling_dir] {
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
+            .expect("owner-only runtime dir");
+    }
+    fs::write(sibling_dir.join("intercept.pid"), "not-a-pid\n")
+        .expect("malformed sibling PID file");
+
+    let mut command = Command::new(ANVIL_BIN);
+    if json {
+        command.arg("--json");
+    }
+    command
+        .args(["intercept", "stop"])
+        .env("HOME", &home)
+        .env("USERPROFILE", &home)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .env_remove("ANVIL_HOME")
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("run split-candidate intercept stop")
+}
+
 #[test]
 fn stop_with_no_daemon_reports_not_running() {
     let home = tempfile::tempdir().expect("tempdir");
@@ -76,5 +108,49 @@ fn stop_clears_a_stale_pid_file() {
     assert!(
         !pid_file.exists(),
         "stale PID file should have been removed",
+    );
+}
+
+#[test]
+fn stop_with_unresolved_sibling_is_a_partial_failure() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let out = stop_with_unresolved_sibling(root.path(), false);
+
+    assert!(
+        !out.status.success(),
+        "partial stop must exit non-zero; stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("stop is incomplete"), "stdout was: {stdout}");
+    assert!(stdout.contains("skipped"), "stdout was: {stdout}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("candidate(s) unresolved"), "stderr was: {stderr}");
+}
+
+#[test]
+fn stop_json_reports_every_candidate_and_is_non_zero_on_partial_failure() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let out = stop_with_unresolved_sibling(root.path(), true);
+
+    assert!(
+        !out.status.success(),
+        "partial JSON stop must exit non-zero; stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let document: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be one JSON document");
+    assert_eq!(document["outcome"], "not-running");
+    assert_eq!(document["result"], "partial-failure");
+    assert_eq!(document["partial_failure"], true);
+    assert_eq!(document["candidates"].as_array().map(Vec::len), Some(2));
+    assert_eq!(document["candidates"][0]["outcome"], "not-running");
+    assert_eq!(document["candidates"][1]["outcome"], "unresolved");
+    assert!(
+        out.stderr.is_empty(),
+        "JSON partial failure is already reported on stdout: {}",
+        String::from_utf8_lossy(&out.stderr),
     );
 }
