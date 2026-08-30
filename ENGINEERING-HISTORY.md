@@ -12,6 +12,138 @@ delivery changes behind each release. For end-user feature summaries, see the
 > **Draft.** Technical work landed on `main` since `v0.9.7-beta`. Version and
 > date land at the next cut.
 
+Technical work on `main` since `v0.9.7-beta`. Dominant themes: secret-detection
+honesty and catalogue breadth (SDT), gate-time AST on always-on surfaces (GTAO),
+settings and product-catalogue truth contracts (SETCON / FLAGCAT), and
+intent-conformance foundations (CONF). Windows park-and-swap and several honesty
+fixes also land as field freight. Not a release claim until a cut record says
+so.
+
+### Secret-detection truth (SDT, ADR-136)
+
+- **Fail-closed on unscanned lines and files.** Oversize, unreadable, or
+  panic-contained scans can no longer report clean with score 100; advisory
+  `skip_extensions` stays non-blocking. (SDT-001, #4185; SDT-006, #4192)
+- **Calibration corpus and measured baseline.** Committed canaries plus
+  `pnpm secret:calibrate` turn detection rate into a reproducible number before
+  rules change. (SDT-002, #4185)
+- **Rules as data; the engine stays Anvil's (ADR-136).** Gitleaks MIT ruleset
+  vendored; AGPL engines rejected; refresh script plus hand-curated attribution.
+  (SDT-003, #4228)
+- **Tier-1 vendored provider rules.** 27 gitleaks@v8.30.1 prefix-anchored rules
+  compile on the built-in path, not through operator `SecretPatternDef` (which
+  would inherit the fuzzy filter stack). Mid-edit compile warms the pattern set
+  at construction so the first request does not pay compile inside the 2s
+  timeout. (SDT-004, #4234)
+- **Stream large files instead of silent skip.** Bounded windowed reader
+  replaces the 1 MiB whole-file drop; lockfile / URL-credential paths become
+  scannable. (SDT-007, #4211)
+- **Coverage failures reach `audit` and planless `check`.** Gate was the only
+  surface reporting unread input; audit now non-zeros on unread files without
+  turning coverage into fake findings. (SDT-008, #4213)
+
+### Gate-time always-on catalogue (GTAO, ADR-127)
+
+- **Cheap catalogue vs rare full gate (ADR-127).** Regex plus AST on changed
+  files at CLI/MCP check and planless gate; interactive save stays regex-only
+  for the verdict; full gate remains commit / CI / explicit. (GTAO-001, #4084)
+- **MCP `anvil_check` / planless `anvil_gate` merge AST.** Agents see the same
+  AST tier CLI check already merged. (GTAO-002, #4084)
+- **Python AST dispatch plus `PY-010` swallowed `except`.** Language dispatch in
+  `anvil-checks-ast`; multiline `except …: pass`. (GTAO-008, #4084)
+- **Background changed-path AST follow-up, then a one-line advisory.** After
+  daemon allow, CLI subprocess runs AST without blocking the write; coalesced,
+  kill-switchable (`ANVIL_AST_FOLLOWUP=0` / `astFollowup: false`),
+  budget-pinned. Findings print one `AST follow-up` stderr line on
+  `anvil watch`; empty stays silent. (GTAO-003/-005, #4168; GTAO-004, #4252)
+- **Older CLI vs newer registry: skip unknown AST IDs.** Known rules stay
+  fail-closed; unknown IDs warn-and-skip so a Homebrew `0.9.7` binary against a
+  newer registry does not hard-error on PY-010. (CIB-368, #4184)
+
+### Intent conformance foundations (CONF)
+
+- **ADR-134 plus tier-0 commit extraction/evaluation.** Planless conformance
+  lint: Conventional Commit claims vs Git delta, fail-honest not-evaluated. Git
+  administration pinning later amended by ADR-138 / ADR-139. (CONF-001, #4174;
+  CONF-002..004, #4190)
+- **Verified Change Declarations (PR-body `anvil-claims`).** Closed vocabulary,
+  weak-graded PR source. (CONF-005, #4222; ADR-135 accepted for CEG projections)
+- **Advisory `anvil conformance check` CLI.** Explicit base/head, bounded
+  PR-body file or stdin, immutable source ref; plain / JSON / SARIF. Missing or
+  incomplete evidence never becomes conformant. CEG implementation remains
+  Proposed. (CONF-011, #4245)
+
+### Settings truth contract (SETCON, ADR-132)
+
+- **`eddacraft-anvil-settings` crate.** Catalogue, resolver, constraints,
+  attestation classifier, health, redacted `anvil.settings.v1`, exit registry.
+  Foundation only — no `/settings` UI. (SETCON-001..011, #4140)
+- **SETCON-012 truth repairs.** Type check, Delete reset, canonical digests,
+  RequireApproval fail-closed. (SETCON-012, #4216)
+
+### Product catalogue / flags (FLAGCAT, ADR-076 / ADR-137)
+
+- **Product-catalogue v2 plus host completeness, flag linkage, generated views,
+  and plan availability.** Strict inventory and two-set equality CI.
+  (FLAGCAT-011, #4111; FLAGCAT-012..014, #4133; FLAGCAT-015, #4143)
+- **Listed surfaces must be default-on (ADR-137 / FLAGCAT-019).** `listed`
+  boolean; clap hides unfinished `impact` / `plan` / `dashboard --web`; MCP
+  impact tool stays listed. (#4229)
+- **Explicit-only anti-pattern registry override (ADR-131 / POLFIT-008).** A
+  checkout `patterns/compiled/registry.json` no longer silently replaces the
+  embedded catalogue; `ANVIL_REGISTRY_PATH` or an explicit path is required.
+  (#4110)
+
+### Policy packs and eval regression
+
+- **`anvil-control-examples` starter pack plus durable overlay.** Second bundled
+  pack; veto/warn members; overlay survives reinstall. (CPACKS-011, #4137)
+- **Eval-regression detects silent / changed fixture output
+  (`output_changed`).** A disappearing finding is not an improvement;
+  `--fail-on-regression` exits non-zero. (EVALCI-010, #4128)
+
+### Windows field reliability
+
+- **`mcp refresh` no longer opens an existing state dir with DELETE; generation
+  park-and-swap; doctor fails poke.** (CIB-361, #4129 / #4149)
+- **`anvil update` park-and-swap for a held `anvil.exe`.** (CIB-362, #4129 /
+  #4148)
+- **Git Bash drive-relative `workspace allow` refused.** (CIB-360, #4129)
+
+### Observation honesty / telemetry / insights
+
+- **`DO_NOT_TRACK` is a real hard-off across save-time and fence producers; any
+  non-empty value other than `0`/`false`.** (CIB-364, #4196)
+- **Skipped boundary check / unmeasured drift no longer look like pass / zero.**
+  (CIB-365, #4198)
+- **Drift snapshot `--no-save` under isolated `ANVIL_HOME`.** (CIB-366, #4201)
+- **Insights JSON schema v3: uninstrumented metrics are `null`; default
+  `--json`.** (CIB-367, #4205 / #4206)
+
+### Check last-run and impact TUI
+
+- **Last-run reports under `.anvil/last-check.{txt,json}`.** Fail-open write.
+  (CHKLR-001, #4197)
+- **Experimental `anvil impact` TUI, then default-off gated.** Read lenses on
+  the warm graph; later `impact.view` / ADR-137 hide from `--help`. (IMPV-001,
+  #4097; IMPV-002, #4178)
+
+### Adjacent freight
+
+- **Diagram-impact enforcement in `docs:check` (DOCRB-009) plus DOCRB programme
+  close.** (#4099, clean-room #4117)
+- **Conflict-marker surface in `docs:check` / `pnpm conflict-markers:check`.**
+  Catches `|||||||` / `=======` forms that slipped past classic greps.
+- **Antipattern masker no longer panics on multibyte keyword boundaries.**
+  (CIB-359, #4129 / #4167)
+- **Homebrew release-notes formula name `anvil`, not `eddacraft-anvil`.**
+  (#4077)
+- **`anvil start` help bar leads with arrows; Enter only when live.**
+- **CLAWOPEN first delivery.** Waitlist success vs notify, GitHub device session
+  replay without live OAuth, flag inventory freeze, boundary validation. (#4216
+  / #4219)
+- **Intercept pattern compile at construction, not per request.** (perf)
+
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty
 
 Shipped 2026-08-21. First-session honesty after Chris Bridle's published

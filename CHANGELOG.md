@@ -35,6 +35,26 @@ engineering maintenance are recorded in the
   matching the CLI check path. The latency-sensitive interactive pre-write path
   remains regex-only.
 
+- **`anvil conformance check` evaluates a PR declaration against an exact Git
+  range.** Advisory only: missing, malformed, or incomplete evidence is never
+  treated as conformant. The command is licence-gated like `anvil check` and
+  accepts `--format json|sarif`.
+
+- **`anvil-control-examples` is a second bundled policy pack.** Install it with
+  `anvil policy install anvil-control-examples`. `anvil policy members` lists
+  and toggles members; the overlay survives `install --force`.
+  `crypto-human-signoff` hard-stops MCP writes until a human records a grant.
+  This is an engineering-control template, not a compliance certification.
+
+- **`anvil drift snapshot --no-save` computes a snapshot without writing it.**
+  Isolated `ANVIL_HOME` no longer needs `--touch-project-state` just to print
+  the JSON.
+
+- **Secret detection includes vendored gitleaks tier-1 provider rules.**
+  Prefix-anchored credentials (GitLab, Slack, Stripe, and similar) now match on
+  the built-in path. Anvil still compiles the rules itself; no third-party
+  scanner enters the product.
+
 ### Changed
 
 - **`anvil watch` reports background AST findings in one line.** After a
@@ -70,6 +90,21 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **Secret scans no longer report clean when they could not read the input.**
+  Oversize lines, unreadable files, and scanner panics block a clean pass;
+  extension skips stay advisory. `anvil audit` and planless `anvil check` report
+  that coverage gap the same way `anvil gate` already did. Audit exits non-zero
+  when files were unread. Files larger than the old 1 MiB cap stream instead of
+  being skipped.
+
+- **Gate and drift no longer treat a skipped architecture check as a clean
+  pass.** Without architecture config, gate JSON sets `skipped` and drift
+  snapshots set `boundary_analysis_skipped` instead of score 100 /
+  `boundary_violations: 0`.
+
+- **`DO_NOT_TRACK` now stops save-time and fence usage rows as well as the CLI
+  beacon.** Any non-empty value other than `0`/`false` is a hard-off.
+
 - **GitHub release notes advertise `brew install eddacraft/tap/anvil`.**
   cargo-dist used the crate name (`eddacraft-anvil`) in the Homebrew stanza
   while the tap formula is `anvil`. Copy-paste of the v0.9.7-beta release-notes
@@ -102,9 +137,9 @@ engineering maintenance are recorded in the
   non-blocking.
 
 - **Antipattern scan no longer panics on a multibyte character at a keyword
-  boundary.** A `§` (or any 2- or 3-byte glyph) sitting where the masker split a
-  word used to crash `anvil init`, `anvil baseline`, and `anvil check <file>`
-  with exit 101.
+  boundary.** A `§` (or any 2-, 3-, or 4-byte glyph) sitting where the masker
+  split a word used to crash `anvil init`, `anvil baseline`, and
+  `anvil check <file>` with exit 101.
 
 - **`anvil workspace allow` refuses Git Bash drive-relative paths.** `D:repo`
   (the form MSYS produces when it eats the slash after the drive letter) is
