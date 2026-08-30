@@ -354,6 +354,13 @@ jobs:
           tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
       - name: Run cargo deny check with all features
         run: cargo deny --all-features check --config attribution/deny.toml
+      # ADR-136 (SDT-003): the copyleft boundary is held by deny-by-omission,
+      # which is a property of an absence and therefore fails silently when it
+      # is removed. This asserts it against a fixture. It lives in this job
+      # because the job already installs cargo-deny and is already path-gated
+      # on `attribution/**` (CIB-205) — the exact path that could remove it.
+      - name: Assert the AGPL/copyleft licence boundary holds
+        run: bash scripts/ci/licence-boundary-agpl.test.sh
 
   acknowledgements-diff:
     name: Acknowledgements freshness

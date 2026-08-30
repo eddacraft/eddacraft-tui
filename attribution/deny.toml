@@ -31,6 +31,18 @@ confidence-threshold = 0.93
 # The `allow` array is generated from `licences.toml` by
 # tools/starters/acknowledgements/expand-licences.sh (ATTRIB-006).
 # Edit `licences.toml`, not this file, when adding or removing entries.
+#
+# ADR-136: looking for AGPL, GPL, or another copyleft licence? It is not here,
+# and it must not be added. Under `version = 2` this `allow` array denies
+# everything absent from it, so copyleft is already rejected — including
+# copyleft nobody thought to enumerate, which a blocklist would miss.
+#
+# Do NOT add a `deny = [...]` array to express the boundary explicitly. `deny`
+# was REMOVED from `[licenses]` in cargo-deny v2 (upstream PR 611): its
+# presence makes cargo-deny fail configuration validation and exit before
+# checking a single licence, so the "explicit" boundary would switch the whole
+# licence gate off. `scripts/ci/licence-boundary-agpl.test.sh` proves AGPL/GPL
+# are rejected and fails if that array reappears.
 allow = [
   # BEGIN AUTO-GENERATED FROM licences.toml — allow
   # Generated from licences.toml — do not edit between the BEGIN/END markers.

@@ -299,9 +299,12 @@ known gap lives.
 
 ### SDT-003: ADR — ruleset acquisition posture (rules as data)
 
-- **Status:** Ready — operator-promoted 2026-08-30. Unblocks SDT-004, which
-  cannot start until the licence boundary is a decision rather than an
-  accident.
+- **Status:** In Progress — operator-promoted 2026-08-30, implemented on
+  `feat/sdt-003-rules-as-data-adr`. **ADR-136 Accepted 2026-08-30 (operator)**
+  — the item's Validation asked for an accepted ADR; the executor correctly
+  set it Proposed rather than self-accept, since every Accepted row in the log
+  carries an operator or council attribution, and the operator flipped it. Unblocks SDT-004, which cannot start
+  until the licence boundary is a decision rather than an accident.
 - **Note added on promotion (2026-08-30):** SDT-002's measured baseline is now
   the evidence this ADR argues from, and it is sharper than the module's
   original estimate. The catalogue gap is not "21 rules versus ~170" in the
@@ -330,6 +333,63 @@ known gap lives.
   `ACKNOWLEDGEMENTS.md`
 - **Dependencies:** —
 - **Confidence:** high
+- **As built (2026-08-30):** Landed as
+  [ADR-136](../decisions/136-secret-ruleset-acquisition-posture.md) — **not**
+  135. ADR-135 was taken by a sibling between this item's promotion and its
+  execution; `pnpm adr:check` reported 136 as next available, and the ADR
+  process's renumber-on-race rule was applied before any reference was written.
+- **The deny-list clause could not be implemented as written, and implementing
+  it would have been actively harmful.** This item's Expected Outcome and
+  Validation both call for AGPL to be "added to the licence deny list in
+  `deny.toml`". `attribution/deny.toml` has no `deny` array, and must not gain
+  one: under cargo-deny `[licenses] version = 2` the `deny` key was **removed**
+  (upstream PR 611). Verified empirically — adding
+  `deny = ["AGPL-3.0-only"]` makes cargo-deny emit `error[deprecated]: this key
+  has been removed`, fail configuration validation, and exit **before checking
+  any licence**. The literal reading of this item would therefore have switched
+  the entire licence gate off while looking like it strengthened it. AGPL is
+  already rejected today by allow-list omission, which is strictly stronger
+  than a blocklist. ADR-136 §3 records the finding and the choice; the
+  gate-disabling edit is now blocked by a test probe so the next reader cannot
+  make it either.
+- **`licences.toml` cannot express a denial at all.** Its `deny` field is a
+  *consumer-inclusion* flag meaning "emit this entry into `deny.toml`'s allow
+  array" — not "deny this licence". So there was no route to the requested
+  change through the ATTRIB-006 single source of truth, and hand-editing
+  `deny.toml`'s generated array would have failed CI (`expand-licences.sh
+  --check` runs at `.github/workflows/rust.yml:428`).
+- **Validation deviation, deliberate:** "`deny.toml` rejects an AGPL test
+  entry" is delivered as an executable test rather than a config entry —
+  `scripts/ci/licence-boundary-agpl.test.sh` (`pnpm test:licence-boundary`),
+  wired into the `cargo-deny` job, which is already path-gated on
+  `attribution/**` (CIB-205) and so fires on exactly the edits that could
+  remove the boundary. Six probes: `AGPL-3.0-only`, `AGPL-3.0-or-later` and the
+  deprecated `AGPL-3.0` (the identifier TruffleHog itself declares) rejected;
+  `GPL-3.0-only` rejected, proving the posture is an allow-list rather than an
+  AGPL blocklist; an otherwise byte-identical MIT fixture **accepted** as the
+  vacuity control; and no `[licenses].deny` array present.
+- **Proven RED both ways, then restored.** (1) Adding `AGPL-3.0-only` to
+  `attribution/licences.toml` and running the expander — the realistic removal
+  path, since the expander regenerates the allow array — turned probe 1 red
+  with `licenses ok` from cargo-deny and exit 1 from the test. (2) Inserting
+  `deny = ["AGPL-3.0-only"]` into `deny.toml` was caught by the invalid-config
+  guard, which matters: a naive "exit != 0" assertion would have **passed** on
+  that mutation with the gate fully disabled, so the test distinguishes
+  "rejected the licence" from "could not read the config" on purpose. Both
+  mutations reverted; `git diff` over `attribution/` clean afterwards.
+- **`ACKNOWLEDGEMENTS.md` deliberately untouched.** This item vendors nothing,
+  and gitleaks is MIT which is already allow-listed, so no licence surface
+  moved. Recorded for SDT-004 instead: verified that `ACKNOWLEDGEMENTS.md` is
+  generated from *dependency manifests* (`cargo-about` over
+  `crates/anvil-cli/Cargo.toml`, `license-checker` over
+  `tools/dev/package.json`), so a vendored **data** file lands in neither
+  generated block and no existing gate will notice it missing. The gitleaks
+  attribution must be hand-curated into `## Thanks`, which is why ADR-136 §5
+  makes the refresh script own it.
+- **Unresolvable citation:** this item cites "the DELIV-002-style lesson".
+  `DELIV-002` appears nowhere in this repository apart from that sentence, so
+  the ADR states the principle directly rather than citing an id it cannot
+  resolve.
 
 ---
 
