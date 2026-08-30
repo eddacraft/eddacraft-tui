@@ -13,10 +13,11 @@ only SDT-005 still Proposed. SDT-003's flip was **owed** — ADR-136 landed via
 status was never moved off In Progress, so this reconciliation clears two items,
 not one. SDT-004 vendored 27 gitleaks tier-1 provider rules and is the first
 change in this module to move the *detection* number rather than the honesty
-number. **One operator decision is outstanding:** ADR-136 §1 names
-`SecretPatternDef` as the conversion target, which is unimplementable for a
-confidence-bearing tier; a replacement paragraph sits in the ADR marked
-*Proposed — not yet accepted*. Previously reviewed 2026-08-28: SDT-001 and
+number. ADR-136 §1 named `SecretPatternDef` as the conversion target, which is
+unimplementable for a confidence-bearing tier; **the operator accepted the
+amendment on 2026-08-30**, so §1 now names the repo-owned compiled-pattern seam
+and the decision log matches the shipped code. Previously reviewed 2026-08-28:
+SDT-001 and
 SDT-002 Merged via
 [#4185](https://github.com/eddacraft/anvil-001/pull/4185), reviewed against
 `src/secret/check.rs`, `src/secret/scanner.rs`,
@@ -482,12 +483,14 @@ delimiter or provider-keyword scaffolding; narrowing the reported span to the
 upstream capture group is what allows the regexes to be vendored **verbatim**
 while a finding still covers the credential rather than the trailing quote.
 
-**This contradicts ADR-136 §1's wording** ("converting each upstream rule into
-Anvil's existing `SecretPatternDef` form"), which is unimplementable for a
-confidence-bearing tier. An amendment is proposed in
-`plans/decisions/136-secret-ruleset-acquisition-posture.md` under §1, marked
-**Proposed — not yet accepted**; accepting or rejecting it is an operator call,
-not this item's.
+**This contradicted ADR-136 §1's original wording** ("converting each upstream
+rule into Anvil's existing `SecretPatternDef` form"), which is unimplementable
+for a confidence-bearing tier. The amendment was **accepted by the operator on
+2026-08-30**: §1 of
+`plans/decisions/136-secret-ruleset-acquisition-posture.md` now names a
+repo-owned compiled pattern beside the built-in catalogue as the conversion
+target, with the superseded text kept under *Amendment history* so the
+divergence stays auditable.
 
 #### SDT-004 tier-1 measurement — 2026-08-30, gitleaks@v8.30.1
 
