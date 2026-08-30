@@ -236,6 +236,14 @@ and evaluation evidence strength are separate fields. Complete Git evidence can
 evaluate `documentation-only`, `test-only`, and explicit `path:` scopes. Git
 footprint extraction is claim-agnostic, so commit messages do not need to use
 Conventional Commit syntax for a PR declaration to be evaluated.
+
+Every format counts and identifies each Git commit that could not be evaluated.
+JSON exposes `notEvaluatedCommitCount` and `gitNonEvaluations`; plain output
+lists the same commit records, and SARIF emits one result per failed commit.
+Records retain the immutable commit revision, reason, stage, observed and
+configured limits, and safe budget/digest diagnostics. Free-form Git failure
+detail and raw output are never emitted.
+
 `no-behaviour-change` and `refactor-only` remain reason-coded `not-evaluated`;
 the command does not infer graph semantics from a clean path diff.
 
