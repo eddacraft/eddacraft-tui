@@ -19,8 +19,8 @@ use anvil_kernel_types::{
 };
 
 use super::git::{
-    ConventionalCommitEvidence, GitCommitExtraction, GitCoverageMember, GitEvaluationIdentity,
-    GitExtraction,
+    ConventionalCommitEvidence, GitCoverageMember, GitEvaluationIdentity,
+    GitFootprintCommitExtraction, GitFootprintExtraction,
 };
 use super::pr_body::PrBodyContractParts;
 
@@ -63,7 +63,7 @@ pub struct ConformanceEvaluation {
 #[must_use]
 pub fn evaluate_pr_declaration(
     declaration: &PrBodyContractParts,
-    extraction: &GitExtraction,
+    extraction: &GitFootprintExtraction,
     identity: &GitEvaluationIdentity,
 ) -> ConformanceEvaluation {
     let contract = ConformanceContract {
@@ -85,58 +85,61 @@ pub fn evaluate_pr_declaration(
     if let Err(error) = contract.validate() {
         return invalid_evaluation(&contract, format!("contract.{}", error.code()));
     }
-    if let Err(reason) = validate_pr_git_extraction(extraction, identity) {
-        return invalid_evaluation(&contract, reason);
+    let failures = pr_git_footprint_failures(extraction, identity);
+    if !failures.is_empty() {
+        return invalid_evaluation_reasons(&contract, failures);
     }
 
     let mut coverage = Vec::new();
-    let mut policy_sources = BTreeSet::new();
     for commit in &extraction.commits {
-        if let GitCommitExtraction::Evaluated(commit) = commit {
+        if let GitFootprintCommitExtraction::Evaluated(commit) = commit {
             coverage.extend(commit.coverage.iter().cloned());
-            policy_sources.extend(commit.contributing_base_config_paths.iter().cloned());
         }
     }
 
-    evaluate_bound_contract(&contract, &coverage, &policy_sources, &[])
+    evaluate_bound_contract(&contract, &coverage, &BTreeSet::new(), &[])
 }
 
-fn validate_pr_git_extraction(
-    extraction: &GitExtraction,
+/// Return every deterministic reason a PR footprint cannot be trusted.
+#[must_use]
+pub fn pr_git_footprint_failures(
+    extraction: &GitFootprintExtraction,
     identity: &GitEvaluationIdentity,
-) -> Result<(), String> {
+) -> Vec<String> {
+    let mut failures = BTreeSet::new();
     if extraction.commits.is_empty() {
-        return Err("selection.range-empty".to_owned());
+        failures.insert("selection.range-empty".to_owned());
     }
 
     for result in &extraction.commits {
         let commit = match result {
-            GitCommitExtraction::Evaluated(commit) => commit,
-            GitCommitExtraction::NotEvaluated(failure) => {
-                return Err(format!("git.commit-not-evaluated.{}", failure.reason));
+            GitFootprintCommitExtraction::Evaluated(commit) => commit,
+            GitFootprintCommitExtraction::NotEvaluated(failure) => {
+                failures.insert(format!("git.commit-not-evaluated.{}", failure.reason));
+                continue;
             }
         };
         if commit.binding.run_id != identity.run_id {
-            return Err("binding.run-id-mismatch".to_owned());
+            failures.insert("binding.run-id-mismatch".to_owned());
         }
         if commit.binding.repository_id != identity.repository_id {
-            return Err("binding.repository-mismatch".to_owned());
+            failures.insert("binding.repository-mismatch".to_owned());
         }
         if commit.binding.canonical_worktree_id != identity.canonical_worktree_id {
-            return Err("binding.worktree-mismatch".to_owned());
+            failures.insert("binding.worktree-mismatch".to_owned());
         }
         if commit.binding.base_revision != extraction.base_revision {
-            return Err("binding.base-revision-mismatch".to_owned());
+            failures.insert("binding.base-revision-mismatch".to_owned());
         }
         if commit.binding.head_revision != extraction.head_revision {
-            return Err("binding.head-revision-mismatch".to_owned());
+            failures.insert("binding.head-revision-mismatch".to_owned());
         }
         if commit.binding.commit_revision != commit.commit_revision {
-            return Err("binding.commit-revision-mismatch".to_owned());
+            failures.insert("binding.commit-revision-mismatch".to_owned());
         }
     }
 
-    Ok(())
+    failures.into_iter().collect()
 }
 
 /// Evaluate one CONF-003 extracted commit against its canonical contract.
@@ -681,6 +684,14 @@ fn contract_matches_commit(
 }
 
 fn invalid_evaluation(contract: &ConformanceContract, reason: String) -> ConformanceEvaluation {
+    invalid_evaluation_reasons(contract, vec![reason])
+}
+
+fn invalid_evaluation_reasons(
+    contract: &ConformanceContract,
+    mut reasons: Vec<String>,
+) -> ConformanceEvaluation {
+    sort_deduplicate(&mut reasons);
     let (sources, source_index_map) = canonical_sources(contract);
     let verdict = ConformanceVerdict {
         claim_table_version: CONFORMANCE_CLAIM_TABLE_VERSION,
@@ -690,7 +701,7 @@ fn invalid_evaluation(contract: &ConformanceContract, reason: String) -> Conform
         declared_scopes: canonical_scopes(contract, &source_index_map),
         outcome: ConformanceOutcome::NotEvaluated,
         evidence_strength: EvidenceStrength::Absent,
-        reasons: vec![reason],
+        reasons,
         git_records: Vec::new(),
         coverage: Vec::new(),
         uncovered_files: Vec::new(),

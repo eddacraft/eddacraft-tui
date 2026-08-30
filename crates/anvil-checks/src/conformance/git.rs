@@ -123,6 +123,30 @@ pub struct GitExtraction {
     pub commits: Vec<GitCommitExtraction>,
 }
 
+/// Claim-agnostic bounded Git footprint for one commit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitFootprintCommitEvidence {
+    pub commit_revision: String,
+    pub parent_revision: String,
+    pub binding: EvaluationBinding,
+    pub coverage: Vec<GitCoverageMember>,
+}
+
+/// Per-commit footprint result retained inside a selected range.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GitFootprintCommitExtraction {
+    Evaluated(Box<GitFootprintCommitEvidence>),
+    NotEvaluated(GitNonEvaluation),
+}
+
+/// Evaluated Git selection containing claim-agnostic per-commit footprints.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitFootprintExtraction {
+    pub base_revision: String,
+    pub head_revision: String,
+    pub commits: Vec<GitFootprintCommitExtraction>,
+}
+
 /// Structured counters retained when a bounded extraction cannot be evaluated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitBudgetDiagnostics {
@@ -167,10 +191,31 @@ struct ExtractedCoverage {
     rename_targets: usize,
 }
 
+struct PreparedCommit {
+    revision: String,
+    known_parent: Option<String>,
+}
+
+struct PreparedExtraction {
+    repository: PathBuf,
+    empty_config: EmptyGlobalConfig,
+    started: Instant,
+    base_revision: String,
+    head_revision: String,
+    commits: Vec<PreparedCommit>,
+}
+
 /// Extraction outcome; absence or ambiguity never becomes conformance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GitExtractionOutcome {
     Evaluated(GitExtraction),
+    NotEvaluated(GitNonEvaluation),
+}
+
+/// Claim-agnostic footprint extraction outcome.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GitFootprintExtractionOutcome {
+    Evaluated(GitFootprintExtraction),
     NotEvaluated(GitNonEvaluation),
 }
 
@@ -230,6 +275,20 @@ impl GitExtractor {
         }
     }
 
+    /// Extract a claim-agnostic bounded footprint for one commit or range.
+    #[must_use]
+    pub fn extract_footprint(
+        &self,
+        repository: &Path,
+        selection: GitSelection,
+        identity: &GitEvaluationIdentity,
+    ) -> GitFootprintExtractionOutcome {
+        match self.extract_footprint_inner(repository, selection, identity) {
+            Ok(extraction) => GitFootprintExtractionOutcome::Evaluated(extraction),
+            Err(non_evaluation) => GitFootprintExtractionOutcome::NotEvaluated(non_evaluation),
+        }
+    }
+
     #[allow(clippy::too_many_lines)]
     fn extract_inner(
         &self,
@@ -237,6 +296,105 @@ impl GitExtractor {
         selection: GitSelection,
         identity: &GitEvaluationIdentity,
     ) -> Result<GitExtraction, GitNonEvaluation> {
+        let prepared = self.prepare_extraction(repository, selection, identity)?;
+        let scope_mappings = self.load_base_scope_mappings(
+            &prepared.repository,
+            &prepared.empty_config,
+            &prepared.base_revision,
+            prepared.started,
+        );
+        let mut commits = Vec::with_capacity(prepared.commits.len());
+        for prepared_commit in prepared.commits {
+            let commit = prepared_commit.revision;
+            let result = match &scope_mappings {
+                Ok(scope_mappings) => prepared_commit
+                    .known_parent
+                    .map_or_else(
+                        || {
+                            self.first_parent_or_empty_tree(
+                                &prepared.repository,
+                                &prepared.empty_config,
+                                &commit,
+                                prepared.started,
+                            )
+                        },
+                        Ok,
+                    )
+                    .and_then(|parent| {
+                        self.extract_commit(
+                            &prepared.repository,
+                            &prepared.empty_config,
+                            &commit,
+                            &parent,
+                            &prepared.base_revision,
+                            &prepared.head_revision,
+                            identity,
+                            scope_mappings.as_ref(),
+                            prepared.started,
+                        )
+                    }),
+                Err(failure) => Err(failure.clone()),
+            };
+            commits.push(retain_commit_result(result, &commit));
+        }
+        Ok(GitExtraction {
+            base_revision: prepared.base_revision,
+            head_revision: prepared.head_revision,
+            commits,
+        })
+    }
+
+    fn extract_footprint_inner(
+        &self,
+        repository: &Path,
+        selection: GitSelection,
+        identity: &GitEvaluationIdentity,
+    ) -> Result<GitFootprintExtraction, GitNonEvaluation> {
+        let prepared = self.prepare_extraction(repository, selection, identity)?;
+        let mut commits = Vec::with_capacity(prepared.commits.len());
+        for prepared_commit in prepared.commits {
+            let commit = prepared_commit.revision;
+            let result = prepared_commit
+                .known_parent
+                .map_or_else(
+                    || {
+                        self.first_parent_or_empty_tree(
+                            &prepared.repository,
+                            &prepared.empty_config,
+                            &commit,
+                            prepared.started,
+                        )
+                    },
+                    Ok,
+                )
+                .and_then(|parent| {
+                    self.extract_footprint_commit(
+                        &prepared.repository,
+                        &prepared.empty_config,
+                        &commit,
+                        &parent,
+                        &prepared.base_revision,
+                        &prepared.head_revision,
+                        identity,
+                        prepared.started,
+                    )
+                });
+            commits.push(retain_footprint_result(result, &commit));
+        }
+        Ok(GitFootprintExtraction {
+            base_revision: prepared.base_revision,
+            head_revision: prepared.head_revision,
+            commits,
+        })
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn prepare_extraction(
+        &self,
+        repository: &Path,
+        selection: GitSelection,
+        identity: &GitEvaluationIdentity,
+    ) -> Result<PreparedExtraction, GitNonEvaluation> {
         let started = Instant::now();
         let repository = repository.canonicalize().map_err(|error| {
             not_evaluated("repository.invalid", "repository", error.to_string())
@@ -270,25 +428,16 @@ impl GitExtractor {
                 let commit = self.resolve_commit(&repository, &empty_config, &input, started)?;
                 let parent =
                     self.first_parent_or_empty_tree(&repository, &empty_config, &commit, started)?;
-                let scope_mappings =
-                    self.load_base_scope_mappings(&repository, &empty_config, &parent, started);
-                let result = scope_mappings.and_then(|scope_mappings| {
-                    self.extract_commit(
-                        &repository,
-                        &empty_config,
-                        &commit,
-                        &parent,
-                        &parent,
-                        &commit,
-                        identity,
-                        scope_mappings.as_ref(),
-                        started,
-                    )
-                });
-                Ok(GitExtraction {
-                    base_revision: parent,
+                Ok(PreparedExtraction {
+                    repository,
+                    empty_config,
+                    started,
+                    base_revision: parent.clone(),
                     head_revision: commit.clone(),
-                    commits: vec![retain_commit_result(result, &commit)],
+                    commits: vec![PreparedCommit {
+                        revision: commit,
+                        known_parent: Some(parent),
+                    }],
                 })
             }
             GitSelection::Range { base, head } => {
@@ -357,39 +506,19 @@ impl GitExtractor {
                     return Err(failure);
                 }
                 revisions.sort();
-                let scope_mappings =
-                    self.load_base_scope_mappings(&repository, &empty_config, &base, started);
-                let mut commits = Vec::with_capacity(revisions.len());
-                for commit in revisions {
-                    let result = match &scope_mappings {
-                        Ok(scope_mappings) => self
-                            .first_parent_or_empty_tree(
-                                &repository,
-                                &empty_config,
-                                &commit,
-                                started,
-                            )
-                            .and_then(|parent| {
-                                self.extract_commit(
-                                    &repository,
-                                    &empty_config,
-                                    &commit,
-                                    &parent,
-                                    &base,
-                                    &head,
-                                    identity,
-                                    scope_mappings.as_ref(),
-                                    started,
-                                )
-                            }),
-                        Err(failure) => Err(failure.clone()),
-                    };
-                    commits.push(retain_commit_result(result, &commit));
-                }
-                Ok(GitExtraction {
+                Ok(PreparedExtraction {
+                    repository,
+                    empty_config,
+                    started,
                     base_revision: base,
                     head_revision: head,
-                    commits,
+                    commits: revisions
+                        .into_iter()
+                        .map(|revision| PreparedCommit {
+                            revision,
+                            known_parent: None,
+                        })
+                        .collect(),
                 })
             }
         }
@@ -762,6 +891,60 @@ impl GitExtractor {
             coverage,
             contributing_base_config_paths: scope_mappings
                 .map_or_else(Vec::new, |authority| vec![authority.source_path.clone()]),
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn extract_footprint_commit(
+        &self,
+        repository: &Path,
+        empty_config: &EmptyGlobalConfig,
+        commit: &str,
+        parent: &str,
+        base: &str,
+        head: &str,
+        identity: &GitEvaluationIdentity,
+        started: Instant,
+    ) -> Result<GitFootprintCommitEvidence, GitNonEvaluation> {
+        let ExtractedCoverage {
+            members: coverage,
+            decoded_path_bytes,
+            raw_digest,
+            raw_bytes,
+            rename_sources,
+            rename_targets,
+        } = self.extract_coverage(repository, empty_config, parent, commit, started)?;
+        if decoded_path_bytes > self.limits.max_decoded_bytes_per_commit {
+            let mut failure = over_budget(
+                "budget.decoded-bytes",
+                "diff",
+                decoded_path_bytes,
+                self.limits.max_decoded_bytes_per_commit,
+            );
+            failure.raw_digest = Some(raw_digest.into_boxed_str());
+            let diagnostics = failure.budget.as_mut().expect("budget diagnostics");
+            diagnostics.decoded_bytes = Some(decoded_path_bytes);
+            diagnostics.records = Some(coverage.len());
+            diagnostics.raw_bytes = Some(raw_bytes);
+            diagnostics.rename_sources = Some(rename_sources);
+            diagnostics.rename_targets = Some(rename_targets);
+            diagnostics
+                .raw_output_digest
+                .clone_from(&failure.raw_digest);
+            return Err(failure);
+        }
+        Ok(GitFootprintCommitEvidence {
+            commit_revision: commit.to_owned(),
+            parent_revision: parent.to_owned(),
+            binding: EvaluationBinding {
+                run_id: identity.run_id.clone(),
+                repository_id: identity.repository_id.clone(),
+                canonical_worktree_id: identity.canonical_worktree_id.clone(),
+                base_revision: base.to_owned(),
+                head_revision: head.to_owned(),
+                commit_revision: commit.to_owned(),
+            },
+            coverage,
         })
     }
 
@@ -1227,6 +1410,19 @@ fn retain_commit_result(
         Err(mut failure) => {
             failure.commit_revision = Some(commit.into());
             GitCommitExtraction::NotEvaluated(failure)
+        }
+    }
+}
+
+fn retain_footprint_result(
+    result: Result<GitFootprintCommitEvidence, GitNonEvaluation>,
+    commit: &str,
+) -> GitFootprintCommitExtraction {
+    match result {
+        Ok(evidence) => GitFootprintCommitExtraction::Evaluated(Box::new(evidence)),
+        Err(mut failure) => {
+            failure.commit_revision = Some(commit.into());
+            GitFootprintCommitExtraction::NotEvaluated(failure)
         }
     }
 }

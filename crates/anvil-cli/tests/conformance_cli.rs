@@ -35,9 +35,28 @@ impl GitFixture {
         Self { dir, base, head }
     }
 
+    fn docs_only_non_conventional_range() -> Self {
+        let mut fixture = Self::docs_only_two_commit_range();
+        fixture.base = fixture.head.clone();
+        fixture.add_commit("docs/plain.md", "plain\n", "Add a guide without a claim");
+        fixture
+    }
+
     fn add_commit(&mut self, path: &str, contents: &str, message: &str) {
         write(self.dir.path(), path, contents);
         commit_all(self.dir.path(), message);
+        self.head = rev_parse(self.dir.path(), "HEAD");
+    }
+
+    #[cfg(unix)]
+    fn add_invalid_utf8_path_commit(&mut self) {
+        use std::os::unix::ffi::OsStringExt as _;
+
+        let path = self.dir.path().join(std::ffi::OsString::from_vec(
+            b"docs/invalid-\xff.md".to_vec(),
+        ));
+        std::fs::write(path, "invalid path fixture\n").expect("write invalid UTF-8 path");
+        commit_all(self.dir.path(), "Add path Git cannot decode");
         self.head = rev_parse(self.dir.path(), "HEAD");
     }
 
@@ -132,6 +151,77 @@ fn docs_only_two_commit_range_is_conformant_with_resolved_binding() {
     assert_eq!(report["verdict"]["binding"]["base_revision"], fixture.base);
     assert_eq!(report["verdict"]["binding"]["head_revision"], fixture.head);
     assert!(!stdout.contains("Private context"));
+}
+
+#[test]
+fn non_conventional_docs_only_range_is_conformant_from_pr_declaration() {
+    let fixture = GitFixture::docs_only_non_conventional_range();
+    let body = fixture.body_file("```anvil-claims\nclaim: documentation-only\n```\n");
+    let output = run_anvil(
+        fixture.dir.path(),
+        &[
+            "--json",
+            "conformance",
+            "check",
+            "--base",
+            &fixture.base,
+            "--head",
+            &fixture.head,
+            "--pr-body-file",
+            body.to_str().expect("body path"),
+            "--source-ref",
+            "github:pull-request:48:body:sha256:fixture",
+        ],
+    );
+
+    assert!(
+        output.status.success(),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("one JSON report");
+    assert_eq!(report["outcome"], "conformant");
+    assert_eq!(report["evidenceStrength"], "complete");
+    assert_eq!(report["resolvedBase"], fixture.base);
+    assert_eq!(report["resolvedHead"], fixture.head);
+}
+
+#[cfg(unix)]
+#[test]
+fn invalid_declaration_and_git_footprint_report_both_reason_sets() {
+    let mut fixture = GitFixture::docs_only_non_conventional_range();
+    fixture.base = fixture.head.clone();
+    fixture.add_invalid_utf8_path_commit();
+    let body = fixture.body_file("```anvil-claims\nclaim: unknown-claim\n```\n");
+    let output = run_anvil(
+        fixture.dir.path(),
+        &[
+            "--json",
+            "conformance",
+            "check",
+            "--base",
+            &fixture.base,
+            "--head",
+            &fixture.head,
+            "--pr-body-file",
+            body.to_str().expect("body path"),
+            "--source-ref",
+            "github:pull-request:49:body:sha256:fixture",
+        ],
+    );
+
+    assert!(output.status.success(), "non-evaluation remains advisory");
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("one JSON report");
+    assert_eq!(report["outcome"], "not-evaluated");
+    assert_eq!(
+        report["reasons"],
+        serde_json::json!([
+            "claim.pr-body.claim-unknown",
+            "git.commit-not-evaluated.git.path-invalid-utf8"
+        ])
+    );
 }
 
 #[test]

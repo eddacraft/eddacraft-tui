@@ -1,6 +1,7 @@
 use anvil_checks::conformance::git::{
     GitCommitExtraction, GitEvaluationIdentity, GitExtractionLimits, GitExtractionOutcome,
-    GitExtractor, GitNonEvaluation, GitSelection,
+    GitExtractor, GitFootprintCommitExtraction, GitFootprintExtractionOutcome, GitNonEvaluation,
+    GitSelection,
 };
 use anvil_kernel_types::{
     ClaimKind, EvidenceGrade, GitChangeStatus, GitObjectType, IntentSourceKind, IntentTier,
@@ -105,6 +106,88 @@ fn unbound_identity() -> GitEvaluationIdentity {
         repository_id: "repo-fixture".to_owned(),
         canonical_worktree_id: "worktree-fixture".to_owned(),
     }
+}
+
+#[test]
+fn claim_agnostic_footprint_accepts_non_conventional_headers_and_preserves_binding() {
+    let repo = repository();
+    let head = commit_file(
+        repo.path(),
+        "docs/guide.md",
+        "hello\n",
+        "Add a guide without a Conventional Commit claim",
+    );
+    let identity = identity(repo.path());
+
+    let outcome = GitExtractor::default().extract_footprint(
+        repo.path(),
+        GitSelection::Commit("HEAD".to_owned()),
+        &identity,
+    );
+
+    let GitFootprintExtractionOutcome::Evaluated(extraction) = outcome else {
+        panic!("expected evaluated footprint: {outcome:?}");
+    };
+    let GitFootprintCommitExtraction::Evaluated(commit) = &extraction.commits[0] else {
+        panic!("non-Conventional commit must retain its footprint");
+    };
+    assert_eq!(commit.commit_revision, head);
+    assert_eq!(commit.binding.run_id, identity.run_id);
+    assert_eq!(commit.binding.repository_id, identity.repository_id);
+    assert_eq!(
+        commit.binding.canonical_worktree_id,
+        identity.canonical_worktree_id
+    );
+    assert_eq!(commit.binding.base_revision, extraction.base_revision);
+    assert_eq!(commit.binding.head_revision, extraction.head_revision);
+    assert_eq!(commit.coverage.len(), 1);
+    assert_eq!(commit.coverage[0].new_path, "docs/guide.md");
+}
+
+#[test]
+fn claim_agnostic_footprint_preserves_identity_and_budget_failures() {
+    let repo = repository();
+    commit_file(
+        repo.path(),
+        "docs/guide.md",
+        "hello\n",
+        "Add a guide without a Conventional Commit claim",
+    );
+    let identity = identity(repo.path());
+    let mut substituted_identity = identity.clone();
+    substituted_identity.repository_id = "substituted-repository".to_owned();
+
+    let mismatch = GitExtractor::default().extract_footprint(
+        repo.path(),
+        GitSelection::Commit("HEAD".to_owned()),
+        &substituted_identity,
+    );
+    let GitFootprintExtractionOutcome::NotEvaluated(mismatch) = mismatch else {
+        panic!("substituted identity must not evaluate");
+    };
+    assert_eq!(mismatch.reason, "identity.repository-mismatch");
+
+    let limits = GitExtractionLimits {
+        max_records_per_commit: 0,
+        ..GitExtractionLimits::default()
+    };
+    let budget = GitExtractor::with_limits(limits).extract_footprint(
+        repo.path(),
+        GitSelection::Commit("HEAD".to_owned()),
+        &identity,
+    );
+    let GitFootprintExtractionOutcome::Evaluated(extraction) = budget else {
+        panic!("per-commit footprint failure must retain selected range");
+    };
+    let GitFootprintCommitExtraction::NotEvaluated(failure) = &extraction.commits[0] else {
+        panic!("record budget must fail the retained commit");
+    };
+    assert_eq!(failure.reason, "budget.records");
+    assert_eq!(
+        failure.commit_revision.as_deref(),
+        Some(extraction.head_revision.as_str())
+    );
+    assert_eq!(failure.limit, Some(0));
 }
 
 #[test]

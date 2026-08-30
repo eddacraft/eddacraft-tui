@@ -1,11 +1,11 @@
 use anvil_checks::conformance::{
-    ConventionalCommitEvidence, ConventionalCommitHeader, GitCommitExtraction, GitCoverageMember,
-    GitEvaluationIdentity, GitExtraction, GitNonEvaluation, PrBodyContractParts,
+    GitCoverageMember, GitEvaluationIdentity, GitFootprintCommitEvidence,
+    GitFootprintCommitExtraction, GitFootprintExtraction, GitNonEvaluation, PrBodyContractParts,
     evaluate_pr_declaration, extract_pr_body_claims,
 };
 use anvil_kernel_types::{
     ConformanceOutcome, EvaluationBinding, EvidenceDisposition, EvidenceGrade, EvidenceStrength,
-    GitChangeStatus, GitObjectType, IntentSource, IntentSourceKind, IntentTier,
+    GitChangeStatus, GitObjectType,
 };
 
 #[test]
@@ -19,7 +19,7 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
     let identity = identity();
     let base = "a".repeat(40);
     let head = "c".repeat(40);
-    let extraction = GitExtraction {
+    let extraction = GitFootprintExtraction {
         base_revision: base.clone(),
         head_revision: head.clone(),
         commits: vec![
@@ -68,7 +68,7 @@ fn incomplete_or_mismatched_range_is_reason_coded_not_evaluated() {
 
     assert_not_evaluated(
         &declaration,
-        &GitExtraction {
+        &GitFootprintExtraction {
             base_revision: base.clone(),
             head_revision: head.clone(),
             commits: Vec::new(),
@@ -78,19 +78,21 @@ fn incomplete_or_mismatched_range_is_reason_coded_not_evaluated() {
     );
     assert_not_evaluated(
         &declaration,
-        &GitExtraction {
+        &GitFootprintExtraction {
             base_revision: base.clone(),
             head_revision: head.clone(),
-            commits: vec![GitCommitExtraction::NotEvaluated(GitNonEvaluation {
-                commit_revision: Some("b".repeat(40).into_boxed_str()),
-                reason: "budget.records",
-                stage: "diff",
-                observed: 2,
-                limit: Some(1),
-                detail: "fixture overflow".into(),
-                raw_digest: None,
-                budget: None,
-            })],
+            commits: vec![GitFootprintCommitExtraction::NotEvaluated(
+                GitNonEvaluation {
+                    commit_revision: Some("b".repeat(40).into_boxed_str()),
+                    reason: "budget.records",
+                    stage: "diff",
+                    observed: 2,
+                    limit: Some(1),
+                    detail: "fixture overflow".into(),
+                    raw_digest: None,
+                    budget: None,
+                },
+            )],
         },
         &identity,
         "git.commit-not-evaluated.budget.records",
@@ -104,7 +106,7 @@ fn incomplete_or_mismatched_range_is_reason_coded_not_evaluated() {
         ("head", "binding.head-revision-mismatch"),
         ("commit", "binding.commit-revision-mismatch"),
     ] {
-        let mut extraction = GitExtraction {
+        let mut extraction = GitFootprintExtraction {
             base_revision: base.clone(),
             head_revision: head.clone(),
             commits: vec![evaluated_commit(
@@ -115,7 +117,7 @@ fn incomplete_or_mismatched_range_is_reason_coded_not_evaluated() {
                 &head,
             )],
         };
-        let GitCommitExtraction::Evaluated(commit) = &mut extraction.commits[0] else {
+        let GitFootprintCommitExtraction::Evaluated(commit) = &mut extraction.commits[0] else {
             unreachable!("fixture commit is evaluated");
         };
         match field {
@@ -132,6 +134,33 @@ fn incomplete_or_mismatched_range_is_reason_coded_not_evaluated() {
 }
 
 #[test]
+fn every_per_commit_failure_is_reported_once_in_canonical_order() {
+    let declaration = docs_declaration();
+    let identity = identity();
+    let extraction = GitFootprintExtraction {
+        base_revision: "a".repeat(40),
+        head_revision: "d".repeat(40),
+        commits: vec![
+            footprint_failure("b", "git.path-invalid-utf8"),
+            footprint_failure("c", "budget.records"),
+            footprint_failure("d", "git.path-invalid-utf8"),
+        ],
+    };
+
+    let report = evaluate_pr_declaration(&declaration, &extraction, &identity);
+
+    assert_eq!(report.verdict.outcome, ConformanceOutcome::NotEvaluated);
+    assert_eq!(report.verdict.evidence_strength, EvidenceStrength::Absent);
+    assert_eq!(
+        report.verdict.reasons,
+        vec![
+            "git.commit-not-evaluated.budget.records",
+            "git.commit-not-evaluated.git.path-invalid-utf8",
+        ]
+    );
+}
+
+#[test]
 fn graph_semantic_pr_claim_stays_not_evaluated_without_bound_graph_evidence() {
     let declaration = extract_pr_body_claims(
         "github:pull-request:42:body:sha256:fixture",
@@ -142,7 +171,7 @@ fn graph_semantic_pr_claim_stays_not_evaluated_without_bound_graph_evidence() {
     let identity = identity();
     let base = "a".repeat(40);
     let head = "c".repeat(40);
-    let extraction = GitExtraction {
+    let extraction = GitFootprintExtraction {
         base_revision: base.clone(),
         head_revision: head.clone(),
         commits: vec![evaluated_commit("c", "src/lib.rs", &identity, &base, &head)],
@@ -171,7 +200,7 @@ fn docs_declaration() -> PrBodyContractParts {
 
 fn assert_not_evaluated(
     declaration: &PrBodyContractParts,
-    extraction: &GitExtraction,
+    extraction: &GitFootprintExtraction,
     identity: &GitEvaluationIdentity,
     expected_reason: &str,
 ) {
@@ -190,15 +219,28 @@ fn identity() -> GitEvaluationIdentity {
     }
 }
 
+fn footprint_failure(revision_seed: &str, reason: &'static str) -> GitFootprintCommitExtraction {
+    GitFootprintCommitExtraction::NotEvaluated(GitNonEvaluation {
+        commit_revision: Some(revision_seed.repeat(40).into_boxed_str()),
+        reason,
+        stage: "fixture",
+        observed: 0,
+        limit: None,
+        detail: "fixture failure".into(),
+        raw_digest: None,
+        budget: None,
+    })
+}
+
 fn evaluated_commit(
     revision_seed: &str,
     path: &str,
     identity: &GitEvaluationIdentity,
     base: &str,
     head: &str,
-) -> GitCommitExtraction {
+) -> GitFootprintCommitExtraction {
     let revision = revision_seed.repeat(40);
-    GitCommitExtraction::Evaluated(Box::new(ConventionalCommitEvidence {
+    GitFootprintCommitExtraction::Evaluated(Box::new(GitFootprintCommitEvidence {
         commit_revision: revision.clone(),
         parent_revision: base.to_owned(),
         binding: EvaluationBinding {
@@ -209,25 +251,7 @@ fn evaluated_commit(
             head_revision: head.to_owned(),
             commit_revision: revision,
         },
-        header: ConventionalCommitHeader {
-            commit_type: "docs".into(),
-            scope: None,
-            breaking: false,
-            description: "fixture".into(),
-        },
-        source: IntentSource {
-            tier: IntentTier::Tier0,
-            kind: IntentSourceKind::ConventionalCommit,
-            reference: "git:commit:fixture".into(),
-            digest: "sha256:fixture".into(),
-            evidence_grade: EvidenceGrade::Weak,
-            producer_schema: "git.conventional-commit.v1".into(),
-            producer_record_id: None,
-        },
-        declared_scope: None,
-        claims: Vec::new(),
         coverage: vec![change(path)],
-        contributing_base_config_paths: Vec::new(),
     }))
 }
 

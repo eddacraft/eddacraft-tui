@@ -6,12 +6,14 @@ pub mod pr_body;
 
 pub use evaluate::{
     BoundGraphDelta, CONFORMANCE_CLAIM_TABLE_VERSION, ClaimEvaluation, ConformanceEvaluation,
-    evaluate_pr_declaration, evaluate_tier0,
+    evaluate_pr_declaration, evaluate_tier0, pr_git_footprint_failures,
 };
 pub use git::{
     ConventionalCommitEvidence, ConventionalCommitHeader, GitBudgetDiagnostics,
     GitCommitExtraction, GitCoverageMember, GitEvaluationIdentity, GitExtraction,
-    GitExtractionLimits, GitExtractionOutcome, GitExtractor, GitNonEvaluation, GitSelection,
+    GitExtractionLimits, GitExtractionOutcome, GitExtractor, GitFootprintCommitEvidence,
+    GitFootprintCommitExtraction, GitFootprintExtraction, GitFootprintExtractionOutcome,
+    GitNonEvaluation, GitSelection,
 };
 pub use pr_body::{
     PR_BODY_EXTRACTION_LIMITS_VERSION, PR_BODY_MAX_BYTES, PR_BODY_MAX_MEMBERS, PR_BODY_MAX_SCOPES,

@@ -5,8 +5,8 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 
 use anvil_checks::conformance::{
-    GitExtractionOutcome, GitExtractor, GitSelection, PR_BODY_MAX_BYTES, evaluate_pr_declaration,
-    extract_pr_body_claims,
+    GitExtractor, GitFootprintExtractionOutcome, GitSelection, PR_BODY_MAX_BYTES,
+    evaluate_pr_declaration, extract_pr_body_claims, pr_git_footprint_failures,
 };
 use anvil_kernel_types::{ConformanceOutcome, ConformanceVerdict, EvidenceGrade, EvidenceStrength};
 use anyhow::{Context, Result};
@@ -155,7 +155,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let run_id = format!("conformance-{}", uuid::Uuid::new_v4());
     let git_evidence = match extractor.identity_for_repository(&repository, run_id) {
         Err(failure) => Err(failure.reason.to_owned()),
-        Ok(identity) => match extractor.extract(
+        Ok(identity) => match extractor.extract_footprint(
             &repository,
             GitSelection::Range {
                 base: args.base.clone(),
@@ -163,8 +163,8 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             },
             &identity,
         ) {
-            GitExtractionOutcome::NotEvaluated(failure) => Err(failure.reason.to_owned()),
-            GitExtractionOutcome::Evaluated(extraction) => Ok((identity, extraction)),
+            GitFootprintExtractionOutcome::NotEvaluated(failure) => Err(failure.reason.to_owned()),
+            GitFootprintExtractionOutcome::Evaluated(extraction) => Ok((identity, extraction)),
         },
     };
     let report = match (declaration, git_evidence) {
@@ -173,13 +173,17 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             ConformanceCheckReport::from_verdict(evaluation.verdict)
         }
         (Ok(_), Err(git_reason)) => ConformanceCheckReport::not_evaluated(vec![git_reason]),
-        (Err(non_evaluation), Ok((_, extraction))) => {
+        (Err(non_evaluation), Ok((identity, extraction))) => {
+            let mut reasons: Vec<String> = non_evaluation
+                .reasons()
+                .iter()
+                .map(|reason| (*reason).to_owned())
+                .collect();
+            reasons.extend(pr_git_footprint_failures(&extraction, &identity));
+            reasons.sort();
+            reasons.dedup();
             ConformanceCheckReport::not_evaluated_with_range(
-                non_evaluation
-                    .reasons()
-                    .iter()
-                    .map(|reason| (*reason).to_owned())
-                    .collect(),
+                reasons,
                 extraction.base_revision,
                 extraction.head_revision,
             )
