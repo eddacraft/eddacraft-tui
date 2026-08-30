@@ -4753,6 +4753,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn intercept_socket_rendezvous_passes_when_canonical_is_live() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
@@ -4765,6 +4766,7 @@ mod tests {
         assert!(check.message.contains(canonical.to_str().unwrap()));
     }
 
+    #[cfg(unix)]
     #[test]
     fn intercept_socket_rendezvous_warns_and_is_fixable_on_sibling() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
@@ -4783,6 +4785,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn intercept_socket_rendezvous_warns_when_canonical_and_sibling_are_both_live() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
@@ -4796,6 +4799,7 @@ mod tests {
         assert!(check.message.contains(sibling.to_str().unwrap()));
     }
 
+    #[cfg(unix)]
     #[test]
     fn intercept_socket_rendezvous_is_quiet_when_daemon_is_absent() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
@@ -4805,6 +4809,7 @@ mod tests {
         assert!(!check.auto_fixable);
     }
 
+    #[cfg(unix)]
     #[test]
     fn intercept_socket_rendezvous_does_not_auto_fix_canonical_symlink() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
