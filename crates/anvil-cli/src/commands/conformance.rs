@@ -7,8 +7,9 @@ use std::path::PathBuf;
 
 use anvil_checks::conformance::{
     ConformanceEvaluation, GitBudgetDiagnostics, GitCommitNonEvaluation, GitExtractor,
-    GitFootprintExtractionOutcome, GitSelection, PR_BODY_MAX_BYTES, evaluate_pr_declaration,
-    extract_pr_body_claims, pr_git_footprint_failures, pr_git_footprint_non_evaluations,
+    GitFootprintExtractionOutcome, GitNonEvaluation, GitSelection, PR_BODY_MAX_BYTES,
+    evaluate_pr_declaration, extract_pr_body_claims, pr_git_footprint_failures,
+    pr_git_footprint_non_evaluations,
 };
 use anvil_kernel_types::{ConformanceOutcome, ConformanceVerdict, EvidenceGrade, EvidenceStrength};
 use anyhow::{Context, Result};
@@ -132,14 +133,28 @@ struct ConformanceCheckReport {
     resolved_base: Option<String>,
     resolved_head: Option<String>,
     reasons: Vec<String>,
-    not_evaluated_commit_count: usize,
+    not_evaluated_commit_count: Option<usize>,
+    git_evaluation_non_evaluation: Option<GitCommitNonEvaluationReport>,
     git_non_evaluations: Vec<GitCommitNonEvaluationReport>,
     verdict: Option<ConformanceVerdict>,
 }
 
 impl ConformanceCheckReport {
-    fn not_evaluated(reasons: Vec<String>) -> Self {
-        Self::not_evaluated_with_failures(reasons, Vec::new())
+    fn not_evaluated_with_git_failure(reasons: Vec<String>, git_failure: GitNonEvaluation) -> Self {
+        Self {
+            schema_version: REPORT_SCHEMA,
+            advisory: true,
+            outcome: ConformanceOutcome::NotEvaluated,
+            declaration_evidence_grade: EvidenceGrade::Weak,
+            evidence_strength: EvidenceStrength::Absent,
+            resolved_base: None,
+            resolved_head: None,
+            reasons,
+            not_evaluated_commit_count: None,
+            git_evaluation_non_evaluation: Some(git_failure.into()),
+            git_non_evaluations: Vec::new(),
+            verdict: None,
+        }
     }
 
     fn not_evaluated_with_failures(
@@ -156,7 +171,8 @@ impl ConformanceCheckReport {
             resolved_base: None,
             resolved_head: None,
             reasons,
-            not_evaluated_commit_count,
+            not_evaluated_commit_count: Some(not_evaluated_commit_count),
+            git_evaluation_non_evaluation: None,
             git_non_evaluations: git_non_evaluations
                 .into_iter()
                 .map(GitCommitNonEvaluationReport::from)
@@ -193,7 +209,8 @@ impl ConformanceCheckReport {
             resolved_base: Some(verdict.binding.base_revision.clone()),
             resolved_head: Some(verdict.binding.head_revision.clone()),
             reasons: verdict.reasons.clone(),
-            not_evaluated_commit_count,
+            not_evaluated_commit_count: Some(not_evaluated_commit_count),
+            git_evaluation_non_evaluation: None,
             git_non_evaluations: git_non_evaluations
                 .into_iter()
                 .map(GitCommitNonEvaluationReport::from)
@@ -205,6 +222,20 @@ impl ConformanceCheckReport {
 
 impl From<GitCommitNonEvaluation> for GitCommitNonEvaluationReport {
     fn from(value: GitCommitNonEvaluation) -> Self {
+        Self {
+            commit_revision: value.commit_revision.map(|revision| revision.to_string()),
+            reason: value.reason,
+            stage: value.stage,
+            observed: value.observed,
+            limit: value.limit,
+            raw_digest: value.raw_digest.map(|digest| digest.to_string()),
+            budget: value.budget.map(|budget| (*budget).into()),
+        }
+    }
+}
+
+impl From<GitNonEvaluation> for GitCommitNonEvaluationReport {
+    fn from(value: GitNonEvaluation) -> Self {
         Self {
             commit_revision: value.commit_revision.map(|revision| revision.to_string()),
             reason: value.reason,
@@ -251,7 +282,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let extractor = GitExtractor::default();
     let run_id = format!("conformance-{}", uuid::Uuid::new_v4());
     let git_evidence = match extractor.identity_for_repository(&repository, run_id) {
-        Err(failure) => Err(failure.reason.to_owned()),
+        Err(failure) => Err(failure),
         Ok(identity) => match extractor.extract_footprint(
             &repository,
             GitSelection::Range {
@@ -260,7 +291,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             },
             &identity,
         ) {
-            GitFootprintExtractionOutcome::NotEvaluated(failure) => Err(failure.reason.to_owned()),
+            GitFootprintExtractionOutcome::NotEvaluated(failure) => Err(failure),
             GitFootprintExtractionOutcome::Evaluated(extraction) => Ok((identity, extraction)),
         },
     };
@@ -269,7 +300,10 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
             let evaluation = evaluate_pr_declaration(&declaration, &extraction, &identity);
             ConformanceCheckReport::from_evaluation(evaluation)
         }
-        (Ok(_), Err(git_reason)) => ConformanceCheckReport::not_evaluated(vec![git_reason]),
+        (Ok(_), Err(git_failure)) => ConformanceCheckReport::not_evaluated_with_git_failure(
+            vec![git_failure.reason.to_owned()],
+            git_failure,
+        ),
         (Err(non_evaluation), Ok((identity, extraction))) => {
             let git_non_evaluations = pr_git_footprint_non_evaluations(&extraction, &identity);
             let mut reasons: Vec<String> = non_evaluation
@@ -286,15 +320,15 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 git_non_evaluations,
             )
         }
-        (Err(non_evaluation), Err(git_reason)) => {
+        (Err(non_evaluation), Err(git_failure)) => {
             let mut reasons: Vec<String> = non_evaluation
                 .iter()
                 .map(|reason| (*reason).to_owned())
                 .collect();
-            reasons.push(git_reason);
+            reasons.push(git_failure.reason.to_owned());
             reasons.sort();
             reasons.dedup();
-            ConformanceCheckReport::not_evaluated(reasons)
+            ConformanceCheckReport::not_evaluated_with_git_failure(reasons, git_failure)
         }
     };
 
@@ -352,8 +386,16 @@ fn render_plain(report: &ConformanceCheckReport) {
     }
     println!(
         "Not-evaluated commits: {}",
-        report.not_evaluated_commit_count
+        report
+            .not_evaluated_commit_count
+            .map_or_else(|| "unknown".to_owned(), |count| count.to_string())
     );
+    if let Some(failure) = &report.git_evaluation_non_evaluation {
+        println!(
+            "Git evaluation non-evaluation: {}",
+            render_git_non_evaluation(failure)
+        );
+    }
     for failure in &report.git_non_evaluations {
         println!("Git non-evaluation: {}", render_git_non_evaluation(failure));
     }
@@ -366,11 +408,14 @@ fn build_sarif(report: &ConformanceCheckReport) -> sarif::SarifLog {
     let mut rules = BTreeMap::new();
     let mut results = Vec::new();
     if report.outcome != ConformanceOutcome::Conformant {
-        let represented_reasons: BTreeSet<_> = report
+        let mut represented_reasons: BTreeSet<_> = report
             .git_non_evaluations
             .iter()
             .map(git_non_evaluation_summary_reason)
             .collect();
+        if let Some(failure) = &report.git_evaluation_non_evaluation {
+            represented_reasons.insert(failure.reason.to_owned());
+        }
         for reason in &report.reasons {
             if represented_reasons.contains(reason) {
                 continue;
@@ -390,6 +435,35 @@ fn build_sarif(report: &ConformanceCheckReport) -> sarif::SarifLog {
                     evidence_strength_label(report.evidence_strength)
                 ),
             ));
+        }
+        if let Some(failure) = &report.git_evaluation_non_evaluation {
+            let rule_id = format!(
+                "anvil.conformance.git.evaluation-not-evaluated.{}",
+                failure.reason
+            );
+            rules.insert(
+                rule_id.clone(),
+                sarif::ReportingDescriptor::new(rule_id.clone())
+                    .short_description("Git evaluation evidence unavailable"),
+            );
+            let fingerprint = sarif::stable_fingerprint(
+                &rule_id,
+                "git-evaluation",
+                None,
+                &format!("{}:{}", failure.reason, failure.stage),
+            );
+            results.push(
+                sarif::SarifResult::new(
+                    rule_id,
+                    sarif::Level::Warning,
+                    format!(
+                        "{}: Git evaluation non-evaluation: {}",
+                        outcome_label(report.outcome),
+                        render_git_non_evaluation(failure)
+                    ),
+                )
+                .fingerprint("anvilConformanceEvaluation/v1", fingerprint),
+            );
         }
         for failure in &report.git_non_evaluations {
             let reason = git_non_evaluation_summary_reason(failure);
@@ -482,7 +556,9 @@ fn evidence_strength_label(strength: EvidenceStrength) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use anvil_checks::conformance::{GitBudgetDiagnostics, GitCommitNonEvaluation};
+    use anvil_checks::conformance::{
+        GitBudgetDiagnostics, GitCommitNonEvaluation, GitNonEvaluation,
+    };
 
     use super::{ConformanceCheckReport, build_sarif};
 
@@ -529,6 +605,66 @@ mod tests {
             "sha256:safe"
         );
         assert!(!json.to_string().contains("detail"));
+    }
+
+    #[test]
+    fn top_level_git_budget_failure_keeps_safe_structured_diagnostics() {
+        let failure = GitNonEvaluation {
+            commit_revision: None,
+            reason: "budget.commits",
+            stage: "revision-list",
+            observed: 10_001,
+            limit: Some(10_000),
+            detail: "must not be reported".into(),
+            raw_digest: Some("sha256:selection".into()),
+            budget: Some(Box::new(GitBudgetDiagnostics {
+                configured_limit: 10_000,
+                elapsed_millis: Some(17),
+                commits: Some(10_001),
+                records: None,
+                rename_sources: None,
+                rename_targets: None,
+                raw_bytes: Some(410_000),
+                decoded_bytes: None,
+                raw_output_digest: Some("sha256:selection".into()),
+            })),
+        };
+        let report = ConformanceCheckReport::not_evaluated_with_git_failure(
+            vec!["budget.commits".to_owned()],
+            failure,
+        );
+
+        let json = serde_json::to_value(&report).expect("serialise safe report");
+        assert!(json["notEvaluatedCommitCount"].is_null());
+        assert_eq!(json["gitEvaluationNonEvaluation"]["observed"], 10_001);
+        assert_eq!(json["gitEvaluationNonEvaluation"]["limit"], 10_000);
+        assert_eq!(
+            json["gitEvaluationNonEvaluation"]["rawDigest"],
+            "sha256:selection"
+        );
+        assert_eq!(
+            json["gitEvaluationNonEvaluation"]["budget"]["commits"],
+            10_001
+        );
+        assert!(
+            json["gitNonEvaluations"]
+                .as_array()
+                .expect("per-commit failures")
+                .is_empty()
+        );
+        assert!(!json.to_string().contains("must not be reported"));
+
+        let sarif = serde_json::to_value(build_sarif(&report)).expect("serialise SARIF");
+        let result = &sarif["runs"][0]["results"][0];
+        assert_eq!(
+            result["ruleId"],
+            "anvil.conformance.git.evaluation-not-evaluated.budget.commits"
+        );
+        let message = result["message"]["text"].as_str().expect("message");
+        assert!(message.contains("observed=10001 limit=10000"));
+        assert!(message.contains("budget.commits=10001"));
+        assert!(message.contains("budget.raw-bytes=410000"));
+        assert!(!message.contains("must not be reported"));
     }
 
     #[test]

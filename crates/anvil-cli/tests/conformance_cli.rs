@@ -435,6 +435,114 @@ fn sarif_keeps_declaration_reason_and_one_fingerprinted_result_per_failed_commit
 }
 
 #[test]
+fn selection_failure_retains_structure_and_unknown_cardinality_in_json() {
+    let fixture = GitFixture::docs_only_two_commit_range();
+    let body = fixture.body_file("```anvil-claims\nclaim: documentation-only\n```\n");
+    let output = run_anvil(
+        fixture.dir.path(),
+        &[
+            "conformance",
+            "check",
+            "--base",
+            "refs/heads/definitely-missing",
+            "--head",
+            &fixture.head,
+            "--pr-body-file",
+            body.to_str().expect("body path"),
+            "--source-ref",
+            "pull-request:selection-failure:body:sha256:fixture",
+            "--format",
+            "json",
+        ],
+    );
+
+    assert!(
+        output.status.success(),
+        "Git non-evaluation remains advisory"
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("one JSON report");
+    assert_eq!(report["outcome"], "not-evaluated");
+    assert!(report["notEvaluatedCommitCount"].is_null());
+    assert_eq!(
+        report["gitEvaluationNonEvaluation"]["reason"],
+        "revision.invalid"
+    );
+    assert_eq!(report["gitEvaluationNonEvaluation"]["stage"], "revision");
+    assert_eq!(report["gitEvaluationNonEvaluation"]["observed"], 0);
+    assert!(report["gitEvaluationNonEvaluation"]["limit"].is_null());
+    assert!(report["gitEvaluationNonEvaluation"]["rawDigest"].is_null());
+    assert!(report["gitEvaluationNonEvaluation"]["budget"].is_null());
+    assert!(
+        report["gitNonEvaluations"]
+            .as_array()
+            .expect("per-commit failures")
+            .is_empty()
+    );
+}
+
+#[test]
+fn selection_failure_is_distinct_in_plain_and_sarif() {
+    let fixture = GitFixture::docs_only_two_commit_range();
+    let body = fixture.body_file("```anvil-claims\nclaim: documentation-only\n```\n");
+    let common = [
+        "conformance",
+        "check",
+        "--base",
+        "refs/heads/definitely-missing",
+        "--head",
+        fixture.head.as_str(),
+        "--pr-body-file",
+        body.to_str().expect("body path"),
+        "--source-ref",
+        "pull-request:selection-failure:body:sha256:fixture",
+    ];
+
+    let mut plain_args = common.to_vec();
+    plain_args.extend(["--format", "plain"]);
+    let plain = run_anvil(fixture.dir.path(), &plain_args);
+    assert!(
+        plain.status.success(),
+        "Git non-evaluation remains advisory"
+    );
+    let plain = String::from_utf8(plain.stdout).expect("UTF-8 plain report");
+    assert!(plain.contains("Not-evaluated commits: unknown"));
+    assert!(plain.contains(
+        "Git evaluation non-evaluation: commit=unknown reason=revision.invalid stage=revision observed=0 limit=none raw-digest=none"
+    ));
+    assert!(!plain.contains("Git non-evaluation:"));
+
+    let mut sarif_args = common.to_vec();
+    sarif_args.extend(["--format", "sarif"]);
+    let sarif = run_anvil(fixture.dir.path(), &sarif_args);
+    assert!(
+        sarif.status.success(),
+        "Git non-evaluation remains advisory"
+    );
+    let document: serde_json::Value =
+        serde_json::from_slice(&sarif.stdout).expect("one SARIF document");
+    let results = document["runs"][0]["results"].as_array().expect("results");
+    assert_eq!(results.len(), 1);
+    assert_eq!(
+        results[0]["ruleId"],
+        "anvil.conformance.git.evaluation-not-evaluated.revision.invalid"
+    );
+    assert!(
+        results[0]["message"]["text"]
+            .as_str()
+            .expect("message")
+            .contains(
+                "reason=revision.invalid stage=revision observed=0 limit=none raw-digest=none"
+            )
+    );
+    assert!(
+        results[0]["partialFingerprints"]["anvilConformanceEvaluation/v1"]
+            .as_str()
+            .is_some()
+    );
+}
+
+#[test]
 fn malformed_declaration_is_not_evaluated_but_retains_resolved_range() {
     let fixture = GitFixture::docs_only_two_commit_range();
     let body = fixture.body_file(
