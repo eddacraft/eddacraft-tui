@@ -592,6 +592,15 @@ entropy-adjacent; `generic-api-key` and its family are tier 2 by construction.
     time.
   - The two malformed canaries above mean the committed corpus understates what
     tier 1 detects. Left that way on purpose; see the note.
+  - **`ruleset_version` reaches no CLI JSON surface.** It is on
+    `SecretFinding`, in the calibration report header, and pinned in
+    `manifest.json`, but `anvil audit --json` flattens findings to its own
+    `{category, file, line, message, severity, fixable}` shape and
+    `secret_finding_to_json` does not carry the field either. So an operator
+    reading machine output still cannot tell a vendored detection from a
+    built-in one — the item's "appears in finding provenance" is satisfied at
+    the type and the corpus, not at the CLI. Owed; the same surface-blindness
+    class as SDT-008's SARIF gap.
 
 ---
 
