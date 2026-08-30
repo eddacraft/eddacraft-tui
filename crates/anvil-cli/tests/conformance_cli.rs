@@ -49,7 +49,7 @@ impl GitFixture {
     }
 
     #[cfg(unix)]
-    fn add_invalid_utf8_path_commit(&mut self, suffix: u8) {
+    fn add_invalid_utf8_path_commit(&mut self, suffix: u8) -> String {
         use std::os::unix::ffi::OsStringExt as _;
 
         let mut relative = b"docs/invalid-".to_vec();
@@ -59,6 +59,7 @@ impl GitFixture {
         std::fs::write(path, "invalid path fixture\n").expect("write invalid UTF-8 path");
         commit_all(self.dir.path(), "Add path Git cannot decode");
         self.head = rev_parse(self.dir.path(), "HEAD");
+        self.head.clone()
     }
 
     fn body_file(&self, body: &str) -> std::path::PathBuf {
@@ -245,6 +246,131 @@ fn invalid_declaration_and_git_footprint_report_both_reason_sets() {
         .map(|failure| failure["commitRevision"].as_str().expect("revision"))
         .collect();
     assert!(revisions.windows(2).all(|pair| pair[0] <= pair[1]));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("detail"));
+}
+
+#[cfg(unix)]
+#[test]
+fn plain_output_counts_and_enumerates_every_failed_commit() {
+    let mut fixture = GitFixture::docs_only_non_conventional_range();
+    fixture.base = fixture.head.clone();
+    let first = fixture.add_invalid_utf8_path_commit(0xff);
+    let second = fixture.add_invalid_utf8_path_commit(0xfe);
+    let body = fixture.body_file("```anvil-claims\nclaim: documentation-only\n```\n");
+    let output = run_anvil(
+        fixture.dir.path(),
+        &[
+            "conformance",
+            "check",
+            "--base",
+            &fixture.base,
+            "--head",
+            &fixture.head,
+            "--pr-body-file",
+            body.to_str().expect("body path"),
+            "--source-ref",
+            "github:pull-request:50:body:sha256:fixture",
+            "--format",
+            "plain",
+        ],
+    );
+
+    assert!(output.status.success(), "non-evaluation remains advisory");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 plain report");
+    assert!(stdout.contains("Not-evaluated commits: 2"));
+    assert_eq!(stdout.matches("Git non-evaluation:").count(), 2);
+    assert!(stdout.contains("reason=git.path-invalid-utf8"));
+    assert!(stdout.contains("stage=diff"));
+    assert!(stdout.contains("observed=0"));
+    assert!(stdout.contains("limit=none"));
+    let mut revisions = [first, second];
+    revisions.sort();
+    let failure_lines: Vec<_> = stdout
+        .lines()
+        .filter(|line| line.starts_with("Git non-evaluation:"))
+        .collect();
+    assert!(failure_lines[0].contains(&revisions[0]));
+    assert!(failure_lines[1].contains(&revisions[1]));
+    assert!(!stdout.contains("detail"));
+}
+
+#[cfg(unix)]
+#[test]
+fn sarif_keeps_declaration_reason_and_one_fingerprinted_result_per_failed_commit() {
+    let mut fixture = GitFixture::docs_only_non_conventional_range();
+    fixture.base = fixture.head.clone();
+    let first = fixture.add_invalid_utf8_path_commit(0xff);
+    let second = fixture.add_invalid_utf8_path_commit(0xfe);
+    let body = fixture.body_file("```anvil-claims\nclaim: unknown-claim\n```\n");
+    let output = run_anvil(
+        fixture.dir.path(),
+        &[
+            "conformance",
+            "check",
+            "--base",
+            &fixture.base,
+            "--head",
+            &fixture.head,
+            "--pr-body-file",
+            body.to_str().expect("body path"),
+            "--source-ref",
+            "github:pull-request:51:body:sha256:fixture",
+            "--format",
+            "sarif",
+        ],
+    );
+
+    assert!(output.status.success(), "non-evaluation remains advisory");
+    let document: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("one SARIF document");
+    let schema: serde_json::Value =
+        serde_json::from_str(anvil_sarif::SARIF_SCHEMA_JSON).expect("SARIF schema");
+    let validator = jsonschema::validator_for(&schema).expect("compile SARIF schema");
+    let errors: Vec<String> = validator
+        .iter_errors(&document)
+        .map(|error| error.to_string())
+        .collect();
+    assert!(errors.is_empty(), "SARIF schema errors: {errors:?}");
+
+    let results = document["runs"][0]["results"].as_array().expect("results");
+    assert_eq!(results.len(), 3);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| {
+                result["ruleId"] == "anvil.conformance.claim.pr-body.claim-unknown"
+            })
+            .count(),
+        1
+    );
+    let git_results: Vec<_> = results
+        .iter()
+        .filter(|result| {
+            result["ruleId"] == "anvil.conformance.git.commit-not-evaluated.git.path-invalid-utf8"
+        })
+        .collect();
+    assert_eq!(git_results.len(), 2);
+    assert!(git_results.iter().all(|result| {
+        result["partialFingerprints"]["anvilConformanceCommit/v1"]
+            .as_str()
+            .is_some()
+    }));
+    let fingerprints: std::collections::BTreeSet<_> = git_results
+        .iter()
+        .map(|result| {
+            result["partialFingerprints"]["anvilConformanceCommit/v1"]
+                .as_str()
+                .expect("fingerprint")
+        })
+        .collect();
+    assert_eq!(fingerprints.len(), 2);
+    for revision in [first, second] {
+        assert!(git_results.iter().any(|result| {
+            result["message"]["text"]
+                .as_str()
+                .is_some_and(|message| message.contains(&revision))
+        }));
+    }
     assert!(!String::from_utf8_lossy(&output.stdout).contains("detail"));
 }
 

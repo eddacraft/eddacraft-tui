@@ -130,6 +130,16 @@ fn incomplete_or_mismatched_range_is_reason_coded_not_evaluated() {
             _ => unreachable!("closed fixture case"),
         }
         assert_not_evaluated(&declaration, &extraction, &identity, expected_reason);
+        let report = evaluate_pr_declaration(&declaration, &extraction, &identity);
+        let [failure] = report.git_non_evaluations.as_slice() else {
+            panic!("one binding failure must be retained per commit");
+        };
+        assert_eq!(failure.reason, expected_reason);
+        assert_eq!(failure.stage, "binding");
+        assert_eq!(
+            failure.commit_revision.as_deref(),
+            Some("cccccccccccccccccccccccccccccccccccccccc")
+        );
     }
 }
 
@@ -192,6 +202,56 @@ fn every_per_commit_failure_is_retained_with_safe_diagnostics_in_canonical_order
     assert_eq!(budget.records, Some(11));
     assert_eq!(budget.raw_bytes, Some(101));
     assert_eq!(budget.raw_output_digest.as_deref(), Some("sha256:b"));
+}
+
+#[test]
+fn every_binding_mismatched_commit_is_retained_once_in_canonical_order() {
+    let declaration = docs_declaration();
+    let identity = identity();
+    let base = "a".repeat(40);
+    let head = "c".repeat(40);
+    let mut extraction = GitFootprintExtraction {
+        base_revision: base.clone(),
+        head_revision: head.clone(),
+        commits: vec![
+            evaluated_commit("c", "docs/c.md", &identity, &base, &head),
+            evaluated_commit("b", "docs/b.md", &identity, &base, &head),
+        ],
+    };
+    for result in &mut extraction.commits {
+        let GitFootprintCommitExtraction::Evaluated(commit) = result else {
+            unreachable!("fixture commits are evaluated");
+        };
+        commit.binding.run_id = "substituted-run".to_owned();
+    }
+
+    let report = evaluate_pr_declaration(&declaration, &extraction, &identity);
+
+    assert_eq!(report.verdict.outcome, ConformanceOutcome::NotEvaluated);
+    assert_eq!(report.verdict.reasons, vec!["binding.run-id-mismatch"]);
+    assert_eq!(report.git_non_evaluations.len(), 2);
+    assert_eq!(
+        report
+            .git_non_evaluations
+            .iter()
+            .map(|failure| failure.commit_revision.as_deref())
+            .collect::<Vec<_>>(),
+        vec![
+            Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+            Some("cccccccccccccccccccccccccccccccccccccccc"),
+        ]
+    );
+    assert!(
+        report
+            .git_non_evaluations
+            .iter()
+            .all(|failure| failure.reason == "binding.run-id-mismatch"
+                && failure.stage == "binding"
+                && failure.observed == 0
+                && failure.limit.is_none()
+                && failure.raw_digest.is_none()
+                && failure.budget.is_none())
+    );
 }
 
 #[test]

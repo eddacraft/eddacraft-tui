@@ -1,5 +1,6 @@
 //! Advisory external pull-request declaration conformance check.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::PathBuf;
@@ -258,7 +259,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         }
         (Ok(_), Err(git_reason)) => ConformanceCheckReport::not_evaluated(vec![git_reason]),
         (Err(non_evaluation), Ok((identity, extraction))) => {
-            let git_non_evaluations = pr_git_footprint_non_evaluations(&extraction);
+            let git_non_evaluations = pr_git_footprint_non_evaluations(&extraction, &identity);
             let mut reasons: Vec<String> = non_evaluation
                 .reasons()
                 .iter()
@@ -333,18 +334,34 @@ fn render_plain(report: &ConformanceCheckReport) {
     if let Some(head) = &report.resolved_head {
         println!("Resolved head: {head}");
     }
+    println!(
+        "Not-evaluated commits: {}",
+        report.not_evaluated_commit_count
+    );
+    for failure in &report.git_non_evaluations {
+        println!("Git non-evaluation: {}", render_git_non_evaluation(failure));
+    }
     for reason in &report.reasons {
         println!("Reason: {reason}");
     }
 }
 
 fn build_sarif(report: &ConformanceCheckReport) -> sarif::SarifLog {
-    let mut rules = Vec::new();
+    let mut rules = BTreeMap::new();
     let mut results = Vec::new();
     if report.outcome != ConformanceOutcome::Conformant {
+        let represented_reasons: BTreeSet<_> = report
+            .git_non_evaluations
+            .iter()
+            .map(git_non_evaluation_summary_reason)
+            .collect();
         for reason in &report.reasons {
+            if represented_reasons.contains(reason) {
+                continue;
+            }
             let rule_id = format!("anvil.conformance.{reason}");
-            rules.push(
+            rules.insert(
+                rule_id.clone(),
                 sarif::ReportingDescriptor::new(rule_id.clone())
                     .short_description("PR declaration conformance"),
             );
@@ -358,8 +375,77 @@ fn build_sarif(report: &ConformanceCheckReport) -> sarif::SarifLog {
                 ),
             ));
         }
+        for failure in &report.git_non_evaluations {
+            let reason = git_non_evaluation_summary_reason(failure);
+            let rule_id = format!("anvil.conformance.{reason}");
+            rules.entry(rule_id.clone()).or_insert_with(|| {
+                sarif::ReportingDescriptor::new(rule_id.clone())
+                    .short_description("Git commit conformance evidence unavailable")
+            });
+            let commit_revision = failure.commit_revision.as_deref().unwrap_or("unknown");
+            let fingerprint = sarif::stable_fingerprint(
+                &rule_id,
+                commit_revision,
+                None,
+                &format!("{}:{}", failure.reason, failure.stage),
+            );
+            results.push(
+                sarif::SarifResult::new(
+                    rule_id,
+                    sarif::Level::Warning,
+                    format!(
+                        "{}: {}",
+                        outcome_label(report.outcome),
+                        render_git_non_evaluation(failure)
+                    ),
+                )
+                .fingerprint("anvilConformanceCommit/v1", fingerprint),
+            );
+        }
     }
-    sarif::SarifLog::new(sarif::Run::new(rules, results))
+    sarif::SarifLog::new(sarif::Run::new(rules.into_values().collect(), results))
+}
+
+fn git_non_evaluation_summary_reason(failure: &GitCommitNonEvaluationReport) -> String {
+    if failure.stage == "binding" {
+        failure.reason.to_owned()
+    } else {
+        format!("git.commit-not-evaluated.{}", failure.reason)
+    }
+}
+
+fn render_git_non_evaluation(failure: &GitCommitNonEvaluationReport) -> String {
+    let mut rendered = format!(
+        "commit={} reason={} stage={} observed={} limit={} raw-digest={}",
+        failure.commit_revision.as_deref().unwrap_or("unknown"),
+        failure.reason,
+        failure.stage,
+        failure.observed,
+        optional_usize(failure.limit),
+        failure.raw_digest.as_deref().unwrap_or("none")
+    );
+    if let Some(budget) = &failure.budget {
+        use std::fmt::Write as _;
+        write!(
+            rendered,
+            " budget.configured-limit={} budget.elapsed-millis={} budget.commits={} budget.records={} budget.rename-sources={} budget.rename-targets={} budget.raw-bytes={} budget.decoded-bytes={} budget.raw-output-digest={}",
+            budget.configured_limit,
+            optional_usize(budget.elapsed_millis),
+            optional_usize(budget.commits),
+            optional_usize(budget.records),
+            optional_usize(budget.rename_sources),
+            optional_usize(budget.rename_targets),
+            optional_usize(budget.raw_bytes),
+            optional_usize(budget.decoded_bytes),
+            budget.raw_output_digest.as_deref().unwrap_or("none")
+        )
+        .expect("writing to a String cannot fail");
+    }
+    rendered
+}
+
+fn optional_usize(value: Option<usize>) -> String {
+    value.map_or_else(|| "none".to_owned(), |value| value.to_string())
 }
 
 fn outcome_label(outcome: ConformanceOutcome) -> &'static str {
@@ -382,7 +468,7 @@ fn evidence_strength_label(strength: EvidenceStrength) -> &'static str {
 mod tests {
     use anvil_checks::conformance::{GitBudgetDiagnostics, GitCommitNonEvaluation};
 
-    use super::ConformanceCheckReport;
+    use super::{ConformanceCheckReport, build_sarif};
 
     #[test]
     fn json_report_retains_safe_budget_diagnostics_without_raw_detail() {
@@ -427,5 +513,45 @@ mod tests {
             "sha256:safe"
         );
         assert!(!json.to_string().contains("detail"));
+    }
+
+    #[test]
+    fn sarif_replaces_one_binding_summary_with_each_affected_commit() {
+        let failures = ["b", "c"].map(|seed| GitCommitNonEvaluation {
+            commit_revision: Some(seed.repeat(40).into_boxed_str()),
+            reason: "binding.run-id-mismatch",
+            stage: "binding",
+            observed: 0,
+            limit: None,
+            raw_digest: None,
+            budget: None,
+        });
+        let report = ConformanceCheckReport::not_evaluated_with_failures(
+            vec!["binding.run-id-mismatch".to_owned()],
+            failures.into(),
+        );
+
+        let json = serde_json::to_value(build_sarif(&report)).expect("serialise SARIF");
+        let rules = json["runs"][0]["tool"]["driver"]["rules"]
+            .as_array()
+            .expect("rules");
+        let results = json["runs"][0]["results"].as_array().expect("results");
+
+        assert_eq!(rules.len(), 1);
+        assert_eq!(results.len(), 2);
+        assert!(
+            results
+                .iter()
+                .all(|result| result["ruleId"] == "anvil.conformance.binding.run-id-mismatch")
+        );
+        let fingerprints: std::collections::BTreeSet<_> = results
+            .iter()
+            .map(|result| {
+                result["partialFingerprints"]["anvilConformanceCommit/v1"]
+                    .as_str()
+                    .expect("fingerprint")
+            })
+            .collect();
+        assert_eq!(fingerprints.len(), 2);
     }
 }

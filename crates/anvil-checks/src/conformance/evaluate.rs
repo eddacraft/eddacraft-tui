@@ -20,7 +20,7 @@ use anvil_kernel_types::{
 
 use super::git::{
     ConventionalCommitEvidence, GitBudgetDiagnostics, GitCoverageMember, GitEvaluationIdentity,
-    GitFootprintCommitExtraction, GitFootprintExtraction,
+    GitFootprintCommitEvidence, GitFootprintCommitExtraction, GitFootprintExtraction,
 };
 use super::pr_body::PrBodyContractParts;
 
@@ -98,7 +98,7 @@ pub fn evaluate_pr_declaration(
     if let Err(error) = contract.validate() {
         return invalid_evaluation(&contract, format!("contract.{}", error.code()));
     }
-    let git_non_evaluations = pr_git_footprint_non_evaluations(extraction);
+    let git_non_evaluations = pr_git_footprint_non_evaluations(extraction, identity);
     let failures = pr_git_footprint_failures(extraction, identity);
     if !failures.is_empty() {
         return invalid_evaluation_reasons(&contract, failures, git_non_evaluations);
@@ -118,12 +118,25 @@ pub fn evaluate_pr_declaration(
 #[must_use]
 pub fn pr_git_footprint_non_evaluations(
     extraction: &GitFootprintExtraction,
+    identity: &GitEvaluationIdentity,
 ) -> Vec<GitCommitNonEvaluation> {
     let mut failures: Vec<_> = extraction
         .commits
         .iter()
         .filter_map(|result| match result {
-            GitFootprintCommitExtraction::Evaluated(_) => None,
+            GitFootprintCommitExtraction::Evaluated(commit) => {
+                footprint_commit_binding_failures(commit, extraction, identity)
+                    .next()
+                    .map(|reason| GitCommitNonEvaluation {
+                        commit_revision: Some(commit.commit_revision.clone().into_boxed_str()),
+                        reason,
+                        stage: "binding",
+                        observed: 0,
+                        limit: None,
+                        raw_digest: None,
+                        budget: None,
+                    })
+            }
             GitFootprintCommitExtraction::NotEvaluated(failure) => Some(GitCommitNonEvaluation {
                 commit_revision: failure.commit_revision.clone(),
                 reason: failure.reason,
@@ -158,27 +171,34 @@ pub fn pr_git_footprint_failures(
                 continue;
             }
         };
-        if commit.binding.run_id != identity.run_id {
-            failures.insert("binding.run-id-mismatch".to_owned());
-        }
-        if commit.binding.repository_id != identity.repository_id {
-            failures.insert("binding.repository-mismatch".to_owned());
-        }
-        if commit.binding.canonical_worktree_id != identity.canonical_worktree_id {
-            failures.insert("binding.worktree-mismatch".to_owned());
-        }
-        if commit.binding.base_revision != extraction.base_revision {
-            failures.insert("binding.base-revision-mismatch".to_owned());
-        }
-        if commit.binding.head_revision != extraction.head_revision {
-            failures.insert("binding.head-revision-mismatch".to_owned());
-        }
-        if commit.binding.commit_revision != commit.commit_revision {
-            failures.insert("binding.commit-revision-mismatch".to_owned());
+        for reason in footprint_commit_binding_failures(commit, extraction, identity) {
+            failures.insert(reason.to_owned());
         }
     }
 
     failures.into_iter().collect()
+}
+
+fn footprint_commit_binding_failures(
+    commit: &GitFootprintCommitEvidence,
+    extraction: &GitFootprintExtraction,
+    identity: &GitEvaluationIdentity,
+) -> impl Iterator<Item = &'static str> {
+    [
+        (commit.binding.run_id != identity.run_id).then_some("binding.run-id-mismatch"),
+        (commit.binding.repository_id != identity.repository_id)
+            .then_some("binding.repository-mismatch"),
+        (commit.binding.canonical_worktree_id != identity.canonical_worktree_id)
+            .then_some("binding.worktree-mismatch"),
+        (commit.binding.base_revision != extraction.base_revision)
+            .then_some("binding.base-revision-mismatch"),
+        (commit.binding.head_revision != extraction.head_revision)
+            .then_some("binding.head-revision-mismatch"),
+        (commit.binding.commit_revision != commit.commit_revision)
+            .then_some("binding.commit-revision-mismatch"),
+    ]
+    .into_iter()
+    .flatten()
 }
 
 /// Evaluate one CONF-003 extracted commit against its canonical contract.
