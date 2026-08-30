@@ -19,6 +19,7 @@
     "secret:calibrate": "cargo test -p eddacraft-anvil-checks --test secret_calibration -- --nocapture",
     "secret:ruleset": "bash scripts/secret/refresh-gitleaks-ruleset.sh",
     "secret:ruleset:check": "bash scripts/secret/refresh-gitleaks-ruleset.sh --check --no-calibrate",
+    "test:secret-ruleset": "python3 scripts/secret/convert_gitleaks_rules_test.py",
     "test:eddacraft-tui-public-smoke": "bash scripts/ci/eddacraft-tui-public-smoke.sh",
     "test:coverage": "pnpm test:coverage:ts && pnpm test:coverage:rust",
     "test:coverage:ts": "nx run-many -t test --projects=tag:npm:public,tag:npm:private --exclude=@eddacraft/anvil-source --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native -- --coverage",

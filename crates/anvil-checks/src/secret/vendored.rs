@@ -107,31 +107,60 @@ pub static VENDORED_RULESET_VERSION: LazyLock<String> = LazyLock::new(|| {
 /// built-ins and with the same fail-loud contract: a rule that will not compile
 /// under the `regex` crate is a refresh bug that must be a CI failure, never a
 /// silent reduction in detection coverage.
+/// Compile one vendored rule into the built-in `CompiledPattern` shape.
+///
+/// Separate from the `LazyLock` so the fail-loud contract below is reachable by
+/// test: a guard that only runs inside a static initialiser cannot be proved to
+/// fire.
+fn compile_vendored_rule(rule: &VendoredRule, version: &str) -> CompiledPattern {
+    let regex = Regex::new(&rule.pattern).unwrap_or_else(|err| {
+        panic!(
+            "vendored secret rule `{}` failed to compile: {err}. Upstream regexes are taken \
+             verbatim, so a rule using a construct the `regex` crate does not support must be \
+             removed from tier1-rules.txt deliberately",
+            rule.id
+        )
+    });
+    // A `secret_group` that does not exist in the compiled regex would make
+    // `match_ranges` return nothing for every line — the rule would sit in the
+    // catalogue and detect nothing, which is exactly the silent coverage loss
+    // this module exists to stop. Group 0 is the whole match and is spelled
+    // `None`, so a declared group must be 1-based and within `captures_len()`.
+    if let Some(group) = rule.secret_group {
+        let capture_count = regex.captures_len();
+        assert!(
+            group >= 1 && group < capture_count,
+            "vendored secret rule `{}` declares secret_group {group}, which is not a capture \
+             group of its regex (it has {} group(s) besides the whole match). The generated data \
+             and the regex disagree — regenerate with \
+             scripts/secret/refresh-gitleaks-ruleset.sh rather than hand-editing",
+            rule.id,
+            capture_count.saturating_sub(1)
+        );
+    }
+    CompiledPattern {
+        name: rule.id.clone(),
+        regex,
+        // Tier 1 is prefix-anchored by construction — the match is the
+        // credential — so these carry the same confidence as the built-in shape
+        // patterns. See the module doc.
+        high_confidence: true,
+        secret_group: rule.secret_group,
+        ruleset_version: Some(version.to_string()),
+    }
+}
+
+/// The vendored rules compiled once per process, in the same shape as the
+/// built-ins and with the same fail-loud contract: a rule that will not compile
+/// under the `regex` crate, or whose declared capture group does not exist, is a
+/// refresh bug that must be a CI failure, never a silent reduction in detection
+/// coverage.
 pub static VENDORED_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock::new(|| {
     let version = VENDORED_RULESET_VERSION.clone();
     VENDORED_RULESET
         .rules
         .iter()
-        .map(|rule| {
-            let regex = Regex::new(&rule.pattern).unwrap_or_else(|err| {
-                panic!(
-                    "vendored secret rule `{}` failed to compile: {err}. Upstream regexes are \
-                     taken verbatim, so a rule using a construct the `regex` crate does not \
-                     support must be removed from tier1-rules.txt deliberately",
-                    rule.id
-                )
-            });
-            CompiledPattern {
-                name: rule.id.clone(),
-                regex,
-                // Tier 1 is prefix-anchored by construction — the match is the
-                // credential — so these carry the same confidence as the
-                // built-in shape patterns. See the module doc.
-                high_confidence: true,
-                secret_group: rule.secret_group,
-                ruleset_version: Some(version.clone()),
-            }
-        })
+        .map(|rule| compile_vendored_rule(rule, &version))
         .collect()
 });
 
@@ -139,7 +168,68 @@ pub static VENDORED_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{VENDORED_COMPILED_PATTERNS, VENDORED_RULESET, VENDORED_RULESET_VERSION};
+    use super::{
+        VENDORED_COMPILED_PATTERNS, VENDORED_RULESET, VENDORED_RULESET_VERSION, VendoredRule,
+        compile_vendored_rule,
+    };
+
+    fn rule(pattern: &str, secret_group: Option<usize>) -> VendoredRule {
+        VendoredRule {
+            id: "probe-rule".to_string(),
+            description: "probe".to_string(),
+            pattern: pattern.to_string(),
+            secret_group,
+            prefix: "probe_".to_string(),
+        }
+    }
+
+    #[test]
+    fn a_declared_capture_group_that_does_not_exist_is_a_loud_failure() {
+        // Without the guard this rule compiles fine and then matches nothing on
+        // every line: present in the catalogue, detecting zero. Reverting the
+        // assert in `compile_vendored_rule` fails this test.
+        // `.err()` rather than `expect_err`: the Ok arm is `CompiledPattern`,
+        // which is deliberately not `Debug` (it would print a compiled regex
+        // set into test output).
+        let err = std::panic::catch_unwind(|| {
+            compile_vendored_rule(&rule(r"\bprobe_[a-f0-9]{8}", Some(1)), "probe@v0 tier1")
+        })
+        .err()
+        .expect("a secret_group with no matching capture group must panic");
+        let message = err
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .unwrap_or_default();
+        assert!(
+            message.contains("secret_group 1"),
+            "the panic must name the offending group, got {message:?}"
+        );
+    }
+
+    #[test]
+    fn group_zero_is_rejected_because_none_is_how_the_whole_match_is_spelled() {
+        assert!(
+            std::panic::catch_unwind(|| {
+                compile_vendored_rule(&rule(r"\b(probe_[a-f0-9]{8})", Some(0)), "probe@v0 tier1")
+            })
+            .is_err(),
+            "group 0 is the whole match; declaring it would be a data error, not a narrowing"
+        );
+    }
+
+    #[test]
+    fn a_valid_declared_group_compiles() {
+        let compiled =
+            compile_vendored_rule(&rule(r"\b(probe_[a-f0-9]{8})'?", Some(1)), "probe@v0 tier1");
+        assert_eq!(compiled.secret_group, Some(1));
+        assert!(compiled.high_confidence);
+        assert_eq!(compiled.ruleset_version.as_deref(), Some("probe@v0 tier1"));
+        let line = "TOKEN=probe_0badf00d'";
+        let range = compiled
+            .first_match_range(line)
+            .expect("the probe rule fires");
+        assert_eq!(&line[range], "probe_0badf00d");
+    }
 
     #[test]
     fn every_vendored_rule_compiles_under_the_regex_crate() {

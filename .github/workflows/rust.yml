@@ -141,6 +141,13 @@ jobs:
       # upstream. `--no-calibrate` because the corpus run is the `Test` job's
       # work, not this one's; the offline half of the contract (pin/membership
       # consistency) is asserted by `secret_vendored_tier1.rs` on every run.
+      # Offline and fast, so it runs before the network leg: the converter is
+      # the only place tier-1 membership is enforced, and a miscount there is
+      # silent — it either admits a rule whose reported span is a guess, or
+      # drops the narrowing and reports scaffolding as the credential.
+      - name: Converter self-test
+        run: python3 scripts/secret/convert_gitleaks_rules_test.py
+
       - name: Verify the vendored ruleset matches its pin
         run: bash scripts/secret/refresh-gitleaks-ruleset.sh --check --no-calibrate
 

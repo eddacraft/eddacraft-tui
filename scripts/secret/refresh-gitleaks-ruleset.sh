@@ -48,6 +48,14 @@ for tool in curl python3 sha256sum; do
   command -v "${tool}" >/dev/null 2>&1 || { echo "error: '${tool}' is required" >&2; exit 2; }
 done
 
+# The pin is TOML and is read with the stdlib `tomllib`, which is Python 3.11+.
+# Checked up front so an older `python3` fails here with the version it has,
+# rather than several steps later with a bare ModuleNotFoundError.
+python3 -c 'import tomllib' 2>/dev/null || {
+  echo "error: python3 lacks 'tomllib' (needs Python >= 3.11); found $(python3 -V 2>&1)" >&2
+  exit 2
+}
+
 pin_value() {
   python3 - "$1" <<'PY'
 import sys, tomllib, pathlib
@@ -112,8 +120,12 @@ EOF
 fi
 echo "==> digest verified (${EXPECTED_SHA})"
 
+# The licence path is pinned, not assumed: hardcoding `/LICENSE` would make
+# `PIN.toml` misleading the moment upstream moved the file, and the attribution
+# would silently vendor the wrong text.
+LICENCE_PATH="$(pin_value licence_path)"
 curl -fsSL --max-time 60 -o "${WORK}/LICENSE" \
-  "https://raw.githubusercontent.com/${SLUG}/${COMMIT}/LICENSE"
+  "https://raw.githubusercontent.com/${SLUG}/${COMMIT}/${LICENCE_PATH}"
 
 python3 "${CONVERTER}" \
   --source "${WORK}/gitleaks.toml" \

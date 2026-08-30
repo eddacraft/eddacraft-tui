@@ -69,8 +69,25 @@ def parse_rules(config_text: str) -> dict[str, dict[str, str]]:
     return rules
 
 
+# `(?P<name>…)` and `(?<name>…)` are *capturing* groups in both Python and the
+# Rust `regex` crate. `(?<=…)` and `(?<!…)` are lookbehind and are not. Treating
+# a named group as non-capturing would undercount, which is unsafe in both
+# directions here: a rule with a named credential group plus another group would
+# slip past the >1 rejection, and a rule whose only group is named would lose
+# its `secret_group` narrowing and report the scaffolding as the credential.
+NAMED_GROUP_OPEN = re.compile(r"\(\?P?<(?![=!])")
+
+
+def opens_capture_group(pattern: str, index: int) -> bool:
+    """Whether the `(` at `index` opens a capturing group."""
+    if not pattern.startswith("(?", index):
+        return True
+    return NAMED_GROUP_OPEN.match(pattern, index) is not None
+
+
 def count_capture_groups(pattern: str) -> int:
-    """Count capturing groups, ignoring escapes, classes, and `(?…)` groups."""
+    """Count capturing groups — numbered and named — ignoring escapes, classes,
+    and non-capturing `(?…)` constructs."""
     count = 0
     index = 0
     in_class = False
@@ -86,7 +103,7 @@ def count_capture_groups(pattern: str) -> int:
             continue
         if char == "[":
             in_class = True
-        elif char == "(" and not pattern.startswith("(?", index):
+        elif char == "(" and opens_capture_group(pattern, index):
             count += 1
         index += 1
     return count
@@ -104,9 +121,19 @@ def literal_prefix(pattern: str) -> str:
     what matters is that the credential itself carries the prefix.
     """
     candidates = [pattern]
-    group = re.search(r"\((?!\?)", pattern)
-    if group:
-        candidates.append(pattern[group.end() :])
+    for index, char in enumerate(pattern):
+        if char == "(" and opens_capture_group(pattern, index):
+            # Skip past the group opener: `(` for a numbered group, the whole
+            # `(?P<name>` / `(?<name>` for a named one.
+            named = NAMED_GROUP_OPEN.match(pattern, index)
+            if named:
+                close = pattern.find(">", named.end())
+                if close == -1:
+                    break
+                candidates.append(pattern[close + 1 :])
+            else:
+                candidates.append(pattern[index + 1 :])
+            break
     best = ""
     for candidate in candidates:
         stripped = LEADING_NOISE.sub("", candidate)
