@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Operator design (2026-08-29); SDT-006 as-built; `crates/anvil-checks/src/secret/{check,scanner,entropy,context}.rs`; `crates/anvil-cli/src/commands/{check,audit}.rs`; ADR-085 / DSV-045 assurance states | [SDT-007 / SDT-008](../modules/secret-detection-truth.aps.md); `crates/anvil-checks/ARCHITECTURE.md` |
+| Operator design (2026-08-29); SDT-006 as-built; `crates/anvil-checks/src/secret/{check,scanner,entropy,context}.rs`; `crates/anvil-cli/src/commands/{check,audit}.rs`; ADR-085 / DSV-045 assurance states | [SDT-007 / SDT-008](../archive/modules/secret-detection-truth.aps.md); `crates/anvil-checks/ARCHITECTURE.md` |
 
 **Design approved 2026-08-29.** Execution authority is SDT-007 and SDT-008.
 This specification does not authorise product code on its own, and neither item

@@ -122,7 +122,7 @@ already consult.
 
 Evidence: `crates/anvil-checks/tests/secret_vendored_tier1.rs` demonstrates the
 fuzzy stack eating three tier-1 credential shapes rather than asserting it, and
-`plans/modules/secret-detection-truth.aps.md` (SDT-004) records the blocker as
+`plans/archive/modules/secret-detection-truth.aps.md` (SDT-004) records the blocker as
 it was found.
 
 ### 2. Engine replacement is rejected
@@ -302,7 +302,7 @@ a reader who goes looking for AGPL at this ADR and that test.
   (suppression authority), ADR-002 (warnings over blocks), ADR-087
   (`insecure-construction` category — credentials stay with the `secret` check)
 - APS module: SDT-003, in
-  [`secret-detection-truth`](../modules/secret-detection-truth.aps.md);
+  [`secret-detection-truth`](../archive/modules/secret-detection-truth.aps.md);
   binds SDT-004 (vendoring) and SDT-005 (live verification)
 - Baseline measurement: SDT-002, `crates/anvil-checks/tests/secret_calibration.rs`,
   corpus at `crates/anvil-checks/tests/corpus/secret/`, reproduce with

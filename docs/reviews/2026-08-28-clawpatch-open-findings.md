@@ -377,7 +377,7 @@ must not be read as 510 newly confirmed defects.
 - **Scanner classification:** medium · test-gap
 - **Evidence:**
   [secret calibration runner](../../crates/anvil-checks/tests/secret_calibration.rs),
-  [SDT module](../../plans/modules/secret-detection-truth.aps.md), and
+  [SDT module](../../plans/archive/modules/secret-detection-truth.aps.md), and
   [testing guide](../guides/testing.md).
 - **Assessment:** A benign case without a declared non-vacuity control still
   enters benign_total. It can look clean simply because it never resembled a

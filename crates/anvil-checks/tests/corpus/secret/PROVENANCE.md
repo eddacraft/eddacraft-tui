@@ -143,4 +143,4 @@ The runner asserts the per-case outcomes and the aggregate counts in
 committed and measured numbers printed side by side. That is deliberate: the
 point of this corpus is that no rules change lands unmeasured. Update
 `manifest.json` in the same change as the rule change, and record the
-before/after in `plans/modules/secret-detection-truth.aps.md` (SDT-002).
+before/after in `plans/archive/modules/secret-detection-truth.aps.md` (SDT-002).

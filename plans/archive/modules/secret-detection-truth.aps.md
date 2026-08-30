@@ -7,6 +7,20 @@
 | --- | ----- | -------- | -------- |
 | SDT | —     | Done | 7/8   |
 
+**Archived 2026-08-31 to `plans/archive/modules/`, ahead of release evidence,
+on explicit operator direction ("regardless of release tag").** The status stays
+**`Done`** and deliberately does *not* advance to `Complete` or
+`Released/Shipped`: the canonical lifecycle is
+`Merged -> Released/Shipped -> Complete/Archived`
+(`plans/project-context.md`), and `Released/Shipped` requires a release record
+proving inclusion. **No SDT merge commit is an ancestor of `v0.9.7-beta`** —
+that tag was cut 2026-08-21 and every SDT item landed 2026-08-27 or later,
+verified per item with `git merge-base --is-ancestor`. The active window
+`v0.9.8-beta` is provisional and unfrozen. So the *file* moved early by
+operator decision; the *claim* did not move at all. Flip to
+`Released/Shipped via vX.Y.Z` when a release record exists — this note is the
+reminder that the step is still owed.
+
 **Module closed 2026-08-31 at 7/8, not 8/8 — that is deliberate.** SDT-005 is
 `Superseded`, and the counter's done-set is `Done|Complete|Merged|
 Released/Shipped`, so a superseded item stays in the denominator by design (the
@@ -358,7 +372,7 @@ known gap lives.
 - **Dependencies:** —
 - **Confidence:** high
 - **As built (2026-08-30):** Landed as
-  [ADR-136](../decisions/136-secret-ruleset-acquisition-posture.md) — **not**
+  [ADR-136](../../decisions/136-secret-ruleset-acquisition-posture.md) — **not**
   135. ADR-135 was taken by a sibling between this item's promotion and its
   execution; `pnpm adr:check` reported 136 as next available, and the ADR
   process's renumber-on-race rule was applied before any reference was written.
@@ -982,7 +996,7 @@ entropy-adjacent; `generic-api-key` and its family are tier 2 by construction.
   in-memory hot-path delta is estimated (single-digit percent, from the
   ~3.5 ns/byte lockfile figure) rather than measured. Getting an honest number
   needs a second worktree at the base commit.
-- **Design:** [2026-08-29 streaming secret scan](../specs/2026-08-29-streaming-secret-scan.md)
+- **Design:** [2026-08-29 streaming secret scan](../../specs/2026-08-29-streaming-secret-scan.md)
 
 ---
 
