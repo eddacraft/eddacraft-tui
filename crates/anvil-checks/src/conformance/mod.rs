@@ -20,6 +20,22 @@ pub use pr_body::{
     extract_pr_body_claims,
 };
 
+fn digest_hex(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .fold(String::from("sha256:"), |mut output, byte| {
+            use std::fmt::Write as _;
+            write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+            output
+        })
+}
+
+fn digest_bytes(bytes: &[u8]) -> String {
+    use sha2::{Digest as _, Sha256};
+
+    digest_hex(&Sha256::digest(bytes))
+}
+
 fn valid_path_prefix(prefix: &str) -> bool {
     !prefix.is_empty()
         && !prefix.starts_with('/')

@@ -1,11 +1,10 @@
 //! Deterministic Tier-0 extraction from a pull-request body.
 
-use super::valid_path_prefix;
+use super::{digest_bytes, valid_path_prefix};
 use anvil_kernel_types::{
     ClaimKind, ConformanceClaim, DeclaredScope, EvidenceGrade, IntentSource, IntentSourceKind,
     IntentTier, ScopeAuthority,
 };
-use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 const BLOCK_OPEN: &str = "```anvil-claims";
@@ -268,7 +267,7 @@ fn extraction_source(
         reasons.insert("claim.pr-body.budget.body-bytes");
         BODY_OVER_LIMIT_DIGEST.to_owned()
     } else {
-        sha256_digest(raw_body.as_bytes())
+        digest_bytes(raw_body.as_bytes())
     };
     IntentSource {
         tier: IntentTier::Tier0,
@@ -400,14 +399,4 @@ const fn claim_kind_order(kind: ClaimKind) -> u8 {
         ClaimKind::PathPrefix => 1,
         ClaimKind::GraphSemantic => 2,
     }
-}
-
-fn sha256_digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .fold(String::from("sha256:"), |mut output, byte| {
-            use std::fmt::Write as _;
-            write!(output, "{byte:02x}").expect("writing to a String cannot fail");
-            output
-        })
 }

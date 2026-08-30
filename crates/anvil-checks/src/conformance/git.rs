@@ -1,6 +1,6 @@
 //! Bounded Tier-0 extraction from Git commit objects.
 
-use super::valid_path_prefix;
+use super::{digest_bytes, digest_hex, valid_path_prefix};
 use anvil_config::{DISCOVER_PRECEDENCE, MAX_CONFIG_FILE_BYTES, canonical_json_bytes, parse_str};
 use anvil_kernel_types::{
     ClaimKind, ConformanceClaim, DeclaredScope, EvaluationBinding, EvidenceGrade, GitChangeStatus,
@@ -1216,22 +1216,6 @@ fn coverage_endpoints(members: &[GitCoverageMember]) -> BTreeSet<&str> {
                 .chain(std::iter::once(member.new_path.as_str()))
         })
         .collect()
-}
-
-fn digest_hex(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .fold(String::from("sha256:"), |mut output, byte| {
-            use std::fmt::Write as _;
-            write!(output, "{byte:02x}").expect("write to String");
-            output
-        })
-}
-
-fn digest_bytes(bytes: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    digest_hex(&hasher.finalize())
 }
 
 fn retain_commit_result(

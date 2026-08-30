@@ -56,7 +56,7 @@ conformance, trust, or provenance predicate. Initial predicates are:
 
 | Surface | Admitted predicate | Exact meaning |
 | --- | --- | --- |
-| CEG | `public-symbol-set-unchanged` | The ordered set of supported public symbol identities is identical at the bound base and head. It does not prove API or behavioural equivalence. |
+| CEG | `public-symbol-surface-unchanged` | The ordered set of supported public symbol identities is identical at the bound base and head. It does not prove API or behavioural equivalence. |
 | CEG | `dependency-shape-unchanged` | The ordered supported dependency-edge identities are identical at the bound base and head. |
 | CEG | `privilege-surface-unchanged` | The ordered supported trust/boundary edge identities are identical at the bound base and head. |
 | CAG | `declared-contract-chain-complete` | Every explicitly declared required contract edge resolves under the independently anchored authority revision. |
