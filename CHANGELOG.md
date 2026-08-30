@@ -89,9 +89,11 @@ engineering maintenance are recorded in the
   long-running `anvil watch` re-resolves the candidate paths after fallback or
   daemon relocation. Doctor holds the start and PID locks before removing a
   proven-stale socket. Version recycling waits every daemon it signalled and
-  refuses a partial stop; `anvil intercept stop` reports the deduplicated
+  refuses a partial stop. `anvil intercept stop` reports the deduplicated
   worktrees losing protection across all stopped daemons, or says the impact is
-  unknown when it cannot query one safely.
+  unknown when it cannot query one safely; an unresolved sibling now produces an
+  explicit partial failure and a non-zero exit, with every candidate present in
+  JSON while the legacy aggregate fields remain available.
 
 - **`anvil policy eval-regression` detects rules that go silent on frozen
   fixtures.** A finding that appears or disappears now reports that the fixture

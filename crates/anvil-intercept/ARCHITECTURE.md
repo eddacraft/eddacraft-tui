@@ -167,9 +167,11 @@ owns their cross-component client and capability relationship.
   live-listener selection on every connection, including after fallback, so a
   daemon relocation does not pin the process to an obsolete endpoint.
 - Doctor socket cleanup holds the per-install start lock across stop and then
-  the PID lock across the final liveness probe and unlink. A live or rebound
-  socket is never removed. Version recycle waits every signalled candidate PID
-  and refuses restart if any candidate stop result is unsafe.
+  the PID lock through canonical startup and final all-candidate classification.
+  A live or rebound socket is never removed. Version recycle waits every
+  signalled candidate PID and refuses restart if any candidate stop result is
+  unsafe. `anvil intercept stop` likewise preserves every candidate outcome and
+  returns a partial failure when any candidate remains unresolved.
 - Windows IPC uses an owner-only pipe DACL and the server compares the connected
   peer SID with the pipe-owner SID before dispatch.
 - The production `scan_buffer` session-ownership and environment-tag spoof
