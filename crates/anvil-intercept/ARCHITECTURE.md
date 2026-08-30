@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                      |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-29 to link resident graph internals to `crates/anvil-graph-cache/ARCHITECTURE.md`; egress, save-time, and peer-admission topology and diagrams unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-30 against SDT-004's one-line warm in `src/midedit.rs` (`ScanBufferService::with_timeout` force-initialises the shared secret-pattern set) and `tests/pattern_warm.rs`; lanes, transport, admission, and every diagram are unchanged — the change moves an existing cost off the request path and adds no path through the crate. Previously reviewed 2026-08-29 to link resident graph internals to `crates/anvil-graph-cache/ARCHITECTURE.md`; egress, save-time, and peer-admission topology and diagrams unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -168,6 +168,16 @@ owns their cross-component client and capability relationship.
   posture.
 - Validation consumes guarded content rather than reopening an untrusted path
   behind the caller's back.
+- Process-wide lazies that the scan path reads are forced at service
+  construction, never inside a request. `ScanBufferService` forces
+  `anvil_checks`'s shared compiled secret-pattern set, because a `LazyLock`
+  charges its whole initialisation to whichever caller touches it first — and
+  that caller would be the first `scan_buffer`, paying regex compilation inside
+  the 2 s `SCAN_BUFFER_TIMEOUT`. SDT-004 made the cost ~50x larger by vendoring
+  provider rules, which is how the rule surfaced. Note the shape of the miss:
+  the mid-edit benchmark force-initialises the same lazy in its own warm-up, so
+  it is structurally blind to this class and cannot be the guard for it —
+  `tests/pattern_warm.rs` is, and it is a single-test binary on purpose.
 - An interrupt delivery or identity-safety failure and an unattributed or
   unregistered change request a fence. An ordinary guarded-validation verdict
   does not.
