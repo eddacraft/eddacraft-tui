@@ -1382,6 +1382,69 @@ fn verify_pid_file_dir_for_read(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Identity gate on the PID file inode itself. Tightening the parent directory
+/// after a foreign principal planted the file does not make that instruction
+/// trustworthy.
+#[cfg(unix)]
+fn validate_pid_file_identity_for_read(
+    path: &Path,
+    is_regular: bool,
+    file_uid: u32,
+    expected_uid: u32,
+) -> Result<()> {
+    if !is_regular {
+        anyhow::bail!("PID file {} is not a regular file", path.display());
+    }
+    if file_uid != expected_uid {
+        anyhow::bail!(
+            "refusing PID file {} owned by uid {}, expected {}",
+            path.display(),
+            file_uid,
+            expected_uid,
+        );
+    }
+    Ok(())
+}
+
+/// Open and read a PID signal instruction through one verified descriptor.
+/// `O_NOFOLLOW` makes a leaf symlink fail at open time; `O_NONBLOCK` keeps
+/// an attacker-planted FIFO from blocking before the regular-file check.
+#[cfg(unix)]
+fn read_pid_file_for_stop(path: &Path) -> Result<Option<String>> {
+    use std::io::Read;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) if err.raw_os_error() == Some(nix::libc::ELOOP) => {
+            anyhow::bail!("refusing symlink PID file {}", path.display());
+        }
+        Err(err) => {
+            return Err(anyhow::Error::new(err))
+                .with_context(|| format!("failed to open PID file {}", path.display()));
+        }
+    };
+    verify_pid_file_dir_for_read(path)?;
+    let metadata = file
+        .metadata()
+        .with_context(|| format!("failed to inspect open PID file {}", path.display()))?;
+    validate_pid_file_identity_for_read(
+        path,
+        metadata.is_file(),
+        metadata.uid(),
+        geteuid().as_raw(),
+    )?;
+    let mut record = String::new();
+    file.read_to_string(&mut record)
+        .with_context(|| format!("failed to read PID file {}", path.display()))?;
+    Ok(Some(record))
+}
+
 #[cfg(any(unix, windows))]
 fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
     // A PID file is a signal-delivery instruction, so its directory must clear
@@ -1391,6 +1454,9 @@ fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
     // naming an arbitrary process of ours. Refuse-only: unlike the daemon's own
     // create path this never repairs, mirroring `RepairMode::Refuse` on the
     // client side.
+    #[cfg(unix)]
+    let record = read_pid_file_for_stop(path)?;
+    #[cfg(windows)]
     let record = match fs::symlink_metadata(path) {
         Ok(metadata) => {
             if metadata.file_type().is_symlink() {
@@ -1398,8 +1464,6 @@ fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
             }
             // Gate only once a PID file is actually present: an absent
             // candidate is "no daemon here" and must stay a quiet no-op.
-            #[cfg(unix)]
-            verify_pid_file_dir_for_read(path)?;
             Some(
                 fs::read_to_string(path)
                     .with_context(|| format!("failed to read PID file {}", path.display()))?,
@@ -2861,6 +2925,44 @@ mod tests {
         let err = stop_daemon_at(&link).expect_err("symlink should be refused");
         assert!(
             err.to_string().contains("refusing symlink PID file"),
+            "unexpected error: {err:#}",
+        );
+    }
+
+    /// Council C005: tightening a runtime directory after a foreign principal
+    /// planted the PID file does not make that existing signal instruction
+    /// trustworthy. The opened file itself must belong to this uid.
+    #[cfg(unix)]
+    #[test]
+    fn pid_file_identity_policy_refuses_a_foreign_owned_regular_file() {
+        let expected_uid = geteuid().as_raw();
+        let foreign_uid = expected_uid.wrapping_add(1);
+        let err = validate_pid_file_identity_for_read(
+            Path::new("/runtime/anvil/intercept.pid"),
+            true,
+            foreign_uid,
+            expected_uid,
+        )
+        .expect_err("foreign-owned PID file must be refused");
+        assert!(
+            err.to_string().contains("owned by uid"),
+            "unexpected error: {err:#}",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pid_file_identity_policy_refuses_a_non_regular_file() {
+        let expected_uid = geteuid().as_raw();
+        let err = validate_pid_file_identity_for_read(
+            Path::new("/runtime/anvil/intercept.pid"),
+            false,
+            expected_uid,
+            expected_uid,
+        )
+        .expect_err("non-regular PID file must be refused");
+        assert!(
+            err.to_string().contains("not a regular file"),
             "unexpected error: {err:#}",
         );
     }

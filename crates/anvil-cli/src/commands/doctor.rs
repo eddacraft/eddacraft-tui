@@ -2437,12 +2437,34 @@ fn default_config_yaml() -> &'static str {
 }
 
 #[cfg(unix)]
+struct StoppedSiblingLifecycleGuards {
+    start_locks: Vec<std::fs::File>,
+    pid_locks: Vec<std::fs::File>,
+}
+
+#[cfg(unix)]
+fn canonical_is_the_only_live_socket(candidates: &[PathBuf]) -> bool {
+    let Some(canonical) = candidates.first() else {
+        return false;
+    };
+    let (live, canonical_invalid) = classify_intercept_sockets(candidates);
+    canonical_invalid.is_none() && live.len() == 1 && live.first() == Some(canonical)
+}
+
+#[cfg(unix)]
 #[allow(
     clippy::too_many_lines,
     reason = "the start-lock, stop, PID-lock, probe, and unlink sequence must stay visibly atomic"
 )]
-fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
+fn stop_sibling_intercept_sockets(
+    siblings: &[PathBuf],
+    speak: bool,
+) -> Option<StoppedSiblingLifecycleGuards> {
     use anvil_intercept::{StopOutcome, request_daemon_stop_at_pid_file};
+    let mut guards = StoppedSiblingLifecycleGuards {
+        start_locks: Vec::with_capacity(siblings.len()),
+        pid_locks: Vec::with_capacity(siblings.len()),
+    };
     for sibling in siblings {
         let Some(parent) = sibling.parent() else {
             if speak {
@@ -2451,10 +2473,10 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                     sibling.display()
                 );
             }
-            return false;
+            return None;
         };
         let pid_path = parent.join("intercept.pid");
-        let _start_lock =
+        let start_lock =
             match anvil_intercept::ensure::acquire_daemon_start_lock_for_pid_file(&pid_path) {
                 Ok(lock) => lock,
                 Err(err) => {
@@ -2465,7 +2487,7 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                             sibling.display()
                         );
                     }
-                    return false;
+                    return None;
                 }
             };
         match request_daemon_stop_at_pid_file(&pid_path) {
@@ -2481,7 +2503,7 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                             "  Failed to fix intercept-socket-rendezvous: sibling pid {pid} still running"
                         );
                     }
-                    return false;
+                    return None;
                 }
             }
             Ok(StopOutcome::NotRunning | StopOutcome::StaleCleared { .. }) => {}
@@ -2489,10 +2511,10 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                 if speak {
                     eprintln!("  Failed to fix intercept-socket-rendezvous: {err}");
                 }
-                return false;
+                return None;
             }
         }
-        let _pid_lock = match anvil_intercept::acquire_stopped_daemon_pid_lock(&pid_path) {
+        let pid_lock = match anvil_intercept::acquire_stopped_daemon_pid_lock(&pid_path) {
             Ok(lock) => lock,
             Err(err) => {
                 if speak {
@@ -2501,7 +2523,7 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                         sibling.display()
                     );
                 }
-                return false;
+                return None;
             }
         };
         match anvil_intercept::ipc::probe_socket_path_for_client(sibling) {
@@ -2512,14 +2534,14 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                         sibling.display()
                     );
                 }
-                return false;
+                return None;
             }
             Err(err) if anvil_intercept::ipc::live_socket_absent(&err) => {}
             Err(err) => {
                 if speak {
                     eprintln!("  Failed to fix intercept-socket-rendezvous: {err}");
                 }
-                return false;
+                return None;
             }
         }
         // Every arm that reaches here has proven the sibling process is gone
@@ -2550,11 +2572,13 @@ fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
                         sibling.display()
                     );
                 }
-                return false;
+                return None;
             }
         }
+        guards.start_locks.push(start_lock);
+        guards.pid_locks.push(pid_lock);
     }
-    true
+    Some(guards)
 }
 
 #[cfg(unix)]
@@ -2594,10 +2618,10 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
         }
         return;
     }
-    if !stop_sibling_intercept_sockets(&siblings, speak) {
+    let Some(_sibling_guards) = stop_sibling_intercept_sockets(&siblings, speak) else {
         return;
-    }
-    if anvil_intercept::ipc::probe_socket_path_for_client(canonical).is_ok() {
+    };
+    if canonical_is_the_only_live_socket(&candidates) {
         check.status = CheckStatus::Pass;
         check.message = format!("intercept daemon socket at {}", canonical.display());
         check.auto_fixable = false;
@@ -2611,10 +2635,11 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
     }
     match crate::commands::intercept::launch_save_time_daemon(StartCapability::MaySpawn) {
         EnsureOutcome::Started | EnsureOutcome::Reused => {
-            if anvil_intercept::ipc::probe_socket_path_for_client(canonical).is_err() {
+            if !canonical_is_the_only_live_socket(&candidates) {
                 if speak {
                     eprintln!(
-                        "  Failed to fix intercept-socket-rendezvous: canonical socket did not come up"
+                        "  Failed to fix intercept-socket-rendezvous: canonical socket was not the \
+                         only live candidate after restart"
                     );
                 }
                 return;
@@ -4934,7 +4959,7 @@ mod tests {
 
         let siblings = vec![socket.clone()];
         assert!(
-            stop_sibling_intercept_sockets(&siblings, false),
+            stop_sibling_intercept_sockets(&siblings, false).is_some(),
             "a proven-dead sibling must not block the fix",
         );
         assert!(
@@ -4959,7 +4984,7 @@ mod tests {
             .expect("0600 socket");
 
         assert!(
-            !stop_sibling_intercept_sockets(std::slice::from_ref(&socket), false),
+            stop_sibling_intercept_sockets(std::slice::from_ref(&socket), false).is_none(),
             "a listening endpoint with missing PID metadata must block cleanup",
         );
         assert!(
@@ -4987,11 +5012,64 @@ mod tests {
             anvil_intercept::acquire_stopped_daemon_pid_lock(&runtime.join("intercept.pid"))
                 .expect("simulate a rebinding daemon holding the PID lock");
 
-        assert!(!stop_sibling_intercept_sockets(
-            std::slice::from_ref(&socket),
-            false
-        ));
+        assert!(stop_sibling_intercept_sockets(std::slice::from_ref(&socket), false).is_none());
         assert!(socket.exists(), "a rebound candidate must not be unlinked");
+    }
+
+    /// Council C001/C007: the sibling lifecycle fences must outlive cleanup.
+    /// Doctor starts and classifies the canonical endpoint only after this
+    /// helper returns, so dropping either lock at the loop boundary reopens the
+    /// split-daemon race.
+    #[cfg(unix)]
+    #[test]
+    fn stopped_sibling_guards_hold_both_lifecycle_locks_until_final_classification() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime = dir.path().join("anvil");
+        std::fs::create_dir_all(&runtime).expect("runtime dir");
+        std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o700))
+            .expect("0700 runtime dir");
+        let socket = runtime.join("intercept.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&socket).expect("bind socket");
+        drop(listener);
+        std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
+            .expect("0600 socket");
+        let pid_path = runtime.join("intercept.pid");
+
+        let guards = stop_sibling_intercept_sockets(std::slice::from_ref(&socket), false)
+            .expect("proven-stale sibling should be fenced");
+        assert!(
+            anvil_intercept::acquire_stopped_daemon_pid_lock(&pid_path).is_err(),
+            "the PID lock must remain held while canonical repair runs",
+        );
+
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let waiting_pid_path = pid_path.clone();
+        let waiter = std::thread::spawn(move || {
+            let _start_lock =
+                anvil_intercept::ensure::acquire_daemon_start_lock_for_pid_file(&waiting_pid_path)
+                    .expect("waiting sibling start eventually acquires its lock");
+            acquired_tx.send(()).expect("report lock acquisition");
+        });
+
+        assert!(
+            acquired_rx
+                .recv_timeout(Duration::from_millis(100))
+                .is_err(),
+            "a sibling start must remain fenced through final classification",
+        );
+        drop(guards);
+        acquired_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("sibling start should proceed after repair releases its guards");
+        waiter.join().expect("lock waiter");
+        assert!(
+            anvil_intercept::acquire_stopped_daemon_pid_lock(&pid_path).is_ok(),
+            "the PID fence must also release with the retained guard set",
+        );
     }
 
     #[cfg(unix)]
