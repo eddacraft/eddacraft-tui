@@ -93,7 +93,7 @@ jobs:
       - name: Run L4 validation
         env:
           ANVIL_POLICY: ${{ github.event.inputs.policy || 'anvil/policy.yml' }}
-          ANVIL_FAIL_ON_WARNING: ${{ github.event.inputs.fail-on-warning || 'false' }}
+          ANVIL_FAIL_ON_WARNINGS: ${{ github.event.inputs.fail-on-warning || 'false' }}
         run: |
           # Synthesise the pre-push stdin from the PR's commit range.
           # Format: `<local-ref> <local-sha> <remote-ref> <remote-sha>`
@@ -133,4 +133,5 @@ jobs:
       - name: Run merge gate
         env:
           ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
+          ANVIL_FAIL_ON_WARNINGS: ${{ github.event.inputs.fail-on-warning || 'false' }}
         run: anvil gate --profile ci

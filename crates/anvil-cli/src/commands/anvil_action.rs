@@ -165,12 +165,8 @@ mod tests {
         let validate_job = t
             .split_once("\n  validate:")
             .and_then(|(_, rest)| rest.split_once("\n  gate:"))
-            .map(|(job, _)| job)
-            .unwrap_or("");
-        let gate_job = t
-            .split_once("\n  gate:")
-            .map(|(_, rest)| rest)
-            .unwrap_or("");
+            .map_or("", |(job, _)| job);
+        let gate_job = t.split_once("\n  gate:").map_or("", |(_, rest)| rest);
         assert!(
             !validate_job.contains("anvil gate --profile ci"),
             "merge gate must not be folded into the L4 validate job",
@@ -198,6 +194,15 @@ mod tests {
         assert!(
             gate_job.contains("ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}"),
             "gate job must bind ANVIL_LICENSE via env; anvil gate is licence-gated",
+        );
+        assert!(
+            validate_job.contains("ANVIL_FAIL_ON_WARNINGS:")
+                && gate_job.contains("ANVIL_FAIL_ON_WARNINGS:"),
+            "workflow_dispatch fail-on-warning must export ANVIL_FAIL_ON_WARNINGS (plural)",
+        );
+        assert!(
+            !t.contains("ANVIL_FAIL_ON_WARNING:"),
+            "singular ANVIL_FAIL_ON_WARNING is not a CLI env"
         );
     }
 }
