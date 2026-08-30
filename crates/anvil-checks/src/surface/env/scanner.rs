@@ -99,10 +99,13 @@ pub fn scan_env_file(
         for pattern in DEFAULT_COMPILED_PATTERNS.iter() {
             // Match against the raw value rather than the source line so
             // we don't double-trigger on comments or the key name.
-            let Some(matched_range) = pattern.regex.find(&entry.value) else {
+            // SDT-004: `first_match_range` honours a vendored rule's
+            // `secret_group`, so the reported value is the credential rather
+            // than the scaffolding upstream matches around it.
+            let Some(matched_range) = pattern.first_match_range(&entry.value) else {
                 continue;
             };
-            let matched_value = matched_range.as_str();
+            let matched_value = &entry.value[matched_range.clone()];
             // High-confidence shape patterns (AWS, GitHub, Slack, …)
             // bypass the keyword allowlist — the textbook AWS docs key
             // `AKIAIOSFODNN7EXAMPLE` is still a real-shape credential
@@ -162,6 +165,7 @@ pub fn scan_env_file(
                 match_start: Some(redact_start),
                 match_end: Some(redact_end),
                 token_shape: Some(crate::secret::types::TokenShape::Opaque),
+                ruleset_version: pattern.ruleset_version.clone(),
             };
 
             findings.push(EnvFinding {

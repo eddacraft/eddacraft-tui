@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 
 use anvil_checks::secret::{
     AllowlistProvenance, SECRET_PATTERNS, SecretCheckConfig, SecretFinding, Suppression,
-    scan_content_with_stats,
+    VENDORED_COMPILED_PATTERNS, VENDORED_RULESET_VERSION, scan_content_with_stats,
 };
 use serde::Deserialize;
 
@@ -49,6 +49,12 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 struct Manifest {
     catalogue_size: usize,
+    /// SDT-004: the vendored ruleset version this baseline was measured
+    /// against. Recorded in the manifest as well as printed in the report, so a
+    /// refresh that moves the pin without re-measuring fails here rather than
+    /// silently invalidating the committed numbers.
+    #[serde(default)]
+    vendored_ruleset: Option<String>,
     expected: Expected,
     cases: Vec<Case>,
 }
@@ -118,6 +124,11 @@ struct Outcome {
     /// `rule => redacted match` for whatever did fire. Redacted, so a report
     /// posted in CI logs never carries the value itself.
     fired_detail: BTreeMap<String, String>,
+    /// SDT-004: `rule => ruleset version` for the findings that came from a
+    /// vendored rule. Read off `SecretFinding::ruleset_version`, so this is a
+    /// live check that the provenance actually reaches the finding rather than
+    /// a name-matching guess.
+    vendored_fired: BTreeMap<String, String>,
     suppressed: Vec<Suppression>,
     lines_skipped_oversize: usize,
     /// `Some(true)` when a declared control fired (the case is non-vacuous),
@@ -202,6 +213,14 @@ fn measure(root: &Path, case: &Case) -> Outcome {
         fired_detail: findings
             .iter()
             .map(|f| (f.pattern_name.clone(), f.redacted_match.clone()))
+            .collect(),
+        vendored_fired: findings
+            .iter()
+            .filter_map(|f| {
+                f.ruleset_version
+                    .as_ref()
+                    .map(|version| (f.pattern_name.clone(), version.clone()))
+            })
             .collect(),
         fired: findings.into_iter().map(|f| f.pattern_name).collect(),
         suppressed: stats.suppressions,
@@ -316,6 +335,8 @@ fn build_report(manifest: &Manifest, root: &Path) -> (String, Tally, Expected) {
     let mut per_rule_misses: Vec<String> = Vec::new();
     let mut covered_rules: BTreeSet<String> = BTreeSet::new();
     let mut gap_detected_by: BTreeMap<String, String> = BTreeMap::new();
+    let mut vendored_attribution: Vec<String> = Vec::new();
+    let mut vendored_benign_flags: Vec<String> = Vec::new();
     let mut oversize_lines = 0usize;
 
     let _ = writeln!(
@@ -324,8 +345,10 @@ fn build_report(manifest: &Manifest, root: &Path) -> (String, Tally, Expected) {
     );
     let _ = writeln!(
         report,
-        "catalogue: {} built-in patterns   corpus: {} cases",
+        "catalogue: {} built-in patterns + {} vendored ({})   corpus: {} cases",
         SECRET_PATTERNS.len(),
+        VENDORED_COMPILED_PATTERNS.len(),
+        *VENDORED_RULESET_VERSION,
         manifest.cases.len()
     );
     let _ = writeln!(
@@ -382,6 +405,10 @@ fn build_report(manifest: &Manifest, root: &Path) -> (String, Tally, Expected) {
             tally.gap_probe_detected += 1;
             let by = outcome.fired.iter().cloned().collect::<Vec<_>>().join(", ");
             gap_detected_by.insert(provider.clone(), by.clone());
+            for (rule, version) in &outcome.vendored_fired {
+                vendored_attribution
+                    .push(format!("{:<24} {provider} <- {rule} [{version}]", case.id));
+            }
             let _ = writeln!(report, "  [detected] {:<24} {provider} <- {by}", case.id);
         } else {
             let _ = writeln!(
@@ -450,6 +477,12 @@ fn build_report(manifest: &Manifest, root: &Path) -> (String, Tally, Expected) {
             tally.benign_flagged += 1;
             if case.known_residual {
                 tally.known_residual_flagged += 1;
+            }
+            // SDT-004: the false-positive cost of the vendored tier, isolated.
+            // "FP rate unchanged" is only meaningful if we can also say no
+            // vendored rule is the thing doing the flagging.
+            for rule in outcome.vendored_fired.keys() {
+                vendored_benign_flags.push(format!("{} <- {rule}", case.id));
             }
             let by = outcome
                 .fired_detail
@@ -544,6 +577,32 @@ fn build_report(manifest: &Manifest, root: &Path) -> (String, Tally, Expected) {
             let _ = writeln!(report, "    {name}");
         }
     }
+    let _ = writeln!(report);
+    let _ = writeln!(
+        report,
+        "  vendored tier-1 attribution ({} rule(s) from {}):",
+        VENDORED_COMPILED_PATTERNS.len(),
+        *VENDORED_RULESET_VERSION
+    );
+    if vendored_attribution.is_empty() {
+        let _ = writeln!(
+            report,
+            "    none — no gap probe was closed by a vendored rule"
+        );
+    } else {
+        for line in &vendored_attribution {
+            let _ = writeln!(report, "    {line}");
+        }
+    }
+    let _ = writeln!(
+        report,
+        "  benign cases flagged by a vendored rule: {}",
+        if vendored_benign_flags.is_empty() {
+            "none".to_string()
+        } else {
+            vendored_benign_flags.join(", ")
+        }
+    );
     let _ = writeln!(
         report,
         "  benign cases with no non-vacuity control: {}",
@@ -611,6 +670,17 @@ fn secret_calibration_corpus_matches_the_committed_baseline() {
          a rule was added or removed without a corpus case",
         manifest.catalogue_size,
         SECRET_PATTERNS.len()
+    );
+
+    assert_eq!(
+        manifest.vendored_ruleset.as_deref(),
+        Some(VENDORED_RULESET_VERSION.as_str()),
+        "the corpus baseline was measured against vendored ruleset {:?} but the tree now \
+         carries {:?}. A ruleset refresh moves detection and false-positive rate, so re-run \
+         `pnpm secret:calibrate`, update `vendored_ruleset` and `expected` in manifest.json, \
+         and record the before/after in plans/modules/secret-detection-truth.aps.md (SDT-004).",
+        manifest.vendored_ruleset,
+        VENDORED_RULESET_VERSION.as_str(),
     );
 
     assert!(

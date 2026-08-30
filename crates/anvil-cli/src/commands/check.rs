@@ -2274,6 +2274,7 @@ mod tests {
             match_start: Some(16),
             match_end: Some(40),
             token_shape: Some(TokenShape::Opaque),
+            ruleset_version: None,
         };
         let json = secret_finding_to_json(&finding, &[], None);
         assert_eq!(json.category, "secret");

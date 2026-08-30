@@ -395,7 +395,24 @@ known gap lives.
 
 ### SDT-004: Vendored ruleset, staged behind the corpus
 
-- **Status:** Proposed
+- **Status:** In Progress — operator-promoted 2026-08-30, implemented on
+  `feat/sdt-004-tier1-vendored-rules`. **Scoped to tier 1 this pass**
+  (operator decision 2026-08-30): high-confidence, prefix-anchored provider
+  rules only, where a match is structurally the credential. The
+  generic/entropy-adjacent half — where FP volume actually lives, and where
+  CIB-373 is already open — is a later tier with its own measurement.
+- **Blocker found before implementation (2026-08-30):** ADR-136 says vendored
+  rules are "converted to `SecretPatternDef` form", but that type is
+  `{ name, pattern }` with **no confidence field**, and
+  `compile_custom_patterns` hardcodes `high_confidence: false` with the
+  rationale that "the scanner cannot know whether a hand-written regex is
+  structurally unambiguous". That rationale does not hold for a vendored
+  prefix-anchored provider rule, where the match *is* the credential. Routed
+  through `SecretPatternDef`, every tier-1 rule would inherit the fuzzy filter
+  stack — the keyword allowlist and `looks_like_code` — which is exactly what
+  defeats textbook credentials (issue #1800) and eats camelCase bindings
+  (CIB-363). Tier 1 is entirely prefix-anchored, so this would hit all of it.
+  Resolving this is part of the item and may amend ADR-136.
 - **Intent:** Close the catalogue gap (21 → ~170 rules) as measured
   improvement, not a pattern dump.
 - **Expected Outcome:** The converted ruleset lands in confidence tiers —
@@ -415,6 +432,166 @@ known gap lives.
 - **Risks:** FP volume is the known cost of breadth — beta already complains
   about FPs, so a tier that raises FP rate beyond its detection gain parks
   rather than ships; the corpus makes that a measurement, not an argument.
+
+#### SDT-004 blocker resolution — vendored rules take the built-in path
+
+The blocker recorded above is real and is now demonstrated by test, not
+asserted: `secret_vendored_tier1.rs` shows the fuzzy stack eating three tier-1
+credential shapes — a GitLab PAT whose body carries `EXAMPLE` (keyword
+allowlist), a Slack webhook URL (`looks_like_code`'s `^https?://` arm), and a
+key bound to a camelCase identifier (`looks_like_code`'s mixed-case arm, end to
+end through a real `SecretPatternDef`-routed scan).
+
+**Resolution: vendored rules compile through the built-in path, not
+`SecretPatternDef`.** `crate::secret::vendored` parses the generated data and
+produces `CompiledPattern`s with `high_confidence: true`, which are appended to
+`DEFAULT_COMPILED_PATTERNS`. `SecretPatternDef` is untouched.
+
+Extending `SecretPatternDef` with a confidence field was considered and
+rejected on two independent grounds. It is `Serialize`/`Deserialize` and
+operator-facing, so the field would become a config switch letting any
+`.anvilrc` custom pattern opt itself out of the false-positive filters with no
+provenance behind the claim — a privilege escalation on exactly the boundary
+issue #1800 established. And the `high_confidence: false` rationale in
+`compile_custom_patterns` is *correct about operator regexes*; the fix is to
+stop pretending vendored rules are operator regexes, not to weaken the rule
+about operator regexes.
+
+Appending to `DEFAULT_COMPILED_PATTERNS` (rather than adding a fifth pattern
+seam) is what makes ADR-136 §1's "the allowlist and suppression layer applies to
+vendored rules exactly as it does to built-ins" true by construction: the file
+scan, the git-history scan, the env-surface scan and the MCP pre-write redactor
+all already consult that one set.
+
+`CompiledPattern` also gains `secret_group`. Upstream wraps some credentials in
+delimiter or provider-keyword scaffolding; narrowing the reported span to the
+upstream capture group is what allows the regexes to be vendored **verbatim**
+while a finding still covers the credential rather than the trailing quote.
+
+**This contradicts ADR-136 §1's wording** ("converting each upstream rule into
+Anvil's existing `SecretPatternDef` form"), which is unimplementable for a
+confidence-bearing tier. An amendment is proposed in
+`plans/decisions/136-secret-ruleset-acquisition-posture.md` under §1, marked
+**Proposed — not yet accepted**; accepting or rejecting it is an operator call,
+not this item's.
+
+#### SDT-004 tier-1 measurement — 2026-08-30, gitleaks@v8.30.1
+
+Reproduce with `pnpm secret:calibrate`. Vendored data:
+`crates/anvil-checks/src/secret/vendor/gitleaks/` (27 rules, converted from
+`gitleaks` `v8.30.1` at commit `83d9cd68`, SHA-256-verified).
+
+| Measure                                 | Before (SDT-002) | After (tier 1) |
+| --------------------------------------- | ---------------- | -------------- |
+| Detection — catalogue rules             | 21/21 = 100.0%   | 21/21 = 100.0% |
+| Detection — providers outside catalogue | 8/20 = 40.0%     | 13/20 = 65.0%  |
+| Detection — all planted secrets          | 29/41 = 70.7%    | 34/41 = 82.9%  |
+| False-positive rate                     | 1/13 = 7.7%      | 1/13 = 7.7%    |
+| Benign cases flagged by a vendored rule | —                | 0              |
+
+**Per-rule attribution — which vendored rule closed which probe:**
+
+| Gap probe                 | Vendored rule               |
+| ------------------------- | --------------------------- |
+| `gp-gitlab-pat`           | `gitlab-pat`                |
+| `gp-mailgun-api-key`      | `mailgun-private-api-token` |
+| `gp-shopify-access-token` | `shopify-access-token`      |
+| `gp-slack-webhook-url`    | `slack-webhook-url`         |
+| `gp-postman-api-key`      | `postman-api-token`         |
+
+Before this tier, **zero** out-of-catalogue detections came from a
+provider-specific rule (5 were entropy backstop, 3 keyword). All five above are
+provider-specific, which is the qualitative change ADR-136 said the 40% figure
+was really about.
+
+**False-positive cost — measured, not argued.**
+
+- Corpus benign half unchanged at 1/13; the one flag is the pre-existing
+  CIB-080 Google-Drive residual. No benign case is flagged by a vendored rule.
+- Dogfood, `anvil check --all` over this repository: 1,861 files scanned, 126
+  secret findings, **0** attributable to a vendored rule.
+- Dogfood, regex sweep over all 4,335 git-tracked files: 5 hits, all of them the
+  SDT-002 corpus canaries in `cases/*.corpus` (intended true positives, and an
+  extension no repository walker selects). Zero elsewhere.
+- External sweep over eight unrelated local codebases (94,291 source files):
+  **0** hits.
+
+**Ship-or-park verdict: SHIP.** The item's own rule is that a tier parks if it
+raises FP rate beyond its detection gain. Detection gain is +5 gap probes
+(40.0% → 65.0%); FP cost is zero on every surface measured. There is no trade to
+weigh.
+
+**Seven probes remain missed, and five of them are structurally unreachable by
+tier-1 vendoring:**
+
+- `gp-azure-storage-key`, `gp-discord-bot-token`, `gp-http-basic-auth-url` —
+  gitleaks has no rule for these shapes at the pinned version. Nothing to
+  vendor.
+- `gp-openssh-private-key`, `gp-ec-private-key` — gitleaks' `private-key` rule
+  is block-scoped (`-----BEGIN…-----[\s\S-]{64,}?KEY-----`) and Anvil's scanner
+  is line-local, so it cannot be vendored verbatim. Anvil already carries
+  line-local `Private Key` and `PGP Private Key` built-ins; widening those to
+  accept `OPENSSH`/`EC` headers closes both probes and is a **built-in** change,
+  not a vendoring one. Deliberately not folded in here, so the tier's
+  attribution stays honest. Owed as follow-up.
+- `gp-digitalocean-pat` and `gp-newrelic-api-key` are **corpus defects, not
+  detection gaps**, found by having a real provider rule to check them against
+  for the first time. The DigitalOcean canary body is 63 hex characters where a
+  real `dop_v1_` token is 64; the New Relic canary body is 28 characters where a
+  real `NRAK-` key is 27. The faithful vendored rules therefore do not match
+  them. **The canaries were deliberately left uncorrected**: fixing them would
+  raise this tier's headline number, and a corpus edited to flatter a change is
+  worth less than an accurate one. Correcting them is an operator call and would
+  take tier 1 to 15/20 = 75.0%.
+
+**Deliberate exclusions from tier 1** (recorded in `tier1-rules.txt` so they are
+not re-litigated silently): `sendgrid-api-token` duplicates the built-in
+`SendGrid API Key` shape; the two GitLab `*-routable` rules overlap their
+non-routable siblings and would report one credential twice;
+`mailgun-signing-key` and `new-relic-user-api-id` have no literal prefix and are
+entropy-adjacent; `generic-api-key` and its family are tier 2 by construction.
+
+- **As built (2026-08-30):**
+  - Data lives at `crates/anvil-checks/src/secret/vendor/gitleaks/`: a
+    hand-maintained `PIN.toml` (repo, tag, commit, source path, SHA-256), a
+    hand-curated `tier1-rules.txt` membership list carrying the rationale for
+    each inclusion and exclusion, and generated `tier1.json`, `PROVENANCE.md`
+    and `LICENSE`.
+  - `scripts/secret/refresh-gitleaks-ruleset.sh` regenerates in place,
+    `--check` verifies, `--upgrade <tag>` is the only path that moves the pin,
+    and every regeneration ends in `pnpm secret:calibrate`. Digest mismatch
+    aborts rather than accepting moved content. Conversion is deliberately dumb
+    (`scripts/secret/convert-gitleaks-rules.py`): regexes verbatim, a missing id
+    is an error, more than one capture group is an error, and a rule with no
+    literal provider prefix of at least four characters is rejected — so tier-1
+    membership is machine-enforced, not just asserted in prose.
+  - `--check` is proved non-vacuous: a one-character edit to a vendored regex
+    makes it exit 1 with a diff.
+  - Ruleset version reaches finding provenance via
+    `SecretFinding::ruleset_version` (`serde(default)`, omitted when `None`), is
+    printed in the calibration report header, and is pinned in `manifest.json`
+    as `vendored_ruleset` — so a refresh that moves the pin without re-measuring
+    fails the corpus gate instead of silently invalidating the committed numbers.
+  - Suppression is proved intact rather than assumed: an operator
+    `custom_allowlist` entry still suppresses a vendored rule and the
+    suppression is recorded with `AllowlistProvenance::Custom` naming the
+    operator's own pattern.
+  - Attribution added by hand to `ACKNOWLEDGEMENTS.md` under a new
+    `### Vendored detection rules` heading, beside the existing vendored-grammar
+    precedent. **Not regenerated** — the generated blocks come from dependency
+    manifests and would never carry it (ADR-136 §5), and regenerating churns the
+    Node rows.
+- **Known gaps (named, not blocking):**
+  - ADR-136 §5's **monthly scheduled cadence** (a workflow that compares the pin
+    against the latest upstream release and opens an issue) is **not built**.
+    The per-PR `--check` leg is; the cadence is owed.
+  - `--check` needs the network, so it is path-gated on
+    `crates/anvil-checks/src/secret/vendor/**` and `scripts/secret/**` rather
+    than run on every PR. The offline half — `tier1.json` agreeing with `PIN.toml`
+    and with the membership list — is asserted by a Rust test that runs every
+    time.
+  - The two malformed canaries above mean the committed corpus understates what
+    tier 1 detects. Left that way on purpose; see the note.
 
 ---
 

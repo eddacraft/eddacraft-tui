@@ -6,6 +6,7 @@ pub mod patterns;
 pub mod scanner;
 pub(crate) mod source;
 pub mod types;
+pub mod vendored;
 
 pub use check::{MAX_FILE_SIZE, is_secret_scannable, run_secret_check};
 pub use entropy::{
@@ -24,4 +25,8 @@ pub use scanner::{
 pub use types::{
     AllowlistProvenance, EntropyFinding, FindingType, SecretCheckConfig, SecretCheckResult,
     SecretFinding, SecretPatternDef, Suppression, TokenShape,
+};
+pub use vendored::{
+    VENDORED_COMPILED_PATTERNS, VENDORED_RULESET, VENDORED_RULESET_VERSION, VendoredRule,
+    VendoredRuleset,
 };

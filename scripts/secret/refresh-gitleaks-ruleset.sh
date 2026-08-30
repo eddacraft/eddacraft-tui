@@ -1,0 +1,231 @@
+#!/usr/bin/env bash
+# ADR-136 §5 — refresh the vendored gitleaks tier-1 ruleset.
+#
+# Follows the repository idiom for generated artefacts (`expand-licences.sh`,
+# `generate-acknowledgements.sh`): regenerate in place by default, verify in
+# `--check` mode.
+#
+#   refresh-gitleaks-ruleset.sh                regenerate from the current pin
+#   refresh-gitleaks-ruleset.sh --check        verify committed data, exit 1 on drift
+#   refresh-gitleaks-ruleset.sh --upgrade TAG  move the pin to TAG, then regenerate
+#
+# A vendored asset with no refresh procedure is stale within a year, and stale
+# detection rules are worse than absent ones because they are trusted.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+VENDOR_DIR="${REPO_ROOT}/crates/anvil-checks/src/secret/vendor/gitleaks"
+PIN_FILE="${VENDOR_DIR}/PIN.toml"
+MEMBERSHIP="${VENDOR_DIR}/tier1-rules.txt"
+DATA_FILE="${VENDOR_DIR}/tier1.json"
+PROVENANCE="${VENDOR_DIR}/PROVENANCE.md"
+LICENCE_FILE="${VENDOR_DIR}/LICENSE"
+CONVERTER="${SCRIPT_DIR}/convert-gitleaks-rules.py"
+
+MODE="regenerate"
+UPGRADE_TAG=""
+SKIP_CALIBRATE="${ANVIL_SKIP_CALIBRATE:-0}"
+
+usage() {
+  sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --check) MODE="check"; shift ;;
+    --upgrade)
+      [ "$#" -ge 2 ] || { echo "error: --upgrade needs a tag (e.g. --upgrade v8.30.1)" >&2; exit 2; }
+      MODE="upgrade"; UPGRADE_TAG="$2"; shift 2 ;;
+    --no-calibrate) SKIP_CALIBRATE=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+for tool in curl python3 sha256sum; do
+  command -v "${tool}" >/dev/null 2>&1 || { echo "error: '${tool}' is required" >&2; exit 2; }
+done
+
+pin_value() {
+  python3 - "$1" <<'PY'
+import sys, tomllib, pathlib
+key = sys.argv[1]
+pin = tomllib.loads(pathlib.Path(__import__("os").environ["PIN_FILE"]).read_text(encoding="utf-8"))
+print(pin[key])
+PY
+}
+export PIN_FILE
+
+REPO_URL="$(pin_value repo)"
+SOURCE_PATH="$(pin_value source_path)"
+
+# --upgrade is the ONLY path that moves the pin, so a version bump is an
+# explicit, reviewable act rather than a side effect of running the refresh.
+if [ "${MODE}" = "upgrade" ]; then
+  echo "==> resolving ${REPO_URL} tag ${UPGRADE_TAG}"
+  slug="${REPO_URL#https://github.com/}"
+  ref_json="$(curl -fsSL --max-time 60 "https://api.github.com/repos/${slug}/git/ref/tags/${UPGRADE_TAG}")"
+  new_commit="$(printf '%s' "${ref_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["sha"])')"
+  tmp_upgrade="$(mktemp)"
+  curl -fsSL --max-time 120 -o "${tmp_upgrade}" \
+    "https://raw.githubusercontent.com/${slug}/${new_commit}/${SOURCE_PATH}"
+  new_digest="$(sha256sum "${tmp_upgrade}" | cut -d' ' -f1)"
+  rm -f "${tmp_upgrade}"
+  python3 - "${UPGRADE_TAG}" "${new_commit}" "${new_digest}" <<'PY'
+import os, pathlib, re, sys
+tag, commit, digest = sys.argv[1:4]
+path = pathlib.Path(os.environ["PIN_FILE"])
+text = path.read_text(encoding="utf-8")
+for key, value in (("tag", tag), ("commit", commit), ("sha256", digest)):
+    text = re.sub(rf'(?m)^{key} = ".*"$', f'{key} = "{value}"', text)
+path.write_text(text, encoding="utf-8")
+PY
+  echo "==> pin moved to ${UPGRADE_TAG} (${new_commit})"
+  MODE="regenerate"
+fi
+
+TAG="$(pin_value tag)"
+COMMIT="$(pin_value commit)"
+EXPECTED_SHA="$(pin_value sha256)"
+SLUG="${REPO_URL#https://github.com/}"
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
+
+echo "==> fetching ${SLUG}@${COMMIT}:${SOURCE_PATH}"
+curl -fsSL --max-time 120 -o "${WORK}/gitleaks.toml" \
+  "https://raw.githubusercontent.com/${SLUG}/${COMMIT}/${SOURCE_PATH}"
+
+ACTUAL_SHA="$(sha256sum "${WORK}/gitleaks.toml" | cut -d' ' -f1)"
+if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+  cat >&2 <<EOF
+error: upstream ruleset digest mismatch — ABORTING.
+  pinned commit : ${COMMIT}
+  expected sha256: ${EXPECTED_SHA}
+  actual   sha256: ${ACTUAL_SHA}
+The content at the pinned commit changed underneath the pin. Do not "fix" this
+by pasting the new digest: establish why the immutable content moved first.
+EOF
+  exit 1
+fi
+echo "==> digest verified (${EXPECTED_SHA})"
+
+curl -fsSL --max-time 60 -o "${WORK}/LICENSE" \
+  "https://raw.githubusercontent.com/${SLUG}/${COMMIT}/LICENSE"
+
+python3 "${CONVERTER}" \
+  --source "${WORK}/gitleaks.toml" \
+  --membership "${MEMBERSHIP}" \
+  --pin "${PIN_FILE}" \
+  --out "${WORK}/tier1.json"
+
+RULE_COUNT="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["rule_count"])' "${WORK}/tier1.json")"
+RETRIEVED="$(date -u +%Y-%m-%d)"
+
+# `--check` must not report drift merely because the clock moved, so the
+# retrieval date is carried over from the committed file when verifying.
+if [ "${MODE}" = "check" ] && [ -f "${PROVENANCE}" ]; then
+  RETRIEVED="$(sed -n 's/^- \*\*Retrieved:\*\* \(.*\)$/\1/p' "${PROVENANCE}" | head -n1)"
+  [ -n "${RETRIEVED}" ] || RETRIEVED="$(date -u +%Y-%m-%d)"
+fi
+
+cat > "${WORK}/PROVENANCE.md" <<EOF
+# Vendored gitleaks ruleset — provenance
+
+<!-- GENERATED by scripts/secret/refresh-gitleaks-ruleset.sh — do not hand-edit. -->
+
+Anvil vendors detection **knowledge as data** from the gitleaks ruleset and
+compiles it into its own scanner (ADR-136 §1). No third-party engine, binary, or
+runtime enters the product.
+
+A list rather than a table on purpose: a table's column widths change with the
+tag and rule count, which would make the formatter rewrite this generated file
+and put \`--check\` permanently at odds with \`pnpm format:check\`.
+
+- **Upstream:** ${REPO_URL}
+- **Release tag:** ${TAG}
+- **Commit:** \`${COMMIT}\`
+- **Source file:** \`${SOURCE_PATH}\`
+- **SHA-256:**
+  \`${EXPECTED_SHA}\`
+- **Retrieved:** ${RETRIEVED}
+- **Licence:** MIT (see \`LICENSE\` beside this file)
+- **Tier:** 1 — high-confidence, prefix-anchored provider rules
+- **Rules vendored:** ${RULE_COUNT}
+
+## What "tier 1" means
+
+A tier-1 rule matches a credential carrying a literal, provider-specific prefix,
+so a match **is** the credential rather than a guess about one. That is why
+tier-1 rules compile with \`high_confidence: true\` and are therefore exempt from
+the fuzzy false-positive filters (the \`example\`/\`test\` keyword allowlist and
+\`looks_like_code\`) that exist for hand-written, keyword-driven regexes.
+
+Generic and entropy-adjacent rules are **not** here. They are where
+false-positive volume lives and they are a later tier with its own measurement.
+
+Anvil's allowlist and suppression layer applies to these rules exactly as it
+does to built-ins: shape-anchored allowlist entries and any operator
+\`custom_allowlist\` entry still suppress a vendored match, and the suppression is
+recorded with \`AllowlistProvenance\` like any other.
+
+## Refreshing
+
+\`\`\`bash
+scripts/secret/refresh-gitleaks-ruleset.sh            # regenerate from the pin
+scripts/secret/refresh-gitleaks-ruleset.sh --check    # verify, non-zero on drift
+scripts/secret/refresh-gitleaks-ruleset.sh --upgrade v8.31.0
+\`\`\`
+
+\`--upgrade\` is the only path that moves the pin. Every refresh runs
+\`pnpm secret:calibrate\`, so no ruleset change lands unmeasured against the
+SDT-002 corpus.
+
+## Attribution
+
+The \`## Thanks\` section of \`ACKNOWLEDGEMENTS.md\` carries the gitleaks entry. It
+is **hand-curated**: \`ACKNOWLEDGEMENTS.md\` generates from dependency manifests,
+and a vendored data file is a dependency of neither, so no generated gate will
+ever notice the entry going missing (ADR-136 §5).
+EOF
+
+if [ "${MODE}" = "check" ]; then
+  status=0
+  for pair in "tier1.json:${DATA_FILE}" "PROVENANCE.md:${PROVENANCE}" "LICENSE:${LICENCE_FILE}"; do
+    name="${pair%%:*}"; committed="${pair#*:}"
+    if [ ! -f "${committed}" ]; then
+      echo "error: ${committed} is missing" >&2
+      status=1
+      continue
+    fi
+    if ! diff -u "${committed}" "${WORK}/${name}" >/dev/null 2>&1; then
+      echo "error: ${committed} has drifted from the pinned upstream:" >&2
+      diff -u "${committed}" "${WORK}/${name}" >&2 || true
+      status=1
+    fi
+  done
+  if [ "${status}" -ne 0 ]; then
+    echo "" >&2
+    echo "Run scripts/secret/refresh-gitleaks-ruleset.sh and commit the result." >&2
+    exit 1
+  fi
+  echo "==> vendored ruleset matches the pinned upstream"
+  exit 0
+fi
+
+cp "${WORK}/tier1.json" "${DATA_FILE}"
+cp "${WORK}/PROVENANCE.md" "${PROVENANCE}"
+cp "${WORK}/LICENSE" "${LICENCE_FILE}"
+echo "==> wrote ${RULE_COUNT} tier-1 rule(s) to ${DATA_FILE#"${REPO_ROOT}/"}"
+
+if [ "${SKIP_CALIBRATE}" = "1" ]; then
+  echo "==> skipping pnpm secret:calibrate (ANVIL_SKIP_CALIBRATE=1)"
+  exit 0
+fi
+
+# ADR-136 §5: no ruleset change lands unmeasured.
+echo "==> running pnpm secret:calibrate"
+cd "${REPO_ROOT}"
+pnpm secret:calibrate

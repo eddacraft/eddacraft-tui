@@ -82,6 +82,7 @@ fn scan_lockfile_url_credentials_over_source(
                     matcher.redact_range_in_line(line, range.start, range.end),
                     range.start,
                     range.end,
+                    None,
                 ));
                 if findings.len() == limit {
                     return ControlFlow::Break(());
@@ -694,6 +695,7 @@ pub fn scan_content_with_limit_and_stats(
 /// once per file. Use this from any flow that calls the scanner in a
 /// loop or in parallel.
 ///
+#[allow(clippy::too_many_arguments)] // one flat constructor for a flat struct
 fn pattern_finding(
     file_path: &str,
     line_number: usize,
@@ -702,8 +704,10 @@ fn pattern_finding(
     redacted_line: String,
     match_start: usize,
     match_end: usize,
+    ruleset_version: Option<String>,
 ) -> SecretFinding {
     SecretFinding {
+        ruleset_version,
         file: file_path.to_string(),
         line: line_number,
         finding_type: FindingType::Pattern,
@@ -827,8 +831,7 @@ fn scan_source_with_compiled_patterns(
 
             let mut line_matches: Vec<(&CompiledPattern, std::ops::Range<usize>)> = Vec::new();
             for pattern in patterns_iter() {
-                for matched_range in pattern.regex.find_iter(line) {
-                    let range = matched_range.range();
+                for range in pattern.match_ranges(line) {
                     if skip_and_record(&mut stats, &matcher, pattern, file_path, window, &range) {
                         continue;
                     }
@@ -850,6 +853,7 @@ fn scan_source_with_compiled_patterns(
                     matcher.redact_range_in_line(line, range.start, range.end),
                     range.start,
                     range.end,
+                    pattern.ruleset_version.clone(),
                 ));
                 if findings.len() == limit {
                     limit_reached = true;
@@ -885,14 +889,14 @@ fn scan_source_with_compiled_patterns(
                     return false;
                 }
                 patterns_iter().all(|pattern| {
-                    pattern.regex.find_iter(line).all(|matched_range| {
+                    pattern.match_ranges(line).all(|range| {
                         should_skip_pattern_match(
                             pattern,
                             &matcher,
                             file_path,
                             window,
-                            matched_range.start(),
-                            matched_range.end(),
+                            range.start,
+                            range.end,
                         )
                     })
                 })

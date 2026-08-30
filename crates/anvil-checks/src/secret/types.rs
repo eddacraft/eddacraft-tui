@@ -135,6 +135,17 @@ pub struct SecretFinding {
     /// triage without seeing the raw token (e.g. `"path"` vs `"opaque"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub token_shape: Option<TokenShape>,
+    /// SDT-004: the vendored ruleset version that produced this finding
+    /// (e.g. `"gitleaks@v8.30.1 tier1"`), or `None` for a built-in rule or the
+    /// entropy heuristic.
+    ///
+    /// Required by the governing work item: "ruleset version appears in finding
+    /// provenance". Without it a vendored detection is indistinguishable from a
+    /// built-in one, so a reader triaging a finding cannot tell which catalogue
+    /// version to blame — or re-check after a refresh. `serde(default)` keeps
+    /// the field backward-compatible with pre-SDT-004 wire consumers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ruleset_version: Option<String>,
 }
 
 /// Coarse, non-secret token classification for machine-readable triage.
@@ -159,6 +170,7 @@ impl Default for SecretFinding {
             match_start: None,
             match_end: None,
             token_shape: None,
+            ruleset_version: None,
         }
     }
 }

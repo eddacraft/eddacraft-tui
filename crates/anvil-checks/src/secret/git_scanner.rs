@@ -86,10 +86,13 @@ fn line_pattern_matches<'p>(
         .iter()
         .chain(custom_patterns.iter())
     {
-        let Some(match_result) = pattern.regex.find(line_content) else {
+        // SDT-004: goes through `first_match_range` so a vendored rule reports
+        // the credential, not the delimiter or provider-keyword gate upstream
+        // wraps around it.
+        let Some(match_range) = pattern.first_match_range(line_content) else {
             continue;
         };
-        let matched_value = match_result.as_str();
+        let matched_value = &line_content[match_range.clone()];
         let allowlisted = if pattern.high_confidence {
             matcher.is_shape_or_custom_allowlisted(matched_value)
         } else {
@@ -98,7 +101,7 @@ fn line_pattern_matches<'p>(
         if allowlisted {
             continue;
         }
-        line_matches.push((pattern, match_result.range()));
+        line_matches.push((pattern, match_range));
     }
     line_matches
 }
@@ -152,6 +155,7 @@ fn findings_for_added_line(
                 match_start: None,
                 match_end: None,
                 token_shape: None,
+                ruleset_version: finding.ruleset_version,
             })
             .collect();
     }
@@ -200,6 +204,7 @@ fn findings_for_added_line(
             match_start: None,
             match_end: None,
             token_shape: None,
+            ruleset_version: pattern.ruleset_version.clone(),
         });
     }
     findings

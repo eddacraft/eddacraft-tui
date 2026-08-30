@@ -84,6 +84,12 @@ jobs:
       # regeneration only fire when something the dependency graph cares
       # about actually moved. Pure crate source changes do not flip it.
       rust-deps-changed: ${{ steps.filter.outputs.rust-deps }}
+      # SDT-004 / ADR-136 §5: the vendored secret ruleset is a generated
+      # artefact derived from a digest-verified upstream pin. `--check`
+      # re-derives it and fails on drift, so it only needs to fire on the paths
+      # that could make it drift — and it costs a network fetch, so it must not
+      # fire on every Rust change.
+      secret-ruleset-changed: ${{ steps.filter.outputs.secret-ruleset }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -115,6 +121,28 @@ jobs:
               # that exists to validate it.
               - 'attribution/**'
               - 'tools/starters/acknowledgements/**'
+            secret-ruleset:
+              - 'crates/anvil-checks/src/secret/vendor/**'
+              - 'scripts/secret/**'
+              - '.github/workflows/rust.yml'
+
+  secret-ruleset-drift:
+    name: Vendored secret ruleset
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    needs: [detect-rust-changes]
+    if: needs.detect-rust-changes.outputs.secret-ruleset-changed == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # ADR-136 §5: re-derives the vendored ruleset from the pinned upstream
+      # commit, verifies the SHA-256, and diffs against the committed data — so
+      # a hand-edited vendored rule fails CI instead of quietly diverging from
+      # upstream. `--no-calibrate` because the corpus run is the `Test` job's
+      # work, not this one's; the offline half of the contract (pin/membership
+      # consistency) is asserted by `secret_vendored_tier1.rs` on every run.
+      - name: Verify the vendored ruleset matches its pin
+        run: bash scripts/secret/refresh-gitleaks-ruleset.sh --check --no-calibrate
 
   nxrust-smoke:
     name: nxrust Smoke

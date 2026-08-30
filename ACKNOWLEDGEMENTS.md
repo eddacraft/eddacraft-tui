@@ -141,6 +141,28 @@ compiled at build time; it retains its original licence.
 
 [tree-sitter-wasm]: https://github.com/wasm-lsp/tree-sitter-wasm
 
+### Vendored detection rules
+
+Anvil vendors secret-detection **knowledge as data** and compiles it into its
+own scanner. No third-party detection engine, binary, or runtime enters the
+product (ADR-136).
+
+- [gitleaks][gitleaks] — MIT. Anvil's `secret-detection` check carries a
+  hand-selected, high-confidence tier of the gitleaks ruleset, converted from
+  the upstream config at a digest-verified pin and stored at
+  `crates/anvil-checks/src/secret/vendor/gitleaks/` with the upstream `LICENSE`
+  and a `PROVENANCE.md` recording tag, commit, retrieval date and SHA-256.
+  Regenerate or verify with `scripts/secret/refresh-gitleaks-ruleset.sh`
+  (`--check` fails on drift). The regexes are taken **verbatim**; the engine,
+  the allowlist tiers, and the suppression provenance around them are Anvil's.
+
+This entry is **hand-curated, and no generated gate will keep it honest**:
+`ACKNOWLEDGEMENTS.md` is generated from dependency manifests, and a vendored
+data file is a dependency of neither `cargo-about` nor `license-checker`, so it
+appears in neither auto-generated block below (ADR-136 §5).
+
+[gitleaks]: https://github.com/gitleaks/gitleaks
+
 ---
 
 <!-- THIRD-PARTY ATTRIBUTION -->

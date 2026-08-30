@@ -182,6 +182,8 @@ pub(crate) fn detect_high_entropy_strings_over_source(
                 match_start: Some(match_start),
                 match_end: Some(match_end),
                 token_shape: Some(crate::secret::types::TokenShape::Opaque),
+                // The entropy heuristic is Anvil's own, not a vendored rule.
+                ruleset_version: None,
             });
             if findings.len() == limit {
                 return ControlFlow::Break(());

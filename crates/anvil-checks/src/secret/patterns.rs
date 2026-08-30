@@ -206,6 +206,70 @@ pub struct CompiledPattern {
     /// hand-written regex is structurally unambiguous, so it keeps the
     /// safer fuzzy filters in place.
     pub high_confidence: bool,
+    /// SDT-004: which capture group holds the credential, for vendored rules
+    /// whose upstream regex wraps the secret in delimiter or provider-keyword
+    /// scaffolding. `None` — the case for every built-in and every operator
+    /// pattern — means the whole match is the credential.
+    ///
+    /// Narrowing here rather than rewriting the upstream regex is what lets the
+    /// vendored rules be taken **verbatim**: upstream's matching semantics are
+    /// preserved exactly, while the span Anvil reports and redacts is the
+    /// credential and not the trailing quote around it.
+    pub secret_group: Option<usize>,
+    /// SDT-004: the vendored ruleset this rule came from
+    /// (e.g. `gitleaks@v8.30.1 tier1`), carried into finding provenance so a
+    /// reader can tell a vendored detection from a built-in one and knows which
+    /// ruleset version produced it. `None` for built-ins and operator patterns.
+    pub ruleset_version: Option<String>,
+}
+
+/// Iterator over the credential spans a pattern finds in a line.
+///
+/// Two arms rather than a boxed iterator: the scanner walks every pattern over
+/// every line, so a per-(pattern, line) heap allocation would be paid millions
+/// of times on a repository scan. `find_iter` stays the path for the common
+/// no-capture-group case; `captures_iter` is used only where a rule declares a
+/// `secret_group`.
+pub enum MatchRanges<'r, 'h> {
+    Whole(regex::Matches<'r, 'h>),
+    Group(usize, regex::CaptureMatches<'r, 'h>),
+}
+
+impl Iterator for MatchRanges<'_, '_> {
+    type Item = std::ops::Range<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            MatchRanges::Whole(matches) => matches.next().map(|m| m.range()),
+            MatchRanges::Group(group, captures) => loop {
+                let capture = captures.next()?;
+                // A declared group that did not participate means the rule
+                // matched through an alternation that skips it. Reporting the
+                // whole match instead would silently widen the span, so the
+                // match is dropped rather than guessed at.
+                if let Some(matched) = capture.get(*group) {
+                    return Some(matched.range());
+                }
+            },
+        }
+    }
+}
+
+impl CompiledPattern {
+    /// Every credential span this pattern finds in `haystack`, honouring
+    /// [`CompiledPattern::secret_group`].
+    pub fn match_ranges<'r, 'h>(&'r self, haystack: &'h str) -> MatchRanges<'r, 'h> {
+        match self.secret_group {
+            None => MatchRanges::Whole(self.regex.find_iter(haystack)),
+            Some(group) => MatchRanges::Group(group, self.regex.captures_iter(haystack)),
+        }
+    }
+
+    /// The first credential span this pattern finds in `haystack`, for callers
+    /// that only need one match per value (the env-surface and history scans).
+    pub fn first_match_range(&self, haystack: &str) -> Option<std::ops::Range<usize>> {
+        self.match_ranges(haystack).next()
+    }
 }
 
 static QUOTED_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
@@ -219,17 +283,28 @@ static BARE_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[A-Za-z0-9_./+=:@%-]{16,}").expect("bare redaction pattern is valid")
 });
 
-/// Built-in secret patterns compiled once per process. Sharing the compiled
-/// regex set across parallel scan workers avoids recompiling 18 patterns per
-/// file, which was a measurable waste of CPU in the discovery scan.
+/// The repo-owned secret patterns compiled once per process: the
+/// [`SECRET_PATTERNS`] built-ins **followed by the vendored tier-1 ruleset**
+/// (SDT-004). Sharing the compiled regex set across parallel scan workers
+/// avoids recompiling every pattern per file, which was a measurable waste of
+/// CPU in the discovery scan.
 ///
-/// Built-in patterns are repo-owned constants — if one fails to compile, that
-/// is a developer bug, not a runtime condition to recover from. We panic on
-/// access (caught by every test that exercises the secret scanner) so a bad
+/// Vendored rules live here rather than behind a separate seam so that every
+/// surface which already consults this set — the file scan, the git-history
+/// scan, the env-surface scan and the MCP pre-write redactor — gains them
+/// together, and so ADR-136 §1's "Anvil's allowlist and suppression layer
+/// applies to vendored rules exactly as it does to built-ins" is true by
+/// construction rather than by four separate call sites remembering to be
+/// consistent. Operator `custom_patterns` are still a distinct, later set: they
+/// are fuzzy by default (see [`compile_custom_patterns`]).
+///
+/// Both halves are repo-owned constants — if one fails to compile, that is a
+/// developer or refresh bug, not a runtime condition to recover from. We panic
+/// on access (caught by every test that exercises the secret scanner) so a bad
 /// regex is a loud CI failure instead of a silent reduction in detection
 /// coverage.
 pub static DEFAULT_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock::new(|| {
-    SECRET_PATTERNS
+    let mut compiled: Vec<CompiledPattern> = SECRET_PATTERNS
         .iter()
         .map(|pattern| {
             let regex = Regex::new(pattern.pattern).unwrap_or_else(|err| {
@@ -242,9 +317,23 @@ pub static DEFAULT_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock:
                 name: pattern.name.to_string(),
                 regex,
                 high_confidence: pattern.high_confidence,
+                secret_group: None,
+                ruleset_version: None,
             }
         })
-        .collect()
+        .collect();
+    compiled.extend(
+        crate::secret::vendored::VENDORED_COMPILED_PATTERNS
+            .iter()
+            .map(|pattern| CompiledPattern {
+                name: pattern.name.clone(),
+                regex: pattern.regex.clone(),
+                high_confidence: pattern.high_confidence,
+                secret_group: pattern.secret_group,
+                ruleset_version: pattern.ruleset_version.clone(),
+            }),
+    );
+    compiled
 });
 
 /// Compile the combined built-in + user-supplied secret patterns.
@@ -265,6 +354,8 @@ pub fn compile_secret_patterns(
             name: p.name.clone(),
             regex: p.regex.clone(),
             high_confidence: p.high_confidence,
+            secret_group: p.secret_group,
+            ruleset_version: p.ruleset_version.clone(),
         })
         .collect();
     let (custom, errors) = compile_custom_patterns(custom_patterns);
@@ -295,7 +386,17 @@ pub fn compile_custom_patterns(
                 // the scanner cannot know whether a hand-written regex is
                 // structurally unambiguous, so the full FP filter stack
                 // (keyword allowlist, `looks_like_code`) keeps running.
+                //
+                // SDT-004 deliberately did NOT add a confidence field to
+                // `SecretPatternDef` to relax this: that type is
+                // `Serialize`/`Deserialize` and operator-facing, so the field
+                // would become a config switch for opting out of the
+                // false-positive filters with no provenance behind the claim.
+                // Vendored rules are repo-owned constants and take the built-in
+                // path instead — see `crate::secret::vendored`.
                 high_confidence: false,
+                secret_group: None,
+                ruleset_version: None,
             }),
             Err(err) => errors.push(format!(
                 "custom secret pattern '{}' failed to compile: {err}",
@@ -493,11 +594,65 @@ mod tests {
     };
 
     #[test]
-    fn every_builtin_pattern_compiles() {
-        // Force LazyLock initialisation. Any invalid built-in pattern panics
-        // with the offending pattern name; running this in CI guarantees a
-        // bad regex is caught loudly, not silently dropped from the scan set.
-        assert_eq!(DEFAULT_COMPILED_PATTERNS.len(), SECRET_PATTERNS.len());
+    fn every_builtin_and_vendored_pattern_compiles() {
+        // Force LazyLock initialisation. Any invalid pattern panics with the
+        // offending pattern name; running this in CI guarantees a bad regex is
+        // caught loudly, not silently dropped from the scan set.
+        assert_eq!(
+            DEFAULT_COMPILED_PATTERNS.len(),
+            SECRET_PATTERNS.len() + crate::secret::vendored::VENDORED_COMPILED_PATTERNS.len(),
+            "the shared catalogue is the built-ins followed by the vendored tier-1 ruleset"
+        );
+    }
+
+    #[test]
+    fn vendored_rules_are_appended_after_the_builtins() {
+        // Order is load-bearing for CIB-063 overlap resolution and for the
+        // stable finding order tests elsewhere assert on.
+        for (index, builtin) in SECRET_PATTERNS.iter().enumerate() {
+            assert_eq!(DEFAULT_COMPILED_PATTERNS[index].name, builtin.name);
+        }
+        let vendored: Vec<&str> = DEFAULT_COMPILED_PATTERNS[SECRET_PATTERNS.len()..]
+            .iter()
+            .map(|pattern| pattern.name.as_str())
+            .collect();
+        assert!(
+            vendored.contains(&"gitlab-pat"),
+            "vendored tail should carry upstream rule ids, got {vendored:?}"
+        );
+        assert!(
+            DEFAULT_COMPILED_PATTERNS[SECRET_PATTERNS.len()..]
+                .iter()
+                .all(|pattern| pattern.ruleset_version.is_some()),
+            "every vendored rule carries its ruleset version into provenance"
+        );
+        assert!(
+            DEFAULT_COMPILED_PATTERNS[..SECRET_PATTERNS.len()]
+                .iter()
+                .all(|pattern| pattern.ruleset_version.is_none()),
+            "built-ins are not attributed to a vendored ruleset"
+        );
+    }
+
+    #[test]
+    fn secret_group_narrows_the_reported_span() {
+        // A vendored rule whose upstream regex wraps the credential in
+        // delimiter scaffolding must report the credential, not the wrapper.
+        let compiled = &*DEFAULT_COMPILED_PATTERNS;
+        let rule = compiled
+            .iter()
+            .find(|pattern| pattern.name == "digitalocean-pat")
+            .expect("digitalocean-pat is vendored in tier 1");
+        assert_eq!(rule.secret_group, Some(1));
+        let token = format!("dop_v1_{}", "0".repeat(64));
+        let line = format!("DIGITALOCEAN_TOKEN='{token}';");
+        let range = rule
+            .first_match_range(&line)
+            .expect("the vendored rule fires");
+        assert_eq!(
+            &line[range], token,
+            "reported span must be the credential, without the trailing quote"
+        );
     }
 
     #[test]
