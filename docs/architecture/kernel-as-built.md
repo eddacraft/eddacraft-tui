@@ -11,7 +11,9 @@
 > **Compatibility record:** current kernel implementation truth now lives in
 > [`crates/anvil-kernel/ARCHITECTURE.md`](../../crates/anvil-kernel/ARCHITECTURE.md),
 > with contributor discovery in
-> [`crates/anvil-kernel/README.md`](../../crates/anvil-kernel/README.md).
+> [`crates/anvil-kernel/README.md`](../../crates/anvil-kernel/README.md). Graph
+> internals live in
+> [`crates/anvil-graph-cache/ARCHITECTURE.md`](../../crates/anvil-graph-cache/ARCHITECTURE.md).
 > Cross-system graph and policy relationships remain in the
 > [Rust architecture overview](rust-architecture-overview.md),
 > [quality model](quality-model.md), and

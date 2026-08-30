@@ -105,6 +105,7 @@ tooling) · `.claude/` `.opencode/` `.codex/` (agent config) · `infra/` (Pulumi
 | If you want to…                     | Go to                                                                                                          |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Start work / check status           | [`plans/index.aps.md`](plans/index.aps.md)                                                                     |
+| Understand the semantic graph       | [`crates/anvil-graph-cache/ARCHITECTURE.md`](crates/anvil-graph-cache/ARCHITECTURE.md)                         |
 | Know the workflow & commit rules    | [`AGENTS.md`](AGENTS.md)                                                                                       |
 | Locate system containers/components | [`docs/architecture/overview.md`](docs/architecture/overview.md)                                               |
 | Understand Rust layout/layering     | [`docs/architecture/rust-architecture-overview.md`](docs/architecture/rust-architecture-overview.md)           |

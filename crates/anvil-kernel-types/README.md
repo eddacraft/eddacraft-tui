@@ -7,7 +7,9 @@ cross-surface contracts.
 
 - **`events`** — kernel event types (file changes, parse results, policy
   violations)
-- **`graph`** — graph node and edge type definitions
+- **`graph`** — graph node and edge type definitions; the resident graph lives
+  in
+  [`../anvil-graph-cache/ARCHITECTURE.md`](../anvil-graph-cache/ARCHITECTURE.md)
 - **`trust`** — trust level enums and scoring
 - **`diagnostics`** — the canonical `anvil.diagnostic.v1` envelope (see below)
 - **`conformance`** — the canonical `anvil.intent-conformance.v1` input and

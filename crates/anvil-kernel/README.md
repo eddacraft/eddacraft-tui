@@ -1,8 +1,8 @@
 # anvil kernel
 
-| Type   | Authority     | Owner | Status | Freshness                                                                                         |
-| ------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------- |
-| README | Authoritative | KERN  | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/lib.rs`, `src/watch.rs`, and `ARCHITECTURE.md` |
+| Type   | Authority     | Owner | Status | Freshness                                                                                                        |
+| ------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | KERN  | Live   | Last reviewed 2026-08-29 against graph-cache component docs, `src/lib.rs`, `src/watch.rs`, and `ARCHITECTURE.md` |
 
 | Upstream                                                                              | Downstream                                             |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------ |
@@ -11,8 +11,9 @@
 The anvil kernel coordinates source watching, parsing, semantic graph updates,
 policy evaluation, and protocol events. KERN owns this component. Graph storage
 and resolution live behind the `anvil-graph-cache` boundary established by
-ADR-064; this crate owns orchestration rather than a second graph
-implementation.
+ADR-064 — see [`../anvil-graph-cache/README.md`](../anvil-graph-cache/README.md)
+and its [architecture](../anvil-graph-cache/ARCHITECTURE.md). This crate owns
+orchestration rather than a second graph implementation.
 
 ## Entry points
 

@@ -1,8 +1,8 @@
 # anvil kernel architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                      |
-| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | KERN  | Live   | Last reviewed 2026-08-25 against FLAGCAT-013 flag-linkage fields; watch, parser, and policy topology unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                 |
+| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | KERN  | Live   | Last reviewed 2026-08-29 against graph-cache component docs; watch, parser, and policy topology unchanged |
 
 | Upstream                                                                              | Downstream                                            |
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------- |
@@ -35,11 +35,12 @@ flowchart LR
 ```
 
 The nodes trace to [`watcher/`](src/watcher), [`watch.rs`](src/watch.rs),
-[`parser/`](src/parser), the [`anvil-graph-cache` crate](../anvil-graph-cache),
-and [`protocol/`](src/protocol). In prose: a watcher event selects a changed
-source file; the parser extracts symbols; the graph applies and resolves the
-change; the policy engine evaluates that delta; the protocol emitter publishes a
-finding or updated snapshot.
+[`parser/`](src/parser), the
+[graph-cache architecture](../anvil-graph-cache/ARCHITECTURE.md), and
+[`protocol/`](src/protocol). In prose: a watcher event selects a changed source
+file; the parser extracts symbols; the graph applies and resolves the change;
+the policy engine evaluates that delta; the protocol emitter publishes a finding
+or updated snapshot.
 
 ## Runtime shapes and source map
 
@@ -68,10 +69,10 @@ policy vocabulary:
 
 The semantic graph is deliberately a sibling component. The kernel re-exports
 `anvil_graph_cache` as `graph`, while
-[`anvil-graph-cache`](../anvil-graph-cache) owns graph mutation, dependency
-resolution, trust annotation, bounded certification, hot reads, overlays,
-composition, persistence snapshots, and the multi-workspace registry. The
-cross-component shape is described by the
+[the graph-cache architecture](../anvil-graph-cache/ARCHITECTURE.md) owns graph
+mutation, dependency resolution, trust annotation, bounded certification, hot
+reads, overlays, composition, persistence snapshots, and the multi-workspace
+registry. The cross-component shape is described by the
 [Rust architecture overview](../../docs/architecture/rust-architecture-overview.md);
 save-time graph use belongs to the
 [intercept architecture](../anvil-intercept/ARCHITECTURE.md).
@@ -88,7 +89,7 @@ save-time graph use belongs to the
 - Graph-cache trust annotations are resolved before policy evaluation. Callers
   must not infer trust from a parse result alone.
 
-The wider graph and policy relationships remain linked from the
-[kernel as-built](../../docs/architecture/kernel-as-built.md). Diagram authority
-and placement are governed by
+Graph internals live in the
+[graph-cache architecture](../anvil-graph-cache/ARCHITECTURE.md). Diagram
+authority and placement are governed by
 [ADR-123](../../plans/decisions/123-documentation-authority-and-diagram-model.md).

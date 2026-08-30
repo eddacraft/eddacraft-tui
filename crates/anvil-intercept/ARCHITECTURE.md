@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                            |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-28 against PR #4194's test-only `src/egress_consent.rs` platform-temporary-path fixture; egress, save-time, and peer-admission topology and diagrams unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                      |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-29 to link resident graph internals to `crates/anvil-graph-cache/ARCHITECTURE.md`; egress, save-time, and peer-admission topology and diagrams unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -140,7 +140,8 @@ failures and unattributed or unregistered changes independently request fences.
 - [`assurance.rs`](src/assurance.rs), [`kernel_cache.rs`](src/kernel_cache.rs),
   and [`graph_base_warm_start.rs`](src/graph_base_warm_start.rs) own graph
   assurance and warm state; stale or missing assurance is reported rather than
-  silently upgraded.
+  silently upgraded. Resident graph internals live in
+  [`../anvil-graph-cache/ARCHITECTURE.md`](../anvil-graph-cache/ARCHITECTURE.md).
 - [`registration_store.rs`](src/registration_store.rs),
   [`registry.rs`](src/registry.rs), and [`status.rs`](src/status.rs) own
   session/workspace registration and operator-visible state.

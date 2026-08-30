@@ -1,8 +1,8 @@
 # Rust Architecture — Full Overview
 
-| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                               |
-| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Derived   | KERN  | Live   | Module-map status refresh 2026-08-05 (KERN/RENG/RATS/PORT/RSTLAN all Complete/archived). Crate-layout + dependency tables regenerated 2026-07-02 against main `d1fded280` (35 workspace crates, 15-language registry). Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                 |
+| ----- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | KERN  | Live   | Last reviewed 2026-08-29 for graph-cache component-doc pointer and overlay/compose/rebase modules. Module-map status refresh 2026-08-05 (KERN/RENG/RATS/PORT/RSTLAN all Complete/archived). Crate-layout + dependency tables regenerated 2026-07-02 against main `d1fded280` (35 workspace crates, 15-language registry). |
 
 | Upstream                                                                     | Downstream                                 |
 | ---------------------------------------------------------------------------- | ------------------------------------------ |
@@ -11,7 +11,10 @@
 > Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN (all Complete and
 > archived under `plans/archive/modules/`), the superseded TUI module, and
 > supporting architecture documents. This is a crate-layout reference — not a
-> plan. Shipping component detail lives in the matching `*-as-built.md` docs.
+> plan. Shipping component detail lives in component-root `ARCHITECTURE.md`
+> files; deprecated central `*-as-built.md` records are discovery and history
+> only. Graph internals live in
+> [`crates/anvil-graph-cache/ARCHITECTURE.md`](../../crates/anvil-graph-cache/ARCHITECTURE.md).
 
 ## Executive Summary
 
@@ -66,7 +69,9 @@ crates/
   anvil-kernel-types/               # Shared wire types: events, graph nodes, trust, diagnostics
   anvil-graph-cache/                # Parser-free semantic graph + save-time cache (ADR-064):
                                     #   SymbolGraph/DependencyGraph, incremental, trust, certify,
-                                    #   hot_index, call_graph, registry, snapshot, tokens
+                                    #   hot_index, call_graph, registry, snapshot, overlay,
+                                    #   compose, rebase, tokens
+                                    #   Internals: crates/anvil-graph-cache/ARCHITECTURE.md
   anvil-grammar-wat/                # Vendored WebAssembly-text tree-sitter grammar (LTW2-002, ADR-093)
   anvil-rayon-init/                 # Shared rayon global-pool cap (half cores, VS Code coexistence)
 

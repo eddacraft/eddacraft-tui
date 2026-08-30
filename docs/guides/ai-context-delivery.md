@@ -1,12 +1,12 @@
 # AI Context Delivery
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                         |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-06-26 against `docs/architecture/graph-context-delivery-spec.md` and the live MCP tool surface |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                 |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-08-29 against `crates/anvil-graph-cache/ARCHITECTURE.md` and the live MCP tool surface |
 
-| Upstream                                                                                              | Downstream                                                         |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `docs/architecture/graph-context-delivery-spec.md`, `plans/decisions/083-gctx-mcp-delivery-target.md` | `docs/public/anvil/integrations/mcp.md`, assistant/MCP integrators |
+| Upstream                                                                                                                                          | Downstream                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `docs/architecture/graph-context-delivery-spec.md`, `plans/decisions/083-gctx-mcp-delivery-target.md`, `crates/anvil-graph-cache/ARCHITECTURE.md` | `docs/public/anvil/integrations/mcp.md`, assistant/MCP integrators |
 
 ## Overview
 
@@ -15,6 +15,8 @@ resources that let an AI assistant (Claude Code, Cursor) query a map of your
 codebase — symbols, dependencies, callers, and the blast radius of a change —
 instead of blindly reading whole files. The graph is built and kept warm by the
 `anvil-intercept` daemon; the MCP server projects identity-only answers from it.
+How that graph is stored and what it answers is documented in
+[`crates/anvil-graph-cache/ARCHITECTURE.md`](../../crates/anvil-graph-cache/ARCHITECTURE.md).
 
 This context is **optional and advisory**. It never changes your code and never
 blocks an action. If you are looking for the gate that validates a write before

@@ -1,8 +1,8 @@
 # Graph v2 Foundation — Architecture Spec
 
-| Type | Authority | Owner                                                                                                              | Status | Freshness                                                                                                                                                                                                                                                                            |
-| ---- | --------- | ------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Spec | Derived   | GV2 ([`plans/archive/modules/graph-v2-foundation.aps.md`](../../plans/archive/modules/graph-v2-foundation.aps.md)) | Live   | Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Control/session + plan/provenance graph contracts added 2026-06-13 (GV2-013/GV2-014; G-05/G-02 contract-defined). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
+| Type | Authority | Owner                                                                                                              | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                            |
+| ---- | --------- | ------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Spec | Derived   | GV2 ([`plans/archive/modules/graph-v2-foundation.aps.md`](../../plans/archive/modules/graph-v2-foundation.aps.md)) | Live   | Last reviewed 2026-08-29 to point implementation at `crates/anvil-graph-cache/ARCHITECTURE.md`. Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Control/session + plan/provenance graph contracts added 2026-06-13 (GV2-013/GV2-014; G-05/G-02 contract-defined). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
 
 | Upstream                                                                                                                                                                                                                                                                                                                         | Downstream                                                                                                                                              |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -49,14 +49,17 @@ persistence/derivability invariants.
 ## Substrate status (orientation)
 
 Graph v2 is **not** green-field. The semantic + dependency layer shipped as the
-Sub-phase A backing and lives in `crates/anvil-graph-cache/` (ADR-064). This
-spec describes the target end-state; the table below marks how far each piece is
-from it so a reader knows what is design vs reality. As of 2026-07-02 the GV2
-module is **21/21 Done** ([`plans/index.aps.md`](../../plans/index.aps.md)): the
-registry + query traits landed in `crates/anvil-graph-cache/src/registry.rs`
-(GV2-020, #2622), so every substrate row below has now shipped — only the
-`eddacraft-kindling` Rust provenance read surface (an _implementation_ of the
-GV2-014 resolution step, not a contract gap) remains proposed.
+Sub-phase A backing and lives in `crates/anvil-graph-cache/` (ADR-064). The live
+implementation map is
+[`crates/anvil-graph-cache/ARCHITECTURE.md`](../../crates/anvil-graph-cache/ARCHITECTURE.md);
+this spec remains the joined-graph taxonomy and contract spine. The table below
+marks how far each piece is from the end-state so a reader knows what is design
+vs reality. As of 2026-07-02 the GV2 module is **21/21 Done**
+([`plans/index.aps.md`](../../plans/index.aps.md)): the registry + query traits
+landed in `crates/anvil-graph-cache/src/registry.rs` (GV2-020, #2622), so every
+substrate row below has now shipped — only the `eddacraft-kindling` Rust
+provenance read surface (an _implementation_ of the GV2-014 resolution step, not
+a contract gap) remains proposed.
 
 | Layer                                   | Where it lives today                                                                                                                                 | State                                                                                    |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |

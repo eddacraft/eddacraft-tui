@@ -1,8 +1,8 @@
 # Architecture Documentation
 
-| Type   | Authority | Owner | Status | Freshness                                                                                                 |
-| ------ | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-25 for FLAGCAT-012 documentation-governance freshness; architecture index unchanged |
+| Type   | Authority | Owner | Status | Freshness                                                                                                                                |
+| ------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-29 to point kernel discovery at `crates/anvil-graph-cache/ARCHITECTURE.md`; architecture index otherwise unchanged |
 
 | Upstream                                                                  | Downstream                      |
 | ------------------------------------------------------------------------- | ------------------------------- |
@@ -54,8 +54,9 @@ create a component-root `README.md` and, when its internals warrant it,
 - [Checks pipeline](checks-as-built.md) — `anvil-checks` registry, rule
   families, suppressions, language-profile gating, baseline
 - [Kernel compatibility record](kernel-as-built.md) — shipped internals moved to
-  `crates/anvil-kernel/ARCHITECTURE.md`; historical design intent remains in
-  `rust-kernel-spec.md`
+  `crates/anvil-kernel/ARCHITECTURE.md`; graph internals live in
+  `crates/anvil-graph-cache/ARCHITECTURE.md`; historical design intent remains
+  in `rust-kernel-spec.md`
 - [TUI compatibility records](tui-as-built.md), [widgets](widgets-as-built.md),
   [tutorial](tutorial-as-built.md), and [CLI runner](cli-tui-runner-as-built.md)
   — local authority lives in `crates/anvil-tui/ARCHITECTURE.md`,
