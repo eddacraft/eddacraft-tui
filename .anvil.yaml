@@ -1,0 +1,8 @@
+version: 1
+checks:
+  - secret-detection
+  - antipattern-scan
+  - lint
+  - coverage
+thresholds:
+  overall_score: 80

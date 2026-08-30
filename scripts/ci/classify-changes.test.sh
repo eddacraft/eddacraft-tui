@@ -270,6 +270,19 @@ assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("markdo
 assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("unit-tests") == null' 'agent skill allowlist does NOT require unit tests'
 assert_json_contains "${agent_skill_allowlist}" '.requiredChecks | index("typecheck") == null' 'agent skill allowlist does NOT require typecheck'
 
+# Tracked anvil project config is dogfood metadata, not compiled source.
+# Keep it out of `unknown` so filing `.anvil.yaml` does not force typecheck.
+project_config=$(run_case project-config .anvil.yaml)
+assert_json_contains "${project_config}" '.pathClasses | index("project-config")' 'tracked .anvil.yaml routes to project-config class'
+assert_json_contains "${project_config}" '.pathClasses | index("unknown") == null' 'tracked .anvil.yaml does NOT fall through to unknown'
+assert_json_contains "${project_config}" '.requiredChecks | index("format")' 'tracked .anvil.yaml requires format'
+assert_json_contains "${project_config}" '.requiredChecks | index("typecheck") == null' 'tracked .anvil.yaml does NOT require typecheck'
+assert_json_contains "${project_config}" '.requiredChecks | index("unit-tests") == null' 'tracked .anvil.yaml does NOT require unit tests'
+
+legacy_rc=$(run_case legacy-anvilrc .anvilrc)
+assert_json_contains "${legacy_rc}" '.pathClasses | index("project-config")' 'legacy .anvilrc routes to project-config class'
+assert_json_contains "${legacy_rc}" '.pathClasses | index("unknown") == null' 'legacy .anvilrc does NOT fall through to unknown'
+
 # CIB-335: the compiled pattern registry parity gate lives as a step in the
 # `Unit Tests` job (ci.yml), so it only runs when `unit-tests` is required.
 # Both surfaces that can break parity must therefore keep mapping to

@@ -229,6 +229,17 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # Tracked anvil project config (canonical `.anvil.yaml` plus legacy `.anvilrc`).
+  # Not compiled source; keep it out of `unknown` so dogfood config PRs do not
+  # force the full Node matrix. oxfmt formats YAML, so require format.
+  case "${path}" in
+    .anvil.yaml | .anvil.yml | .anvil.json | .anvil.toml | .anvilrc)
+      add_unique path_classes 'project-config'
+      add_unique risk_classes 'tooling'
+      matched=true
+      ;;
+  esac
+
   case "${path}" in
     scripts/*.sh | scripts/**/*.sh)
       add_unique path_classes 'shell'
@@ -391,6 +402,9 @@ for path_class in "${path_classes[@]}"; do
     repo-metadata)
       # Metadata-only changes are reviewed through the surrounding class.
       # They do not require build, test, or format gates by themselves.
+      ;;
+    project-config)
+      add_unique required_checks 'format'
       ;;
     toolchain-contract)
       # Only the fixture that compares `engines` with CONTRIBUTING (DEVENV-010).
