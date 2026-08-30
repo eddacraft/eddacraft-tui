@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for the listing/default-on product rule, the FLAGCAT listed-implies-on check, and the first hide slice | FLAGCAT / CLI | Accepted | 2026-08-30 — listed boolean + flag-derived on/off |
+| Spec | Authoritative for the listing/default-on product rule, the FLAGCAT listed-implies-on check, and the first hide slice | [FLAGCAT](../modules/feature-flag-catalogue.aps.md) / CLI | Accepted | 2026-08-30 — listed boolean + flag-derived on/off |
 
 | Upstream | Downstream |
 | -------- | ---------- |
