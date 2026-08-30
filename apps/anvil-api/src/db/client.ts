@@ -8,11 +8,13 @@ export type NeonClient = ReturnType<typeof neon>;
 
 let _client: NeonClient | null = null;
 
+// Vercel + Node Happy Eyeballs can black-hole Neon IPv6 and fail the
+// HTTP fetch at ~750ms (`ETIMEDOUT` / `internalConnectMultiple`). Prefer
+// A records so the serverless driver reaches Neon over IPv4. Process-global;
+// set once at module load, not on every getClient() call.
+setDefaultResultOrder('ipv4first');
+
 export function getClient(): NeonClient {
-  // Vercel + Node Happy Eyeballs can black-hole Neon IPv6 and fail the
-  // HTTP fetch at ~750ms (`ETIMEDOUT` / `internalConnectMultiple`). Prefer
-  // A records so the serverless driver reaches Neon over IPv4.
-  setDefaultResultOrder('ipv4first');
   if (!_client) {
     const url = process.env['DATABASE_URL'];
     if (!url) {
