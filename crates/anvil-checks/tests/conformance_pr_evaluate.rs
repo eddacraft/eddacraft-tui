@@ -1,3 +1,4 @@
+use anvil_checks::conformance::evaluate::evaluate_pr_declaration_bounded;
 use anvil_checks::conformance::{
     GitBudgetDiagnostics, GitCoverageMember, GitEvaluationIdentity, GitFootprintCommitEvidence,
     GitFootprintCommitExtraction, GitFootprintExtraction, GitNonEvaluation, PrBodyContractParts,
@@ -7,6 +8,7 @@ use anvil_kernel_types::{
     ConformanceOutcome, ConformanceVerdict, EvaluationBinding, EvidenceDisposition, EvidenceGrade,
     EvidenceStrength, GitChangeStatus, GitObjectType,
 };
+use std::time::Duration;
 
 #[test]
 fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
@@ -369,6 +371,41 @@ fn graph_semantic_pr_claim_stays_not_evaluated_without_bound_graph_evidence() {
             .verdict
             .reasons
             .contains(&"binding.graph-missing".into())
+    );
+}
+
+#[test]
+fn evaluation_honours_the_extraction_run_deadline() {
+    let declaration = docs_declaration();
+    let identity = GitEvaluationIdentity::from_unverified_parts_with_run_timeout(
+        "run-pr-timeout",
+        "repo-01",
+        "worktree-01",
+        Duration::ZERO,
+    )
+    .expect("fixture identity");
+    let base = "a".repeat(40);
+    let head = "c".repeat(40);
+    let extraction = GitFootprintExtraction {
+        base_revision: base.clone(),
+        head_revision: head.clone(),
+        commits: vec![evaluated_commit(
+            "c",
+            "docs/guide.md",
+            &identity,
+            &base,
+            &head,
+        )],
+    };
+
+    let failure = evaluate_pr_declaration_bounded(&declaration, &extraction, &identity)
+        .expect_err("expired caller-owned deadline must fail honestly");
+
+    assert_eq!(failure.reason, "budget.run-timeout");
+    assert_eq!(failure.stage, "evaluation");
+    assert_eq!(
+        failure.budget.expect("timeout diagnostics").commits,
+        Some(1)
     );
 }
 

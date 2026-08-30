@@ -117,6 +117,19 @@ pub fn evaluate_pr_declaration(
     evaluation
 }
 
+/// Evaluate one complete PR declaration while preserving the extraction run deadline.
+pub fn evaluate_pr_declaration_bounded(
+    declaration: &PrBodyContractParts,
+    extraction: &GitFootprintExtraction,
+    identity: &GitEvaluationIdentity,
+) -> Result<ConformanceEvaluation, super::git::GitNonEvaluation> {
+    let selected_commits = extraction.commits.len();
+    identity.check_run_budget("evaluation", selected_commits)?;
+    let evaluation = evaluate_pr_declaration(declaration, extraction, identity);
+    identity.check_run_budget("evaluation", selected_commits)?;
+    Ok(evaluation)
+}
+
 /// Retain every per-commit extraction failure without unsafe diagnostic detail.
 #[must_use]
 pub fn pr_git_footprint_non_evaluations(

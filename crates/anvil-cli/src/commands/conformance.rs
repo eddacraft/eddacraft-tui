@@ -2,14 +2,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
+use anvil_checks::conformance::evaluate::evaluate_pr_declaration_bounded;
 use anvil_checks::conformance::{
     ConformanceEvaluation, GitBudgetDiagnostics, GitCommitNonEvaluation, GitExtractor,
     GitFootprintExtractionOutcome, GitNonEvaluation, GitSelection, PR_BODY_MAX_BYTES,
-    evaluate_pr_declaration, extract_pr_body_claims, pr_git_footprint_failures,
-    pr_git_footprint_non_evaluations,
+    extract_pr_body_claims, pr_git_footprint_failures, pr_git_footprint_non_evaluations,
 };
 use anvil_kernel_types::{ConformanceOutcome, ConformanceVerdict, EvidenceGrade, EvidenceStrength};
 use anyhow::{Context, Result};
@@ -22,6 +23,8 @@ use crate::output::sarif;
 const REPORT_SCHEMA: &str = "anvil.conformance-check.v1";
 const PR_BODY_OVER_BUDGET_REASON: &str = "claim.pr-body.budget.body-bytes";
 const PR_BODY_INVALID_UTF8_REASON: &str = "claim.pr-body.encoding.invalid-utf8";
+const RUN_TIMEOUT: Duration = Duration::from_mins(5);
+const REPORT_MAX_BYTES: usize = 128 * 1024 * 1024;
 
 #[derive(Debug)]
 enum PrBodyInput {
@@ -125,6 +128,8 @@ struct GitCommitNonEvaluationReport {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConformanceCheckReport {
+    #[serde(skip)]
+    selected_commit_count: Option<usize>,
     schema_version: &'static str,
     advisory: bool,
     outcome: ConformanceOutcome,
@@ -141,7 +146,19 @@ struct ConformanceCheckReport {
 
 impl ConformanceCheckReport {
     fn not_evaluated_with_git_failure(reasons: Vec<String>, git_failure: GitNonEvaluation) -> Self {
+        let selected_commit_count = matches!(
+            git_failure.stage,
+            "range-aggregation" | "evaluation" | "report-materialisation"
+        )
+        .then(|| {
+            git_failure
+                .budget
+                .as_deref()
+                .and_then(|budget| budget.commits)
+        })
+        .flatten();
         Self {
+            selected_commit_count,
             schema_version: REPORT_SCHEMA,
             advisory: true,
             outcome: ConformanceOutcome::NotEvaluated,
@@ -150,7 +167,7 @@ impl ConformanceCheckReport {
             resolved_base: None,
             resolved_head: None,
             reasons,
-            not_evaluated_commit_count: None,
+            not_evaluated_commit_count: selected_commit_count,
             git_evaluation_non_evaluation: Some(git_failure.into()),
             git_non_evaluations: Vec::new(),
             verdict: None,
@@ -163,6 +180,7 @@ impl ConformanceCheckReport {
     ) -> Self {
         let not_evaluated_commit_count = git_non_evaluations.len();
         Self {
+            selected_commit_count: None,
             schema_version: REPORT_SCHEMA,
             advisory: true,
             outcome: ConformanceOutcome::NotEvaluated,
@@ -185,15 +203,17 @@ impl ConformanceCheckReport {
         reasons: Vec<String>,
         resolved_base: String,
         resolved_head: String,
+        selected_commit_count: usize,
         git_non_evaluations: Vec<GitCommitNonEvaluation>,
     ) -> Self {
         let mut report = Self::not_evaluated_with_failures(reasons, git_non_evaluations);
         report.resolved_base = Some(resolved_base);
         report.resolved_head = Some(resolved_head);
+        report.selected_commit_count = Some(selected_commit_count);
         report
     }
 
-    fn from_evaluation(evaluation: ConformanceEvaluation) -> Self {
+    fn from_evaluation(evaluation: ConformanceEvaluation, selected_commit_count: usize) -> Self {
         let ConformanceEvaluation {
             verdict,
             git_non_evaluations,
@@ -201,6 +221,7 @@ impl ConformanceCheckReport {
         } = evaluation;
         let not_evaluated_commit_count = git_non_evaluations.len();
         Self {
+            selected_commit_count: Some(selected_commit_count),
             schema_version: REPORT_SCHEMA,
             advisory: true,
             outcome: verdict.outcome,
@@ -271,6 +292,7 @@ pub fn run(args: &ConformanceArgs, global: &GlobalArgs) -> Result<()> {
 }
 
 fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
+    let run_started = Instant::now();
     let declaration = match read_pr_body(&args.pr_body_file)? {
         PrBodyInput::Body(body) => extract_pr_body_claims(&args.source_ref, &body)
             .into_contract_parts()
@@ -281,7 +303,8 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         std::env::current_dir().context("resolve conformance repository entry path")?;
     let extractor = GitExtractor::default();
     let run_id = format!("conformance-{}", uuid::Uuid::new_v4());
-    let git_evidence = match extractor.identity_for_repository(&repository, run_id) {
+    let git_evidence = match extractor.identity_for_repository_at(&repository, run_id, run_started)
+    {
         Err(failure) => Err(failure),
         Ok(identity) => match extractor.extract_footprint(
             &repository,
@@ -297,14 +320,27 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     };
     let report = match (declaration, git_evidence) {
         (Ok(declaration), Ok((identity, extraction))) => {
-            let evaluation = evaluate_pr_declaration(&declaration, &extraction, &identity);
-            ConformanceCheckReport::from_evaluation(evaluation)
+            match evaluate_pr_declaration_bounded(&declaration, &extraction, &identity) {
+                Ok(evaluation) => {
+                    ConformanceCheckReport::from_evaluation(evaluation, extraction.commits.len())
+                }
+                Err(failure) => {
+                    let mut report = ConformanceCheckReport::not_evaluated_with_git_failure(
+                        vec![failure.reason.to_owned()],
+                        failure,
+                    );
+                    report.resolved_base = Some(extraction.base_revision);
+                    report.resolved_head = Some(extraction.head_revision);
+                    report
+                }
+            }
         }
         (Ok(_), Err(git_failure)) => ConformanceCheckReport::not_evaluated_with_git_failure(
             vec![git_failure.reason.to_owned()],
             git_failure,
         ),
         (Err(non_evaluation), Ok((identity, extraction))) => {
+            let selected_commit_count = extraction.commits.len();
             let git_non_evaluations = pr_git_footprint_non_evaluations(&extraction, &identity);
             let mut reasons: Vec<String> = non_evaluation
                 .iter()
@@ -317,6 +353,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 reasons,
                 extraction.base_revision,
                 extraction.head_revision,
+                selected_commit_count,
                 git_non_evaluations,
             )
         }
@@ -332,7 +369,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         }
     };
 
-    render_report(&report, args.render_mode(global))
+    render_report(&report, args.render_mode(global), run_started, RUN_TIMEOUT)
 }
 
 fn read_pr_body(path: &PathBuf) -> Result<PrBodyInput> {
@@ -361,47 +398,203 @@ fn read_pr_body(path: &PathBuf) -> Result<PrBodyInput> {
     ))
 }
 
-fn render_report(report: &ConformanceCheckReport, mode: RenderMode) -> Result<()> {
-    match mode {
-        RenderMode::Plain => render_plain(report),
-        RenderMode::Json => println!("{}", serde_json::to_string(report)?),
-        RenderMode::Sarif => println!("{}", serde_json::to_string(&build_sarif(report))?),
-    }
-    Ok(())
+fn render_report(
+    report: &ConformanceCheckReport,
+    mode: RenderMode,
+    run_started: Instant,
+    run_timeout: Duration,
+) -> Result<()> {
+    let bytes =
+        materialise_report_with_limit(report, mode, REPORT_MAX_BYTES, run_started, run_timeout)?;
+    io::stdout()
+        .lock()
+        .write_all(&bytes)
+        .context("write conformance report")
 }
 
-fn render_plain(report: &ConformanceCheckReport) {
-    println!("Conformance check: {}", outcome_label(report.outcome));
-    println!("Advisory: yes");
-    println!("Declaration evidence grade: weak");
-    println!(
+fn materialise_report_with_limit(
+    report: &ConformanceCheckReport,
+    mode: RenderMode,
+    max_bytes: usize,
+    run_started: Instant,
+    run_timeout: Duration,
+) -> Result<Vec<u8>> {
+    let failure = if run_started.elapsed() >= run_timeout {
+        Some(report_budget_failure(
+            "budget.run-timeout",
+            "report-materialisation",
+            duration_millis(run_started.elapsed()),
+            duration_millis(run_timeout),
+            report.selected_commit_count,
+        ))
+    } else {
+        match materialise_report_once(report, mode, max_bytes)? {
+            Some(bytes) if run_started.elapsed() < run_timeout => return Ok(bytes),
+            Some(_) => Some(report_budget_failure(
+                "budget.run-timeout",
+                "report-materialisation",
+                duration_millis(run_started.elapsed()),
+                duration_millis(run_timeout),
+                report.selected_commit_count,
+            )),
+            None => Some(report_budget_failure(
+                "budget.report-bytes",
+                "report-materialisation",
+                max_bytes.saturating_add(1),
+                max_bytes,
+                report.selected_commit_count,
+            )),
+        }
+    };
+    let failure = failure.expect("materialisation failure selected");
+    let mut fallback = ConformanceCheckReport::not_evaluated_with_git_failure(
+        vec![failure.reason.to_owned()],
+        failure,
+    );
+    fallback.resolved_base.clone_from(&report.resolved_base);
+    fallback.resolved_head.clone_from(&report.resolved_head);
+    materialise_report_once(&fallback, mode, max_bytes)?.ok_or_else(|| {
+        anyhow::anyhow!("bounded conformance fallback exceeds its materialisation limit")
+    })
+}
+
+fn materialise_report_once(
+    report: &ConformanceCheckReport,
+    mode: RenderMode,
+    max_bytes: usize,
+) -> Result<Option<Vec<u8>>> {
+    let mut output = CappedBuffer::new(max_bytes);
+    let result = match mode {
+        RenderMode::Plain => render_plain(&mut output, report).map_err(anyhow::Error::from),
+        RenderMode::Json => serde_json::to_writer(&mut output, report).map_err(anyhow::Error::from),
+        RenderMode::Sarif => {
+            serde_json::to_writer(&mut output, &build_sarif(report)).map_err(anyhow::Error::from)
+        }
+    };
+    if output.exceeded {
+        return Ok(None);
+    }
+    result?;
+    if let Err(error) = output.write_all(b"\n") {
+        if output.exceeded {
+            return Ok(None);
+        }
+        return Err(error.into());
+    }
+    Ok(Some(output.bytes))
+}
+
+struct CappedBuffer {
+    bytes: Vec<u8>,
+    limit: usize,
+    exceeded: bool,
+}
+
+impl CappedBuffer {
+    fn new(limit: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(limit.min(64 * 1024)),
+            limit,
+            exceeded: false,
+        }
+    }
+}
+
+impl Write for CappedBuffer {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if bytes.len() > self.limit.saturating_sub(self.bytes.len()) {
+            self.exceeded = true;
+            return Err(io::Error::new(
+                io::ErrorKind::FileTooLarge,
+                "conformance report materialisation limit exceeded",
+            ));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn report_budget_failure(
+    reason: &'static str,
+    stage: &'static str,
+    observed: usize,
+    limit: usize,
+    commits: Option<usize>,
+) -> GitNonEvaluation {
+    GitNonEvaluation {
+        commit_revision: None,
+        reason,
+        stage,
+        observed,
+        limit: Some(limit),
+        detail: "bounded report materialisation failed".into(),
+        raw_digest: None,
+        budget: Some(Box::new(GitBudgetDiagnostics {
+            configured_limit: limit,
+            elapsed_millis: (reason == "budget.run-timeout").then_some(observed),
+            commits,
+            records: None,
+            rename_sources: None,
+            rename_targets: None,
+            raw_bytes: None,
+            decoded_bytes: None,
+            raw_output_digest: None,
+        })),
+    }
+}
+
+fn duration_millis(duration: Duration) -> usize {
+    usize::try_from(duration.as_millis()).unwrap_or(usize::MAX)
+}
+
+fn render_plain(output: &mut impl Write, report: &ConformanceCheckReport) -> io::Result<()> {
+    writeln!(
+        output,
+        "Conformance check: {}",
+        outcome_label(report.outcome)
+    )?;
+    writeln!(output, "Advisory: yes")?;
+    writeln!(output, "Declaration evidence grade: weak")?;
+    writeln!(
+        output,
         "Evidence strength: {}",
         evidence_strength_label(report.evidence_strength)
-    );
+    )?;
     if let Some(base) = &report.resolved_base {
-        println!("Resolved base: {base}");
+        writeln!(output, "Resolved base: {base}")?;
     }
     if let Some(head) = &report.resolved_head {
-        println!("Resolved head: {head}");
+        writeln!(output, "Resolved head: {head}")?;
     }
-    println!(
+    writeln!(
+        output,
         "Not-evaluated commits: {}",
         report
             .not_evaluated_commit_count
             .map_or_else(|| "unknown".to_owned(), |count| count.to_string())
-    );
+    )?;
     if let Some(failure) = &report.git_evaluation_non_evaluation {
-        println!(
+        writeln!(
+            output,
             "Git evaluation non-evaluation: {}",
             render_git_non_evaluation(failure)
-        );
+        )?;
     }
     for failure in &report.git_non_evaluations {
-        println!("Git non-evaluation: {}", render_git_non_evaluation(failure));
+        writeln!(
+            output,
+            "Git non-evaluation: {}",
+            render_git_non_evaluation(failure)
+        )?;
     }
     for reason in &report.reasons {
-        println!("Reason: {reason}");
+        writeln!(output, "Reason: {reason}")?;
     }
+    Ok(())
 }
 
 fn build_sarif(report: &ConformanceCheckReport) -> sarif::SarifLog {
@@ -680,11 +873,13 @@ fn evidence_strength_label(strength: EvidenceStrength) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use anvil_checks::conformance::{
         GitBudgetDiagnostics, GitCommitNonEvaluation, GitNonEvaluation,
     };
 
-    use super::{ConformanceCheckReport, build_sarif};
+    use super::{ConformanceCheckReport, RenderMode, build_sarif, materialise_report_with_limit};
 
     #[test]
     fn json_report_retains_safe_budget_diagnostics_without_raw_detail() {
@@ -789,6 +984,104 @@ mod tests {
         assert!(message.contains("budget.commits=10001"));
         assert!(message.contains("budget.raw-bytes=410000"));
         assert!(!message.contains("must not be reported"));
+    }
+
+    #[test]
+    fn resolved_range_budget_failure_keeps_exact_selected_cardinality() {
+        let failure = GitNonEvaluation {
+            commit_revision: Some("c".repeat(40).into_boxed_str()),
+            reason: "budget.evaluation-records",
+            stage: "range-aggregation",
+            observed: 100_001,
+            limit: Some(100_000),
+            detail: "must not be reported".into(),
+            raw_digest: None,
+            budget: Some(Box::new(GitBudgetDiagnostics {
+                configured_limit: 100_000,
+                elapsed_millis: None,
+                commits: Some(17),
+                records: Some(100_001),
+                rename_sources: None,
+                rename_targets: None,
+                raw_bytes: None,
+                decoded_bytes: None,
+                raw_output_digest: None,
+            })),
+        };
+        let report = ConformanceCheckReport::not_evaluated_with_git_failure(
+            vec!["budget.evaluation-records".to_owned()],
+            failure,
+        );
+
+        let json = serde_json::to_value(report).expect("serialise range budget report");
+        assert_eq!(json["notEvaluatedCommitCount"], 17);
+        assert_eq!(
+            json["gitEvaluationNonEvaluation"]["stage"],
+            "range-aggregation"
+        );
+        assert_eq!(
+            json["gitEvaluationNonEvaluation"]["budget"]["records"],
+            100_001
+        );
+        assert!(!json.to_string().contains("must not be reported"));
+    }
+
+    #[test]
+    fn all_renderers_replace_oversized_or_timed_out_reports_atomically() {
+        let failures = (0..64)
+            .map(|index| GitCommitNonEvaluation {
+                commit_revision: Some(format!("{index:040x}").into_boxed_str()),
+                reason: "budget.records",
+                stage: "diff",
+                observed: 101,
+                limit: Some(100),
+                raw_digest: None,
+                budget: None,
+            })
+            .collect();
+        let mut report = ConformanceCheckReport::not_evaluated_with_failures(
+            vec!["x".repeat(8 * 1024)],
+            failures,
+        );
+        report.selected_commit_count = Some(64);
+
+        for mode in [RenderMode::Plain, RenderMode::Json, RenderMode::Sarif] {
+            let bytes = materialise_report_with_limit(
+                &report,
+                mode,
+                8 * 1024,
+                Instant::now(),
+                Duration::from_secs(1),
+            )
+            .expect("small fallback report");
+            let rendered = String::from_utf8(bytes).expect("UTF-8 output");
+            assert!(rendered.contains("budget.report-bytes"));
+            assert!(!rendered.contains(&"x".repeat(8 * 1024)));
+            if mode == RenderMode::Json {
+                let json: serde_json::Value = serde_json::from_str(&rendered).expect("one JSON");
+                assert_eq!(json["notEvaluatedCommitCount"], 64);
+                assert_eq!(
+                    json["gitEvaluationNonEvaluation"]["reason"],
+                    "budget.report-bytes"
+                );
+                assert_eq!(json["gitNonEvaluations"], serde_json::json!([]));
+            }
+        }
+
+        let timeout = materialise_report_with_limit(
+            &report,
+            RenderMode::Json,
+            128 * 1024 * 1024,
+            Instant::now(),
+            Duration::ZERO,
+        )
+        .expect("small timeout fallback");
+        let json: serde_json::Value = serde_json::from_slice(&timeout).expect("one JSON fallback");
+        assert_eq!(
+            json["gitEvaluationNonEvaluation"]["reason"],
+            "budget.run-timeout"
+        );
+        assert_eq!(json["notEvaluatedCommitCount"], 64);
     }
 
     #[test]

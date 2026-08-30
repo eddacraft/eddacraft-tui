@@ -921,6 +921,102 @@ fn deterministic_extraction_budgets_are_reason_coded_and_keep_the_commit() {
 }
 
 #[test]
+fn whole_range_record_budget_is_top_level_and_keeps_exact_selected_cardinality() {
+    let repo = repository();
+    let base = commit_file(
+        repo.path(),
+        "docs/base.md",
+        "base\n",
+        "docs(path:docs): add base",
+    );
+    commit_file(
+        repo.path(),
+        "docs/one.md",
+        "one\n",
+        "docs(path:docs): add one",
+    );
+    let head = commit_file(
+        repo.path(),
+        "docs/two.md",
+        "two\n",
+        "docs(path:docs): add two",
+    );
+    let extractor = GitExtractor::with_limits(GitExtractionLimits {
+        max_records_per_evaluation: 1,
+        ..GitExtractionLimits::default()
+    });
+
+    let outcome = extractor.extract_footprint(
+        repo.path(),
+        GitSelection::Range {
+            base,
+            head: head.clone(),
+        },
+        &identity(repo.path()),
+    );
+
+    let GitFootprintExtractionOutcome::NotEvaluated(failure) = outcome else {
+        panic!("whole-range record budget must discard accumulated evidence: {outcome:?}");
+    };
+    assert_eq!(failure.reason, "budget.evaluation-records");
+    assert_eq!(failure.stage, "range-aggregation");
+    assert_eq!(failure.observed, 2);
+    assert_eq!(failure.limit, Some(1));
+    assert_eq!(failure.commit_revision.as_deref(), Some(head.as_str()));
+    let budget = failure.budget.expect("whole-range budget diagnostics");
+    assert_eq!(budget.commits, Some(2));
+    assert_eq!(budget.records, Some(2));
+}
+
+#[test]
+fn whole_range_byte_budgets_are_top_level_and_reason_coded() {
+    let repo = repository();
+    commit_file(
+        repo.path(),
+        "docs/one.md",
+        "one\n",
+        "docs(path:docs): add one",
+    );
+
+    for (limits, expected_reason, counter) in [
+        (
+            GitExtractionLimits {
+                max_raw_bytes_per_evaluation: 0,
+                ..GitExtractionLimits::default()
+            },
+            "budget.evaluation-raw-bytes",
+            "raw",
+        ),
+        (
+            GitExtractionLimits {
+                max_decoded_bytes_per_evaluation: 0,
+                ..GitExtractionLimits::default()
+            },
+            "budget.evaluation-decoded-bytes",
+            "decoded",
+        ),
+    ] {
+        let outcome = GitExtractor::with_limits(limits).extract_footprint(
+            repo.path(),
+            GitSelection::Commit("HEAD".to_owned()),
+            &identity(repo.path()),
+        );
+        let GitFootprintExtractionOutcome::NotEvaluated(failure) = outcome else {
+            panic!("whole-range {counter}-byte budget must fail: {outcome:?}");
+        };
+        assert_eq!(failure.reason, expected_reason);
+        assert_eq!(failure.stage, "range-aggregation");
+        let budget = failure.budget.expect("whole-range budget diagnostics");
+        assert_eq!(budget.commits, Some(1));
+        match counter {
+            "raw" => assert!(budget.raw_bytes.is_some_and(|bytes| bytes > 0)),
+            "decoded" => assert!(budget.decoded_bytes.is_some_and(|bytes| bytes > 0)),
+            _ => unreachable!("closed counter fixture"),
+        }
+    }
+}
+
+#[test]
 fn elapsed_time_budgets_are_reason_coded() {
     let repo = repository();
     commit_file(repo.path(), "docs/one.md", "one\n", "docs: add one");

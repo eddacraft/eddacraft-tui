@@ -33,6 +33,9 @@ pub struct GitExtractionLimits {
     pub max_records_per_commit: usize,
     pub max_raw_bytes_per_commit: usize,
     pub max_decoded_bytes_per_commit: usize,
+    pub max_records_per_evaluation: usize,
+    pub max_raw_bytes_per_evaluation: usize,
+    pub max_decoded_bytes_per_evaluation: usize,
     pub max_rename_sources: usize,
     pub max_rename_targets: usize,
     pub git_timeout: Duration,
@@ -46,6 +49,9 @@ impl Default for GitExtractionLimits {
             max_records_per_commit: 100_000,
             max_raw_bytes_per_commit: 64 * 1024 * 1024,
             max_decoded_bytes_per_commit: 64 * 1024 * 1024,
+            max_records_per_evaluation: 100_000,
+            max_raw_bytes_per_evaluation: 64 * 1024 * 1024,
+            max_decoded_bytes_per_evaluation: 64 * 1024 * 1024,
             max_rename_sources: 1_000,
             max_rename_targets: 1_000,
             git_timeout: Duration::from_secs(30),
@@ -69,6 +75,7 @@ pub struct GitEvaluationIdentity {
     pub canonical_worktree_id: String,
     /// Monotonic start retained by the caller across all stages of this evaluation run.
     pub run_started: Instant,
+    run_timeout: Duration,
     administrative_state: Arc<EmptyGlobalConfig>,
 }
 
@@ -79,13 +86,52 @@ impl GitEvaluationIdentity {
         repository_id: impl Into<String>,
         canonical_worktree_id: impl Into<String>,
     ) -> Result<Self, GitNonEvaluation> {
+        Self::from_unverified_parts_with_run_timeout(
+            run_id,
+            repository_id,
+            canonical_worktree_id,
+            GitExtractionLimits::default().run_timeout,
+        )
+    }
+
+    /// Construct an unverified identity with an explicit caller-owned run timeout.
+    pub fn from_unverified_parts_with_run_timeout(
+        run_id: impl Into<String>,
+        repository_id: impl Into<String>,
+        canonical_worktree_id: impl Into<String>,
+        run_timeout: Duration,
+    ) -> Result<Self, GitNonEvaluation> {
         Ok(Self {
             run_id: run_id.into(),
             repository_id: repository_id.into(),
             canonical_worktree_id: canonical_worktree_id.into(),
             run_started: Instant::now(),
+            run_timeout,
             administrative_state: Arc::new(EmptyGlobalConfig::create()?),
         })
+    }
+
+    /// Check the shared monotonic deadline at a non-Git evaluation stage.
+    pub fn check_run_budget(
+        &self,
+        stage: &'static str,
+        selected_commits: usize,
+    ) -> Result<(), GitNonEvaluation> {
+        if self.run_started.elapsed() < self.run_timeout {
+            return Ok(());
+        }
+        let mut failure = over_budget(
+            "budget.run-timeout",
+            stage,
+            duration_millis(self.run_started.elapsed()),
+            duration_millis(self.run_timeout),
+        );
+        failure
+            .budget
+            .as_mut()
+            .expect("timeout budget diagnostics")
+            .commits = Some(selected_commits);
+        Err(failure)
     }
 }
 
@@ -207,8 +253,24 @@ struct ExtractedCoverage {
     decoded_path_bytes: usize,
     raw_digest: String,
     raw_bytes: usize,
+    evaluation_raw_bytes: usize,
     rename_sources: usize,
     rename_targets: usize,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct EvaluationUsage {
+    records: usize,
+    raw_bytes: usize,
+    decoded_bytes: usize,
+}
+
+impl EvaluationUsage {
+    fn accumulate(&mut self, next: Self) {
+        self.records = self.records.saturating_add(next.records);
+        self.raw_bytes = self.raw_bytes.saturating_add(next.raw_bytes);
+        self.decoded_bytes = self.decoded_bytes.saturating_add(next.decoded_bytes);
+    }
 }
 
 struct PreparedCommit {
@@ -271,7 +333,16 @@ impl GitExtractor {
         repository: &Path,
         run_id: impl Into<String>,
     ) -> Result<GitEvaluationIdentity, GitNonEvaluation> {
-        let started = Instant::now();
+        self.identity_for_repository_at(repository, run_id, Instant::now())
+    }
+
+    /// Derive identities using a caller-owned monotonic run start.
+    pub fn identity_for_repository_at(
+        &self,
+        repository: &Path,
+        run_id: impl Into<String>,
+        started: Instant,
+    ) -> Result<GitEvaluationIdentity, GitNonEvaluation> {
         let repository = repository
             .canonicalize()
             .map_err(|error| not_evaluated("repository.invalid", "identity", error.to_string()))?;
@@ -323,7 +394,9 @@ impl GitExtractor {
             &prepared.base_revision,
             prepared.started,
         );
-        let mut commits = Vec::with_capacity(prepared.commits.len());
+        let selected_commit_count = prepared.commits.len();
+        let mut commits = Vec::with_capacity(selected_commit_count);
+        let mut usage = EvaluationUsage::default();
         for prepared_commit in prepared.commits {
             let commit = prepared_commit.revision;
             let result = match &scope_mappings {
@@ -355,7 +428,10 @@ impl GitExtractor {
                     }),
                 Err(failure) => Err(failure.clone()),
             };
-            commits.push(retain_commit_result(result, &commit));
+            let (result, next_usage) = retain_commit_result(result, &commit);
+            usage.accumulate(next_usage);
+            self.check_evaluation_usage(usage, selected_commit_count, &commit)?;
+            commits.push(result);
         }
         Ok(GitExtraction {
             base_revision: prepared.base_revision,
@@ -371,7 +447,9 @@ impl GitExtractor {
         identity: &GitEvaluationIdentity,
     ) -> Result<GitFootprintExtraction, GitNonEvaluation> {
         let prepared = self.prepare_extraction(repository, selection, identity)?;
-        let mut commits = Vec::with_capacity(prepared.commits.len());
+        let selected_commit_count = prepared.commits.len();
+        let mut commits = Vec::with_capacity(selected_commit_count);
+        let mut usage = EvaluationUsage::default();
         for prepared_commit in prepared.commits {
             let commit = prepared_commit.revision;
             let result = prepared_commit
@@ -399,13 +477,54 @@ impl GitExtractor {
                         prepared.started,
                     )
                 });
-            commits.push(retain_footprint_result(result, &commit));
+            let (result, next_usage) = retain_footprint_result(result, &commit);
+            usage.accumulate(next_usage);
+            self.check_evaluation_usage(usage, selected_commit_count, &commit)?;
+            commits.push(result);
         }
         Ok(GitFootprintExtraction {
             base_revision: prepared.base_revision,
             head_revision: prepared.head_revision,
             commits,
         })
+    }
+
+    fn check_evaluation_usage(
+        &self,
+        usage: EvaluationUsage,
+        selected_commits: usize,
+        crossing_commit: &str,
+    ) -> Result<(), GitNonEvaluation> {
+        let exceeded = [
+            (
+                "budget.evaluation-records",
+                usage.records,
+                self.limits.max_records_per_evaluation,
+            ),
+            (
+                "budget.evaluation-raw-bytes",
+                usage.raw_bytes,
+                self.limits.max_raw_bytes_per_evaluation,
+            ),
+            (
+                "budget.evaluation-decoded-bytes",
+                usage.decoded_bytes,
+                self.limits.max_decoded_bytes_per_evaluation,
+            ),
+        ]
+        .into_iter()
+        .find(|(_, observed, limit)| observed > limit);
+        let Some((reason, observed, limit)) = exceeded else {
+            return Ok(());
+        };
+        let mut failure = over_budget(reason, "range-aggregation", observed, limit);
+        failure.commit_revision = Some(crossing_commit.into());
+        let diagnostics = failure.budget.as_mut().expect("budget diagnostics");
+        diagnostics.commits = Some(selected_commits);
+        diagnostics.records = Some(usage.records);
+        diagnostics.raw_bytes = Some(usage.raw_bytes);
+        diagnostics.decoded_bytes = Some(usage.decoded_bytes);
+        Err(failure)
     }
 
     #[allow(clippy::too_many_lines)]
@@ -665,6 +784,7 @@ impl GitExtractor {
             repository_id: opaque_path_identity(b"repository", &common_dir),
             canonical_worktree_id: opaque_path_identity(b"worktree", repository),
             run_started: started,
+            run_timeout: self.limits.run_timeout,
             administrative_state: Arc::clone(empty_config),
         })
     }
@@ -804,12 +924,13 @@ impl GitExtractor {
         identity: &GitEvaluationIdentity,
         scope_mappings: Option<&BaseScopeMappings>,
         started: Instant,
-    ) -> Result<ConventionalCommitEvidence, GitNonEvaluation> {
+    ) -> Result<(ConventionalCommitEvidence, EvaluationUsage), GitNonEvaluation> {
         let ExtractedCoverage {
             members: coverage,
             decoded_path_bytes: path_bytes,
             raw_digest: coverage_digest,
             raw_bytes: coverage_raw_bytes,
+            evaluation_raw_bytes,
             rename_sources,
             rename_targets,
         } = self.extract_coverage(repository, empty_config, parent, commit, started)?;
@@ -895,25 +1016,33 @@ impl GitExtractor {
             producer_record_id: None,
         };
 
-        Ok(ConventionalCommitEvidence {
-            commit_revision: commit.to_owned(),
-            parent_revision: parent.to_owned(),
-            binding: EvaluationBinding {
-                run_id: identity.run_id.clone(),
-                repository_id: identity.repository_id.clone(),
-                canonical_worktree_id: identity.canonical_worktree_id.clone(),
-                base_revision: base.to_owned(),
-                head_revision: head.to_owned(),
+        let usage = EvaluationUsage {
+            records: coverage.len(),
+            raw_bytes: evaluation_raw_bytes,
+            decoded_bytes,
+        };
+        Ok((
+            ConventionalCommitEvidence {
                 commit_revision: commit.to_owned(),
+                parent_revision: parent.to_owned(),
+                binding: EvaluationBinding {
+                    run_id: identity.run_id.clone(),
+                    repository_id: identity.repository_id.clone(),
+                    canonical_worktree_id: identity.canonical_worktree_id.clone(),
+                    base_revision: base.to_owned(),
+                    head_revision: head.to_owned(),
+                    commit_revision: commit.to_owned(),
+                },
+                header,
+                source,
+                declared_scope,
+                claims,
+                coverage,
+                contributing_base_config_paths: scope_mappings
+                    .map_or_else(Vec::new, |authority| vec![authority.source_path.clone()]),
             },
-            header,
-            source,
-            declared_scope,
-            claims,
-            coverage,
-            contributing_base_config_paths: scope_mappings
-                .map_or_else(Vec::new, |authority| vec![authority.source_path.clone()]),
-        })
+            usage,
+        ))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -927,12 +1056,13 @@ impl GitExtractor {
         head: &str,
         identity: &GitEvaluationIdentity,
         started: Instant,
-    ) -> Result<GitFootprintCommitEvidence, GitNonEvaluation> {
+    ) -> Result<(GitFootprintCommitEvidence, EvaluationUsage), GitNonEvaluation> {
         let ExtractedCoverage {
             members: coverage,
             decoded_path_bytes,
             raw_digest,
             raw_bytes,
+            evaluation_raw_bytes,
             rename_sources,
             rename_targets,
         } = self.extract_coverage(repository, empty_config, parent, commit, started)?;
@@ -955,19 +1085,27 @@ impl GitExtractor {
                 .clone_from(&failure.raw_digest);
             return Err(failure);
         }
-        Ok(GitFootprintCommitEvidence {
-            commit_revision: commit.to_owned(),
-            parent_revision: parent.to_owned(),
-            binding: EvaluationBinding {
-                run_id: identity.run_id.clone(),
-                repository_id: identity.repository_id.clone(),
-                canonical_worktree_id: identity.canonical_worktree_id.clone(),
-                base_revision: base.to_owned(),
-                head_revision: head.to_owned(),
+        let usage = EvaluationUsage {
+            records: coverage.len(),
+            raw_bytes: evaluation_raw_bytes,
+            decoded_bytes: decoded_path_bytes,
+        };
+        Ok((
+            GitFootprintCommitEvidence {
                 commit_revision: commit.to_owned(),
+                parent_revision: parent.to_owned(),
+                binding: EvaluationBinding {
+                    run_id: identity.run_id.clone(),
+                    repository_id: identity.repository_id.clone(),
+                    canonical_worktree_id: identity.canonical_worktree_id.clone(),
+                    base_revision: base.to_owned(),
+                    head_revision: head.to_owned(),
+                    commit_revision: commit.to_owned(),
+                },
+                coverage,
             },
-            coverage,
-        })
+            usage,
+        ))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1124,6 +1262,7 @@ impl GitExtractor {
                     decoded_path_bytes,
                     raw_digest: raw_digest.clone(),
                     raw_bytes: raw.len(),
+                    evaluation_raw_bytes: raw.len(),
                     rename_sources,
                     rename_targets,
                 })
@@ -1477,27 +1616,36 @@ fn coverage_endpoints(members: &[GitCoverageMember]) -> BTreeSet<&str> {
 }
 
 fn retain_commit_result(
-    result: Result<ConventionalCommitEvidence, GitNonEvaluation>,
+    result: Result<(ConventionalCommitEvidence, EvaluationUsage), GitNonEvaluation>,
     commit: &str,
-) -> GitCommitExtraction {
+) -> (GitCommitExtraction, EvaluationUsage) {
     match result {
-        Ok(evidence) => GitCommitExtraction::Evaluated(Box::new(evidence)),
+        Ok((evidence, usage)) => (GitCommitExtraction::Evaluated(Box::new(evidence)), usage),
         Err(mut failure) => {
             failure.commit_revision = Some(commit.into());
-            GitCommitExtraction::NotEvaluated(failure)
+            (
+                GitCommitExtraction::NotEvaluated(failure),
+                EvaluationUsage::default(),
+            )
         }
     }
 }
 
 fn retain_footprint_result(
-    result: Result<GitFootprintCommitEvidence, GitNonEvaluation>,
+    result: Result<(GitFootprintCommitEvidence, EvaluationUsage), GitNonEvaluation>,
     commit: &str,
-) -> GitFootprintCommitExtraction {
+) -> (GitFootprintCommitExtraction, EvaluationUsage) {
     match result {
-        Ok(evidence) => GitFootprintCommitExtraction::Evaluated(Box::new(evidence)),
+        Ok((evidence, usage)) => (
+            GitFootprintCommitExtraction::Evaluated(Box::new(evidence)),
+            usage,
+        ),
         Err(mut failure) => {
             failure.commit_revision = Some(commit.into());
-            GitFootprintCommitExtraction::NotEvaluated(failure)
+            (
+                GitFootprintCommitExtraction::NotEvaluated(failure),
+                EvaluationUsage::default(),
+            )
         }
     }
 }
