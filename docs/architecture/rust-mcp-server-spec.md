@@ -1,8 +1,8 @@
 # Rust MCP Server Parity Spec
 
-| Type | Authority     | Owner       | Status | Freshness                                                                                                                                                          |
-| ---- | ------------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Spec | Authoritative | RMCPF/MCP26 | Live   | DOCRB-005 link review 2026-08-20 against `crates/anvil-cli/ARCHITECTURE.md`, `mcp_client.rs::all_clients` / `probe_all`, and `agent_registry.rs`; design unchanged |
+| Type | Authority     | Owner       | Status | Freshness                                                                                                                             |
+| ---- | ------------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | RMCPF/MCP26 | Live   | Unaffected review 2026-08-30: CONF-011 adds a CLI-only adapter and changes no MCP contract; prior DOCRB-005 link review remains valid |
 
 | Upstream                                                                                                                                                                                                             | Downstream                                                                    |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |

@@ -1,8 +1,8 @@
 # CLI TUI Runner — Compatibility Record
 
-| Type     | Authority | Owner | Status     | Freshness                                                                                          |
-| -------- | --------- | ----- | ---------- | -------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | CLI   | Deprecated | Component truth moved 2026-08-20 to `crates/anvil-cli/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
+| Type     | Authority | Owner | Status     | Freshness                                                                                                                                                                         |
+| -------- | --------- | ----- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | CLI   | Deprecated | Unaffected review 2026-08-30: CONF-011 is plain/structured output and adds no TUI path; component truth remains in `crates/anvil-cli/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
 
 | Upstream            | Downstream                                                                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |

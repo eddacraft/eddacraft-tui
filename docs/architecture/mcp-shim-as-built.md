@@ -1,8 +1,8 @@
 # anvil MCP Shim — Compatibility Record
 
-| Type     | Authority | Owner   | Status     | Freshness                                                                                          |
-| -------- | --------- | ------- | ---------- | -------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | CLI/MCP | Deprecated | Component truth moved 2026-08-20 to `crates/anvil-cli/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
+| Type     | Authority | Owner   | Status     | Freshness                                                                                                                                                                  |
+| -------- | --------- | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | CLI/MCP | Deprecated | Unaffected review 2026-08-30: CONF-011 adds no MCP tool, resource, or transport; component truth remains in `crates/anvil-cli/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
 
 | Upstream                      | Downstream                                                                                                                                                                                                             |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
