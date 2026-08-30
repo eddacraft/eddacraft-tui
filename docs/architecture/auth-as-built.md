@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-30 at `269764aee` against `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/routes/auth-github.ts`, and `apps/anvil-api/src/lib/github-user.ts`, with focused coverage in `apps/anvil-api/src/__tests__/auth-github-device.test.ts`, `apps/anvil-api/src/__tests__/auth-github.test.ts`, and `apps/anvil-api/src/__tests__/github-user.test.ts`; verified-secondary canonical fallback and minted-session replay before live credentials confirmed; authentication diagram unchanged |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-30 against CLAWOPEN-002 suspended-account reactivation in `apps/anvil-api/src/routes/admin.ts` and CLAWOPEN-003 GitHub identity/session recovery; authentication diagram unchanged |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -207,10 +207,13 @@ future pass; new logins use the GitHub device flow or `--otp`.
 ### Admin Approval Flow
 
 1. Admin CLI calls `POST /api/v1/admin/approve` with the waitlisted user's email
-2. API activates the user and sends a beta invite email; the invite points the
-   user at `anvil auth login` (no per-invite device code is generated —
-   GHCLIAUTH-007)
-3. The user then completes login on their first `anvil auth login` — the GitHub
+2. First approval claims `waitlist.approved_at IS NULL`, activates the user, and
+   writes grant/audit rows. A previously approved **suspended** account is
+   claimed with `beta_users.status = 'suspended'` instead (CLAWOPEN-002); an
+   already-active account is rejected with no grant side effects.
+3. API sends a beta invite email; the invite points the user at
+   `anvil auth login` (no per-invite device code is generated — GHCLIAUTH-007)
+4. The user then completes login on their first `anvil auth login` — the GitHub
    device flow, or `--otp` for the no-GitHub fallback
 
 ### JWT Session Refresh

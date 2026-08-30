@@ -1,8 +1,8 @@
 # anvil API architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                         |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-29 against CLAWOPEN-003's verified-email fallback and minted device-session replay; BAUTH detail updated, while the component request/persistence diagram remains unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                          |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-30 against CLAWOPEN-002 suspended-account reactivation in `src/routes/admin.ts`; privileged admin trust and the request/persistence diagram remain unchanged |
 
 | Upstream                                                                                    | Downstream                                       |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------ |

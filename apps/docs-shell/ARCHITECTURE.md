@@ -1,8 +1,8 @@
 # anvil documentation shell architecture
 
-| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                             |
-| ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-29 against CLAWOPEN-005 callback-route coverage and Vitest alias wiring; production routing, trust boundaries, failure behaviour, and diagrams remain unchanged |
+| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                                                  |
+| ------------ | --------- | --------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-08-30 against CLAWOPEN-010 landing `force-dynamic` removal and auth error/pending page coverage; production routing, trust boundaries, failure behaviour, and diagrams remain unchanged |
 
 | Upstream                                                                                                                                          | Downstream                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
