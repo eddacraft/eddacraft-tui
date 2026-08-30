@@ -67,7 +67,9 @@ describe('POST /api/early-access/install', () => {
           );
         });
 
-      return { ok: true, status: 200, json } as Response;
+      const upstreamResponse = new Response(null, { status: 200 });
+      vi.spyOn(upstreamResponse, 'json').mockImplementation(json);
+      return upstreamResponse;
     });
 
     const response = await POST(installRequest());

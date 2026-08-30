@@ -7,13 +7,15 @@
 | -------- | ----- | -------- | ----------- | -------- |
 | CLAWOPEN | —     | P1       | In Progress | 0/12     |
 
-**Last reviewed:** 2026-08-29 — operator selected the 24 findings that remain
-after SETCON-012 from the
+**Last reviewed:** 2026-08-30 — operator approved a bounded first delivery of
+the seven implemented clusters covering 14 of the 24 findings that remain after
+SETCON-012. The other ten findings retain their Blocked or Proposed state and
+are not claimed by this delivery. The source set remains the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
-for a bounded repair wave. CLAWOPEN-003 and -005 are implemented locally after
-retrying the earlier write-gate context mismatches; CLAWOPEN-007, -009, and
--011 retain explicit design checkpoints; CLAWOPEN-002 and -010 still retain
-the named operator-approval blockers below.
+selected for this repair wave. CLAWOPEN-001, -003, -004, -005, -006, -008, and
+-012 are implemented locally; CLAWOPEN-007, -009, and -011 retain explicit
+design checkpoints; CLAWOPEN-002 and -010 retain the named operator-approval
+blockers below.
 
 > **Exclusive module.** The wave orchestrator is the only plan writer.
 > Parallel executors own isolated code/test workspaces and do not edit this
@@ -34,11 +36,23 @@ shared CIB backlog as feature-branch state.
 
 ## In scope
 
-- Ten coherent repair clusters covering findings 1 and 6–28 from the review.
+- Twelve coherent repair clusters covering findings 1 and 6–28 from the review.
 - Focused RED/GREEN regression evidence for every behavioural repair.
 - Independent verification and Council convergence before publication.
 - Readme or operational documentation updates only where the owning contract
   changes or a selected finding is documentation-specific.
+
+## Bounded first delivery
+
+The approved first publication boundary is CLAWOPEN-001, -003, -004, -005,
+-006, -008, and -012: 14 CLAWOPEN findings. SETCON-012 independently governs
+four settings findings carried by the same candidate, producing an 18-of-28
+combined delivery without folding those settings repairs into this module.
+
+CLAWOPEN-002, -007, -009, -010, and -011 remain outside this delivery: ten
+findings whose production-write or design gates remain authoritative. Their
+status is not a defect in the bounded candidate and the candidate must not claim
+that all 24 CLAWOPEN findings, or all 28 reviewed findings, are repaired.
 
 ## Out of scope
 
@@ -298,11 +312,16 @@ shared CIB backlog as feature-branch state.
 3. Run Ready clusters CLAWOPEN-006, -010, and -012 by owning package.
 4. Pass CLAWOPEN-007, -009, and -011 through their design membranes before
    implementation.
-5. Re-run the full 24-finding acceptance matrix, independent verification, and
-   Council before publication.
+5. For a bounded publication, re-run the acceptance matrix for every finding
+   included in that candidate, independently verify the exact head, and obtain
+   Council convergence. Keep excluded clusters and their counts explicit.
+6. Before closing the full wave, re-run the complete 24-finding acceptance
+   matrix, independent verification, and Council.
 
 ## Wave validation
 
+- For the approved first delivery, verify all 14 findings mapped to
+  CLAWOPEN-001, -003, -004, -005, -006, -008, and -012.
 - `pnpm validate:changed`
 - `pnpm format:check`
 - `pnpm docs:check`

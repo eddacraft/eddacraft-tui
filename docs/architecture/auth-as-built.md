@@ -1,22 +1,24 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                               |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-29 against CLAWOPEN-003's verified-secondary canonical fallback and minted device-session replay before live GitHub credentials; authentication diagram unchanged |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-30 at `269764aee` against `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/routes/auth-github.ts`, and `apps/anvil-api/src/lib/github-user.ts`, with focused coverage in `apps/anvil-api/src/__tests__/auth-github-device.test.ts`, `apps/anvil-api/src/__tests__/auth-github.test.ts`, and `apps/anvil-api/src/__tests__/github-user.test.ts`; verified-secondary canonical fallback and minted-session replay before live credentials confirmed; authentication diagram unchanged |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `apps/anvil-api`, `apps/docs-shell/app/auth`, `apps/docs-shell/lib`, and ADR-018 | anvil CLI and docs-shell authentication consumers |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-08-29 against CLAWOPEN-003's
-> GitHub identity and minted-session recovery changes; 2026-08-20 targeted
-> `TOKEN_PEPPER` and neighbouring auth-claim review at `97899b00a`; 2026-07-02
-> as-built drift sweep against main `d1fded280` (G-08 admin-actor attribution +
-> `index.ts` re-anchor); 2026-06-11 against the device-flow cutover
-> (GHCLIAUTH-010); GitHub OAuth delta (GHCLIAUTH-003) against main `45dd1047a`;
-> full review 2026-04-23 against `v0.6.0-beta` **Service:** `apps/anvil-api`
-> (Hono on Vercel) **Database:** Neon Postgres (`beta_users`, `access_tokens`,
-> `audit_log`)
+> **Status:** Live (beta) **Last reviewed:** 2026-08-30 at `269764aee` against
+> `apps/anvil-api/src/routes/auth-github-device.ts`,
+> `apps/anvil-api/src/routes/auth-github.ts`, and
+> `apps/anvil-api/src/lib/github-user.ts` for CLAWOPEN-003's GitHub identity and
+> minted-session recovery changes; 2026-08-20 targeted `TOKEN_PEPPER` and
+> neighbouring auth-claim review at `97899b00a`; 2026-07-02 as-built drift sweep
+> against main `d1fded280` (G-08 admin-actor attribution + `index.ts`
+> re-anchor); 2026-06-11 against the device-flow cutover (GHCLIAUTH-010); GitHub
+> OAuth delta (GHCLIAUTH-003) against main `45dd1047a`; full review 2026-04-23
+> against `v0.6.0-beta` **Service:** `apps/anvil-api` (Hono on Vercel)
+> **Database:** Neon Postgres (`beta_users`, `access_tokens`, `audit_log`)
 
 ## Overview
 

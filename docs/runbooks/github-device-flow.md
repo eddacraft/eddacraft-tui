@@ -1,12 +1,12 @@
 # GitHub Device-Flow Login Operator Runbook
 
-| Type    | Authority     | Owner     | Status | Freshness                                                                                                                                                  |
-| ------- | ------------- | --------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | GHCLIAUTH | Live   | Last reviewed 2026-08-28 against `apps/anvil-api/src/routes/auth-github-device.ts` CIB-371 mint-session schema parse; device-flow operator steps unchanged |
+| Type    | Authority     | Owner     | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------- | ------------- | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | GHCLIAUTH | Live   | Last reviewed 2026-08-30 at `269764aee` against `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/lib/github-user.ts`, and focused coverage in `apps/anvil-api/src/__tests__/auth-github-device.test.ts`, `apps/anvil-api/src/__tests__/auth-github.test.ts`, and `apps/anvil-api/src/__tests__/github-user.test.ts`; credential, minted-session replay, and verified-email guidance refreshed |
 
-| Upstream                                                                                                                                                                                                                                                  | Downstream                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/index.ts`, `infra/src/vercel.ts`, `crates/anvil-cli/src/auth/device_flow.rs`, `plans/archive/modules/github-cli-auth.aps.md`, `plans/decisions/066-github-device-flow-cli-auth.md` | Operator cutover and incident triage for `anvil auth login` |
+| Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Downstream                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/lib/github-user.ts`, `apps/anvil-api/src/__tests__/auth-github-device.test.ts`, `apps/anvil-api/src/__tests__/auth-github.test.ts`, `apps/anvil-api/src/__tests__/github-user.test.ts`, `apps/anvil-api/src/index.ts`, `infra/src/vercel.ts`, `crates/anvil-cli/src/auth/device_flow.rs`, `plans/archive/modules/github-cli-auth.aps.md`, `plans/decisions/066-github-device-flow-cli-auth.md` | Operator cutover and incident triage for `anvil auth login` |
 
 `anvil auth login` is the headless GitHub Device Authorisation Grant (RFC 8628)
 flow for the Anvil CLI. The CLI never holds a GitHub client secret: it talks
@@ -39,9 +39,11 @@ anvil CLI  ──POST /api/v1/auth/github-device/start──▶  Anvil API ─�
   (hashed `poll_token`, encrypted `device_code`, no user binding), and returns
   the `user_code`, `verification_uri`, `interval`, `expiresIn`, and an opaque
   `pollToken` to the CLI.
-- `/poll` exchanges the stored `device_code` with GitHub, derives the user
-  solely from the resulting GitHub token, revokes that token immediately, runs
-  the active-status gate, and mints the Anvil licence exactly once.
+- `/poll` first resolves the stored session. An unexpired minted session is
+  replayed immediately; an unfinished session exchanges the stored `device_code`
+  with GitHub, derives the user solely from the resulting GitHub token, revokes
+  that token immediately, runs the active-status gate, and mints the Anvil
+  licence exactly once.
 
 The CLI client lives in `crates/anvil-cli/src/auth/device_flow.rs`; the broker
 route is `apps/anvil-api/src/routes/auth-github-device.ts`.
@@ -67,8 +69,11 @@ The client secret is used **only** for the broker-side token revoke call
 a public-client flow and sends `client_id` only — the secret never travels to
 GitHub's device or token endpoints.
 
-When either credential is absent, both `/start` and `/poll` fail closed with
-HTTP 503 `github_device_flow_unavailable` and never call GitHub.
+`/start` and an unfinished `/poll` require both live credentials. When either
+credential is absent, those operations fail closed with HTTP 503
+`github_device_flow_unavailable` before calling GitHub. A `/poll` for an
+unexpired session that has already minted replays the stored Anvil session
+without consulting the credentials, calling GitHub, or minting again.
 
 ## Migrating the app to the eddacraft organisation
 
@@ -192,8 +197,9 @@ Only proceed with the cutover once the smoke login confirms end-to-end.
 - The licence is **minted exactly once and is re-returnable within TTL**: a lost
   poll response must not turn a success into a false `expired`. A repeated poll
   with the same `pollToken` re-returns the stored minted session (decrypted
-  under the client-held poll token) rather than re-minting. Past TTL, or when
-  the payload will not decrypt, it fails closed to `expired`.
+  under the client-held poll token) before consulting live GitHub credentials
+  and without re-minting. Past TTL, or when the payload will not decrypt, it
+  fails closed to `expired`.
 - A concurrent mint race is resolved by re-reading and re-returning the winner's
   stored session; only one mint is ever recorded.
 - After login, the CLI stores a rotating refresh token next to the licence.
@@ -258,10 +264,12 @@ output as well — the info logs above are always on regardless.
   Anvil CLI OAuth app does not have **Device Flow enabled** — re-run the
   pre-cutover smoke step. Otherwise check `device_code.upstream` info lines for
   `non_ok` (GitHub-side) versus `fetch_error` (transport/timeout).
-- **`/start` or `/poll` returns 503 `github_device_flow_unavailable`.** The
-  `GITHUB_CLI_CLIENT_ID` / `GITHUB_CLI_CLIENT_SECRET` env vars are not reaching
-  the deployment. Confirm the Key Vault secrets and `infra/src/vercel.ts`
-  wiring, then check `/health` reports `"githubCliCreds":"ok"`.
+- **`/start` or an unfinished `/poll` returns 503
+  `github_device_flow_unavailable`.** The `GITHUB_CLI_CLIENT_ID` /
+  `GITHUB_CLI_CLIENT_SECRET` env vars are not reaching the deployment. Confirm
+  the Key Vault secrets and `infra/src/vercel.ts` wiring, then check `/health`
+  reports `"githubCliCreds":"ok"`. An unexpired minted-session replay does not
+  require those credentials.
 - **`/health` is `degraded` with `"githubCliCreds":"unavailable"`.** Same root
   cause as above — fix the credentials before cutover.
 - **CLI login ends in `expired`.** The user did not authorise within the device
@@ -273,7 +281,7 @@ output as well — the info logs above are always on regardless.
   [admin CLI](./admin-cli.md)); the audit log records a `github_oauth_blocked`
   row.
 - **CLI login fails with `github_authentication_failed` (401).** The identity
-  fetch failed, the account has no verified primary email, or a `github_id` link
+  fetch failed, the account has no verified email, or a `github_id` link
   conflict was hit. Check the `identity.upstream` and `login.outcome` info lines
   and the audit log for `github_oauth_link_conflict`.
 - **Repeated 429 `slow_down`.** Expected back-off — the CLI honours `retryAfter`

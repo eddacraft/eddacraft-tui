@@ -638,7 +638,9 @@ fn git_with_env(repo: &Path, args: &[&str], extra_env: &[(&str, &str)]) -> Strin
         .args(args)
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_SYSTEM", empty_config.path())
-        .env("GIT_CONFIG_GLOBAL", empty_config.path());
+        .env("GIT_CONFIG_GLOBAL", empty_config.path())
+        .env_remove("GIT_CONFIG_COUNT")
+        .env_remove("GIT_CONFIG_PARAMETERS");
     for (key, value) in extra_env {
         cmd.env(*key, *value);
     }
@@ -808,6 +810,74 @@ fn hermetic_git_extraction_survives_hostile_host_signing_and_hooks() {
         panic!("hostile-host repository must select HEAD: {extraction:?}");
     };
     assert_eq!(extraction.head_revision, revision);
+}
+
+#[test]
+fn fixture_git_commands_ignore_ambient_command_scope_config() {
+    let host = tempfile::tempdir().expect("hostile command config directory");
+    let _global = hostile_host_gitconfig(host.path());
+    let hooks_path = host.path().join("hooks").to_string_lossy().into_owned();
+    let cases = [
+        (
+            "GIT_CONFIG_COUNT",
+            vec![
+                ("GIT_CONFIG_COUNT", "1".to_owned()),
+                ("GIT_CONFIG_KEY_0", "core.hooksPath".to_owned()),
+                ("GIT_CONFIG_VALUE_0", hooks_path.clone()),
+            ],
+        ),
+        (
+            "GIT_CONFIG_PARAMETERS",
+            vec![(
+                "GIT_CONFIG_PARAMETERS",
+                format!("'core.hooksPath={hooks_path}'"),
+            )],
+        ),
+    ];
+
+    let mut failures = Vec::new();
+    for (name, environment) in cases {
+        let mut child = Command::new(std::env::current_exe().expect("current test executable"));
+        child
+            .args([
+                "--exact",
+                "ambient_command_scope_git_config_child",
+                "--nocapture",
+            ])
+            .env("ANVIL_CONF_AMBIENT_COMMAND_CONFIG", "1")
+            .env_remove("GIT_CONFIG_COUNT")
+            .env_remove("GIT_CONFIG_KEY_0")
+            .env_remove("GIT_CONFIG_VALUE_0")
+            .env_remove("GIT_CONFIG_PARAMETERS");
+        for (key, value) in environment {
+            child.env(key, value);
+        }
+        let output = child.output().expect("run isolated command-config child");
+        if !output.status.success() {
+            failures.push(format!(
+                "{name} leaked into fixture Git commands:\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "ambient command config was not isolated:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn ambient_command_scope_git_config_child() {
+    if std::env::var_os("ANVIL_CONF_AMBIENT_COMMAND_CONFIG").is_some() {
+        let repository = repository();
+        commit_file(
+            repository.path(),
+            "docs/guide.md",
+            "hello\n",
+            "docs: add guide",
+        );
+    }
 }
 
 fn path_claim(prefix: &str) -> ConformanceClaim {
