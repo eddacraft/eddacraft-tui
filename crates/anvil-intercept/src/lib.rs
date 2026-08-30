@@ -1205,43 +1205,108 @@ fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus)
     }
 }
 
-/// Stop the per-user intercept daemon recorded in the [`default_pid_file_path`].
-/// Unix sends SIGTERM and lets the daemon's `run_foreground` handler flush
-/// state, unbind the IPC listener, and remove the PID file. Windows terminates
-/// the headless daemon process and then removes the PID file (ACTMO-008 /
+/// Stop the per-user intercept daemon(s).
+///
+/// Unix stops every daemon reachable across the PID-file candidates (canonical
+/// plus the `XDG_RUNTIME_DIR`/state-home sibling), summarising them into one
+/// outcome that prefers the **canonical** candidate; use
+/// [`request_daemon_stop_all`] when the caller needs every PID. SIGTERM lets
+/// the daemon's `run_foreground` handler flush state, unbind the IPC listener,
+/// and remove the PID file. Windows terminates the headless daemon process at
+/// [`default_pid_file_path`] and then removes the PID file (ACTMO-008 /
 /// V060F-002).
 ///
 /// Idempotent: a missing PID file yields [`StopOutcome::NotRunning`]; a PID
 /// file whose process has already exited yields [`StopOutcome::StaleCleared`]
-/// after removing the stale file. Neither is an error.
+/// after removing the stale file. Neither is an error. A non-canonical
+/// candidate that cannot be proven is skipped rather than failing the stop.
 #[cfg(any(unix, windows))]
 pub fn request_daemon_stop() -> Result<StopOutcome> {
     #[cfg(unix)]
     {
-        let candidates = match crate::ipc::resolve_pid_file_connect_candidates() {
-            Ok(paths) if !paths.is_empty() => paths,
-            _ => vec![default_pid_file_path()?],
-        };
-        let mut last = StopOutcome::NotRunning;
-        for path in candidates {
-            match stop_daemon_at(&path)? {
-                StopOutcome::Signalled { pid } => {
-                    last = StopOutcome::Signalled { pid };
-                }
-                other => {
-                    if matches!(last, StopOutcome::NotRunning) {
-                        last = other;
-                    }
-                }
-            }
-        }
-        Ok(last)
+        let reports = request_daemon_stop_all()?;
+        Ok(summarise_stop_reports(&reports))
     }
     #[cfg(windows)]
     {
         let path = default_pid_file_path()?;
         stop_daemon_at(&path)
     }
+}
+
+/// One candidate's stop result, paired with the PID file it came from.
+#[cfg(unix)]
+#[derive(Debug, Clone)]
+pub struct StopReport {
+    /// The PID file this outcome came from. Index 0 of
+    /// [`request_daemon_stop_all`] is always the canonical path.
+    pub pid_file: PathBuf,
+    /// What happened at that path, or the reason it could not be acted on.
+    /// A sibling candidate that cannot be proven never fails the whole stop.
+    pub outcome: Result<StopOutcome, String>,
+}
+
+/// Stop every intercept daemon reachable across the PID-file candidates,
+/// reporting each candidate separately.
+///
+/// The canonical candidate is authoritative: if it cannot be acted on, the
+/// whole call fails. A non-canonical candidate that is malformed, unprovable,
+/// or sits under a directory that fails the owner-only gate is recorded as an
+/// error in its own [`StopReport`] and skipped — a stale or planted file in a
+/// directory this process's environment does not govern must never be able to
+/// fail a stop the canonical daemon already honoured.
+#[cfg(unix)]
+pub fn request_daemon_stop_all() -> Result<Vec<StopReport>> {
+    let candidates = match crate::ipc::resolve_pid_file_connect_candidates() {
+        Ok(paths) if !paths.is_empty() => paths,
+        _ => vec![default_pid_file_path()?],
+    };
+    let mut reports = Vec::with_capacity(candidates.len());
+    for (index, path) in candidates.into_iter().enumerate() {
+        match stop_daemon_at(&path) {
+            Ok(outcome) => reports.push(StopReport {
+                pid_file: path,
+                outcome: Ok(outcome),
+            }),
+            // Canonical is this process's own daemon: a failure there is the
+            // caller's failure.
+            Err(err) if index == 0 => return Err(err),
+            Err(err) => reports.push(StopReport {
+                pid_file: path,
+                outcome: Err(format!("{err:#}")),
+            }),
+        }
+    }
+    Ok(reports)
+}
+
+/// Collapse per-candidate reports into the single outcome legacy callers
+/// expect, preferring the canonical candidate.
+///
+/// Canonical-first, not last-wins: the version-recycle path stops the daemon
+/// and then waits on the returned PID before starting a replacement. Handing
+/// it a sibling's PID made it wait on the wrong process while the canonical
+/// socket was still bound, so the relaunch saw a live socket, reported
+/// `Reused`, and left the old-version daemon serving verdicts.
+#[cfg(unix)]
+#[must_use]
+pub fn summarise_stop_reports(reports: &[StopReport]) -> StopOutcome {
+    let mut fallback = StopOutcome::NotRunning;
+    for report in reports {
+        let Ok(outcome) = &report.outcome else {
+            continue;
+        };
+        match outcome {
+            StopOutcome::Signalled { pid } => return StopOutcome::Signalled { pid: *pid },
+            StopOutcome::StaleCleared { pid } => {
+                if matches!(fallback, StopOutcome::NotRunning) {
+                    fallback = StopOutcome::StaleCleared { pid: *pid };
+                }
+            }
+            StopOutcome::NotRunning => {}
+        }
+    }
+    fallback
 }
 
 /// Stop the daemon recorded at a specific PID file. Doctor `--fix`
@@ -1252,13 +1317,77 @@ pub fn request_daemon_stop_at_pid_file(path: &Path) -> Result<StopOutcome> {
     stop_daemon_at(path)
 }
 
+/// Owner-only gate on the directory holding a PID file we are about to read
+/// and act on. Refuses (never repairs) a symlinked, foreign-owned, or
+/// group/world-accessible parent.
+#[cfg(unix)]
+fn verify_pid_file_dir_for_read(path: &Path) -> Result<()> {
+    let Some(dir) = path.parent() else {
+        anyhow::bail!("PID file {} has no parent directory", path.display());
+    };
+    let metadata = match fs::symlink_metadata(dir) {
+        Ok(metadata) => metadata,
+        // Defensive: the caller only reaches this after stat'ing a PID file
+        // inside the directory, so a missing parent means it vanished mid-call.
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => {
+            return Err(anyhow::Error::new(err)).with_context(|| {
+                format!("failed to inspect PID file directory {}", dir.display())
+            });
+        }
+    };
+    if metadata.file_type().is_symlink() {
+        anyhow::bail!("refusing symlink PID file directory {}", dir.display());
+    }
+    if !metadata.is_dir() {
+        anyhow::bail!("PID file directory is not a directory: {}", dir.display());
+    }
+    let expected_uid = geteuid().as_raw();
+    if metadata.uid() != expected_uid {
+        anyhow::bail!(
+            "refusing PID file directory {} owned by uid {}, expected {}",
+            dir.display(),
+            metadata.uid(),
+            expected_uid,
+        );
+    }
+    // The threat is another uid *planting* a PID file that names one of our
+    // processes, which needs write permission on the directory — so gate on
+    // group/other write, not on an exact 0700. Requiring 0700 here would refuse
+    // a user-supplied `ANVIL_HOME` created under a loose umask, which the
+    // daemon's own create path deliberately repairs rather than rejecting
+    // (#3220); turning that into a hard failure would brick `intercept stop`
+    // for those users, which is the regression class this gate exists to avoid.
+    let mode = metadata.permissions().mode() & 0o777;
+    if mode & 0o022 != 0 {
+        anyhow::bail!(
+            "refusing group/world-writable PID file directory {} (mode {:o}): \
+             another user could plant a PID file naming one of your processes",
+            dir.display(),
+            mode,
+        );
+    }
+    Ok(())
+}
+
 #[cfg(any(unix, windows))]
 fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
+    // A PID file is a signal-delivery instruction, so its directory must clear
+    // the same owner-only bar the socket half enforces before connecting. The
+    // dual-path search reaches directories this process's environment does not
+    // govern, and a parent another uid can write is enough to plant a PID file
+    // naming an arbitrary process of ours. Refuse-only: unlike the daemon's own
+    // create path this never repairs, mirroring `RepairMode::Refuse` on the
+    // client side.
     let record = match fs::symlink_metadata(path) {
         Ok(metadata) => {
             if metadata.file_type().is_symlink() {
                 anyhow::bail!("refusing symlink PID file {}", path.display());
             }
+            // Gate only once a PID file is actually present: an absent
+            // candidate is "no daemon here" and must stay a quiet no-op.
+            #[cfg(unix)]
+            verify_pid_file_dir_for_read(path)?;
             Some(
                 fs::read_to_string(path)
                     .with_context(|| format!("failed to read PID file {}", path.display()))?,
@@ -2706,7 +2835,12 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn stop_daemon_refuses_symlink_pid_file() {
+        use std::os::unix::fs::PermissionsExt;
+
         let dir = tempfile::tempdir().expect("tempdir");
+        // A real PID directory is 0700 (the daemon's create path enforces it);
+        // a bare tempdir inherits the umask, which the read-path gate refuses.
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700)).expect("0700 dir");
         let target = dir.path().join("target.pid");
         let link = dir.path().join("intercept.pid");
         fs::write(&target, "4321\n").expect("write target");
@@ -2716,6 +2850,115 @@ mod tests {
         assert!(
             err.to_string().contains("refusing symlink PID file"),
             "unexpected error: {err:#}",
+        );
+    }
+
+    /// MF-4: the PID file is a signal-delivery instruction, so a parent another
+    /// uid can write must be refused before we read it. Without the gate a
+    /// planted `intercept.pid` in a loose directory can name any process of
+    /// ours; the socket half already enforces this bar before connecting.
+    #[cfg(unix)]
+    #[test]
+    fn stop_daemon_refuses_group_or_world_accessible_pid_directory() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pid_file = dir.path().join("intercept.pid");
+        fs::write(&pid_file, "4321\n").expect("write pid file");
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o777))
+            .expect("loosen dir mode");
+
+        let err = stop_daemon_at(&pid_file).expect_err("loose PID directory should be refused");
+        assert!(
+            err.to_string()
+                .contains("refusing group/world-writable PID file directory"),
+            "unexpected error: {err:#}",
+        );
+
+        // Restore so TempDir cleanup is unaffected by the loosened mode.
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700)).expect("restore mode");
+    }
+
+    /// MF-4: an absent candidate is simply "no daemon here", not a refusal —
+    /// the dual-path search must tolerate a sibling that was never created.
+    #[cfg(unix)]
+    #[test]
+    fn stop_daemon_treats_absent_pid_directory_as_not_running() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pid_file = dir.path().join("no-such-dir").join("intercept.pid");
+        assert_eq!(
+            stop_daemon_at(&pid_file).expect("absent directory is not an error"),
+            StopOutcome::NotRunning,
+        );
+    }
+
+    /// MF-2: canonical wins, not last-wins. The version-recycle path stops the
+    /// daemon and then waits on the returned PID before relaunching; handed a
+    /// sibling's PID it waited on the wrong process while the canonical socket
+    /// was still bound, so the relaunch reported `Reused` and the old-version
+    /// daemon kept serving verdicts.
+    #[cfg(unix)]
+    #[test]
+    fn summarise_stop_reports_prefers_the_canonical_signalled_pid() {
+        let reports = vec![
+            StopReport {
+                pid_file: PathBuf::from("/canonical/intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 111 }),
+            },
+            StopReport {
+                pid_file: PathBuf::from("/sibling/intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 222 }),
+            },
+        ];
+        assert_eq!(
+            summarise_stop_reports(&reports),
+            StopOutcome::Signalled { pid: 111 },
+            "canonical is candidate 0 and must win over a sibling",
+        );
+    }
+
+    /// MF-1: a sibling candidate that cannot be proven is recorded and skipped,
+    /// never allowed to mask a canonical stop that did happen. Previously the
+    /// loop propagated with `?`, so a two-byte leftover file in a directory this
+    /// process does not govern failed `intercept stop` / `uninstall` / recycle
+    /// *after* the canonical daemon had already been signalled.
+    #[cfg(unix)]
+    #[test]
+    fn summarise_stop_reports_ignores_unusable_sibling_candidates() {
+        let reports = vec![
+            StopReport {
+                pid_file: PathBuf::from("/canonical/intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 111 }),
+            },
+            StopReport {
+                pid_file: PathBuf::from("/sibling/intercept.pid"),
+                outcome: Err("PID file is malformed".to_string()),
+            },
+        ];
+        assert_eq!(
+            summarise_stop_reports(&reports),
+            StopOutcome::Signalled { pid: 111 },
+        );
+    }
+
+    /// MF-2: a stale clear must not outrank a real signal recorded later.
+    #[cfg(unix)]
+    #[test]
+    fn summarise_stop_reports_reports_a_signal_over_a_stale_clear() {
+        let reports = vec![
+            StopReport {
+                pid_file: PathBuf::from("/canonical/intercept.pid"),
+                outcome: Ok(StopOutcome::StaleCleared { pid: 7 }),
+            },
+            StopReport {
+                pid_file: PathBuf::from("/sibling/intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 9 }),
+            },
+        ];
+        assert_eq!(
+            summarise_stop_reports(&reports),
+            StopOutcome::Signalled { pid: 9 },
+            "a live daemon that was signalled outranks a cleared stale file",
         );
     }
 

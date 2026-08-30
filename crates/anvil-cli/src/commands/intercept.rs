@@ -141,6 +141,15 @@ fn run_stop(json_mode: bool) -> Result<()> {
     // is already down (or unreachable) reports nothing, which is correct.
     let registered = query_daemon_status().map_or(0, |status| status.registered_worktrees().len());
 
+    // On Unix the stop spans both PID-file candidates. Summarise to the
+    // canonical outcome for the existing surfaces, but keep every report so a
+    // second daemon stopped on the sibling path is named rather than silently
+    // folded away.
+    #[cfg(unix)]
+    let reports = anvil_intercept::request_daemon_stop_all()?;
+    #[cfg(unix)]
+    let outcome = anvil_intercept::summarise_stop_reports(&reports);
+    #[cfg(not(unix))]
     let outcome = anvil_intercept::request_daemon_stop()?;
     if json_mode {
         // Issue #3947: one document per outcome; the lose-protection
@@ -174,6 +183,26 @@ fn run_stop(json_mode: bool) -> Result<()> {
         StopOutcome::StaleCleared { pid } => println!(
             "anvil intercept daemon is not running; cleared a stale PID file (recorded pid {pid})",
         ),
+    }
+    #[cfg(unix)]
+    {
+        // Name the extra daemons and any candidate that was skipped, so a split
+        // is visible at the moment it is resolved rather than only via
+        // `anvil doctor`. The summarised outcome above reports the canonical
+        // daemon; without this a second stopped daemon vanished from the output.
+        let mut signalled = reports.iter().filter_map(|report| match &report.outcome {
+            Ok(StopOutcome::Signalled { pid }) => Some(*pid),
+            _ => None,
+        });
+        signalled.next();
+        for pid in signalled {
+            println!("  also stopped a daemon on a sibling socket path (pid {pid})");
+        }
+        for report in &reports {
+            if let Err(err) = &report.outcome {
+                println!("  skipped {}: {err}", report.pid_file.display());
+            }
+        }
     }
     Ok(())
 }

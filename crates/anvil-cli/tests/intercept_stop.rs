@@ -49,7 +49,16 @@ fn stop_with_no_daemon_reports_not_running() {
 
 #[test]
 fn stop_clears_a_stale_pid_file() {
+    use std::os::unix::fs::PermissionsExt;
+
     let home = tempfile::tempdir().expect("tempdir");
+    // A real `ANVIL_HOME` holding a PID file is owner-only: the daemon's create
+    // path tightens the prefix to 0700 before it writes one. A bare tempdir
+    // inherits the umask (775 on many boxes), and the stop path refuses to act
+    // on a PID file in a group-writable directory because another user could
+    // have planted it. Match production rather than the umask.
+    fs::set_permissions(home.path(), fs::Permissions::from_mode(0o700))
+        .expect("owner-only ANVIL_HOME");
     let pid_file = home.path().join("intercept.pid");
     // A PID far above any plausible `pid_max`, so `existing_pid_status`
     // sees no such process and classifies the record Stale.
