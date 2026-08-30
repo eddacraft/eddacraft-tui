@@ -1,8 +1,8 @@
 # anvil architecture overview
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-30 against SDT-004's intercept ARCHITECTURE invariant (process-wide lazies the scan path reads are forced at service construction) — an internal timing rule inside an existing component, adding no container, component, or boundary. Also reviewed 2026-08-30 against the intercept ARCHITECTURE graph-cache pointer, CLAWOPEN-002, CLAWOPEN-010, anvil-api account-activity best-effort ingest on Neon timeout, and docs-shell ARCHITECTURE freshness for work-item claim issues. The system context, container/component topology, trust and deployment boundaries, and diagrams are unchanged |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-30 against CONF-011's planless external declaration check; the container diagram names intent conformance on the existing CLI-to-checks boundary. Also reviewed 2026-08-30 against SDT-004's intercept ARCHITECTURE invariant (process-wide lazies the scan path reads are forced at service construction), the intercept ARCHITECTURE graph-cache pointer, CLAWOPEN-002, CLAWOPEN-010, anvil-api account-activity best-effort ingest on Neon timeout, and docs-shell ARCHITECTURE freshness for work-item claim issues. No container, component, trust boundary, deployment boundary, or separate system was added. |
 
 | Upstream                                                                                                                                                                                                                         | Downstream                                                                            |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -72,7 +72,7 @@ flowchart LR
         DashboardServer[loopback dashboard server]
 
         CLI --> Kernel
-        CLI --> Checks
+        CLI -->|checks and intent conformance| Checks
         CLI --> Daemon
         CLI --> Settings
         CLI --> TUI
@@ -101,11 +101,13 @@ flowchart LR
 ```
 
 In prose: the CLI composes local kernel, checks, daemon, settings, and TUI
-capabilities. The MCP shim uses the daemon when available. The local dashboard
-talks to its loopback server, which reads bounded kernel and check state. The
-hosted API is a separate service with Neon persistence. The documentation shell
-is a hosted entrypoint that consults the API for login/licence exchange and
-proxies to private and public renderers.
+capabilities. Its checks boundary includes on-demand intent conformance over a
+caller-supplied PR declaration and exact Git range; it requires no planning
+system or resident graph. The MCP shim uses the daemon when available. The local
+dashboard talks to its loopback server, which reads bounded kernel and check
+state. The hosted API is a separate service with Neon persistence. The
+documentation shell is a hosted entrypoint that consults the API for
+login/licence exchange and proxies to private and public renderers.
 
 Local CLI, daemon, kernel, checks, and settings relationships trace to
 `crates/anvil-cli/README.md`, `crates/anvil-kernel/ARCHITECTURE.md`,
