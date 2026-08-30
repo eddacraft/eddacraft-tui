@@ -37,6 +37,11 @@ engineering maintenance are recorded in the
 
 ### Changed
 
+- **`anvil watch` reports background AST findings in one line.** After a
+  save-time allow, the cheap-catalogue follow-up still does not block the write.
+  When it finds something, stderr prints a single `AST follow-up` warning so a
+  green save is not read as fully clean. Empty results stay silent.
+
 - **`--help` no longer advertises unfinished opt-in commands.** `anvil impact`,
   `anvil plan`, and `anvil dashboard --web` stay in the binary and stay
   default-off; they leave the visible list until they can be default-on. Known

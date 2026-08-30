@@ -214,7 +214,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-004: Surface background findings without blocking the write
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Operators can see AST follow-up findings without a terminal wash
   or a blocked save.
 - **Expected Outcome:** Follow-up findings appear on one existing surface
@@ -223,9 +223,10 @@ every save, and **without** defaulting `anvil watch --action gate`.
   tier so “save was green” is not readable as “fully clean”. No new TUI
   product.
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast` for the chosen surface plus a golden/terse-output pin
-- **Files:** `crates/anvil-cli/src/commands/watch.rs`,
-  `crates/anvil-cli/src/commands/status.rs` (or the observation sink the ADR
-  names)
+- **Files:** `crates/anvil-cli/src/ast_followup.rs`,
+  `crates/anvil-cli/tests/ast_followup.rs`,
+  `crates/anvil-cli/src/commands/watch.rs` (schedules the follow-up; advisory
+  is one stderr line from the worker so `--json` NDJSON stdout stays intact)
 - **Dependencies:** GTAO-003
 - **Confidence:** medium — surface choice is left to the ADR; noise discipline
   is load-bearing.

@@ -1,10 +1,14 @@
-//! GTAO-003 / GTAO-005: CLI-side cheap-catalogue follow-up after a daemon allow.
+//! GTAO-003 / GTAO-004 / GTAO-005: CLI-side cheap-catalogue follow-up after a
+//! daemon allow.
 //!
 //! Interactive `scan_buffer` / `validate_paths` verdicts stay regex-only and
 //! must not wait. After an allow, this module schedules a coalesced
 //! changed-path `anvil check` subprocess (regex + AST). Failure is fail-safe:
 //! the original verdict stands, a single skipped diagnostic is recorded, and
 //! the parent still exits 0.
+//!
+//! GTAO-004: findings from that child appear as one terse stderr line, silent
+//! when empty, tagged as AST follow-up so a green save is not read as clean.
 //!
 //! Kill switch: `ANVIL_AST_FOLLOWUP=0` or `.anvil.yaml` `astFollowup: false`.
 //! Env `0` wins over config; env `1` re-enables despite config.
@@ -53,6 +57,74 @@ pub(crate) fn is_legal_followup_argv(args: &[String]) -> bool {
     };
     args.get(separator + 1)
         .is_some_and(|path| !path.is_empty() && !path.starts_with('-'))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FollowupFinding {
+    pub id: String,
+    pub file: String,
+}
+
+/// Parse `anvil check --json` stdout. Malformed or empty payloads are silent.
+#[must_use]
+pub(crate) fn findings_from_check_json(stdout: &[u8]) -> Vec<FollowupFinding> {
+    let Ok(payload) = serde_json::from_slice::<serde_json::Value>(stdout) else {
+        return Vec::new();
+    };
+    payload
+        .get("warnings")
+        .and_then(serde_json::Value::as_array)
+        .map(|warnings| {
+            warnings
+                .iter()
+                .filter_map(|warning| {
+                    let id = warning.get("id").and_then(serde_json::Value::as_str)?;
+                    let file = warning.get("file").and_then(serde_json::Value::as_str)?;
+                    if id.is_empty() || file.is_empty() {
+                        return None;
+                    }
+                    Some(FollowupFinding {
+                        id: id.to_string(),
+                        file: file.to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// ADR-038: silent on empty; one tagged line on warn. No colour.
+#[must_use]
+pub(crate) fn format_followup_advisory(findings: &[FollowupFinding]) -> Option<String> {
+    let first = findings.first()?;
+    let count = findings.len();
+    let noun = if count == 1 { "warning" } else { "warnings" };
+    Some(format!(
+        "anvil: {count} AST follow-up {noun} (save allowed) — {} in {}",
+        first.id, first.file
+    ))
+}
+
+#[must_use]
+pub(crate) fn advisory_from_check_json(stdout: &[u8]) -> Option<String> {
+    format_followup_advisory(&findings_from_check_json(stdout))
+}
+
+/// ADR-038 repeat-suppression: identical class+detail stays quiet in-session.
+#[must_use]
+pub(crate) fn should_emit_advisory(last: Option<&str>, line: &str) -> bool {
+    last != Some(line)
+}
+
+#[cfg_attr(test, allow(dead_code))]
+fn emit_followup_advisory(line: &str) {
+    static LAST: Mutex<Option<String>> = Mutex::new(None);
+    let mut last = recover(LAST.lock());
+    if !should_emit_advisory(last.as_deref(), line) {
+        return;
+    }
+    *last = Some(line.to_string());
+    eprintln!("{line}");
 }
 
 /// Resolve enablement from env then config. Default is on.
@@ -118,18 +190,19 @@ impl FollowupRunner for ProcessRunner {
         if !command.is_legal() {
             return Err("refusing illegal ast follow-up argv".into());
         }
-        let mut child = Command::new(&command.program)
+        let output = Command::new(&command.program)
             .args(&command.args)
             .current_dir(&command.cwd)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn()
+            .output()
             .map_err(|err| err.to_string())?;
-        let status = child.wait().map_err(|err| err.to_string())?;
-        if !status.success() {
+        if let Some(line) = advisory_from_check_json(&output.stdout) {
+            emit_followup_advisory(&line);
+        }
+        if !output.status.success() {
             tracing::debug!(
-                code = ?status.code(),
+                code = ?output.status.code(),
                 "ast follow-up child exited non-zero (findings or skip)"
             );
         }
@@ -548,5 +621,60 @@ mod tests {
             .expect("write config");
         assert_eq!(load_config_followup(dir.path()), Some(false));
         assert!(!followup_enabled(None, load_config_followup(dir.path())));
+    }
+
+    #[test]
+    fn empty_or_malformed_check_json_is_silent() {
+        assert!(advisory_from_check_json(br"{}").is_none());
+        assert!(advisory_from_check_json(br#"{"warnings":[]}"#).is_none());
+        assert!(advisory_from_check_json(br"not json").is_none());
+        assert!(advisory_from_check_json(br#"{"warnings":[{"id":"RS-001"}]}"#).is_none());
+    }
+
+    #[test]
+    fn one_warning_is_one_tagged_line() {
+        let line =
+            advisory_from_check_json(br#"{"warnings":[{"id":"RS-001","file":"src/lib.rs"}]}"#)
+                .expect("warning");
+        assert_eq!(
+            line,
+            "anvil: 1 AST follow-up warning (save allowed) — RS-001 in src/lib.rs"
+        );
+        assert!(
+            !line.contains('\n'),
+            "ADR-038 forbids a terminal wash: {line:?}"
+        );
+        assert!(
+            line.contains("AST follow-up"),
+            "must tag the tier so save-green is not read as fully clean"
+        );
+    }
+
+    #[test]
+    fn many_warnings_still_one_line() {
+        let line = advisory_from_check_json(
+            br#"{"warnings":[{"id":"RS-001","file":"src/lib.rs"},{"id":"PY-010","file":"app.py"}]}"#,
+        )
+        .expect("warnings");
+        assert_eq!(
+            line,
+            "anvil: 2 AST follow-up warnings (save allowed) — RS-001 in src/lib.rs"
+        );
+        assert_eq!(line.lines().count(), 1);
+        assert!(
+            !line.contains("PY-010"),
+            "extra findings stay off the one-line pointer"
+        );
+    }
+
+    #[test]
+    fn identical_advisory_is_suppressed() {
+        let line = "anvil: 1 AST follow-up warning (save allowed) — RS-001 in src/lib.rs";
+        assert!(should_emit_advisory(None, line));
+        assert!(!should_emit_advisory(Some(line), line));
+        assert!(should_emit_advisory(
+            Some(line),
+            "anvil: 1 AST follow-up warning (save allowed) — RS-002 in src/lib.rs"
+        ));
     }
 }

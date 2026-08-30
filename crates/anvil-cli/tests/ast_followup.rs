@@ -60,6 +60,32 @@ fn changed_path_check_reports_rs001_on_unwrap() {
 }
 
 #[test]
+fn check_json_warning_shape_pins_the_followup_advisory() {
+    let payload = serde_json::json!({
+        "warnings": [{"id": "RS-001", "file": "src/lib.rs"}]
+    });
+    let warnings = payload
+        .get("warnings")
+        .and_then(serde_json::Value::as_array)
+        .expect("warnings");
+    let first = warnings.first().expect("one warning");
+    let id = first
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .expect("id");
+    let file = first
+        .get("file")
+        .and_then(serde_json::Value::as_str)
+        .expect("file");
+    let line = format!("anvil: 1 AST follow-up warning (save allowed) — {id} in {file}");
+    assert_eq!(
+        line,
+        "anvil: 1 AST follow-up warning (save allowed) — RS-001 in src/lib.rs"
+    );
+    assert_eq!(line.lines().count(), 1);
+}
+
+#[test]
 fn warning_match_rejects_textual_rs001_lookalikes() {
     for stdout in [
         br"warning RS-001 in src/lib.rs".as_slice(),
