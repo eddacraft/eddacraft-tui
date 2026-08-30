@@ -113,6 +113,66 @@ fn run_anvil(root: &Path, args: &[&str]) -> Output {
         .expect("run anvil")
 }
 
+fn run_anvil_with_stdin(root: &Path, args: &[&str], input: &[u8]) -> Output {
+    let mut child = Command::new(ANVIL_BIN)
+        .args(args)
+        .current_dir(root)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn anvil");
+    child
+        .stdin
+        .take()
+        .expect("piped stdin")
+        .write_all(input)
+        .expect("write PR body");
+    child.wait_with_output().expect("wait for anvil")
+}
+
+#[test]
+fn hostile_git_repository_environment_cannot_redirect_conformance_discovery() {
+    let fixture = GitFixture::docs_only_two_commit_range();
+    let decoy = tempfile::tempdir().expect("temp decoy repository");
+    git(decoy.path(), &["init", "--quiet"]);
+    let body = fixture.body_file("```anvil-claims\nclaim: documentation-only\n```\n");
+    let output = Command::new(ANVIL_BIN)
+        .args([
+            "--json",
+            "conformance",
+            "check",
+            "--base",
+            &fixture.base,
+            "--head",
+            &fixture.head,
+            "--pr-body-file",
+            body.to_str().expect("body path"),
+            "--source-ref",
+            "pull-request:hostile-environment:body:sha256:fixture",
+        ])
+        .current_dir(fixture.dir.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("GIT_DIR", decoy.path().join(".git"))
+        .env("GIT_WORK_TREE", decoy.path())
+        .output()
+        .expect("run anvil with hostile Git environment");
+
+    assert!(
+        output.status.success(),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("one JSON report");
+    assert_eq!(report["outcome"], "conformant");
+    assert_eq!(report["resolvedBase"], fixture.base);
+    assert_eq!(report["resolvedHead"], fixture.head);
+}
+
 #[test]
 fn docs_only_two_commit_range_is_conformant_with_resolved_binding() {
     let fixture = GitFixture::docs_only_two_commit_range();
@@ -567,6 +627,125 @@ fn explicit_plain_format_wins_over_global_json_alias() {
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
     assert!(stdout.starts_with("Conformance check: conformant\n"));
     assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+}
+
+#[test]
+fn invalid_utf8_body_is_advisory_for_file_and_stdin_in_every_format() {
+    const REASON: &str = "claim.pr-body.encoding.invalid-utf8";
+
+    let fixture = GitFixture::docs_only_two_commit_range();
+    let path = fixture.dir.path().join("pr-body-invalid-utf8.md");
+    std::fs::write(&path, b"\xff").expect("write invalid UTF-8 PR body");
+
+    for format in ["plain", "json", "sarif"] {
+        for from_stdin in [false, true] {
+            let body_argument = if from_stdin {
+                "-"
+            } else {
+                path.to_str().expect("body path")
+            };
+            let args = [
+                "conformance",
+                "check",
+                "--base",
+                fixture.base.as_str(),
+                "--head",
+                fixture.head.as_str(),
+                "--pr-body-file",
+                body_argument,
+                "--source-ref",
+                "pull-request:invalid-utf8:body:sha256:fixture",
+                "--format",
+                format,
+            ];
+            let output = if from_stdin {
+                run_anvil_with_stdin(fixture.dir.path(), &args, b"\xff")
+            } else {
+                run_anvil(fixture.dir.path(), &args)
+            };
+
+            assert!(
+                output.status.success(),
+                "{format} from_stdin={from_stdin} must be advisory; stderr:\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            match format {
+                "plain" => {
+                    let stdout = String::from_utf8(output.stdout).expect("UTF-8 plain report");
+                    assert!(stdout.contains("Conformance check: not-evaluated"));
+                    assert!(stdout.contains(&format!("Reason: {REASON}")));
+                }
+                "json" => {
+                    let report: serde_json::Value =
+                        serde_json::from_slice(&output.stdout).expect("one JSON report");
+                    assert_eq!(report["outcome"], "not-evaluated");
+                    assert!(
+                        report["reasons"]
+                            .as_array()
+                            .expect("reasons")
+                            .iter()
+                            .any(|reason| reason == REASON)
+                    );
+                }
+                "sarif" => {
+                    let document: serde_json::Value =
+                        serde_json::from_slice(&output.stdout).expect("one SARIF document");
+                    assert!(
+                        document["runs"][0]["results"]
+                            .as_array()
+                            .expect("results")
+                            .iter()
+                            .any(|result| {
+                                result["ruleId"] == format!("anvil.conformance.{REASON}")
+                            })
+                    );
+                }
+                _ => unreachable!("fixed test formats"),
+            }
+        }
+    }
+}
+
+#[test]
+fn over_budget_body_with_a_split_multibyte_character_is_not_evaluated() {
+    let fixture = GitFixture::docs_only_two_commit_range();
+    let path = fixture.dir.path().join("pr-body-split-multibyte.md");
+    let mut body = vec![b'x'; anvil_checks::conformance::PR_BODY_MAX_BYTES];
+    body.extend_from_slice("é".as_bytes());
+    std::fs::write(&path, body).expect("write over-budget PR body");
+    let output = run_anvil(
+        fixture.dir.path(),
+        &[
+            "conformance",
+            "check",
+            "--base",
+            &fixture.base,
+            "--head",
+            &fixture.head,
+            "--pr-body-file",
+            path.to_str().expect("body path"),
+            "--source-ref",
+            "pull-request:over-budget:body:sha256:fixture",
+            "--format",
+            "json",
+        ],
+    );
+
+    assert!(
+        output.status.success(),
+        "over-budget is semantic non-evaluation; stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("one JSON report");
+    assert_eq!(report["outcome"], "not-evaluated");
+    assert!(
+        report["reasons"]
+            .as_array()
+            .expect("reasons")
+            .iter()
+            .any(|reason| reason == "claim.pr-body.budget.body-bytes")
+    );
 }
 
 #[test]

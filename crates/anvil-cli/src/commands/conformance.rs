@@ -17,9 +17,16 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::output::sarif;
-use crate::util::workspace_root;
 
 const REPORT_SCHEMA: &str = "anvil.conformance-check.v1";
+const PR_BODY_OVER_BUDGET_REASON: &str = "claim.pr-body.budget.body-bytes";
+const PR_BODY_INVALID_UTF8_REASON: &str = "claim.pr-body.encoding.invalid-utf8";
+
+#[derive(Debug)]
+enum PrBodyInput {
+    Body(String),
+    NotEvaluated(&'static str),
+}
 
 #[derive(Debug, Args)]
 pub struct ConformanceArgs {
@@ -233,9 +240,14 @@ pub fn run(args: &ConformanceArgs, global: &GlobalArgs) -> Result<()> {
 }
 
 fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
-    let body = read_pr_body(&args.pr_body_file)?;
-    let declaration = extract_pr_body_claims(&args.source_ref, &body).into_contract_parts();
-    let repository = workspace_root().context("resolve conformance repository")?;
+    let declaration = match read_pr_body(&args.pr_body_file)? {
+        PrBodyInput::Body(body) => extract_pr_body_claims(&args.source_ref, &body)
+            .into_contract_parts()
+            .map_err(|non_evaluation| non_evaluation.reasons().to_vec()),
+        PrBodyInput::NotEvaluated(reason) => Err(vec![reason]),
+    };
+    let repository =
+        std::env::current_dir().context("resolve conformance repository entry path")?;
     let extractor = GitExtractor::default();
     let run_id = format!("conformance-{}", uuid::Uuid::new_v4());
     let git_evidence = match extractor.identity_for_repository(&repository, run_id) {
@@ -261,7 +273,6 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         (Err(non_evaluation), Ok((identity, extraction))) => {
             let git_non_evaluations = pr_git_footprint_non_evaluations(&extraction, &identity);
             let mut reasons: Vec<String> = non_evaluation
-                .reasons()
                 .iter()
                 .map(|reason| (*reason).to_owned())
                 .collect();
@@ -277,7 +288,6 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
         }
         (Err(non_evaluation), Err(git_reason)) => {
             let mut reasons: Vec<String> = non_evaluation
-                .reasons()
                 .iter()
                 .map(|reason| (*reason).to_owned())
                 .collect();
@@ -291,7 +301,7 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     render_report(&report, args.render_mode(global))
 }
 
-fn read_pr_body(path: &PathBuf) -> Result<String> {
+fn read_pr_body(path: &PathBuf) -> Result<PrBodyInput> {
     let mut bytes = Vec::with_capacity(PR_BODY_MAX_BYTES.saturating_add(1));
     let limit =
         u64::try_from(PR_BODY_MAX_BYTES.saturating_add(1)).expect("PR body limit fits in u64");
@@ -308,7 +318,13 @@ fn read_pr_body(path: &PathBuf) -> Result<String> {
             .read_to_end(&mut bytes)
             .with_context(|| format!("read PR body {}", path.display()))?;
     }
-    String::from_utf8(bytes).context("PR body is not valid UTF-8")
+    if bytes.len() > PR_BODY_MAX_BYTES {
+        return Ok(PrBodyInput::NotEvaluated(PR_BODY_OVER_BUDGET_REASON));
+    }
+    Ok(String::from_utf8(bytes).map_or(
+        PrBodyInput::NotEvaluated(PR_BODY_INVALID_UTF8_REASON),
+        PrBodyInput::Body,
+    ))
 }
 
 fn render_report(report: &ConformanceCheckReport, mode: RenderMode) -> Result<()> {
