@@ -360,7 +360,9 @@ Change status to **Ready** when:
   head revisions, a bounded PR-body file or stdin, and an immutable source
   reference. It runs CONF-005 extraction and the CONF-004 Git evaluator,
   reporting advisory plain, JSON, or SARIF output with separate declaration
-  grade and evidence strength. `documentation-only`, `test-only`, and
+  grade and evidence strength. The bounded Git footprint is claim-agnostic and
+  does not require Conventional Commit syntax; CONF-003 commit-claim extraction
+  remains separate. `documentation-only`, `test-only`, and
   explicit path scopes can evaluate from complete Git evidence;
   `no-behaviour-change` and `refactor-only` stay reason-coded
   `not-evaluated`. Missing, malformed, partial, over-budget, or mismatched

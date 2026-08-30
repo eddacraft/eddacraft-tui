@@ -41,8 +41,10 @@ compatibility and history record.
 - **`conformance`** — bounded, replacement-disabled Tier-0 Git extraction,
   deterministic weak-grade PR-body declaration extraction, and advisory
   claim-versus-effect evaluation. Its range-level entry point aggregates every
-  selected commit for production callers such as `anvil conformance check`; an
-  empty, partial, or identity-mismatched range remains not evaluated. Opaque
+  selected commit for production callers such as `anvil conformance check`. That
+  PR footprint is claim-agnostic and does not require Conventional Commit
+  syntax; Conventional Commit claim extraction remains a separate entry point.
+  An empty, partial, or identity-mismatched range remains not evaluated. Opaque
   repository/worktree identities and structured budget diagnostics keep failures
   observable without leaking local paths. Raw Git records stay distinct from
   canonical per-path coverage and evaluator-owned evidence dispositions.

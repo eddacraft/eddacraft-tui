@@ -233,7 +233,9 @@ in either global placement; an explicit local `--format` wins.
 
 The report schema is `anvil.conformance-check.v1`. Declaration evidence grade
 and evaluation evidence strength are separate fields. Complete Git evidence can
-evaluate `documentation-only`, `test-only`, and explicit `path:` scopes.
+evaluate `documentation-only`, `test-only`, and explicit `path:` scopes. Git
+footprint extraction is claim-agnostic, so commit messages do not need to use
+Conventional Commit syntax for a PR declaration to be evaluated.
 `no-behaviour-change` and `refactor-only` remain reason-coded `not-evaluated`;
 the command does not infer graph semantics from a clean path diff.
 
