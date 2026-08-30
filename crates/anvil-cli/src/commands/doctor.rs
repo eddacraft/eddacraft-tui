@@ -1900,7 +1900,7 @@ fn check_intercept_socket_rendezvous() -> DiagnosticCheck {
             Ok(candidates) => {
                 let Some(canonical) = candidates.first() else {
                     return intercept_socket_rendezvous_unresolved(
-                        "no intercept socket directory candidate".to_string(),
+                        "no intercept socket path candidate".to_string(),
                     );
                 };
                 let (live, canonical_invalid) = classify_intercept_sockets(&candidates);
@@ -1942,6 +1942,7 @@ fn intercept_socket_not_found(err: &anvil_intercept::ipc::IpcError) -> bool {
     )
 }
 
+#[cfg(unix)]
 fn intercept_socket_rendezvous_unresolved(message: String) -> DiagnosticCheck {
     DiagnosticCheck {
         name: "intercept-socket-rendezvous".to_string(),
@@ -1958,6 +1959,7 @@ fn intercept_socket_rendezvous_unresolved(message: String) -> DiagnosticCheck {
     }
 }
 
+#[cfg(unix)]
 #[derive(Debug)]
 enum LiveInterceptSocket {
     At(Vec<PathBuf>),
@@ -1966,8 +1968,8 @@ enum LiveInterceptSocket {
 }
 
 /// Owner-only intercept sockets among `candidates`, plus a canonical
-/// non-NotFound error (symlink / wrong mode) when the expected path is
-/// unusable. Sibling errors other than NotFound are skipped — connect
+/// non-`NotFound` error (symlink / wrong mode) when the expected path is
+/// unusable. Sibling errors other than `NotFound` are skipped — connect
 /// must not follow them.
 #[cfg(unix)]
 fn classify_intercept_sockets(candidates: &[PathBuf]) -> (Vec<PathBuf>, Option<String>) {
@@ -1984,6 +1986,7 @@ fn classify_intercept_sockets(candidates: &[PathBuf]) -> (Vec<PathBuf>, Option<S
     (live, canonical_invalid)
 }
 
+#[cfg(unix)]
 fn check_intercept_socket_rendezvous_from(
     canonical: &Path,
     live: LiveInterceptSocket,
@@ -2430,9 +2433,59 @@ fn default_config_yaml() -> &'static str {
 }
 
 #[cfg(unix)]
+fn stop_sibling_intercept_sockets(siblings: &[PathBuf], speak: bool) -> bool {
+    use anvil_intercept::{StopOutcome, request_daemon_stop_at_pid_file};
+    for sibling in siblings {
+        let Some(parent) = sibling.parent() else {
+            if speak {
+                eprintln!(
+                    "  Failed to fix intercept-socket-rendezvous: socket {} has no parent",
+                    sibling.display()
+                );
+            }
+            return false;
+        };
+        let pid_path = parent.join("intercept.pid");
+        match request_daemon_stop_at_pid_file(&pid_path) {
+            Ok(StopOutcome::Signalled { pid }) => {
+                if speak {
+                    println!(
+                        "  intercept-socket-rendezvous: sent SIGTERM to sibling daemon (pid {pid})"
+                    );
+                }
+                if !anvil_intercept::wait_for_pid_exit(pid, std::time::Duration::from_secs(10)) {
+                    if speak {
+                        eprintln!(
+                            "  Failed to fix intercept-socket-rendezvous: sibling pid {pid} still running"
+                        );
+                    }
+                    return false;
+                }
+            }
+            Ok(StopOutcome::NotRunning | StopOutcome::StaleCleared { .. }) => {}
+            Err(err) => {
+                if speak {
+                    eprintln!("  Failed to fix intercept-socket-rendezvous: {err}");
+                }
+                return false;
+            }
+        }
+        if anvil_intercept::ipc::validate_socket_path_for_client(sibling).is_ok() {
+            if speak {
+                eprintln!(
+                    "  Failed to fix intercept-socket-rendezvous: sibling socket {} still live; not starting a second daemon",
+                    sibling.display()
+                );
+            }
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(unix)]
 fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: bool) {
     use anvil_intercept::ensure::{EnsureOutcome, StartCapability};
-    use anvil_intercept::{StopOutcome, request_daemon_stop_at_pid_file};
 
     let candidates = match anvil_intercept::ipc::resolve_socket_connect_candidates() {
         Ok(paths) if !paths.is_empty() => paths,
@@ -2467,50 +2520,8 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
         }
         return;
     }
-    for sibling in &siblings {
-        let Some(parent) = sibling.parent() else {
-            if speak {
-                eprintln!(
-                    "  Failed to fix intercept-socket-rendezvous: socket {} has no parent",
-                    sibling.display()
-                );
-            }
-            return;
-        };
-        let pid_path = parent.join("intercept.pid");
-        match request_daemon_stop_at_pid_file(&pid_path) {
-            Ok(StopOutcome::Signalled { pid }) => {
-                if speak {
-                    println!(
-                        "  intercept-socket-rendezvous: sent SIGTERM to sibling daemon (pid {pid})"
-                    );
-                }
-                if !anvil_intercept::wait_for_pid_exit(pid, std::time::Duration::from_secs(10)) {
-                    if speak {
-                        eprintln!(
-                            "  Failed to fix intercept-socket-rendezvous: sibling pid {pid} still running"
-                        );
-                    }
-                    return;
-                }
-            }
-            Ok(StopOutcome::NotRunning | StopOutcome::StaleCleared { .. }) => {}
-            Err(err) => {
-                if speak {
-                    eprintln!("  Failed to fix intercept-socket-rendezvous: {err}");
-                }
-                return;
-            }
-        }
-        if anvil_intercept::ipc::validate_socket_path_for_client(sibling).is_ok() {
-            if speak {
-                eprintln!(
-                    "  Failed to fix intercept-socket-rendezvous: sibling socket {} still live; not starting a second daemon",
-                    sibling.display()
-                );
-            }
-            return;
-        }
+    if !stop_sibling_intercept_sockets(&siblings, speak) {
+        return;
     }
     if anvil_intercept::ipc::validate_socket_path_for_client(canonical).is_ok() {
         check.status = CheckStatus::Pass;
@@ -2587,6 +2598,32 @@ fn apply_produce_locks_fix(check: &mut DiagnosticCheck, speak: bool) {
     }
 }
 
+fn apply_config_exists_fix(check: &mut DiagnosticCheck, speak: bool) {
+    // UCFG-001 / ADR-120 pt 1: the auto-fix creates the
+    // canonical file; no command creates a new `.anvilrc`.
+    // This arm only runs when the presence probe found no
+    // config at all, and `fs::write` truncates any racing
+    // zero-byte stub — no pre-cleanup needed.
+    let path = Path::new(".anvil.yaml");
+    match std::fs::write(path, default_config_yaml()) {
+        Ok(()) => {
+            check.status = CheckStatus::Pass;
+            check.message = ".anvil.yaml created with defaults".to_string();
+            check.auto_fixable = false;
+            if speak {
+                println!(
+                    "  Fixed: config-exists — created .anvil.yaml with default \
+                     schema (yaml, three checks)"
+                );
+            }
+        }
+        Err(e) if speak => {
+            eprintln!("  Failed to fix config-exists: {e}");
+        }
+        Err(_) => {}
+    }
+}
+
 fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
     // `json` mode silences human-facing prose so the JSON envelope stays
     // machine-parseable. Plain and TUI modes always print the per-check
@@ -2620,31 +2657,7 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
                     }
                 }
             }
-            "config-exists" => {
-                // UCFG-001 / ADR-120 pt 1: the auto-fix creates the
-                // canonical file; no command creates a new `.anvilrc`.
-                // This arm only runs when the presence probe found no
-                // config at all, and `fs::write` truncates any racing
-                // zero-byte stub — no pre-cleanup needed.
-                let path = Path::new(".anvil.yaml");
-                match std::fs::write(path, default_config_yaml()) {
-                    Ok(()) => {
-                        check.status = CheckStatus::Pass;
-                        check.message = ".anvil.yaml created with defaults".to_string();
-                        check.auto_fixable = false;
-                        if speak {
-                            println!(
-                                "  Fixed: config-exists — created .anvil.yaml with default \
-                                 schema (yaml, three checks)"
-                            );
-                        }
-                    }
-                    Err(e) if speak => {
-                        eprintln!("  Failed to fix config-exists: {e}");
-                    }
-                    Err(_) => {}
-                }
-            }
+            "config-exists" => apply_config_exists_fix(check, speak),
             "anvil-dir" => match std::fs::create_dir_all(".anvil") {
                 Ok(()) => {
                     check.status = CheckStatus::Pass;

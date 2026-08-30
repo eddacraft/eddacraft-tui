@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-31 CONF-011 Council repair review of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Successful 2026-08-31 CONF-011 Council repair review of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed intercept-socket-rendezvous canonical versus sibling wording against `crates/anvil-cli/src/commands/doctor.rs`. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -321,11 +321,12 @@ gh pr view 42 --json body --jq .body | \
 **When to use:** When Anvil is behaving unexpectedly or a setup step failed.
 Also useful as a pre-flight in CI. Doctor also runs daily MCP self-heal (rewrite
 drifted owned entries and poke live children) unless MCP heal is pinned. The
-`intercept-socket-rendezvous` check warns when this process expected
-`$XDG_RUNTIME_DIR/anvil/intercept.sock` but the daemon is live under
-`~/.local/state/anvil` (or the reverse); `--fix` stops that sibling daemon and
-starts one at the canonical socket. It does not follow socket symlinks and does
-not cross an `ANVIL_HOME` prefix.
+`intercept-socket-rendezvous` check warns when this process's canonical socket
+(`$XDG_RUNTIME_DIR/anvil/intercept.sock` when that env is set, otherwise
+`$HOME/.local/state/anvil/intercept.sock`) is missing but a sibling under the
+other prefix is live; `--fix` stops that sibling daemon and starts one at the
+canonical socket. It does not follow socket symlinks and does not cross an
+`ANVIL_HOME` prefix.
 
 **Synopsis:** `anvil doctor [--fix]`
 

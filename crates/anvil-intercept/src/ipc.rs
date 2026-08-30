@@ -611,10 +611,7 @@ pub fn resolve_socket_connect_candidates() -> Result<Vec<PathBuf>, IpcError> {
 /// the explicit candidate) or the directory is absent.
 #[cfg(unix)]
 fn implicit_xdg_runtime_dir() -> Option<PathBuf> {
-    if std::env::var_os("XDG_RUNTIME_DIR")
-        .filter(|d| !d.is_empty())
-        .is_some()
-    {
+    if std::env::var_os("XDG_RUNTIME_DIR").is_some_and(|d| !d.is_empty()) {
         return None;
     }
     let uid = nix::unistd::Uid::current().as_raw();
@@ -9209,7 +9206,7 @@ mod tests {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
         let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
         let err = select_live_socket_path_with(&[canonical.clone(), sibling], |path| {
-            if path == &canonical {
+            if path == canonical {
                 Err(IpcError::SocketPathIsSymlink(path.to_path_buf()))
             } else {
                 Ok(())

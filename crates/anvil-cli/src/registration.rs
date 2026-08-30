@@ -519,8 +519,20 @@ fn round_trip(body: &[u8], timeout: Duration) -> Result<String, DaemonRegistrati
 
     use anvil_intercept::ipc;
 
-    let socket_path = ipc::resolve_live_socket_path()
-        .map_err(|err| DaemonRegistrationError::Transport(err.to_string()))?;
+    let socket_path = match ipc::resolve_live_socket_path() {
+        Ok(path) => path,
+        Err(ipc::IpcError::Io(io)) if io.kind() == std::io::ErrorKind::NotFound => {
+            return Err(DaemonRegistrationError::DaemonUnavailable(format!(
+                "anvil intercept daemon is not running ({io})",
+            )));
+        }
+        Err(ipc::IpcError::NoSocketDirCandidate) => {
+            return Err(DaemonRegistrationError::DaemonUnavailable(
+                "anvil intercept daemon is not running (no socket path candidate)".to_owned(),
+            ));
+        }
+        Err(err) => return Err(DaemonRegistrationError::Transport(err.to_string())),
+    };
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         return match err {
             ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {

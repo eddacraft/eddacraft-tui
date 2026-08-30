@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-30 against SDT-004's one-line warm in `src/midedit.rs` (`ScanBufferService::with_timeout` force-initialises the shared secret-pattern set) and `tests/pattern_warm.rs`; lanes, transport, admission, and every diagram are unchanged — the change moves an existing cost off the request path and adds no path through the crate. Previously reviewed 2026-08-29 to link resident graph internals to `crates/anvil-graph-cache/ARCHITECTURE.md`; egress, save-time, and peer-admission topology and diagrams unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-30 against SDT-004's construction-time secret-pattern warm in `src/midedit.rs` and `tests/pattern_warm.rs`, and dual-path Unix client rendezvous (`resolve_socket_connect_candidates`): one bind socket, clients probe the XDG/state-home sibling. The warm moves existing cost off the request path; lanes, transport, admission, egress, save-time, peer-admission topology, and every diagram are otherwise unchanged. Prior 2026-08-29 review linked resident graph internals to `crates/anvil-graph-cache/ARCHITECTURE.md` |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -16,17 +16,19 @@ as a dated compatibility and history record.
 
 The local transport boundary differs by platform. On Unix, the daemon relies on
 an owner-only `0700` directory and `0600` socket; it does not compare a Unix
-caller UID after accept. Unix clients validate the connected daemon UID before
-sending proposed content, while the Linux listener also obtains the peer PID
-used by optional lineage checks. Windows uses an owner-only named-pipe DACL and
-the server explicitly compares the connected peer's SID with the pipe owner's
-SID. Save-time `validate_paths` requests then pass workspace admission before
-guarded reads and validation. `scan_buffer` is the caller-buffer lane for both
-MidEdit and PreWrite requests and has a separate, platform-dependent
-cross-check. A fence is a separate durable safety state triggered by spoof
-detection, an interrupt that cannot safely complete, or an unattributed or
-unregistered change. Cascade engages only after repeated fence events; degraded
-assurance alone does not fence a worktree.
+caller UID after accept. Clients connect to the first live owner-only socket
+among the bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when
+set); dual-path is a client rendezvous, not a second listener. Unix clients
+validate the connected daemon UID before sending proposed content, while the
+Linux listener also obtains the peer PID used by optional lineage checks.
+Windows uses an owner-only named-pipe DACL and the server explicitly compares
+the connected peer's SID with the pipe owner's SID. Save-time `validate_paths`
+requests then pass workspace admission before guarded reads and validation.
+`scan_buffer` is the caller-buffer lane for both MidEdit and PreWrite requests
+and has a separate, platform-dependent cross-check. A fence is a separate
+durable safety state triggered by spoof detection, an interrupt that cannot
+safely complete, or an unattributed or unregistered change. Cascade engages only
+after repeated fence events; degraded assurance alone does not fence a worktree.
 
 ## Save, validation, and fence flow
 
