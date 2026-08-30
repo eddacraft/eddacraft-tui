@@ -1,12 +1,12 @@
 # Feature Flag Reference
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                    |
-| ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-25 against FLAGCAT-015 plan availability, the v2 product catalogue, FLAGCAT-012 host completeness, FLAGCAT-013 linkage, canonical flag schemas, loader, and shared TypeScript resolver |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-30 at `5a9a261b8` against `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/catalogue.ts`, and `packages/anvil/runtime/src/feature-flags/resolver.ts`; frozen inventory accessors and the readonly resolver input are documented, with evaluation behaviour unchanged |
 
-| Upstream                                                                                                                                                                                                                       | Downstream                                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `docs/guides/feature-flag-governance.md`, `flags/surfaces.json`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/runtime/src/feature-flags/` | Feature-flag authors, resolver integrations, `feature-flag-inventory.md` |
+| Upstream                                                                                                                                                                                                                                                                          | Downstream                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `docs/guides/feature-flag-governance.md`, `flags/surfaces.json`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/catalogue.ts`, `packages/anvil/runtime/src/feature-flags/` | Feature-flag authors, resolver integrations, `feature-flag-inventory.md` |
 
 Quick reference for defining, resolving, and operating feature flags in anvil,
 and for reading the separate product catalogue.
@@ -126,6 +126,20 @@ if (!result.success) {
   console.error(result.errors);
 }
 ```
+
+### Frozen catalogue accessors
+
+| Surface                                 | Readonly contract                     | Runtime guarantee                                      |
+| --------------------------------------- | ------------------------------------- | ------------------------------------------------------ |
+| `featureFlagManifest()`                 | `ReadonlyFeatureFlagManifest`         | Validated and recursively frozen at module load        |
+| `flagGroups()`                          | `ReadonlyFlagGroupManifest`           | Validated and recursively frozen at module load        |
+| `flagAudiences()`                       | `ReadonlyFlagAudienceManifest`        | Validated and recursively frozen at module load        |
+| `flagEnvironments()`                    | `ReadonlyFlagEnvironmentManifest`     | Validated and recursively frozen at module load        |
+| `flagByKey()` / `tryFlagByKey()`        | `ReadonlyFeatureFlagDefinition`       | Reads definitions from the frozen manifest-derived map |
+| `resolveFlag(flag, context, overrides)` | `flag: ReadonlyFeatureFlagDefinition` | Reads the definition without mutating catalogue state  |
+
+Do not mutate an accessor result. Change the canonical JSON, revalidate, and
+reload the catalogue so every consumer observes the same process-wide inventory.
 
 ### 3. Create a snapshot
 

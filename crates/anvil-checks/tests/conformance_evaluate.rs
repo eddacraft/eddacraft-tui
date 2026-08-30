@@ -639,8 +639,15 @@ fn git_with_env(repo: &Path, args: &[&str], extra_env: &[(&str, &str)]) -> Strin
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_SYSTEM", empty_config.path())
         .env("GIT_CONFIG_GLOBAL", empty_config.path())
+        .env_remove("GIT_CONFIG")
         .env_remove("GIT_CONFIG_COUNT")
-        .env_remove("GIT_CONFIG_PARAMETERS");
+        .env_remove("GIT_CONFIG_PARAMETERS")
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_COMMON_DIR")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_OBJECT_DIRECTORY")
+        .env_remove("GIT_ALTERNATE_OBJECT_DIRECTORIES");
     for (key, value) in extra_env {
         cmd.env(*key, *value);
     }
@@ -665,17 +672,22 @@ fn repository_with_env(extra_env: &[(&str, &str)]) -> TempDir {
     git_with_env(repo.path(), &["init", "-q"], extra_env);
     git_with_env(
         repo.path(),
-        &["config", "user.name", "CONF test"],
+        &["config", "--local", "user.name", "CONF test"],
         extra_env,
     );
     git_with_env(
         repo.path(),
-        &["config", "user.email", "conf-test@example.invalid"],
+        &[
+            "config",
+            "--local",
+            "user.email",
+            "conf-test@example.invalid",
+        ],
         extra_env,
     );
     git_with_env(
         repo.path(),
-        &["config", "commit.gpgsign", "false"],
+        &["config", "--local", "commit.gpgsign", "false"],
         extra_env,
     );
     let empty_hooks = repo.path().join("empty-hooks");
@@ -683,7 +695,7 @@ fn repository_with_env(extra_env: &[(&str, &str)]) -> TempDir {
     let hooks_path = empty_hooks.to_string_lossy().into_owned();
     git_with_env(
         repo.path(),
-        &["config", "core.hooksPath", &hooks_path],
+        &["config", "--local", "core.hooksPath", &hooks_path],
         extra_env,
     );
     repo
@@ -864,6 +876,40 @@ fn fixture_git_commands_ignore_ambient_command_scope_config() {
         failures.is_empty(),
         "ambient command config was not isolated:\n{}",
         failures.join("\n")
+    );
+}
+
+#[test]
+fn fixture_git_commands_do_not_mutate_legacy_git_config() {
+    let host = tempfile::tempdir().expect("ambient Git config directory");
+    let ambient_config = host.path().join("ambient-gitconfig");
+    let sentinel = "[user]\n\tname = ambient sentinel\n";
+    std::fs::write(&ambient_config, sentinel).expect("write ambient Git config");
+
+    let output = Command::new(std::env::current_exe().expect("current test executable"))
+        .args([
+            "--exact",
+            "ambient_command_scope_git_config_child",
+            "--nocapture",
+        ])
+        .env("ANVIL_CONF_AMBIENT_COMMAND_CONFIG", "1")
+        .env("GIT_CONFIG", &ambient_config)
+        .env_remove("GIT_CONFIG_COUNT")
+        .env_remove("GIT_CONFIG_KEY_0")
+        .env_remove("GIT_CONFIG_VALUE_0")
+        .env_remove("GIT_CONFIG_PARAMETERS")
+        .output()
+        .expect("run legacy GIT_CONFIG child");
+
+    assert!(
+        output.status.success(),
+        "legacy GIT_CONFIG broke fixture commands:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        std::fs::read_to_string(&ambient_config).expect("read ambient Git config"),
+        sentinel,
+        "fixture Git commands mutated the caller-owned GIT_CONFIG"
     );
 }
 

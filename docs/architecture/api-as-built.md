@@ -1,12 +1,12 @@
 # anvil-api service compatibility record
 
-| Type     | Authority  | Owner | Status     | Freshness                                                                                                                                                                                                  |
-| -------- | ---------- | ----- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Historical | APGOV | Deprecated | Reviewed 2026-08-28 after CIB-371 parse/narrowing on `apps/anvil-api/ARCHITECTURE.md`; superseded 2026-08-20 by that component architecture; this dated snapshot remains for inbound links and Git history |
+| Type     | Authority  | Owner | Status     | Freshness                                                                                                                                                                                                                                                                                                                                             |
+| -------- | ---------- | ----- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Historical | APGOV | Deprecated | Reviewed 2026-08-30 at `70f501708` against `apps/anvil-api/ARCHITECTURE.md` and CLAWOPEN-003's verified-email and minted-session recovery disposition. Live component authority remains there and auth authority remains in `docs/architecture/auth-as-built.md`; this dated snapshot is unchanged and remains only for inbound links and Git history |
 
-| Upstream                                                  | Downstream                                                                                                                                 |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `apps/anvil-api`, `anvil-archive/admin-cli-node`, ADR-018 | anvil CLI (auth flows, license refresh, update-check), operator admin CLI, anvil admin Rust command (RCLI2-009), eddacraft.ai install site |
+| Upstream                                                                                                                          | Downstream                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/anvil-api/ARCHITECTURE.md`, `docs/architecture/auth-as-built.md`, `apps/anvil-api`, `anvil-archive/admin-cli-node`, ADR-018 | anvil CLI (auth flows, license refresh, update-check), operator admin CLI, anvil admin Rust command (RCLI2-009), eddacraft.ai install site |
 
 > **Compatibility record:** current service composition and persistence truth
 > now lives in

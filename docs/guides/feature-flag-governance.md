@@ -1,12 +1,12 @@
 # Feature Flag Governance
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                 |
-| ----- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-25 against FLAGCAT-015 plan availability, FLAGCAT-012 host completeness gates, ADR-076, the product-catalogue schemas and loader, and the operational flag resolver |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | FLAGCAT | Live   | Last reviewed 2026-08-30 at `5a9a261b8` against `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/catalogue.ts`, and `packages/anvil/runtime/src/feature-flags/resolver.ts`; operational inventories are recursively frozen and public contracts are deep-readonly, while lifecycle and evaluation policy remain unchanged |
 
-| Upstream                                                                                                                                                                                        | Downstream                                                                                                                      |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `plans/modules/feature-flag-catalogue.aps.md`, ADR-076, `flags/surfaces.json`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `crates/anvil-kernel-types/src/feature_flags.rs` | `AGENTS.md`, `docs/guides/feature-flag-reference.md`, `docs/guides/feature-flag-inventory.md`, account plan/entitlements (BACT) |
+| Upstream                                                                                                                                                                                                                                                                                                                                                     | Downstream                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `plans/modules/feature-flag-catalogue.aps.md`, ADR-076, `flags/surfaces.json`, `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`, `packages/anvil/flags-catalogue/src/manifest.ts`, `packages/anvil/flags-catalogue/src/catalogue.ts`, `packages/anvil/runtime/src/feature-flags/resolver.ts`, `crates/anvil-kernel-types/src/feature_flags.rs` | `AGENTS.md`, `docs/guides/feature-flag-reference.md`, `docs/guides/feature-flag-inventory.md`, account plan/entitlements (BACT) |
 
 This guide defines the operational rules for creating, rolling out, promoting,
 disabling, and retiring feature flags in anvil, and the maintenance rules for
@@ -19,6 +19,20 @@ Account rows carry a durable `plan` name that evaluation context uses — see
 and
 [account plan, activity, and entitlements](./account-plan-activity-and-entitlements.md).
 Do not invent free-form feature lists on the user row.
+
+## Operational Inventory Immutability
+
+The TypeScript catalogue validates `flags/manifest.json`, `flags/groups.json`,
+`flags/audiences.json`, and `flags/environments.json` once at module load, then
+recursively freezes all four inventories before constructing derived maps. Their
+public accessors and flag lookups return `DeepReadonly` contracts. Consumers
+must treat those objects as process-wide authority: change the canonical JSON
+and reload the module instead of mutating an accessor result.
+
+The shared resolver accepts a `ReadonlyFeatureFlagDefinition` and does not
+mutate it. This closes import-order mutation of later catalogue decisions
+without changing resolution precedence, lifecycle, targeting, or override
+policy.
 
 ## Product Catalogue Governance
 
