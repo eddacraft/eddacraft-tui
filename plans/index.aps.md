@@ -830,9 +830,14 @@ v0.1 = SETCON + SETINS +
 SETPREF (`Settings | Status | Sources` only — the `Audit` tab ships with SETGOV,
 never before, so the surface cannot imply history it has not observed).
 
+**POSBRD** is a Status-panel consumer on `anvil status`, not `/settings` v0.1.
+Spec: [`2026-08-30-protection-posture-board.md`](./specs/2026-08-30-protection-posture-board.md).
+Not a release claim.
+
 | Module | Scope | Slice | Status | Progress | Programme next |
 | ------ | ----- | ----- | ------ | -------- | -------------- |
 | [settings-truth-contract](./modules/settings-truth-contract.aps.md) | SETCON | 0 — truth contract | Merged | 12/12 | All 12 SETCON work items are Merged via PR #4140 and PR #4216. SETINS remains gated on a named release window. |
+| [protection-posture-board](./modules/protection-posture-board.aps.md) | POSBRD | Status panel — v1 `anvil status` | Proposed | 0/5 | Spec accepted 2026-08-30. First SETCON Status-panel consumer; SETINS later renders the same snapshot. Items stay Proposed until promoted. |
 | [settings-inspect-surface](./modules/settings-inspect-surface.aps.md) | SETINS | 1 — inspect | Proposed | 0/10 | Gated on SETCON-008/-010; open a [CLICT](./modules/cli-command-truth.aps.md) slice before any doc claims `anvil settings` exists |
 | [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Proposed | 0/6 | Gated on SETINS; introduces the single authorised write path (Class A only) |
 | [settings-governed-changes](./modules/settings-governed-changes.aps.md) | SETGOV | 3 — governed changes and audit | Draft | 0/9 | Post-v0.1; needs the audit-store reuse decision and an approval-authority model with [ORGHIER](./modules/org-policy-hierarchy.aps.md)/[POLLC](./modules/policy-lifecycle.aps.md) |
