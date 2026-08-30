@@ -5,9 +5,19 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | In Progress | 5/8   |
+| SDT | —     | In Progress | 7/8   |
 
-**Last reviewed:** 2026-08-28 (SDT-001 and SDT-002 Merged via
+**Last reviewed:** 2026-08-30 (SDT-003 and SDT-004 Merged; module 7/8, with
+only SDT-005 still Proposed. SDT-003's flip was **owed** — ADR-136 landed via
+[#4228](https://github.com/eddacraft/anvil-001/pull/4228) on 2026-08-30 and its
+status was never moved off In Progress, so this reconciliation clears two items,
+not one. SDT-004 vendored 27 gitleaks tier-1 provider rules and is the first
+change in this module to move the *detection* number rather than the honesty
+number. **One operator decision is outstanding:** ADR-136 §1 names
+`SecretPatternDef` as the conversion target, which is unimplementable for a
+confidence-bearing tier; a replacement paragraph sits in the ADR marked
+*Proposed — not yet accepted*. Previously reviewed 2026-08-28: SDT-001 and
+SDT-002 Merged via
 [#4185](https://github.com/eddacraft/anvil-001/pull/4185), reviewed against
 `src/secret/check.rs`, `src/secret/scanner.rs`,
 `anvil-intercept-rules/src/secret.rs` and `tests/secret_calibration.rs`. The
@@ -299,8 +309,9 @@ known gap lives.
 
 ### SDT-003: ADR — ruleset acquisition posture (rules as data)
 
-- **Status:** In Progress — operator-promoted 2026-08-30, implemented on
-  `feat/sdt-003-rules-as-data-adr`. **ADR-136 Accepted 2026-08-30 (operator)**
+- **Status:** Merged — landed 2026-08-30 via
+  [#4228](https://github.com/eddacraft/anvil-001/pull/4228) at `36ff9361f`.
+  **ADR-136 Accepted 2026-08-30 (operator)**
   — the item's Validation asked for an accepted ADR; the executor correctly
   set it Proposed rather than self-accept, since every Accepted row in the log
   carries an operator or council attribution, and the operator flipped it. Unblocks SDT-004, which cannot start
@@ -395,8 +406,11 @@ known gap lives.
 
 ### SDT-004: Vendored ruleset, staged behind the corpus
 
-- **Status:** In Progress — operator-promoted 2026-08-30, implemented on
-  `feat/sdt-004-tier1-vendored-rules`. **Scoped to tier 1 this pass**
+- **Status:** Merged — tier 1 landed 2026-08-30 via
+  [#4234](https://github.com/eddacraft/anvil-001/pull/4234) at `482c2653e`.
+  Gap probes **8/20 -> 13/20 = 65.0%**, all planted **29/41 -> 34/41 = 82.9%**,
+  false-positive rate **unchanged at 1/13**, and zero vendored-rule findings
+  across a full `anvil audit` of this repo. **Scoped to tier 1 this pass**
   (operator decision 2026-08-30): high-confidence, prefix-anchored provider
   rules only, where a match is structurally the credential. The
   generic/entropy-adjacent half — where FP volume actually lives, and where
