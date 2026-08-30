@@ -76,6 +76,7 @@ pub struct GitEvaluationIdentity {
     /// Monotonic start retained by the caller across all stages of this evaluation run.
     pub run_started: Instant,
     run_timeout: Duration,
+    admitted: bool,
     administrative_state: Arc<EmptyGlobalConfig>,
 }
 
@@ -107,6 +108,7 @@ impl GitEvaluationIdentity {
             canonical_worktree_id: canonical_worktree_id.into(),
             run_started: Instant::now(),
             run_timeout,
+            admitted: false,
             administrative_state: Arc::new(EmptyGlobalConfig::create()?),
         })
     }
@@ -535,12 +537,19 @@ impl GitExtractor {
         identity: &GitEvaluationIdentity,
     ) -> Result<PreparedExtraction, GitNonEvaluation> {
         let started = identity.run_started;
+        if !identity.admitted {
+            return Err(not_evaluated(
+                "identity.not-admitted",
+                "identity",
+                "identity was not returned by repository admission".to_owned(),
+            ));
+        }
         let repository = repository.canonicalize().map_err(|error| {
             not_evaluated("repository.invalid", "repository", error.to_string())
         })?;
         let empty_config = Arc::clone(&identity.administrative_state);
-        let repository = self.resolve_canonical_worktree(&repository, &empty_config, started)?;
-        self.reject_replacement_state(&repository, &empty_config, started)?;
+        let repository =
+            self.resolve_canonical_worktree_after_admission(&repository, &empty_config, started)?;
         let verified_identity = self.derive_repository_identity(
             &repository,
             &empty_config,
@@ -759,6 +768,27 @@ impl GitExtractor {
         })
     }
 
+    fn resolve_canonical_worktree_after_admission(
+        &self,
+        repository: &Path,
+        empty_config: &EmptyGlobalConfig,
+        started: Instant,
+    ) -> Result<PathBuf, GitNonEvaluation> {
+        let worktree = self.run_git(
+            repository,
+            empty_config,
+            &["rev-parse", "--path-format=absolute", "--show-toplevel"],
+            started,
+            "identity-worktree",
+            64 * 1024,
+            "git.output-bytes",
+        )?;
+        let worktree = utf8_trimmed(worktree, "identity.worktree-invalid")?;
+        Path::new(&worktree).canonicalize().map_err(|error| {
+            not_evaluated("identity.worktree-invalid", "identity", error.to_string())
+        })
+    }
+
     fn derive_repository_identity(
         &self,
         repository: &Path,
@@ -785,6 +815,7 @@ impl GitExtractor {
             canonical_worktree_id: opaque_path_identity(b"worktree", repository),
             run_started: started,
             run_timeout: self.limits.run_timeout,
+            admitted: true,
             administrative_state: Arc::clone(empty_config),
         })
     }

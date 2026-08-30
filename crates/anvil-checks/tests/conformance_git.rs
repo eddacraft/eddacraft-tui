@@ -100,11 +100,6 @@ fn identity(repository: &Path) -> GitEvaluationIdentity {
         .expect("derive fixture identity")
 }
 
-fn unbound_identity() -> GitEvaluationIdentity {
-    GitEvaluationIdentity::from_unverified_parts("run-conf-003", "repo-fixture", "worktree-fixture")
-        .expect("create unverified identity")
-}
-
 #[test]
 fn claim_agnostic_footprint_accepts_non_conventional_headers_and_preserves_binding() {
     let repo = repository();
@@ -185,6 +180,35 @@ fn claim_agnostic_footprint_preserves_identity_and_budget_failures() {
         Some(extraction.head_revision.as_str())
     );
     assert_eq!(failure.limit, Some(0));
+}
+
+#[test]
+fn forged_matching_identity_cannot_bypass_repository_admission() {
+    let repo = repository();
+    let head = commit_file(repo.path(), "docs/guide.md", "guide\n", "docs: add guide");
+    let known_identity = identity(repo.path());
+
+    let info = repo.path().join(".git/info");
+    std::fs::create_dir_all(&info).expect("create Git info directory");
+    std::fs::write(info.join("grafts"), format!("{head}\n"))
+        .expect("create pre-existing administrative state");
+    let forged_identity = GitEvaluationIdentity::from_unverified_parts(
+        "run-conf-forged",
+        known_identity.repository_id,
+        known_identity.canonical_worktree_id,
+    )
+    .expect("forge matching public identity fields");
+
+    let outcome = GitExtractor::default().extract_footprint(
+        repo.path(),
+        GitSelection::Commit("HEAD".to_owned()),
+        &forged_identity,
+    );
+    let GitFootprintExtractionOutcome::NotEvaluated(failure) = outcome else {
+        panic!("unadmitted matching identity must not extract: {outcome:?}");
+    };
+    assert_eq!(failure.reason, "identity.not-admitted");
+    assert_eq!(failure.stage, "identity");
 }
 
 #[test]
@@ -425,12 +449,10 @@ fn rejects_replacement_refs_and_legacy_grafts() {
         "docs: add two",
     );
     git(replacement_repo.path(), &["replace", &first, &second]);
-    let replaced = GitExtractor::default().extract(
-        replacement_repo.path(),
-        GitSelection::Commit("HEAD".to_owned()),
-        &unbound_identity(),
-    );
-    assert_eq!(non_evaluation_reason(replaced), "repository.replace-ref");
+    let replaced = GitExtractor::default()
+        .identity_for_repository(replacement_repo.path(), "run-conf-011")
+        .expect_err("replacement refs must fail repository admission");
+    assert_eq!(replaced.reason, "repository.replace-ref");
 
     let graft_repo = repository();
     let head = commit_file(
@@ -442,12 +464,10 @@ fn rejects_replacement_refs_and_legacy_grafts() {
     let info = graft_repo.path().join(".git/info");
     std::fs::create_dir_all(&info).expect("create Git info directory");
     std::fs::write(info.join("grafts"), format!("{head}\n")).expect("write graft");
-    let grafted = GitExtractor::default().extract(
-        graft_repo.path(),
-        GitSelection::Commit("HEAD".to_owned()),
-        &unbound_identity(),
-    );
-    assert_eq!(non_evaluation_reason(grafted), "repository.graft");
+    let grafted = GitExtractor::default()
+        .identity_for_repository(graft_repo.path(), "run-conf-011")
+        .expect_err("legacy grafts must fail repository admission");
+    assert_eq!(grafted.reason, "repository.graft");
 }
 
 #[test]
@@ -1115,19 +1135,16 @@ fn administrative_mutation_git_wrapper(
     use std::os::unix::fs::PermissionsExt;
 
     let real_git = real_git_program();
-    let marker = directory.join("administration-checked");
     let target = match mutation {
         "shallow" => repository.join(".git/shallow"),
         "graft" => repository.join(".git/info/grafts"),
         _ => panic!("unknown administrative mutation"),
     };
     let script = format!(
-        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --is-shallow-repository '*)\n    '{}' \"$@\"\n    status=$?\n    if [ -e '{}' ]; then printf '%s\\n' '{}' > '{}'; else : > '{}'; fi\n    exit $status\n    ;;\nesac\nexec '{}' \"$@\"\n",
+        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --is-shallow-repository '*)\n    '{}' \"$@\"\n    status=$?\n    if [ \"$status\" -eq 0 ]; then printf '%s\\n' '{}' > '{}'; fi\n    exit $status\n    ;;\nesac\nexec '{}' \"$@\"\n",
         real_git.display(),
-        marker.display(),
         head,
         target.display(),
-        marker.display(),
         real_git.display()
     );
     let path = directory.join("git");
@@ -1226,11 +1243,14 @@ fn nested_repository_race_git_wrapper(directory: &Path, nested: &Path) {
     use std::os::unix::fs::PermissionsExt;
 
     let real_git = real_git_program();
+    let admitted = directory.join("outer-worktree-admitted");
     let script = format!(
-        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --path-format=absolute --show-toplevel '*)\n    '{}' \"$@\"\n    status=$?\n    '{}' -C '{}' init -q\n    exit $status\n    ;;\nesac\nexec '{}' \"$@\"\n",
+        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --path-format=absolute --show-toplevel '*)\n    '{}' \"$@\"\n    status=$?\n    if [ \"$status\" -eq 0 ]; then\n      if [ -e '{}' ]; then '{}' -C '{}' init -q; else /usr/bin/touch '{}'; fi\n    fi\n    exit $status\n    ;;\nesac\nexec '{}' \"$@\"\n",
         real_git.display(),
+        admitted.display(),
         real_git.display(),
         nested.display(),
+        admitted.display(),
         real_git.display()
     );
     let path = directory.join("git");
@@ -1249,7 +1269,6 @@ fn verified_canonical_worktree_remains_the_command_boundary() {
     commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");
     let nested = repo.path().join("docs/nested");
     std::fs::create_dir_all(&nested).expect("create nested path");
-    let expected = identity(repo.path());
     let wrapper = tempfile::tempdir().expect("wrapper directory");
     nested_repository_race_git_wrapper(wrapper.path(), &nested);
 
@@ -1260,8 +1279,6 @@ fn verified_canonical_worktree_remains_the_command_boundary() {
             "--nocapture",
         ])
         .env("ANVIL_CONF_CANONICAL_REPO", &nested)
-        .env("ANVIL_CONF_REPOSITORY_ID", &expected.repository_id)
-        .env("ANVIL_CONF_WORKTREE_ID", &expected.canonical_worktree_id)
         .env("PATH", wrapper.path())
         .status()
         .expect("run canonical-worktree boundary child");
@@ -1277,16 +1294,14 @@ fn canonical_worktree_boundary_child() {
     let Some(repository) = std::env::var_os("ANVIL_CONF_CANONICAL_REPO") else {
         return;
     };
-    let expected = GitEvaluationIdentity::from_unverified_parts(
-        "run-conf-003",
-        std::env::var("ANVIL_CONF_REPOSITORY_ID").expect("repository identity"),
-        std::env::var("ANVIL_CONF_WORKTREE_ID").expect("worktree identity"),
-    )
-    .expect("create expected identity");
-    let outcome = GitExtractor::default().extract(
+    let extractor = GitExtractor::default();
+    let identity = extractor
+        .identity_for_repository(Path::new(&repository), "run-conf-011")
+        .expect("admit the outer worktree before the nested repository appears");
+    let outcome = extractor.extract(
         Path::new(&repository),
         GitSelection::Commit("HEAD".into()),
-        &expected,
+        &identity,
     );
     let GitExtractionOutcome::Evaluated(extraction) = outcome else {
         panic!("verified canonical worktree must remain authoritative: {outcome:?}");
@@ -1535,9 +1550,19 @@ fn phase_environment_child() {
     let Some(repository) = std::env::var_os("ANVIL_CONF_PHASE_ENV_REPO") else {
         return;
     };
-    GitExtractor::default()
+    let extractor = GitExtractor::default();
+    let identity = extractor
         .identity_for_repository(Path::new(&repository), "run-conf-011")
         .expect("derive identity through the phase-specific Git environments");
+    let outcome = extractor.extract_footprint(
+        Path::new(&repository),
+        GitSelection::Commit("HEAD".to_owned()),
+        &identity,
+    );
+    assert!(
+        matches!(outcome, GitFootprintExtractionOutcome::Evaluated(_)),
+        "extraction must remain in the post-admission environment: {outcome:?}"
+    );
 }
 
 #[cfg(unix)]
@@ -1591,6 +1616,43 @@ fn repository_administration_mutation_cannot_change_evaluation_graph() {
             status.success(),
             "{mutation} mutation changed the evaluated graph"
         );
+    }
+}
+
+#[test]
+fn real_repository_administration_created_after_identity_stays_outside_the_run() {
+    for mutation in ["shallow", "graft"] {
+        let repo = repository();
+        commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");
+        let head = commit_file(repo.path(), "docs/head.md", "head\n", "docs: add head");
+        let extractor = GitExtractor::default();
+        let identity = extractor
+            .identity_for_repository(repo.path(), "run-conf-011")
+            .expect("admit the clean repository once");
+
+        let target = match mutation {
+            "shallow" => repo.path().join(".git/shallow"),
+            "graft" => {
+                let info = repo.path().join(".git/info");
+                std::fs::create_dir_all(&info).expect("create Git info directory");
+                info.join("grafts")
+            }
+            _ => unreachable!(),
+        };
+        std::fs::write(target, format!("{head}\n")).expect("mutate real administration state");
+
+        let outcome = extractor.extract_footprint(
+            repo.path(),
+            GitSelection::Commit("HEAD".to_owned()),
+            &identity,
+        );
+        let GitFootprintExtractionOutcome::Evaluated(extraction) = outcome else {
+            panic!("post-admission {mutation} state must remain outside the run: {outcome:?}");
+        };
+        let GitFootprintCommitExtraction::Evaluated(commit) = &extraction.commits[0] else {
+            panic!("post-admission {mutation} state must not replace the commit graph");
+        };
+        assert_eq!(commit.coverage[0].new_path, "docs/head.md");
     }
 }
 
@@ -1852,10 +1914,8 @@ fn shallow_repository_is_reason_coded_not_evaluated() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let outcome = GitExtractor::default().extract(
-        &clone,
-        GitSelection::Commit("HEAD".to_owned()),
-        &unbound_identity(),
-    );
-    assert_eq!(non_evaluation_reason(outcome), "repository.shallow");
+    let failure = GitExtractor::default()
+        .identity_for_repository(&clone, "run-conf-011")
+        .expect_err("shallow repositories must fail repository admission");
+    assert_eq!(failure.reason, "repository.shallow");
 }
